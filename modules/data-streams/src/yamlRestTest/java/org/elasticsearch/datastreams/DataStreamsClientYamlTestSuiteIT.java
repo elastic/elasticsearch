@@ -26,10 +26,6 @@ public class DataStreamsClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase 
 
     public DataStreamsClientYamlTestSuiteIT(final ClientYamlTestCandidate testCandidate) {
         super(testCandidate);
-
-        if (testCandidate.getRestTestSuite().getName().equals("290_columnar")) {
-            assumeTrue("test suite requires a trial or enterprise license", trialLicense);
-        }
     }
 
     @ParametersFactory
@@ -47,8 +43,6 @@ public class DataStreamsClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase 
     @ClassRule
     public static ElasticsearchCluster cluster = createCluster();
 
-    static boolean trialLicense;
-
     private static ElasticsearchCluster createCluster() {
         LocalClusterSpecBuilder<ElasticsearchCluster> clusterBuilder = ElasticsearchCluster.local()
             .distribution(DistributionType.DEFAULT)
@@ -62,7 +56,6 @@ public class DataStreamsClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase 
             .systemProperty("es.queryable_built_in_roles_enabled", "false");
         if (initTestSeed().nextBoolean()) {
             clusterBuilder.setting("xpack.license.self_generated.type", "trial");
-            trialLicense = true;
         }
         boolean setNodes = Booleans.parseBoolean(System.getProperty("yaml.rest.tests.set_num_nodes", "true"));
         if (setNodes) {

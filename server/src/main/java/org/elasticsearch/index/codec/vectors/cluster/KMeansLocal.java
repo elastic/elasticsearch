@@ -265,7 +265,7 @@ abstract class KMeansLocal<V> {
         }
         innerCluster(vectors, kMeansIntermediate, neighborhoods);
         removeEmptyClusters(kMeansIntermediate, neighborhoods, ops);
-        if (neighborAware && soarLambda >= 0) {
+        if (neighborAware && soarLambda >= 0 && kMeansIntermediate.centroids().length > 1) {
             assert kMeansIntermediate.soarAssignments().length == 0;
             kMeansIntermediate.setSoarAssignments(new int[vectors.size()]);
             assignSpilled(vectors, kMeansIntermediate, neighborhoods, soarLambda);

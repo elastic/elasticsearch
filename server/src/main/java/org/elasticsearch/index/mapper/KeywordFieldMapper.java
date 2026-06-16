@@ -75,6 +75,7 @@ import org.elasticsearch.index.mapper.blockloader.docvalues.fn.Utf8CodePointsFro
 import org.elasticsearch.index.query.AutomatonQueryWithDescription;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.similarity.SimilarityProvider;
+import org.elasticsearch.lucene.queries.SlowCustomBinaryDocValuesPrefixQuery;
 import org.elasticsearch.lucene.queries.SlowCustomBinaryDocValuesTermInSetQuery;
 import org.elasticsearch.lucene.queries.SlowCustomBinaryDocValuesTermQuery;
 import org.elasticsearch.lucene.queries.SlowCustomBinaryDocValuesWildcardQuery;
@@ -184,16 +185,17 @@ public final class KeywordFieldMapper extends FieldMapper {
         return textSearchInfo;
     }
 
-    private static DocValuesParameter.Values defaultDocValuesParameters(IndexMode indexMode) {
+    private static DocValuesParameter.Values defaultDocValuesParameters(IndexSettings indexSettings) {
         if (DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled() == false) {
             return new DocValuesParameter.Values(true, DocValuesParameter.Values.Cardinality.LOW, true);
         }
 
-        if (indexMode.isStrictColumnar()) {
-            return new DocValuesParameter.Values(true, DocValuesParameter.Values.Cardinality.HIGH, true);
+        boolean multiValue = FieldMapper.DOC_VALUES_MULTI_VALUE_SETTING.get(indexSettings.getSettings());
+        if (indexSettings.getMode().isStrictColumnar()) {
+            return new DocValuesParameter.Values(true, DocValuesParameter.Values.Cardinality.HIGH, multiValue);
         }
 
-        return new DocValuesParameter.Values(true, DocValuesParameter.Values.Cardinality.LOW, true);
+        return new DocValuesParameter.Values(true, DocValuesParameter.Values.Cardinality.LOW, multiValue);
     }
 
     private static KeywordFieldMapper toType(FieldMapper in) {
@@ -291,7 +293,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             this.script.precludesParameters(nullValue);
 
             this.docValuesParameters = DocValuesParameter.ofWithCardinality(
-                defaultDocValuesParameters(indexSettings.getMode()),
+                defaultDocValuesParameters(indexSettings),
                 m -> toType(m).docValuesParameters()
             );
 
@@ -358,14 +360,14 @@ public final class KeywordFieldMapper extends FieldMapper {
         @Deprecated()
         public Builder docValues(boolean hasDocValues) {
             this.docValuesParameters.setValue(
-                hasDocValues ? defaultDocValuesParameters(indexSettings.getMode()) : DocValuesParameter.Values.DISABLED
+                hasDocValues ? defaultDocValuesParameters(indexSettings) : DocValuesParameter.Values.DISABLED
             );
             return this;
         }
 
         public Builder docValues(DocValuesParameter.Values.Cardinality cardinality) {
             this.docValuesParameters.setValue(
-                new DocValuesParameter.Values(true, cardinality, defaultDocValuesParameters(indexSettings.getMode()).multiValue())
+                new DocValuesParameter.Values(true, cardinality, defaultDocValuesParameters(indexSettings).multiValue())
             );
             return this;
         }
@@ -564,6 +566,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                 && useTimeSeriesDocValuesSkippers(indexSettings, dimension.get());
         }
 
+        // TODO: for columnar the default should be based on the soon the built skipper mapping attribute.
         private boolean shouldUseHostnameSkipper(final String fullFieldName) {
             IndexMode mode = indexSettings.getMode();
             return docValuesParameters.getValue().enabled()
@@ -851,13 +854,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             if (indexType.hasTerms()) {
                 return super.prefixQuery(value, method, caseInsensitive, context);
             } else if (usesBinaryDocValues) {
-                return new StringScriptFieldPrefixQuery(
-                    new Script(""),
-                    ctx -> new SortedBinaryDocValuesStringFieldScript(name(), context.lookup(), ctx, indexVersion),
-                    name(),
-                    indexedValueForSearch(value).utf8ToString(),
-                    caseInsensitive
-                );
+                return new SlowCustomBinaryDocValuesPrefixQuery(name(), indexedValueForSearch(value).utf8ToString(), caseInsensitive);
             } else {
                 if (caseInsensitive == false) {
                     Term prefix = new Term(name(), indexedValueForSearch(value));
@@ -980,8 +977,11 @@ public final class KeywordFieldMapper extends FieldMapper {
                 return new BlockStoredFieldsReader.BytesFromBytesRefsBlockLoader(name());
             }
 
+            // columnar_stored pre-builds _source as a single blob; skip the per-field fallback loader.
             // Multi fields don't have fallback synthetic source.
-            if (isSyntheticSourceEnabled() && blContext.parentField(name()) == null) {
+            if (isSyntheticSourceEnabled()
+                && blContext.mappingLookup().isSourceColumnarStored() == false
+                && blContext.parentField(name()) == null) {
                 return new FallbackSyntheticSourceBlockLoader(
                     fallbackSyntheticSourceBlockLoaderReader(),
                     name(),
@@ -1262,10 +1262,6 @@ public final class KeywordFieldMapper extends FieldMapper {
                 return super.regexpQuery(value, syntaxFlags, matchFlags, maxDeterminizedStates, method, context);
             } else {
                 value = AutomatonQueries.collapseConsecutiveQuantifiers(value);
-                if (matchFlags != 0) {
-                    throw new IllegalArgumentException("Match flags not yet implemented [" + matchFlags + "]");
-                }
-
                 if (usesBinaryDocValues) {
                     return new StringScriptFieldRegexpQuery(
                         new Script(""),

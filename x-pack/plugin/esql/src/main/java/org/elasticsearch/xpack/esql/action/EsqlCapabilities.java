@@ -461,6 +461,19 @@ public class EsqlCapabilities {
         FIELD_EXTRACT_RETURNS_MULTI_VALUE,
 
         /**
+         * {@code field_extract(<flattened root>, "<key>")} returns the sub-field's value for an explicitly
+         * mapped sub-key (one declared under {@code properties}) instead of {@code null}. Mapped sub-keys are
+         * no longer fused into the keyed block loader nor pushed to a Lucene query - the keyed channel never
+         * stores them, and a typed-field query would apply different comparison semantics than the keyword
+         * evaluator - so they always go through the per-row evaluator over the merged flattened root. This
+         * makes the result independent of whether the optimizer pushed the call. Tests that assert the value
+         * (rather than {@code null}) for a mapped sub-key, or that a mapped-key comparison is not pushed to
+         * Lucene, must require this capability so they skip on mixed clusters where any data node still fuses
+         * mapped sub-keys and returns {@code null}.
+         */
+        FIELD_EXTRACT_MAPPED_SUBFIELD_RETURNS_VALUE(Build.current().isSnapshot()),
+
+        /**
          * Optimization for ST_CENTROID changed some results in cartesian data. #108713
          */
         ST_CENTROID_AGG_OPTIMIZED,
@@ -1330,7 +1343,7 @@ public class EsqlCapabilities {
         /**
          * Fix for union types that have counter field renamed, but the data type is inconsistent with union all output.
          */
-        SUBQUERY_IN_FROM_COMMAND_UNION_TYPES_COUNTER_TYPE_INCONSISTENT_AFTER_RENAME,
+        SUBQUERY_IN_FROM_COMMAND_UNION_TYPES_IMPLICIT_CASTING_INCONSISTENT_AFTER_RENAME,
 
         /**
          * Fix for {@code PruneColumns} leaving an inconsistent plan when an {@code INLINE STATS} sits above a {@code UnionAll}
@@ -1363,6 +1376,11 @@ public class EsqlCapabilities {
          */
         SUBQUERY_WITH_TS(Build.current().isSnapshot()),
 
+        /**
+         * Fixed {@code TranslateTimeSeriesWithout} and {@code TranslateTimeSeriesAggregate} to associate time-series attributes with the
+         * correct time-series index when a join presents.
+         */
+        WHERE_IN_SUBQUERY_WITH_TS(Build.current().isSnapshot()),
         /**
          * Support for views in cluster state (and REST API).
          */
@@ -2136,7 +2154,7 @@ public class EsqlCapabilities {
         /**
          * TS window functions use backward window semantics only.
          */
-        FIX_TIME_SERIES_WINDOW_BACKWARD(Build.current().isSnapshot()),
+        FIX_TIME_SERIES_WINDOW_BACKWARD,
 
         /**
          * PromQL uses TSTEP instead of TBUCKET, with corrected open-ended range query bounds.
@@ -2265,7 +2283,7 @@ public class EsqlCapabilities {
         TS_COLLAPSE,
 
         /**
-         * Support for`WITHOUT` grouping function
+         * Support for `WITHOUT` grouping function
          * that excludes specific dimensions from time-series grouping.
          */
         ESQL_WITHOUT_GROUPING,
@@ -2774,6 +2792,11 @@ public class EsqlCapabilities {
         TIME_SERIES_WINDOW_NON_MULTIPLE,
 
         /**
+         * Move rules for TS translation into the Analyzer
+         */
+        TIME_SERIES_TRANSLATION_IN_ANALYZER,
+
+        /**
          * Fix for {@code SUM(null)} producing a type mismatch after surrogate expansion.
          * See https://github.com/elastic/elasticsearch/issues/144914
          */
@@ -3006,7 +3029,23 @@ public class EsqlCapabilities {
         /**
          * Support for COALESCE with date_range type.
          */
-        COALESCE_DATE_RANGE(Build.current().isSnapshot()),
+        COALESCE_DATE_RANGE(DATE_RANGE_FIELD_TYPE_V6.isEnabled()),
+
+        /**
+         * Support for CASE with date_range type.
+         */
+        CASE_DATE_RANGE(DATE_RANGE_FIELD_TYPE_V6.isEnabled()),
+
+        /**
+         * Support for equality (==, !=) and IN with date_range type.
+         */
+        EQUALITY_DATE_RANGE(DATE_RANGE_FIELD_TYPE_V6.isEnabled()),
+
+        /**
+         * Fix TopN encoding/decoding of {@code long_range} values.
+         * <a href="https://github.com/elastic/elasticsearch/issues/150383">#150383</a>
+         */
+        FIX_TOPN_LONG_RANGE_ENCODING(DATE_RANGE_FIELD_TYPE_V6.isEnabled()),
 
         /**
          * Support for ESQL parameters in PromQL label matchers:
@@ -3027,6 +3066,16 @@ public class EsqlCapabilities {
          * <a href="https://github.com/elastic/elasticsearch/issues/149501">#149501</a>
          */
         APPROXIMATION_FIX_NON_APPROXIMABLE_FORK_BRANCHES,
+
+        /**
+         * Bugfix in query approximation to not produce confidence intervals for multivalued functions.
+         */
+        APPROXIMATION_FIX_MV_FUNCTIONS,
+
+        /**
+         * Support for PromQL {@code histogram_quantile()} over classic histograms with {@code le} buckets.
+         */
+        PROMQL_HISTOGRAM_QUANTILE,
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

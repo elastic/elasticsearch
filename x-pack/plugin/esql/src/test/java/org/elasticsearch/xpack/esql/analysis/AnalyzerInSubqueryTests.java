@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.TimeSeriesMetadataAttribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
@@ -39,10 +40,11 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Subquery;
+import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.join.AntiJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
-import org.elasticsearch.xpack.esql.plan.logical.join.LeftSemiJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.MarkJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.SemiJoin;
 import org.hamcrest.Matcher;
 import org.junit.Before;
@@ -77,7 +79,6 @@ public class AnalyzerInSubqueryTests extends ESTestCase {
         Limit limit = as(plan, Limit.class);
         SemiJoin semiJoin = as(limit.child(), SemiJoin.class);
         assertThat(semiJoin.config().type(), equalTo(JoinTypes.SEMI));
-        assertFalse(semiJoin.isAntiJoin());
         assertThat(semiJoin.config().leftFields().size(), equalTo(1));
         assertThat(semiJoin.config().leftFields().get(0).name(), equalTo("emp_no"));
         assertThat(semiJoin.config().rightFields().size(), equalTo(1));
@@ -101,7 +102,6 @@ public class AnalyzerInSubqueryTests extends ESTestCase {
         Limit limit = as(plan, Limit.class);
         AntiJoin antiJoin = as(limit.child(), AntiJoin.class);
         assertThat(antiJoin.config().type(), equalTo(JoinTypes.ANTI));
-        assertTrue(antiJoin.isAntiJoin());
         assertThat(antiJoin.config().leftFields().size(), equalTo(1));
         assertThat(antiJoin.config().leftFields().get(0).name(), equalTo("emp_no"));
         assertThat(antiJoin.config().rightFields().size(), equalTo(1));
@@ -125,7 +125,6 @@ public class AnalyzerInSubqueryTests extends ESTestCase {
 
         Limit limit = as(plan, Limit.class);
         SemiJoin semiJoin = as(limit.child(), SemiJoin.class);
-        assertFalse(semiJoin.isAntiJoin());
 
         assertThat(semiJoin.config().type(), equalTo(JoinTypes.SEMI));
         assertThat(semiJoin.config().leftFields().size(), equalTo(1));
@@ -1062,7 +1061,7 @@ public class AnalyzerInSubqueryTests extends ESTestCase {
             """);
 
         // emp_no NOT IN parses as Not(InSubquery); the outer NOT yields Not(Not(InSubquery)).
-        // Inside OR, the InSubquery is replaced by a LeftSemiJoin's mark attribute, leaving the
+        // Inside OR, the InSubquery is replaced by a MarkJoin's mark attribute, leaving the
         // surrounding double-NOT in place.
         Project topProject = as(plan, Project.class);
         assertEquals(11, topProject.projections().size());
@@ -1075,14 +1074,14 @@ public class AnalyzerInSubqueryTests extends ESTestCase {
         as(innerNot.field(), Attribute.class);
         as(or.right(), GreaterThan.class);
 
-        LeftSemiJoin lsj = as(filter.child(), LeftSemiJoin.class);
-        assertThat(lsj.config().type(), equalTo(JoinTypes.LEFT_SEMI));
-        assertThat(lsj.config().leftFields().get(0).name(), equalTo("emp_no"));
-        assertThat(lsj.config().rightFields().get(0).name(), equalTo("emp_no"));
-        Project subqueryProject = as(lsj.right(), Project.class);
+        MarkJoin mj = as(filter.child(), MarkJoin.class);
+        assertThat(mj.config().type(), equalTo(JoinTypes.MARK));
+        assertThat(mj.config().leftFields().get(0).name(), equalTo("emp_no"));
+        assertThat(mj.config().rightFields().get(0).name(), equalTo("emp_no"));
+        Project subqueryProject = as(mj.right(), Project.class);
         EsRelation subqueryRelation = as(subqueryProject.child(), EsRelation.class);
         assertEquals("employees", subqueryRelation.indexPattern());
-        EsRelation main = as(lsj.left(), EsRelation.class);
+        EsRelation main = as(mj.left(), EsRelation.class);
         assertEquals("test", main.indexPattern());
     }
 
@@ -1093,7 +1092,7 @@ public class AnalyzerInSubqueryTests extends ESTestCase {
                OR salary IN (FROM employees | KEEP salary)
             """);
 
-        // Both InSubquery operands of OR become LeftSemiJoins; the rewritten Filter references their marks.
+        // Both InSubquery operands of OR become MarkJoins; the rewritten Filter references their marks.
         Project topProject = as(plan, Project.class);
         assertEquals(11, topProject.projections().size());
         assertFalse(topProject.projections().stream().anyMatch(p -> p instanceof Alias a && a.synthetic()));
@@ -1101,20 +1100,20 @@ public class AnalyzerInSubqueryTests extends ESTestCase {
         Filter filter = as(limit.child(), Filter.class);
         Or or = as(filter.condition(), Or.class);
         // emp_no NOT IN inside outer NOT: parses as Not(Not(InSubquery)); the inner InSubquery
-        // becomes a LeftSemiJoin mark, leaving the double NOT in place.
+        // becomes a MarkJoin mark, leaving the double NOT in place.
         Not outerNot = as(or.left(), Not.class);
         Not innerNot = as(outerNot.field(), Not.class);
         as(innerNot.field(), Attribute.class);
         as(or.right(), Attribute.class);
 
-        LeftSemiJoin salaryJoin = as(filter.child(), LeftSemiJoin.class);
+        MarkJoin salaryJoin = as(filter.child(), MarkJoin.class);
         assertThat(salaryJoin.config().leftFields().get(0).name(), equalTo("salary"));
         assertThat(salaryJoin.config().rightFields().get(0).name(), equalTo("salary"));
         Project subqueryProject = as(salaryJoin.right(), Project.class);
         EsRelation subqueryRelation = as(subqueryProject.child(), EsRelation.class);
         assertEquals("employees", subqueryRelation.indexPattern());
 
-        LeftSemiJoin empNoJoin = as(salaryJoin.left(), LeftSemiJoin.class);
+        MarkJoin empNoJoin = as(salaryJoin.left(), MarkJoin.class);
         assertThat(empNoJoin.config().leftFields().get(0).name(), equalTo("emp_no"));
         assertThat(empNoJoin.config().rightFields().get(0).name(), equalTo("emp_no"));
         subqueryProject = as(empNoJoin.right(), Project.class);
@@ -1177,12 +1176,12 @@ public class AnalyzerInSubqueryTests extends ESTestCase {
 
     // -- disjunctive IN/NOT IN subquery tests --
     //
-    // These now produce LeftSemiJoin per InSubquery; each LeftSemiJoin emits a synthetic boolean
+    // These now produce MarkJoin per InSubquery; each MarkJoin emits a synthetic boolean
     // mark attribute that the rewritten WHERE condition references. The plan shape is:
     // Project (drop marks)
     // Filter (mark1 OR mark2 OR ...) -- referencing the mark attributes
-    // LeftSemiJoin (last InSubquery → mark)
-    // LeftSemiJoin (...)
+    // MarkJoin (last InSubquery → mark)
+    // MarkJoin (...)
     // ...
     // EsRelation
     // This preserves SQL three-valued logic across the disjunction (the previous UnionAll rewrite
@@ -1204,11 +1203,11 @@ public class AnalyzerInSubqueryTests extends ESTestCase {
         as(or.left(), Attribute.class);
         as(or.right(), Attribute.class);
 
-        LeftSemiJoin salaryJoin = as(filter.child(), LeftSemiJoin.class);
-        assertThat(salaryJoin.config().type(), equalTo(JoinTypes.LEFT_SEMI));
+        MarkJoin salaryJoin = as(filter.child(), MarkJoin.class);
+        assertThat(salaryJoin.config().type(), equalTo(JoinTypes.MARK));
         assertThat(salaryJoin.config().leftFields().get(0).name(), equalTo("salary"));
         assertThat(salaryJoin.config().rightFields().get(0).name(), equalTo("salary"));
-        LeftSemiJoin empNoJoin = as(salaryJoin.left(), LeftSemiJoin.class);
+        MarkJoin empNoJoin = as(salaryJoin.left(), MarkJoin.class);
         assertThat(empNoJoin.config().leftFields().get(0).name(), equalTo("emp_no"));
         assertThat(empNoJoin.config().rightFields().get(0).name(), equalTo("emp_no"));
         EsRelation main = as(empNoJoin.left(), EsRelation.class);
@@ -1232,8 +1231,8 @@ public class AnalyzerInSubqueryTests extends ESTestCase {
         as(leftNot.field(), Attribute.class);
         as(or.right(), Attribute.class);
 
-        // Outer LeftSemiJoin for the second IN (right-hand emp_no IN sub2)
-        LeftSemiJoin innerJoin = as(filter.child(), LeftSemiJoin.class);
+        // Outer MarkJoin for the second IN (right-hand emp_no IN sub2)
+        MarkJoin innerJoin = as(filter.child(), MarkJoin.class);
         assertThat(innerJoin.config().leftFields().get(0).name(), equalTo("emp_no"));
         assertThat(innerJoin.config().rightFields().get(0).name(), equalTo("emp_no"));
         // Subquery has WHERE salary > 50000
@@ -1243,8 +1242,8 @@ public class AnalyzerInSubqueryTests extends ESTestCase {
         EsRelation subqueryRelation = as(innerRightFilter.child(), EsRelation.class);
         assertEquals("employees", subqueryRelation.indexPattern());
 
-        // Inner LeftSemiJoin for the first NOT IN (which became NOT $mark below).
-        LeftSemiJoin outerJoin = as(innerJoin.left(), LeftSemiJoin.class);
+        // Inner MarkJoin for the first NOT IN (which became NOT $mark below).
+        MarkJoin outerJoin = as(innerJoin.left(), MarkJoin.class);
         assertThat(outerJoin.config().leftFields().get(0).name(), equalTo("emp_no"));
         assertThat(outerJoin.config().rightFields().get(0).name(), equalTo("emp_no"));
         Project outerRightProject = as(outerJoin.right(), Project.class);
@@ -1270,14 +1269,14 @@ public class AnalyzerInSubqueryTests extends ESTestCase {
         as(or.left(), GreaterThan.class);
         as(or.right(), Attribute.class);
 
-        LeftSemiJoin lsj = as(filter.child(), LeftSemiJoin.class);
-        assertThat(lsj.config().type(), equalTo(JoinTypes.LEFT_SEMI));
-        assertThat(lsj.config().leftFields().get(0).name(), equalTo("emp_no"));
-        assertThat(lsj.config().rightFields().get(0).name(), equalTo("emp_no"));
-        Project innerProject = as(lsj.right(), Project.class);
+        MarkJoin mj = as(filter.child(), MarkJoin.class);
+        assertThat(mj.config().type(), equalTo(JoinTypes.MARK));
+        assertThat(mj.config().leftFields().get(0).name(), equalTo("emp_no"));
+        assertThat(mj.config().rightFields().get(0).name(), equalTo("emp_no"));
+        Project innerProject = as(mj.right(), Project.class);
         EsRelation innerRelation = as(innerProject.child(), EsRelation.class);
         assertEquals("employees", innerRelation.indexPattern());
-        EsRelation main = as(lsj.left(), EsRelation.class);
+        EsRelation main = as(mj.left(), EsRelation.class);
         assertEquals("test", main.indexPattern());
     }
 
@@ -1286,7 +1285,7 @@ public class AnalyzerInSubqueryTests extends ESTestCase {
     /**
      * {@code WHERE emp_no IN (FROM employees | KEEP emp_no) OR (salary > 50000 OR (languages < 3 OR gender NOT IN (...)))}
      * <p>
-     * Both InSubqueries appear under {@code OR}, so each is rewritten to a {@link LeftSemiJoin}
+     * Both InSubqueries appear under {@code OR}, so each is rewritten to a {@link MarkJoin}
      * with a mark attribute and the entire boolean expression is preserved unchanged in a single
      * Filter on top of the join stack.
      */
@@ -1310,12 +1309,12 @@ public class AnalyzerInSubqueryTests extends ESTestCase {
         as(or.left(), LessThan.class);
         Not not = as(or.right(), Not.class);
         as(not.field(), Attribute.class);
-        // Two LeftSemiJoins (emp_no first, gender on top).
-        LeftSemiJoin genderJoin = as(filter.child(), LeftSemiJoin.class);
-        assertThat(genderJoin.config().type(), equalTo(JoinTypes.LEFT_SEMI));
+        // Two MarkJoins (emp_no first, gender on top).
+        MarkJoin genderJoin = as(filter.child(), MarkJoin.class);
+        assertThat(genderJoin.config().type(), equalTo(JoinTypes.MARK));
         assertThat(genderJoin.config().leftFields().get(0).name(), equalTo("gender"));
         assertThat(genderJoin.config().rightFields().get(0).name(), equalTo("gender"));
-        LeftSemiJoin empNoJoin = as(genderJoin.left(), LeftSemiJoin.class);
+        MarkJoin empNoJoin = as(genderJoin.left(), MarkJoin.class);
         assertThat(empNoJoin.config().leftFields().get(0).name(), equalTo("emp_no"));
         assertThat(empNoJoin.config().rightFields().get(0).name(), equalTo("emp_no"));
         EsRelation main = as(empNoJoin.left(), EsRelation.class);
@@ -1324,8 +1323,8 @@ public class AnalyzerInSubqueryTests extends ESTestCase {
 
     /**
      * Inner {@code AND} containing a NOT IN is itself a child of OR — the NOT IN is in boolean
-     * position, so it becomes a {@link LeftSemiJoin}. Previous rewrite required a special
-     * "complexity 2" disjunct ordering trick; the LeftSemiJoin path handles it uniformly.
+     * position, so it becomes a {@link MarkJoin}. Previous rewrite required a special
+     * "complexity 2" disjunct ordering trick; the MarkJoin path handles it uniformly.
      */
     public void testDisjunctiveOrChainWithConjunctiveNotInSubquery() {
         LogicalPlan plan = analyzeInSubquery("""
@@ -1347,15 +1346,15 @@ public class AnalyzerInSubqueryTests extends ESTestCase {
         as(and.left(), LessThan.class);
         Not not = as(and.right(), Not.class);
         as(not.field(), Attribute.class);
-        LeftSemiJoin genderJoin = as(filter.child(), LeftSemiJoin.class);
+        MarkJoin genderJoin = as(filter.child(), MarkJoin.class);
         assertThat(genderJoin.config().leftFields().get(0).name(), equalTo("gender"));
-        LeftSemiJoin empNoJoin = as(genderJoin.left(), LeftSemiJoin.class);
+        MarkJoin empNoJoin = as(genderJoin.left(), MarkJoin.class);
         assertThat(empNoJoin.config().leftFields().get(0).name(), equalTo("emp_no"));
     }
 
     /**
      * NOT IN appears in the middle of the OR chain. With the new rewrite this still produces a
-     * single Filter over a stack of two LeftSemiJoins; the order of OR operands does not affect
+     * single Filter over a stack of two MarkJoins; the order of OR operands does not affect
      * the structural outcome.
      */
     public void testDisjunctiveOrChainWithNotInSubqueryInMiddle() {
@@ -1378,9 +1377,9 @@ public class AnalyzerInSubqueryTests extends ESTestCase {
         as(or.left(), GreaterThan.class);
         Not not = as(or.right(), Not.class);
         as(not.field(), Attribute.class);
-        LeftSemiJoin genderJoin = as(filter.child(), LeftSemiJoin.class);
+        MarkJoin genderJoin = as(filter.child(), MarkJoin.class);
         assertThat(genderJoin.config().leftFields().get(0).name(), equalTo("gender"));
-        LeftSemiJoin empNoJoin = as(genderJoin.left(), LeftSemiJoin.class);
+        MarkJoin empNoJoin = as(genderJoin.left(), MarkJoin.class);
         assertThat(empNoJoin.config().leftFields().get(0).name(), equalTo("emp_no"));
     }
 
@@ -1389,7 +1388,7 @@ public class AnalyzerInSubqueryTests extends ESTestCase {
      * <p>
      * Previously rejected as "Complicated IN subquery". The {@code OR}/{@code AND}/{@code NOT}
      * tree above each {@code InSubquery} is all boolean operators, so each becomes a
-     * {@link LeftSemiJoin} and the whole condition is evaluated by the standard expression
+     * {@link MarkJoin} and the whole condition is evaluated by the standard expression
      * machinery. This preserves SQL three-valued logic.
      */
     public void testNestedConjunctiveAndDisjunctiveInSubquery() {
@@ -1412,9 +1411,9 @@ public class AnalyzerInSubqueryTests extends ESTestCase {
         as(or.left(), LessThan.class);
         Not not = as(or.right(), Not.class);
         as(not.field(), Attribute.class);
-        LeftSemiJoin genderJoin = as(filter.child(), LeftSemiJoin.class);
+        MarkJoin genderJoin = as(filter.child(), MarkJoin.class);
         assertThat(genderJoin.config().leftFields().get(0).name(), equalTo("gender"));
-        LeftSemiJoin empNoJoin = as(genderJoin.left(), LeftSemiJoin.class);
+        MarkJoin empNoJoin = as(genderJoin.left(), MarkJoin.class);
         assertThat(empNoJoin.config().leftFields().get(0).name(), equalTo("emp_no"));
         EsRelation main = as(empNoJoin.left(), EsRelation.class);
         assertEquals("test", main.indexPattern());
@@ -2637,10 +2636,496 @@ public class AnalyzerInSubqueryTests extends ESTestCase {
                 """, containsString("[none specified]"));
     }
 
+    // -- tests with TS source inside IN subquery --
+
+    /*
+     * Limit[10000[INTEGER],false,false]
+     * \_Project[[max_rate{r}#13, cluster{r}#16]]
+     *   \_Eval[[UNPACKDIMENSION(group_cluster_$1{r}#78) AS cluster#16]]
+     *     \_Aggregate[[pack_cluster_$1{r}#77 AS group_cluster_$1#78],[MAX(RATE_$1{r}#75,true[BOOLEAN],
+     *                  PT0S[TIME_DURATION]) AS max_rate#13, group_cluster_$1{r}#78]]
+     *       \_Eval[[PACKDIMENSION(cluster{r}#76) AS pack_cluster_$1#77]]
+     *         \_TimeSeriesAggregate[[_tsid{m}#74],
+     *                                [RATE(network.total_bytes_in{f}#30,true[BOOLEAN],PT0S[TIME_DURATION],@timestamp{f}#15) AS RATE_$1#75,
+     *                                VALUES(cluster{f}#16,true[BOOLEAN],PT0S[TIME_DURATION]) AS cluster#76, _tsid{m}#74],
+     *                                null,null,@timestamp{f}#15,TS_COMMAND]
+     *           \_SemiJoin[SEMI,[cluster{f}#16],[cluster{f}#42]]
+     *             |_EsRelation[k8s][TIME_SERIES][@timestamp{f}#15, client.ip{f}#19, cluster{f}#16, e..]
+     *             \_Project[[cluster{f}#42]]
+     *               \_Project[[m{r}#7, cluster{r}#42]]
+     *                 \_Eval[[UNPACKDIMENSION(group_cluster_$1{r}#73) AS cluster#42]]
+     *                   \_Aggregate[[pack_cluster_$1{r}#72 AS group_cluster_$1#73],
+     *                               [MAX(RATE_$1{r}#70,true[BOOLEAN],PT0S[TIME_DURATION]) AS m#7, group_cluster_$1{r}#73]]
+     *                     \_Eval[[PACKDIMENSION(cluster{r}#71) AS pack_cluster_$1#72]]
+     *                       \_TimeSeriesAggregate[[_tsid{m}#69],
+     *                                             [RATE(network.total_bytes_in{f}#56,true[BOOLEAN],PT0S[TIME_DURATION],@timestamp{f}#41)
+     *                                              AS RATE_$1#70, VALUES(cluster{f}#42,true[BOOLEAN],PT0S[TIME_DURATION]) AS cluster#71,
+     *                                              _tsid{m}#69],null,null,@timestamp{f}#41,TS_COMMAND]
+     *                         \_EsRelation[k8s][TIME_SERIES][@timestamp{f}#41, client.ip{f}#45, cluster{f}#42, e..]
+     */
+    public void testTsRateInsideInSubquery() {
+        assumeTrue("Requires subquery with TS source support", EsqlCapabilities.Cap.SUBQUERY_WITH_TS.isEnabled());
+        assumeTrue("Requires subquery with TS source support", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITH_TS.isEnabled());
+        LogicalPlan plan = analyzeInSubqueryWithK8s("""
+            TS k8s
+            | WHERE cluster IN (TS k8s
+                               | STATS m = max(rate(network.total_bytes_in)) BY cluster
+                               | KEEP cluster)
+            | STATS max_rate = max(rate(network.total_bytes_in)) BY cluster
+            """);
+
+        Limit limit = as(plan, Limit.class);
+        TimeSeriesAggregate agg = unwrapTsAggregationOverDimension(limit.child(), "max_rate", "cluster");
+
+        SemiJoin semiJoin = as(agg.child(), SemiJoin.class);
+        assertThat(semiJoin.config().type(), equalTo(JoinTypes.SEMI));
+        assertThat(semiJoin.config().leftFields().get(0).name(), equalTo("cluster"));
+        assertThat(semiJoin.config().rightFields().get(0).name(), equalTo("cluster"));
+
+        // Left side is the outer TS source itself
+        assertK8sTimeSeriesRelation(semiJoin.left());
+
+        // Right side: Project[cluster] (alignment) -> [rewritten subquery TS aggregation] -> EsRelation[k8s][TIME_SERIES]
+        Project alignProject = as(semiJoin.right(), Project.class);
+        agg = unwrapTsAggregationOverDimension(alignProject.child(), "m", "cluster");
+        assertK8sTimeSeriesRelation(agg.child());
+    }
+
+    /*
+     * Limit[10000[INTEGER],false,false]
+     * \_Project[[max_rate{r}#13, cluster{r}#16]]
+     *   \_Eval[[UNPACKDIMENSION(group_cluster_$1{r}#78) AS cluster#16]]
+     *     \_Aggregate[[pack_cluster_$1{r}#77 AS group_cluster_$1#78],[MAX(RATE_$1{r}#75,true[BOOLEAN],
+     *                  PT0S[TIME_DURATION]) AS max_rate#13, group_cluster_$1{r}#78]]
+     *       \_Eval[[PACKDIMENSION(cluster{r}#76) AS pack_cluster_$1#77]]
+     *         \_TimeSeriesAggregate[[_tsid{m}#74],
+     *                                [RATE(network.total_bytes_in{f}#30,true[BOOLEAN],PT0S[TIME_DURATION],@timestamp{f}#15) AS RATE_$1#75,
+     *                                VALUES(cluster{f}#16,true[BOOLEAN],PT0S[TIME_DURATION]) AS cluster#76, _tsid{m}#74],
+     *                                null,null,@timestamp{f}#15,TS_COMMAND]
+     *           \_AntiJoin[ANTI,[cluster{f}#16],[cluster{f}#42]]
+     *             |_EsRelation[k8s][TIME_SERIES][@timestamp{f}#15, client.ip{f}#19, cluster{f}#16, e..]
+     *             \_Project[[cluster{f}#42]]
+     *               \_Project[[m{r}#7, cluster{r}#42]]
+     *                 \_Eval[[UNPACKDIMENSION(group_cluster_$1{r}#73) AS cluster#42]]
+     *                   \_Aggregate[[pack_cluster_$1{r}#72 AS group_cluster_$1#73],
+     *                               [MAX(RATE_$1{r}#70,true[BOOLEAN],PT0S[TIME_DURATION]) AS m#7, group_cluster_$1{r}#73]]
+     *                     \_Eval[[PACKDIMENSION(cluster{r}#71) AS pack_cluster_$1#72]]
+     *                       \_TimeSeriesAggregate[[_tsid{m}#69],
+     *                                             [RATE(network.total_bytes_in{f}#56,true[BOOLEAN],PT0S[TIME_DURATION],@timestamp{f}#41)
+     *                                              AS RATE_$1#70, VALUES(cluster{f}#42,true[BOOLEAN],PT0S[TIME_DURATION]) AS cluster#71,
+     *                                              _tsid{m}#69],null,null,@timestamp{f}#41,TS_COMMAND]
+     *                         \_EsRelation[k8s][TIME_SERIES][@timestamp{f}#41, client.ip{f}#45, cluster{f}#42, e..]
+     */
+    public void testTsRateInsideNotInSubquery() {
+        assumeTrue("Requires subquery with TS source support", EsqlCapabilities.Cap.SUBQUERY_WITH_TS.isEnabled());
+        assumeTrue("Requires subquery with TS source support", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITH_TS.isEnabled());
+        LogicalPlan plan = analyzeInSubqueryWithK8s("""
+            TS k8s
+            | WHERE cluster NOT IN (TS k8s
+                                   | STATS m = max(rate(network.total_bytes_in)) BY cluster
+                                   | KEEP cluster)
+            | STATS max_rate = max(rate(network.total_bytes_in)) BY cluster
+            """);
+
+        Limit limit = as(plan, Limit.class);
+        // Same translated wrapping as the IN-subquery variant above; the AntiJoin replaces the SemiJoin.
+        TimeSeriesAggregate agg = unwrapTsAggregationOverDimension(limit.child(), "max_rate", "cluster");
+
+        AntiJoin antiJoin = as(agg.child(), AntiJoin.class);
+        assertThat(antiJoin.config().type(), equalTo(JoinTypes.ANTI));
+        assertThat(antiJoin.config().leftFields().get(0).name(), equalTo("cluster"));
+        assertThat(antiJoin.config().rightFields().get(0).name(), equalTo("cluster"));
+
+        assertK8sTimeSeriesRelation(antiJoin.left());
+
+        Project alignProject = as(antiJoin.right(), Project.class);
+        agg = unwrapTsAggregationOverDimension(alignProject.child(), "m", "cluster");
+        assertK8sTimeSeriesRelation(agg.child());
+    }
+
+    // -- tests with a TS source that groups BY WITHOUT(...) above the IN subquery --
+
+    /*
+     * Limit[10000[INTEGER],false,false]
+     * \_Project[[total_cost{r}#15, _timeseries{r}#12]]
+     *   \_Eval[[UNPACKDIMENSION(group__timeseries_$1{r}#80) AS _timeseries#12]]
+     *     \_Aggregate[[pack__timeseries_$1{r}#79 AS group__timeseries_$1#80],
+     *                 [SUM(LASTOVERTIME_$1{r}#77,true[BOOLEAN],PT0S[TIME_DURATION],compensated[KEYWORD],
+     *                  long_overflow_throw[KEYWORD]) AS total_cost#15, group__timeseries_$1{r}#80]]
+     *       \_Eval[[PACKDIMENSION(_timeseries{r}#78) AS pack__timeseries_$1#79]]
+     *         \_TimeSeriesAggregate[[_tsid{m}#76],
+     *                               [LASTOVERTIME(network.cost{f}#35,true[BOOLEAN],PT0S[TIME_DURATION],
+     *                                @timestamp{f}#18) AS LASTOVERTIME_$1#77,
+     *                                VALUES(_timeseries{f}#12,true[BOOLEAN],PT0S[TIME_DURATION]) AS _timeseries#78, _tsid{m}#76],
+     *                               null,null,@timestamp{f}#18,TS_COMMAND]
+     *           \_SemiJoin[SEMI,[cluster{f}#19],[cluster{f}#45]]
+     *             |_EsRelation[k8s][@timestamp{f}#18, client.ip{f}#22, cluster{f}#19, e..]
+     *             \_Project[[cluster{f}#45]]
+     *               \_Project[[m{r}#7, cluster{r}#45]]
+     *                 \_Eval[[UNPACKDIMENSION(group_cluster_$1{r}#75) AS cluster#45]]
+     *                   \_Aggregate[[pack_cluster_$1{r}#74 AS group_cluster_$1#75],
+     *                               [MAX(RATE_$1{r}#72,true[BOOLEAN],PT0S[TIME_DURATION]) AS m#7, group_cluster_$1{r}#75]]
+     *                     \_Eval[[PACKDIMENSION(cluster{r}#73) AS pack_cluster_$1#74]]
+     *                       \_TimeSeriesAggregate[[_tsid{m}#71],
+     *                                             [RATE(network.total_bytes_in{f}#59,true[BOOLEAN],PT0S[TIME_DURATION],
+     *                                              @timestamp{f}#44) AS RATE_$1#72,
+     *                                              VALUES(cluster{f}#45,true[BOOLEAN],PT0S[TIME_DURATION]) AS cluster#73, _tsid{m}#71],
+     *                                             null,null,@timestamp{f}#44,TS_COMMAND]
+     *                         \_EsRelation[k8s][TIME_SERIES][@timestamp{f}#44, client.ip{f}#48, cluster{f}#45, e..]
+     */
+    public void testTsWithoutAndRateInsideInSubquery() {
+        assumeTrue("Requires subquery with TS source support", EsqlCapabilities.Cap.SUBQUERY_WITH_TS.isEnabled());
+        assumeTrue("Requires WITHOUT grouping support", EsqlCapabilities.Cap.ESQL_WITHOUT_GROUPING.isEnabled());
+        assumeTrue("Requires subquery with TS source support", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITH_TS.isEnabled());
+
+        LogicalPlan plan = analyzeInSubqueryWithK8s("""
+            TS k8s
+            | WHERE cluster IN (TS k8s
+                               | STATS m = max(rate(network.total_bytes_in)) BY cluster
+                               | KEEP cluster)
+            | STATS total_cost = sum(network.cost) BY WITHOUT(pod, region)
+            """);
+
+        Limit limit = as(plan, Limit.class);
+        // TranslateTimeSeriesWithout has rewritten the WITHOUT grouping into a `_timeseries` TimeSeriesMetadataAttribute, after which
+        // TranslateTimeSeriesAggregate adds the same Project/Eval/Aggregate/Eval wrapping seen above.
+        TimeSeriesAggregate agg = unwrapTsAggregationOverDimension(limit.child(), "total_cost", "_timeseries");
+
+        SemiJoin semiJoin = as(agg.child(), SemiJoin.class);
+        assertThat(semiJoin.config().type(), equalTo(JoinTypes.SEMI));
+        assertThat(semiJoin.config().leftFields().get(0).name(), equalTo("cluster"));
+        assertThat(semiJoin.config().rightFields().get(0).name(), equalTo("cluster"));
+
+        // Only the outer (left-hand) k8s relation should carry the lowered `_timeseries` attribute with the expected withoutFields; the
+        // right-hand subquery relation must not be polluted. The outer aggregate uses sum() (not a TS-required function) so the left
+        // relation's index mode is rewritten to STANDARD; the subquery uses rate() and so its relation stays TIME_SERIES.
+        assertK8sRelationWithTimeseriesWithout(semiJoin.left(), IndexMode.STANDARD, Set.of("pod", "region"));
+
+        Project alignProject = as(semiJoin.right(), Project.class);
+        agg = unwrapTsAggregationOverDimension(alignProject.child(), "m", "cluster");
+        assertK8sTimeSeriesRelation(agg.child());
+    }
+
+    /*
+     * Limit[10000[INTEGER],false,false]
+     * \_Project[[total_cost{r}#15, _timeseries{r}#12]]
+     *   \_Eval[[UNPACKDIMENSION(group__timeseries_$1{r}#80) AS _timeseries#12]]
+     *     \_Aggregate[[pack__timeseries_$1{r}#79 AS group__timeseries_$1#80],
+     *                 [SUM(LASTOVERTIME_$1{r}#77,true[BOOLEAN],PT0S[TIME_DURATION],compensated[KEYWORD],
+     *                  long_overflow_throw[KEYWORD]) AS total_cost#15, group__timeseries_$1{r}#80]]
+     *       \_Eval[[PACKDIMENSION(_timeseries{r}#78) AS pack__timeseries_$1#79]]
+     *         \_TimeSeriesAggregate[[_tsid{m}#76],
+     *                               [LASTOVERTIME(network.cost{f}#35,true[BOOLEAN],PT0S[TIME_DURATION],
+     *                                @timestamp{f}#18) AS LASTOVERTIME_$1#77,
+     *                                VALUES(_timeseries{f}#12,true[BOOLEAN],PT0S[TIME_DURATION]) AS _timeseries#78, _tsid{m}#76],
+     *                               null,null,@timestamp{f}#18,TS_COMMAND]
+     *           \_AntiJoin[ANTI,[cluster{f}#19],[cluster{f}#45]]
+     *             |_EsRelation[k8s][@timestamp{f}#18, client.ip{f}#22, cluster{f}#19, e..]
+     *             \_Project[[cluster{f}#45]]
+     *               \_Project[[m{r}#7, cluster{r}#45]]
+     *                 \_Eval[[UNPACKDIMENSION(group_cluster_$1{r}#75) AS cluster#45]]
+     *                   \_Aggregate[[pack_cluster_$1{r}#74 AS group_cluster_$1#75],
+     *                               [MAX(RATE_$1{r}#72,true[BOOLEAN],PT0S[TIME_DURATION]) AS m#7, group_cluster_$1{r}#75]]
+     *                     \_Eval[[PACKDIMENSION(cluster{r}#73) AS pack_cluster_$1#74]]
+     *                       \_TimeSeriesAggregate[[_tsid{m}#71],
+     *                                             [RATE(network.total_bytes_in{f}#59,true[BOOLEAN],PT0S[TIME_DURATION],
+     *                                              @timestamp{f}#44) AS RATE_$1#72,
+     *                                              VALUES(cluster{f}#45,true[BOOLEAN],PT0S[TIME_DURATION]) AS cluster#73, _tsid{m}#71],
+     *                                             null,null,@timestamp{f}#44,TS_COMMAND]
+     *                         \_EsRelation[k8s][TIME_SERIES][@timestamp{f}#44, client.ip{f}#48, cluster{f}#45, e..]
+     */
+    public void testTsWithoutAndRateInsideNotInSubquery() {
+        assumeTrue("Requires subquery with TS source support", EsqlCapabilities.Cap.SUBQUERY_WITH_TS.isEnabled());
+        assumeTrue("Requires WITHOUT grouping support", EsqlCapabilities.Cap.ESQL_WITHOUT_GROUPING.isEnabled());
+        assumeTrue("Requires subquery with TS source support", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITH_TS.isEnabled());
+        LogicalPlan plan = analyzeInSubqueryWithK8s("""
+            TS k8s
+            | WHERE cluster NOT IN (TS k8s
+                                   | STATS m = max(rate(network.total_bytes_in)) BY cluster
+                                   | KEEP cluster)
+            | STATS total_cost = sum(network.cost) BY WITHOUT(pod, region)
+            """);
+
+        Limit limit = as(plan, Limit.class);
+        TimeSeriesAggregate agg = unwrapTsAggregationOverDimension(limit.child(), "total_cost", "_timeseries");
+
+        AntiJoin antiJoin = as(agg.child(), AntiJoin.class);
+        assertThat(antiJoin.config().type(), equalTo(JoinTypes.ANTI));
+        assertThat(antiJoin.config().leftFields().get(0).name(), equalTo("cluster"));
+        assertThat(antiJoin.config().rightFields().get(0).name(), equalTo("cluster"));
+
+        assertK8sRelationWithTimeseriesWithout(antiJoin.left(), IndexMode.STANDARD, Set.of("pod", "region"));
+
+        Project alignProject = as(antiJoin.right(), Project.class);
+        agg = unwrapTsAggregationOverDimension(alignProject.child(), "m", "cluster");
+        assertK8sTimeSeriesRelation(agg.child());
+    }
+
+    // -- multiple TS subqueries combined with UnionAll inside IN/NOT IN --
+
+    /*
+     * Limit[10000[INTEGER],false,false]
+     * \_OrderBy[[Order[cluster{f}#25,ASC,LAST]]]
+     *   \_Project[[max_bytes{r}#21, cluster{r}#25]]
+     *     \_Eval[[UNPACKDIMENSION(group_cluster_$1{r}#117) AS cluster#25]]
+     *       \_Aggregate[[pack_cluster_$1{r}#116 AS group_cluster_$1#117],
+     *                   [MAX(LASTOVERTIME_$1{r}#114,true[BOOLEAN],PT0S[TIME_DURATION]) AS max_bytes#21, group_cluster_$1{r}#117]]
+     *         \_Eval[[PACKDIMENSION(cluster{r}#115) AS pack_cluster_$1#116]]
+     *           \_TimeSeriesAggregate[[_tsid{m}#113],
+     *                                 [LASTOVERTIME(TOLONGSURROGATE(network.total_bytes_in{f}#39),true[BOOLEAN],PT0S[TIME_DURATION],
+     *                                  @timestamp{f}#24) AS LASTOVERTIME_$1#114,
+     *                                  DIMENSIONVALUES(cluster{f}#25,true[BOOLEAN],PT0S[TIME_DURATION]) AS cluster#115, _tsid{m}#113],
+     *                                 null,null,@timestamp{f}#24,TS_COMMAND]
+     *             \_SemiJoin[SEMI,[cluster{f}#25],[cluster{r}#102]]
+     *               |_EsRelation[k8s][@timestamp{f}#24, client.ip{f}#28, cluster{f}#25, e..]
+     *               \_UnionAll[[cluster{r}#102]]
+     *                 |_Project[[cluster{f}#51]]
+     *                 | \_Subquery[]
+     *                 |   \_Project[[cluster{f}#51]]
+     *                 |     \_Filter[max_bytes{r}#7 > 10500[INTEGER]]
+     *                 |       \_Project[[max_bytes{r}#7, cluster{r}#51]]
+     *                 |         \_Eval[[UNPACKDIMENSION(group_cluster_$1{r}#107) AS cluster#51]]
+     *                 |           \_Aggregate[[pack_cluster_$1{r}#106 AS group_cluster_$1#107],
+     *                                         [MAX(LASTOVERTIME_$1{r}#104,true[BOOLEAN],PT0S[TIME_DURATION]) AS max_bytes#7,
+     *                                          group_cluster_$1{r}#107]]
+     *                 |             \_Eval[[PACKDIMENSION(cluster{r}#105) AS pack_cluster_$1#106]]
+     *                 |               \_TimeSeriesAggregate[[_tsid{m}#103],
+     *                                                       [LASTOVERTIME(TOLONGSURROGATE(network.total_bytes_in{f}#65),true[BOOLEAN],
+     *                                                        PT0S[TIME_DURATION],@timestamp{f}#50) AS LASTOVERTIME_$1#104,
+     *                                                        DIMENSIONVALUES(cluster{f}#51,true[BOOLEAN],
+     *                                                        PT0S[TIME_DURATION]) AS cluster#105, _tsid{m}#103],
+     *                                                       null,null,@timestamp{f}#50,TS_COMMAND]
+     *                 |                 \_EsRelation[k8s][@timestamp{f}#50, client.ip{f}#54, cluster{f}#51, e..]
+     *                 \_Project[[cluster{f}#77]]
+     *                   \_Subquery[]
+     *                     \_Project[[cluster{f}#77]]
+     *                       \_Filter[max_bytes{r}#14 < 8000[INTEGER]]
+     *                         \_Project[[max_bytes{r}#14, cluster{r}#77]]
+     *                           \_Eval[[UNPACKDIMENSION(group_cluster_$1{r}#112) AS cluster#77]]
+     *                             \_Aggregate[[pack_cluster_$1{r}#111 AS group_cluster_$1#112],
+     *                                         [MAX(LASTOVERTIME_$1{r}#109,true[BOOLEAN],PT0S[TIME_DURATION]) AS max_bytes#14,
+     *                                          group_cluster_$1{r}#112]]
+     *                               \_Eval[[PACKDIMENSION(cluster{r}#110) AS pack_cluster_$1#111]]
+     *                                 \_TimeSeriesAggregate[[_tsid{m}#108],
+     *                                                       [LASTOVERTIME(TOLONGSURROGATE(network.total_bytes_in{f}#91),true[BOOLEAN],
+     *                                                        PT0S[TIME_DURATION],@timestamp{f}#76) AS LASTOVERTIME_$1#109,
+     *                                                        DIMENSIONVALUES(cluster{f}#77,true[BOOLEAN],
+     *                                                        PT0S[TIME_DURATION]) AS cluster#110, _tsid{m}#108],
+     *                                                       null,null,@timestamp{f}#76,TS_COMMAND]
+     *                                   \_EsRelation[k8s][@timestamp{f}#76, client.ip{f}#80, cluster{f}#77, e..]
+     */
+    public void testMultipleTsSubqueriesInsideInSubquery() {
+        assumeTrue("Requires TS subquery support", EsqlCapabilities.Cap.SUBQUERY_WITH_TS.isEnabled());
+        assumeTrue("Requires subquery with TS source support", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITH_TS.isEnabled());
+        LogicalPlan plan = analyzeInSubqueryWithK8s("""
+            TS k8s
+            | WHERE cluster IN (FROM
+                                   (TS k8s
+                                    | STATS max_bytes = max(to_long(network.total_bytes_in)) BY cluster
+                                    | WHERE max_bytes > 10500
+                                    | KEEP cluster),
+                                   (TS k8s
+                                    | STATS max_bytes = max(to_long(network.total_bytes_in)) BY cluster
+                                    | WHERE max_bytes < 8000
+                                    | KEEP cluster)
+                               )
+            | STATS max_bytes = max(to_long(network.total_bytes_in)) BY cluster
+            | SORT cluster
+            """);
+
+        Limit limit = as(plan, Limit.class);
+        OrderBy orderBy = as(limit.child(), OrderBy.class);
+        TimeSeriesAggregate agg = unwrapTsAggregationOverDimension(orderBy.child(), "max_bytes", "cluster");
+
+        SemiJoin semiJoin = as(agg.child(), SemiJoin.class);
+        assertThat(semiJoin.config().type(), equalTo(JoinTypes.SEMI));
+        assertThat(semiJoin.config().leftFields().get(0).name(), equalTo("cluster"));
+        assertThat(semiJoin.config().rightFields().get(0).name(), equalTo("cluster"));
+
+        // The outer aggregate uses max(to_long(...)) (not a TS-required function), so the relation's
+        // index mode is rewritten to STANDARD by addTsidToTimeSeriesSource.
+        assertK8sStandardRelation(semiJoin.left());
+
+        UnionAll unionAll = as(semiJoin.right(), UnionAll.class);
+        assertEquals(2, unionAll.children().size());
+        assertTsUnionBranch(unionAll.children().get(0));
+        assertTsUnionBranch(unionAll.children().get(1));
+    }
+
+    /*
+     * Limit[10000[INTEGER],false,false]
+     * \_OrderBy[[Order[cluster{f}#25,ASC,LAST]]]
+     *   \_Project[[max_bytes{r}#21, cluster{r}#25]]
+     *     \_Eval[[UNPACKDIMENSION(group_cluster_$1{r}#117) AS cluster#25]]
+     *       \_Aggregate[[pack_cluster_$1{r}#116 AS group_cluster_$1#117],
+     *                   [MAX(LASTOVERTIME_$1{r}#114,true[BOOLEAN],PT0S[TIME_DURATION]) AS max_bytes#21, group_cluster_$1{r}#117]]
+     *         \_Eval[[PACKDIMENSION(cluster{r}#115) AS pack_cluster_$1#116]]
+     *           \_TimeSeriesAggregate[[_tsid{m}#113],
+     *                                 [LASTOVERTIME(TOLONGSURROGATE(network.total_bytes_in{f}#39),true[BOOLEAN],PT0S[TIME_DURATION],
+     *                                  @timestamp{f}#24) AS LASTOVERTIME_$1#114,
+     *                                  DIMENSIONVALUES(cluster{f}#25,true[BOOLEAN],PT0S[TIME_DURATION]) AS cluster#115, _tsid{m}#113],
+     *                                 null,null,@timestamp{f}#24,TS_COMMAND]
+     *             \_AntiJoin[ANTI,[cluster{f}#25],[cluster{r}#102]]
+     *               |_EsRelation[k8s][@timestamp{f}#24, client.ip{f}#28, cluster{f}#25, e..]
+     *               \_UnionAll[[cluster{r}#102]]
+     *                 |_Project[[cluster{f}#51]]
+     *                 | \_Subquery[]
+     *                 |   \_Project[[cluster{f}#51]]
+     *                 |     \_Filter[max_bytes{r}#7 > 10500[INTEGER]]
+     *                 |       \_Project[[max_bytes{r}#7, cluster{r}#51]]
+     *                 |         \_Eval[[UNPACKDIMENSION(group_cluster_$1{r}#107) AS cluster#51]]
+     *                 |           \_Aggregate[[pack_cluster_$1{r}#106 AS group_cluster_$1#107],
+     *                                         [MAX(LASTOVERTIME_$1{r}#104,true[BOOLEAN],PT0S[TIME_DURATION]) AS max_bytes#7,
+     *                                          group_cluster_$1{r}#107]]
+     *                 |             \_Eval[[PACKDIMENSION(cluster{r}#105) AS pack_cluster_$1#106]]
+     *                 |               \_TimeSeriesAggregate[[_tsid{m}#103],
+     *                                                       [LASTOVERTIME(TOLONGSURROGATE(network.total_bytes_in{f}#65),true[BOOLEAN],
+     *                                                        PT0S[TIME_DURATION],@timestamp{f}#50) AS LASTOVERTIME_$1#104,
+     *                                                        DIMENSIONVALUES(cluster{f}#51,true[BOOLEAN],
+     *                                                        PT0S[TIME_DURATION]) AS cluster#105, _tsid{m}#103],
+     *                                                       null,null,@timestamp{f}#50,TS_COMMAND]
+     *                 |                 \_EsRelation[k8s][@timestamp{f}#50, client.ip{f}#54, cluster{f}#51, e..]
+     *                 \_Project[[cluster{f}#77]]
+     *                   \_Subquery[]
+     *                     \_Project[[cluster{f}#77]]
+     *                       \_Filter[max_bytes{r}#14 < 8000[INTEGER]]
+     *                         \_Project[[max_bytes{r}#14, cluster{r}#77]]
+     *                           \_Eval[[UNPACKDIMENSION(group_cluster_$1{r}#112) AS cluster#77]]
+     *                             \_Aggregate[[pack_cluster_$1{r}#111 AS group_cluster_$1#112],
+     *                                         [MAX(LASTOVERTIME_$1{r}#109,true[BOOLEAN],PT0S[TIME_DURATION]) AS max_bytes#14,
+     *                                          group_cluster_$1{r}#112]]
+     *                               \_Eval[[PACKDIMENSION(cluster{r}#110) AS pack_cluster_$1#111]]
+     *                                 \_TimeSeriesAggregate[[_tsid{m}#108],
+     *                                                       [LASTOVERTIME(TOLONGSURROGATE(network.total_bytes_in{f}#91),true[BOOLEAN],
+     *                                                        PT0S[TIME_DURATION],@timestamp{f}#76) AS LASTOVERTIME_$1#109,
+     *                                                        DIMENSIONVALUES(cluster{f}#77,true[BOOLEAN],
+     *                                                        PT0S[TIME_DURATION]) AS cluster#110, _tsid{m}#108],
+     *                                                       null,null,@timestamp{f}#76,TS_COMMAND]
+     *                                   \_EsRelation[k8s][@timestamp{f}#76, client.ip{f}#80, cluster{f}#77, e..]
+     */
+    public void testMultipleTsSubqueriesInsideNotInSubquery() {
+        assumeTrue("Requires TS subquery support", EsqlCapabilities.Cap.SUBQUERY_WITH_TS.isEnabled());
+        assumeTrue("Requires subquery with TS source support", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITH_TS.isEnabled());
+        LogicalPlan plan = analyzeInSubqueryWithK8s("""
+            TS k8s
+            | WHERE cluster NOT IN (FROM
+                                       (TS k8s
+                                        | STATS max_bytes = max(to_long(network.total_bytes_in)) BY cluster
+                                        | WHERE max_bytes > 10500
+                                        | KEEP cluster),
+                                       (TS k8s
+                                        | STATS max_bytes = max(to_long(network.total_bytes_in)) BY cluster
+                                        | WHERE max_bytes < 8000
+                                        | KEEP cluster)
+                                   )
+            | STATS max_bytes = max(to_long(network.total_bytes_in)) BY cluster
+            | SORT cluster
+            """);
+
+        Limit limit = as(plan, Limit.class);
+        OrderBy orderBy = as(limit.child(), OrderBy.class);
+        TimeSeriesAggregate agg = unwrapTsAggregationOverDimension(orderBy.child(), "max_bytes", "cluster");
+
+        AntiJoin antiJoin = as(agg.child(), AntiJoin.class);
+        assertThat(antiJoin.config().type(), equalTo(JoinTypes.ANTI));
+        assertThat(antiJoin.config().leftFields().get(0).name(), equalTo("cluster"));
+        assertThat(antiJoin.config().rightFields().get(0).name(), equalTo("cluster"));
+
+        assertK8sStandardRelation(antiJoin.left());
+
+        UnionAll unionAll = as(antiJoin.right(), UnionAll.class);
+        assertEquals(2, unionAll.children().size());
+        assertTsUnionBranch(unionAll.children().get(0));
+        assertTsUnionBranch(unionAll.children().get(1));
+    }
+
+    /**
+     * After TranslateTimeSeriesAggregate runs, the subquery's `STATS max_bytes = ... BY cluster` is also wrapped with
+     * Project > Eval[UNPACK] > Aggregate > Eval[PACK] > TimeSeriesAggregate. max(to_long(...)) is not a TS-required function so the
+     * subquery relation's index mode is also rewritten to STANDARD.
+     */
+    private static void assertTsUnionBranch(LogicalPlan branch) {
+        Project alignProject = as(branch, Project.class);
+        Subquery subquery = as(alignProject.child(), Subquery.class);
+        Project keepProject = as(subquery.child(), Project.class);
+        Filter filter = as(keepProject.child(), Filter.class);
+        TimeSeriesAggregate agg = unwrapTsAggregationOverDimension(filter.child(), "max_bytes", "cluster");
+        assertK8sStandardRelation(agg.child());
+    }
+
+    /**
+     * Walks through the wrapping that {@code TranslateTimeSeriesAggregate} adds around a TS aggregation that groups by a single dimension
+     * attribute, namely {@code Project > Eval[UNPACKDIMENSION] > Aggregate > Eval[PACKDIMENSION] > TimeSeriesAggregate}, and returns the
+     * child of the inner {@code TimeSeriesAggregate}.
+     */
+    private static TimeSeriesAggregate unwrapTsAggregationOverDimension(LogicalPlan top, String aggName, String groupingName) {
+        Project topProject = as(top, Project.class);
+        assertThat(topProject.projections().size(), equalTo(2));
+        assertEquals(aggName, topProject.projections().get(0).name());
+        assertEquals(groupingName, topProject.projections().get(1).name());
+
+        Eval unpackEval = as(topProject.child(), Eval.class);
+        assertThat(unpackEval.fields().size(), equalTo(1));
+        assertEquals(groupingName, unpackEval.fields().get(0).name());
+
+        Aggregate aggregate = as(unpackEval.child(), Aggregate.class);
+        assertThat(aggregate.groupings().size(), equalTo(1));
+
+        Eval packEval = as(aggregate.child(), Eval.class);
+        assertThat(packEval.fields().size(), equalTo(1));
+
+        return as(packEval.child(), TimeSeriesAggregate.class);
+    }
+
+    private static void assertK8sTimeSeriesRelation(LogicalPlan plan) {
+        assertK8sRelation(plan, IndexMode.TIME_SERIES);
+    }
+
+    private static void assertK8sStandardRelation(LogicalPlan plan) {
+        assertK8sRelation(plan, IndexMode.STANDARD);
+    }
+
+    /**
+     * Asserts that {@code plan} is the k8s relation with the given {@code IndexMode}.
+     * {@code TranslateTimeSeriesAggregate.addTsidToTimeSeriesSource} rewrites the source relation's index mode to
+     * {@code IndexMode.STANDARD} unless an outer TS aggregate function (e.g. {@code rate}) requires it to stay
+     * {@code IndexMode.TIME_SERIES}.
+     */
+    private static EsRelation assertK8sRelation(LogicalPlan plan, IndexMode expectedIndexMode) {
+        EsRelation relation = as(plan, EsRelation.class);
+        assertEquals("k8s", relation.indexPattern());
+        assertThat(relation.indexMode(), equalTo(expectedIndexMode));
+        return relation;
+    }
+
+    /**
+     * Asserts that the given plan is the k8s TS source relation and that it carries a lowered {@code _timeseries}
+     * {@code TimeSeriesMetadataAttribute} with the expected {@code withoutFields}. {@code TranslateTimeSeriesWithout} injects this
+     * attribute only into the main (left-hand) TS source feeding the outer aggregate, never into the subquery (right-hand) relation.
+     */
+    private static void assertK8sRelationWithTimeseriesWithout(
+        LogicalPlan plan,
+        IndexMode expectedIndexMode,
+        Set<String> expectedWithoutFields
+    ) {
+        EsRelation relation = assertK8sRelation(plan, expectedIndexMode);
+        TimeSeriesMetadataAttribute lowered = relation.output()
+            .stream()
+            .filter(TimeSeriesMetadataAttribute.class::isInstance)
+            .map(TimeSeriesMetadataAttribute.class::cast)
+            .findFirst()
+            .orElseThrow(() -> new AssertionError("Expected _timeseries metadata attribute on the k8s relation"));
+        assertThat(lowered.excludedFields(), equalTo(expectedWithoutFields));
+    }
+
     // -- helpers --
 
     private static LogicalPlan analyzeInSubquery(String query) {
         return analyzer().addIndex("test", "mapping-basic.json").addIndex("employees", "mapping-basic.json").query(query);
+    }
+
+    private static LogicalPlan analyzeInSubqueryWithK8s(String query) {
+        return analyzer().addIndex("test", "mapping-basic.json").addK8s().query(query);
     }
 
     private static void errorInSubquery(String query, Matcher<String> messageMatcher) {

@@ -26,6 +26,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver;
 import org.elasticsearch.common.regex.Regex;
@@ -1095,7 +1096,7 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
         final var idsToLookup = returnedIds.subList(10, randomIntBetween(10, 100));
         try (Engine.Searcher searcher = indexShard.acquireSearcher("test")) {
             for (var id : idsToLookup) {
-                assertNotNull(VersionsAndSeqNoResolver.timeSeriesLoadDocIdAndVersion(searcher.getIndexReader(), Uid.encodeId(id), false));
+                assertNotNull(VersionsAndSeqNoResolver.loadDocIdAndVersion(searcher.getIndexReader(), Uid.encodeId(id), false));
             }
         }
     }
@@ -1323,10 +1324,17 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
             NodeEnvironment nodeEnvironment,
             Settings settings,
             ThreadPool threadPool,
-            BlobCacheMetrics blobCacheMetrics
+            BlobCacheMetrics blobCacheMetrics,
+            ClusterService clusterService
         ) {
             MaybeNoFreeRegionForWarmingStatelessSharedBlobCacheService maybeNoFreeRegionForWarmingBlobCacheService =
-                new MaybeNoFreeRegionForWarmingStatelessSharedBlobCacheService(nodeEnvironment, settings, threadPool, blobCacheMetrics);
+                new MaybeNoFreeRegionForWarmingStatelessSharedBlobCacheService(
+                    nodeEnvironment,
+                    settings,
+                    threadPool,
+                    blobCacheMetrics,
+                    clusterService
+                );
             maybeNoFreeRegionForWarmingBlobCacheService.assertInvariants();
             return maybeNoFreeRegionForWarmingBlobCacheService;
         }
@@ -1339,13 +1347,15 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
             NodeEnvironment environment,
             Settings settings,
             ThreadPool threadPool,
-            BlobCacheMetrics blobCacheMetrics
+            BlobCacheMetrics blobCacheMetrics,
+            ClusterService clusterService
         ) {
             super(
                 environment,
                 settings,
                 threadPool,
                 blobCacheMetrics,
+                clusterService,
                 new ThreadLocalDirectoryMetricHolder<>(BlobStoreCacheDirectoryMetrics::new)
             );
         }

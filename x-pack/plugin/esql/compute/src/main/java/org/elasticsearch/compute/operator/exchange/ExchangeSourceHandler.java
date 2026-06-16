@@ -181,7 +181,7 @@ public final class ExchangeSourceHandler {
     /**
      * Wraps {@link RemoteSink} with a fetch loop and error handling.
      * Pages arriving from the remote sink are tagged with the sink's ID (via
-     * {@link Page#tagSourceId(int)}) so that the coordinator's
+     * {@link Page#taggedWith(int)}) so that the coordinator's
      * {@link org.elasticsearch.compute.operator.topn.SortedMergeSourceOperator} can route them to
      * per-source queues for K-way sorted merge. Completed sinks are recorded in
      * {@link ExchangeSourceHandler#completedSinks} so the merge operator knows when a source is
@@ -220,12 +220,12 @@ public final class ExchangeSourceHandler {
                     Page page = resp.takePage();
                     if (page != null) {
                         onPageFetched.run();
-                        // Tag the page in-place with this sink's ID so SortedMergeSourceOperator
-                        // can route it to the correct per-source queue. tagSourceId() mutates the
-                        // field directly without copying or touching ref counts; this is safe because
-                        // takePage() gives us exclusive ownership of the page object.
-                        page.tagSourceId(sinkId);
-                        buffer.addPage(page);
+                        // Tag the page with this sink's ID so SortedMergeSourceOperator can route
+                        // it to the correct per-source queue. taggedWith() returns a new immutable
+                        // Page (incRef'd blocks); we release the original immediately.
+                        Page tagged = page.taggedWith(sinkId);
+                        page.releaseBlocks();
+                        buffer.addPage(tagged);
                     }
                     if (resp.finished()) {
                         onSinkComplete();

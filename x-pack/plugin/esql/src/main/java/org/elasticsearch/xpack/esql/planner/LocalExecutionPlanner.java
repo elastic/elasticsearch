@@ -793,13 +793,21 @@ public class LocalExecutionPlanner {
             }
         }
 
+        // Snapshot the registered sink count at plan time. When all addRemoteSink() calls complete
+        // before the driver is created (data-node reduce path), this gives the exact count and
+        // eliminates any need for a lazy read in canStartMerge(). When sinks are registered
+        // asynchronously after the plan is dispatched (coordinator path), the count is 0 and
+        // canStartMerge() falls back to reading numRegisteredRemoteSinks() lazily.
+        int numSinks = exchangeSourceHandler.numRegisteredRemoteSinks();
+
         int pageSize = context.pageSize(topNExec, effectiveRowSize);
         var factory = new SortedMergeSourceOperator.Factory(
             exchangeSourceHandler,
             common.orders,
             common.elementTypes,
             pageSize,
-            docChannel
+            docChannel,
+            numSinks
         );
         return PhysicalOperation.fromSource(factory, layout);
     }

@@ -905,7 +905,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
             } catch (Exception e) {
                 exchangeService.finishSinkHandler(externalId, e);
                 // best-effort cleanup; handlers may not exist if setup failed before creation
-                int numShards = needsSortedMerge(reducePlan) ? request.shards().size() : 0;
+                int numShards = isSortedMerge ? request.shards().size() : 0;
                 if (numShards > 0) {
                     for (int i = 0; i < numShards; i++) {
                         exchangeService.finishSinkHandler(request.sessionId() + "[s" + i + "]", e);

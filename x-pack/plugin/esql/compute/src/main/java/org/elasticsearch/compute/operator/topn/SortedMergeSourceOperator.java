@@ -47,10 +47,13 @@ import java.util.Set;
  * cancellation signal and stop sending pages, keeping memory bounded to O(K × pageSize)
  * regardless of the total index size.
  *
- * <p>Correctness relies on the practical guarantee that all
- * {@link ExchangeSourceHandler#addRemoteSink} calls complete before any data page can arrive from
- * a data node, because the page flow requires a network round-trip that takes significantly longer
- * than the coordinator's synchronous sink-registration loop.
+ * <p>The expected number of sinks ({@code numSinks}) is passed explicitly to the factory when it
+ * is known at plan time (e.g. the data-node reduce path, where all
+ * {@link ExchangeSourceHandler#addRemoteSink} calls complete before the driver is created). When
+ * the count is not known upfront (e.g. the coordinator path, where data-node sinks are registered
+ * asynchronously after the plan is dispatched), {@code numSinks} is {@code 0} and
+ * {@link #canStartMerge()} falls back to reading
+ * {@link ExchangeSourceHandler#numRegisteredRemoteSinks()} lazily.
  */
 public final class SortedMergeSourceOperator extends SourceOperator {
 
@@ -65,19 +68,28 @@ public final class SortedMergeSourceOperator extends SourceOperator {
          * after all sort-key comparisons return 0, making the per-node merge deterministic.
          */
         private final int docChannel;
+        /**
+         * The number of remote sinks expected by this merge, captured at plan time when all sinks
+         * have already been registered (e.g. the data-node reduce path). {@code 0} means the count
+         * was not known at plan time and the operator will read it lazily from
+         * {@link ExchangeSourceHandler#numRegisteredRemoteSinks()} (e.g. the coordinator path).
+         */
+        private final int numSinks;
 
         public Factory(
             ExchangeSourceHandler exchangeSourceHandler,
             List<TopNOperator.SortOrder> sortOrders,
             ElementType[] elementTypes,
             int maxPageSize,
-            int docChannel
+            int docChannel,
+            int numSinks
         ) {
             this.exchangeSourceHandler = exchangeSourceHandler;
             this.sortOrders = sortOrders;
             this.elementTypes = elementTypes;
             this.maxPageSize = maxPageSize;
             this.docChannel = docChannel;
+            this.numSinks = numSinks;
         }
 
         @Override
@@ -90,7 +102,8 @@ public final class SortedMergeSourceOperator extends SourceOperator {
                 elementTypes,
                 driverContext.blockFactory(),
                 maxPageSize,
-                docChannel
+                docChannel,
+                numSinks
             );
         }
 
@@ -111,6 +124,11 @@ public final class SortedMergeSourceOperator extends SourceOperator {
      * @see Factory#docChannel
      */
     private final int docChannel;
+    /**
+     * Number of remote sinks expected by this merge, or {@code 0} if unknown at construction time.
+     * @see Factory#numSinks
+     */
+    private final int numSinks;
 
     /** Per-source page queues: sinkId → ordered deque of pages still to merge. */
     private final Map<Integer, ArrayDeque<Page>> sourceQueues = new HashMap<>();
@@ -139,7 +157,8 @@ public final class SortedMergeSourceOperator extends SourceOperator {
         ElementType[] elementTypes,
         BlockFactory blockFactory,
         int maxPageSize,
-        int docChannel
+        int docChannel,
+        int numSinks
     ) {
         this.exchangeSourceHandler = exchangeSourceHandler;
         this.exchangeSource = exchangeSource;
@@ -148,6 +167,7 @@ public final class SortedMergeSourceOperator extends SourceOperator {
         this.blockFactory = blockFactory;
         this.maxPageSize = maxPageSize;
         this.docChannel = docChannel;
+        this.numSinks = numSinks;
     }
 
     @Override
@@ -169,8 +189,8 @@ public final class SortedMergeSourceOperator extends SourceOperator {
         if (finished == false) {
             finished = true;
             releaseBufferedPages();
+            exchangeSource.finish();
         }
-        exchangeSource.finish();
     }
 
     @Override
@@ -247,12 +267,16 @@ public final class SortedMergeSourceOperator extends SourceOperator {
      * Returns {@code true} when it is safe to start the K-way merge: either the exchange has
      * fully finished (all sources done) or we have heard from every registered remote sink
      * (received at least one page from it or it has completed with no pages).
+     *
+     * <p>Uses {@link #numSinks} when it was captured explicitly at plan time (data-node reduce
+     * path). Falls back to {@link ExchangeSourceHandler#numRegisteredRemoteSinks()} when
+     * {@code numSinks == 0} (coordinator path, where sinks are registered asynchronously).
      */
     private boolean canStartMerge() {
         if (exchangeSource.isFinished()) {
             return true;
         }
-        int k = exchangeSourceHandler.numRegisteredRemoteSinks();
+        int k = numSinks > 0 ? numSinks : exchangeSourceHandler.numRegisteredRemoteSinks();
         if (k == 0) {
             return false;
         }
@@ -341,6 +365,8 @@ public final class SortedMergeSourceOperator extends SourceOperator {
                 return order.nullsFirst() ? 1 : -1;
             }
 
+            // asc here selects min-of-multi-values (matching data-node behaviour); the sign
+            // flip below handles sort direction. These two uses of asc() are independent.
             int cmp = compareNonNull(blockA, posA, blockB, posB, elementTypes[channel], order.asc());
             if (cmp != 0) {
                 return order.asc() ? cmp : -cmp;
@@ -447,8 +473,12 @@ public final class SortedMergeSourceOperator extends SourceOperator {
     private static BytesRef bytesSortKey(BytesRefBlock block, int pos, boolean asc, BytesRef scratch) {
         int count = block.getValueCount(pos);
         int first = block.getFirstValueIndex(pos);
-        // candidate is a private copy so we can mutate scratch freely in the loop.
         BytesRef tmp = block.getBytesRef(first, scratch);
+        if (count == 1) {
+            // Single value: scratch already holds the ref; no allocation needed.
+            return tmp;
+        }
+        // Multi-value: candidate must be a private copy so we can reuse scratch as the loop buffer.
         BytesRef candidate = BytesRef.deepCopyOf(tmp);
         BytesRef loop = new BytesRef();
         for (int i = 1; i < count; i++) {

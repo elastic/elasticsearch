@@ -16,17 +16,14 @@ import org.elasticsearch.action.admin.indices.template.put.TransportPutComposabl
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.datastreams.CreateDataStreamAction;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadForecaster;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.SuppressForbidden;
@@ -37,13 +34,13 @@ import org.elasticsearch.index.shard.IndexingStats;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentType;
 import org.junit.Before;
 
 import java.util.Collection;
 import java.util.List;
 import java.util.OptionalDouble;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.DEFAULT_TIMESTAMP_FIELD;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -239,67 +236,18 @@ public class WriteLoadForecasterIT extends ESIntegTestCase {
     }
 
     public static class FakeLicenseWriteLoadForecasterPlugin extends WriteLoadForecasterPlugin {
-        private boolean hasValidLicense = true;
+        private final AtomicBoolean hasValidLicense = new AtomicBoolean(true);
 
         public FakeLicenseWriteLoadForecasterPlugin() {}
 
         void setHasValidLicense(boolean validLicense) {
-            synchronized (SynchronizedWriteLoadForecaster.lock) {
-                hasValidLicense = validLicense;
-            }
+            hasValidLicense.set(validLicense);
         }
 
         @Override
         protected boolean hasValidLicense() {
-            synchronized (SynchronizedWriteLoadForecaster.lock) {
-                return hasValidLicense;
-            }
-        }
-
-        @Override
-        public Collection<WriteLoadForecaster> createWriteLoadForecasters(
-            ThreadPool threadPool,
-            Settings settings,
-            ClusterSettings clusterSettings,
-            ClusterInfoService clusterInfoService
-        ) {
-            Collection<WriteLoadForecaster> forecasters = super.createWriteLoadForecasters(
-                threadPool,
-                settings,
-                clusterSettings,
-                clusterInfoService
-            );
-            return forecasters.stream().<WriteLoadForecaster>map(SynchronizedWriteLoadForecaster::new).toList();
+            return hasValidLicense.get();
         }
     }
 
-    static class SynchronizedWriteLoadForecaster implements WriteLoadForecaster {
-        private static final Object lock = new Object();
-        private final WriteLoadForecaster delegate;
-
-        SynchronizedWriteLoadForecaster(WriteLoadForecaster delegate) {
-            this.delegate = delegate;
-        }
-
-        @Override
-        public ProjectMetadata.Builder withWriteLoadForecastForWriteIndex(String dataStreamName, ProjectMetadata.Builder metadata) {
-            synchronized (lock) {
-                return delegate.withWriteLoadForecastForWriteIndex(dataStreamName, metadata);
-            }
-        }
-
-        @Override
-        public OptionalDouble getForecastedWriteLoad(IndexMetadata indexMetadata) {
-            synchronized (lock) {
-                return delegate.getForecastedWriteLoad(indexMetadata);
-            }
-        }
-
-        @Override
-        public void refreshLicense() {
-            synchronized (lock) {
-                delegate.refreshLicense();
-            }
-        }
-    }
 }

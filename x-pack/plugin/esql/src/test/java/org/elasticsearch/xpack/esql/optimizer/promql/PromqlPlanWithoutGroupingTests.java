@@ -86,7 +86,7 @@ public class PromqlPlanWithoutGroupingTests extends AbstractPromqlPlanOptimizerT
             .findFirst()
             .orElse(null);
         assertNotNull(timeSeriesMetadata);
-        assertThat(timeSeriesMetadata.withoutFields(), hasItem("pod"));
+        assertThat(timeSeriesMetadata.excludedFields(), hasItem("pod"));
     }
 
     public void testWithoutGroupingSurvivesDataNodePlanSerialization() {
@@ -107,7 +107,7 @@ public class PromqlPlanWithoutGroupingTests extends AbstractPromqlPlanOptimizerT
             .filter(attr -> MetadataAttribute.TIMESERIES.equals(attr.name()))
             .toList();
         assertThat(fragment.toString(), fragmentPackedTimeSeriesValues, hasSize(1));
-        assertThat(as(fragmentPackedTimeSeriesValues.getFirst(), TimeSeriesMetadataAttribute.class).withoutFields(), hasItem("pod"));
+        assertThat(as(fragmentPackedTimeSeriesValues.getFirst(), TimeSeriesMetadataAttribute.class).excludedFields(), hasItem("pod"));
         PhysicalPlan deserializedDataNodePlan = SerializationTestUtils.serializeDeserialize(
             dataNodePlan,
             StreamOutput::writeNamedWriteable,
@@ -125,7 +125,7 @@ public class PromqlPlanWithoutGroupingTests extends AbstractPromqlPlanOptimizerT
             .filter(attr -> MetadataAttribute.TIMESERIES.equals(attr.name()))
             .toList();
         assertThat(deserializedFragment.toString(), deserializedPackedTimeSeriesValues, hasSize(1));
-        assertThat(as(deserializedPackedTimeSeriesValues.getFirst(), TimeSeriesMetadataAttribute.class).withoutFields(), hasItem("pod"));
+        assertThat(as(deserializedPackedTimeSeriesValues.getFirst(), TimeSeriesMetadataAttribute.class).excludedFields(), hasItem("pod"));
 
         var localLogical = new LocalLogicalPlanOptimizer(
             new LocalLogicalOptimizerContext(EsqlTestUtils.TEST_CFG, FoldContext.small(), SearchStats.EMPTY)
@@ -141,7 +141,7 @@ public class PromqlPlanWithoutGroupingTests extends AbstractPromqlPlanOptimizerT
             .filter(attr -> MetadataAttribute.TIMESERIES.equals(attr.name()))
             .toList();
         assertThat(localizedFragment.toString(), localizedPackedTimeSeriesValues, hasSize(1));
-        assertThat(as(localizedPackedTimeSeriesValues.getFirst(), TimeSeriesMetadataAttribute.class).withoutFields(), hasItem("pod"));
+        assertThat(as(localizedPackedTimeSeriesValues.getFirst(), TimeSeriesMetadataAttribute.class).excludedFields(), hasItem("pod"));
 
         PhysicalPlan mappedLocalizedFragment = LocalMapper.INSTANCE.map(localizedFragment);
         var mappedPackedTimeSeriesValues = mappedLocalizedFragment.collect(
@@ -156,7 +156,7 @@ public class PromqlPlanWithoutGroupingTests extends AbstractPromqlPlanOptimizerT
             .filter(attr -> MetadataAttribute.TIMESERIES.equals(attr.name()))
             .toList();
         assertThat(mappedLocalizedFragment.toString(), mappedPackedTimeSeriesValues, hasSize(1));
-        assertThat(as(mappedPackedTimeSeriesValues.getFirst(), TimeSeriesMetadataAttribute.class).withoutFields(), hasItem("pod"));
+        assertThat(as(mappedPackedTimeSeriesValues.getFirst(), TimeSeriesMetadataAttribute.class).excludedFields(), hasItem("pod"));
 
         var localPhysical = new LocalPhysicalPlanOptimizer(
             new LocalPhysicalOptimizerContext(
@@ -196,7 +196,7 @@ public class PromqlPlanWithoutGroupingTests extends AbstractPromqlPlanOptimizerT
         EsRelation esRelation = analyzed.collect(EsRelation.class).getFirst();
         var tsmaList = esRelation.expressions().stream().filter(field -> field instanceof TimeSeriesMetadataAttribute).toList();
         assertThat(tsmaList, hasSize(1));
-        assertEquals(((TimeSeriesMetadataAttribute) tsmaList.getFirst()).withoutFields(), Set.of("pod"));
+        assertEquals(((TimeSeriesMetadataAttribute) tsmaList.getFirst()).excludedFields(), Set.of("pod"));
     }
 
     public void testParentBySynthesizesConsumedBindingFromWithoutCarrier() {
@@ -204,7 +204,7 @@ public class PromqlPlanWithoutGroupingTests extends AbstractPromqlPlanOptimizerT
         EsRelation esRelation = analyzed.collect(EsRelation.class).getFirst();
         var tsmaList = esRelation.expressions().stream().filter(field -> field instanceof TimeSeriesMetadataAttribute).toList();
         assertThat(tsmaList, hasSize(1));
-        assertEquals(((TimeSeriesMetadataAttribute) tsmaList.getFirst()).withoutFields(), Set.of("pod"));
+        assertEquals(((TimeSeriesMetadataAttribute) tsmaList.getFirst()).excludedFields(), Set.of("pod"));
         TimeSeriesAggregate innerAggregate = analyzed.collect(TimeSeriesAggregate.class).getFirst();
         assertThat(
             innerAggregate.aggregates()

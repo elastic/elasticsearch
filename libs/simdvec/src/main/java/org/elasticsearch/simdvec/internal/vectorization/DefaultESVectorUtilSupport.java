@@ -590,6 +590,11 @@ public final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
     }
 
     @Override
+    public void packDibitQuad(int[] vector, byte[] packed) {
+        packDibitQuadImpl(vector, packed);
+    }
+
+    @Override
     public void packAsBinary(int[] vector, byte[] packed) {
         packAsBinaryImpl(vector, packed);
     }
@@ -634,6 +639,29 @@ public final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
         }
         packed[index] = (byte) lowerByte;
         packed[index + packed.length / 2] = (byte) upperByte;
+    }
+
+    public static void packDibitQuadImpl(int[] vector, byte[] packed) {
+        int limit = vector.length - 3;
+        int i = 0;
+        int index = 0;
+        for (; i < limit; i += 4, index++) {
+            assert vector[i] >= 0 && vector[i] <= 3;
+            assert vector[i + 1] >= 0 && vector[i + 1] <= 3;
+            assert vector[i + 2] >= 0 && vector[i + 2] <= 3;
+            assert vector[i + 3] >= 0 && vector[i + 3] <= 3;
+            int packedByte = (vector[i] & 0x03) << 6 | (vector[i + 1] & 0x03) << 4 | (vector[i + 2] & 0x03) << 2 | (vector[i + 3] & 0x03);
+            packed[index] = (byte) packedByte;
+        }
+        if (i == vector.length) {
+            return;
+        }
+        int packedByte = 0;
+        for (int shift = 6; i < vector.length; shift -= 2, i++) {
+            assert vector[i] >= 0 && vector[i] <= 3;
+            packedByte |= (vector[i] & 0x03) << shift;
+        }
+        packed[index] = (byte) packedByte;
     }
 
     public static void packAsBinaryImpl(int[] vector, byte[] packed) {

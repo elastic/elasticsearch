@@ -660,12 +660,25 @@ public class ESVectorUtilTests extends BaseVectorizationTests {
         for (int i = 0; i < dims; i++) {
             toPack[i] = randomInt(3);
         }
-        int length = ES940DiskBBQVectorsFormat.QuantEncoding.TWO_BIT_4BIT_QUERY.getDocPackedLength(dims);
-        ;
+        int length = ES940DiskBBQVectorsFormat.QuantEncoding.TWO_BIT_4BIT_QUERY_STRIPED.getDocPackedLength(dims);
         byte[] packed = new byte[length];
         byte[] packedLegacy = new byte[length];
         defaultedProvider.getVectorUtilSupport().packDibit(toPack, packedLegacy);
         panamaProvider.getVectorUtilSupport().packDibit(toPack, packed);
+        assertArrayEquals(packedLegacy, packed);
+    }
+
+    public void testPackAsDibitPacked() {
+        int dims = randomIntBetween(16, 2048);
+        int[] toPack = new int[dims];
+        for (int i = 0; i < dims; i++) {
+            toPack[i] = randomInt(3);
+        }
+        int length = ES940DiskBBQVectorsFormat.QuantEncoding.TWO_BIT_4BIT_QUERY_PACKED.getDocPackedLength(dims);
+        byte[] packed = new byte[length];
+        byte[] packedLegacy = new byte[length];
+        defaultedProvider.getVectorUtilSupport().packDibitQuad(toPack, packedLegacy);
+        panamaProvider.getVectorUtilSupport().packDibitQuad(toPack, packed);
         assertArrayEquals(packedLegacy, packed);
     }
 
@@ -687,6 +700,18 @@ public class ESVectorUtilTests extends BaseVectorizationTests {
         packed = new byte[2];
         ESVectorUtil.packDibit(toPack, packed);
         assertArrayEquals(new byte[] { (byte) 0b11001010, (byte) 0b01100101 }, packed);
+    }
+
+    public void testpackDibitQuadCorrectness() {
+        int[] toPack = new int[] { 1, 3, 2, 0, 1 };
+        byte[] packed = new byte[2];
+        ESVectorUtil.packDibitQuad(toPack, packed);
+        assertArrayEquals(new byte[] { (byte) 0b01111000, (byte) 0b01000000 }, packed);
+
+        toPack = new int[] { 1, 3, 2, 0, 1, 2, 1, 2 };
+        packed = new byte[2];
+        ESVectorUtil.packDibitQuad(toPack, packed);
+        assertArrayEquals(new byte[] { (byte) 0b01111000, (byte) 0b01100110 }, packed);
     }
 
     private float[] generateRandomVector(int size) {

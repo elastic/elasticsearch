@@ -9,11 +9,17 @@
 
 package org.elasticsearch.telemetry.apm.internal.export.otelsdk;
 
-import io.opentelemetry.api.metrics.MeterProvider;
 import io.opentelemetry.sdk.common.CompletableResultCode;
+import io.opentelemetry.sdk.common.InternalTelemetryVersion;
 import io.opentelemetry.sdk.metrics.SdkMeterProvider;
 import io.opentelemetry.sdk.metrics.data.MetricData;
 import io.opentelemetry.sdk.testing.exporter.InMemoryMetricReader;
+import io.opentelemetry.sdk.testing.exporter.InMemorySpanExporter;
+import io.opentelemetry.sdk.trace.SdkTracerProvider;
+import io.opentelemetry.sdk.trace.export.BatchSpanProcessor;
+import io.opentelemetry.sdk.trace.samplers.Sampler;
+
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -25,6 +31,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.nullValue;
 
+@ThreadLeakFilters(filters = { OkHttpThreadsFilter.class })
 public class OtelSdkExportMeterSupplierTests extends ESTestCase {
 
     public void testGetWithoutEndpointThrows() {
@@ -67,8 +74,8 @@ public class OtelSdkExportMeterSupplierTests extends ESTestCase {
         assertThat(OtelSdkExportMeterSupplier.buildOtlpAuthorizationHeader(settings), equalTo("ApiKey xyz"));
     }
 
-    public void testGetHealthMeterProviderWithoutEndpointThrows() {
-        expectThrows(IllegalStateException.class, () -> new OtelSdkExportMeterSupplier(Settings.EMPTY, null).getHealthMeterProvider());
+    public void testGetMeterProviderWithoutEndpointThrows() {
+        expectThrows(IllegalStateException.class, () -> new OtelSdkExportMeterSupplier(Settings.EMPTY, null).getMeterProvider());
     }
 
     public void testGetMeterProviderAfterGetReturnsSdkProvider() {
@@ -76,10 +83,7 @@ public class OtelSdkExportMeterSupplierTests extends ESTestCase {
         Settings settings = Settings.builder().put(OtelSdkSettings.TELEMETRY_OTEL_METRICS_ENDPOINT.getKey(), bogusUrl).build();
         OtelSdkExportMeterSupplier supplier = new OtelSdkExportMeterSupplier(settings, createTempDir());
         supplier.get();
-        assertThat(
-            supplier.getHealthMeterProvider(),
-            org.hamcrest.Matchers.instanceOf(io.opentelemetry.sdk.metrics.SdkMeterProvider.class)
-        );
+        assertThat(supplier.getMeterProvider(), org.hamcrest.Matchers.instanceOf(io.opentelemetry.sdk.metrics.SdkMeterProvider.class));
         supplier.close();
     }
 
@@ -91,10 +95,7 @@ public class OtelSdkExportMeterSupplierTests extends ESTestCase {
         String bogusUrl = "http://127.0.0.1:9/v1/metrics";
         Settings settings = Settings.builder().put(OtelSdkSettings.TELEMETRY_OTEL_METRICS_ENDPOINT.getKey(), bogusUrl).build();
         OtelSdkExportMeterSupplier supplier = new OtelSdkExportMeterSupplier(settings, createTempDir());
-        assertThat(
-            supplier.getHealthMeterProvider(),
-            org.hamcrest.Matchers.instanceOf(io.opentelemetry.sdk.metrics.SdkMeterProvider.class)
-        );
+        assertThat(supplier.getMeterProvider(), org.hamcrest.Matchers.instanceOf(io.opentelemetry.sdk.metrics.SdkMeterProvider.class));
         supplier.close();
     }
 
@@ -111,27 +112,21 @@ public class OtelSdkExportMeterSupplierTests extends ESTestCase {
         supplier.close();
     }
 
-    /**
-     * Verifies end-to-end wiring: {@link OtelSdkExportTracerSupplier} emits
-     * {@code otel.sdk.processor.span.*} self-monitoring metrics into the health
-     * {@link MeterProvider} returned by {@link OtelSdkExportMeterSupplier#getHealthMeterProvider()}.
-     */
     public void testSpanProcessorSelfMonitoringMetricsFlowIntoHealthProvider() {
-        InMemoryMetricReader healthReader = InMemoryMetricReader.create();
-        SdkMeterProvider healthProvider = SdkMeterProvider.builder().registerMetricReader(healthReader).build();
-        SdkMeterProvider systemProvider = SdkMeterProvider.builder().registerMetricReader(InMemoryMetricReader.create()).build();
-        var resources = new OtelSdkExportMeterSupplier.OTelMetricsResources(systemProvider, healthProvider, null);
+        InMemoryMetricReader inMemoryReader = InMemoryMetricReader.create();
+        SdkMeterProvider meterProvider = SdkMeterProvider.builder().registerMetricReader(inMemoryReader).build();
+        var resources = new OtelSdkExportMeterSupplier.OTelMetricsResources(meterProvider, null);
         OtelSdkExportMeterSupplier meterSupplier = new OtelSdkExportMeterSupplier(Settings.EMPTY, null, resources);
-        Settings tracerSettings = Settings.builder()
-            .put(OtelSdkSettings.TELEMETRY_OTEL_TRACES_ENDPOINT.getKey(), "http://127.0.0.1:9/v1/traces")
-            .put(OtelSdkSettings.TELEMETRY_OTEL_TRACES_INTERVAL.getKey(), "1ms")
+
+        BatchSpanProcessor processor = BatchSpanProcessor.builder(InMemorySpanExporter.create())
+            .setMeterProvider(meterSupplier::getMeterProvider)
+            .setInternalTelemetryVersion(InternalTelemetryVersion.LATEST)
             .build();
-        try (var tracerSupplier = new OtelSdkExportTracerSupplier(tracerSettings, meterSupplier::getHealthMeterProvider)) {
-            var span = tracerSupplier.get().getTracer("test").spanBuilder("test").startSpan();
-            span.end();
-            var metricNames = healthReader.collectAllMetrics().stream().map(MetricData::getName).toList();
+        try (var tracerProvider = SdkTracerProvider.builder().setSampler(Sampler.alwaysOn()).addSpanProcessor(processor).build()) {
+            tracerProvider.get("test").spanBuilder("test").startSpan().end();
+            var metricNames = inMemoryReader.collectAllMetrics().stream().map(MetricData::getName).toList();
             assertThat(
-                "expected otel.sdk.processor.span.queue.capacity in health provider",
+                "expected otel.sdk.processor.span.queue.capacity in OTel meter provider",
                 metricNames,
                 hasItem("otel.sdk.processor.span.queue.capacity")
             );

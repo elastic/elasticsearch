@@ -549,7 +549,13 @@ public final class DocumentParser {
         if (objectMapper != null) {
             doParseObject(context, currentFieldName, objectMapper);
         } else {
-            parseObjectDynamic(context, currentFieldName);
+            final ObjectMapper parent = context.parent();
+            boolean subobjectsDisabled = parent.subobjects() == ObjectMapper.Subobjects.DISABLED;
+            if (subobjectsDisabled && parent.hasMappedFieldsWithPrefix(currentFieldName)) {
+                parseObjectOrNested(context.createFlattenContext(currentFieldName));
+            } else {
+                parseObjectDynamic(context, currentFieldName);
+            }
         }
         context.setImmediateXContentParent(prev);
     }
@@ -570,7 +576,8 @@ public final class DocumentParser {
         // For [subobjects:false], intermediate objects get flattened so we can't skip parsing children.
         if (context.dynamic() == ObjectMapper.Dynamic.FALSE && context.parent().subobjects() != ObjectMapper.Subobjects.DISABLED) {
             failIfMatchesRoutingPath(context, currentFieldName);
-            if (context.canAddIgnoredField()) {
+            // In columnar index modes, unmapped fields under dynamic:false are dropped entirely
+            if (context.canAddIgnoredField() && context.indexSettings().getMode().isStrictColumnar() == false) {
                 context.addIgnoredField(
                     IgnoredSourceFieldMapper.NameValue.fromContext(
                         context,
@@ -594,7 +601,13 @@ public final class DocumentParser {
                     );
                 }
             } else {
-                dynamicObjectBuilder = DynamicFieldsBuilder.createDynamicObjectMapperBuilder(context, currentFieldName);
+                // When subobjects are disabled, only check for a matching dynamic template for this object field.
+                // If a template matches with a non-object type (e.g. geo_point), that mapper is created normally.
+                // If a template matches with an object type, or if no template matches (null), the object is
+                // auto-flattened: its children are parsed as if their paths were prefixed with currentFieldName.
+                dynamicObjectBuilder = context.parent().subobjects() == ObjectMapper.Subobjects.DISABLED
+                    ? DynamicFieldsBuilder.createObjectMapperBuilderFromTemplate(context, currentFieldName)
+                    : DynamicFieldsBuilder.createDynamicObjectMapperBuilder(context, currentFieldName);
             }
             if (context.parent().subobjects() == ObjectMapper.Subobjects.DISABLED) {
                 if (dynamicObjectBuilder instanceof NestedObjectMapper.Builder) {
@@ -668,7 +681,8 @@ public final class DocumentParser {
     private static void parseArrayDynamic(DocumentParserContext context, String currentFieldName) throws IOException {
         ensureNotStrict(context, currentFieldName);
         if (context.dynamic() == ObjectMapper.Dynamic.FALSE) {
-            if (context.canAddIgnoredField()) {
+            // In columnar index modes, unmapped fields under dynamic:false are dropped entirely
+            if (context.canAddIgnoredField() && context.indexSettings().getMode().isStrictColumnar() == false) {
                 context.addIgnoredField(
                     IgnoredSourceFieldMapper.NameValue.fromContext(
                         context,
@@ -908,7 +922,8 @@ public final class DocumentParser {
         ensureNotStrict(context, currentFieldName);
         if (context.dynamic() == ObjectMapper.Dynamic.FALSE) {
             failIfMatchesRoutingPath(context, currentFieldName);
-            if (context.canAddIgnoredField()) {
+            // In columnar index modes, unmapped fields under dynamic:false are dropped entirely
+            if (context.canAddIgnoredField() && context.indexSettings().getMode().isStrictColumnar() == false) {
                 context.addIgnoredField(
                     IgnoredSourceFieldMapper.NameValue.fromContext(
                         context,

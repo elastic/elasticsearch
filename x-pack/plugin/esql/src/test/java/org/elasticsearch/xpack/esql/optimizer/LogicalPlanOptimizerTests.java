@@ -9568,7 +9568,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             .map(a -> (TimeSeriesMetadataAttribute) a)
             .toList();
         assertThat(timeSeriesAttrs, hasSize(1));
-        assertThat(timeSeriesAttrs.get(0).withoutFields(), equalTo(Set.of("pod")));
+        assertThat(timeSeriesAttrs.get(0).excludedFields(), equalTo(Set.of("pod")));
     }
 
     public void testWithoutGroupingExcludesMultipleDimensions() {
@@ -9586,7 +9586,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             .map(a -> (TimeSeriesMetadataAttribute) a)
             .toList();
         assertThat(timeSeriesAttrs, hasSize(1));
-        assertThat(timeSeriesAttrs.get(0).withoutFields(), equalTo(Set.of("pod", "region")));
+        assertThat(timeSeriesAttrs.get(0).excludedFields(), equalTo(Set.of("pod", "region")));
     }
 
     public void testWithoutGroupingNoDuplicateWithTsAggFunction() {
@@ -9616,7 +9616,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             .map(a -> (TimeSeriesMetadataAttribute) a)
             .toList();
         assertThat(timeSeriesAttrs, hasSize(1));
-        assertThat(timeSeriesAttrs.get(0).withoutFields(), equalTo(Set.of()));
+        assertThat(timeSeriesAttrs.get(0).excludedFields(), equalTo(Set.of()));
     }
 
     public void testTimeSeriesBareFieldWithBucketAndLimitZeroDoesNotFailVerifier() {
@@ -10264,13 +10264,6 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             )
         ).getMessage();
         assertThat(errorMessage, containsString("count_star [count(*)] can't be used with TS command; use count on a field instead"));
-        assertThat(
-            errorMessage,
-            containsString(
-                "[STATS count(*)] requires the [@timestamp] field, which was either not present "
-                    + "in the source index, or has been dropped or renamed"
-            )
-        );
     }
 
     /**

@@ -77,8 +77,16 @@ Plugins can set `deploymentTarget` in `build.gradle`. That value tells the node 
 - Integration: Extend `ESIntegTestCase`.
 - REST API: Extend `ESRestTestCase` or `ESClientYamlSuiteTestCase`. **YAML based REST tests are preferred** for integration/API testing.
 
+### Distribution selection for external-module tests
+- Prefer the OSS/minimal distribution over `usesDefaultDistribution` whenever possible. `usesDefaultDistribution` packages the full default distribution, which is significantly more expensive to build and run.
+- Only use `usesDefaultDistribution` when the test genuinely requires a feature that is only available in the default distribution and cannot be replicated with a custom cluster configuration that includes just the needed plugins. Always document the reason in the `usesDefaultDistribution(...)` message.
+
 ## Dependency Hygiene
 - Never add a dependency without checking for existing alternatives in the repo.
+
+## Entitlement Policy
+- Never add an entitlement speculatively. Each entry in `entitlement-policy.yaml` must have a specific justification — ideally a concrete `NotEntitledException` that was observed, or at minimum a clear explanation of why the library requires that capability. Entitlements are a least-privilege mechanism; granting one "just in case" defeats the purpose.
+- Every use of `ESTestCase.WithoutEntitlements` must be accompanied by a comment explaining why the entitlement failure is spurious in the test context and would not occur in production.
 
 ## Formatting & Imports
 - Absolutely no wildcard imports; keep existing import order and avoid reordering untouched lines.
@@ -128,7 +136,7 @@ When expected test methods are absent from results (not failed, not skipped — 
    ```bash
    grep 'ClassName\|methodName' muted-tests.yml
    ```
-   
+
 ## Best Practices for Automation Agents
 - Never edit unrelated files; keep diffs tightly scoped to the task at hand.
 - Prefer Gradle tasks over ad-hoc scripts.

@@ -10,9 +10,16 @@ package org.elasticsearch.xpack.esql;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.junit.AfterClass;
 import org.junit.AssumptionViolatedException;
@@ -632,6 +639,33 @@ public class CsvFlattenedKeywordIT extends CsvIT {
         }
 
         @Override
+        public Settings transformSettings(CsvTestsDataLoader.TestDataset dataset, Settings settings) {
+            // Update dimensions in the routing path to their transformed path
+            List<String> routingPaths = settings.getAsList("index.routing_path");
+            if (routingPaths.isEmpty()) {
+                return settings;
+            }
+            Set<String> convertedPaths = keywordPathsByDatasetIndexName.getOrDefault(dataset.indexName(), Set.of());
+            if (convertedPaths.isEmpty()) {
+                return settings;
+            }
+            boolean changed = false;
+            List<String> rewritten = new ArrayList<>(routingPaths.size());
+            for (String path : routingPaths) {
+                if (convertedPaths.contains(path)) {
+                    rewritten.add(path + "." + KeywordToFlattenedTransformer.WRAPPER_SUBKEY);
+                    changed = true;
+                } else {
+                    rewritten.add(path);
+                }
+            }
+            if (changed == false) {
+                return settings;
+            }
+            return Settings.builder().put(settings).putList("index.routing_path", rewritten).build();
+        }
+
+        @Override
         public String transformDocument(CsvTestsDataLoader.TestDataset dataset, String originalDocumentJson) throws IOException {
             Set<String> paths = keywordPathsByDatasetIndexName.getOrDefault(dataset.indexName(), Set.of());
             return KeywordToFlattenedTransformer.wrapKeywordValuesAsFlattened(originalDocumentJson, paths);
@@ -639,6 +673,18 @@ public class CsvFlattenedKeywordIT extends CsvIT {
 
         @Override
         public String transformQuery(String testId, CsvSpecReader.CsvTestCase testCase) {
+            // Tests requiring ts_info_command or metrics_info_command expose TSDB dimension names
+            // directly in query output (e.g. _timeseries, _tsid). After the keyword→flattened
+            // rewrite those names change from "cluster" to "cluster.v", so the expected results
+            // no longer match. Skip the whole variant for these tests rather than updating every
+            // expected result to the sub-key form.
+            for (String cap : testCase.requiredCapabilities) {
+                if (cap.equals("ts_info_command") || cap.equals("metrics_info_command")) {
+                    throw new StacklessAssumptionViolatedException(
+                        "skipping: test requires " + cap + " which exposes raw TSDB dimension names in output"
+                    );
+                }
+            }
             // A {@code skip_flattened_rewrite:} preamble line marks a test whose failure under
             // this variant is a known limitation of field_extract() or of an upstream
             // grammar/engine constraint. Running the rewrite would only reproduce the
@@ -712,6 +758,94 @@ public class CsvFlattenedKeywordIT extends CsvIT {
                 logger.info("keyword→flattened: rewritten query:\n{}", result.rewrittenQuery());
             }
             return result.rewrittenQuery();
+        }
+
+        /**
+         * Rewrites the expected {@code _timeseries} column values so they reflect the
+         * dimension-key rename that TSDB applies after the keyword&rarr;flattened conversion.
+         */
+        @Override
+        public CsvTestUtils.ExpectedResults transformExpectedResults(
+            String testId,
+            CsvSpecReader.CsvTestCase testCase,
+            CsvTestUtils.ExpectedResults expected
+        ) {
+            int tsIdx = expected.columnNames().indexOf("_timeseries");
+            if (tsIdx < 0) {
+                return expected;
+            }
+            Set<String> convertedPaths = resolveKeywordPathsForQuery(testCase.query);
+            if (convertedPaths.isEmpty()) {
+                return expected;
+            }
+            boolean anyChanged = false;
+            List<List<Object>> newValues = new ArrayList<>(expected.values().size());
+            for (List<Object> row : expected.values()) {
+                Object tsValue = row.get(tsIdx);
+                if (tsValue == null) {
+                    newValues.add(row);
+                    continue;
+                }
+                String tsJson = tsValue.toString();
+                String rewritten = rewriteTimeseriesJson(tsJson, convertedPaths);
+                if (rewritten.equals(tsJson)) {
+                    newValues.add(row);
+                } else {
+                    List<Object> newRow = new ArrayList<>(row);
+                    newRow.set(tsIdx, rewritten);
+                    newValues.add(newRow);
+                    anyChanged = true;
+                }
+            }
+            if (anyChanged == false) {
+                return expected;
+            }
+            return new CsvTestUtils.ExpectedResults(expected.columnNames(), expected.columnTypes(), newValues);
+        }
+
+        /**
+         * Parses {@code json} as a JSON object, and for every key that appears in
+         * {@code convertedPaths} wraps the value {@code V} as
+         * {@code {"v": V}} (where {@code "v"} is
+         * {@link KeywordToFlattenedTransformer#WRAPPER_SUBKEY}), then re-serialises the result.
+         * This reflects the TSDB dimension representation change: a keyword dimension
+         * {@code host:"host-a"} becomes a flattened dimension
+         * {@code host:{"v":"host-a"}} after the keyword&rarr;flattened conversion.
+         * Returns the original {@code json} string unchanged if parsing fails or no key is found
+         * in {@code convertedPaths}.
+         */
+        private static String rewriteTimeseriesJson(String json, Set<String> convertedPaths) {
+            try (
+                XContentParser parser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, json);
+                XContentBuilder builder = XContentFactory.jsonBuilder()
+            ) {
+                if (parser.nextToken() != XContentParser.Token.START_OBJECT) {
+                    return json;
+                }
+                boolean changed = false;
+                builder.startObject();
+                while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
+                    String fieldName = parser.currentName();
+                    parser.nextToken(); // advance to value token
+                    if (convertedPaths.contains(fieldName)) {
+                        builder.startObject(fieldName);
+                        builder.field(KeywordToFlattenedTransformer.WRAPPER_SUBKEY);
+                        builder.copyCurrentStructure(parser);
+                        builder.endObject();
+                        changed = true;
+                    } else {
+                        builder.field(fieldName);
+                        builder.copyCurrentStructure(parser);
+                    }
+                }
+                builder.endObject();
+                if (changed == false) {
+                    return json;
+                }
+                return Strings.toString(builder);
+            } catch (IOException e) {
+                return json;
+            }
         }
 
         /**

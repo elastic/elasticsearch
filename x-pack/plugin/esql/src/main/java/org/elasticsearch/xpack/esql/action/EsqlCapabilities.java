@@ -2141,7 +2141,7 @@ public class EsqlCapabilities {
         /**
          * TS window functions use backward window semantics only.
          */
-        FIX_TIME_SERIES_WINDOW_BACKWARD(Build.current().isSnapshot()),
+        FIX_TIME_SERIES_WINDOW_BACKWARD,
 
         /**
          * PromQL uses TSTEP instead of TBUCKET, with corrected open-ended range query bounds.
@@ -3058,6 +3058,11 @@ public class EsqlCapabilities {
          * Bugfix in query approximation to not produce confidence intervals for multivalued functions.
          */
         APPROXIMATION_FIX_MV_FUNCTIONS,
+
+        /**
+         * Support for PromQL {@code histogram_quantile()} over classic histograms with {@code le} buckets.
+         */
+        PROMQL_HISTOGRAM_QUANTILE,
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

@@ -86,6 +86,21 @@ public final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
         return VectorUtil.dotProduct(a, b);
     }
 
+    @Override
+    public float squareDistance(byte[] a, byte[] b) {
+        return VectorUtil.squareDistance(a, b);
+    }
+
+    @Override
+    public float squareDistance(byte[] a, byte[] b, int offset, int length) {
+        int sum = 0;
+        for (int i = offset; i < offset + length; i++) {
+            int diff = a[i] - b[i];
+            sum += diff * diff;
+        }
+        return sum;
+    }
+
     static float maxSimDotProductImpl(MultiFloatVectorsSource source, float[][] query, float[] scoresScratch) {
         float sum = 0f;
         for (float[] floats : query) {
@@ -138,11 +153,6 @@ public final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
     @Override
     public float maxSimDotProduct(MultiByteVectorsSource source, byte[][] query, float[] scoresScratch) {
         return maxSimDotProductImpl(source, query, scoresScratch);
-    }
-
-    @Override
-    public float squareDistance(byte[] a, byte[] b) {
-        return VectorUtil.squareDistance(a, b);
     }
 
     @Override
@@ -469,65 +479,77 @@ public final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
     }
 
     @Override
-    public void squareDistanceBulk(float[] query, float[] v0, float[] v1, float[] v2, float[] v3, int distancesOffset, float[] distances) {
-        distances[distancesOffset] = VectorUtil.squareDistance(query, v0);
-        distances[distancesOffset + 1] = VectorUtil.squareDistance(query, v1);
-        distances[distancesOffset + 2] = VectorUtil.squareDistance(query, v2);
-        distances[distancesOffset + 3] = VectorUtil.squareDistance(query, v3);
+    public void dotProductBulk(float[] query, float[] v0, float[] v1, float[] v2, float[] v3, int distancesOffset, float[] distances) {
+        distances[distancesOffset] = VectorUtil.dotProduct(query, v0);
+        distances[distancesOffset + 1] = VectorUtil.dotProduct(query, v1);
+        distances[distancesOffset + 2] = VectorUtil.dotProduct(query, v2);
+        distances[distancesOffset + 3] = VectorUtil.dotProduct(query, v3);
     }
 
     @Override
     public void squareDistanceBulk(
         float[] query,
         int queryOffset,
-        int length,
         float[] v0,
         float[] v1,
         float[] v2,
         float[] v3,
         int distancesOffset,
-        float[] distances
+        float[] distances,
+        int length
     ) {
-        distances[distancesOffset] = squareDistance(query, v0, queryOffset, length);
-        distances[distancesOffset + 1] = squareDistance(query, v1, queryOffset, length);
-        distances[distancesOffset + 2] = squareDistance(query, v2, queryOffset, length);
-        distances[distancesOffset + 3] = squareDistance(query, v3, queryOffset, length);
-    }
-
-    @Override
-    public float squareDistance(byte[] a, byte[] b, int offset, int length) {
-        int sum = 0;
-        for (int i = offset; i < offset + length; i++) {
-            int diff = a[i] - b[i];
-            sum += diff * diff;
+        if (queryOffset == 0 && length == query.length) {
+            distances[distancesOffset] = VectorUtil.squareDistance(query, v0);
+            distances[distancesOffset + 1] = VectorUtil.squareDistance(query, v1);
+            distances[distancesOffset + 2] = VectorUtil.squareDistance(query, v2);
+            distances[distancesOffset + 3] = VectorUtil.squareDistance(query, v3);
+        } else {
+            distances[distancesOffset] = squareDistance(query, v0, queryOffset, length);
+            distances[distancesOffset + 1] = squareDistance(query, v1, queryOffset, length);
+            distances[distancesOffset + 2] = squareDistance(query, v2, queryOffset, length);
+            distances[distancesOffset + 3] = squareDistance(query, v3, queryOffset, length);
         }
-        return sum;
     }
 
     @Override
-    public void squareDistanceBulk(byte[] query, byte[] v0, byte[] v1, byte[] v2, byte[] v3, int distancesOffset, float[] distances) {
-        distances[distancesOffset] = VectorUtil.squareDistance(query, v0);
-        distances[distancesOffset + 1] = VectorUtil.squareDistance(query, v1);
-        distances[distancesOffset + 2] = VectorUtil.squareDistance(query, v2);
-        distances[distancesOffset + 3] = VectorUtil.squareDistance(query, v3);
+    public void dotProductBulk(byte[] query, byte[] v0, byte[] v1, byte[] v2, byte[] v3, int distancesOffset, float[] distances) {
+        distances[distancesOffset] = VectorUtil.dotProduct(query, v0);
+        distances[distancesOffset + 1] = VectorUtil.dotProduct(query, v1);
+        distances[distancesOffset + 2] = VectorUtil.dotProduct(query, v2);
+        distances[distancesOffset + 3] = VectorUtil.dotProduct(query, v3);
+    }
+
+    @Override
+    public void cosineBulk(byte[] query, byte[] v0, byte[] v1, byte[] v2, byte[] v3, int distancesOffset, float[] distances) {
+        distances[distancesOffset] = VectorUtil.cosine(query, v0);
+        distances[distancesOffset + 1] = VectorUtil.cosine(query, v1);
+        distances[distancesOffset + 2] = VectorUtil.cosine(query, v2);
+        distances[distancesOffset + 3] = VectorUtil.cosine(query, v3);
     }
 
     @Override
     public void squareDistanceBulk(
         byte[] query,
         int queryOffset,
-        int length,
         byte[] v0,
         byte[] v1,
         byte[] v2,
         byte[] v3,
         int distancesOffset,
-        float[] distances
+        float[] distances,
+        int length
     ) {
-        distances[distancesOffset] = squareDistance(query, v0, queryOffset, length);
-        distances[distancesOffset + 1] = squareDistance(query, v1, queryOffset, length);
-        distances[distancesOffset + 2] = squareDistance(query, v2, queryOffset, length);
-        distances[distancesOffset + 3] = squareDistance(query, v3, queryOffset, length);
+        if (queryOffset == 0 && length == query.length) {
+            distances[distancesOffset] = VectorUtil.squareDistance(query, v0);
+            distances[distancesOffset + 1] = VectorUtil.squareDistance(query, v1);
+            distances[distancesOffset + 2] = VectorUtil.squareDistance(query, v2);
+            distances[distancesOffset + 3] = VectorUtil.squareDistance(query, v3);
+        } else {
+            distances[distancesOffset] = squareDistance(query, v0, queryOffset, length);
+            distances[distancesOffset + 1] = squareDistance(query, v1, queryOffset, length);
+            distances[distancesOffset + 2] = squareDistance(query, v2, queryOffset, length);
+            distances[distancesOffset + 3] = squareDistance(query, v3, queryOffset, length);
+        }
     }
 
     @Override

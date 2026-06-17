@@ -17,6 +17,7 @@ public class InstrumentedSecurityActionListener {
      *
      * @param metrics The metrics to collect.
      * @param context The context object is used to collect and attach additional metric attributes.
+     * @param classifier Maps failed authentication to a bounded failure reason attribute value.
      * @param listener The authentication result handling listener.
      * @return a new "wrapped" listener which overrides onResponse and onFailure methods in order to collect authentication metrics.
      * @param <R> The type of authentication result value.
@@ -25,6 +26,7 @@ public class InstrumentedSecurityActionListener {
     public static <R, C> ActionListener<AuthenticationResult<R>> wrapForAuthc(
         final SecurityMetrics<C> metrics,
         final C context,
+        final SecurityAuthcFailureReasonClassifier classifier,
         final ActionListener<AuthenticationResult<R>> listener
     ) {
         assert metrics.type().group() == SecurityMetricGroup.AUTHC;
@@ -33,11 +35,11 @@ public class InstrumentedSecurityActionListener {
             if (result.isAuthenticated()) {
                 metrics.recordSuccess(context);
             } else {
-                metrics.recordFailure(context, SecurityAuthcFailureFaultClassifier.fromFailedResult(result));
+                metrics.recordFailure(context, classifier.fromResult(result));
             }
             listener.onResponse(result);
         }, e -> {
-            metrics.recordFailure(context, SecurityAuthcFailureFaultClassifier.fromThrowable(e));
+            metrics.recordFailure(context, classifier.fromException(e));
             listener.onFailure(e);
         }), () -> metrics.recordTime(context, startTimeNano));
     }
@@ -49,6 +51,7 @@ public class InstrumentedSecurityActionListener {
      */
     public static <R> ActionListener<AuthenticationResult<R>> wrapForAuthc(
         final SecurityMetrics<AuthenticationResult<R>> metrics,
+        final SecurityAuthcFailureReasonClassifier classifier,
         final ActionListener<AuthenticationResult<R>> listener
     ) {
         assert metrics.type().group() == SecurityMetricGroup.AUTHC;
@@ -57,11 +60,11 @@ public class InstrumentedSecurityActionListener {
             if (result.isAuthenticated()) {
                 metrics.recordSuccess(result);
             } else {
-                metrics.recordFailure(result, SecurityAuthcFailureFaultClassifier.fromFailedResult(result));
+                metrics.recordFailure(result, classifier.fromResult(result));
             }
             listener.onResponse(result);
         }, e -> {
-            metrics.recordFailure(null, SecurityAuthcFailureFaultClassifier.fromThrowable(e));
+            metrics.recordFailure(null, classifier.fromException(e));
             listener.onFailure(e);
         }), () -> metrics.recordTime(null, startTimeNano));
     }

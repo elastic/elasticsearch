@@ -1,5 +1,5 @@
 area: Security
 issues: []
 pr: 145769
-summary: Add client/server fault label to authc failure metrics
+summary: Add bounded authc failure reason labels to security metrics
 type: feature

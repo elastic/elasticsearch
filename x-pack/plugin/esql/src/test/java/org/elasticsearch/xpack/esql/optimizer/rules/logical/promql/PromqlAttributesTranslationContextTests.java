@@ -63,14 +63,15 @@ public class PromqlAttributesTranslationContextTests extends ESTestCase {
         SynthesizedAttributes afterAvgWithout = SynthesizedAttributes.foldExcluding(List.of(REGION), leaf);
         SynthesizedAttributes afterWithout = SynthesizedAttributes.foldExcluding(List.of(POD), afterAvgWithout);
 
-        // innermost physical aggregate groups by _timeseries and drops every excluded dimension at once
+        // innermost physical aggregate groups by the full label set (the `_timeseries` identity) and drops every
+        // excluded dimension at once
         ResolvedAttributes innermost = afterAvgWithout.translateLeaf(demandForSelector.pathExclusions());
-        assertThat(names(innermost.groupings()), empty());
+        assertThat(names(innermost.groupings()), equalTo(Set.of("_timeseries")));
         assertThat(names(innermost.excludedDimensions()), equalTo(Set.of("pod", "region")));
 
-        // the outermost aggregate has nothing concrete left to group on
+        // the outermost aggregate still groups by the full label set (no concrete keys), i.e. `_timeseries`
         ResolvedAttributes outermost = afterWithout.translate(afterAvgWithout.declared());
-        assertThat(names(outermost.groupings()), empty());
+        assertThat(names(outermost.groupings()), equalTo(Set.of("_timeseries")));
         assertThat(names(outermost.absent()), empty());
     }
 
@@ -115,10 +116,12 @@ public class PromqlAttributesTranslationContextTests extends ESTestCase {
         SynthesizedAttributes afterBy = SynthesizedAttributes.foldIncluding(List.of(CLUSTER, REGION), afterAvgWithout);
         SynthesizedAttributes afterWithout = SynthesizedAttributes.foldExcluding(List.of(CLUSTER), afterBy);
 
-        // the single bottom grouping must exclude both dimensions that any WITHOUT removed
+        // The intervening BY(cluster,region) clears the inherited exclusions, so only the WITHOUT(region) below the BY
+        // reaches the leaf; the outer WITHOUT(cluster) applies over the BY's concrete keys, not at the leaf. (This exact
+        // query - two WITHOUTs with a BY between - is rejected in practice; this only pins the algebra composition.)
         ResolvedAttributes innermost = afterAvgWithout.translateLeaf(demandForSelector.pathExclusions());
         assertThat(names(innermost.groupings()), equalTo(Set.of("cluster")));
-        assertThat(names(innermost.excludedDimensions()), equalTo(Set.of("cluster", "region")));
+        assertThat(names(innermost.excludedDimensions()), equalTo(Set.of("region")));
 
         ResolvedAttributes outermost = afterWithout.translate(afterBy.declared());
         assertThat(names(outermost.groupings()), empty());
@@ -137,9 +140,11 @@ public class PromqlAttributesTranslationContextTests extends ESTestCase {
         SynthesizedAttributes afterBy = SynthesizedAttributes.foldIncluding(List.of(CLUSTER, POD), leaf);
         SynthesizedAttributes afterWithout = SynthesizedAttributes.foldExcluding(List.of(POD), afterBy);
 
+        // The BY(cluster,pod) clears the inherited exclusions, so the leaf has none: the outer WITHOUT(pod) drops pod
+        // from the BY's concrete keys (handled at the outer aggregate), not via a leaf `_timeseries` exclusion.
         ResolvedAttributes innermost = afterBy.translateLeaf(demandForSelector.pathExclusions());
         assertThat(names(innermost.groupings()), equalTo(Set.of("cluster", "pod")));
-        assertThat(names(innermost.excludedDimensions()), equalTo(Set.of("pod")));
+        assertThat(names(innermost.excludedDimensions()), empty());
 
         ResolvedAttributes outermost = afterWithout.translate(afterBy.declared());
         assertThat(names(outermost.groupings()), equalTo(Set.of("cluster")));

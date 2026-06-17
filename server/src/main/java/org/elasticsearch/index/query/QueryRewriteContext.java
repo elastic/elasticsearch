@@ -735,6 +735,10 @@ public class QueryRewriteContext {
         this.trackTimeRangeFilterFrom = trackTimeRangeFilterFrom;
     }
 
+    public boolean isTrackTimeRangeFilterFrom() {
+        return trackTimeRangeFilterFrom;
+    }
+
     /**
      * Registers an async action that must be executed only once before the next rewrite round.
      * A {@link Consumer} argument is also required.

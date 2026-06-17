@@ -12,5 +12,6 @@ package org.elasticsearch.benchmark.vector.scorer;
 public enum VectorImplementation {
     SCALAR,
     LUCENE,
+    PANAMA,
     NATIVE
 }

@@ -22,6 +22,10 @@ Make sure you have the following:
 - The cluster `manage` privilege to create data sources.
 - The index `manage` privilege to create datasets.
 
+:::{important}
+If your data source requires credentials, {{es}} must have credential encryption configured. This is handled automatically in {{ech}} and {{serverless-short}} deployments. For self-managed, {{ece}}, and {{eck}} deployments, follow the [credential encryption setup steps](esql-external-data-reference.md#credential-encryption) before registering data sources with credentials.
+:::
+
 ## Quickstart
 
 These steps walk you through registering a data source, creating a dataset, and querying external data with {{esql}}.

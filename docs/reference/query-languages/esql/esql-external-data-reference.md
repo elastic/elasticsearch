@@ -435,6 +435,37 @@ External data source operations use existing {{es}} privileges. No additional pr
 
 More granular per-entity privileges are planned for a future release.
 
+### Credential encryption
+
+When a data source includes credentials, {{es}} encrypts them before storing them in the cluster state. This encryption is configured automatically in {{ech}} and {{serverless-short}} deployments. For self-managed, {{ece}}, and {{eck}} deployments, you must configure encryption manually.
+
+If encryption is not configured, any `PUT /_query/data_source` request that includes credentials returns a `503` error. The two required keystore settings are `cluster.state.encryption.active_password_id` and `cluster.state.encryption.password.<id>`.
+
+::::{applies-switch}
+:::{applies-item} { deployment.self: ga }
+Use the [elasticsearch-keystore](../../../elasticsearch/command-line-tools/elasticsearch-keystore.md) tool to add a password and set the active password ID on every node:
+
+```bash
+bin/elasticsearch-keystore add cluster.state.encryption.password.1
+bin/elasticsearch-keystore add cluster.state.encryption.active_password_id
+```
+
+When prompted for the active password ID, enter the ID that matches the password setting suffix (in this example, `1`). Then call the [reload secure settings API](../../../elasticsearch/rest-apis/cluster-apis/nodes-reload-secure-settings.md) to apply the new settings without a full restart:
+
+```console
+POST /_nodes/reload_secure_settings
+```
+:::
+:::{applies-item} { deployment.eck: ga }
+Add the encryption password and active password ID as [secure settings](../../../../deploy-manage/security/k8s-secure-settings.md) through Kubernetes secrets referenced in `spec.secureSettings`.
+:::
+:::{applies-item} { deployment.ece: ga }
+Add the encryption password and active password ID through the [ECE keystore API](../../../../reference/cloud/cloud-enterprise/ece-restful-api-examples-configuring-keystore.md).
+:::
+::::
+
+To allow plaintext credential storage without encryption, set `cluster.state.encryption.required` to `false`. This is not recommended for production use.
+
 ### Credential masking
 
 All credential values are replaced by `::es_redacted::` in GET responses. Credentials are never returned in API responses.

@@ -36,38 +36,37 @@
       "enabled": true
     },
     {
-      "description": "Disable the built-in gradle-wrapper manager; we manage all three wrapper.properties files via the customManager below so distributionUrl and distributionSha256Sum stay in lockstep. The built-in manager only refreshed the sha in one of the three files (see PR for renovate/main-gradle-wrapper-9.5.x).",
+      "description": "Gradle wrapper: one rolling PR per release train (e.g. 9.5.x patch lane and 9.6.x minor/RC lane). Renovate's built-in gradle-wrapper manager updates the root gradle/wrapper/gradle-wrapper.properties; the postUpgradeTasks step below runs `./gradlew wrapper` which (via the root build.gradle wrapper task's doLast) copies the properties to build-tools-internal/ and plugins/examples/ and refreshes minimumGradleVersion so all wrapper files stay in lockstep. `respectLatest: false` together with `ignoreUnstable: false` lets the same PR keep rolling forward through Gradle RCs/milestones until we hit GA, mirroring our previous manual workflow.",
       "matchManagers": ["gradle-wrapper"],
-      "enabled": false
-    },
-    {
-      "description": "Gradle wrapper (custom-managed): one rolling PR per release train (e.g. 9.5.x patch lane and 9.6.x minor/RC lane), lockstep across all wrapper.properties files; manual fix commits preserved",
-      "matchManagers": ["custom.regex"],
-      "matchPackageNames": ["gradle"],
       "matchBaseBranches": ["main"],
       "enabled": true,
       "ignoreUnstable": false,
+      "respectLatest": false,
       "separateMinorPatch": true,
       "automerge": false,
       "rebaseWhen": "behind-base-branch",
-      "branchTopic": "gradle-wrapper-{{{newMajor}}}.{{{newMinor}}}.{{{newBugfix}}}",
-      "commitMessageTopic": "Gradle wrapper {{{newMajor}}}.{{{newMinor}}}.{{{newBugfix}}}",
+      "branchTopic": "gradle-wrapper-{{{newMajor}}}.{{{newMinor}}}.{{{newPatch}}}",
+      "commitMessageTopic": "Gradle wrapper {{{newMajor}}}.{{{newMinor}}}.{{{newPatch}}}",
       "schedule": ["at any time"],
-      "labels": [":Delivery/Build", ">non-issue", "auto-backport"]
-    }
-  ],
-  "customManagers": [
-    {
-      "description": "Update distributionUrl and distributionSha256Sum together in every gradle-wrapper.properties file. Uses the gradle-version datasource which exposes the official SHA-256 as currentDigest, so all three properties files (root, build-tools-internal, plugins/examples) are updated in lockstep within a single PR.",
-      "customType": "regex",
-      "managerFilePatterns": [
-        "/(^|/)gradle/wrapper/gradle-wrapper\\.properties$/"
-      ],
-      "matchStrings": [
-        "distributionSha256Sum=(?<currentDigest>[a-f0-9]{64})\\s+distributionUrl=https\\\\://services\\.gradle\\.org/distributions/gradle-(?<currentValue>\\d[\\w.-]*?)-(?:all|bin)\\.zip"
-      ],
-      "depNameTemplate": "gradle",
-      "datasourceTemplate": "gradle-version"
+      "labels": [":Delivery/Build", ">non-issue", "auto-backport"],
+      "postUpgradeTasks": {
+        "commands": [
+          "./gradlew wrapper"
+        ],
+        "executionMode": "branch",
+        "fileFilters": [
+          "gradle/wrapper/gradle-wrapper.properties",
+          "gradle/wrapper/gradle-wrapper.jar",
+          "gradlew",
+          "gradlew.bat",
+          "build-tools-internal/gradle/wrapper/gradle-wrapper.properties",
+          "build-tools-internal/src/main/resources/minimumGradleVersion",
+          "plugins/examples/gradle/wrapper/gradle-wrapper.properties",
+          "plugins/examples/gradle/wrapper/gradle-wrapper.jar",
+          "plugins/examples/gradlew",
+          "plugins/examples/gradlew.bat"
+        ]
+      }
     }
   ]
 }

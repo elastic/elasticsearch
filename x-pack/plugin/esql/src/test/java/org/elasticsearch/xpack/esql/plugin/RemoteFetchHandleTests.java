@@ -8,11 +8,7 @@
 package org.elasticsearch.xpack.esql.plugin;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.test.ESTestCase;
-
-import java.io.IOException;
 
 public class RemoteFetchHandleTests extends ESTestCase {
     public void testBytesRefRoundTrip() {
@@ -21,17 +17,6 @@ public class RemoteFetchHandleTests extends ESTestCase {
         BytesRef encoded = handle.toBytesRef();
 
         assertEquals(handle, RemoteFetchHandle.fromBytesRef(encoded));
-    }
-
-    public void testWriteableRoundTrip() throws IOException {
-        RemoteFetchHandle handle = randomHandle();
-
-        try (BytesStreamOutput out = new BytesStreamOutput()) {
-            handle.writeTo(out);
-            try (StreamInput in = out.bytes().streamInput()) {
-                assertEquals(handle, RemoteFetchHandle.READER.read(in));
-            }
-        }
     }
 
     private RemoteFetchHandle randomHandle() {

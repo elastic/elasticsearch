@@ -20,7 +20,9 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -54,9 +56,9 @@ public class RemoteFetchHandleFunction extends EsqlScalarFunction {
     );
 
     /**
-     * Expression that evaluates to metadata {@code _doc} values.
+     * Attribute that evaluates to metadata {@code _doc} values.
      */
-    private final Expression doc;
+    private final Attribute doc;
     /*
      * Node/retained-session routing intentionally participates in expression identity through equals/hashCode, so
      * equivalent _doc expressions for different retained sessions cannot be deduplicated together. The current
@@ -69,18 +71,24 @@ public class RemoteFetchHandleFunction extends EsqlScalarFunction {
      */
     private final String retainedSessionId;
 
-    public RemoteFetchHandleFunction(Source source, Expression doc, String nodeId, String retainedSessionId) {
+    public RemoteFetchHandleFunction(Source source, Attribute doc, String nodeId, String retainedSessionId) {
         super(source, List.of(doc));
-        if (doc.typeResolved().resolved() && doc.dataType() != DataType.DOC_DATA_TYPE) {
-            throw new IllegalStateException("remote fetch handle requires _doc input but got [" + doc.dataType() + "]");
-        }
         this.doc = doc;
+        if (doc.typeResolved().resolved()
+            && (doc.dataType() != DataType.DOC_DATA_TYPE || MetadataAttribute.DOC.equals(doc.name()) == false)) {
+            throw new IllegalStateException("remote fetch handle requires _doc input but got [" + doc.dataType() + ":" + doc.name() + "]");
+        }
         this.nodeId = Objects.requireNonNull(nodeId, "nodeId");
         this.retainedSessionId = Objects.requireNonNull(retainedSessionId, "retainedSessionId");
     }
 
     private RemoteFetchHandleFunction(StreamInput in) throws IOException {
-        this(Source.readFrom((PlanStreamInput) in), in.readNamedWriteable(Expression.class), in.readString(), in.readString());
+        this(
+            Source.readFrom((PlanStreamInput) in),
+            requireDocAttribute(in.readNamedWriteable(Expression.class)),
+            in.readString(),
+            in.readString()
+        );
     }
 
     @Override
@@ -111,7 +119,7 @@ public class RemoteFetchHandleFunction extends EsqlScalarFunction {
 
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
-        return new RemoteFetchHandleFunction(source(), newChildren.get(0), nodeId, retainedSessionId);
+        return new RemoteFetchHandleFunction(source(), requireDocAttribute(newChildren.get(0)), nodeId, retainedSessionId);
     }
 
     @Override
@@ -141,7 +149,7 @@ public class RemoteFetchHandleFunction extends EsqlScalarFunction {
         return driverContext -> new Evaluator(driverContext, docEvaluator.get(driverContext), nodeId, retainedSessionId);
     }
 
-    Expression doc() {
+    Attribute doc() {
         return doc;
     }
 
@@ -151,6 +159,13 @@ public class RemoteFetchHandleFunction extends EsqlScalarFunction {
 
     String retainedSessionId() {
         return retainedSessionId;
+    }
+
+    private static Attribute requireDocAttribute(Expression expression) {
+        if (expression instanceof Attribute attribute) {
+            return attribute;
+        }
+        throw new IllegalStateException("remote fetch handle requires _doc attribute input but got [" + expression.nodeName() + "]");
     }
 
     private static final class Evaluator implements ExpressionEvaluator {
@@ -185,13 +200,14 @@ public class RemoteFetchHandleFunction extends EsqlScalarFunction {
                 for (int position = 0; position < page.getPositionCount(); position++) {
                     scratch.reset();
                     try {
-                        new RemoteFetchHandle(
+                        RemoteFetchHandle.encodeTo(
+                            scratch,
                             nodeId,
                             retainedSessionId,
                             docVector.shards().getInt(position),
                             docVector.segments().getInt(position),
                             docVector.docs().getInt(position)
-                        ).writeTo(scratch);
+                        );
                     } catch (IOException e) {
                         throw new UncheckedIOException("failed to encode remote fetch handle", e);
                     }

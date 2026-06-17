@@ -2810,7 +2810,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         private static Attribute cleanTypeConflicts(FieldAttribute fa) {
             EsField field = fa.field();
             if (field instanceof TypeConflictedField tcf && tcf.isPotentiallyUnmapped() && tcf.types().size() == 1) {
-                DataType type = tcf.types().iterator().next();
+                // IndexResolver records the field's actual mapped type (e.g. SHORT); widen it here so the implicit path surfaces the
+                // ESQL type (e.g. INTEGER), matching what an explicit cast would produce.
+                DataType type = tcf.types().iterator().next().widenSmallNumeric();
                 var restoredField = new EsField(tcf.getName(), type, tcf.getProperties(), false, tcf.getTimeSeriesFieldType());
                 // TODO: add test where not passing on the parent name fails the test
                 // TODO: add TS tests and tests with different time series field types

@@ -388,21 +388,21 @@ public class IndexLifecycleTransitionTests extends ESTestCase {
         lifecycleState.setPhase(currentStep.phase());
         lifecycleState.setAction(currentStep.action());
         lifecycleState.setStep(currentStep.name());
-        ProjectMetadata project = buildProject(indexName, Settings.builder(), lifecycleState.build(), List.of());
-        Index index = project.index(indexName).getIndex();
+        ClusterState clusterState = buildClusterState(indexName, Settings.builder(), lifecycleState.build(), List.of());
+        Index index = clusterState.metadata().index(indexName).getIndex();
 
-        ProjectMetadata newProject = IndexLifecycleTransition.moveIndexToErrorStep(
+        ClusterState newState = IndexLifecycleTransition.moveClusterStateToErrorStep(
             index,
-            project,
+            clusterState,
             cause,
             () -> now,
             (idxMeta, stepKey) -> new MockStep(stepKey, nextStepKey)
         );
-        assertNotSame(project, newProject);
-        IndexMetadata newIndexMetadata = newProject.getIndexSafe(index);
-        assertNotSame(project.index(index), newIndexMetadata);
-        LifecycleExecutionState newLifecycleState = newProject.index(index).getLifecycleExecutionState();
-        LifecycleExecutionState oldLifecycleState = project.index(index).getLifecycleExecutionState();
+        assertNotSame(clusterState, newState);
+        IndexMetadata newIndexMetadata = newState.metadata().getIndexSafe(index);
+        assertNotSame(clusterState.metadata().index(index), newIndexMetadata);
+        LifecycleExecutionState newLifecycleState = newState.metadata().index(index).getLifecycleExecutionState();
+        LifecycleExecutionState oldLifecycleState = clusterState.metadata().index(index).getLifecycleExecutionState();
         assertNotSame(oldLifecycleState, newLifecycleState);
         assertEquals(currentStep.phase(), newLifecycleState.phase());
         assertEquals(currentStep.action(), newLifecycleState.action());

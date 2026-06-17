@@ -15,6 +15,8 @@ import org.elasticsearch.xpack.esql.datasources.spi.FileDataSourceValidator;
 import java.util.Map;
 import java.util.Set;
 
+import static org.hamcrest.Matchers.containsString;
+
 public class GcsDataSourceValidatorTests extends AbstractDataSourceValidatorTests {
 
     private final DataSourceValidator validator = new FileDataSourceValidator("gcs", GcsConfiguration::fromMap, Set.of("gs"));
@@ -31,12 +33,12 @@ public class GcsDataSourceValidatorTests extends AbstractDataSourceValidatorTest
 
     @Override
     protected Map<String, Object> sampleConfigWithAllSecrets() {
-        return Map.of("credentials", "{\"type\":\"service_account\"}", "project_id", "sample-proj");
+        return Map.of("credentials", "{\"type\":\"service_account\"}", "access_token", "ya29.sample", "project_id", "sample-proj");
     }
 
     @Override
     protected Set<String> expectedSecretFieldNames() {
-        return Set.of("credentials");
+        return Set.of("credentials", "access_token");
     }
 
     @Override
@@ -77,6 +79,48 @@ public class GcsDataSourceValidatorTests extends AbstractDataSourceValidatorTest
         expectThrows(
             org.elasticsearch.common.ValidationException.class,
             () -> validator.validateDatasource(Map.of("auth", "none", "credentials", "{\"type\":\"service_account\"}"))
+        );
+    }
+
+    public void testValidateDatasourceWithAccessToken() {
+        var result = validator.validateDatasource(Map.of("access_token", "ya29.token", "project_id", "proj"));
+        assertTrue(result.get("access_token").secret());
+        assertEquals("ya29.token", result.get("access_token").rawValue());
+        assertFalse(result.get("project_id").secret());
+    }
+
+    public void testValidateDatasourceAccessTokenConflictsWithAuthNone() {
+        expectThrows(
+            org.elasticsearch.common.ValidationException.class,
+            () -> validator.validateDatasource(Map.of("auth", "none", "access_token", "ya29.token"))
+        );
+    }
+
+    public void testValidateDatasourceRejectsWorkloadIdentityWhenDisabled() {
+        // default validator has workload identity disabled
+        var e = expectThrows(
+            org.elasticsearch.common.ValidationException.class,
+            () -> validator.validateDatasource(Map.of("auth", "workload_identity", "project_id", "proj"))
+        );
+        assertThat(e.getMessage(), containsString("esql.datasource.workload_identity.enabled"));
+    }
+
+    public void testValidateDatasourceAcceptsWorkloadIdentityWhenEnabled() {
+        var workloadIdentityValidator = new FileDataSourceValidator("gcs", GcsConfiguration::fromMap, Set.of("gs"))
+            .withWorkloadIdentityEnabled(() -> true);
+        var result = workloadIdentityValidator.validateDatasource(Map.of("auth", "workload_identity", "project_id", "proj"));
+        assertEquals("workload_identity", result.get("auth").nonSecretValue());
+        assertFalse(result.get("auth").secret());
+    }
+
+    public void testValidateDatasourceWorkloadIdentityConflictWithCredentials() {
+        var workloadIdentityValidator = new FileDataSourceValidator("gcs", GcsConfiguration::fromMap, Set.of("gs"))
+            .withWorkloadIdentityEnabled(() -> true);
+        expectThrows(
+            org.elasticsearch.common.ValidationException.class,
+            () -> workloadIdentityValidator.validateDatasource(
+                Map.of("auth", "workload_identity", "credentials", "{\"type\":\"service_account\"}")
+            )
         );
     }
 

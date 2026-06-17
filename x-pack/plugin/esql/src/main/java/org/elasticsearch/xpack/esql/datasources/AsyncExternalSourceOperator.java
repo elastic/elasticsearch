@@ -21,6 +21,10 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReaderStatus;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 /**
@@ -33,6 +37,8 @@ import java.util.Objects;
  * - {@link #isBlocked()} signals when waiting for data
  */
 public class AsyncExternalSourceOperator extends SourceOperator {
+
+    private static final TransportVersion ESQL_CAPTURED_SOURCE_METADATA = TransportVersion.fromName("esql_captured_source_metadata");
 
     private final AsyncExternalSourceBuffer buffer;
     private IsBlockedResult isBlocked = NOT_BLOCKED;
@@ -127,11 +133,12 @@ public class AsyncExternalSourceOperator extends SourceOperator {
             buffer.currentSplit(),
             buffer.bytesRead(),
             readNanos,
-            formatReaderStatus
+            formatReaderStatus,
+            buffer.capturedSourceMetadataSnapshot()
         );
     }
 
-    public static class Status implements Operator.Status {
+    public static class Status implements Operator.Status, org.elasticsearch.compute.operator.CapturingExternalSourceStatus {
         public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
             Operator.Status.class,
             "async_external_source",
@@ -156,6 +163,7 @@ public class AsyncExternalSourceOperator extends SourceOperator {
         private final long bytesRead;
         private final long readNanos;
         private final FormatReaderStatus formatReader;
+        private final Map<String, List<Map<String, Object>>> capturedSourceMetadata;
 
         Status(
             int pagesWaiting,
@@ -169,7 +177,8 @@ public class AsyncExternalSourceOperator extends SourceOperator {
             int currentSplit,
             long bytesRead,
             long readNanos,
-            FormatReaderStatus formatReader
+            FormatReaderStatus formatReader,
+            Map<String, List<Map<String, Object>>> capturedSourceMetadata
         ) {
             this.pagesWaiting = pagesWaiting;
             this.pagesEmitted = pagesEmitted;
@@ -183,6 +192,7 @@ public class AsyncExternalSourceOperator extends SourceOperator {
             this.bytesRead = bytesRead;
             this.readNanos = readNanos;
             this.formatReader = formatReader;
+            this.capturedSourceMetadata = capturedSourceMetadata == null ? Map.of() : capturedSourceMetadata;
         }
 
         Status(StreamInput in) throws IOException {
@@ -208,6 +218,26 @@ public class AsyncExternalSourceOperator extends SourceOperator {
                 readNanos = 0L;
                 formatReader = null;
             }
+            if (in.getTransportVersion().supports(ESQL_CAPTURED_SOURCE_METADATA)) {
+                int n = in.readVInt();
+                if (n == 0) {
+                    capturedSourceMetadata = Map.of();
+                } else {
+                    Map<String, List<Map<String, Object>>> tmp = new HashMap<>(n);
+                    for (int i = 0; i < n; i++) {
+                        String path = in.readString();
+                        int contributionCount = in.readVInt();
+                        List<Map<String, Object>> contributions = new ArrayList<>(contributionCount);
+                        for (int j = 0; j < contributionCount; j++) {
+                            contributions.add(in.readGenericMap());
+                        }
+                        tmp.put(path, contributions);
+                    }
+                    capturedSourceMetadata = tmp;
+                }
+            } else {
+                capturedSourceMetadata = Map.of();
+            }
         }
 
         @Override
@@ -228,6 +258,22 @@ public class AsyncExternalSourceOperator extends SourceOperator {
                 out.writeVLong(readNanos);
                 out.writeOptionalNamedWriteable(formatReader);
             }
+            if (out.getTransportVersion().supports(ESQL_CAPTURED_SOURCE_METADATA)) {
+                out.writeVInt(capturedSourceMetadata.size());
+                for (Map.Entry<String, List<Map<String, Object>>> e : capturedSourceMetadata.entrySet()) {
+                    out.writeString(e.getKey());
+                    List<Map<String, Object>> contributions = e.getValue();
+                    out.writeVInt(contributions.size());
+                    for (Map<String, Object> contribution : contributions) {
+                        out.writeGenericMap(contribution);
+                    }
+                }
+            }
+        }
+
+        @Override
+        public Map<String, List<Map<String, Object>>> capturedSourceMetadata() {
+            return capturedSourceMetadata;
         }
 
         @Override
@@ -348,7 +394,8 @@ public class AsyncExternalSourceOperator extends SourceOperator {
                 && bytesRead == status.bytesRead
                 && readNanos == status.readNanos
                 && Objects.equals(formatReader, status.formatReader)
-                && Objects.equals(thisFailureMsg, otherFailureMsg);
+                && Objects.equals(thisFailureMsg, otherFailureMsg)
+                && Objects.equals(capturedSourceMetadata, status.capturedSourceMetadata);
         }
 
         @Override
@@ -365,7 +412,8 @@ public class AsyncExternalSourceOperator extends SourceOperator {
                 currentSplit,
                 bytesRead,
                 readNanos,
-                formatReader
+                formatReader,
+                capturedSourceMetadata
             );
         }
 

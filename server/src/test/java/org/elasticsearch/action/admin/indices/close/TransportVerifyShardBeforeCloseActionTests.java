@@ -41,6 +41,7 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ReplicationGroup;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.CapturingTransport;
@@ -176,7 +177,7 @@ public class TransportVerifyShardBeforeCloseActionTests extends ESTestCase {
             taskId
         );
         final PlainActionFuture<Void> res = new PlainActionFuture<>();
-        action.shardOperationOnPrimary(request, indexShard, res.delegateFailureAndWrap((l, r) -> {
+        action.shardOperationOnPrimary(mock(Task.class), request, indexShard, res.delegateFailureAndWrap((l, r) -> {
             assertNotNull(r);
             l.onResponse(null);
         }));

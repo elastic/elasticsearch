@@ -23,31 +23,40 @@ class RetryableStorageProvider implements StorageProvider {
 
     private final StorageProvider delegate;
     private final RetryPolicy retryPolicy;
+    private final RetryScheduler retryScheduler;
 
     RetryableStorageProvider(StorageProvider delegate, RetryPolicy retryPolicy) {
+        this(delegate, retryPolicy, RetryScheduler.DIRECT);
+    }
+
+    RetryableStorageProvider(StorageProvider delegate, RetryPolicy retryPolicy, RetryScheduler retryScheduler) {
         if (delegate == null) {
             throw new IllegalArgumentException("delegate cannot be null");
         }
         if (retryPolicy == null) {
             throw new IllegalArgumentException("retryPolicy cannot be null");
         }
+        if (retryScheduler == null) {
+            throw new IllegalArgumentException("retryScheduler cannot be null");
+        }
         this.delegate = delegate;
         this.retryPolicy = retryPolicy;
+        this.retryScheduler = retryScheduler;
     }
 
     @Override
     public StorageObject newObject(StoragePath path) {
-        return new RetryableStorageObject(delegate.newObject(path), retryPolicy);
+        return new RetryableStorageObject(delegate.newObject(path), retryPolicy, retryScheduler);
     }
 
     @Override
     public StorageObject newObject(StoragePath path, long length) {
-        return new RetryableStorageObject(delegate.newObject(path, length), retryPolicy);
+        return new RetryableStorageObject(delegate.newObject(path, length), retryPolicy, retryScheduler);
     }
 
     @Override
     public StorageObject newObject(StoragePath path, long length, Instant lastModified) {
-        return new RetryableStorageObject(delegate.newObject(path, length, lastModified), retryPolicy);
+        return new RetryableStorageObject(delegate.newObject(path, length, lastModified), retryPolicy, retryScheduler);
     }
 
     @Override

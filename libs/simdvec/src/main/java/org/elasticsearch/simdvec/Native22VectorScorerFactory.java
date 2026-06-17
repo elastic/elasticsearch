@@ -9,6 +9,7 @@
 
 package org.elasticsearch.simdvec;
 
+import org.apache.lucene.codecs.hnsw.FlatVectorsScorer;
 import org.apache.lucene.index.ByteVectorValues;
 import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.VectorSimilarityFunction;
@@ -31,6 +32,7 @@ import org.elasticsearch.simdvec.internal.Int7uOSQVectorScorerSupplier;
 import org.elasticsearch.simdvec.internal.Int8VectorScorer;
 import org.elasticsearch.simdvec.internal.Int8VectorScorerSupplier;
 import org.elasticsearch.simdvec.internal.MemorySegmentES92NativeInt7VectorsScorer;
+import org.elasticsearch.simdvec.internal.PanamaFlatVectorScorer;
 import org.elasticsearch.simdvec.internal.vectorization.MemorySegmentES940OSQVectorsScorer;
 import org.elasticsearch.simdvec.internal.vectorization.NativeBinaryQuantizedVectorScorer;
 import org.elasticsearch.simdvec.internal.vectorization.PanamaVectorConstants;
@@ -48,7 +50,7 @@ final class Native22VectorScorerFactory implements VectorScorerFactory {
     @Override
     public ES91OSQVectorsScorer newES91OSQVectorsScorer(IndexInput input, int dimension, int bulkSize) throws IOException {
         // no native implementation, just use the panama one
-        return new Panama22VectorScorerFactory().newES91OSQVectorsScorer(input, dimension, bulkSize);
+        return new PanamaVectorScorerFactory().newES91OSQVectorsScorer(input, dimension, bulkSize);
     }
 
     @Override
@@ -98,6 +100,11 @@ final class Native22VectorScorerFactory implements VectorScorerFactory {
         IndexInput unwrappedInput = FilterIndexInput.unwrapOnlyTest(input);
         unwrappedInput = MemorySegmentAccessInputAccess.unwrap(unwrappedInput);
         return new NativeBinaryQuantizedVectorScorer(unwrappedInput, dimensions, vectorLengthInBytes);
+    }
+
+    @Override
+    public FlatVectorsScorer newFlatVectorsScorer() {
+        return new PanamaFlatVectorScorer();
     }
 
     @Override

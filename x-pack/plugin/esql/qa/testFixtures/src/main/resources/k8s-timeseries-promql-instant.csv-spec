@@ -88,6 +88,179 @@ tx:double | step:datetime            | cluster:keyword
 4.0       | 2024-05-10T00:20:00.000Z | staging
 ;
 
+instant_scalar_constant_literal
+required_capability: promql_command_v0
+required_capability: promql_instant_query
+required_capability: fix_promql_scalar_constant_results
+// folded at planning time without reading the index.
+PROMQL index=k8s time="2025-01-01T00:01:00.000Z" result=(42);
+
+result:double | step:datetime
+42.0          | 2025-01-01T00:01:00.000Z
+;
+
+instant_scalar_constant_arithmetic
+required_capability: promql_command_v0
+required_capability: promql_instant_query
+required_capability: fix_promql_scalar_constant_results
+// folded at planning time without reading the index.
+PROMQL index=k8s time="2025-01-01T00:01:00.000Z" result=(1 + 1);
+
+result:double | step:datetime
+2.0           | 2025-01-01T00:01:00.000Z
+;
+
+instant_scalar_constant_multiplication
+required_capability: promql_command_v0
+required_capability: promql_instant_query
+required_capability: fix_promql_scalar_constant_results
+// folded at planning time without reading the index.
+PROMQL index=k8s time="2025-01-01T00:01:00.000Z" result=(2 * 21);
+
+result:double | step:datetime
+42.0          | 2025-01-01T00:01:00.000Z
+;
+
+instant_scalar_constant_subtraction
+required_capability: promql_command_v0
+required_capability: promql_instant_query
+required_capability: fix_promql_scalar_constant_results
+// folded at planning time without reading the index.
+PROMQL index=k8s time="2025-01-01T00:01:00.000Z" result=(100 - 58);
+
+result:double | step:datetime
+42.0          | 2025-01-01T00:01:00.000Z
+;
+
+instant_scalar_constant_division
+required_capability: promql_command_v0
+required_capability: promql_instant_query
+required_capability: fix_promql_scalar_constant_results
+// folded at planning time without reading the index.
+PROMQL index=k8s time="2025-01-01T00:01:00.000Z" result=(84 / 2);
+
+result:double | step:datetime
+42.0          | 2025-01-01T00:01:00.000Z
+;
+
+instant_scalar_constant_nested
+required_capability: promql_command_v0
+required_capability: promql_instant_query
+required_capability: fix_promql_scalar_constant_results
+// folded at planning time without reading the index.
+PROMQL index=k8s time="2025-01-01T00:01:00.000Z" result=((1 + 2) * (3 + 4));
+
+result:double | step:datetime
+21.0          | 2025-01-01T00:01:00.000Z
+;
+
+instant_scalar_constant_modulo
+required_capability: promql_command_v0
+required_capability: promql_instant_query
+required_capability: fix_promql_scalar_constant_results
+// folded at planning time without reading the index.
+PROMQL index=k8s time="2025-01-01T00:01:00.000Z" result=(10 % 3);
+
+result:double | step:datetime
+1.0           | 2025-01-01T00:01:00.000Z
+;
+
+instant_scalar_constant_power
+required_capability: promql_command_v0
+required_capability: promql_instant_query
+required_capability: fix_promql_scalar_constant_results
+// folded at planning time without reading the index.
+PROMQL index=k8s time="2025-01-01T00:01:00.000Z" result=(2 ^ 10);
+
+result:double | step:datetime
+1024.0        | 2025-01-01T00:01:00.000Z
+;
+
+instant_scalar_constant_time
+required_capability: promql_command_v0
+required_capability: promql_instant_query
+required_capability: promql_time
+required_capability: fix_promql_scalar_constant_results
+// time() on a non-empty index is const-folded without touching the index.
+PROMQL index=k8s time="2025-01-01T00:01:00.000Z" result=(time())
+| EVAL result_as_date = TO_DATETIME(result * 1000);
+
+result:double    | step:datetime            | result_as_date:datetime
+1.73568966E9     | 2025-01-01T00:01:00.000Z | 2025-01-01T00:01:00.000Z
+;
+
+instant_scalar_constant_year
+required_capability: promql_command_v0
+required_capability: promql_instant_query
+required_capability: promql_year
+required_capability: fix_promql_scalar_constant_results
+// year() on a non-empty index is const-folded without touching the index.
+PROMQL index=k8s time="2025-01-01T00:01:00.000Z" result=(year());
+
+result:double | step:datetime
+2025.0        | 2025-01-01T00:01:00.000Z
+;
+
+instant_scalar_constant_month
+required_capability: promql_command_v0
+required_capability: promql_instant_query
+required_capability: promql_time_functions
+required_capability: fix_promql_scalar_constant_results
+// month() on a non-empty index is const-folded without touching the index.
+PROMQL index=k8s time="2025-01-01T00:01:00.000Z" result=(month());
+
+result:double | step:datetime
+1.0           | 2025-01-01T00:01:00.000Z
+;
+
+instant_scalar_constant_day_of_week
+required_capability: promql_command_v0
+required_capability: promql_instant_query
+required_capability: promql_time_functions
+required_capability: fix_promql_scalar_constant_results
+// day_of_week() on a non-empty index is const-folded without touching the index.
+PROMQL index=k8s time="2025-01-01T00:01:00.000Z" result=(day_of_week());
+
+result:double | step:datetime
+3.0           | 2025-01-01T00:01:00.000Z
+;
+
+instant_scalar_constant_hour
+required_capability: promql_command_v0
+required_capability: promql_instant_query
+required_capability: promql_time_functions
+required_capability: fix_promql_scalar_constant_results
+// hour() on a non-empty index is const-folded without touching the index.
+PROMQL index=k8s time="2025-01-01T00:01:00.000Z" result=(hour());
+
+result:double | step:datetime
+0.0           | 2025-01-01T00:01:00.000Z
+;
+
+instant_scalar_constant_minute
+required_capability: promql_command_v0
+required_capability: promql_instant_query
+required_capability: promql_time_functions
+required_capability: fix_promql_scalar_constant_results
+// minute() on a non-empty index is const-folded without touching the index.
+PROMQL index=k8s time="2025-01-01T00:01:00.000Z" result=(minute());
+
+result:double | step:datetime
+1.0           | 2025-01-01T00:01:00.000Z
+;
+
+instant_scalar_constant_days_in_month
+required_capability: promql_command_v0
+required_capability: promql_instant_query
+required_capability: promql_days_in_month
+required_capability: fix_promql_scalar_constant_results
+// days_in_month() on a non-empty index is const-folded without touching the index.
+PROMQL index=k8s time="2025-01-01T00:01:00.000Z" result=(days_in_month());
+
+result:double | step:datetime
+31.0          | 2025-01-01T00:01:00.000Z
+;
+
 instant_empty_result_outside_window
 required_capability: promql_command_v0
 required_capability: promql_instant_query

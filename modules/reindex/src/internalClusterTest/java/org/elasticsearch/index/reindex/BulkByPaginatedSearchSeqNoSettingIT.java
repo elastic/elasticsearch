@@ -63,7 +63,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
 /**
- * Integration tests verifying that bulk-by-scroll operations (update-by-query, delete-by-query)
+ * Integration tests verifying that bulk-by-paginated-search operations (update-by-query, delete-by-query)
  * correctly handle the per-index {@link IndexSettings#DISABLE_SEQUENCE_NUMBERS} setting. When an
  * index has sequence numbers disabled, bulk requests must carry {@link SequenceNumbers#UNASSIGNED_SEQ_NO};
  * when enabled, they must carry real ({@code >= 0}) sequence numbers. The search phase always requests

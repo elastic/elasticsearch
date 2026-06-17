@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.expression.function.grouping;
 
+import org.elasticsearch.compute.operator.BucketIntervalMetadata;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;

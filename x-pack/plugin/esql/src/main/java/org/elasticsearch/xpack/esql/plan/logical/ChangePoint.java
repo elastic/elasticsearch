@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.esql.plan.logical;
 
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.compute.operator.BucketIntervalMetadata;
 import org.elasticsearch.compute.operator.ChangePointOperator;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.license.XPackLicenseState;
@@ -27,7 +28,6 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.NamedExpressions;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.function.grouping.BucketColumnMetadata;
-import org.elasticsearch.xpack.esql.expression.function.grouping.BucketIntervalMetadata;
 import org.elasticsearch.xpack.ml.MachineLearning;
 
 import java.io.IOException;

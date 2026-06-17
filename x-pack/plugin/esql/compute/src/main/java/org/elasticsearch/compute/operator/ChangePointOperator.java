@@ -31,7 +31,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Deque;
 import java.util.List;
-import java.util.Map;
 
 /**
  * Find spikes, dips and change points in a list of values.
@@ -55,7 +54,7 @@ public class ChangePointOperator implements Operator {
         int channel,
         List<Integer> groupingChannels,
         WarningSourceLocation source,
-        @Nullable Map<String, Object> keyBucketMetadata
+        @Nullable BucketIntervalMetadata keyBucketMetadata
     ) implements OperatorFactory {
 
         @Override

@@ -15,6 +15,7 @@ import org.apache.lucene.tests.util.TimeUnits;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.time.DateUtils;
+import org.elasticsearch.compute.operator.BucketIntervalMetadata;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.xpack.esql.core.expression.Expression;

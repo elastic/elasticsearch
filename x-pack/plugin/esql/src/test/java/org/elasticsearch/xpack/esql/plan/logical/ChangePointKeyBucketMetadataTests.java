@@ -7,9 +7,9 @@
 
 package org.elasticsearch.xpack.esql.plan.logical;
 
+import org.elasticsearch.compute.operator.BucketIntervalMetadata;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
-import org.elasticsearch.xpack.esql.expression.function.grouping.BucketIntervalMetadata;
 import org.elasticsearch.xpack.esql.optimizer.AbstractLogicalPlanOptimizerTests;
 
 import static org.hamcrest.Matchers.equalTo;

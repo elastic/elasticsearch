@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.esql.expression.function.grouping;
+package org.elasticsearch.compute.operator;
 
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ToXContent;
@@ -31,10 +31,9 @@ public sealed interface BucketIntervalMetadata extends ToXContentObject permits 
     BucketIntervalMetadata.NumericInterval {
 
     /**
-     * Converts this metadata to the {@code Map<String, Object>} format expected by
-     * {@link org.elasticsearch.xpack.esql.action.ColumnInfoImpl}. The returned map has the shape
-     * {@code {"bucket": \{...\}}} and is safe for wire serialisation via
-     * {@code StreamOutput.writeGenericMap}.
+     * Converts this metadata to the {@code Map<String, Object>} format expected by the ES|QL column
+     * info implementation. The returned map has the shape {@code {"bucket": \{...\}}} and is safe for
+     * wire serialisation via {@code StreamOutput.writeGenericMap}.
      */
     Map<String, Object> toColumnInfoMetaMap();
 

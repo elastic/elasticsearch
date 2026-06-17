@@ -187,37 +187,23 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
 
     @Override
     public void l2Normalize(float[] v, int offset, int length) {
-        double normSq;
-        int i = 0;
-        int vectorEnd = FLOAT_SPECIES.loopBound(length);
-        FloatVector acc = FloatVector.zero(FLOAT_SPECIES);
-        for (; i < vectorEnd; i += FLOAT_SPECIES.length()) {
-            FloatVector vv = FloatVector.fromArray(FLOAT_SPECIES, v, i + offset);
-            acc = fma(vv, vv, acc);
-        }
-        int remaining = length - i;
-        if (remaining > 0) {
-            VectorMask<Float> mask = VectorMask.fromLong(FLOAT_SPECIES, (1L << remaining) - 1);
-            FloatVector vv = FloatVector.fromArray(FLOAT_SPECIES, v, i + offset, mask);
-            acc = fma(vv, vv, acc);
-        }
-        normSq = acc.reduceLanes(ADD);
-        if (normSq == 0) {
+        float normSq = dotProduct(v, v, offset, length);
+        if (normSq == 0f) {
             return;
         }
-        double invNorm = 1.0 / Math.sqrt(normSq);
-        float scale = (float) invNorm;
+        float scale = (float) (1.0 / Math.sqrt(normSq));
         FloatVector scaleVec = FloatVector.broadcast(FLOAT_SPECIES, scale);
-        i = 0;
+        int end = offset + length;
+        int vectorEnd = offset + FLOAT_SPECIES.loopBound(length);
+        int i = offset;
         for (; i < vectorEnd; i += FLOAT_SPECIES.length()) {
-            FloatVector vv = FloatVector.fromArray(FLOAT_SPECIES, v, i + offset);
-            vv.mul(scaleVec).intoArray(v, i + offset);
+            FloatVector vv = FloatVector.fromArray(FLOAT_SPECIES, v, i);
+            vv.mul(scaleVec).intoArray(v, i);
         }
-        remaining = length - i;
-        if (remaining > 0) {
-            VectorMask<Float> mask = VectorMask.fromLong(FLOAT_SPECIES, (1L << remaining) - 1);
-            FloatVector vv = FloatVector.fromArray(FLOAT_SPECIES, v, i + offset, mask);
-            vv.mul(scaleVec).intoArray(v, i + offset, mask);
+        if (i < end) {
+            VectorMask<Float> mask = FLOAT_SPECIES.indexInRange(i, end);
+            FloatVector vv = FloatVector.fromArray(FLOAT_SPECIES, v, i, mask);
+            vv.mul(scaleVec).intoArray(v, i, mask);
         }
     }
 
@@ -301,67 +287,14 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
 
     @Override
     public void l2Normalize(byte[] v, int offset, int length) {
-        double normSq;
-        int i = 0;
-        int vectorEnd = BYTE_SPECIES.loopBound(length);
-        IntVector acc = IntVector.zero(INTEGER_SPECIES);
-        for (; i < vectorEnd; i += BYTE_SPECIES.length()) {
-            ByteVector vv = ByteVector.fromArray(BYTE_SPECIES, v, i + offset);
-            for (int part = 0; part < BYTE_TO_FLOAT_PARTS; part++) {
-                Vector<Integer> vi = vv.castShape(INTEGER_SPECIES, part);
-                acc = acc.add(vi.mul(vi));
-            }
-        }
-
-        int remaining = length - i;
-        if (remaining > 0) {
-            VectorMask<Byte> mask = VectorMask.fromLong(BYTE_SPECIES, (1L << remaining) - 1);
-            ByteVector vv = ByteVector.fromArray(BYTE_SPECIES, v, i + offset, mask);
-            for (int maskedPart = 0; remaining > 0; maskedPart++) {
-                assert maskedPart < BYTE_TO_FLOAT_PARTS;
-                Vector<Integer> vi = vv.castShape(INTEGER_SPECIES, maskedPart);
-                acc = acc.add(vi.mul(vi));
-                remaining -= INTEGER_SPECIES.length();
-            }
-        }
-
-        normSq = acc.reduceLanes(VectorOperators.ADD);
-        if (normSq == 0) {
+        float normSq = dotProduct(v, v, offset, length);
+        if (normSq == 0f) {
             return;
         }
-        double invNorm = 1.0 / Math.sqrt(normSq);
-        float scale = (float) invNorm;
-        FloatVector scaleVec = FloatVector.broadcast(FLOAT_SPECIES, scale);
-        final int floatLen = FLOAT_SPECIES.length();
-        i = 0;
-        for (; i < vectorEnd; i += BYTE_SPECIES.length()) {
-            ByteVector bv = ByteVector.fromArray(BYTE_SPECIES, v, i + offset);
-            for (int part = 0; part < BYTE_TO_FLOAT_PARTS; part++) {
-                FloatVector fv = (FloatVector) bv.castShape(FLOAT_SPECIES, part);
-                ByteVector scaledPart = (ByteVector) fv.mul(scaleVec)
-                    .convert(VectorOperators.F2I, 0)
-                    .reinterpretAsInts()
-                    .convert(VectorOperators.I2B, 0);
-                VectorMask<Byte> partMask = VectorMask.fromLong(scaledPart.species(), (1L << floatLen) - 1);
-                scaledPart.intoArray(v, i + offset + part * floatLen, partMask);
-            }
-        }
-        remaining = length - i;
-        if (remaining > 0) {
-            VectorMask<Byte> mask = VectorMask.fromLong(BYTE_SPECIES, (1L << remaining) - 1);
-            ByteVector bv = ByteVector.fromArray(BYTE_SPECIES, v, i + offset, mask);
-            for (int maskedPart = 0; remaining > 0; maskedPart++) {
-                assert maskedPart < BYTE_TO_FLOAT_PARTS;
-                FloatVector fv = (FloatVector) bv.castShape(FLOAT_SPECIES, maskedPart);
-                ByteVector scaledPart = (ByteVector) fv.mul(scaleVec)
-                    .convert(VectorOperators.F2I, 0)
-                    .reinterpretAsInts()
-                    .convert(VectorOperators.I2B, 0);
-                int partRemaining = Math.min(remaining, floatLen);
-                VectorMask<Byte> partMask = VectorMask.fromLong(scaledPart.species(), (1L << partRemaining) - 1);
-                scaledPart.intoArray(v, i + offset + maskedPart * floatLen, partMask);
-                remaining -= floatLen;
-            }
+        float scale = (float) (1.0 / Math.sqrt(normSq));
+        int end = offset + length;
+        for (int j = offset; j < end; j++) {
+            v[j] = (byte) (v[j] * scale);
         }
     }
 

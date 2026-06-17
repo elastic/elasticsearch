@@ -24,7 +24,7 @@ public final class StringParser {
     /**
      * Validates that a required string service setting is present and not empty, throwing an {@link IllegalArgumentException} otherwise.
      */
-    public static void validateRequiredNonEmptyString(@Nullable String value, String settingName) {
+    public static void validateStringIsNotNullOrEmpty(@Nullable String value, String settingName) {
         if (value == null) {
             throw new IllegalArgumentException(missingSettingErrorMsg(settingName, ModelConfigurations.SERVICE_SETTINGS));
         }

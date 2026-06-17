@@ -19,6 +19,7 @@ import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xpack.inference.common.parser.EnumParser;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.llama.LlamaServiceSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
@@ -60,7 +61,7 @@ public class LlamaEmbeddingsServiceSettings extends LlamaServiceSettings {
         );
         LlamaServiceSettings.declareCommonFields(parser);
         parser.declareInt(Builder::setDimensions, new ParseField(DIMENSIONS));
-        parser.declareString(Builder::setSimilarity, SimilarityMeasure::parseSimilarity, new ParseField(SIMILARITY));
+        parser.declareString(Builder::setSimilarity, EnumParser::parseSimilarity, new ParseField(SIMILARITY));
         parser.declareInt(Builder::setMaxInputTokens, new ParseField(MAX_INPUT_TOKENS));
         return parser;
     }
@@ -260,7 +261,7 @@ public class LlamaEmbeddingsServiceSettings extends LlamaServiceSettings {
                 existing.dimensions(),
                 existing.similarity(),
                 updatedMaxInputTokens,
-                existing.mergedRateLimit(this)
+                mergedRateLimitSettings(existing)
             );
         }
     }

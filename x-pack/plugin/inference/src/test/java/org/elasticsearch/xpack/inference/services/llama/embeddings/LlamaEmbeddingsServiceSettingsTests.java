@@ -14,7 +14,6 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.SimilarityMeasure;
-import org.elasticsearch.test.AbstractBWCSerializationTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParseException;
@@ -22,6 +21,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
+import org.elasticsearch.xpack.inference.services.llama.AbstractLlamaServiceSettingsTests;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettingsTests;
 
@@ -35,13 +35,7 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.createUri;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.is;
 
-public class LlamaEmbeddingsServiceSettingsTests extends AbstractBWCSerializationTestCase<LlamaEmbeddingsServiceSettings> {
-
-    private static final URI TEST_URI = URI.create("https://www.test.com");
-    private static final URI INITIAL_TEST_URI = URI.create("https://www.initial.com");
-
-    private static final String TEST_MODEL_ID = "test-model";
-    private static final String INITIAL_TEST_MODEL_ID = "initial-model";
+public class LlamaEmbeddingsServiceSettingsTests extends AbstractLlamaServiceSettingsTests<LlamaEmbeddingsServiceSettings> {
 
     private static final int TEST_DIMENSIONS = 384;
     private static final int INITIAL_TEST_DIMENSIONS = 256;
@@ -52,9 +46,29 @@ public class LlamaEmbeddingsServiceSettingsTests extends AbstractBWCSerializatio
     private static final int TEST_MAX_INPUT_TOKENS = 128;
     private static final int INITIAL_TEST_MAX_INPUT_TOKENS = 64;
 
-    private static final int TEST_RATE_LIMIT = 2;
-    private static final int INITIAL_TEST_RATE_LIMIT = 5;
-    private static final int DEFAULT_RATE_LIMIT = 3000;
+    @Override
+    protected LlamaEmbeddingsServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
+        return LlamaEmbeddingsServiceSettings.fromMap(map, context);
+    }
+
+    @Override
+    protected Map<String, Object> buildCommonServiceSettingsMap(
+        @Nullable String modelId,
+        @Nullable String url,
+        @Nullable Integer rateLimit
+    ) {
+        return buildServiceSettingsMap(modelId, url, null, null, null, rateLimit);
+    }
+
+    @Override
+    protected LlamaEmbeddingsServiceSettings createServiceSettings(String modelId, URI uri, RateLimitSettings rateLimitSettings) {
+        return new LlamaEmbeddingsServiceSettings(modelId, uri, null, null, null, rateLimitSettings);
+    }
+
+    @Override
+    protected List<String> additionalImmutableFields() {
+        return List.of(ServiceFields.DIMENSIONS, ServiceFields.SIMILARITY);
+    }
 
     public void testFromMap_AllFields_CreatesSettingsCorrectly() {
         var serviceSettings = LlamaEmbeddingsServiceSettings.fromMap(
@@ -81,66 +95,6 @@ public class LlamaEmbeddingsServiceSettingsTests extends AbstractBWCSerializatio
                     new RateLimitSettings(TEST_RATE_LIMIT)
                 )
             )
-        );
-    }
-
-    public void testFromMap_OnlyMandatoryFields_UsesDefaultValues_Success() {
-        var serviceSettings = LlamaEmbeddingsServiceSettings.fromMap(
-            buildServiceSettingsMap(TEST_MODEL_ID, TEST_URI.toString(), null, null, null, null),
-            randomFrom(ConfigurationParseContext.values())
-        );
-
-        assertThat(
-            serviceSettings,
-            is(new LlamaEmbeddingsServiceSettings(TEST_MODEL_ID, TEST_URI, null, null, null, new RateLimitSettings(DEFAULT_RATE_LIMIT)))
-        );
-    }
-
-    public void testFromMap_NoModelId_ThrowsException() {
-        var thrownException = expectThrows(
-            IllegalArgumentException.class,
-            () -> LlamaEmbeddingsServiceSettings.fromMap(
-                buildServiceSettingsMap(
-                    null,
-                    TEST_URI.toString(),
-                    TEST_DIMENSIONS,
-                    TEST_SIMILARITY_MEASURE.toString(),
-                    TEST_MAX_INPUT_TOKENS,
-                    TEST_RATE_LIMIT
-                ),
-                randomFrom(ConfigurationParseContext.values())
-            )
-        );
-        assertThat(
-            thrownException.getMessage(),
-            is(
-                Strings.format(
-                    "[%s] does not contain the required setting [%s]",
-                    ModelConfigurations.SERVICE_SETTINGS,
-                    ServiceFields.MODEL_ID
-                )
-            )
-        );
-    }
-
-    public void testFromMap_NoUrl_ThrowsException() {
-        var thrownException = expectThrows(
-            IllegalArgumentException.class,
-            () -> LlamaEmbeddingsServiceSettings.fromMap(
-                buildServiceSettingsMap(
-                    TEST_MODEL_ID,
-                    null,
-                    TEST_DIMENSIONS,
-                    TEST_SIMILARITY_MEASURE.toString(),
-                    TEST_MAX_INPUT_TOKENS,
-                    TEST_RATE_LIMIT
-                ),
-                randomFrom(ConfigurationParseContext.values())
-            )
-        );
-        assertThat(
-            thrownException.getMessage(),
-            is(Strings.format("[%s] does not contain the required setting [%s]", ModelConfigurations.SERVICE_SETTINGS, ServiceFields.URL))
         );
     }
 
@@ -407,7 +361,7 @@ public class LlamaEmbeddingsServiceSettingsTests extends AbstractBWCSerializatio
         );
     }
 
-    public void testUpdateServiceSettings_EmptyMap_DoesNotChangeSettings() {
+    public void testUpdateServiceSettings_EmptyMap_PreservesTaskSpecificFields() {
         var originalServiceSettings = new LlamaEmbeddingsServiceSettings(
             INITIAL_TEST_MODEL_ID,
             INITIAL_TEST_URI,
@@ -416,34 +370,8 @@ public class LlamaEmbeddingsServiceSettingsTests extends AbstractBWCSerializatio
             INITIAL_TEST_MAX_INPUT_TOKENS,
             new RateLimitSettings(INITIAL_TEST_RATE_LIMIT)
         );
+
         assertThat(originalServiceSettings.updateServiceSettings(new HashMap<>()), is(originalServiceSettings));
-    }
-
-    public void testUpdateServiceSettings_GivenImmutableFields_ThrowsException() {
-        var serviceSettings = new LlamaEmbeddingsServiceSettings(
-            INITIAL_TEST_MODEL_ID,
-            INITIAL_TEST_URI,
-            INITIAL_TEST_DIMENSIONS,
-            INITIAL_TEST_SIMILARITY_MEASURE,
-            INITIAL_TEST_MAX_INPUT_TOKENS,
-            new RateLimitSettings(INITIAL_TEST_RATE_LIMIT)
-        );
-
-        for (String immutableField : List.of(
-            ServiceFields.MODEL_ID,
-            ServiceFields.URL,
-            ServiceFields.DIMENSIONS,
-            ServiceFields.SIMILARITY
-        )) {
-            var e = expectThrows(
-                XContentParseException.class,
-                () -> serviceSettings.updateServiceSettings(new HashMap<>(Map.of(immutableField, "value")))
-            );
-            assertThat(
-                e.getMessage(),
-                endsWith(Strings.format("[%s] unknown field [%s]", ModelConfigurations.SERVICE_SETTINGS, immutableField))
-            );
-        }
     }
 
     public void testUpdateServiceSettings_ZeroInputTokens_ThrowsException() {

@@ -29,7 +29,7 @@ import java.net.URI;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.xpack.inference.common.parser.StringParser.validateRequiredNonEmptyString;
+import static org.elasticsearch.xpack.inference.common.parser.StringParser.validateStringIsNotNullOrEmpty;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MODEL_ID;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.URL;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createUri;
@@ -156,8 +156,8 @@ public abstract class LlamaServiceSettings extends FilteredXContentObject implem
         protected abstract T build(String modelId, URI uri, RateLimitSettings rateLimitSettings);
 
         public final T build() {
-            validateRequiredNonEmptyString(modelId, MODEL_ID);
-            validateRequiredNonEmptyString(url, URL);
+            validateStringIsNotNullOrEmpty(modelId, MODEL_ID);
+            validateStringIsNotNullOrEmpty(url, URL);
             return build(modelId, createUri(url), rateLimitSettings);
         }
     }
@@ -191,23 +191,15 @@ public abstract class LlamaServiceSettings extends FilteredXContentObject implem
         parser.declareObject(
             CommonUpdate::setRateLimitSettings,
             // A null default preserves "no change" semantics for updates: an empty or value-less rate_limit object leaves the existing
-            // rate limit untouched in CommonUpdate#mergedRateLimit.
+            // rate limit untouched in CommonUpdate#mergedRateLimitSettings.
             (p, c) -> RateLimitSettings.createParser(false, null).apply(p, null),
             new ParseField(RateLimitSettings.FIELD_NAME)
         );
     }
 
     /**
-     * Resolves the rate limit settings to use after applying an update: the value supplied by the update if present, otherwise
-     * the current value.
-     */
-    protected RateLimitSettings mergedRateLimit(CommonUpdate update) {
-        return Objects.requireNonNullElse(update.rateLimitSettings, this.rateLimitSettings);
-    }
-
-    /**
-     * Holds the common fields parsed from an update request. Task-specific update classes extend this and contribute their own
-     * mutable fields.
+     * Common fields parsed from an update request. Because settings are immutable, each subclass builds the new instance itself,
+     * calling {@link #mergedRateLimitSettings(LlamaServiceSettings)} to resolve the shared fields.
      */
     public static class CommonUpdate {
 
@@ -215,6 +207,14 @@ public abstract class LlamaServiceSettings extends FilteredXContentObject implem
 
         private void setRateLimitSettings(@Nullable RateLimitSettings rateLimitSettings) {
             this.rateLimitSettings = rateLimitSettings;
+        }
+
+        /**
+         * Resolves the rate limit settings to use after applying this update: the value supplied by the update if present, otherwise
+         * the value carried by the existing settings.
+         */
+        protected RateLimitSettings mergedRateLimitSettings(LlamaServiceSettings existing) {
+            return Objects.requireNonNullElse(this.rateLimitSettings, existing.rateLimitSettings());
         }
     }
 }

@@ -20,6 +20,7 @@ import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xpack.inference.common.parser.EnumParser;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.cohere.CohereCommonServiceSettings;
@@ -100,7 +101,7 @@ public class CohereEmbeddingsServiceSettings extends FilteredXContentObject impl
             () -> new Builder(context)
         );
         CohereCommonServiceSettings.declareCommonFields(parser, context);
-        parser.declareString(Builder::setSimilarity, SimilarityMeasure::parseSimilarity, new ParseField(SIMILARITY));
+        parser.declareString(Builder::setSimilarity, EnumParser::parseSimilarity, new ParseField(SIMILARITY));
         parser.declareInt(Builder::setDimensions, new ParseField(DIMENSIONS));
         parser.declareInt(Builder::setMaxInputTokens, new ParseField(MAX_INPUT_TOKENS));
         parser.declareString(

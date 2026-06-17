@@ -132,7 +132,7 @@ public class LlamaChatCompletionServiceSettings extends LlamaServiceSettings {
         }
 
         public LlamaChatCompletionServiceSettings mergeInto(LlamaChatCompletionServiceSettings existing) {
-            return new LlamaChatCompletionServiceSettings(existing.modelId(), existing.uri(), existing.mergedRateLimit(this));
+            return new LlamaChatCompletionServiceSettings(existing.modelId(), existing.uri(), mergedRateLimitSettings(existing));
         }
     }
 }

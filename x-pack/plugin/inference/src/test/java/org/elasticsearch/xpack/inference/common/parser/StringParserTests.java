@@ -128,16 +128,16 @@ public class StringParserTests extends ESTestCase {
         assertThat(errorMessage, containsString(INTEGER_CLASS_NAME));
     }
 
-    public void testValidateRequiredNonEmptyString_NullValue_ThrowsException() {
-        var e = expectThrows(IllegalArgumentException.class, () -> StringParser.validateRequiredNonEmptyString(null, MODEL_ID));
+    public void testValidateStringIsNotNullOrEmpty_NullValue_ThrowsException() {
+        var e = expectThrows(IllegalArgumentException.class, () -> StringParser.validateStringIsNotNullOrEmpty(null, MODEL_ID));
         assertThat(
             e.getMessage(),
             equalTo(Strings.format("[%s] does not contain the required setting [%s]", ModelConfigurations.SERVICE_SETTINGS, MODEL_ID))
         );
     }
 
-    public void testValidateRequiredNonEmptyString_EmptyValue_ThrowsException() {
-        var e = expectThrows(IllegalArgumentException.class, () -> StringParser.validateRequiredNonEmptyString("", MODEL_ID));
+    public void testValidateStringIsNotNullOrEmpty_EmptyValue_ThrowsException() {
+        var e = expectThrows(IllegalArgumentException.class, () -> StringParser.validateStringIsNotNullOrEmpty("", MODEL_ID));
         assertThat(
             e.getMessage(),
             equalTo(
@@ -150,7 +150,7 @@ public class StringParserTests extends ESTestCase {
         );
     }
 
-    public void testValidateRequiredNonEmptyString_NonEmptyValue_DoesNotThrow() {
-        StringParser.validateRequiredNonEmptyString(randomAlphaOfLength(8), MODEL_ID);
+    public void testValidateStringIsNotNullOrEmpty_NonEmptyValue_DoesNotThrow() {
+        StringParser.validateStringIsNotNullOrEmpty(randomAlphaOfLength(8), MODEL_ID);
     }
 }

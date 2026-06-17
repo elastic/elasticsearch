@@ -36,8 +36,14 @@
       "enabled": true
     },
     {
-      "description": "Gradle wrapper: one rolling PR per release train (e.g. 9.5.x patch lane and 9.6.x minor/RC lane), lockstep across all wrapper.properties files; manual fix commits preserved",
+      "description": "Disable the built-in gradle-wrapper manager; we manage all three wrapper.properties files via the customManager below so distributionUrl and distributionSha256Sum stay in lockstep. The built-in manager only refreshed the sha in one of the three files (see PR for renovate/main-gradle-wrapper-9.5.x).",
       "matchManagers": ["gradle-wrapper"],
+      "enabled": false
+    },
+    {
+      "description": "Gradle wrapper (custom-managed): one rolling PR per release train (e.g. 9.5.x patch lane and 9.6.x minor/RC lane), lockstep across all wrapper.properties files; manual fix commits preserved",
+      "matchManagers": ["custom.regex"],
+      "matchPackageNames": ["gradle"],
       "matchBaseBranches": ["main"],
       "enabled": true,
       "ignoreUnstable": false,
@@ -48,6 +54,20 @@
       "commitMessageTopic": "Gradle wrapper {{{newMajor}}}.{{{newMinor}}}.x",
       "schedule": ["at any time"],
       "labels": [":Delivery/Build", ">non-issue", "auto-backport"]
+    }
+  ],
+  "customManagers": [
+    {
+      "description": "Update distributionUrl and distributionSha256Sum together in every gradle-wrapper.properties file. Uses the gradle-version datasource which exposes the official SHA-256 as currentDigest, so all three properties files (root, build-tools-internal, plugins/examples) are updated in lockstep within a single PR.",
+      "customType": "regex",
+      "fileMatch": [
+        "(^|/)gradle/wrapper/gradle-wrapper\\.properties$"
+      ],
+      "matchStrings": [
+        "distributionSha256Sum=(?<currentDigest>[a-f0-9]{64})\\s+distributionUrl=https\\\\://services\\.gradle\\.org/distributions/gradle-(?<currentValue>\\d[\\w.-]*?)-(?:all|bin)\\.zip"
+      ],
+      "depNameTemplate": "gradle",
+      "datasourceTemplate": "gradle-version"
     }
   ]
 }

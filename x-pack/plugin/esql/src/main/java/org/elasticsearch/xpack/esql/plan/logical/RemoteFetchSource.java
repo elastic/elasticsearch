@@ -4,8 +4,7 @@
  * 2.0; you may not use this file except in compliance with the Elastic License
  * 2.0.
  */
-
-package org.elasticsearch.xpack.esql.plan.physical;
+package org.elasticsearch.xpack.esql.plan.logical;
 
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -20,29 +19,27 @@ import java.util.List;
 import java.util.Objects;
 
 /**
- * Leaf source used to compile remote-fetch post-fetch pushdown fragments.
+ * Logical source describing the initial remote-fetch fragment.
  * <p>
- * The final output attribute is the synthetic position-mapping attribute. It maps each row that survives pushdown back to its
- * original input position and must stay aligned with the final block produced by the remote-fetch pushdown compiler
- * ({@code RemoteFetchPushdownCompiler}). Runtime remote-fetch setup validates concrete pushdown fragments
- * via {@code RemoteFetchPushdownPlanValidator}.
+ * This node is serialized to remote nodes inside a {@link org.elasticsearch.xpack.esql.plan.physical.FragmentExec}
+ * and then converted into physical operators locally on the target node.
  */
-public class RemoteFetchSourceExec extends LeafExec {
+public class RemoteFetchSource extends LeafPlan {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
-        PhysicalPlan.class,
-        "RemoteFetchSourceExec",
-        RemoteFetchSourceExec::new
+        LogicalPlan.class,
+        "RemoteFetchSource",
+        RemoteFetchSource::readFrom
     );
 
     private final List<Attribute> output;
 
-    public RemoteFetchSourceExec(Source source, List<Attribute> output) {
+    public RemoteFetchSource(Source source, List<Attribute> output) {
         super(source);
         this.output = Objects.requireNonNull(output, "output");
     }
 
-    private RemoteFetchSourceExec(StreamInput in) throws IOException {
-        this(Source.readFrom((PlanStreamInput) in), in.readNamedWriteableCollectionAsList(Attribute.class));
+    private static RemoteFetchSource readFrom(StreamInput in) throws IOException {
+        return new RemoteFetchSource(Source.readFrom((PlanStreamInput) in), in.readNamedWriteableCollectionAsList(Attribute.class));
     }
 
     @Override
@@ -57,13 +54,18 @@ public class RemoteFetchSourceExec extends LeafExec {
     }
 
     @Override
-    protected NodeInfo<RemoteFetchSourceExec> info() {
-        return NodeInfo.create(this, RemoteFetchSourceExec::new, output);
+    public List<Attribute> output() {
+        return output;
     }
 
     @Override
-    public List<Attribute> output() {
-        return output;
+    public boolean expressionsResolved() {
+        return true;
+    }
+
+    @Override
+    protected NodeInfo<RemoteFetchSource> info() {
+        return NodeInfo.create(this, RemoteFetchSource::new, output);
     }
 
     @Override
@@ -79,7 +81,7 @@ public class RemoteFetchSourceExec extends LeafExec {
         if (obj == null || getClass() != obj.getClass()) {
             return false;
         }
-        RemoteFetchSourceExec other = (RemoteFetchSourceExec) obj;
+        RemoteFetchSource other = (RemoteFetchSource) obj;
         return Objects.equals(output, other.output);
     }
 }

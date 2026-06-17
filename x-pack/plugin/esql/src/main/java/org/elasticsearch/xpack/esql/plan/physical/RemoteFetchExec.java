@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+import org.elasticsearch.xpack.esql.plan.logical.RemoteFetchSource;
 
 import java.io.IOException;
 import java.util.List;
@@ -30,10 +31,12 @@ import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutp
  *     <li>{@code attributesToFetch}: remote request schema (what the data node must load to execute fetch/pushdown)</li>
  *     <li>{@code fetchedOutputAttributes}: coordinator output schema (what this node appends to its child output)</li>
  * </ul>
- * In simple fetch-only plans these lists can be identical. They diverge when pushdown requires extra internal attributes
- * (for example position-mapping metadata) that should not appear in the final coordinator output.
+ * <p>
+ * The right-hand side of this {@link BinaryExec} is a {@link FragmentExec} that carries a {@link RemoteFetchSource}
+ * logical plan. This follows the same architectural pattern as lookup planning: logical plans are serialized and
+ * shipped, while physical planning remains local to the target node.
  */
-public class RemoteFetchExec extends UnaryExec implements EstimatesRowSize {
+public class RemoteFetchExec extends BinaryExec implements EstimatesRowSize {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         PhysicalPlan.class,
         "RemoteFetchExec",
@@ -49,7 +52,7 @@ public class RemoteFetchExec extends UnaryExec implements EstimatesRowSize {
      * Attributes appended to this node's output on the coordinator.
      */
     private final List<Attribute> fetchedOutputAttributes;
-    private final PhysicalPlan pushdownPlan;
+    private final PhysicalPlan fetchPlan;
     private List<Attribute> lazyOutput;
 
     public RemoteFetchExec(
@@ -58,34 +61,36 @@ public class RemoteFetchExec extends UnaryExec implements EstimatesRowSize {
         Attribute handleAttribute,
         List<Attribute> attributesToFetch,
         List<Attribute> fetchedOutputAttributes,
-        PhysicalPlan pushdownPlan
+        PhysicalPlan fetchPlan
     ) {
-        super(source, child);
+        super(source, child, fetchPlan);
+        this.fetchPlan = requireFetchPlan(fetchPlan);
         this.handleAttribute = handleAttribute;
         this.attributesToFetch = List.copyOf(attributesToFetch);
         this.fetchedOutputAttributes = List.copyOf(fetchedOutputAttributes);
-        this.pushdownPlan = pushdownPlan;
     }
 
     private RemoteFetchExec(StreamInput in) throws IOException {
-        this(
-            Source.readFrom((PlanStreamInput) in),
-            in.readNamedWriteable(PhysicalPlan.class),
-            in.readNamedWriteable(Attribute.class),
-            in.readNamedWriteableCollectionAsList(Attribute.class),
-            in.readNamedWriteableCollectionAsList(Attribute.class),
-            in.readOptionalNamedWriteable(PhysicalPlan.class)
-        );
+        super(Source.readFrom((PlanStreamInput) in), in.readNamedWriteable(PhysicalPlan.class), in.readNamedWriteable(PhysicalPlan.class));
+        this.fetchPlan = requireFetchPlan(right());
+        this.handleAttribute = in.readNamedWriteable(Attribute.class);
+        this.attributesToFetch = in.readNamedWriteableCollectionAsList(Attribute.class);
+        this.fetchedOutputAttributes = in.readNamedWriteableCollectionAsList(Attribute.class);
+    }
+
+    private static FragmentExec requireFetchPlan(PhysicalPlan plan) {
+        if (plan instanceof FragmentExec fragmentExec && fragmentExec.fragment() instanceof RemoteFetchSource) {
+            return fragmentExec;
+        }
+        throw new IllegalArgumentException("remote fetch plan must be a FragmentExec containing RemoteFetchSource");
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        Source.EMPTY.writeTo(out);
-        out.writeNamedWriteable(child());
+        super.writeTo(out);
         out.writeNamedWriteable(handleAttribute);
         out.writeNamedWriteableCollection(attributesToFetch);
         out.writeNamedWriteableCollection(fetchedOutputAttributes);
-        out.writeOptionalNamedWriteable(pushdownPlan);
     }
 
     @Override
@@ -98,22 +103,51 @@ public class RemoteFetchExec extends UnaryExec implements EstimatesRowSize {
         return NodeInfo.create(
             this,
             RemoteFetchExec::new,
-            child(),
+            left(),
             handleAttribute,
             attributesToFetch,
             fetchedOutputAttributes,
-            pushdownPlan
+            fetchPlan
         );
     }
 
     @Override
+    public RemoteFetchExec replaceChildren(PhysicalPlan newLeft, PhysicalPlan newRight) {
+        return new RemoteFetchExec(source(), newLeft, handleAttribute, attributesToFetch, fetchedOutputAttributes, newRight);
+    }
+
+    /**
+     * Compatibility helper while this class migrates from {@link UnaryExec} to {@link BinaryExec}.
+     */
+    public PhysicalPlan child() {
+        return left();
+    }
+
+    /**
+     * Compatibility helper while this class migrates from {@link UnaryExec} to {@link BinaryExec}.
+     */
     public RemoteFetchExec replaceChild(PhysicalPlan newChild) {
-        return new RemoteFetchExec(source(), newChild, handleAttribute, attributesToFetch, fetchedOutputAttributes, pushdownPlan);
+        return new RemoteFetchExec(source(), newChild, handleAttribute, attributesToFetch, fetchedOutputAttributes, fetchPlan);
     }
 
     @Override
     protected AttributeSet computeReferences() {
+        return leftReferences();
+    }
+
+    @Override
+    public AttributeSet inputSet() {
+        return left().outputSet();
+    }
+
+    @Override
+    public AttributeSet leftReferences() {
         return AttributeSet.of(handleAttribute);
+    }
+
+    @Override
+    public AttributeSet rightReferences() {
+        return AttributeSet.EMPTY;
     }
 
     public Attribute handleAttribute() {
@@ -125,7 +159,11 @@ public class RemoteFetchExec extends UnaryExec implements EstimatesRowSize {
     }
 
     public PhysicalPlan pushdownPlan() {
-        return pushdownPlan;
+        return fetchPlan;
+    }
+
+    public FragmentExec fetchPlan() {
+        return (FragmentExec) fetchPlan;
     }
 
     public List<Attribute> fetchedOutputAttributes() {
@@ -135,7 +173,7 @@ public class RemoteFetchExec extends UnaryExec implements EstimatesRowSize {
     @Override
     public List<Attribute> output() {
         if (lazyOutput == null) {
-            lazyOutput = mergeOutputAttributes(fetchedOutputAttributes, child().output());
+            lazyOutput = mergeOutputAttributes(fetchedOutputAttributes, left().output());
         }
         return lazyOutput;
     }
@@ -148,7 +186,7 @@ public class RemoteFetchExec extends UnaryExec implements EstimatesRowSize {
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), handleAttribute, attributesToFetch, fetchedOutputAttributes, pushdownPlan);
+        return Objects.hash(super.hashCode(), handleAttribute, attributesToFetch, fetchedOutputAttributes);
     }
 
     @Override
@@ -159,7 +197,6 @@ public class RemoteFetchExec extends UnaryExec implements EstimatesRowSize {
         RemoteFetchExec other = (RemoteFetchExec) obj;
         return Objects.equals(handleAttribute, other.handleAttribute)
             && Objects.equals(attributesToFetch, other.attributesToFetch)
-            && Objects.equals(fetchedOutputAttributes, other.fetchedOutputAttributes)
-            && Objects.equals(pushdownPlan, other.pushdownPlan);
+            && Objects.equals(fetchedOutputAttributes, other.fetchedOutputAttributes);
     }
 }

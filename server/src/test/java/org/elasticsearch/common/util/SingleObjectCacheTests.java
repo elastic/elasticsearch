@@ -15,6 +15,7 @@ import org.elasticsearch.test.ESTestCase;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 
 public class SingleObjectCacheTests extends ESTestCase {
 
@@ -83,5 +84,24 @@ public class SingleObjectCacheTests extends ESTestCase {
         t.join();
         assertEquals(2, cache.getOrRefresh().intValue());
 
+    }
+
+    public void testRefreshesAfterMonotonicIntervalElapses() {
+        final AtomicInteger count = new AtomicInteger(0);
+        final AtomicLong nanoTime = new AtomicLong(0);
+        final TimeValue refreshInterval = TimeValue.timeValueMillis(10);
+        final SingleObjectCache<Integer> cache = new SingleObjectCache<Integer>(refreshInterval, 0, nanoTime::get) {
+
+            @Override
+            protected Integer refresh() {
+                return count.incrementAndGet();
+            }
+        };
+        assertEquals(1, cache.getOrRefresh().intValue());
+        assertEquals(1, cache.getOrRefresh().intValue());
+        nanoTime.addAndGet(refreshInterval.nanos());
+        assertEquals(1, cache.getOrRefresh().intValue());
+        nanoTime.incrementAndGet();
+        assertEquals(2, cache.getOrRefresh().intValue());
     }
 }

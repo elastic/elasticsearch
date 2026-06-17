@@ -523,7 +523,7 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
     }
 
     /**
-     * Process a scroll response.
+     * Process a paginated search response.
      * @param lastBatchStartTimeNS the time when the last batch started. Used to calculate the throttling delay.
      * @param lastBatchSizeToUse the size of the last batch. Used to calculate the throttling delay.
      * @param asyncResponse the response to process from {@link PaginatedHitSource}

@@ -145,6 +145,7 @@ import org.elasticsearch.xpack.stateless.allocation.StatelessShardRelocationOrde
 import org.elasticsearch.xpack.stateless.allocation.StatelessShardRoutingRoleStrategy;
 import org.elasticsearch.xpack.stateless.allocation.StatelessThrottlingConcurrentRecoveriesAllocationDecider;
 import org.elasticsearch.xpack.stateless.cache.DefaultWarmingRatioProviderFactory;
+import org.elasticsearch.xpack.stateless.cache.PinnedWindowEvictionPolicy;
 import org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcher;
 import org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcherDynamicSettings;
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
@@ -1338,6 +1339,7 @@ public class StatelessPlugin extends Plugin
             StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_ENABLED_SETTING,
             StatelessReaderHeapBreaker.LIMIT_SETTING,
             StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_EVICTION_POLICY_SETTING,
+            PinnedWindowEvictionPolicy.PINNED_WINDOW_DURATION_SETTING,
             DisableSimulationRebalancingDecider.SIMULATION_REBALANCING_ENABLED_SETTING
         );
     }

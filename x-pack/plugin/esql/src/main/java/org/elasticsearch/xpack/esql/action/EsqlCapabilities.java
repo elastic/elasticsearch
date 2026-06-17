@@ -2277,6 +2277,14 @@ public class EsqlCapabilities {
         PROMQL_WITHOUT_GROUPING,
 
         /**
+         * Corrected output shape for PromQL {@code without}: a {@code without} over a concrete-output child (e.g.
+         * {@code sum without(pod) (sum by(cluster,region,pod) (...))}) projects the child's concrete grouping columns
+         * minus the excluded labels, rather than the opaque {@code _timeseries} column. Gates the affected csv-spec
+         * tests so mixed-version clusters skip them on older nodes that still emit {@code _timeseries}.
+         */
+        FIX_PROMQL_WITHOUT_OUTPUT,
+
+        /**
          * PromQL label matchers that accept the empty string (e.g. {@code {label=""}} or {@code {label!="foo"}})
          * also match time series where the label is absent ({@code NULL}), per PromQL spec.
          */
@@ -2763,6 +2771,11 @@ public class EsqlCapabilities {
         TSDB_TEMPORALITY_SUPPORT_V8(IndexSettings.TIME_SERIES_TEMPORALITY_FEATURE_FLAG),
 
         /**
+         * Support cumulative exponential histograms in _over_time aggregations.
+         */
+        TSDB_TEMPORALITY_SUPPORT_V9(IndexSettings.TIME_SERIES_TEMPORALITY_FEATURE_FLAG),
+
+        /**
          * Support the null column type for the CHANGE_POINT command
          * <a href="https://github.com/elastic/elasticsearch/pull/144388"></a>
          */
@@ -2956,7 +2969,7 @@ public class EsqlCapabilities {
         /**
          * Match function and match operator support for runtime expressions, not just ES mapped fields.
          */
-        MATCH_SUPPORT_RUNTIME_TEXT(Build.current().isSnapshot()),
+        MATCH_RUNTIME_SEARCH(Build.current().isSnapshot()),
 
         /**
          * Fix for column pruning when FORK branches return no columns.
@@ -3101,6 +3114,12 @@ public class EsqlCapabilities {
          * Bugfix in query approximation to not produce confidence intervals for multivalued functions.
          */
         APPROXIMATION_FIX_MV_FUNCTIONS,
+
+        /**
+         * Support for the {@code HIGHLIGHT} command. Part A: parsing and plan-shape only; execution
+         * throws "not implemented yet". Snapshot-only.
+         */
+        HIGHLIGHT_V0(Build.current().isSnapshot()),
 
         /**
          * Support for PromQL {@code histogram_quantile()} over classic histograms with {@code le} buckets.

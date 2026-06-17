@@ -1491,13 +1491,12 @@ public class InternalEngine extends Engine {
         }
 
         try {
-            // Create Indexing Operation — for batches of 2+ real ops, reserve all sequence numbers
-            // atomically up front (before any Lucene writes). Single real ops fall through to
-            // generateSeqNoForOperationOnPrimary to honour any subclass override.
+            // Create Indexing Operation — reserve all sequence numbers for primary ops atomically up
+            // front (before any Lucene writes). Skipped when every op is a preflight error.
             long firstPrimarySeqNo = -1;
             long seqNoToBeMarkedSeen = SequenceNumbers.NO_OPS_PERFORMED;
             final int seqNoCount = subBatchSize - opsWithPreflightErrors;
-            if (origin == Operation.Origin.PRIMARY && seqNoCount > 1) {
+            if (origin == Operation.Origin.PRIMARY && seqNoCount > 0) {
                 firstPrimarySeqNo = localCheckpointTracker.generateSeqNos(seqNoCount);
             }
             int batchSeqNoIdx = 0;
@@ -1514,9 +1513,7 @@ public class InternalEngine extends Engine {
                 }
 
                 if (origin == Operation.Origin.PRIMARY) {
-                    final long seqNo = firstPrimarySeqNo != -1
-                        ? firstPrimarySeqNo + batchSeqNoIdx++
-                        : generateSeqNoForOperationOnPrimary(index);
+                    final long seqNo = firstPrimarySeqNo + batchSeqNoIdx++;
                     index = new Index(
                         index.uid(),
                         index.parsedDoc(),

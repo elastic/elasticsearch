@@ -238,7 +238,7 @@ public final class AzureStorageProvider implements StorageProvider {
             } else {
                 throw new IllegalStateException(
                     "Anonymous Azure access requires an endpoint or account from the path "
-                        + "(wasbs://account.blob.core.windows.net/...) or WITH (endpoint = '...')"
+                        + "(wasbs://account.blob.core.windows.net/...) or WITH {\"endpoint\": \"...\"}"
                 );
             }
         } else if (config != null && config.hasCredentials()) {
@@ -296,7 +296,7 @@ public final class AzureStorageProvider implements StorageProvider {
             if (endpoint == null) {
                 throw new IllegalStateException(
                     "auth=workload_identity requires an account from the path (wasbs://account.blob.core.windows.net/...) "
-                        + "or WITH (endpoint = '...')"
+                        + "or WITH {\"endpoint\": \"...\"}"
                 );
             }
             builder.endpoint(endpoint).credential(credential);
@@ -310,7 +310,7 @@ public final class AzureStorageProvider implements StorageProvider {
                 if (account == null) {
                     throw new IllegalStateException(
                         "Azure keyless authentication requires an account from the path "
-                            + "(wasbs://account.blob.core.windows.net/...) or WITH (account = '...')"
+                            + "(wasbs://account.blob.core.windows.net/...) or WITH {\"account\": \"...\"}"
                     );
                 }
                 endpoint = blobEndpoint(account);
@@ -318,10 +318,10 @@ public final class AzureStorageProvider implements StorageProvider {
             builder.endpoint(endpoint).credential(buildClientAssertionCredential(config, executor));
         } else {
             throw new IllegalArgumentException(
-                "Azure data source requires credentials: provide WITH (connection_string = '...'), "
-                    + "WITH (account = '...', key = '...'), WITH (account = '...', sas_token = '...'), "
-                    + "WITH (auth = 'none') for public containers, "
-                    + "WITH (auth = 'workload_identity') to use the node's managed identity (requires cluster setting), "
+                "Azure data source requires credentials: provide WITH {\"connection_string\": \"...\"}, "
+                    + "WITH {\"account\": \"...\", \"key\": \"...\"}, WITH {\"account\": \"...\", \"sas_token\": \"...\"}, "
+                    + "WITH {\"auth\": \"none\"} for public containers, "
+                    + "WITH {\"auth\": \"workload_identity\"} to use the node's managed identity (requires cluster setting), "
                     + "or configure keyless authentication settings (tenant_id, client_id, jwt_audience)"
             );
         }
@@ -459,8 +459,8 @@ public final class AzureStorageProvider implements StorageProvider {
                 && config.hasCredentials() == false
                 && config.hasKeylessAuth() == false
                 && config.isWorkloadIdentity() == false)) {
-            return ". If accessing a public container, use WITH (auth = 'none'). "
-                + "Otherwise, provide credentials via WITH (account = '...', key = '...'), configure keyless "
+            return ". If accessing a public container, use WITH {\"auth\": \"none\"}. "
+                + "Otherwise, provide credentials via WITH {\"account\": \"...\", \"key\": \"...\"}, configure keyless "
                 + "authentication settings, or set Azure environment variables";
         }
         return "";

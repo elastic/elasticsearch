@@ -174,10 +174,10 @@ public class GcsStorageProvider implements StorageProvider {
             return buildWorkloadIdentityCredentials();
         }
         throw new IllegalArgumentException(
-            "GCS data source requires credentials: provide WITH (credentials = '...'), "
-                + "WITH (access_token = '...') for short-lived OAuth credentials, "
-                + "configure keyless authentication settings, WITH (auth = 'none') for public buckets, "
-                + "or WITH (auth = 'workload_identity') to use Application Default Credentials (requires cluster setting)"
+            "GCS data source requires credentials: provide WITH {\"credentials\": \"...\"}, "
+                + "WITH {\"access_token\": \"...\"} for short-lived OAuth credentials, "
+                + "configure keyless authentication settings, WITH {\"auth\": \"none\"} for public buckets, "
+                + "or WITH {\"auth\": \"workload_identity\"} to use Application Default Credentials (requires cluster setting)"
         );
     }
 
@@ -292,8 +292,8 @@ public class GcsStorageProvider implements StorageProvider {
 
     private String credentialHint() {
         if (config == null || (config.isAnonymous() == false && config.hasCredentials() == false && config.hasKeylessAuth() == false)) {
-            return ". If accessing a public bucket, use WITH (auth = 'none'). "
-                + "Otherwise, provide credentials via WITH (credentials = '...'), configure keyless authentication settings, "
+            return ". If accessing a public bucket, use WITH {\"auth\": \"none\"}. "
+                + "Otherwise, provide credentials via WITH {\"credentials\": \"...\"}, configure keyless authentication settings, "
                 + "or set GOOGLE_APPLICATION_CREDENTIALS";
         }
         return "";

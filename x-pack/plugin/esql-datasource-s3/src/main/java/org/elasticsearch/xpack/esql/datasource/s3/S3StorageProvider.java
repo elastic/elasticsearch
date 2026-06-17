@@ -105,11 +105,11 @@ public class S3StorageProvider implements StorageProvider {
      * Test-friendly constructor: no IRSA web-identity provider available. Equivalent to
      * production behavior on a node where {@code AWS_WEB_IDENTITY_TOKEN_FILE} is unset.
      */
-    @SuppressWarnings("this-escape")
     public S3StorageProvider(S3Configuration config) {
         this(config, null);
     }
 
+    @SuppressWarnings("this-escape")
     public S3StorageProvider(S3Configuration config, CustomWebIdentityTokenCredentialsProvider webIdentityTokenCredentialsProvider) {
         this.config = config;
         // Set first so that workloadIdentityProviders() (called via credentialsProvider() ->

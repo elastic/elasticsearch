@@ -20,7 +20,7 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 
 import static org.elasticsearch.index.reindex.BulkByScrollWireSerializingTestUtils.fillRandomBulkFields;
-import static org.elasticsearch.index.reindex.BulkByScrollWireSerializingTestUtils.mutateAbstractBulkByScrollRequest;
+import static org.elasticsearch.index.reindex.BulkByScrollWireSerializingTestUtils.mutateAbstractBulkByPaginatedSearchRequest;
 import static org.elasticsearch.index.reindex.BulkByScrollWireSerializingTestUtils.randomResumeInfo;
 
 public class DeleteByQueryRequestWireSerializingTests extends AbstractWireSerializingTestCase<
@@ -28,7 +28,7 @@ public class DeleteByQueryRequestWireSerializingTests extends AbstractWireSerial
 
     @Override
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
-        return BulkByScrollWireSerializingTestUtils.bulkScrollRequestNamedWriteableRegistry();
+        return BulkByScrollWireSerializingTestUtils.bulkPaginatedSearchRequestNamedWriteableRegistry();
     }
 
     @Override
@@ -52,7 +52,7 @@ public class DeleteByQueryRequestWireSerializingTests extends AbstractWireSerial
     protected Wrapper mutateInstance(Wrapper instance) throws IOException {
         DeleteByQueryRequest originalRequest = instance.request;
         DeleteByQueryRequest mutatedRequest = copyInstance(instance).request;
-        mutateAbstractBulkByScrollRequest(originalRequest, mutatedRequest);
+        mutateAbstractBulkByPaginatedSearchRequest(originalRequest, mutatedRequest);
         return new Wrapper(mutatedRequest);
     }
 

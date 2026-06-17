@@ -29,7 +29,7 @@ public class ResumeBulkByPaginatedSearchRequestWireSerializingTests extends Abst
 
     @Override
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
-        return BulkByScrollWireSerializingTestUtils.bulkScrollRequestNamedWriteableRegistry();
+        return BulkByScrollWireSerializingTestUtils.bulkPaginatedSearchRequestNamedWriteableRegistry();
     }
 
     @Override

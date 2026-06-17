@@ -56,7 +56,6 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.lessThan;
 
 public class LuceneSliceQueueTests extends ESTestCase {
 
@@ -482,27 +481,6 @@ public class LuceneSliceQueueTests extends ESTestCase {
             100
         );
         assertThat(overriddenSlices.size(), greaterThan(1));
-    }
-
-    /**
-     * DOC slice <em>count</em> stays bounded to about {@link LuceneSliceQueue#DOC_SLICE_OVERSUBSCRIBE} slices per
-     * {@code taskConcurrency}, independent of shard size — slice <em>size</em> grows with the shard instead of being
-     * capped at a fixed {@link LuceneSliceQueue#MAX_DOCS_PER_SLICE}. A 1B-doc shard therefore enqueues a few dozen
-     * slices, not {@code totalDocs / MAX_DOCS_PER_SLICE} (~4000).
-     */
-    public void testDocPartitioningBoundsSliceCountForHugeShards() throws IOException {
-        int taskConcurrency = 8;
-        IndexSearcher searcher = new IndexSearcher(new MultiReader(new MockLeafReader(1_000_000_000)));
-        var slices = LuceneSliceQueue.PartitioningStrategy.DOC.groups(
-            searcher,
-            taskConcurrency,
-            null,
-            LuceneSliceQueue.LeafSplitGuard.NEVER,
-            LuceneSliceQueue.MIN_DOCS_PER_SLICE
-        );
-        assertThat(slices, hasSize(LuceneSliceQueue.DOC_SLICE_OVERSUBSCRIBE * taskConcurrency));
-        // Far below the ~4000 a fixed MAX_DOCS_PER_SLICE cap would have produced.
-        assertThat(slices.size(), lessThan(1_000_000_000 / LuceneSliceQueue.MAX_DOCS_PER_SLICE));
     }
 
     public void testCreateSlice() throws IOException {

@@ -250,7 +250,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         BlockLoaderWarnings warnings = new BlockLoaderWarnings(warningsMode, attr.source());
         String fieldName = getFieldName(attr);
         if (attr instanceof TimeSeriesMetadataAttribute timeSeriesMetadataAttribute) {
-            functionConfig = new BlockLoaderFunctionConfig.TimeSeriesMetadata(false, timeSeriesMetadataAttribute.withoutFields());
+            functionConfig = new BlockLoaderFunctionConfig.TimeSeriesMetadata(false, timeSeriesMetadataAttribute.excludedFields());
             fieldName = SourceFieldMapper.NAME;
         } else if (attr instanceof TemporalityAttribute) {
             return resolveTemporalitySource(shardContext, warnings, fieldExtractPreference);

@@ -31,6 +31,8 @@ import org.elasticsearch.xcontent.XContentType;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.net.URLDecoder;
+import java.time.ZoneOffset;
+import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -72,22 +74,9 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
 
     private static final long DEFAULT_MAX_BYTES_REWRITTEN_PER_CALL = ByteSizeValue.of(100, ByteSizeUnit.MB).getBytes();
 
-    /**
-     * Default {@code updated} timestamp (RFC 3339) reported in object listings. Real GCS returns
-     * the wall-clock time the object was last modified; consumers such as {@code _file.modified}
-     * in ES|QL distinguish "unknown" (epoch / null) from "known" mtime, so the default is a fixed,
-     * non-epoch timestamp. Keep this stable across releases.
-     */
-    static final String DEFAULT_BLOB_UPDATED = "2024-01-01T00:00:00.000Z";
-
-    /**
-     * Default {@code Last-Modified} HTTP header (RFC 1123) returned by the XML-style HEAD/GET
-     * paths. Mirrors {@link #DEFAULT_BLOB_UPDATED}: a fixed, non-current timestamp keeps tests
-     * deterministic (the previous value used {@code ZonedDateTime.now()}, which silently changed
-     * between calls and caused flakes when consumers compared it to {@code _file.modified} or to
-     * cached values from a prior listing).
-     */
-    static final String DEFAULT_BLOB_LAST_MODIFIED = "Mon, 01 Jan 2024 00:00:00 GMT";
+    /** ISO-8601 formatter with millisecond precision, always UTC — used for the {@code updated} field in JSON responses. */
+    private static final DateTimeFormatter ISO_MILLIS_UTC = DateTimeFormatter.ofPattern("uuuu-MM-dd'T'HH:mm:ss.SSS'Z'")
+        .withZone(ZoneOffset.UTC);
 
     public GoogleCloudStorageHttpHandler(final String bucket) {
         this.bucket = Objects.requireNonNull(bucket);
@@ -344,7 +333,11 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
                         exchange.getResponseHeaders().add("Content-Length", String.valueOf(blob.contents().length()));
                         exchange.getResponseHeaders().add("Content-Type", "application/octet-stream");
                         exchange.getResponseHeaders().add("ETag", "\"" + blob.generation() + "\"");
-                        exchange.getResponseHeaders().add("Last-Modified", DEFAULT_BLOB_LAST_MODIFIED);
+                        exchange.getResponseHeaders()
+                            .add(
+                                "Last-Modified",
+                                DateTimeFormatter.RFC_1123_DATE_TIME.format(blob.lastModified().atOffset(ZoneOffset.UTC))
+                            );
                         exchange.getResponseHeaders().add("x-goog-generation", String.valueOf(blob.generation()));
                         exchange.sendResponseHeaders(RestStatus.OK.getStatus(), -1);
                     } else {
@@ -378,7 +371,11 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
                             statusCode = RestStatus.PARTIAL_CONTENT.getStatus();
                         }
                         exchange.getResponseHeaders().add("ETag", "\"" + blob.generation() + "\"");
-                        exchange.getResponseHeaders().add("Last-Modified", DEFAULT_BLOB_LAST_MODIFIED);
+                        exchange.getResponseHeaders()
+                            .add(
+                                "Last-Modified",
+                                DateTimeFormatter.RFC_1123_DATE_TIME.format(blob.lastModified().atOffset(ZoneOffset.UTC))
+                            );
                         exchange.getResponseHeaders().add("x-goog-generation", String.valueOf(blob.generation()));
                         exchange.getResponseHeaders().add("Content-Type", "application/octet-stream");
                         exchange.sendResponseHeaders(statusCode, response.length());
@@ -559,9 +556,7 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
         builder.field("id", blobVersion.path());
         builder.field("size", String.valueOf(blobVersion.contents().length()));
         builder.field("generation", String.valueOf(blobVersion.generation()));
-        // Provide a fixed, non-epoch RFC 3339 update time so consumers that distinguish
-        // "unknown" mtime (epoch / null) from "known" mtime see a real value here.
-        builder.field("updated", DEFAULT_BLOB_UPDATED);
+        builder.field("updated", ISO_MILLIS_UTC.format(blobVersion.lastModified()));
         builder.endObject();
     }
 

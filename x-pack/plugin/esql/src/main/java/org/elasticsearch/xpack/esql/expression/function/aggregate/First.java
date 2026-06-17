@@ -86,6 +86,7 @@ public class First extends AggregateFunction implements ToAggregator {
             "tdigest",
             "unsigned_long",
             "version" },
+        briefSummary = "Returns the earliest occurrence of a field based on a sort field.",
         description = """
             This function calculates the earliest occurrence of the search field
             (the first parameter), where sorting order is determined by the sort

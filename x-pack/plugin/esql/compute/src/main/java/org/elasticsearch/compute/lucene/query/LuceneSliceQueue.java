@@ -105,19 +105,6 @@ public final class LuceneSliceQueue {
     public static final int MIN_DOCS_PER_SLICE = 50_000;
 
     /**
-     * Target number of {@link PartitioningStrategy#DOC} slices per unit of {@code task_concurrency}.
-     *
-     * <p>DOC slice <em>size</em> is chosen so a shard yields roughly {@code DOC_SLICE_OVERSUBSCRIBE × taskConcurrency}
-     * slices, independent of shard size — rather than capping slice size at a fixed {@link #MAX_DOCS_PER_SLICE} and
-     * letting the slice <em>count</em> grow without bound (a 1B-doc shard would otherwise enqueue ~4000 slices). A few
-     * slices per driver gives the work-stealing queue ({@link #nextSlice}) headroom to rebalance stragglers; beyond that,
-     * extra slices only add per-slice scorer setup with no benefit. Cancellation responsiveness is independent of slice
-     * size — operators re-check cancellation every few thousand docs while scanning — so load balancing is the only
-     * reason to split below {@code totalDocs / taskConcurrency}.
-     */
-    public static final int DOC_SLICE_OVERSUBSCRIBE = 4;
-
-    /**
      * Per-leaf hint that suppresses sub-segment splitting for the
      * {@link PartitioningStrategy#DOC} partitioner.
      *
@@ -430,13 +417,12 @@ public final class LuceneSliceQueue {
         /**
          * See {@link DataPartitioning#DOC}.
          *
-         * <p>Aims for about {@code DOC_SLICE_OVERSUBSCRIBE * taskConcurrency} slices regardless of shard size:
-         * {@code desiredSliceSize = max(minDocsPerSlice, totalDocs / (DOC_SLICE_OVERSUBSCRIBE * taskConcurrency))}.
-         * The slice <em>size</em> scales with the shard rather than being capped at a fixed
-         * {@link #MAX_DOCS_PER_SLICE}, so the slice <em>count</em> stays bounded to a few per driver instead of
-         * growing with the shard (see {@link #DOC_SLICE_OVERSUBSCRIBE}). {@code maxSegmentsPerSlice} scales with
-         * {@code totalSegments / taskConcurrency} (with a {@link #MAX_SEGMENTS_PER_SLICE} floor) so that a heavily
-         * fragmented index doesn't force a slice count well above the chosen parallelism.
+         * <p>Aims for {@code taskConcurrency} slices: {@code desiredSliceSize} =
+         * {@code clamp(totalDocs / taskConcurrency, minDocsPerSlice, MAX_DOCS_PER_SLICE)}. {@code minDocsPerSlice}
+         * defaults to {@link #MIN_DOCS_PER_SLICE} but may be lowered per query (via the {@code min_docs_per_slice}
+         * pragma) so small-index tests can still exercise multi-slice partitioning. {@code maxSegmentsPerSlice}
+         * scales with {@code totalSegments / taskConcurrency} (with a {@link #MAX_SEGMENTS_PER_SLICE} floor) so
+         * that a heavily fragmented index doesn't force a slice count well above the chosen parallelism.
          *
          * <p>When the largest unguarded segment is within ~1.5× of {@code desiredSliceSize}, every
          * non-guarded leaf can be kept whole; we then balance leaves across {@code taskConcurrency}
@@ -459,11 +445,14 @@ public final class LuceneSliceQueue {
             ) {
                 final List<LeafReaderContext> leaves = searcher.getLeafContexts();
                 final int totalDocCount = searcher.getIndexReader().maxDoc();
-                // Size slices so the shard yields ~DOC_SLICE_OVERSUBSCRIBE * taskConcurrency slices regardless of shard
-                // size, floored at minDocsPerSlice. Deliberately not capped at MAX_DOCS_PER_SLICE: a fixed per-slice
-                // cap would let the slice count grow with the shard (a 1B-doc shard would enqueue ~4000 slices); here
-                // the slice size grows instead, keeping the count bounded to a few per driver.
-                int desiredSliceSize = Math.max(minDocsPerSlice, Math.ceilDiv(totalDocCount, DOC_SLICE_OVERSUBSCRIBE * taskConcurrency));
+                // Aim for ~taskConcurrency slices, clamped to [minDocsPerSlice, MAX_DOCS_PER_SLICE]. The
+                // MAX_DOCS_PER_SLICE cap keeps a single driver from owning one large contiguous region of a segment
+                // (data clustering in logs/time-series workloads); minDocsPerSlice (overridable per query via the
+                // min_docs_per_slice pragma) avoids over-splitting tiny indices.
+                int desiredSliceSize = Math.min(
+                    MAX_DOCS_PER_SLICE,
+                    Math.max(minDocsPerSlice, Math.ceilDiv(totalDocCount, taskConcurrency))
+                );
                 Set<LeafReaderContext> keepWhole = wholeLeaves(leaves, weight, guard);
                 int largestUnguarded = 0;
                 for (LeafReaderContext leaf : leaves) {

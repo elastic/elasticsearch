@@ -25,6 +25,7 @@ import org.gradle.jvm.toolchain.JavaLanguageVersion;
 import org.gradle.jvm.toolchain.JavaToolchainService;
 
 import java.io.File;
+import java.util.List;
 import java.util.Map;
 
 import javax.inject.Inject;
@@ -35,9 +36,9 @@ import javax.inject.Inject;
  *
  * <p>This plugin handles two responsibilities that any consumer of the FFM annotation processor needs:
  * <ul>
- *   <li>Running the annotation processor as a separate {@link ForeignAnnotationProcessorTask}, which
- *       forks {@code javac} under a JDK 25 toolchain (the processor requires the {@code
- *       java.lang.classfile} API, which the Gradle daemon's bundled JDK 21 cannot load).</li>
+ *   <li>Running the annotation processor as a separate {@link JavaCompile} task in {@code -proc:only}
+ *       mode under a JDK 25 toolchain (the processor depends on the {@code java.lang.classfile} API
+ *       finalized in JDK 24, which the Gradle daemon's bundled JDK 21 cannot load).</li>
  *   <li>Post-processing the compiled {@code module-info.class} to inject {@code provides
  *       org.elasticsearch.foreign.LibraryProvider with <generated $Provider classes>;} directives.
  *       The source {@code module-info.java} cannot reference these classes because they only exist
@@ -46,6 +47,7 @@ import javax.inject.Inject;
  */
 public class ForeignLibraryPlugin implements Plugin<Project> {
 
+    private static final int JDK_VERSION_FOR_PROCESSOR = 25;
     private static final String FOREIGN_LIBRARY_PROJECT = ":libs:foreign-library";
     private static final String PROCESSOR_PROJECT = ":libs:foreign-library:processor";
 
@@ -77,16 +79,16 @@ public class ForeignLibraryPlugin implements Plugin<Project> {
                 .add(JavaPlugin.API_CONFIGURATION_NAME, project.getDependencies().project(Map.of("path", FOREIGN_LIBRARY_PROJECT)));
         }
 
-        Configuration processorConfiguration = project.getConfigurations().create(PROCESSOR_CONFIGURATION_NAME, c -> {
-            if (project.findProject(PROCESSOR_PROJECT) != null) {
-                c.defaultDependencies(d -> d.add(project.getDependencies().project(Map.of("path", PROCESSOR_PROJECT))));
-            }
-        });
+        Configuration processorConfiguration = project.getConfigurations().create(PROCESSOR_CONFIGURATION_NAME);
+        if (project.findProject(PROCESSOR_PROJECT) != null) {
+            project.getDependencies()
+                .add(PROCESSOR_CONFIGURATION_NAME, project.getDependencies().project(Map.of("path", PROCESSOR_PROJECT)));
+        }
 
         SourceSet mainSourceSet = project.getExtensions().getByType(SourceSetContainer.class).getByName(SourceSet.MAIN_SOURCE_SET_NAME);
         Configuration compileClasspath = project.getConfigurations().getByName(mainSourceSet.getCompileClasspathConfigurationName());
 
-        TaskProvider<ForeignAnnotationProcessorTask> processAnnotations = registerProcessAnnotationsTask(
+        TaskProvider<JavaCompile> processAnnotations = registerProcessAnnotationsTask(
             project,
             mainSourceSet,
             compileClasspath,
@@ -105,44 +107,37 @@ public class ForeignLibraryPlugin implements Plugin<Project> {
         wireJar(project, augmentModuleInfo);
     }
 
-    private TaskProvider<ForeignAnnotationProcessorTask> registerProcessAnnotationsTask(
+    private TaskProvider<JavaCompile> registerProcessAnnotationsTask(
         Project project,
         SourceSet mainSourceSet,
         Configuration compileClasspath,
         Configuration processorConfiguration
     ) {
         JavaPluginExtension javaExtension = project.getExtensions().getByType(JavaPluginExtension.class);
+        Provider<String> releaseVersion = project.provider(() -> javaExtension.getTargetCompatibility().getMajorVersion());
 
-        TaskProvider<ForeignAnnotationProcessorTask> task = project.getTasks()
-            .register(PROCESS_ANNOTATIONS_TASK_NAME, ForeignAnnotationProcessorTask.class, t -> {
-                t.setSource(mainSourceSet.getJava());
-                t.setClasspath(compileClasspath);
-                t.getOptions().setAnnotationProcessorPath(processorConfiguration);
-                t.getReleaseVersion().set(project.provider(() -> javaExtension.getTargetCompatibility().getMajorVersion()));
-                t.getDestinationDirectory().set(project.getLayout().getBuildDirectory().dir(GENERATED_CLASSES_DIR));
-            });
+        TaskProvider<JavaCompile> task = project.getTasks().register(PROCESS_ANNOTATIONS_TASK_NAME, JavaCompile.class, t -> {
+            t.setSource(mainSourceSet.getJava());
+            t.setClasspath(compileClasspath);
+            t.getOptions().setAnnotationProcessorPath(processorConfiguration);
+            t.getDestinationDirectory().set(project.getLayout().getBuildDirectory().dir(GENERATED_CLASSES_DIR));
+            t.getOptions().getCompilerArgs().add("-proc:only");
+            t.getOptions().getCompilerArgumentProviders().add(() -> List.of("-AjavaVersion=" + releaseVersion.get()));
+        });
 
-        // ElasticsearchJavaBasePlugin's withType(JavaCompile) configureEach unconditionally overrides
-        // the toolchain to the project's minimum runtime (JDK 21) and pins options.release to that
-        // version. Both break the processor: it depends on the JDK 24+ java.lang.classfile API, and
-        // pinning --release rejects sources that reference now-finalized preview APIs. Re-assert our
-        // settings here; configureEach actions registered after the base plugin's fire last, so this
-        // wins.
-        project.getTasks().withType(ForeignAnnotationProcessorTask.class).configureEach(t -> {
+        // Override settings that ElasticsearchJavaBasePlugin's withType(JavaCompile) configureEach pins:
+        // it forces the toolchain to the project's minimum runtime (JDK 21) and sets options.release to
+        // that version. Both break the processor — it depends on the JDK 24+ java.lang.classfile API,
+        // and pinning --release rejects sources that reference now-finalized preview APIs. We also need
+        // module-path inference back on (ElasticsearchJavaModulePathPlugin disables it globally and
+        // wires its own module-path argument provider only for :compileJava). A TaskProvider.configure
+        // action runs at task realization time, after all configureEach actions, so our overrides win.
+        task.configure(t -> {
             t.getJavaCompiler()
-                .set(
-                    javaToolchains.compilerFor(
-                        spec -> spec.getLanguageVersion()
-                            .set(JavaLanguageVersion.of(ForeignAnnotationProcessorTask.JDK_VERSION_FOR_PROCESSOR))
-                    )
-                );
+                .set(javaToolchains.compilerFor(spec -> spec.getLanguageVersion().set(JavaLanguageVersion.of(JDK_VERSION_FOR_PROCESSOR))));
             t.getOptions().getRelease().unset();
-            t.setSourceCompatibility(Integer.toString(ForeignAnnotationProcessorTask.JDK_VERSION_FOR_PROCESSOR));
-            t.setTargetCompatibility(Integer.toString(ForeignAnnotationProcessorTask.JDK_VERSION_FOR_PROCESSOR));
-            // ElasticsearchJavaModulePathPlugin disables module-path inference for every JavaCompile
-            // task and replaces it with a bespoke argument provider keyed to :compileJava. We are
-            // compiling the same modular sources, so re-enable inference and let Gradle put the
-            // compile classpath on --module-path.
+            t.setSourceCompatibility(Integer.toString(JDK_VERSION_FOR_PROCESSOR));
+            t.setTargetCompatibility(Integer.toString(JDK_VERSION_FOR_PROCESSOR));
             t.getModularity().getInferModulePath().set(true);
         });
 
@@ -151,7 +146,7 @@ public class ForeignLibraryPlugin implements Plugin<Project> {
 
     private TaskProvider<AugmentForeignModuleInfoTask> registerAugmentModuleInfoTask(
         Project project,
-        TaskProvider<ForeignAnnotationProcessorTask> processAnnotations,
+        TaskProvider<JavaCompile> processAnnotations,
         Configuration augmenterClasspath
     ) {
         TaskProvider<JavaCompile> compileJava = project.getTasks().named(JavaPlugin.COMPILE_JAVA_TASK_NAME, JavaCompile.class);
@@ -161,12 +156,7 @@ public class ForeignLibraryPlugin implements Plugin<Project> {
             task.getServicesFile().set(processAnnotations.flatMap(t -> t.getDestinationDirectory().file(SERVICES_FILE)));
             task.getAugmenterClasspath().from(augmenterClasspath);
             task.getJavaLauncher()
-                .set(
-                    javaToolchains.launcherFor(
-                        spec -> spec.getLanguageVersion()
-                            .set(JavaLanguageVersion.of(ForeignAnnotationProcessorTask.JDK_VERSION_FOR_PROCESSOR))
-                    )
-                );
+                .set(javaToolchains.launcherFor(spec -> spec.getLanguageVersion().set(JavaLanguageVersion.of(JDK_VERSION_FOR_PROCESSOR))));
             task.getOutputModuleInfo()
                 .set(project.getLayout().getBuildDirectory().file(AUGMENTED_MODULE_INFO_DIR + "/" + MODULE_INFO_CLASS));
         });

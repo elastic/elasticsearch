@@ -29,7 +29,6 @@ import java.io.File;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.hasItem;
 import static org.hamcrest.CoreMatchers.instanceOf;
-import static org.hamcrest.CoreMatchers.notNullValue;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.junit.Assert.assertTrue;
 
@@ -80,14 +79,16 @@ public class ForeignLibraryPluginTests {
 
     @Test
     public void registersProcessAnnotationsTaskWithExpectedWiring() {
-        ForeignAnnotationProcessorTask task = (ForeignAnnotationProcessorTask) consumer.getTasks()
-            .getByName(ForeignLibraryPlugin.PROCESS_ANNOTATIONS_TASK_NAME);
+        JavaCompile task = (JavaCompile) consumer.getTasks().getByName(ForeignLibraryPlugin.PROCESS_ANNOTATIONS_TASK_NAME);
 
-        assertThat(task.getReleaseVersion().get(), notNullValue());
         assertThat(
-            task.getOutputDirectory().get().getAsFile(),
+            task.getDestinationDirectory().get().getAsFile(),
             equalTo(new File(consumer.getLayout().getBuildDirectory().get().getAsFile(), "generated-foreign-library-classes"))
         );
+        assertThat(task.getOptions().getCompilerArgs(), hasItem("-proc:only"));
+        assertThat(task.getOptions().getAnnotationProcessorPath(), equalTo(
+            consumer.getConfigurations().getByName(ForeignLibraryPlugin.PROCESSOR_CONFIGURATION_NAME)
+        ));
     }
 
     @Test
@@ -113,16 +114,18 @@ public class ForeignLibraryPluginTests {
     }
 
     @Test
-    public void compileJavaIsConfiguredWithProcNoneAndDependsOnProcessAnnotations() {
+    public void compileJavaIsIndependentOfProcessAnnotations() {
         JavaCompile compileJava = (JavaCompile) consumer.getTasks().getByName(JavaPlugin.COMPILE_JAVA_TASK_NAME);
-        assertThat(compileJava.getOptions().getCompilerArgs(), hasItem("-proc:none"));
-
         boolean dependsOnProcessAnnotations = compileJava.getTaskDependencies()
             .getDependencies(compileJava)
             .stream()
             .map(Task::getName)
             .anyMatch(name -> name.equals(ForeignLibraryPlugin.PROCESS_ANNOTATIONS_TASK_NAME));
-        assertTrue("compileJava should depend on processForeignAnnotations", dependsOnProcessAnnotations);
+        assertTrue(
+            "compileJava should not depend on processForeignAnnotations — generated classes are loaded "
+                + "reflectively via ServiceLoader and are not referenced from hand-written sources",
+            dependsOnProcessAnnotations == false
+        );
     }
 
     @Test

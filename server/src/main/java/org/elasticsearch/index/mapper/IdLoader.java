@@ -569,7 +569,7 @@ public sealed interface IdLoader permits IdLoader.TsIdLoader, IdLoader.StoredIdL
                 int docId = docIdsInLeaf[i];
                 boolean found = binaryDocValues.advanceExact(docId);
                 assert found : "_id doc value missing for docId " + docId;
-                encodedIds[i] = binaryDocValues.binaryValue();
+                encodedIds[i] = BytesRef.deepCopyOf(binaryDocValues.binaryValue());
             }
             return new DocValuesLeaf(docIdsInLeaf, encodedIds);
         }

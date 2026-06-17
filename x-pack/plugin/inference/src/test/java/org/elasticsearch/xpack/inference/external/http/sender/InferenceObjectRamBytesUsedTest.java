@@ -1,0 +1,38 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+package org.elasticsearch.xpack.inference.external.http.sender;
+
+import org.apache.lucene.util.Accountable;
+import org.elasticsearch.test.ESTestCase;
+
+import java.util.List;
+
+import static org.hamcrest.Matchers.greaterThan;
+
+/**
+ * {@link InferenceObjectRamBytesUsedTest} tests, whether objects tracked by the inference {@link org.elasticsearch.common.breaker.CircuitBreaker}
+ * implement a sensible {@link Accountable#ramBytesUsed()} estimation by checking the following invariants:
+ * - Each object's bytes estimation should be larger than 0
+ * - Objects with more and/or larger inputs should have a higher estimation than an object with fewer and/or smaller inputs
+ */
+public abstract class InferenceObjectRamBytesUsedTest<T extends Accountable> extends ESTestCase {
+
+    public abstract T objectToEstimate();
+
+    public abstract List<T> objectsToEstimateWithLargerInput();
+
+    public void testRamBytesUsed_IsPositive() {
+        assertThat(objectToEstimate().ramBytesUsed(), greaterThan(0L));
+    }
+
+    public void testRamBytesUsed_GrowsWithLargerInputs() {
+        for (T obj : objectsToEstimateWithLargerInput()) {
+            assertThat(obj.ramBytesUsed(), greaterThan(objectToEstimate().ramBytesUsed()));
+        }
+    }
+}

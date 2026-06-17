@@ -50,6 +50,7 @@ public abstract class DataSourceConfiguration {
      * @param fieldDefs the field definitions
      * @throws ValidationException if any validation errors are found
      */
+    @SuppressWarnings("this-escape")
     protected DataSourceConfiguration(Map<String, Object> raw, Map<String, DataSourceConfigDefinition> fieldDefs) {
         this.fieldDefs = fieldDefs;
         ValidationException errors = new ValidationException();

@@ -30,12 +30,12 @@ import static org.elasticsearch.index.mapper.TimeSeriesParams.MetricType.POSITIO
 abstract class AbstractFieldDownsampler<T> implements DownsampleFieldSerializer {
 
     private final String name;
-    protected boolean isEmpty;
+    protected State state;
     protected final IndexFieldData<?> fieldData;
 
     AbstractFieldDownsampler(String name, IndexFieldData<?> fieldData) {
         this.name = name;
-        this.isEmpty = true;
+        this.state = State.EMPTY;
         this.fieldData = fieldData;
     }
 
@@ -55,7 +55,14 @@ abstract class AbstractFieldDownsampler<T> implements DownsampleFieldSerializer 
      * @return true if the field has not collected any value.
      */
     public boolean isEmpty() {
-        return isEmpty;
+        return state == State.EMPTY;
+    }
+
+    /**
+     * @return true if the downsampler does not need to collect any more value.
+     */
+    public boolean isDone() {
+        return state == State.BUCKET_COMPLETED;
     }
 
     /**
@@ -65,11 +72,20 @@ abstract class AbstractFieldDownsampler<T> implements DownsampleFieldSerializer 
 
     /**
      * Collects the values for this field of the doc ids requested.
+     * IMPORTANT: This method needs to be implemented by subclasses that fix {@code T} to a concrete type to
+     * ensure that JIT will be able to take advantage of devirtualizing or inlining.
      * @param docValues the doc values for this field
      * @param docIdBuffer the doc ids for which we need to retrieve the field values
      * @throws IOException
      */
     public abstract void collect(T docValues, IntArrayList docIdBuffer) throws IOException;
+
+    /**
+     * Collects the values for this field at the current doc id.
+     * @param docValues the doc values for this field
+     * @throws IOException
+     */
+    public abstract void collectCurrentValues(T docValues) throws IOException;
 
     /**
      * Create field downsamplers for the provided list of fields.
@@ -78,7 +94,8 @@ abstract class AbstractFieldDownsampler<T> implements DownsampleFieldSerializer 
         SearchExecutionContext context,
         String[] fields,
         Map<String, String> multiFieldSources,
-        DownsampleConfig.SamplingMethod samplingMethod
+        DownsampleConfig.SamplingMethod samplingMethod,
+        DownsamplerCountPerValueType fieldCounts
     ) {
         List<AbstractFieldDownsampler<?>> downsamplers = new ArrayList<>();
         for (String field : fields) {
@@ -87,7 +104,7 @@ abstract class AbstractFieldDownsampler<T> implements DownsampleFieldSerializer 
             assert fieldType != null : "Unknown field type for field: [" + sourceField + "]";
 
             if (fieldType instanceof AggregateMetricDoubleFieldMapper.AggregateMetricDoubleFieldType aggMetricFieldType) {
-                downsamplers.addAll(AggregateMetricDoubleFieldDownsampler.create(context, aggMetricFieldType, samplingMethod));
+                downsamplers.addAll(AggregateMetricDoubleFieldDownsampler.create(context, aggMetricFieldType, samplingMethod, fieldCounts));
             } else {
                 if (context.fieldExistsInIndex(field)) {
                     final IndexFieldData<?> fieldData;
@@ -97,7 +114,7 @@ abstract class AbstractFieldDownsampler<T> implements DownsampleFieldSerializer 
                     } else {
                         fieldData = context.getForField(fieldType, MappedFieldType.FielddataOperation.SEARCH);
                     }
-                    downsamplers.add(create(field, fieldType, fieldData, samplingMethod));
+                    downsamplers.add(create(field, fieldType, fieldData, samplingMethod, fieldCounts));
                 }
             }
         }
@@ -111,24 +128,96 @@ abstract class AbstractFieldDownsampler<T> implements DownsampleFieldSerializer 
         String fieldName,
         MappedFieldType fieldType,
         IndexFieldData<?> fieldData,
-        DownsampleConfig.SamplingMethod samplingMethod
+        DownsampleConfig.SamplingMethod samplingMethod,
+        DownsamplerCountPerValueType fieldCounts
     ) {
         assert AggregateMetricDoubleFieldDownsampler.supportsFieldType(fieldType) == false
             : "Aggregate metric double should be handled by a dedicated downsampler";
         if (TDigestHistogramFieldDownsampler.supportsFieldType(fieldType)) {
+            fieldCounts.increaseTDigestHistogramFields();
             return TDigestHistogramFieldDownsampler.create(fieldName, fieldType, fieldData, samplingMethod);
         }
         if (ExponentialHistogramFieldDownsampler.supportsFieldType(fieldType)) {
+            fieldCounts.increaseExponentialHistogramFields();
             return ExponentialHistogramFieldDownsampler.create(fieldName, fieldData, samplingMethod);
         }
         if (NumericMetricFieldDownsampler.supportsFieldType(fieldType)) {
-            return NumericMetricFieldDownsampler.create(fieldName, fieldType, fieldData, samplingMethod);
+            return NumericMetricFieldDownsampler.create(fieldName, fieldType, fieldData, samplingMethod, fieldCounts);
         }
         // TODO: Support POSITION in downsampling
         if (fieldType.getMetricType() == POSITION) {
             throw new IllegalArgumentException("Unsupported metric type [position] for downsampling");
         }
         // If a field is not a metric, we downsample it as a label
-        return LastValueFieldDownsampler.create(fieldName, fieldType, fieldData);
+        return LastValueFieldDownsampler.create(fieldName, fieldType, fieldData, fieldCounts);
+    }
+
+    /**
+     * The state of the downsampler:
+     * - {@link #EMPTY} means that the downsampled value is not initialised yet.
+     * - {@link #IN_PROGRESS} means that the downsampled value is initialised, but the rest of the values still need to be collected.
+     * - {@link #BUCKET_COMPLETED} means that the downsampled value is determined, and we do not need to collect more values.
+     */
+    enum State {
+        EMPTY,
+        IN_PROGRESS,
+        BUCKET_COMPLETED;
+    }
+
+    static class DownsamplerCountPerValueType {
+        private int numericFields = 0;
+        private int aggregateCounterFields = 0;
+        private int formattedValueFields = 0;
+        private int dimensionFields = 0;
+        private int exponentialHistogramFields = 0;
+        private int tDigestHistogramFields = 0;
+
+        void increaseNumericFields() {
+            numericFields++;
+        }
+
+        void increaseAggregateCounterFields() {
+            aggregateCounterFields++;
+        }
+
+        void increaseFormattedValueFields() {
+            formattedValueFields++;
+        }
+
+        void increaseDimensionFields() {
+            dimensionFields++;
+        }
+
+        void increaseExponentialHistogramFields() {
+            exponentialHistogramFields++;
+        }
+
+        void increaseTDigestHistogramFields() {
+            tDigestHistogramFields++;
+        }
+
+        int numericFields() {
+            return numericFields;
+        }
+
+        int aggregateCounterFields() {
+            return aggregateCounterFields;
+        }
+
+        int formattedValueFields() {
+            return formattedValueFields;
+        }
+
+        int dimensionFields() {
+            return dimensionFields;
+        }
+
+        int exponentialHistogramFields() {
+            return exponentialHistogramFields;
+        }
+
+        int tDigestHistogramFields() {
+            return tDigestHistogramFields;
+        }
     }
 }

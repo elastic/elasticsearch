@@ -11,8 +11,12 @@ import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -21,6 +25,7 @@ import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.BlockStreamInput;
 import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
@@ -67,17 +72,18 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.core.analytics.mapper.EncodedTDigest;
 import org.elasticsearch.xpack.core.analytics.mapper.TDigestParser;
 import org.elasticsearch.xpack.esql.CsvTestUtils;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.DateUtils;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
-import org.elasticsearch.xpack.esql.type.UnsupportedEsFieldTests;
 import org.elasticsearch.xpack.versionfield.Version;
 import org.junit.After;
 import org.junit.Before;
 
+import java.io.EOFException;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.time.ZoneId;
@@ -99,6 +105,7 @@ import static org.elasticsearch.xpack.esql.action.EsqlExecutionInfoTests.createE
 import static org.elasticsearch.xpack.esql.action.EsqlQueryResponse.DROP_NULL_COLUMNS_OPTION;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.CARTESIAN;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
+import static org.elasticsearch.xpack.esql.type.EsFieldTestUtils.randomOriginalTypes;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateNanosToLong;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateTimeToLong;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.longToUnsignedLong;
@@ -220,7 +227,8 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                 || t == DataType.TIME_DURATION
                 || t == DataType.AGGREGATE_METRIC_DOUBLE
                 || t == DataType.TSID_DATA_TYPE
-                || t == DataType.DATE_RANGE,
+                || t == DataType.DATE_RANGE
+                || t == DataType.PARTIAL_AGG,
             () -> randomFrom(DataType.types())
         ).widenSmallNumeric();
         return new ColumnInfoImpl(randomAlphaOfLength(10), type.esType(), randomOriginalTypes());
@@ -228,7 +236,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
 
     @Nullable
     public static List<String> randomOriginalTypes() {
-        return randomBoolean() ? null : UnsupportedEsFieldTests.randomOriginalTypes();
+        return randomBoolean() ? null : randomOriginalTypes();
     }
 
     private EsqlQueryResponse.Profile randomProfile() {
@@ -289,6 +297,20 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                 }
                 case NULL -> builder.appendNull();
                 case SOURCE -> {
+                    try {
+                        ((BytesRefBlock.Builder) builder).appendBytesRef(
+                            BytesReference.bytes(
+                                JsonXContent.contentBuilder()
+                                    .startObject()
+                                    .field(randomAlphaOfLength(3), randomAlphaOfLength(10))
+                                    .endObject()
+                            ).toBytesRef()
+                        );
+                    } catch (IOException e) {
+                        throw new UncheckedIOException(e);
+                    }
+                }
+                case FLATTENED -> {
                     try {
                         ((BytesRefBlock.Builder) builder).appendBytesRef(
                             BytesReference.bytes(
@@ -664,6 +686,61 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
         return numClusters * 4 + 1;
     }
 
+    public void testDeserializeReleasesAlreadyReadPagesOnFailure() throws IOException {
+        int pageCount = between(10, 20);
+        List<ColumnInfoImpl> columns = randomList(1, 10, this::nonNullRandomColumnInfo);
+        List<Page> pages = randomList(pageCount, pageCount, () -> randomPage(columns));
+        BytesReference wireBytes;
+        EsqlExecutionInfo info = createExecutionInfo();
+        try (
+            var response = new EsqlQueryResponse(columns, pages, 0L, 0L, null, false, null, false, false, ZoneOffset.UTC, 0, 0, info);
+            var out = new BytesStreamOutput()
+        ) {
+            out.setTransportVersion(TransportVersion.current());
+            response.writeTo(out);
+            wireBytes = out.bytes();
+        }
+
+        long pagesHeapBytes = pages.stream().mapToLong(Page::ramBytesUsedByBlocks).sum();
+        BlockFactory receiverFactory = newReceiverBlockFactory(ByteSizeValue.ofBytes(pagesHeapBytes / 2));
+        try (BlockStreamInput in = receiverStream(wireBytes, receiverFactory)) {
+            expectThrows(CircuitBreakingException.class, () -> EsqlQueryResponse.deserialize(in));
+        }
+
+        assertThat("All memory should be released", receiverFactory.breaker().getUsed(), equalTo(0L));
+    }
+
+    private ColumnInfoImpl nonNullRandomColumnInfo() {
+        return randomValueOtherThanMany(c -> c.type() == DataType.UNSUPPORTED || c.type() == DataType.NULL, this::randomColumnInfo);
+    }
+
+    public void testDeserializeReleasesPagesOnTrailingReadFailure() throws IOException {
+        BytesReference wireBytes;
+        try (EsqlQueryResponse response = randomResponse(false, null); BytesStreamOutput out = new BytesStreamOutput()) {
+            out.setTransportVersion(TransportVersion.current());
+            response.writeTo(out);
+            wireBytes = out.bytes();
+        }
+
+        BytesReference truncated = wireBytes.slice(0, wireBytes.length() - 1);
+        BlockFactory receiverFactory = newReceiverBlockFactory(ByteSizeValue.ofMb(4));
+        try (BlockStreamInput in = receiverStream(truncated, receiverFactory)) {
+            expectThrows(EOFException.class, () -> EsqlQueryResponse.deserialize(in));
+        }
+        assertThat("All memory should be released", receiverFactory.breaker().getUsed(), equalTo(0L));
+    }
+
+    private BlockFactory newReceiverBlockFactory(ByteSizeValue limit) {
+        return BlockFactory.builder(new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, limit).withCircuitBreaking()).build();
+    }
+
+    private BlockStreamInput receiverStream(BytesReference bytes, BlockFactory factory) throws IOException {
+        StreamInput delegate = new NamedWriteableAwareStreamInput(bytes.streamInput(), getNamedWriteableRegistry());
+        BlockStreamInput in = new BlockStreamInput(delegate, factory);
+        in.setTransportVersion(TransportVersion.current());
+        return in;
+    }
+
     public void testChunkResponseSizeColumnar() {
         try (EsqlQueryResponse resp = randomResponse(true, null)) {
             int columnCount = resp.pages().get(0).getBlockCount();
@@ -689,12 +766,67 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
         }
     }
 
+    /**
+     * Positive coverage of the four query-wide rollup fields at the response root. The existing
+     * XContent tests all assert zero — this one asserts the values appear in the JSON exactly
+     * as supplied to the constructor, guarding against a regression that silently zeros them out.
+     */
+    public void testRollupFieldsPropagatedToXContent() {
+        try (
+            EsqlQueryResponse response = new EsqlQueryResponse(
+                List.of(new ColumnInfoImpl("foo", "integer", null)),
+                List.of(new Page(blockFactory.newIntArrayVector(new int[] { 40, 80 }, 2).asBlock())),
+                3,    // documents_found
+                100,  // values_loaded
+                2222, // rows_emitted
+                4444, // bytes_read
+                6666, // read_nanos
+                8888, // cpu_nanos
+                null,
+                true,
+                null,
+                false,
+                false,
+                ZoneOffset.UTC,
+                0,
+                0,
+                null
+            )
+        ) {
+            assertThat(Strings.toString(wrapAsToXContent(response), true, false), equalTo("""
+                {
+                  "documents_found" : 3,
+                  "values_loaded" : 100,
+                  "rows_emitted" : 2222,
+                  "bytes_read" : 4444,
+                  "read_nanos" : 6666,
+                  "cpu_nanos" : 8888,
+                  "columns" : [
+                    {
+                      "name" : "foo",
+                      "type" : "integer"
+                    }
+                  ],
+                  "values" : [
+                    [
+                      40,
+                      80
+                    ]
+                  ]
+                }"""));
+        }
+    }
+
     public void testSimpleXContentColumnar() {
         try (EsqlQueryResponse response = simple(true)) {
             assertThat(Strings.toString(wrapAsToXContent(response), true, false), equalTo("""
                 {
                   "documents_found" : 3,
                   "values_loaded" : 100,
+                  "rows_emitted" : 0,
+                  "bytes_read" : 0,
+                  "read_nanos" : 0,
+                  "cpu_nanos" : 0,
                   "columns" : [
                     {
                       "name" : "foo",
@@ -724,6 +856,10 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                     {
                       "documents_found" : 3,
                       "values_loaded" : 100,
+                      "rows_emitted" : 0,
+                      "bytes_read" : 0,
+                      "read_nanos" : 0,
+                      "cpu_nanos" : 0,
                       "all_columns" : [
                         {
                           "name" : "foo",
@@ -754,6 +890,10 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                   "is_running" : false,
                   "documents_found" : 3,
                   "values_loaded" : 100,
+                  "rows_emitted" : 0,
+                  "bytes_read" : 0,
+                  "read_nanos" : 0,
+                  "cpu_nanos" : 0,
                   "columns" : [
                     {
                       "name" : "foo",
@@ -799,6 +939,10 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                 {
                   "documents_found" : 3,
                   "values_loaded" : 100,
+                  "rows_emitted" : 0,
+                  "bytes_read" : 0,
+                  "read_nanos" : 0,
+                  "cpu_nanos" : 0,
                   "columns" : [
                     {
                       "name" : "foo",
@@ -829,6 +973,10 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                 {
                   "documents_found" : 3,
                   "values_loaded" : 100,
+                  "rows_emitted" : 0,
+                  "bytes_read" : 0,
+                  "read_nanos" : 0,
+                  "cpu_nanos" : 0,
                   "columns" : [
                     {
                       "name" : "foo",
@@ -854,6 +1002,10 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                   "is_running" : false,
                   "documents_found" : 3,
                   "values_loaded" : 100,
+                  "rows_emitted" : 0,
+                  "bytes_read" : 0,
+                  "read_nanos" : 0,
+                  "cpu_nanos" : 0,
                   "columns" : [
                     {
                       "name" : "foo",
@@ -901,6 +1053,10 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                 {
                   "documents_found" : 3,
                   "values_loaded" : 100,
+                  "rows_emitted" : 0,
+                  "bytes_read" : 0,
+                  "read_nanos" : 0,
+                  "cpu_nanos" : 0,
                   "columns" : [
                     {
                       "name" : "foo",
@@ -949,6 +1105,10 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                   "is_running" : true,
                   "documents_found" : 10,
                   "values_loaded" : 99,
+                  "rows_emitted" : 0,
+                  "bytes_read" : 0,
+                  "read_nanos" : 0,
+                  "cpu_nanos" : 0,
                   "columns" : [
                     {
                       "name" : "foo",
@@ -989,6 +1149,10 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                 {
                   "documents_found" : 1,
                   "values_loaded" : 1,
+                  "rows_emitted" : 0,
+                  "bytes_read" : 0,
+                  "read_nanos" : 0,
+                  "cpu_nanos" : 0,
                   "columns" : [
                     {
                       "name" : "foo",
@@ -1040,6 +1204,10 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                     {
                       "documents_found" : 1,
                       "values_loaded" : 3,
+                      "rows_emitted" : 0,
+                      "bytes_read" : 0,
+                      "read_nanos" : 0,
+                      "cpu_nanos" : 0,
                       "all_columns" : [
                         {
                           "name" : "foo",
@@ -1105,6 +1273,10 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                         {
                           "documents_found" : 1,
                           "values_loaded" : 3,
+                          "rows_emitted" : 0,
+                          "bytes_read" : 0,
+                          "read_nanos" : 0,
+                          "cpu_nanos" : 0,
                           "all_columns" : [
                             {
                               "name" : "foo",
@@ -1179,7 +1351,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                             DriverSleeps.empty()
                         )
                     ),
-                    List.of(new PlanProfile("test", "elasticsearch", "node-1", "plan tree", null)),
+                    List.of(new PlanProfile("test", "elasticsearch", "node-1", "plan tree", null, null)),
                     minimumVersion
                 ),
                 false,
@@ -1194,6 +1366,10 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                 {
                   "documents_found" : 10,
                   "values_loaded" : 100,
+                  "rows_emitted" : 0,
+                  "bytes_read" : 0,
+                  "read_nanos" : 0,
+                  "cpu_nanos" : 0,
                   "columns" : [
                     {
                       "name" : "foo",
@@ -1220,6 +1396,9 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                         "cpu_nanos" : 20000,
                         "documents_found" : 0,
                         "values_loaded" : 0,
+                        "rows_emitted" : 222,
+                        "bytes_read" : 0,
+                        "read_nanos" : 0,
                         "iterations" : 12,
                         "operators" : [
                           {
@@ -1482,6 +1661,18 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                             throw new UncheckedIOException(e);
                         }
                     }
+                    case FLATTENED -> {
+                        @SuppressWarnings("unchecked")
+                        Map<String, ?> o = (Map<String, ?>) value;
+                        try {
+                            try (XContentBuilder flattenedBuilder = JsonXContent.contentBuilder()) {
+                                flattenedBuilder.map(o);
+                                ((BytesRefBlock.Builder) builder).appendBytesRef(BytesReference.bytes(flattenedBuilder).toBytesRef());
+                            }
+                        } catch (IOException e) {
+                            throw new UncheckedIOException(e);
+                        }
+                    }
                     case GEO_POINT, GEO_SHAPE, CARTESIAN_POINT, CARTESIAN_SHAPE -> {
                         // This just converts WKT to WKB, so does not need CRS knowledge, we could merge GEO and CARTESIAN here
                         BytesRef wkb = stringToSpatial(value.toString());
@@ -1540,18 +1731,24 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                                 throw new IllegalArgumentException("Expected START_OBJECT but found: " + parser.currentToken());
                             }
                             parser.nextToken();
-                            TDigestHolder parsed = new TDigestHolder(
-                                TDigestParser.parse(
-                                    "serialized_block",
-                                    parser,
-                                    (a, b) -> new UnsupportedOperationException("failed parsing tdigest"),
-                                    (x, y, z) -> new UnsupportedOperationException("failed parsing tdigest")
-                                )
+                            TDigestParser.ParsedTDigest parsed = TDigestParser.parse(
+                                "serialized_block",
+                                parser,
+                                (a, b) -> new UnsupportedOperationException("failed parsing tdigest"),
+                                (x, y, z) -> new UnsupportedOperationException("failed parsing tdigest")
                             );
                             if (parsed == null) {
                                 tDigestBlockBuilder.appendNull();
                             } else {
-                                tDigestBlockBuilder.appendTDigest(parsed);
+                                TDigestHolder tdigest = new TDigestHolder();
+                                tdigest.reset(
+                                    EncodedTDigest.encodeCentroids(parsed.centroids(), parsed.counts()),
+                                    parsed.min(),
+                                    parsed.max(),
+                                    parsed.sum(),
+                                    parsed.count()
+                                );
+                                tDigestBlockBuilder.appendTDigest(tdigest);
                             }
                         } catch (UnsupportedOperationException | IOException e) {
                             fail("Unable to parse TDigestBlockBuilder: " + e.getMessage());

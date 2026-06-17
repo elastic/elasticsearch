@@ -16,7 +16,9 @@ import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.query.BoolQueryBuilder;
+import org.elasticsearch.index.query.FuzzyQueryBuilder;
 import org.elasticsearch.index.query.PrefixQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryStringQueryBuilder;
@@ -88,6 +90,18 @@ public class AccountableQueryCircuitBreakerIT extends ESIntegTestCase {
         assertBoolQueryTripsBreaker(100, i -> new RangeQueryBuilder(KEYWORD_FIELD).gte("key" + i).lte("key" + (i + 100)));
     }
 
+    public void testFuzzyQueryTripsCircuitBreaker() {
+        String longTerm = "supercalifragilisticexpialidocious";
+        assertBoolQueryTripsBreaker(
+            100,
+            i -> new FuzzyQueryBuilder(TEXT_FIELD, longTerm + i).fuzziness(Fuzziness.AUTO)
+                .prefixLength(0)
+                .maxExpansions(50)
+                .transpositions(true),
+            "1mb"
+        );
+    }
+
     public void testWildcardQueryMemoryReleased() throws Exception {
         assertQueryMemoryReleasedAfterSearch(new WildcardQueryBuilder(TEXT_FIELD, "*test*pattern*"));
     }
@@ -108,14 +122,60 @@ public class AccountableQueryCircuitBreakerIT extends ESIntegTestCase {
         assertQueryMemoryReleasedAfterSearch(new RangeQueryBuilder(KEYWORD_FIELD).gte("key0").lte("key999"));
     }
 
-    private void assertBoolQueryTripsBreaker(int count, IntFunction<QueryBuilder> queryFactory) {
+    public void testFuzzyQueryMemoryReleased() throws Exception {
+        assertQueryMemoryReleasedAfterSearch(new FuzzyQueryBuilder(TEXT_FIELD, "value0").fuzziness(Fuzziness.AUTO));
+    }
+
+    public void testCaseInsensitiveWildcardQueryMemoryReleased() throws Exception {
+        WildcardQueryBuilder wildcardQuery = new WildcardQueryBuilder(TEXT_FIELD, "*test*pattern*");
+        wildcardQuery.caseInsensitive(true);
+        assertQueryMemoryReleasedAfterSearch(wildcardQuery);
+    }
+
+    public void testSingleHugeWildcardTripsCircuitBreaker() {
+        createAndPopulateIndex();
+        assertQueryTripsBreaker(new WildcardQueryBuilder(TEXT_FIELD, "*a*b*c*d*e*f*g*h*i*j*k*l*m*n*"));
+    }
+
+    public void testSingleHugeRegexpTripsCircuitBreaker() {
+        createAndPopulateIndex();
+        RegexpQueryBuilder regexpQuery = new RegexpQueryBuilder(TEXT_FIELD, ".*a.*b.*c.*d.*e.*f.*g.*h.*i.*j.*k.*l.*m.*n.*");
+        regexpQuery.maxDeterminizedStates(Integer.MAX_VALUE);
+        assertQueryTripsBreaker(regexpQuery);
+    }
+
+    public void testSingleHugeCaseInsensitiveWildcardTripsCircuitBreaker() {
+        createAndPopulateIndex();
+        WildcardQueryBuilder wildcardQuery = new WildcardQueryBuilder(TEXT_FIELD, "*a*b*c*d*e*f*g*h*i*j*k*l*m*n*");
+        wildcardQuery.caseInsensitive(true);
+        assertQueryTripsBreaker(wildcardQuery);
+    }
+
+    public void testSingleHugeFuzzyTripsCircuitBreaker() {
+        createAndPopulateIndex();
+        StringBuilder longTerm = new StringBuilder();
+        for (int i = 0; i < 50; i++) {
+            longTerm.append("abcdefghij");
+        }
+        FuzzyQueryBuilder fuzzyQuery = new FuzzyQueryBuilder(TEXT_FIELD, longTerm.toString()).fuzziness(Fuzziness.TWO)
+            .prefixLength(0)
+            .maxExpansions(50)
+            .transpositions(true);
+        assertQueryTripsBreaker(fuzzyQuery, "1mb");
+    }
+
+    private void assertBoolQueryTripsBreaker(int count, IntFunction<QueryBuilder> queryFactory, String breakerLimit) {
         createAndPopulateIndex();
 
         BoolQueryBuilder boolQuery = new BoolQueryBuilder();
         for (int i = 0; i < count; i++) {
             boolQuery.should(queryFactory.apply(i));
         }
-        assertQueryTripsBreaker(boolQuery);
+        assertQueryTripsBreaker(boolQuery, breakerLimit);
+    }
+
+    private void assertBoolQueryTripsBreaker(int count, IntFunction<QueryBuilder> queryFactory) {
+        assertBoolQueryTripsBreaker(count, queryFactory, "1kb");
     }
 
     private void assertQueryMemoryReleasedAfterSearch(QueryBuilder query) throws Exception {
@@ -176,22 +236,27 @@ public class AccountableQueryCircuitBreakerIT extends ESIntegTestCase {
         indexRandom(true, false, true, reqs);
     }
 
-    private void assertQueryTripsBreaker(QueryBuilder query) {
+    private void assertQueryTripsBreaker(QueryBuilder query, String breakerLimit) {
         updateClusterSettings(
             Settings.builder()
-                .put(HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), "10b")
+                .put(HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), breakerLimit)
                 .put(HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_OVERHEAD_SETTING.getKey(), 1.0)
         );
 
         SearchRequestBuilder searchRequest = client().prepareSearch(INDEX_NAME).setQuery(query);
-        assertFailures(searchRequest, RestStatus.BAD_REQUEST, containsString("Data too large"));
+        assertFailures(searchRequest, RestStatus.TOO_MANY_REQUESTS, containsString("Data too large"));
         assertThat("Request circuit breaker should have tripped", getRequestBreakerTrippedCount(), greaterThanOrEqualTo(1L));
     }
 
+    private void assertQueryTripsBreaker(QueryBuilder query) {
+        assertQueryTripsBreaker(query, "1kb");
+    }
+
     private void assertQueryMemoryReleased(QueryBuilder query) throws Exception {
-        long baseline = getRequestBreakerEstimated();
+        assertBusy(() -> assertEquals("Request breaker should be empty before search", 0L, getRequestBreakerEstimated()));
         client().prepareSearch(INDEX_NAME).setQuery(query).get().decRef();
-        long estimated = getRequestBreakerEstimated();
-        assertEquals("Request breaker memory should be released after search completes", baseline, estimated);
+        assertBusy(
+            () -> assertEquals("Request breaker memory should be released after search completes", 0L, getRequestBreakerEstimated())
+        );
     }
 }

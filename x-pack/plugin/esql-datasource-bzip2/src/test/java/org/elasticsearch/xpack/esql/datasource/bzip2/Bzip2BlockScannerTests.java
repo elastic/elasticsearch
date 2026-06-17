@@ -15,6 +15,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 
+import static org.elasticsearch.xpack.esql.datasource.bzip2.Bzip2BlockScanner.mergeSortedUnique;
 import static org.elasticsearch.xpack.esql.datasource.bzip2.Bzip2BlockScanner.readBlockSizeDigit;
 import static org.elasticsearch.xpack.esql.datasource.bzip2.Bzip2BlockScanner.scanBlockOffsets;
 
@@ -61,6 +62,12 @@ public class Bzip2BlockScannerTests extends ESTestCase {
     public void testScanEmptyRange() throws IOException {
         long[] offsets = scanBlockOffsets(new ByteArrayInputStream(new byte[0]), 0);
         assertEquals(0, offsets.length);
+    }
+
+    public void testMergeSortedUnique() {
+        assertEquals(0, mergeSortedUnique(new long[][] {}).length);
+        assertArrayEquals(new long[] { 1, 2, 5 }, mergeSortedUnique(new long[][] { new long[] { 1, 2 }, new long[] { 2, 5 } }));
+        assertArrayEquals(new long[] { 0, 10 }, mergeSortedUnique(new long[][] { new long[] { 10 }, new long[] { 0, 10 } }));
     }
 
     public void testReadBlockSizeDigitValid() {

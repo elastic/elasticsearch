@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -29,6 +30,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.FLOAT;
 import static org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier.randomDenseVector;
 import static org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.DenseVectorTestCaseHelper.denseVectorScalarCases;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.startsWith;
 
 public class DivTests extends AbstractScalarFunctionTestCase {
     public DivTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
@@ -67,13 +69,16 @@ public class DivTests extends AbstractScalarFunctionTestCase {
                     if (lhs.type() != DataType.DOUBLE || rhs.type() != DataType.DOUBLE) {
                         return List.of();
                     }
-                    double v = ((Double) lhs.getValue()) / ((Double) rhs.getValue());
+                    double rhsVal = (Double) rhs.getValue();
+                    double v = ((Double) lhs.getValue()) / rhsVal;
                     if (Double.isFinite(v)) {
                         return List.of();
                     }
                     return List.of(
                         "Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.",
-                        "Line 1:1: java.lang.ArithmeticException: / by zero"
+                        rhsVal == 0.0
+                            ? "Line 1:1: java.lang.ArithmeticException: / by zero"
+                            : "Line 1:1: java.lang.ArithmeticException: not a finite double number: " + v
                     );
                 },
                 false
@@ -220,6 +225,110 @@ public class DivTests extends AbstractScalarFunctionTestCase {
                 (s, v) -> v.stream().map(f -> ((Float) DataTypeConverter.convert(s, FLOAT) / f)).toList()
             )
         );
+
+        // Overflows
+        suppliers.addAll(
+            List.of(
+                new TestCaseSupplier(
+                    List.of(DataType.DOUBLE, DataType.DOUBLE),
+                    () -> new TestCaseSupplier.TestCase(
+                        List.of(
+                            new TestCaseSupplier.TypedData(Double.MAX_VALUE, DataType.DOUBLE, "lhs"),
+                            new TestCaseSupplier.TypedData(0.1, DataType.DOUBLE, "rhs")
+                        ),
+                        "DivDoublesEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1]]",
+                        DataType.DOUBLE,
+                        equalTo(null)
+                    ).withWarning("Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.")
+                        .withWarning("Line 1:1: java.lang.ArithmeticException: not a finite double number: Infinity")
+                ),
+                new TestCaseSupplier(
+                    List.of(DataType.DOUBLE, DataType.DOUBLE),
+                    () -> new TestCaseSupplier.TestCase(
+                        List.of(
+                            new TestCaseSupplier.TypedData(-Double.MAX_VALUE, DataType.DOUBLE, "lhs"),
+                            new TestCaseSupplier.TypedData(0.1, DataType.DOUBLE, "rhs")
+                        ),
+                        "DivDoublesEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1]]",
+                        DataType.DOUBLE,
+                        equalTo(null)
+                    ).withWarning("Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.")
+                        .withWarning("Line 1:1: java.lang.ArithmeticException: not a finite double number: -Infinity")
+                )
+            )
+        );
+
+        // Constant-divisor fast path: when the right-hand side is a foldable scalar,
+        // Div#toEvaluator dispatches to DivXxxByConstantEvaluator instead of the binary
+        // evaluator. These cases verify the dispatch + Cast hookup for each numeric
+        // common type, including the two widening combinations. Zero / unsigned_long
+        // divisors fall back to the binary path and are covered by the upstream
+        // forBinaryWithWidening cases above and the CSV-spec by-zero tests.
+        suppliers.add(new TestCaseSupplier("Int / literal Int", List.of(DataType.INTEGER, DataType.INTEGER), () -> {
+            int lhs = randomInt();
+            int rhs = randomValueOtherThan(0, ESTestCase::randomInt);
+            return new TestCaseSupplier.TestCase(
+                List.of(
+                    new TestCaseSupplier.TypedData(lhs, DataType.INTEGER, "lhs"),
+                    new TestCaseSupplier.TypedData(rhs, DataType.INTEGER, "rhs").forceLiteral()
+                ),
+                startsWith("DivIntsByConstantEvaluator[lhs=Attribute[channel=0], rhs=" + rhs + "]"),
+                DataType.INTEGER,
+                equalTo(lhs / rhs)
+            );
+        }));
+        suppliers.add(new TestCaseSupplier("Long / literal Long", List.of(DataType.LONG, DataType.LONG), () -> {
+            long lhs = randomLong();
+            long rhs = randomValueOtherThan(0L, ESTestCase::randomLong);
+            return new TestCaseSupplier.TestCase(
+                List.of(
+                    new TestCaseSupplier.TypedData(lhs, DataType.LONG, "lhs"),
+                    new TestCaseSupplier.TypedData(rhs, DataType.LONG, "rhs").forceLiteral()
+                ),
+                startsWith("DivLongsByConstantEvaluator[lhs=Attribute[channel=0], rhs=" + rhs + "]"),
+                DataType.LONG,
+                equalTo(lhs / rhs)
+            );
+        }));
+        suppliers.add(new TestCaseSupplier("Long / literal Int", List.of(DataType.LONG, DataType.INTEGER), () -> {
+            long lhs = randomLong();
+            int rhs = randomValueOtherThan(0, ESTestCase::randomInt);
+            return new TestCaseSupplier.TestCase(
+                List.of(
+                    new TestCaseSupplier.TypedData(lhs, DataType.LONG, "lhs"),
+                    new TestCaseSupplier.TypedData(rhs, DataType.INTEGER, "rhs").forceLiteral()
+                ),
+                startsWith("DivLongsByConstantEvaluator[lhs=Attribute[channel=0], rhs=" + (long) rhs + "]"),
+                DataType.LONG,
+                equalTo(lhs / (long) rhs)
+            );
+        }));
+        suppliers.add(new TestCaseSupplier("Int / literal Long", List.of(DataType.INTEGER, DataType.LONG), () -> {
+            int lhs = randomInt();
+            long rhs = randomValueOtherThan(0L, ESTestCase::randomLong);
+            return new TestCaseSupplier.TestCase(
+                List.of(
+                    new TestCaseSupplier.TypedData(lhs, DataType.INTEGER, "lhs"),
+                    new TestCaseSupplier.TypedData(rhs, DataType.LONG, "rhs").forceLiteral()
+                ),
+                startsWith("DivLongsByConstantEvaluator[lhs=CastIntToLongEvaluator[v=Attribute[channel=0]], rhs=" + rhs + "]"),
+                DataType.LONG,
+                equalTo((long) lhs / rhs)
+            );
+        }));
+        suppliers.add(new TestCaseSupplier("Double / literal Double", List.of(DataType.DOUBLE, DataType.DOUBLE), () -> {
+            double lhs = randomDoubleBetween(-1e9, 1e9, true);
+            double rhs = randomValueOtherThan(0.0d, () -> randomDoubleBetween(-1e6, 1e6, false));
+            return new TestCaseSupplier.TestCase(
+                List.of(
+                    new TestCaseSupplier.TypedData(lhs, DataType.DOUBLE, "lhs"),
+                    new TestCaseSupplier.TypedData(rhs, DataType.DOUBLE, "rhs").forceLiteral()
+                ),
+                startsWith("DivDoublesByConstantEvaluator[lhs=Attribute[channel=0], rhs=" + rhs + "]"),
+                DataType.DOUBLE,
+                equalTo(lhs / rhs)
+            );
+        }));
 
         suppliers = anyNullIsNull(true, suppliers);
 

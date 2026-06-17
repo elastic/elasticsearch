@@ -23,6 +23,8 @@ import org.elasticsearch.xcontent.XContentString;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
@@ -81,6 +83,7 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
     // Only relevant for indexes configured with synthetic source mode. Otherwise, it has no effect.
     // Controls the default behavior for storing the source of leaf fields and objects, in singleton or array form.
     // Setting to SourceKeepMode.ALL is equivalent to disabling synthetic source, so this is not allowed.
+    public static final String SYNTHETIC_SOURCE_KEEP_INDEX_SETTING_KEY = "index.mapping.synthetic_source_keep";
     public static final Setting<SourceKeepMode> SYNTHETIC_SOURCE_KEEP_INDEX_SETTING = Setting.enumSetting(
         SourceKeepMode.class,
         settings -> {
@@ -91,10 +94,30 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
                 return SourceKeepMode.NONE.toString();
             }
         },
-        "index.mapping.synthetic_source_keep",
-        value -> {
-            if (value == SourceKeepMode.ALL) {
-                throw new IllegalArgumentException("index.mapping.synthetic_source_keep can't be set to [" + value + "]");
+        SYNTHETIC_SOURCE_KEEP_INDEX_SETTING_KEY,
+        new Setting.Validator<SourceKeepMode>() {
+            @Override
+            public void validate(SourceKeepMode value) {
+                if (value == SourceKeepMode.ALL) {
+                    throw new IllegalArgumentException(SYNTHETIC_SOURCE_KEEP_INDEX_SETTING_KEY + " can't be set to [" + value + "]");
+                }
+            }
+
+            @Override
+            public void validate(SourceKeepMode value, Map<Setting<?>, Object> settings) {
+                // Strict-columnar index modes preserve array ordering via the .offsets sidecar; the legacy synthetic_source_keep mechanism
+                // is redundant and writes the same data to _ignored_source as well. Forbid any non-default value in strict-columnar modes.
+                IndexMode mode = (IndexMode) settings.get(IndexSettings.MODE);
+                if (mode != null && mode.isStrictColumnar() && value != SourceKeepMode.NONE) {
+                    throw new IllegalArgumentException(
+                        "[" + SYNTHETIC_SOURCE_KEEP_INDEX_SETTING_KEY + "] is not allowed in index using [" + mode + "] index mode"
+                    );
+                }
+            }
+
+            @Override
+            public Iterator<Setting<?>> settings() {
+                return List.<Setting<?>>of(IndexSettings.MODE).iterator();
             }
         },
         Setting.Property.IndexScope,
@@ -221,7 +244,7 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
         }
 
         private static boolean diffIgnoreAboveDefaultForLogs(final IndexMode indexMode, final IndexVersion indexCreatedVersion) {
-            return indexMode == IndexMode.LOGSDB
+            return (indexMode == IndexMode.LOGSDB || indexMode == IndexMode.LOGSDB_COLUMNAR)
                 && (indexCreatedVersion != null && indexCreatedVersion.onOrAfter(IndexVersions.ENABLE_IGNORE_ABOVE_LOGSDB));
         }
 

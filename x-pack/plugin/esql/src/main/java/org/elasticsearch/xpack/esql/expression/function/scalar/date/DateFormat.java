@@ -14,14 +14,14 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
-import org.elasticsearch.compute.operator.EvalOperator;
-import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.esql.expression.function.Param;
@@ -48,12 +48,16 @@ public class DateFormat extends EsqlConfigurationFunction implements OptionalArg
         "DateFormat",
         DateFormat::new
     );
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(DateFormat.class)
+        .binaryConfig(DateFormat::new)
+        .name("date_format");
 
     private final Expression field;
     private final Expression format;
 
     @FunctionInfo(
         returnType = "keyword",
+        briefSummary = "Returns a string representation of a date, in the provided format.",
         description = "Returns a string representation of a date, in the provided format.",
         examples = @Example(file = "date", tag = "docsDateFormat")
     )
@@ -159,7 +163,7 @@ public class DateFormat extends EsqlConfigurationFunction implements OptionalArg
 
     private ExpressionEvaluator.Factory getConstantEvaluator(
         DataType dateType,
-        EvalOperator.ExpressionEvaluator.Factory fieldEvaluator,
+        ExpressionEvaluator.Factory fieldEvaluator,
         DateFormatter formatter
     ) {
         if (dateType == DATE_NANOS) {
@@ -170,8 +174,8 @@ public class DateFormat extends EsqlConfigurationFunction implements OptionalArg
 
     private ExpressionEvaluator.Factory getEvaluator(
         DataType dateType,
-        EvalOperator.ExpressionEvaluator.Factory fieldEvaluator,
-        EvalOperator.ExpressionEvaluator.Factory formatEvaluator
+        ExpressionEvaluator.Factory fieldEvaluator,
+        ExpressionEvaluator.Factory formatEvaluator
     ) {
         if (dateType == DATE_NANOS) {
             return new DateFormatNanosEvaluator.Factory(

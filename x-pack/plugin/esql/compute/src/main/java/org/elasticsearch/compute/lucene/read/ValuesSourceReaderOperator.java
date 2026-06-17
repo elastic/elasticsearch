@@ -41,11 +41,108 @@ import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.function.Function;
-import java.util.function.IntFunction;
+import java.util.function.LongSupplier;
 
 /**
- * Operator that extracts doc_values from a Lucene index out of pages that have been produced by {@link LuceneSourceOperator}
- * and outputs them to a new column.
+ * Loads values from Lucene.
+ * <p>
+ *     Input pages must contain a {@link DocVector} which describes the location of lucene document.
+ *     We represent documents as a triple of integers that we all "shard", "segment", and "doc".
+ *     "Shard" point to the lucene index. "Segment" points to the segment inside the index. And
+ *     "doc" is the offset within that segment. Input look like
+ * </p>
+ * {@snippet lang="txt" :
+ * ┌───────────────────────┐
+ * │          doc          │
+ * ├───────┬─────────┬─────┤
+ * │ shard │ segment │ doc │
+ * ├───────┼─────────┼─────┤
+ * │     0 │       0 │   0 │
+ * │     0 │       0 │   1 │
+ * │     0 │       0 │   2 │
+ * │     0 │       0 │   3 │
+ * │     0 │       0 │  12 │
+ * └───────┴─────────┴─────┘
+ * }
+ * <p>
+ *     And output pages have the loaded fields appended:
+ * </p>
+ * {@snippet lang="txt" :
+ * ┌───────────────────────┬──────┐
+ * │          doc          │      │
+ * ├───────┬─────────┬─────┤ name │
+ * │ shard │ segment │ doc │      │
+ * ├───────┼─────────┼─────┼──────┤
+ * │     0 │       0 │   0 │ foo  │
+ * │     0 │       0 │   1 │ bar  │
+ * │     0 │       0 │   2 │ baz  │
+ * │     0 │       0 │   3 │ foo  │
+ * │     0 │       0 │  12 │ bar  │
+ * └───────┴─────────┴─────┴──────┘
+ * }
+ * <h2>Are we loading from one segment?</h2>
+ * <p>
+ *     If we load from one segment then we can load more efficiently using
+ *     {@link ValuesFromSingleReader}. Otherwise, we use {@link ValuesFromManyReader}.
+ *     Loading from one shard looks like the example above. And it's super
+ *     common. {@link LuceneSourceOperator} always loads fields this way and
+ *     that's "high performance" way of reading documents. But after a sort
+ *     then you are likely to be loading from many segments. Which looks like:
+ * </p>
+ * {@snippet lang="txt" :
+ * ┌───────────────────────┐
+ * │          doc          │
+ * ├───────┬─────────┬─────┤
+ * │ shard │ segment │ doc │
+ * ├───────┼─────────┼─────┤
+ * │     0 │       0 │   0 │
+ * │     0 │       1 │   0 │
+ * │     0 │       1 │   1 │
+ * │     1 │       0 │   1 │
+ * │     1 │       1 │  12 │
+ * └───────┴─────────┴─────┘
+ * }
+ * <h2>{@link BlockLoader.RowStrideReader row-by-row} vs {@link BlockLoader.ColumnAtATimeReader column-at-a-time}</h2>
+ * <p>
+ *     Lucene can be configured to score data in two kinds of ways: rows and columns.
+ *     All fields configured for "row" style storage and concatenated together and compressed
+ *     with something like <a href="https://en.wikipedia.org/wiki/Zstd">zstd</a>. "Column"
+ *     fields are stored as a dense array of values on disk and compressed using math tricks.
+ * </p>
+ * <p>The "row" style fields need to be loaded together, one row at a time.</p>
+ * {@snippet lang="txt" :
+ * ┌─────┬────────┐   ┌─────┬────────┐   ┌─────┬────────┐   ┌─────┬────────┐   ┌─────┬────────┐   ┌─────┬────────┐
+ * │ ref │ class  │   │ ref │ class  │   │ ref │ class  │   │ ref │ class  │   │ ref │ class  │   │ ref │ class  │
+ * ├─────┼────────┤   ├─────┼────────┤   ├─────┼────────┤   ├─────┼────────┤   ├─────┼────────┤   ├─────┼────────┤
+ * │     │        │   │ 173 │ Euclid │   │ 173 │ Euclid │   │ 173 │ Euclid │   │ 173 │ Euclid │   │ 173 │ Euclid │
+ * │     │        │ ⟶ │     │        │ ⟶ │ 049 │ Euclid │ ⟶ │ 049 │ Euclid │ ⟶ │ 049 │ Euclid │ ⟶ │ 049 │ Euclid │
+ * │     │        │   │     │        │   │     │        │   │ 096 │ Euclid │   │ 096 │ Euclid │   │ 096 │ Euclid │
+ * │     │        │   │     │        │   │     │        │   │     │        │   │ 682 │ Keter  │   │ 682 │ Keter  │
+ * │     │        │   │     │        │   │     │        │   │     │        │   │     │        │   │ 055 │ Keter  │
+ * └─────┴────────┘   └─────┴────────┘   └─────┴────────┘   └─────┴────────┘   └─────┴────────┘   └─────┴────────┘
+ * }
+ * <p>The "column" style fields need to be loaded one at a time:</p>
+ * {@snippet lang="txt" :
+ * ┌─────┐   ┌─────┬────────┐   ┌─────┬────────┬──────┐   ┌─────┬────────┬──────┬────────────┐
+ * │ ref │   │ ref │ class  │   │ ref │ class  │ site │   │ ref │ class  │ site │ casualties │
+ * ├─────┤   ├─────┼────────┤   ├─────┼────────┼──────┤   ├─────┼────────┼──────┼────────────┤
+ * │ 173 │   │ 173 │ Euclid │   │ 173 │ Euclid │ 19   │   │ 173 │ Euclid │ 19   │ 0          │
+ * │ 049 │   │ 049 │ Euclid │   │ 049 │ Euclid │ 19   │   │ 049 │ Euclid │ 19   │ 1          │
+ * │ 096 │ ⟶ │ 096 │ Euclid │ ⟶ │ 096 │ Euclid │ ██   │ ⟶ │ 096 │ Euclid │ ██   │ ██         │
+ * │ 682 │   │ 682 │ Keter  │   │ 682 │ Keter  │ ██   │   │ 682 │ Keter  │ ██   │ 34         │
+ * │ 055 │   │ 055 │ Keter  │   │ 055 │ Keter  │ 19   │   │ 055 │ Keter  │ 19   │ null       │
+ * └─────┘   └─────┴────────┘   └─────┴────────┴──────┘   └─────┴────────┴──────┴────────────┘
+ * }
+ * <h2>Oh, no! Giant strings</h2>
+ * <p>
+ *     It's important to keep the {@link Block}s we build from being giant. A couple of mb
+ *     is ok, but 100mb is not usually great for the query. The most surefire way to do this
+ *     is to load fields in the order they appear in the input page and then stop if you load
+ *     too much. {@link ValuesFromSingleReader} and {@link ValuesFromManyReader} don't do that
+ *     because they are trying to be more efficient when loading small things. But when we load
+ *     big things we use {@link ValuesFromDocSequence} to load them in the order they appear
+ *     so we can always bail early.
+ * </p>
  */
 public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOperator {
     private static final Logger log = LogManager.getLogger(ValuesSourceReaderOperator.class);
@@ -62,7 +159,9 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
         IndexedByShardId<ShardContext> shardContexts,
         boolean reuseColumnLoaders,
         int docChannel,
-        double sourceReservationFactor
+        double sourceReservationFactor,
+        int docSequenceBytesRefFieldThreshold,
+        LongSupplier directoryBytesRead
     ) implements OperatorFactory {
         public Factory
 
@@ -70,6 +169,21 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
             if (fields.isEmpty()) {
                 throw new IllegalStateException("ValuesSourceReaderOperator doesn't support empty fields");
             }
+        }
+
+        /**
+         * Convenience constructor that uses the default doc-sequence threshold of 500.
+         */
+        public Factory(
+            ByteSizeValue jumboSize,
+            List<FieldInfo> fields,
+            IndexedByShardId<ShardContext> shardContexts,
+            boolean reuseColumnLoaders,
+            int docChannel,
+            double sourceReservationFactor,
+            LongSupplier directoryBytesRead
+        ) {
+            this(jumboSize, fields, shardContexts, reuseColumnLoaders, docChannel, sourceReservationFactor, 500, directoryBytesRead);
         }
 
         @Override
@@ -81,7 +195,9 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
                 shardContexts,
                 reuseColumnLoaders,
                 docChannel,
-                sourceReservationFactor
+                sourceReservationFactor,
+                docSequenceBytesRefFieldThreshold,
+                directoryBytesRead
             );
         }
 
@@ -115,10 +231,17 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
      *                      For example, "FROM index | WHERE x != null | STATS sum(x)", after filtering out documents
      *                      without value for field x, all target documents returned from the source operator
      *                      will have a value for field x whether x is dense or sparse in the index.
-     * @param loaderAndConverter   maps shard index to the {@link BlockLoader} which load the actual blocks and an
-     *                             optional type converter.
+     * @param buildLoader builds the {@link BlockLoader} which loads the actual blocks and an
+     *                    optional type converter for a given shard.
      */
-    public record FieldInfo(String name, ElementType type, boolean nullsFiltered, IntFunction<LoaderAndConverter> loaderAndConverter) {}
+    public record FieldInfo(String name, ElementType type, boolean nullsFiltered, BuildLoader buildLoader) {}
+
+    /**
+     * Builds a {@link LoaderAndConverter} for a given shard.
+     */
+    public interface BuildLoader {
+        LoaderAndConverter build(DriverContext.WarningsMode warningsMode, int shard);
+    }
 
     /**
      * Singleton to load constant {@code null}s.
@@ -166,6 +289,7 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
      * </p>
      */
     final long jumboBytes;
+    final int docSequenceBytesRefFieldThreshold;
     final FieldWork[] fields;
     final IndexedByShardId<? extends ShardContext> shardContexts;
     private final boolean reuseColumnLoaders;
@@ -182,6 +306,8 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
 
     private final Map<String, Integer> readersBuilt = new TreeMap<>();
     long valuesLoaded;
+    long bytesRead;
+    private final LongSupplier directoryBytesRead;
 
     private int lastShard = -1;
     private int lastSegment = -1;
@@ -215,13 +341,17 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
         IndexedByShardId<? extends ShardContext> shardContexts,
         boolean reuseColumnLoaders,
         int docChannel,
-        double sourceReservationFactor
+        double sourceReservationFactor,
+        int docSequenceBytesRefFieldThreshold,
+        LongSupplier directoryBytesRead
     ) {
         if (fields.isEmpty()) {
             throw new IllegalStateException("ValuesSourceReaderOperator doesn't support empty fields");
         }
+        this.directoryBytesRead = directoryBytesRead;
         this.driverContext = driverContext;
         this.jumboBytes = jumboBytes;
+        this.docSequenceBytesRefFieldThreshold = docSequenceBytesRefFieldThreshold;
         this.fields = new FieldWork[fields.size()];
         for (int i = 0; i < this.fields.length; i++) {
             this.fields[i] = new FieldWork(fields.get(i), i);
@@ -236,10 +366,58 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
     protected ReleasableIterator<Page> receive(Page page) {
         acquireSourceLoadingReservation();
         DocVector docVector = page.<DocBlock>getBlock(docChannel).asVector();
-        return appendBlockArrays(
-            page,
-            docVector.singleSegment() ? new ValuesFromSingleReader(this, docVector) : new ValuesFromManyReader(this, docVector)
-        );
+        return trackBytesRead(appendBlockArrays(page, valuesReader(docVector)));
+    }
+
+    private ReleasableIterator<Page> trackBytesRead(ReleasableIterator<Page> inner) {
+        return new ReleasableIterator<>() {
+            @Override
+            public boolean hasNext() {
+                return inner.hasNext();
+            }
+
+            @Override
+            public Page next() {
+                long bytesSnapshot = directoryBytesRead.getAsLong();
+                try {
+                    return inner.next();
+                } finally {
+                    recordBytesRead(bytesSnapshot);
+                }
+            }
+
+            @Override
+            public void close() {
+                inner.close();
+            }
+        };
+    }
+
+    private void recordBytesRead(long bytesSnapshot) {
+        long current = directoryBytesRead.getAsLong();
+        if (current >= bytesSnapshot) {
+            bytesRead += current - bytesSnapshot;
+        }
+    }
+
+    private ValuesReader valuesReader(DocVector docVector) {
+        if (docVector.singleSegment()) {
+            return new ValuesFromSingleReader(this, docVector);
+        }
+        if (bytesRefFieldCount() >= docSequenceBytesRefFieldThreshold) {
+            return new ValuesFromDocSequence(this, docVector);
+        }
+        return new ValuesFromManyReader(this, docVector);
+    }
+
+    private int bytesRefFieldCount() {
+        int count = 0;
+        for (FieldWork field : fields) {
+            if (field.info.type() == ElementType.BYTES_REF) {
+                count++;
+            }
+        }
+        return count;
     }
 
     /**
@@ -376,7 +554,7 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
         }
 
         void newShard(int shard) {
-            LoaderAndConverter l = info.loaderAndConverter.apply(shard);
+            LoaderAndConverter l = info.buildLoader.build(driverContext.warningsMode(), shard);
             loader = l.loader;
             converter = l.converter == null ? null : converterEvaluators.get(shard, fieldIdx, info.name, l.converter);
             log.debug("moved to shard {} {} {}", shard, loader, converter);
@@ -468,7 +646,8 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
             pagesEmitted,
             rowsReceived,
             rowsEmitted,
-            valuesLoaded
+            valuesLoaded,
+            bytesRead
         );
     }
 

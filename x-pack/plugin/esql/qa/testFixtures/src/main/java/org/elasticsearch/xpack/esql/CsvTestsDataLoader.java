@@ -16,7 +16,6 @@ import org.apache.http.auth.AuthScope;
 import org.apache.http.auth.UsernamePasswordCredentials;
 import org.apache.http.client.CredentialsProvider;
 import org.apache.http.impl.client.BasicCredentialsProvider;
-import org.apache.logging.log4j.core.config.plugins.util.PluginManager;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
@@ -34,6 +33,7 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import org.elasticsearch.xpack.esql.core.type.EsField;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -43,6 +43,8 @@ import java.net.URI;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
@@ -61,13 +63,14 @@ import static org.elasticsearch.xpack.esql.CsvTestUtils.COMMA_ESCAPING_REGEX;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.ESCAPED_COMMA_SEQUENCE;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.multiValuesAwareCsvToStringArray;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.reader;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITHOUT_VIEW;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITH_VIEW;
 
 public class CsvTestsDataLoader {
 
     static {
         // Ensure the logging factory is initialized before the static logger field below. When running standalone (via main() or
         // Gradle's loadCsvSpecData task), nothing has initialized the ES logging system before this class is loaded.
-        LogConfigurator.loadLog4jPlugins();
         LogConfigurator.configureESLogging();
     }
 
@@ -88,6 +91,17 @@ public class CsvTestsDataLoader {
         new TestDataset("employees", "mapping-default.json", "employees.csv").noSubfields(),
         new TestDataset("voyager", "mapping-voyager.json", "voyager.csv").noSubfields(),
         new TestDataset("employees_incompatible", "mapping-default-incompatible.json", "employees_incompatible.csv").noSubfields(),
+        new TestDataset("employees", "mapping-default.json", "employees.csv").withIndex("employees_no_names")
+            .withTypeMapping(removeFields("first_name", "last_name"))
+            .withDynamic("false")
+            .noSubfields(),
+        new TestDataset("employees", "mapping-default.json", "employees.csv").withIndex("employees_gender_text")
+            .withTypeMapping(Map.of("gender", "text"))
+            .noSubfields(),
+        new TestDataset("employees", "mapping-default.json", "employees.csv").withIndex("employees_no_gender")
+            .withTypeMapping(removeFields("gender"))
+            .withDynamic("false")
+            .noSubfields(),
         new TestDataset("all_types", "mapping-all-types.json", "all-types.csv"),
         new TestDataset("hosts"),
         new TestDataset("apps"),
@@ -105,12 +119,25 @@ public class CsvTestsDataLoader {
             "lookup-settings.json"
         ),
         new TestDataset("languages_mixed_numerics").withSetting("lookup-settings.json"),
+        new TestDataset(
+            "keyword_languages_lookup",
+            "mapping-keyword_languages_lookup.json",
+            "keyword_languages_lookup.csv",
+            "lookup-settings.json"
+        ),
         new TestDataset("ul_logs"),
         new TestDataset("sample_data"),
+        new TestDataset("sample_data").withIndex("cloned_sample_data"),
         new TestDataset("partial_mapping_sample_data"),
-        new TestDataset("no_mapping_sample_data", "mapping-no_mapping_sample_data.json", "partial_mapping_sample_data.csv").withTypeMapping(
-            Stream.of("timestamp", "client_ip", "event_duration").collect(toMap(k -> k, k -> "keyword"))
+        new TestDataset(
+            "partial_message_types_lookup",
+            "mapping-partial_message_types_lookup.json",
+            "partial_message_types_lookup.csv",
+            "lookup-settings.json"
         ),
+        new TestDataset("no_mapping_sample_data", "mapping-no_mapping_sample_data.json", "partial_mapping_sample_data.csv"),
+        new TestDataset("no_message_sample_data", "mapping-sample_data.json", "sample_data.csv").withTypeMapping(removeFields("message"))
+            .withDynamic("false"),
         new TestDataset(
             "partial_mapping_no_source_sample_data",
             "mapping-partial_mapping_no_source_sample_data.json",
@@ -122,6 +149,9 @@ public class CsvTestsDataLoader {
             "partial_mapping_sample_data.csv"
         ),
         new TestDataset("mv_sample_data"),
+        new TestDataset("event_alerts"),
+        new TestDataset("event_logs"),
+        new TestDataset("event_empty").noData(),
         new TestDataset("alerts"),
         new TestDataset("sample_data").withIndex("sample_data_str").withTypeMapping(Map.of("client_ip", "keyword")),
         new TestDataset("sample_data").withIndex("sample_data_ts_long")
@@ -150,6 +180,7 @@ public class CsvTestsDataLoader {
         new TestDataset("ages"),
         new TestDataset("heights"),
         new TestDataset("decades"),
+        new TestDataset("mv_decades"),
         new TestDataset("airports"),
         new TestDataset("airports").withIndex("airports_mp").withData("airports_mp.csv").withSetting("lookup-settings.json"),
         new TestDataset("airports_no_doc_values").withData("airports.csv"),
@@ -166,10 +197,52 @@ public class CsvTestsDataLoader {
         new TestDataset("date_nanos"),
         new TestDataset("date_nanos_union_types"),
         new TestDataset("k8s", "k8s-mappings.json", "k8s.csv").withSetting("k8s-settings.json"),
+        new TestDataset("k8s_unmapped", "k8s-mappings.json", "k8s.csv").withSetting("k8s-settings.json")
+            .withTypeMapping(removeFields("region", "event", "network.bytes_in", "network.cost", "network.eth0.tx"))
+            .withDynamic("false"),
+        new TestDataset("k8s_double_bytes_in", "k8s-mappings.json", "k8s.csv").withSetting("k8s-settings.json")
+            .withTypeMapping(Map.of("network.bytes_in", "double")),
         new TestDataset("datenanos-k8s", "k8s-mappings-date_nanos.json", "k8s.csv", "k8s-settings.json"),
         new TestDataset("k8s-downsampled", "k8s-downsampled-mappings.json", "k8s-downsampled.csv", "k8s-downsampled-settings.json"),
+        new TestDataset("k8s_stored_source", "k8s-mappings.json", "k8s.csv").withSetting("k8s-stored-source-settings.json"),
+        new TestDataset(
+            "promql_classic_histogram",
+            "mapping-promql-classic-histogram-passthrough.json",
+            "promql_classic_histogram.csv",
+            "promql_classic_histogram-settings.json"
+        ).withRequiredCapabilities(EsqlCapabilities.Cap.PROMQL_HISTOGRAM_QUANTILE),
+        new TestDataset(
+            "promql_histogram_no_le",
+            "mapping-promql-histogram-no-le-passthrough.json",
+            "promql_histogram_no_le.csv",
+            "promql_histogram_no_le-settings.json"
+        ).withRequiredCapabilities(EsqlCapabilities.Cap.PROMQL_HISTOGRAM_QUANTILE),
         new TestDataset("distances"),
         new TestDataset("addresses"),
+        new TestDataset("addresses").withIndex("addresses_no_continent")
+            .withTypeMapping(removeFields("city.country.continent"))
+            .withDynamic("false"),
+        new TestDataset("addresses").withIndex("addresses_text")
+            .withTypeMapping(
+                Map.of(
+                    "street",
+                    "text",
+                    "number",
+                    "text",
+                    "zip_code",
+                    "text",
+                    "city.name",
+                    "text",
+                    "city.country.name",
+                    "text",
+                    "city.country.continent.name",
+                    "text",
+                    "city.country.continent.planet.name",
+                    "text",
+                    "city.country.continent.planet.galaxy",
+                    "text"
+                )
+            ),
         new TestDataset("books").withSetting("books-settings.json"),
         new TestDataset("semantic_text").withInferenceEndpoints("test_sparse_inference", "test_dense_inference"),
         new TestDataset("logs"),
@@ -180,6 +253,8 @@ public class CsvTestsDataLoader {
         new TestDataset("dense_vector_bfloat16").withRequiredCapabilities(EsqlCapabilities.Cap.GENERIC_VECTOR_FORMAT),
         new TestDataset("dense_vector_arithmetic"),
         new TestDataset("web_logs"),
+        new TestDataset("employees_no_mv", "mapping-default.json", "employees_no_mv.csv").noSubfields(),
+        new TestDataset("mv_sample", "mapping-mv_sample.json", "mv_sample.csv"),
         new TestDataset("colors"),
         new TestDataset("colors_cmyk").withSetting("lookup-settings.json"),
         new TestDataset("base_conversion"),
@@ -206,10 +281,33 @@ public class CsvTestsDataLoader {
             "histogram_standard_index.csv",
             "settings-histogram_time_series_index.json"
         ).withRequiredCapabilities(EsqlCapabilities.Cap.HISTOGRAM_RELEASE_VERSION),
-        new TestDataset("many_numbers"),
+        new TestDataset("many_numbers").withSetting("many_numbers-settings.json"),
         new TestDataset("mmr_text_vector_keyword"),
-        new TestDataset("json_logs").withRequiredCapabilities(EsqlCapabilities.Cap.FN_JSON_EXTRACT)
+        new TestDataset("json_logs"),
+        new TestDataset("flattened_otel_logs"),
+        new TestDataset("flattened_many"),
+        new TestDataset("flattened_keyed"),
+        new TestDataset("path_lookup").withSetting("lookup-settings.json"),
+        new TestDataset("flattened_typed").withRequiredCapabilities(EsqlCapabilities.Cap.FLATTENED_DATATYPE),
+        new TestDataset("ts_flattened", "mapping-ts_flattened.json", "ts_flattened.csv", "ts_flattened-settings.json"),
+        new TestDataset("host_threat_list").withSetting("lookup-settings.json"),
+        new TestDataset("host_info_lookup").withSetting("lookup-settings.json"),
+        new TestDataset(
+            "metric_temporality",
+            "metric_temporality-mappings.json",
+            "metric_temporality.csv",
+            "metric_temporality-settings.json"
+        ).withRequiredCapabilities(EsqlCapabilities.Cap.TSDB_TEMPORALITY_SUPPORT_V9),
+        new TestDataset("ts_window", "ts_window-mappings.json", "ts_window.csv", "ts_window-settings.json")
     ).collect(toMap(TestDataset::indexName, Function.identity()));
+
+    // Developer flags for faster iteration when debugging specific csv-spec tests:
+    // -Dtests.spec_indices=index1,index2 load only the specified dataset indices (enrich skipped unless spec_enrich_policies is set)
+    // -Dtests.spec_enrich_policies=p1,p2 load only the specified enrich policies (overrides the spec_indices skipping of enrich)
+    @Nullable
+    private static final Set<String> specIndices = parseSetProperty("tests.spec_indices");
+    @Nullable
+    private static final Set<String> specEnrichPolicies = parseSetProperty("tests.spec_enrich_policies");
 
     public static final Map<String, EnrichConfig> ENRICH_POLICIES = Stream.of(
         new EnrichConfig("languages_policy", "enrich-policy-languages.json", "languages"),
@@ -228,6 +326,7 @@ public class CsvTestsDataLoader {
     public static final Map<String, InferenceConfig> INFERENCE_CONFIGS = Stream.of(
         new InferenceConfig("test_sparse_inference", TaskType.SPARSE_EMBEDDING),
         new InferenceConfig("test_dense_inference", TaskType.TEXT_EMBEDDING),
+        new InferenceConfig("test_embedding_inference", TaskType.EMBEDDING),
         new InferenceConfig("test_reranker", TaskType.RERANK),
         new InferenceConfig("test_completion", TaskType.COMPLETION)
     ).collect(toMap(InferenceConfig::id, Function.identity()));
@@ -238,7 +337,29 @@ public class CsvTestsDataLoader {
         new ViewConfig("country_languages"),
         new ViewConfig("airports_mp_filtered"),
         new ViewConfig("employees_rehired"),
-        new ViewConfig("employees_not_rehired")
+        new ViewConfig("employees_not_rehired"),
+        new ViewConfig("employees_all"),
+        new ViewConfig("employees_extra"),
+        new ViewConfig("view_with_subquery"),
+        new ViewConfig("view_row_constants", List.of(EsqlCapabilities.Cap.SUBQUERY_WITH_ROW)),
+        new ViewConfig("view_row_eval", List.of(EsqlCapabilities.Cap.SUBQUERY_WITH_ROW)),
+        new ViewConfig("view_row_employees_subquery", List.of(EsqlCapabilities.Cap.SUBQUERY_WITH_ROW)),
+        new ViewConfig("view_k8s_max_bytes_by_cluster", List.of(EsqlCapabilities.Cap.SUBQUERY_WITH_TS)),
+        new ViewConfig("view_k8s_max_rate", List.of(EsqlCapabilities.Cap.SUBQUERY_WITH_TS)),
+        new ViewConfig("view_k8s_downsampled_low_tx_count", List.of(EsqlCapabilities.Cap.SUBQUERY_WITH_TS)),
+        new ViewConfig("view_k8s_early_window", List.of(EsqlCapabilities.Cap.SUBQUERY_WITH_TS)),
+        new ViewConfig("view_k8s_downsampled_first_bucket", List.of(EsqlCapabilities.Cap.SUBQUERY_WITH_TS)),
+        new ViewConfig("view_k8s_mixed_subqueries", List.of(EsqlCapabilities.Cap.SUBQUERY_WITH_TS, EsqlCapabilities.Cap.SUBQUERY_WITH_ROW)),
+        new ViewConfig("employees_in_subquery", List.of(WHERE_IN_SUBQUERY_WITHOUT_VIEW)),
+        new ViewConfig("employees_in_subquery_stats", List.of(WHERE_IN_SUBQUERY_WITH_VIEW)),
+        new ViewConfig("employees_in_subquery_conjunction", List.of(WHERE_IN_SUBQUERY_WITH_VIEW)),
+        new ViewConfig("employees_in_subquery_disjunction", List.of(WHERE_IN_SUBQUERY_WITH_VIEW)),
+        new ViewConfig("employees_in_subquery_nested", List.of(WHERE_IN_SUBQUERY_WITH_VIEW)),
+        new ViewConfig("employees_in_subquery_view", List.of(WHERE_IN_SUBQUERY_WITH_VIEW)),
+        new ViewConfig("employees_in_subquery_stats_view", List.of(WHERE_IN_SUBQUERY_WITH_VIEW)),
+        new ViewConfig("employees_in_subquery_conjunction_view", List.of(WHERE_IN_SUBQUERY_WITH_VIEW)),
+        new ViewConfig("employees_in_subquery_disjunction_view", List.of(WHERE_IN_SUBQUERY_WITH_VIEW)),
+        new ViewConfig("employees_in_subquery_nested_view", List.of(WHERE_IN_SUBQUERY_WITH_VIEW))
     ).collect(toMap(ViewConfig::name, Function.identity()));
 
     /**
@@ -259,7 +380,6 @@ public class CsvTestsDataLoader {
      */
     public static void main(String[] args) throws IOException {
         // Need to setup the log configuration properly to avoid messages when creating a new RestClient
-        PluginManager.addPackage(LogConfigurator.class.getPackage().getName());
         LogConfigurator.configureESLogging();
         boolean indexes = false;
         boolean policies = false;
@@ -388,7 +508,17 @@ public class CsvTestsDataLoader {
             }
         }
 
+        if (specIndices != null) {
+            testDataSets.removeIf(d -> specIndices.contains(d.indexName) == false);
+        }
+
         return testDataSets;
+    }
+
+    @Nullable
+    private static Set<String> parseSetProperty(String name) {
+        String prop = System.getProperty(name);
+        return (prop == null || prop.isBlank()) ? null : Set.of(prop.split(", *"));
     }
 
     private static boolean isLookupDataset(TestDataset dataset) throws IOException {
@@ -418,8 +548,17 @@ public class CsvTestsDataLoader {
         boolean supportsSourceFieldMapping,
         boolean inferenceEnabled
     ) throws IOException {
-        loadDataSetIntoEs(client, supportsIndexModeLookup, supportsSourceFieldMapping, inferenceEnabled, false, cap -> false);
+        loadDataSetIntoEs(client, supportsIndexModeLookup, supportsSourceFieldMapping, inferenceEnabled, false, cap -> false, null);
     }
+
+    private static final IndexCreator INDEX_CREATOR = (restClient, indexName, indexMapping, indexSettings) -> ESRestTestCase.createIndex(
+        restClient,
+        indexName,
+        indexSettings,
+        indexMapping,
+        null,
+        DEPRECATED_DEFAULT_METRIC_WARNING_HANDLER
+    );
 
     public static void loadDataSetIntoEs(
         RestClient client,
@@ -429,26 +568,94 @@ public class CsvTestsDataLoader {
         boolean timeSeriesOnly,
         Predicate<EsqlCapabilities.Cap> capabilityCheck
     ) throws IOException {
-        loadDataSets(
+        loadDataSetIntoEs(
             client,
             supportsIndexModeLookup,
             supportsSourceFieldMapping,
             inferenceEnabled,
             timeSeriesOnly,
             capabilityCheck,
-            (restClient, indexName, indexMapping, indexSettings) -> {
-                ESRestTestCase.createIndex(
-                    restClient,
-                    indexName,
-                    indexSettings,
-                    indexMapping,
-                    null,
-                    DEPRECATED_DEFAULT_METRIC_WARNING_HANDLER
-                );
-            }
+            null
         );
-        if (timeSeriesOnly == false) {
-            loadEnrichPolicies(client);
+    }
+
+    /**
+     * Load test datasets into Elasticsearch.
+     *
+     * @param indicesToLoad null to load all indices (default); empty list to load nothing; non-empty list to load only those indices.
+     *                      When non-null, enrich policies whose source index is in this list are also loaded (unless skipped by
+     *                      {@code tests.spec_indices} / {@code tests.spec_enrich_policies}).
+     */
+    public static void loadDataSetIntoEs(
+        RestClient client,
+        boolean supportsIndexModeLookup,
+        boolean supportsSourceFieldMapping,
+        boolean inferenceEnabled,
+        boolean timeSeriesOnly,
+        Predicate<EsqlCapabilities.Cap> capabilityCheck,
+        @Nullable List<String> indicesToLoad
+    ) throws IOException {
+        if (indicesToLoad != null && indicesToLoad.isEmpty()) {
+            return;
+        }
+        if (indicesToLoad != null) {
+            loadDatasetsIntoEs(client, indicesToLoad);
+            if (timeSeriesOnly == false) {
+                loadEnrichPoliciesForLoadedSourceIndices(client, indicesToLoad);
+            }
+        } else {
+            loadDataSets(
+                client,
+                supportsIndexModeLookup,
+                supportsSourceFieldMapping,
+                inferenceEnabled,
+                timeSeriesOnly,
+                capabilityCheck,
+                INDEX_CREATOR
+            );
+            if (timeSeriesOnly == false) {
+                loadEnrichPolicies(client);
+            }
+        }
+    }
+
+    /**
+     * Loads enrich policies whose source index is in {@code loadedIndexNames}, mirroring
+     * {@link #loadEnrichPolicies(RestClient)} rules for {@code tests.spec_indices} /
+     * {@code tests.spec_enrich_policies}.
+     */
+    private static void loadEnrichPoliciesForLoadedSourceIndices(RestClient client, List<String> loadedIndexNames) throws IOException {
+        if (specEnrichPolicies != null || specIndices == null) {
+            Set<String> loaded = new HashSet<>(loadedIndexNames);
+            logger.info("Loading enrich policies for loaded indices {}", loadedIndexNames);
+            for (var policy : ENRICH_POLICIES.values()) {
+                if (loaded.contains(policy.index()) == false) {
+                    continue;
+                }
+                if (specEnrichPolicies != null && specEnrichPolicies.contains(policy.policyName()) == false) {
+                    continue;
+                }
+                loadEnrichPolicy(client, policy);
+            }
+        }
+    }
+
+    /**
+     * Load only the specified indices from CSV_DATASET into the cluster.
+     * Used by external source tests that need lookup indices (e.g. languages_lookup) for LOOKUP JOIN.
+     */
+    public static void loadDatasetsIntoEs(RestClient client, List<String> indexNames) throws IOException {
+        Set<String> loadedDatasets = new HashSet<>();
+        for (String indexName : indexNames) {
+            TestDataset dataset = CSV_DATASET.get(indexName);
+            if (dataset == null) {
+                throw new IllegalArgumentException("Dataset [" + indexName + "] not found in CSV_DATASET");
+            }
+            load(client, dataset, INDEX_CREATOR);
+            loadedDatasets.add(dataset.indexName());
+        }
+        if (loadedDatasets.isEmpty() == false) {
+            forceMerge(client, loadedDatasets);
         }
     }
 
@@ -477,16 +684,29 @@ public class CsvTestsDataLoader {
     }
 
     private static void loadEnrichPolicies(RestClient client) throws IOException {
-        logger.info("Loading enrich policies");
-        for (var policy : ENRICH_POLICIES.values()) {
-            loadEnrichPolicy(client, policy);
+        // Does not load any enrich policies if specIndices is set and specEnrichPolicies is not.
+        if (specEnrichPolicies != null || specIndices == null) {
+            logger.info("Loading enrich policies");
+            for (var policy : ENRICH_POLICIES.values()) {
+                if (specEnrichPolicies == null || specEnrichPolicies.contains(policy.policyName)) {
+                    loadEnrichPolicy(client, policy);
+                }
+            }
         }
     }
 
     public static void loadViewsIntoEs(RestClient client) throws IOException {
+        loadViewsIntoEs(client, cap -> true);
+    }
+
+    public static void loadViewsIntoEs(RestClient client, Predicate<EsqlCapabilities.Cap> capabilityCheck) throws IOException {
         if (clusterHasViewSupport(client)) {
             logger.info("Loading views");
             for (var view : VIEW_CONFIGS.values()) {
+                if (view.requiredCapabilities.stream().allMatch(capabilityCheck) == false) {
+                    logger.info("Skipping view [{}], missing required capabilities {}", view.name, view.requiredCapabilities);
+                    continue;
+                }
                 loadView(client, view);
             }
         } else {
@@ -533,8 +753,16 @@ public class CsvTestsDataLoader {
     }
 
     public static void createInferenceEndpoints(RestClient client) throws IOException {
-        for (var config : INFERENCE_CONFIGS.values()) {
-            if (hasInferenceEndpoint(client, config) == false) {
+        createInferenceEndpoints(client, INFERENCE_CONFIGS.keySet());
+    }
+
+    /**
+     * Creates only the listed inference endpoints (by id in {@link #INFERENCE_CONFIGS}), skipping any that already exist.
+     */
+    public static void createInferenceEndpoints(RestClient client, Collection<String> inferenceIds) throws IOException {
+        for (String id : inferenceIds) {
+            InferenceConfig config = INFERENCE_CONFIGS.get(id);
+            if (config != null && hasInferenceEndpoint(client, config) == false) {
                 createInferenceEndpoint(client, config);
             }
         }
@@ -589,23 +817,40 @@ public class CsvTestsDataLoader {
     private static void loadView(RestClient client, ViewConfig view) throws IOException {
         logger.debug("Loading view [{}] from file [/views/{}.esql]", view.name, view.name);
         Request request = new Request("PUT", "/_query/view/" + view.name);
-        request.setJsonEntity("{\"query\":\"" + view.loadQuery().replace("\"", "\\\"").replace("\n", "") + "\"}");
+        request.setJsonEntity("{\"query\":\"" + view.loadQuery().replace("\"", "\\\"").replace("\r", "").replace("\n", "") + "\"}");
         client.performRequest(request);
     }
 
     private static boolean clusterHasViewSupport(RestClient client) throws IOException {
-        Request request = new Request("GET", "/_query/view");
+        // Use the _capabilities endpoint so we check ALL nodes, not just the coordinator.
+        // Views CRUD operations are master-node transport actions; if any node (e.g. an older data
+        // node acting as master) doesn't know the action, it will crash with an AssertionError.
+        Request capRequest = new Request("GET", "_capabilities");
+        capRequest.addParameter("method", "POST");
+        capRequest.addParameter("path", "/_query");
+        capRequest.addParameter("capabilities", "views_crud_as_index_actions");
         try {
-            Response ignored = client.performRequest(request);
-        } catch (ResponseException e) {
-            int code = e.getResponse().getStatusLine().getStatusCode();
-            // Different versions of Elasticsearch return different codes when views are not supported
-            if (code == 410 || code == 400 || code == 500 || code == 405) {
-                return false;
+            Response response = client.performRequest(capRequest);
+            try (var content = response.getEntity().getContent()) {
+                Map<String, Object> map = XContentHelper.convertToMap(XContentType.JSON.xContent(), content, false);
+                if (!Boolean.TRUE.equals(map.get("supported"))) {
+                    return false;
+                }
             }
-            throw e;
+        } catch (ResponseException e) {
+            return false;
         }
-        return true;
+        // The _capabilities check above confirms all nodes know the view transport actions (safe for
+        // BWC mixed-cluster tests). Now verify the view CRUD REST endpoints are actually reachable:
+        // in serverless mode, RestPutViewAction has no @ServerlessScope annotation, so those routes
+        // return 410 Gone — but _capabilities does not check the serverless scope and would still
+        // report "supported: true". A direct GET confirms real accessibility.
+        try {
+            client.performRequest(new Request("GET", "/_query/view"));
+            return true;
+        } catch (ResponseException e) {
+            return false;
+        }
     }
 
     private static void deleteView(RestClient client, String viewName) throws IOException {
@@ -613,8 +858,9 @@ public class CsvTestsDataLoader {
             client.performRequest(new Request("DELETE", "/_query/view/" + viewName));
         } catch (ResponseException e) {
             int code = e.getResponse().getStatusLine().getStatusCode();
-            // On older servers the view listing succeeds when it should not, so we get here when we should not, hence the 400 and 500
-            if (code != 404 && code != 400 && code != 410 && code != 500) {
+            // On older servers the view listing succeeds when it should not, so we get here when we should not, hence the 400 and 500.
+            // 503 (master_not_discovered_exception) is transient and can occur in BWC mixed-cluster tests after node restarts.
+            if (code != 404 && code != 400 && code != 410 && code != 500 && code != 503) {
                 logger.info("View delete error: {}", e.getMessage());
                 throw e;
             }
@@ -659,25 +905,63 @@ public class CsvTestsDataLoader {
         }
     }
 
+    /**
+     * Creates a type mapping that removes the given fields from the mapping.
+     * For use with {@link TestDataset#withTypeMapping}.
+     */
+    private static Map<String, String> removeFields(String... fields) {
+        var map = new HashMap<String, String>();
+        for (String field : fields) {
+            map.put(field, null);
+        }
+        return map;
+    }
+
     public static String readMappingFile(TestDataset dataset) throws IOException {
         String mappingJsonText = dataset.loadMappings();
-        if (dataset.typeMapping == null || dataset.typeMapping.isEmpty()) {
+        boolean hasTypeMappingOverrides = dataset.typeMapping != null && dataset.typeMapping.isEmpty() == false;
+        if (hasTypeMappingOverrides == false && dataset.dynamic == null) {
             return mappingJsonText;
         }
         boolean modified = false;
         ObjectMapper mapper = new ObjectMapper();
         JsonNode mappingNode = mapper.readTree(mappingJsonText);
-        JsonNode propertiesNode = mappingNode.path("properties");
 
-        for (Map.Entry<String, String> entry : dataset.typeMapping.entrySet()) {
-            String key = entry.getKey();
-            String newType = entry.getValue();
+        if (hasTypeMappingOverrides) {
+            for (Map.Entry<String, String> entry : dataset.typeMapping.entrySet()) {
+                String key = entry.getKey();
+                String newType = entry.getValue();
 
-            if (propertiesNode.has(key)) {
-                modified = true;
-                ((ObjectNode) propertiesNode.get(key)).put("type", newType);
+                // Navigate dotted paths to find the parent properties node and leaf field name.
+                String[] segments = key.split("\\.");
+                ObjectNode propertiesNode = (ObjectNode) mappingNode.path("properties");
+                for (int i = 0; i < segments.length - 1 && propertiesNode != null; i++) {
+                    JsonNode child = propertiesNode.get(segments[i]);
+                    propertiesNode = child != null ? (ObjectNode) child.path("properties") : null;
+                }
+                String leafName = segments[segments.length - 1];
+
+                if (propertiesNode == null) {
+                    continue;
+                }
+                if (newType == null) {
+                    // null value means remove the field from the mapping
+                    if (propertiesNode.has(leafName)) {
+                        propertiesNode.remove(leafName);
+                        modified = true;
+                    }
+                } else if (propertiesNode.has(leafName)) {
+                    ((ObjectNode) propertiesNode.get(leafName)).put("type", newType);
+                    modified = true;
+                }
             }
         }
+
+        if (dataset.dynamic != null) {
+            ((ObjectNode) mappingNode).put("dynamic", dataset.dynamic);
+            modified = true;
+        }
+
         if (modified) {
             return mapper.writerWithDefaultPrettyPrinter().writeValueAsString(mappingNode);
         }
@@ -962,22 +1246,23 @@ public class CsvTestsDataLoader {
         String dataFileName,
         String settingFileName,
         boolean allowSubFields,
-        @Nullable Map<String, String> typeMapping, // Override mappings read from mappings file
-        @Nullable Map<String, String> dynamicTypeMapping, // Define mappings not in the mapping files, but available from field-caps
+        @Nullable Map<String, String> typeMapping,
+        @Nullable Map<String, String> dynamicTypeMapping,
+        @Nullable String dynamic,
         List<String> inferenceEndpoints,
         List<EsqlCapabilities.Cap> requiredCapabilities
     ) {
 
         public TestDataset(String indexName) {
-            this(indexName, "mapping-" + indexName + ".json", indexName + ".csv", null, true, null, null, List.of(), List.of());
+            this(indexName, "mapping-" + indexName + ".json", indexName + ".csv", null, true, null, null, null, List.of(), List.of());
         }
 
         public TestDataset(String indexName, String mappingFileName, String dataFileName) {
-            this(indexName, mappingFileName, dataFileName, null, true, null, null, List.of(), List.of());
+            this(indexName, mappingFileName, dataFileName, null, true, null, null, null, List.of(), List.of());
         }
 
         public TestDataset(String indexName, String mappingFileName, String dataFileName, String settingFileName) {
-            this(indexName, mappingFileName, dataFileName, settingFileName, true, null, null, List.of(), List.of());
+            this(indexName, mappingFileName, dataFileName, settingFileName, true, null, null, null, List.of(), List.of());
         }
 
         public TestDataset withIndex(String indexName) {
@@ -989,6 +1274,7 @@ public class CsvTestsDataLoader {
                 allowSubFields,
                 typeMapping,
                 dynamicTypeMapping,
+                dynamic,
                 inferenceEndpoints,
                 requiredCapabilities
             );
@@ -1003,6 +1289,7 @@ public class CsvTestsDataLoader {
                 allowSubFields,
                 typeMapping,
                 dynamicTypeMapping,
+                dynamic,
                 inferenceEndpoints,
                 requiredCapabilities
             );
@@ -1017,6 +1304,7 @@ public class CsvTestsDataLoader {
                 allowSubFields,
                 typeMapping,
                 dynamicTypeMapping,
+                dynamic,
                 inferenceEndpoints,
                 requiredCapabilities
             );
@@ -1031,6 +1319,7 @@ public class CsvTestsDataLoader {
                 allowSubFields,
                 typeMapping,
                 dynamicTypeMapping,
+                dynamic,
                 inferenceEndpoints,
                 requiredCapabilities
             );
@@ -1045,11 +1334,20 @@ public class CsvTestsDataLoader {
                 false,
                 typeMapping,
                 dynamicTypeMapping,
+                dynamic,
                 inferenceEndpoints,
                 requiredCapabilities
             );
         }
 
+        /**
+         * Overrides the types of fields in the mapping file. Each entry maps a field name to its new type
+         * (e.g. {@code Map.of("client_ip", "keyword")} changes client_ip from ip to keyword).
+         * A {@code null} value removes the field from the mapping entirely, making it unmapped for this index.
+         * <p>
+         * This affects both the Elasticsearch index mapping (via {@link CsvTestsDataLoader#readMappingFile}) and
+         * the in-memory mapping used by CSV unit tests.
+         */
         public TestDataset withTypeMapping(Map<String, String> typeMapping) {
             return new TestDataset(
                 indexName,
@@ -1059,12 +1357,31 @@ public class CsvTestsDataLoader {
                 allowSubFields,
                 typeMapping,
                 dynamicTypeMapping,
+                dynamic,
                 inferenceEndpoints,
                 requiredCapabilities
             );
         }
 
+        /**
+         * Adds field mappings that are not present in the mapping file, but will be in the field caps response, e.g. because during
+         * ingestion more fields are added dynamically. Required for csv tests which do not ingest the csvs into real indices.
+         */
         public TestDataset withDynamicTypeMapping(Map<String, String> dynamicTypeMapping) {
+            if (dynamicTypeMapping != null && mappingFileName != null) {
+                Map<String, EsField> mappedFields = LoadMapping.loadMapping(streamMapping());
+                for (String fieldName : dynamicTypeMapping.keySet()) {
+                    if (isMappedField(mappedFields, fieldName)) {
+                        throw new IllegalArgumentException(
+                            "Field ["
+                                + fieldName
+                                + "] in dynamicTypeMapping for dataset ["
+                                + indexName
+                                + "] is already mapped; use withTypeMapping instead"
+                        );
+                    }
+                }
+            }
             return new TestDataset(
                 indexName,
                 mappingFileName,
@@ -1073,6 +1390,45 @@ public class CsvTestsDataLoader {
                 allowSubFields,
                 typeMapping,
                 dynamicTypeMapping,
+                dynamic,
+                inferenceEndpoints,
+                requiredCapabilities
+            );
+        }
+
+        private static boolean isMappedField(Map<String, EsField> mapping, String fieldName) {
+            String[] segments = fieldName.split("\\.");
+            Map<String, EsField> currentMap = mapping;
+            for (int i = 0; i < segments.length; i++) {
+                EsField field = currentMap.get(segments[i]);
+                if (field == null) {
+                    return false;
+                }
+                if (i == segments.length - 1) {
+                    return true;
+                }
+                currentMap = field.getProperties();
+                if (currentMap == null || currentMap.isEmpty()) {
+                    return false;
+                }
+            }
+            return false;
+        }
+
+        /**
+         * Sets the "dynamic" mapping parameter (e.g. "false", "strict", "runtime").
+         * This prevents unmapped fields in the data from being automatically indexed.
+         */
+        public TestDataset withDynamic(String dynamic) {
+            return new TestDataset(
+                indexName,
+                mappingFileName,
+                dataFileName,
+                settingFileName,
+                allowSubFields,
+                typeMapping,
+                dynamicTypeMapping,
+                dynamic,
                 inferenceEndpoints,
                 requiredCapabilities
             );
@@ -1087,6 +1443,7 @@ public class CsvTestsDataLoader {
                 allowSubFields,
                 typeMapping,
                 dynamicTypeMapping,
+                dynamic,
                 List.of(inferenceEndpoints),
                 requiredCapabilities
             );
@@ -1101,6 +1458,7 @@ public class CsvTestsDataLoader {
                 allowSubFields,
                 typeMapping,
                 dynamicTypeMapping,
+                dynamic,
                 inferenceEndpoints,
                 List.of(requiredCapabilities)
             );
@@ -1143,7 +1501,11 @@ public class CsvTestsDataLoader {
         }
     }
 
-    public record ViewConfig(String name) {
+    public record ViewConfig(String name, List<EsqlCapabilities.Cap> requiredCapabilities) {
+        public ViewConfig(String name) {
+            this(name, List.of());
+        }
+
         public String loadQuery() {
             return getResourceString("/views/" + name + ".esql");
         }

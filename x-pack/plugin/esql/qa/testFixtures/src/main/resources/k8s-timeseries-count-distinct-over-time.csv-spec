@@ -265,3 +265,56 @@ distincts:long | cluster:keyword | time_bucket:datetime
 2              | qa              | 2024-05-10T00:18:00.000Z
 2              | staging         | 2024-05-10T00:18:00.000Z
 ;
+
+// Make sure that the non-time series aggs don't choke on null.
+countDistinctNull
+required_capability: ts_command_v0
+
+TS k8s
+| EVAL y = null
+| STATS m = min(count_over_time(client.ip)), cd = COUNT_DISTINCT(y)
+  BY cluster, time_bucket = bucket(@timestamp, 10minute)
+| SORT time_bucket, cluster
+| LIMIT 3
+;
+
+m:long | cd:long | cluster:keyword | time_bucket:datetime
+4      | 0       | prod            | 2024-05-10T00:00:00.000Z
+11     | 0       | qa              | 2024-05-10T00:00:00.000Z
+6      | 0       | staging         | 2024-05-10T00:00:00.000Z
+;
+
+valuesNull
+required_capability: ts_command_v0
+
+TS k8s
+| EVAL y = null
+| STATS m = min(count_over_time(client.ip)), v = VALUES(y)
+  BY cluster, time_bucket = bucket(@timestamp, 10minute)
+| SORT time_bucket, cluster
+| LIMIT 3
+;
+
+m:long | v:null | cluster:keyword | time_bucket:datetime
+4      | null   | prod            | 2024-05-10T00:00:00.000Z
+11     | null   | qa              | 2024-05-10T00:00:00.000Z
+6      | null   | staging         | 2024-05-10T00:00:00.000Z
+;
+
+sumNull
+required_capability: ts_command_v0
+required_capability: fix_sum_of_null_optimization
+
+TS k8s
+| EVAL y = null
+| STATS m = min(count_over_time(client.ip)), sm = SUM(y)
+  BY cluster, time_bucket = bucket(@timestamp, 10minute)
+| SORT time_bucket, cluster
+| LIMIT 3
+;
+
+m:long | sm:null | cluster:keyword | time_bucket:datetime
+4      | null    | prod            | 2024-05-10T00:00:00.000Z
+11     | null    | qa              | 2024-05-10T00:00:00.000Z
+6      | null    | staging         | 2024-05-10T00:00:00.000Z
+;

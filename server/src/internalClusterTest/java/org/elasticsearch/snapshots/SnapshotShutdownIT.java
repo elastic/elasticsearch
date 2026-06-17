@@ -43,6 +43,8 @@ import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
+import org.junit.After;
+import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -53,10 +55,10 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.snapshots.SnapshotShutdownProgressTracker.SNAPSHOT_PROGRESS_DURING_SHUTDOWN_LOG_INTERVAL_SETTING;
-import static org.elasticsearch.snapshots.SnapshotTestUtils.clearShutdownMetadata;
-import static org.elasticsearch.snapshots.SnapshotTestUtils.flushMasterQueue;
-import static org.elasticsearch.snapshots.SnapshotTestUtils.putShutdownForRemovalMetadata;
-import static org.elasticsearch.snapshots.SnapshotTestUtils.putShutdownMetadata;
+import static org.elasticsearch.test.NodeShutdownTestUtils.clearShutdownMetadata;
+import static org.elasticsearch.test.NodeShutdownTestUtils.flushMasterQueue;
+import static org.elasticsearch.test.NodeShutdownTestUtils.putShutdownForRemovalMetadata;
+import static org.elasticsearch.test.NodeShutdownTestUtils.putShutdownMetadata;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -69,8 +71,8 @@ public class SnapshotShutdownIT extends AbstractSnapshotIntegTestCase {
 
     private MockLog mockLog;
 
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void captureMockLog() throws Exception {
         mockLog = MockLog.capture(SnapshotShutdownProgressTracker.class);
     }
 
@@ -79,9 +81,9 @@ public class SnapshotShutdownIT extends AbstractSnapshotIntegTestCase {
         mockLog = MockLog.capture(SnapshotShutdownProgressTracker.class);
     }
 
-    public void tearDown() throws Exception {
+    @After
+    public void closeMockLog() throws Exception {
         mockLog.close();
-        super.tearDown();
     }
 
     @Override

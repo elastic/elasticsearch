@@ -20,11 +20,9 @@ import org.mockito.Mock;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
-import static org.mockito.Mockito.when;
 import static org.mockito.MockitoAnnotations.openMocks;
 
 public class ChatCompletionModelValidatorTests extends ESTestCase {
@@ -62,30 +60,6 @@ public class ChatCompletionModelValidatorTests extends ESTestCase {
 
         verify(mockServiceIntegrationValidator).validate(eq(mockInferenceService), eq(mockModel), eq(TIMEOUT), any());
         verify(mockActionListener).delegateFailureAndWrap(any());
-        verifyNoMoreInteractions(
-            mockServiceIntegrationValidator,
-            mockInferenceService,
-            mockInferenceServiceResults,
-            mockModel,
-            mockActionListener
-        );
-    }
-
-    public void testValidate_ChatCompletionDetailsUpdated() {
-        when(mockActionListener.delegateFailureAndWrap(any())).thenCallRealMethod();
-        when(mockInferenceService.updateModelWithChatCompletionDetails(mockModel)).thenReturn(mockModel);
-        doAnswer(ans -> {
-            ActionListener<InferenceServiceResults> responseListener = ans.getArgument(3);
-            responseListener.onResponse(mockInferenceServiceResults);
-            return null;
-        }).when(mockServiceIntegrationValidator).validate(eq(mockInferenceService), eq(mockModel), eq(TIMEOUT), any());
-
-        underTest.validate(mockInferenceService, mockModel, TIMEOUT, mockActionListener);
-
-        verify(mockServiceIntegrationValidator).validate(eq(mockInferenceService), eq(mockModel), eq(TIMEOUT), any());
-        verify(mockActionListener).delegateFailureAndWrap(any());
-        verify(mockActionListener).onResponse(mockModel);
-        verify(mockInferenceService).updateModelWithChatCompletionDetails(mockModel);
         verifyNoMoreInteractions(
             mockServiceIntegrationValidator,
             mockInferenceService,

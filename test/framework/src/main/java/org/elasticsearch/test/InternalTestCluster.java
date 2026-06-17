@@ -65,6 +65,7 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Predicates;
@@ -117,6 +118,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.NavigableMap;
@@ -531,7 +533,7 @@ public final class InternalTestCluster extends TestCluster {
     }
 
     public Collection<Class<? extends Plugin>> getPlugins() {
-        Set<Class<? extends Plugin>> plugins = new HashSet<>(nodeConfigurationSource.nodePlugins());
+        Set<Class<? extends Plugin>> plugins = new LinkedHashSet<>(nodeConfigurationSource.nodePlugins());
         plugins.addAll(mockPlugins);
         return plugins;
     }
@@ -1397,7 +1399,7 @@ public final class InternalTestCluster extends TestCluster {
                 final long replicaWriteBytes = indexingPressure.stats().getCurrentReplicaBytes();
                 if (replicaWriteBytes > 0) {
                     throw new AssertionError(
-                        "pending replica write bytes [" + combinedBytes + "] bytes on node [" + nodeAndClient.name + "]."
+                        "pending replica write bytes [" + replicaWriteBytes + "] bytes on node [" + nodeAndClient.name + "]."
                     );
                 }
             }
@@ -1632,6 +1634,47 @@ public final class InternalTestCluster extends TestCluster {
      */
     public <T> Iterable<T> getDataNodeInstances(Class<T> clazz) {
         return getInstances(clazz, DATA_NODE_PREDICATE);
+    }
+
+    /// Invokes `action` for every shard of the given index across all data nodes.
+    ///
+    /// If `action` throws an exception for a given shard, processing stops immediately and remaining shards will not be visited.
+    ///
+    /// @return the total number of shards visited.
+    public int forEveryIndexShard(Index index, CheckedConsumer<IndexShard, Exception> action) throws Exception {
+        int count = 0;
+        for (var indicesService : getDataNodeInstances(IndicesService.class)) {
+            for (var indexService : indicesService) {
+                if (indexService.index().equals(index)) {
+                    for (var indexShard : indexService) {
+                        action.accept(indexShard);
+                        count++;
+                    }
+                    break;
+                }
+            }
+        }
+        return count;
+    }
+
+    /// Invokes `action` for every shard of any of the named indices across all data nodes.
+    ///
+    /// If `action` throws an exception for a given shard, processing stops immediately and remaining shards will not be visited.
+    ///
+    /// @return the total number of shards visited.
+    public int forEveryIndexShard(Collection<String> indexNames, CheckedConsumer<IndexShard, Exception> action) throws Exception {
+        int count = 0;
+        for (var indicesService : getDataNodeInstances(IndicesService.class)) {
+            for (var indexService : indicesService) {
+                if (indexNames.contains(indexService.index().getName())) {
+                    for (var indexShard : indexService) {
+                        action.accept(indexShard);
+                        count++;
+                    }
+                }
+            }
+        }
+        return count;
     }
 
     /**
@@ -2125,22 +2168,46 @@ public final class InternalTestCluster extends TestCluster {
     }
 
     /**
-     * Returns a set of nodes that have at least one shard of the given index.
+     * Returns the names of the nodes that have at least one shard of the given index.
      */
-    public synchronized Set<String> nodesInclude(String index) {
-        if (clusterService().state().routingTable().hasIndex(index)) {
-            List<ShardRouting> allShards = clusterService().state().routingTable().allShards(index);
-            DiscoveryNodes discoveryNodes = clusterService().state().getNodes();
-            Set<String> nodeNames = new HashSet<>();
-            for (ShardRouting shardRouting : allShards) {
+    private static Set<String> nodesInclude(ClusterState clusterState, String index) {
+        if (clusterState.routingTable().hasIndex(index)) {
+            final var discoveryNodes = clusterState.getNodes();
+            final var nodeNames = new HashSet<String>();
+            for (final var shardRouting : clusterState.routingTable().allShards(index)) {
                 if (shardRouting.assignedToNode()) {
-                    DiscoveryNode discoveryNode = discoveryNodes.get(shardRouting.currentNodeId());
-                    nodeNames.add(discoveryNode.getName());
+                    nodeNames.add(discoveryNodes.get(shardRouting.currentNodeId()).getName());
                 }
             }
             return nodeNames;
         }
         return Collections.emptySet();
+    }
+
+    /**
+     * Returns the names of the nodes that have at least one shard of the given index.
+     */
+    public synchronized Set<String> nodesInclude(String index) {
+        return nodesInclude(clusterService().state(), index);
+    }
+
+    /**
+     * Blocks until the set of nodes that have at least one shard of the given index matches the given predicate.
+     */
+    public void awaitNodesInclude(String index, Predicate<Set<String>> nodeNamesPredicate) {
+        safeAwait(
+            ClusterServiceUtils.addTemporaryStateListener(
+                clusterService(),
+                clusterState -> nodeNamesPredicate.test(nodesInclude(clusterState, index))
+            )
+        );
+    }
+
+    /**
+     * Blocks until {@code vacatingNode} holds no shards of {@code index} (the node has been vacated for that index).
+     */
+    public void awaitNodeVacated(String index, String vacatingNode) {
+        awaitNodesInclude(index, nodes -> nodes.contains(vacatingNode) == false);
     }
 
     /**

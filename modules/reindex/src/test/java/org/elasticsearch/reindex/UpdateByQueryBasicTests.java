@@ -9,11 +9,15 @@
 
 package org.elasticsearch.reindex;
 
+import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.reindex.AbstractBulkByScrollRequest;
-import org.elasticsearch.index.reindex.BulkByScrollResponse;
+import org.elasticsearch.index.SliceIndexing;
+import org.elasticsearch.index.reindex.AbstractBulkByPaginatedSearchRequest;
+import org.elasticsearch.index.reindex.BulkByPaginatedSearchResponse;
+import org.elasticsearch.index.reindex.UpdateByQueryAction;
+import org.elasticsearch.index.reindex.UpdateByQueryRequest;
 import org.elasticsearch.index.reindex.UpdateByQueryRequestBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 
@@ -28,6 +32,7 @@ import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
@@ -114,6 +119,61 @@ public class UpdateByQueryBasicTests extends ReindexTestCase {
         assertEquals(2, client().prepareGet("test", "4").get().getVersion());
     }
 
+    public void testSliceRoutingValidationAndFiltering() {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        assertAcked(
+            prepareCreate("slice-enabled").setSettings(Settings.builder().put("index.slice.enabled", true).put("number_of_shards", 1))
+        );
+        assertAcked(
+            prepareCreate("slice-disabled").setSettings(Settings.builder().put("index.slice.enabled", false).put("number_of_shards", 1))
+        );
+        ensureGreen("slice-enabled", "slice-disabled");
+
+        client().index(new IndexRequest("slice-enabled").id("1").routing("s1").setRoutingFromSlice(true).source("foo", "a")).actionGet();
+        client().index(new IndexRequest("slice-enabled").id("2").routing("s1").setRoutingFromSlice(true).source("foo", "b")).actionGet();
+        client().index(new IndexRequest("slice-enabled").id("3").routing("s2").setRoutingFromSlice(true).source("foo", "a")).actionGet();
+        client().index(new IndexRequest("slice-disabled").id("1").source("foo", "a")).actionGet();
+        indicesAdmin().prepareRefresh("slice-enabled", "slice-disabled").get();
+
+        UpdateByQueryRequest missingSlice = new UpdateByQueryRequest("slice-enabled").setQuery(termQuery("foo", "a"));
+        IllegalArgumentException missingSliceException = expectThrows(
+            IllegalArgumentException.class,
+            () -> client().execute(UpdateByQueryAction.INSTANCE, missingSlice).actionGet()
+        );
+        assertThat(missingSliceException.getMessage(), containsString("[_slice] is required when [index.slice.enabled] is true"));
+
+        UpdateByQueryRequest routingOnly = new UpdateByQueryRequest("slice-enabled").setQuery(termQuery("foo", "a"));
+        routingOnly.getSearchRequest().routing("s1");
+        IllegalArgumentException routingOnlyException = expectThrows(
+            IllegalArgumentException.class,
+            () -> client().execute(UpdateByQueryAction.INSTANCE, routingOnly).actionGet()
+        );
+        assertThat(routingOnlyException.getMessage(), containsString("[routing] is not allowed when [index.slice.enabled] is true"));
+
+        UpdateByQueryRequest disabledSlice = new UpdateByQueryRequest("slice-disabled").setQuery(termQuery("foo", "a"));
+        disabledSlice.getSearchRequest().searchSlice("s1");
+        IllegalArgumentException disabledSliceException = expectThrows(
+            IllegalArgumentException.class,
+            () -> client().execute(UpdateByQueryAction.INSTANCE, disabledSlice).actionGet()
+        );
+        assertThat(disabledSliceException.getMessage(), containsString("[_slice] is not allowed when [index.slice.enabled] is false"));
+
+        UpdateByQueryRequest sliceS1A = new UpdateByQueryRequest("slice-enabled").setQuery(termQuery("foo", "a"));
+        sliceS1A.getSearchRequest().searchSlice("s1");
+        sliceS1A.setRefresh(true);
+        assertThat(client().execute(UpdateByQueryAction.INSTANCE, sliceS1A).actionGet(), matcher().updated(1));
+
+        UpdateByQueryRequest sliceS1B = new UpdateByQueryRequest("slice-enabled").setQuery(termQuery("foo", "b"));
+        sliceS1B.getSearchRequest().searchSlice("s1");
+        sliceS1B.setRefresh(true);
+        assertThat(client().execute(UpdateByQueryAction.INSTANCE, sliceS1B).actionGet(), matcher().updated(1));
+
+        UpdateByQueryRequest sliceS2A = new UpdateByQueryRequest("slice-enabled").setQuery(termQuery("foo", "a"));
+        sliceS2A.getSearchRequest().searchSlice("s2");
+        sliceS2A.setRefresh(true);
+        assertThat(client().execute(UpdateByQueryAction.INSTANCE, sliceS2A).actionGet(), matcher().updated(1));
+    }
+
     public void testMultipleSources() throws Exception {
         int sourceIndices = between(2, 5);
 
@@ -137,7 +197,7 @@ public class UpdateByQueryBasicTests extends ReindexTestCase {
         int expectedSlices = expectedSliceStatuses(slices, docs.keySet());
 
         String[] sourceIndexNames = docs.keySet().toArray(new String[docs.size()]);
-        BulkByScrollResponse response = updateByQuery().source(sourceIndexNames).refresh(true).setSlices(slices).get();
+        BulkByPaginatedSearchResponse response = updateByQuery().source(sourceIndexNames).refresh(true).setSlices(slices).get();
         assertThat(response, matcher().updated(allDocs.size()).slices(hasSize(expectedSlices)));
 
         for (Map.Entry<String, List<IndexRequestBuilder>> entry : docs.entrySet()) {
@@ -149,9 +209,9 @@ public class UpdateByQueryBasicTests extends ReindexTestCase {
     }
 
     public void testMissingSources() {
-        BulkByScrollResponse response = updateByQuery().source("missing-index-*")
+        BulkByPaginatedSearchResponse response = updateByQuery().source("missing-index-*")
             .refresh(true)
-            .setSlices(AbstractBulkByScrollRequest.AUTO_SLICES)
+            .setSlices(AbstractBulkByPaginatedSearchRequest.AUTO_SLICES)
             .get();
         assertThat(response, matcher().updated(0).slices(hasSize(0)));
     }

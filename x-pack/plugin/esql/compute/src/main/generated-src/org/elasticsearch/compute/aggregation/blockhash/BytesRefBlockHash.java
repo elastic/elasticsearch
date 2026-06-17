@@ -33,6 +33,7 @@ import org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupe;
 import org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupeBytesRef;
 import org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupeInt;
 import org.elasticsearch.core.ReleasableIterator;
+import org.elasticsearch.swisshash.BytesRefSwissHash;
 import java.util.BitSet;
 // end generated imports
 
@@ -52,6 +53,16 @@ final class BytesRefBlockHash extends BlockHash {
      * </p>
      */
     private boolean seenNull;
+
+    private static final int PREFETCH_BATCH = 128;
+    private final PrefetchBarrier prefetchBarrier = new PrefetchBarrier();
+    private final long[] batchHashes = new long[PREFETCH_BATCH];
+    private final BytesRef[] batchKeys = new BytesRef[PREFETCH_BATCH];
+    {
+        for (int i = 0; i < PREFETCH_BATCH; i++) {
+            batchKeys[i] = new BytesRef();
+        }
+    }
 
     BytesRefBlockHash(int channel, BlockFactory blockFactory) {
         super(blockFactory);
@@ -96,6 +107,9 @@ final class BytesRefBlockHash extends BlockHash {
         if (ordinals != null) {
             return addOrdinalsVector(ordinals);
         }
+        if (hash instanceof BytesRefSwissHash swiss && swiss.shouldPrefetch()) {
+            return addWithPrefetch(vector, swiss);
+        }
         BytesRef scratch = new BytesRef();
         int positions = vector.getPositionCount();
         try (var builder = blockFactory.newIntVectorFixedBuilder(positions)) {
@@ -103,6 +117,32 @@ final class BytesRefBlockHash extends BlockHash {
                 BytesRef v = vector.getBytesRef(i, scratch);
                 builder.appendInt(Math.toIntExact(hashOrdToGroupNullReserved(hash.add(v))));
             }
+            return builder.build();
+        }
+    }
+
+    private IntVector addWithPrefetch(BytesRefVector vector, BytesRefSwissHash swiss) {
+        int positions = vector.getPositionCount();
+        int dummy = 0;
+        try (var builder = blockFactory.newIntVectorFixedBuilder(positions)) {
+            for (int offset = 0; offset < positions; offset += PREFETCH_BATCH) {
+                int batchSize = Math.min(PREFETCH_BATCH, positions - offset);
+                for (int i = 0; i < batchSize; i++) {
+                    vector.getBytesRef(offset + i, batchKeys[i]);
+                    batchHashes[i] = BytesRefSwissHash.hash64(batchKeys[i]);
+                    dummy ^= swiss.prefetch(batchHashes[i]);
+                }
+                for (int i = 0; i < batchSize; i++) {
+                    final long id = swiss.addWithHash(batchKeys[i], batchHashes[i]);
+                    builder.appendInt(Math.toIntExact(hashOrdToGroupNullReserved(id)));
+                }
+            }
+            for (int i = 0; i < PREFETCH_BATCH; i++) {
+                batchKeys[i].bytes = BytesRef.EMPTY_BYTES;
+                batchKeys[i].offset = 0;
+                batchKeys[i].length = 0;
+            }
+            prefetchBarrier.consume(dummy);
             return builder.build();
         }
     }
@@ -212,26 +252,20 @@ final class BytesRefBlockHash extends BlockHash {
     }
 
     @Override
-    public BytesRefBlock[] getKeys() {
-        /*
-         * Create an un-owned copy of the data so we can close our BytesRefHash
-         * without and still read from the block.
-         */
+    public BytesRefBlock[] getKeys(IntVector selected) {
         // TODO replace with takeBytesRefsOwnership ?!
         final BytesRef spare = new BytesRef();
-        if (seenNull) {
-            try (var builder = blockFactory.newBytesRefBlockBuilder(Math.toIntExact(hash.size() + 1))) {
-                builder.appendNull();
-                for (long i = 0; i < hash.size(); i++) {
-                    builder.appendBytesRef(hash.get(i, spare));
+        try (BytesRefBlock.Builder builder = blockFactory.newBytesRefBlockBuilder(selected.getPositionCount())) {
+            for (int i = 0; i < selected.getPositionCount(); i++) {
+                int groupId = selected.getInt(i);
+                if (groupId == 0) {
+                    builder.appendNull();
+                } else {
+                    builder.appendBytesRef(hash.get(groupId - 1, spare));
                 }
-                return new BytesRefBlock[] { builder.build() };
             }
+            return new BytesRefBlock[] { builder.build() };
         }
-        var bytes = hash.getBytesRefs();
-        var bytesVector = blockFactory.newBytesRefArrayVector(bytes, Math.toIntExact(hash.size()));
-        bytes.incRef(); // increase the reference for bytesVector
-        return new BytesRefBlock[] { bytesVector.asBlock() };
     }
 
     @Override
@@ -255,6 +289,7 @@ final class BytesRefBlockHash extends BlockHash {
 
     @Override
     public void close() {
+        prefetchBarrier.flush();
         hash.close();
     }
 

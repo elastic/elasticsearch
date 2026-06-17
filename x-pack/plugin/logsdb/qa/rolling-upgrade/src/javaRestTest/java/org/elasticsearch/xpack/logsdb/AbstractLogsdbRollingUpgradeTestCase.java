@@ -81,10 +81,12 @@ public abstract class AbstractLogsdbRollingUpgradeTestCase extends ESRestTestCas
             try {
                 initClient();
                 onNodeUpgradeComplete.accept(count[0]++);
+                closeClients();
             } catch (Exception e) {
                 throw new RuntimeException(e);
             }
         });
+        initClient();
     }
 
     protected ElasticsearchCluster getCluster() {
@@ -139,5 +141,11 @@ public abstract class AbstractLogsdbRollingUpgradeTestCase extends ESRestTestCas
         var putIndexTemplateRequest = new Request("POST", "/_index_template/" + id);
         putIndexTemplateRequest.setJsonEntity(INDEX_TEMPLATE.replace("$TEMPLATE", template).replace("$DATASTREAM", dataStreamName));
         assertOK(client().performRequest(putIndexTemplateRequest));
+    }
+
+    @Override
+    protected final boolean resetFeatureStates() {
+        // /_features/_reset can fail on recently-upgraded clusters
+        return false;
     }
 }

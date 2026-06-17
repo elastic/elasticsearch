@@ -27,6 +27,7 @@ public class AggregateMetricDoubleFieldSerializerTests extends ESTestCase {
         var docIdBuffer = IntArrayList.from(0, 1, 2);
         var valuesInstance = createNumericValuesInstance(docIdBuffer, 55.0, 12.2, 5.5);
         producer.collect(valuesInstance, docIdBuffer);
+        assertThat(producer.isDone(), equalTo(false));
         try (XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent())) {
             builder.humanReadable(true).startObject();
             producer.write(builder);
@@ -140,6 +141,11 @@ public class AggregateMetricDoubleFieldSerializerTests extends ESTestCase {
             gaugeFieldSerializer.write(builder);
             builder.endObject();
             assertThat(Strings.toString(builder), equalTo("{\"my-gauge\":{\"max\":30.0,\"min\":10.0,\"sum\":30.0,\"value_count\":2.0}}"));
+        }
+        for (AggregateMetricDoubleFieldDownsampler producer : List.of(minProducer, maxProducer, sumProducer, countProducer)) {
+            assertThat(producer.isDone(), equalTo(true));
+            producer.reset();
+            assertThat(producer.isDone(), equalTo(false));
         }
     }
 

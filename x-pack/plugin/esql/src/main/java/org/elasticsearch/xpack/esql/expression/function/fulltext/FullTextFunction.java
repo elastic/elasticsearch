@@ -7,12 +7,12 @@
 
 package org.elasticsearch.xpack.esql.expression.function.fulltext;
 
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.lucene.IndexedByShardId;
 import org.elasticsearch.compute.lucene.query.LuceneQueryEvaluator;
 import org.elasticsearch.compute.lucene.query.LuceneQueryEvaluator.ShardConfig;
 import org.elasticsearch.compute.lucene.query.LuceneQueryExpressionEvaluator;
 import org.elasticsearch.compute.lucene.query.LuceneQueryScoreEvaluator;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.ScoreOperator;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -22,10 +22,13 @@ import org.elasticsearch.xpack.esql.capabilities.PostOptimizationVerificationAwa
 import org.elasticsearch.xpack.esql.capabilities.RewriteableAware;
 import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
 import org.elasticsearch.xpack.esql.common.Failures;
+import org.elasticsearch.xpack.esql.core.expression.Alias;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.expression.function.Function;
@@ -33,7 +36,7 @@ import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.core.tree.Node;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.type.MultiTypeEsField;
+import org.elasticsearch.xpack.esql.core.type.UnionTypeEsField;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.AbstractConvertFunction;
@@ -42,12 +45,20 @@ import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
+import org.elasticsearch.xpack.esql.plan.logical.Dedup;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
+import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
+import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
+import org.elasticsearch.xpack.esql.plan.logical.LimitBy;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
+import org.elasticsearch.xpack.esql.plan.logical.ParameterizedQuery;
+import org.elasticsearch.xpack.esql.plan.logical.Project;
+import org.elasticsearch.xpack.esql.plan.logical.Sample;
+import org.elasticsearch.xpack.esql.plan.logical.TopNBy;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
@@ -192,6 +203,10 @@ public abstract class FullTextFunction extends Function
         return FullTextFunction::checkFullTextQueryFunctions;
     }
 
+    protected boolean isRuntimeSearch() {
+        return false;
+    }
+
     /**
      * Checks full text query functions for invalid usage.
      *
@@ -260,7 +275,11 @@ public abstract class FullTextFunction extends Function
                         plan,
                         condition,
                         functionClass,
-                        lp -> (lp instanceof Filter || lp instanceof OrderBy || lp instanceof EsRelation),
+                        lp -> (lp instanceof Filter
+                            || lp instanceof OrderBy
+                            || lp instanceof EsRelation
+                            || lp instanceof ParameterizedQuery
+                            || lp instanceof Sample),
                         fullTextFunction -> "[" + fullTextFunction.functionName() + "] " + fullTextFunction.functionType(),
                         failures
                     );
@@ -274,7 +293,11 @@ public abstract class FullTextFunction extends Function
                 lp -> (lp instanceof Limit == false)
                     && (lp instanceof Aggregate == false)
                     && (lp instanceof UnionAll == false)
-                    && (lp instanceof MvExpand == false),
+                    && (lp instanceof MvExpand == false)
+                    && (lp instanceof Fork == false)
+                    && (lp instanceof LimitBy == false)
+                    && (lp instanceof TopNBy == false)
+                    && (lp instanceof Dedup == false),
                 m -> "[" + m.functionName() + "] " + m.functionType(),
                 failures
             );
@@ -325,14 +348,22 @@ public abstract class FullTextFunction extends Function
         Failures failures
     ) {
         condition.forEachDown(typeToken, exp -> {
+            if (exp instanceof FullTextFunction ftf && ftf.isRuntimeSearch()) {
+                return;
+            }
+
             plan.forEachDown(LogicalPlan.class, lp -> {
                 if (commandCheck.test(lp) == false) {
                     String sourceText = lp.sourceText();
-                    String errorMessage = sourceText.split(" ")[0].toUpperCase(Locale.ROOT);
-                    if (lp instanceof UnionAll) {
+                    String errorMessage;
+                    if (lp instanceof ExternalRelation) {
+                        errorMessage = "[" + sourceText + "]";
+                    } else if (lp instanceof UnionAll) {
                         errorMessage = sourceText.length() > Node.TO_STRING_MAX_WIDTH
                             ? sourceText.substring(0, Node.TO_STRING_MAX_WIDTH) + "..."
                             : sourceText;
+                    } else {
+                        errorMessage = sourceText.split(" ")[0].toUpperCase(Locale.ROOT);
                     }
                     failures.add(fail(plan, "{} cannot be used after {}", typeErrorMsgProvider.apply(exp), errorMessage));
                 }
@@ -395,8 +426,12 @@ public abstract class FullTextFunction extends Function
         if (Expressions.isGuaranteedNull(field)) {
             return;
         }
-        var fieldAttribute = fieldAsFieldAttribute(field);
+        var fieldAttribute = resolveToFieldAttribute(plan, field);
         if (fieldAttribute == null) {
+            if (function.isRuntimeSearch()) {
+                return;
+            }
+
             plan.forEachExpression(function.getClass(), m -> {
                 if (function.children().contains(field) && hasSubqueryInChildrenPlans(plan) == false) {
                     failures.add(
@@ -405,7 +440,7 @@ public abstract class FullTextFunction extends Function
                             "[{}] {} cannot operate on [{}], which is not a field from an index mapping",
                             m.functionName(),
                             m.functionType(),
-                            field.sourceText()
+                            field.sourceText().isEmpty() && field instanceof Attribute attr ? attr.name() : field.sourceText()
                         )
                     );
                 }
@@ -440,8 +475,98 @@ public abstract class FullTextFunction extends Function
         }
     }
 
+    /**
+     * Resolves the given field expression to a {@link FieldAttribute} by following rename alias chains
+     * through {@link Project} nodes in the plan.
+     */
+    private FieldAttribute resolveToFieldAttribute(LogicalPlan plan, Expression field) {
+        FieldAttribute fa = fieldAsFieldAttribute(field);
+        if (fa != null) {
+            return fa;
+        }
+
+        Expression fieldExpression = field;
+        if (fieldExpression instanceof AbstractConvertFunction convertFunction) {
+            fieldExpression = convertFunction.field();
+        }
+        if (fieldExpression instanceof Attribute == false) {
+            return null;
+        }
+
+        Holder<Attribute> current = new Holder<>((Attribute) fieldExpression);
+        Holder<FieldAttribute> resolved = new Holder<>();
+        plan.forEachDownMayReturnEarly((p, breakEarly) -> {
+            if (p instanceof Project project) {
+                for (NamedExpression ne : project.projections()) {
+                    if (ne instanceof Alias alias && alias.toAttribute().id().equals(current.get().id())) {
+                        FieldAttribute candidate = fieldAsFieldAttribute(alias.child());
+                        if (candidate != null) {
+                            resolved.set(candidate);
+                            breakEarly.set(true);
+                        } else if (alias.child() instanceof Attribute next) {
+                            current.set(next);
+                        } else {
+                            breakEarly.set(true);
+                        }
+                        return;
+                    }
+                }
+            }
+
+            // Fork's own output exposes ReferenceAttributes, so to reach the underlying
+            // FieldAttribute we look inside each branch's output and match by name.
+            if (p instanceof Fork fork) {
+                String currentName = current.get().name();
+                // resolve when current field is part of the Fork output
+                boolean inForkOutput = fork.output().stream().anyMatch(a -> a.id().equals(current.get().id()));
+                if (inForkOutput == false) {
+                    breakEarly.set(true);
+                    return;
+                }
+
+                // Every branch must contain this field, not just one
+                FieldAttribute candidate = null;
+                for (LogicalPlan branch : fork.children()) {
+                    FieldAttribute match = branch.output()
+                        .stream()
+                        .filter(a -> a.name().equals(currentName) && a instanceof FieldAttribute)
+                        .map(a -> (FieldAttribute) a)
+                        .findFirst()
+                        .orElse(null);
+                    if (match == null) {
+                        candidate = null;
+                        break;
+                    }
+                    candidate = match;
+                }
+                if (candidate != null) {
+                    resolved.set(candidate);
+                }
+                breakEarly.set(true);
+                return;
+            }
+
+            // Resolve the underlying FieldAttribute by stepping through MvExpand
+            // from its `expanded` output back to its `target`.
+            if (p instanceof MvExpand mvExpand && mvExpand.expanded().id().equals(current.get().id())) {
+                FieldAttribute candidate = fieldAsFieldAttribute(mvExpand.target());
+                if (candidate != null) {
+                    resolved.set(candidate);
+                    breakEarly.set(true);
+                } else if (mvExpand.target() instanceof Attribute next) {
+                    current.set(next);
+                } else {
+                    breakEarly.set(true);
+                }
+                return;
+            }
+
+        });
+        return resolved.get();
+    }
+
     @Override
-    public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
+    public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         return new LuceneQueryExpressionEvaluator.Factory(toShardConfigs(toEvaluator.shardContexts()));
     }
 
@@ -465,13 +590,13 @@ public abstract class FullTextFunction extends Function
         return contexts.map(sc -> new ShardConfig(sc.toQuery(evaluatorQueryBuilder()), sc.searcher()));
     }
 
-    // TODO: this should likely be replaced by calls to FieldAttribute#fieldName; the MultiTypeEsField case looks
-    // wrong if `fieldAttribute` is a subfield, e.g. `parent.child` - multiTypeEsField#getName will just return `child`.
+    // TODO: this should likely be replaced by calls to FieldAttribute#fieldName; the UnionTypeEsField case looks
+    // wrong if `fieldAttribute` is a subfield, e.g. `parent.child` - EsField#getName will just return `child`.
     protected String getNameFromFieldAttribute(FieldAttribute fieldAttribute) {
         String fieldName = fieldAttribute.name();
-        if (fieldAttribute.field() instanceof MultiTypeEsField multiTypeEsField) {
-            // If we have multiple field types, we allow the query to be done, but getting the underlying field name
-            fieldName = multiTypeEsField.getName();
+        if (fieldAttribute.field() instanceof UnionTypeEsField unionTypeEsField) {
+            // If we have multiple field types, we allow the query to be done, but get the underlying field name
+            fieldName = unionTypeEsField.getName();
         }
         return fieldName;
     }
@@ -503,6 +628,11 @@ public abstract class FullTextFunction extends Function
                 checkFullTextFunctionsInFilter(f, failures, true);
             }
         };
+    }
+
+    @Override
+    public boolean requiresQueryBuilderRewrite() {
+        return false == isRuntimeSearch();
     }
 
     /**

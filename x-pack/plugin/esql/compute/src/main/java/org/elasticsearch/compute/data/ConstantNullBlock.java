@@ -9,6 +9,7 @@ package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.common.bytes.PagedBytesCursor;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.ReleasableIterator;
@@ -87,13 +88,32 @@ public final class ConstantNullBlock extends AbstractNonThreadSafeRefCounted
     }
 
     @Override
+    public int valueMaxByteSize() {
+        return 0;
+    }
+
+    @Override
+    public ConstantNullBlock filter(boolean mayContainDuplicates, int[] positions, int offset, int length) {
+        return (ConstantNullBlock) blockFactory().newConstantNullBlock(length);
+    }
+
+    @Override
     public ConstantNullBlock filter(boolean mayContainDuplicates, int... positions) {
-        return (ConstantNullBlock) blockFactory().newConstantNullBlock(positions.length);
+        return filter(mayContainDuplicates, positions, 0, positions.length);
     }
 
     @Override
     public ConstantNullBlock deepCopy(BlockFactory blockFactory) {
         return (ConstantNullBlock) blockFactory.newConstantNullBlock(positionCount);
+    }
+
+    @Override
+    public ConstantNullBlock slice(int beginInclusive, int endExclusive) {
+        if (beginInclusive == 0 && endExclusive == getPositionCount()) {
+            incRef();
+            return this;
+        }
+        return (ConstantNullBlock) blockFactory().newConstantNullBlock(endExclusive - beginInclusive);
     }
 
     @Override
@@ -283,6 +303,12 @@ public final class ConstantNullBlock extends AbstractNonThreadSafeRefCounted
     }
 
     @Override
+    public PagedBytesCursor get(int valueIndex, PagedBytesCursor scratch) {
+        assert false : "null block";
+        throw new UnsupportedOperationException("null block");
+    }
+
+    @Override
     public float getFloat(int valueIndex) {
         assert false : "null block";
         throw new UnsupportedOperationException("null block");
@@ -319,7 +345,13 @@ public final class ConstantNullBlock extends AbstractNonThreadSafeRefCounted
     }
 
     @Override
-    public TDigestHolder getTDigestHolder(int valueIndex) {
+    public TDigestHolder getTDigestHolder(int valueIndex, TDigestHolder scratch) {
+        assert false : "null block";
+        throw new UnsupportedOperationException("null block");
+    }
+
+    @Override
+    public LongRangeBlockBuilder.LongRange getLongRange(int valueIndex, LongRangeBlockBuilder.LongRange scratch) {
         assert false : "null block";
         throw new UnsupportedOperationException("null block");
     }

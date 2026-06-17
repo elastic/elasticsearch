@@ -29,13 +29,14 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-public class MetadataAttribute extends TypedAttribute {
+public final class MetadataAttribute extends TypedAttribute {
     public static final String TIMESTAMP_FIELD = "@timestamp"; // this is not a true metadata attribute
     public static final String TSID_FIELD = "_tsid";
     public static final String SCORE = "_score";
     public static final String INDEX = "_index";
     public static final String TIMESERIES = "_timeseries";
     public static final String SIZE = "_size";
+    public static final String DOC = "_doc";
 
     static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Attribute.class,
@@ -191,8 +192,12 @@ public class MetadataAttribute extends TypedAttribute {
         return a instanceof MetadataAttribute ma && ma.name().equals(SCORE);
     }
 
+    public static boolean isTimeSeriesAttributeName(String name) {
+        return TIMESERIES.equals(name);
+    }
+
     public static boolean isTimeSeriesAttribute(Expression a) {
-        return a instanceof Attribute ma && ma.name().equals(TIMESERIES);
+        return a instanceof TimeSeriesMetadataAttribute || a instanceof NamedExpression named && isTimeSeriesAttributeName(named.name());
     }
 
     @Override

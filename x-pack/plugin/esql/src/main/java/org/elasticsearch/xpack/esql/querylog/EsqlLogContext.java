@@ -7,21 +7,30 @@
 
 package org.elasticsearch.xpack.esql.querylog;
 
-import org.elasticsearch.common.logging.activity.ActivityLoggerContext;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.logging.activity.QueryLoggerContext;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlQueryProfile;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 
+import java.util.Arrays;
+import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
 
-public class EsqlLogContext extends ActivityLoggerContext {
+public class EsqlLogContext extends QueryLoggerContext {
     public static final String TYPE = "esql";
     private final EsqlQueryRequest request;
     private final @Nullable EsqlQueryResponse response;
+    // Cached index names
+    private String[] indexNames = null;
 
     EsqlLogContext(Task task, EsqlQueryRequest request, EsqlQueryResponse response) {
         super(task, TYPE, response.getExecutionInfo().overallTook().nanos());
@@ -35,8 +44,9 @@ public class EsqlLogContext extends ActivityLoggerContext {
         this.response = null;
     }
 
-    String getQuery() {
-        return request.query();
+    @Override
+    public String getQuery() {
+        return request.queryDescription();
     }
 
     public Optional<ShardInfo> shardInfo() {
@@ -48,21 +58,86 @@ public class EsqlLogContext extends ActivityLoggerContext {
         AtomicInteger skippedShards = new AtomicInteger(0);
         AtomicInteger failedShards = new AtomicInteger(0);
         info.getClusters().forEach((alias, clusterInfo) -> {
-            successShards.addAndGet(clusterInfo.getSuccessfulShards());
-            skippedShards.addAndGet(clusterInfo.getSkippedShards());
-            failedShards.addAndGet(clusterInfo.getFailedShards());
+            successShards.addAndGet(Objects.requireNonNullElse(clusterInfo.getSuccessfulShards(), 0));
+            skippedShards.addAndGet(Objects.requireNonNullElse(clusterInfo.getSkippedShards(), 0));
+            failedShards.addAndGet(Objects.requireNonNullElse(clusterInfo.getFailedShards(), 0));
         });
         return new ShardInfo(successShards.get(), skippedShards.get(), failedShards.get());
     }
 
-    long getHits() {
+    @Override
+    public int getResultCount() {
         if (response == null) {
             return 0;
         }
-        return response.getRowCount();
+        return Math.clamp(response.getRowCount(), 0, Integer.MAX_VALUE);
     }
 
     Optional<EsqlQueryProfile> getQueryProfile() {
         return Optional.ofNullable(response).map(it -> it.getExecutionInfo().queryProfile());
+    }
+
+    /**
+     * Returns the response-root rollup counters for the slow-log walk, or {@link Optional#empty()}
+     * when no response is available (failure paths). These values mirror what appears under
+     * {@code profile.*} when {@code profile=true}, but are surfaced unconditionally so the slow log
+     * carries the same per-query cost signal regardless of whether the caller asked for a profile.
+     */
+    Optional<RollupCounters> getRollupCounters() {
+        if (response == null) {
+            return Optional.empty();
+        }
+        return Optional.of(
+            new RollupCounters(
+                response.documentsFound(),
+                response.valuesLoaded(),
+                response.rowsEmitted(),
+                response.bytesRead(),
+                response.readNanos(),
+                response.cpuNanos()
+            )
+        );
+    }
+
+    /** Snapshot of the query-level rollup counters surfaced into the slow log. */
+    record RollupCounters(long documentsFound, long valuesLoaded, long rowsEmitted, long bytesRead, long readNanos, long cpuNanos) {}
+
+    @Override
+    public String[] getIndices() {
+        if (response == null) {
+            return null;
+        }
+        if (indexNames != null) {
+            return indexNames;
+        }
+        indexNames = response.getExecutionInfo()
+            .getClusters()
+            .values()
+            .stream()
+            .flatMap(
+                cluster -> Arrays.stream(Strings.splitStringByCommaToArray(cluster.getIndexExpression()))
+                    .map(ind -> RemoteClusterAware.buildRemoteIndexName(cluster.getClusterAlias(), ind))
+            )
+            .toArray(String[]::new);
+        return indexNames;
+    }
+
+    // CCS stuff
+
+    @Override
+    public Map<String, String> getClusters() {
+        if (response == null) {
+            return Map.of();
+        }
+        return response.getExecutionInfo()
+            .getClusters()
+            .entrySet()
+            .stream()
+            .collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().getStatus().toString()));
+    }
+
+    @Override
+    protected QueryBuilder queryFilter() {
+        return request.filter();
     }
 }

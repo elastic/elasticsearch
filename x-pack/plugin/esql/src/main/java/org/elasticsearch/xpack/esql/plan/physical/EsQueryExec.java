@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
+import org.elasticsearch.xpack.esql.core.tree.NodeStringMapper;
 import org.elasticsearch.xpack.esql.core.tree.NodeUtils;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -31,7 +32,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-public class EsQueryExec extends LeafExec implements EstimatesRowSize {
+public class EsQueryExec extends LeafExec implements EstimatesRowSize, DataSourceExec {
     public static final EsField DOC_ID_FIELD = new EsField(
         "_doc",
         DataType.DOC_DATA_TYPE,
@@ -166,6 +167,7 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
         throw new UnsupportedOperationException("not serialized");
     }
 
+    // TODO: Move this to DataType
     public static boolean isDocAttribute(Attribute attr) {
         // While the user can create columns with the same name as DOC_ID_FIELD, they cannot create a field with the DOC_DATA_TYPE.
         return attr.typeResolved().resolved() && attr.dataType() == DataType.DOC_DATA_TYPE;
@@ -347,24 +349,20 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
     }
 
     @Override
-    public String nodeString(NodeStringFormat format) {
-        return nodeName()
-            + "["
-            + indexPattern
-            + "], "
-            + "indexMode["
-            + indexMode
-            + "], "
-            + NodeUtils.toString(attrs, format)
-            + ", limit["
-            + (limit != null ? limit.toString(format) : "")
-            + "], sort["
-            + (sorts != null ? sorts.toString() : "")
-            + "] estimatedRowSize["
-            + estimatedRowSize
-            + "] queryBuilderAndTags ["
-            + (queryBuilderAndTags != null ? queryBuilderAndTags.toString() : "")
-            + "]";
+    public void nodeString(StringBuilder sb, NodeStringFormat format, NodeStringMapper mapper) {
+        sb.append(nodeName()).append('[').append(mapper.index(indexPattern)).append("], indexMode[").append(indexMode).append("], ");
+        NodeUtils.toString(sb, attrs, format, mapper);
+        sb.append(", limit[").append(limit != null ? limit.toString(format) : "").append("], ");
+        // Sorts and queryBuilderAndTags both carry raw user content (sort keys, Lucene-pushdown
+        // DSL); route them through the opaque mapper so they render raw under identity and redact
+        // under an anonymizing mapper, with no identity branch.
+        sb.append("sort[")
+            .append(mapper.opaque(sorts != null ? sorts.toString() : ""))
+            .append("] estimatedRowSize[")
+            .append(estimatedRowSize)
+            .append("] queryBuilderAndTags [")
+            .append(mapper.opaque(queryBuilderAndTags != null ? queryBuilderAndTags.toString() : ""))
+            .append(']');
     }
 
     public enum Direction {

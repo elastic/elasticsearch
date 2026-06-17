@@ -26,6 +26,8 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.CharArrays;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.Text;
 import org.elasticsearch.xcontent.XContentString;
@@ -1260,6 +1262,27 @@ public abstract class StreamInput extends InputStream {
     }
 
     /**
+     * Similar to {@link StreamInput#readCollectionAsList}, except this also releases the intermediate list if any exception occurs while
+     * reading.
+     */
+    public <T extends Releasable> List<T> readReleasableCollectionAsList(Writeable.Reader<T> reader) throws IOException {
+        int count = readArraySize();
+        ArrayList<T> result = new ArrayList<>(count);
+        boolean success = false;
+        try {
+            for (int i = 0; i < count; i++) {
+                result.add(reader.read(this));
+            }
+            success = true;
+            return result;
+        } finally {
+            if (success == false) {
+                Releasables.close(result);
+            }
+        }
+    }
+
+    /**
      * Reads a list of objects which was written using {@link StreamOutput#writeCollection}. The returned list is immutable.
      */
     public <T> List<T> readCollectionAsImmutableList(final Writeable.Reader<T> reader) throws IOException {
@@ -1353,6 +1376,19 @@ public abstract class StreamInput extends InputStream {
      */
     public <T extends NamedWriteable> List<T> readNamedWriteableCollectionAsList(Class<T> categoryClass) throws IOException {
         throw new UnsupportedOperationException("can't read named writeable from StreamInput");
+    }
+
+    /**
+     * Reads a possibly-{@code null} list of {@link NamedWriteable}s
+     * which was written using {@link StreamOutput#writeOptionalNamedWriteableCollection(Collection)}.
+     * If the returned list contains any entries it will be a (mutable) {@link ArrayList}. If it is empty it might be immutable.
+     */
+    @Nullable
+    public <T extends NamedWriteable> List<T> readOptionalNamedWriteableCollectionAsList(Class<T> categoryClass) throws IOException {
+        if (readBoolean()) {
+            return readNamedWriteableCollectionAsList(categoryClass);
+        }
+        return null;
     }
 
     /**

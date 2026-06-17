@@ -49,6 +49,10 @@ public class MappingBuilder {
         return rootBuilder;
     }
 
+    public MetadataFieldMapper.Builder metadataBuilder(String name) {
+        return metadataBuilders.get(name);
+    }
+
     /**
      * Merges another {@link MappingBuilder} into this one, mutating this builder in place.
      *
@@ -109,7 +113,9 @@ public class MappingBuilder {
 
     private boolean isSourceSynthetic() {
         MetadataFieldMapper.Builder builder = metadataBuilders.get(SourceFieldMapper.NAME);
-        return builder instanceof SourceFieldMapper.Builder sfb && sfb.isSynthetic();
+        // columnar_stored pre-computes the synthetic source at indexing time, so mappers must
+        // prepare the same fallback storage (doc values, stored fields) they would in synthetic mode.
+        return builder instanceof SourceFieldMapper.Builder sfb && (sfb.isSynthetic() || sfb.isColumnarStored());
     }
 
     private boolean isDataStream() {

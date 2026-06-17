@@ -194,7 +194,11 @@ public class LuceneSourceOperatorTests extends SourceOperatorTestCase {
         void assertSourceOperator(LuceneSourceOperator sourceOperator) {
             for (int shard = 0; shard < sourceOperator.refCounteds.size(); shard++) {
                 var shardContext = sourceOperator.getSliceQueue().shardContext(shard);
-                assertThat(shardContext.stats().stats().getTotal().getSearchLoadRate(), greaterThan(0d));
+                if (shardContext.searcher().getIndexReader().maxDoc() > 0) {
+                    assertThat(shardContext.stats().stats().getTotal().getSearchLoadRate(), greaterThan(0d));
+                } else {
+                    assertThat(shardContext.stats().stats().getTotal().getSearchLoadRate(), equalTo(0d));
+                }
             }
         }
     }
@@ -246,10 +250,12 @@ public class LuceneSourceOperatorTests extends SourceOperatorTestCase {
             queryFunction,
             dataPartitioning,
             DataPartitioning.AutoStrategy.DEFAULT,
+            LuceneOperator.SMALL_INDEX_BOUNDARY,
             taskConcurrency,
             maxPageSize,
             limit,
-            scoring
+            scoring,
+            () -> 0L
         );
     }
 
@@ -451,10 +457,12 @@ public class LuceneSourceOperatorTests extends SourceOperatorTestCase {
                 queryFunction,
                 DataPartitioning.SEGMENT,
                 DataPartitioning.AutoStrategy.DEFAULT,
+                LuceneOperator.SMALL_INDEX_BOUNDARY,
                 taskConcurrency,
                 maxPageSize,
                 LuceneOperator.NO_LIMIT,
-                scoring
+                scoring,
+                () -> 0L
             );
             DriverContext ctx = driverContext();
             LuceneSourceOperator sourceOperator = (LuceneSourceOperator) factory.get(ctx);
@@ -564,6 +572,7 @@ public class LuceneSourceOperatorTests extends SourceOperatorTestCase {
             boolean asUnsupportedSource,
             MappedFieldType.FieldExtractPreference fieldExtractPreference,
             BlockLoaderFunctionConfig blockLoaderFunctionConfig,
+            org.elasticsearch.index.mapper.blockloader.Warnings warnings,
             ByteSizeValue blockLoaderSizeOrdinals,
             ByteSizeValue blockLoaderSizeScript
         ) {

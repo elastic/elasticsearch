@@ -62,6 +62,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.VersionType;
+import org.elasticsearch.iplocation.api.IpLocationService;
 import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.Script;
@@ -72,6 +73,7 @@ import org.elasticsearch.script.TemplateScript;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.useragent.api.UserAgentParserRegistry;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentType;
@@ -165,6 +167,8 @@ public class IngestServiceTests extends ESTestCase {
             List.of(DUMMY_PLUGIN),
             client,
             null,
+            UserAgentParserRegistry.NOOP,
+            IpLocationService.NOOP,
             FailureStoreMetrics.NOOP,
             TestProjectResolvers.alwaysThrow(),
             new FeatureService(List.of()) {
@@ -192,6 +196,8 @@ public class IngestServiceTests extends ESTestCase {
                 List.of(DUMMY_PLUGIN, DUMMY_PLUGIN),
                 client,
                 null,
+                UserAgentParserRegistry.NOOP,
+                IpLocationService.NOOP,
                 FailureStoreMetrics.NOOP,
                 TestProjectResolvers.alwaysThrow(),
                 new FeatureService(List.of()) {
@@ -216,6 +222,8 @@ public class IngestServiceTests extends ESTestCase {
             List.of(DUMMY_PLUGIN),
             client,
             null,
+            UserAgentParserRegistry.NOOP,
+            IpLocationService.NOOP,
             FailureStoreMetrics.NOOP,
             TestProjectResolvers.alwaysThrow(),
             new FeatureService(List.of()) {
@@ -1238,7 +1246,7 @@ public class IngestServiceTests extends ESTestCase {
             ingestInfos.put(node1, new IngestInfo(List.of(new ProcessorInfo("set"))));
             final String name = randomAlphaOfLength(5) + badChar + randomAlphaOfLength(5);
             ingestService.validatePipeline(ingestInfos, projectId, name, pipelineConfig);
-            assertCriticalWarnings(
+            assertWarnings(
                 "Pipeline name ["
                     + name
                     + "] will be disallowed in a future version for the following reason: must not contain the following characters"
@@ -2651,6 +2659,8 @@ public class IngestServiceTests extends ESTestCase {
             List.of(testPlugin),
             client,
             null,
+            UserAgentParserRegistry.NOOP,
+            IpLocationService.NOOP,
             FailureStoreMetrics.NOOP,
             TestProjectResolvers.alwaysThrow(),
             new FeatureService(List.of()) {
@@ -3158,6 +3168,8 @@ public class IngestServiceTests extends ESTestCase {
             List.of(DUMMY_PLUGIN),
             client,
             null,
+            UserAgentParserRegistry.NOOP,
+            IpLocationService.NOOP,
             FailureStoreMetrics.NOOP,
             TestProjectResolvers.alwaysThrow(),
             new FeatureService(List.of()) {
@@ -3489,6 +3501,8 @@ public class IngestServiceTests extends ESTestCase {
             }),
             client,
             null,
+            UserAgentParserRegistry.NOOP,
+            IpLocationService.NOOP,
             FailureStoreMetrics.NOOP,
             TestProjectResolvers.alwaysThrow(),
             new FeatureService(List.of()) {

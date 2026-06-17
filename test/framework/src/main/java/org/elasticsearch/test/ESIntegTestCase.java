@@ -17,12 +17,16 @@ import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 
 import org.apache.http.HttpHost;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.tests.util.LuceneTestCase;
+import org.apache.lucene.util.Bits;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
@@ -47,6 +51,7 @@ import org.elasticsearch.action.admin.indices.segments.IndexSegments;
 import org.elasticsearch.action.admin.indices.segments.IndexShardSegments;
 import org.elasticsearch.action.admin.indices.segments.IndicesSegmentResponse;
 import org.elasticsearch.action.admin.indices.segments.ShardSegments;
+import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequest;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequestBuilder;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequestBuilder;
@@ -83,6 +88,7 @@ import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.ClusterInfoServiceUtils;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.InternalClusterInfoService;
 import org.elasticsearch.cluster.coordination.ElasticsearchNodeCommand;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
@@ -102,10 +108,10 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.network.NetworkModule;
@@ -118,6 +124,7 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.MockBigArrays;
+import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -136,7 +143,9 @@ import org.elasticsearch.http.HttpInfo;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexModule;
+import org.elasticsearch.index.IndexSettingProvider;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.MergePolicyConfig;
 import org.elasticsearch.index.MergeSchedulerConfig;
@@ -144,12 +153,9 @@ import org.elasticsearch.index.MockEngineFactoryPlugin;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.engine.DocIdSeqNoAndSource;
 import org.elasticsearch.index.engine.Engine;
-import org.elasticsearch.index.engine.EngineTestCase;
-import org.elasticsearch.index.engine.LuceneChangesSnapshot;
-import org.elasticsearch.index.engine.LuceneSyntheticSourceChangesSnapshot;
+import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.NoOpEngine;
 import org.elasticsearch.index.engine.ReadOnlyEngine;
-import org.elasticsearch.index.engine.SearchBasedChangesSnapshot;
 import org.elasticsearch.index.engine.Segment;
 import org.elasticsearch.index.engine.ThreadPoolMergeScheduler;
 import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
@@ -157,7 +163,8 @@ import org.elasticsearch.index.mapper.IdLoader;
 import org.elasticsearch.index.mapper.MockFieldFilterPlugin;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMetrics;
-import org.elasticsearch.index.mapper.Uid;
+import org.elasticsearch.index.mapper.VersionFieldMapper;
+import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogStats;
@@ -165,7 +172,6 @@ import org.elasticsearch.indices.IndicesQueryCache;
 import org.elasticsearch.indices.IndicesRequestCache;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
-import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.indices.store.IndicesStore;
 import org.elasticsearch.ingest.IngestPipelineTestUtils;
 import org.elasticsearch.monitor.jvm.HotThreads;
@@ -218,6 +224,7 @@ import java.lang.annotation.Target;
 import java.net.InetSocketAddress;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -923,7 +930,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
             }
             return dataStream.getDataStreamIndices(failureStore).getIndices().size() == expectedSize;
         });
-        safeAwait(listener);
+        safeAwait(listener, TimeValue.timeValueSeconds(30));
         final var backingIndexNames = getDataStreamBackingIndexNames(dataStreamName, failureStore);
         assertEquals(
             Strings.format(
@@ -1082,6 +1089,10 @@ public abstract class ESIntegTestCase extends ESTestCase {
         return ensureGreen(TimeValue.timeValueSeconds(30), indices);
     }
 
+    public ClusterHealthStatus ensureGreenAndNoInitializingShards(String... indices) {
+        return ensureColor(ClusterHealthStatus.GREEN, TimeValue.timeValueSeconds(30), true, indices);
+    }
+
     /**
      * Ensures the cluster has a green state via the cluster health API. This method will also wait for relocations.
      * It is useful to ensure that all action on the cluster have finished and all shards that were currently relocating
@@ -1187,9 +1198,9 @@ public abstract class ESIntegTestCase extends ESTestCase {
             logger.info(
                 "{} timed out\nallocation explain:\n{}\ncluster state:\n{}\npending tasks:\n{}\nhot threads:\n{}\n",
                 method,
-                safeFormat(allocationExplainRef.get(), r -> Strings.toString(r.getExplanation(), true, true)),
+                safeFormat(allocationExplainRef.get(), r -> Strings.toTruncatedString(r.getExplanation(), true, true)),
                 safeFormat(clusterStateRef.get(), r -> r.getState().toString()),
-                safeFormat(pendingTasksRef.get(), r -> Strings.toString(r, true, true)),
+                safeFormat(pendingTasksRef.get(), r -> Strings.toTruncatedString(r, true, true)),
                 hotThreadsRef.get()
             );
             fail("timed out waiting for " + color + " state");
@@ -1253,10 +1264,19 @@ public abstract class ESIntegTestCase extends ESTestCase {
         }
     }
 
+    /**
+     * Blocks until the elected master applies a {@link ClusterState} matching {@code statePredicate}. Registers a temporary
+     * {@link ClusterStateListener} instead of busy-polling on the test thread.
+     * Prefer this over {@link ESTestCase#assertBusy(CheckedRunnable)} when the wait condition only inspects cluster state.
+     */
     public static void awaitClusterState(Predicate<ClusterState> statePredicate) {
         awaitClusterState(internalCluster().getMasterName(), statePredicate);
     }
 
+    /**
+     * Blocks until {@code viaNode} applies a {@link ClusterState} matching {@code statePredicate}.
+     * See {@link #awaitClusterState(Predicate)} for general usage.
+     */
     public static void awaitClusterState(String viaNode, Predicate<ClusterState> statePredicate) {
         ClusterServiceUtils.awaitClusterState(statePredicate, internalCluster().getInstance(ClusterService.class, viaNode));
     }
@@ -1341,8 +1361,6 @@ public abstract class ESIntegTestCase extends ESTestCase {
         return shard.withEngineException(engine -> getLiveDocs(engine, true));
     }
 
-    private static final String NULL_ID = "<null id>";
-
     /**
      * Returns all live documents of the engine as {@link DocIdSeqNoAndSource}.
      *
@@ -1369,163 +1387,88 @@ public abstract class ESIntegTestCase extends ESTestCase {
         // Here we set up a source loader similar to what search fetch phase use to force loading the source, or id, before comparing docs.
         final var sourceLoader = mapperService.mappingLookup().newSourceLoader(null, SourceFieldMetrics.NOOP);
         final var storedFieldLoader = StoredFieldLoader.create(true, sourceLoader.requiredStoredFields());
-        final TriFunction<BytesReference, LeafReaderContext, Integer, BytesReference> forceLoadingSource = (src, leaf, segmentDocID) -> {
-            if (src != null || sourceEnabled == false) {
-                return src;
-            }
-            try {
-                var leafLoader = storedFieldLoader.getLoader(leaf, null);
-                leafLoader.advanceTo(segmentDocID);
-                src = sourceLoader.leaf(leaf.reader(), new int[] { segmentDocID }).source(leafLoader, segmentDocID).internalSourceRef();
-                assert src != null;
-                assert src.length() > 0;
-                return src;
-            } catch (IOException ioe) {
-                throw new AssertionError(ioe);
-            }
-        };
 
         // Some indices merge away the _id field
         final var pruneIdField = engineConfig.getIndexSettings().getMode() == IndexMode.TIME_SERIES;
-
         final var idLoader = IdLoader.create(mapperService.getIndexSettings(), mapperService.mappingLookup());
-        final TriFunction<String, LeafReaderContext, Integer, String> forceLoadingId = (id, leaf, segmentDocID) -> {
-            if (id != null) {
-                return id;
-            } else if (pruneIdField == false) {
-                throw new AssertionError("Document has a null value for _id field, but ids are not merged away");
-            }
-            try {
-                var leafLoader = storedFieldLoader.getLoader(leaf, null);
-                leafLoader.advanceTo(segmentDocID);
-                id = idLoader.leaf(leafLoader, leaf.reader(), new int[] { segmentDocID }).getId(segmentDocID);
-                assert id != null;
-                assert id.isEmpty() == false;
-                return id;
-            } catch (IOException ioe) {
-                throw new AssertionError(ioe);
-            }
-        };
 
-        Engine.Searcher searcher = engine.acquireSearcher(reason, Engine.SearcherScope.INTERNAL);
-        try {
-            Translog.Snapshot snapshot = null;
-            try {
-                if (engineConfig.getIndexSettings().isRecoverySourceSyntheticEnabled()) {
-                    snapshot = new LuceneSyntheticSourceChangesSnapshot(
-                        mapperService,
-                        searcher,
-                        SearchBasedChangesSnapshot.DEFAULT_BATCH_SIZE,
-                        RecoverySettings.DEFAULT_CHUNK_SIZE.getBytes(),
-                        0L,
-                        Long.MAX_VALUE,
-                        false,
-                        true
-                    ) {
-                        @Override
-                        protected IndexSearcher createIndexSearcher(Engine.Searcher engineSearcher) {
-                            return new IndexSearcher(engineSearcher.getDirectoryReader()); // Return only live docs, not all docs
-                        }
+        // Some integration tests merge away the _seq_no field, in which case this method sets all _seq_no to UNASSIGNED_SEQ_NO
+        final boolean seqNoDisabled = engineConfig.getIndexSettings().sequenceNumbersDisabled();
+        assert seqNoDisabled == false
+            || engineConfig.getIndexSettings().seqNoIndexOptions().equals(SeqNoFieldMapper.SeqNoIndexOptions.DOC_VALUES_ONLY);
 
-                        @Override
-                        protected boolean skipDocsWithNullSource() {
-                            return false; // Return docs with null source too
-                        }
+        final var docs = new ArrayList<DocIdSeqNoAndSource>();
+        try (var searcher = engine.acquireSearcher(reason, Engine.SearcherScope.INTERNAL)) {
+            final var reader = searcher.getDirectoryReader();
+            for (LeafReaderContext leaf : reader.leaves()) {
+                final var leafReader = leaf.reader();
+                final Bits liveDocs = leafReader.getLiveDocs();
+                final int maxDoc = leafReader.maxDoc();
 
-                        @Override
-                        protected String overrideId(String id, LeafReaderContext leaf, int segmentDocID) {
-                            return forceLoadingId.apply(id, leaf, segmentDocID);
-                        }
-
-                        @Override
-                        protected BytesReference overrideSource(BytesReference source, LeafReaderContext leaf, int segmentDocID) {
-                            return forceLoadingSource.apply(source, leaf, segmentDocID);
-                        }
-                    };
-                } else {
-                    snapshot = new LuceneChangesSnapshot(
-                        mapperService,
-                        searcher,
-                        SearchBasedChangesSnapshot.DEFAULT_BATCH_SIZE,
-                        0L,
-                        Long.MAX_VALUE,
-                        false,
-                        true,
-                        true
-                    ) {
-                        @Override
-                        protected IndexSearcher createIndexSearcher(Engine.Searcher engineSearcher) {
-                            return new IndexSearcher(engineSearcher.getDirectoryReader()); // Return only live docs, not all docs
-                        }
-
-                        @Override
-                        protected boolean skipDocsWithNullSource() {
-                            return false; // Return docs with null source too
-                        }
-
-                        @Override
-                        protected String overrideId(String id, LeafReaderContext leaf, int segmentDocID) {
-                            return forceLoadingId.apply(id, leaf, segmentDocID);
-                        }
-
-                        @Override
-                        protected BytesReference overrideSource(BytesReference source, LeafReaderContext leaf, int segmentDocID) {
-                            return forceLoadingSource.apply(source, leaf, segmentDocID);
-                        }
-                    };
+                var segmentDocIds = new ArrayList<Integer>();
+                // Only collect root documents; nested documents lack _primary_term doc values
+                var primaryTermDocValues = leafReader.getNumericDocValues(SeqNoFieldMapper.PRIMARY_TERM_NAME);
+                if (primaryTermDocValues == null) {
+                    continue;
                 }
-                if (snapshot.totalOperations() == 0) {
-                    return List.of();
-                }
-
-                final var docs = new ArrayList<DocIdSeqNoAndSource>(snapshot.totalOperations());
-                Translog.Operation operation;
-                while ((operation = snapshot.next()) != null) {
-                    DocIdSeqNoAndSource doc;
-                    switch (operation.opType()) {
-                        case CREATE:
-                        case INDEX:
-                            final var indexOp = ESTestCase.asInstanceOf(Translog.Index.class, operation);
-                            doc = new DocIdSeqNoAndSource(
-                                Uid.decodeId(indexOp.uid()),
-                                sourceEnabled && indexOp.source() != null ? indexOp.source().toBytesRef() : null,
-                                indexOp.seqNo(),
-                                indexOp.primaryTerm(),
-                                indexOp.version()
-                            );
-                            break;
-                        case DELETE:
-                            final var deleteOp = ESTestCase.asInstanceOf(Translog.Delete.class, operation);
-                            doc = new DocIdSeqNoAndSource(
-                                Uid.decodeId(deleteOp.uid()),
-                                null,
-                                deleteOp.seqNo(),
-                                deleteOp.primaryTerm(),
-                                deleteOp.version()
-                            );
-                            break;
-                        case NO_OP:
-                            continue;
-                        default:
-                            throw new AssertionError("Unsupported operation type " + operation.opType());
+                for (int docId = 0; docId < maxDoc; docId++) {
+                    if (liveDocs != null && liveDocs.get(docId) == false) {
+                        continue;
                     }
-                    docs.add(doc);
+                    if (primaryTermDocValues.advanceExact(docId)) {
+                        segmentDocIds.add(docId);
+                    }
                 }
-                docs.sort(
-                    Comparator.comparingLong(DocIdSeqNoAndSource::seqNo)
-                        .thenComparingLong(DocIdSeqNoAndSource::primaryTerm)
-                        .thenComparing((DocIdSeqNoAndSource::id))
-                );
-                return docs;
-            } finally {
-                if (snapshot != null) {
-                    IOUtils.close(snapshot);
-                    searcher = null;
+                if (segmentDocIds.isEmpty()) {
+                    continue;
+                }
+
+                int[] docIdsArray = segmentDocIds.stream().mapToInt(Integer::intValue).toArray();
+                var leafStoredFieldLoader = storedFieldLoader.getLoader(leaf, docIdsArray);
+                var leafSourceLoader = sourceLoader.leaf(leafReader, docIdsArray);
+                var leafIdLoader = idLoader.leaf(leafStoredFieldLoader, leafReader, docIdsArray);
+
+                primaryTermDocValues = leafReader.getNumericDocValues(SeqNoFieldMapper.PRIMARY_TERM_NAME);
+                final NumericDocValues seqNoDocValues = seqNoDisabled ? null : leafReader.getNumericDocValues(SeqNoFieldMapper.NAME);
+                final NumericDocValues versionDocValues = leafReader.getNumericDocValues(VersionFieldMapper.NAME);
+
+                for (int docId : docIdsArray) {
+                    leafStoredFieldLoader.advanceTo(docId);
+
+                    final var id = leafIdLoader.getId(docId);
+                    if (id == null && pruneIdField == false) {
+                        throw new AssertionError("Document has a null _id but ids are not merged away");
+                    }
+
+                    BytesRef source = null;
+                    if (sourceEnabled) {
+                        var src = leafSourceLoader.source(leafStoredFieldLoader, docId).internalSourceRef();
+                        source = src != null ? src.toBytesRef() : null;
+                    }
+
+                    final long seqNo = seqNoDocValues != null && seqNoDocValues.advanceExact(docId)
+                        ? seqNoDocValues.longValue()
+                        : SequenceNumbers.UNASSIGNED_SEQ_NO;
+
+                    boolean found = primaryTermDocValues.advanceExact(docId);
+                    assert found : "found no primary term for: " + docId;
+                    final long primaryTerm = primaryTermDocValues.longValue();
+
+                    found = versionDocValues.advanceExact(docId);
+                    assert found : "found no version for: " + docId;
+                    final long version = versionDocValues.longValue();
+
+                    docs.add(new DocIdSeqNoAndSource(id, source, seqNo, primaryTerm, version));
                 }
             }
-        } finally {
-            IOUtils.close(searcher);
         }
+
+        docs.sort(
+            Comparator.comparingLong(DocIdSeqNoAndSource::seqNo)
+                .thenComparingLong(DocIdSeqNoAndSource::primaryTerm)
+                .thenComparing((DocIdSeqNoAndSource::id))
+        );
+        return docs;
     }
 
     private static List<DocIdSeqNoAndSource> getLiveDocsNoOpEngine(
@@ -1538,15 +1481,18 @@ public abstract class ESIntegTestCase extends ESTestCase {
         assertThat(engineConfig.getMapperService(), nullValue());
         assertThat(indexMetadata.getState(), equalTo(IndexMetadata.State.CLOSE));
 
+        var newIndexMetadata = IndexMetadata.builder(indexMetadata).state(IndexMetadata.State.OPEN).build();
         return indicesService.withTempIndexService(
             // Create a temporary IndexService as if the shard was OPEN
-            IndexMetadata.builder(indexMetadata).state(IndexMetadata.State.OPEN).build(),
+            newIndexMetadata,
             indexService -> {
+                // Need to update mapping here, otherwise MapperService#mapper is null here and it is as if there is no mapping.
+                indexService.mapperService().updateMapping(null, newIndexMetadata);
                 // Create a temporary read-only engine on top of the no-op engine to access documents
                 try (
                     var tempEngine = new ReadOnlyEngine(
                         // Override the temporary engine configuration to use the correct mappers
-                        EngineTestCase.copy(engineConfig, indexService.mapperService()),
+                        EngineConfig.builder(engineConfig).mapperService(indexService.mapperService()).build(),
                         null,
                         new TranslogStats(0, 0, 0, 0, 0),
                         false,
@@ -2809,12 +2755,14 @@ public abstract class ESIntegTestCase extends ESTestCase {
 
             @Override
             public Collection<Class<? extends Plugin>> nodePlugins() {
-                if (enableConcurrentSearch) {
-                    List<Class<? extends Plugin>> plugins = new ArrayList<>(ESIntegTestCase.this.nodePlugins());
-                    plugins.add(ConcurrentSearchTestPlugin.class);
-                    return plugins;
+                List<Class<? extends Plugin>> plugins = new ArrayList<>(ESIntegTestCase.this.nodePlugins());
+                if (enableIndexSlice()) {
+                    plugins.add(AlwaysValidateSlicePlugin.class);
                 }
-                return ESIntegTestCase.this.nodePlugins();
+                if (enableConcurrentSearch) {
+                    plugins.add(ConcurrentSearchTestPlugin.class);
+                }
+                return plugins;
             }
         };
     }
@@ -2833,6 +2781,15 @@ public abstract class ESIntegTestCase extends ESTestCase {
      * Default is true, can be disabled if it causes problems in specific tests.
      */
     protected boolean enableConcurrentSearch() {
+        return true;
+    }
+
+    /**
+     * Whether the test cluster should enable index slicing validation.
+     * This adds the {@link IndexSettings#SLICE_VALIDATED} setting to all indices created in the cluster. In production, this happens
+     * via an x-pack plugin
+     */
+    protected boolean enableIndexSlice() {
         return true;
     }
 
@@ -2896,13 +2853,48 @@ public abstract class ESIntegTestCase extends ESTestCase {
         mocks.add(TestSeedPlugin.class);
         mocks.add(AssertActionNamePlugin.class);
         mocks.add(MockScriptService.TestPlugin.class);
+        if (IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled() && randomizeColumnarIdMode()) {
+            mocks.add(RandomizeColumnarIdModePlugin.class);
+        }
         return Collections.unmodifiableList(mocks);
+    }
+
+    protected boolean randomizeColumnarIdMode() {
+        return true;
     }
 
     public static final class TestSeedPlugin extends Plugin {
         @Override
         public List<Setting<?>> getSettings() {
             return Collections.singletonList(INDEX_TEST_SEED_SETTING);
+        }
+    }
+
+    public static final class AlwaysValidateSlicePlugin extends Plugin {
+        private static final SliceIndexingValidationProvider PROVIDER_INSTANCE = new SliceIndexingValidationProvider();
+
+        @Override
+        public Collection<IndexSettingProvider> getAdditionalIndexSettingProviders(IndexSettingProvider.Parameters parameters) {
+            return List.of(PROVIDER_INSTANCE);
+        }
+
+        private static final class SliceIndexingValidationProvider implements IndexSettingProvider {
+            @Override
+            public void provideAdditionalSettings(
+                String indexName,
+                String dataStreamName,
+                IndexMode templateIndexMode,
+                ProjectMetadata projectMetadata,
+                Instant resolvedAt,
+                Settings indexTemplateAndCreateRequestSettings,
+                List<CompressedXContent> combinedTemplateMappings,
+                IndexVersion indexVersion,
+                Settings.Builder additionalSettings
+            ) {
+                if (IndexSettings.SLICE_ENABLED.get(indexTemplateAndCreateRequestSettings)) {
+                    additionalSettings.put(IndexSettings.SLICE_VALIDATED.getKey(), "true");
+                }
+            }
         }
     }
 
@@ -2929,6 +2921,92 @@ public abstract class ESIntegTestCase extends ESTestCase {
                 }
             });
         }
+    }
+
+    /**
+     * Randomly enables columanr id mode at index creation time.
+     * <p>
+     * Typically this type of randomization happens via random legacy index templates with internal integration tests.
+     * However for columnar id mode test coverage this doesn't work well:
+     * <ul>
+     *     <li>If composable index templates or data streams are used we would never test with randomized columanr id</li>
+     *     <li>Columnar id mode can't be enabled for tsdb tests, but when the randomized legacy template is created
+     *         we don't know whether it matches with tsdb indices. An index settings provider is the only place where
+     *         we see all settings (from create index request or template) prior to index creation.</li>
+     * </ul>
+     */
+    public static final class RandomizeColumnarIdModePlugin extends Plugin {
+
+        private static final Logger LOGGER = LogManager.getLogger(RandomizeColumnarIdModePlugin.class);
+
+        @Override
+        public Collection<IndexSettingProvider> getAdditionalIndexSettingProviders(IndexSettingProvider.Parameters parameters) {
+            return List.of(
+                (
+                    indexName,
+                    dataStreamName,
+                    templateIndexMode,
+                    projectMetadata,
+                    resolvedAt,
+                    indexTemplateAndCreateRequestSettings,
+                    combinedTemplateMappings,
+                    indexVersion,
+                    additionalSettings) -> {
+                    if (templateIndexMode == IndexMode.TIME_SERIES) {
+                        // Don't randomly enable columnar id mode, if time series index mode has been enabled.
+                        // Enabling columnar id isn't possible because tsdb always uses synthetic id.
+                        return;
+                    }
+
+                    String indexModeStr = indexTemplateAndCreateRequestSettings.get("index.mode");
+                    if (indexModeStr != null) {
+                        // Don't randomly enable columnar id mode, if index mode has defined explicitly.
+                        return;
+                    }
+
+                    String seqNoIndexOptionsStr = indexTemplateAndCreateRequestSettings.get("index.seq_no.index_options");
+                    if ("POINTS_AND_DOC_VALUES".equals(seqNoIndexOptionsStr)) {
+                        // Don't randomly enable columnar id mode, if seqno isn't stored as doc values.
+                        return;
+                    }
+
+                    String columnarIdMode = indexTemplateAndCreateRequestSettings.get("index.mapping.use_columnar_id_mode_by_default");
+                    if (columnarIdMode != null) {
+                        // Don't randomly enable columnar id mode, columnar mode has been enabled.
+                        return;
+                    }
+
+                    if (randomBoolean()) {
+                        LOGGER.info("randomly setting [index.mapping.use_columnar_id_mode_by_default] to [true]");
+                        additionalSettings.put("index.mapping.use_columnar_id_mode_by_default", true);
+                    }
+                }
+            );
+        }
+
+    }
+
+    /**
+     * Assumes that index isn't using columnar id mode because of {@link RandomizeColumnarIdModePlugin}.
+     * This is a way for tests to deal with the fact that it can't handle columanar ids well.
+     */
+    public static void assumeNoColumnarId(String message, String... indexNames) {
+        var response = client().admin()
+            .indices()
+            .getSettings(new GetSettingsRequest(ESTestCase.TEST_REQUEST_TIMEOUT).indices(indexNames))
+            .actionGet();
+        for (String indexName : indexNames) {
+            assumeTrue(message, response.getSetting(indexName, "index.mapping.use_columnar_id_mode_by_default") == null);
+        }
+    }
+
+    public static boolean indexColumnarIdMode(String indexName) {
+        var response = client().admin()
+            .indices()
+            .getSettings(new GetSettingsRequest(ESTestCase.TEST_REQUEST_TIMEOUT).indices(indexName))
+            .actionGet();
+        String settingValue = response.getSetting(indexName, "index.mapping.use_columnar_id_mode_by_default");
+        return settingValue != null && Boolean.TRUE.equals(Booleans.parseBoolean(settingValue));
     }
 
     /**
@@ -3018,6 +3096,18 @@ public abstract class ESIntegTestCase extends ESTestCase {
         return INSTANCE == null;
     }
 
+    @Override
+    public final void setUp() throws Exception {
+        // do not override setUp, use an @Before
+        super.setUp();
+    }
+
+    @Override
+    public final void tearDown() throws Exception {
+        // do not override tearDown, use an @After
+        super.tearDown();
+    }
+
     @Before
     public final void setupTestCluster() throws Exception {
         if (runTestScopeLifecycle()) {
@@ -3044,10 +3134,19 @@ public abstract class ESIntegTestCase extends ESTestCase {
     }
 
     @Override
-    protected boolean enableBigArraysReleasedCheck() {
+    protected boolean enableArraysReleasedCheck() {
         // checking that all big arrays have been released makes little sense for a still-running cluster, see comments in
         // #ensureAllArraysAreReleased for details
         return isSuiteScopedTest(getTestClass()) == false;
+    }
+
+    @Override
+    protected boolean enableAllPagesReleasedCheck() {
+        // Some classes hold pages in internal caches during operation (e.g. JoinValidationService caches a serialized
+        // cluster state) and release them asynchronously after `stop`, so this check would fire while the cluster
+        // is alive. afterClass() method calls ensureAllPagesAreReleased() after the cluster is fully shut down, which
+        // would catch subsequent leaks.
+        return false;
     }
 
     @AfterClass
@@ -3059,6 +3158,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
                 INSTANCE.printTestMessage("cleaning up after");
                 INSTANCE.afterInternal(true);
                 MockBigArrays.ensureAllArraysAreReleased();
+                MockPageCacheRecycler.ensureAllPagesAreReleased();
                 checkStaticState();
             }
         } finally {

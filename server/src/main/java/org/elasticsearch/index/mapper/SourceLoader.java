@@ -15,6 +15,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.fielddata.MultiValuedSortedBinaryDocValues;
 import org.elasticsearch.index.fieldvisitor.LeafStoredFieldLoader;
 import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.search.lookup.SourceFilter;
@@ -26,6 +27,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -156,10 +158,12 @@ public interface SourceLoader {
         @Override
         public Leaf leaf(LeafReader reader, int[] docIdsInLeaf) throws IOException {
             SyntheticFieldLoader loader = syntheticFieldLoaderLeafSupplier.get();
-            return new LeafWithMetrics(
-                new SyntheticLeaf(filter, loader, loader.docValuesLoader(reader, docIdsInLeaf), ignoredSourceFormat),
-                metrics
-            );
+            var leaf = new SyntheticLeaf(filter, loader, loader.docValuesLoader(reader, docIdsInLeaf), ignoredSourceFormat, reader);
+            if (metrics == SourceFieldMetrics.NOOP) {
+                return leaf;
+            } else {
+                return new LeafWithMetrics(leaf, metrics);
+            }
         }
 
         private record LeafWithMetrics(Leaf leaf, SourceFieldMetrics metrics) implements Leaf {
@@ -193,13 +197,15 @@ public interface SourceLoader {
             private final SyntheticFieldLoader.DocValuesLoader docValuesLoader;
             private final Map<String, SyntheticFieldLoader.StoredFieldLoader> storedFieldLoaders;
             private final IgnoredSourceFieldMapper.IgnoredSourceFormat ignoredSourceFormat;
+            private final MultiValuedSortedBinaryDocValues ignoredSourcedocValues;
 
             private SyntheticLeaf(
                 SourceFilter filter,
                 SyntheticFieldLoader loader,
                 SyntheticFieldLoader.DocValuesLoader docValuesLoader,
-                IgnoredSourceFieldMapper.IgnoredSourceFormat ignoredSourceFormat
-            ) {
+                IgnoredSourceFieldMapper.IgnoredSourceFormat ignoredSourceFormat,
+                LeafReader leafReader
+            ) throws IOException {
                 this.filter = filter;
                 this.loader = loader;
                 this.docValuesLoader = docValuesLoader;
@@ -207,6 +213,13 @@ public interface SourceLoader {
                     loader.storedFieldLoaders().collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue))
                 );
                 this.ignoredSourceFormat = ignoredSourceFormat;
+                if (ignoredSourceFormat == IgnoredSourceFieldMapper.IgnoredSourceFormat.DOC_VALUES_IGNORED_SOURCE) {
+                    this.ignoredSourcedocValues = Objects.requireNonNull(
+                        MultiValuedSortedBinaryDocValues.fromMultiValued(leafReader, IgnoredSourceFieldMapper.NAME)
+                    );
+                } else {
+                    this.ignoredSourcedocValues = null;
+                }
             }
 
             @Override
@@ -227,12 +240,14 @@ public interface SourceLoader {
                 }
 
                 // Maps the names of existing objects to lists of ignored fields they contain.
-                Map<String, List<IgnoredSourceFieldMapper.NameValue>> objectsWithIgnoredFields = ignoredSourceFormat.loadAllIgnoredFields(
+                Map<String, List<IgnoredSourceFieldMapper.NameValue>> objectsWithIgnoredFields = ignoredSourceFormat.loadIgnoredFields(
                     filter,
-                    storedFieldLoader.storedFields()
+                    storedFieldLoader.storedFields(),
+                    docId,
+                    ignoredSourcedocValues
                 );
 
-                if (objectsWithIgnoredFields != null) {
+                if (objectsWithIgnoredFields.isEmpty() == false) {
                     loader.setIgnoredValues(objectsWithIgnoredFields);
                 }
                 if (docValuesLoader != null) {

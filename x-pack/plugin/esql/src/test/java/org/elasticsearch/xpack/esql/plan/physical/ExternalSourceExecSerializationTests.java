@@ -7,8 +7,12 @@
 
 package org.elasticsearch.xpack.esql.plan.physical;
 
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.test.TransportVersionUtils;
+import org.elasticsearch.xpack.encryption.spi.EncryptedData;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolver;
 import org.elasticsearch.xpack.esql.datasources.FileSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
@@ -16,8 +20,12 @@ import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 
 public class ExternalSourceExecSerializationTests extends AbstractPhysicalPlanSerializationTests<ExternalSourceExec> {
 
@@ -27,7 +35,7 @@ public class ExternalSourceExecSerializationTests extends AbstractPhysicalPlanSe
         String sourceType = randomFrom("parquet", "csv", "file");
         List<Attribute> attributes = randomFieldAttributes(1, 5, false);
         Map<String, Object> config = randomBoolean() ? Map.of() : Map.of("endpoint", "https://s3.example.com");
-        Map<String, Object> sourceMetadata = randomBoolean() ? Map.of() : Map.of("schema_version", 1);
+        Map<String, Object> sourceMetadata = randomBoolean() ? Map.of() : randomSourceMetadataWithStats();
         Integer estimatedRowSize = randomEstimatedRowSize();
         List<ExternalSplit> splits = randomSplits();
         return new ExternalSourceExec(
@@ -38,11 +46,31 @@ public class ExternalSourceExecSerializationTests extends AbstractPhysicalPlanSe
             config,
             sourceMetadata,
             null,
+            List.of(),
             FormatReader.NO_LIMIT,
             estimatedRowSize,
             null,
+            Map.of(),
             splits
         );
+    }
+
+    private static Map<String, Object> randomSourceMetadataWithStats() {
+        Map<String, Object> map = new HashMap<>();
+        map.put("schema_version", 1);
+        if (randomBoolean()) {
+            map.put("_stats.row_count", randomLongBetween(0, 100_000));
+            map.put("_stats.size_bytes", randomLongBetween(1000, 10_000_000));
+            String intCol = randomAlphaOfLength(5);
+            map.put("_stats.columns." + intCol + ".null_count", randomLongBetween(0, 1000));
+            map.put("_stats.columns." + intCol + ".min", randomIntBetween(0, 100));
+            map.put("_stats.columns." + intCol + ".max", randomIntBetween(100, 1000));
+            String strCol = randomAlphaOfLength(5);
+            map.put("_stats.columns." + strCol + ".null_count", randomLongBetween(0, 100));
+            map.put("_stats.columns." + strCol + ".min", randomAlphaOfLength(5));
+            map.put("_stats.columns." + strCol + ".max", randomAlphaOfLength(5));
+        }
+        return map;
     }
 
     static List<ExternalSplit> randomSplits() {
@@ -56,6 +84,27 @@ public class ExternalSourceExecSerializationTests extends AbstractPhysicalPlanSe
 
     static FileSplit randomFileSplit() {
         StoragePath path = StoragePath.of("s3://bucket/data/" + randomAlphaOfLength(6) + ".parquet");
+        Map<String, Object> statistics;
+        if (randomBoolean()) {
+            statistics = null;
+        } else {
+            Map<String, Object> stats = new HashMap<>();
+            stats.put("_stats.row_count", randomLongBetween(100, 10000));
+            stats.put("_stats.size_bytes", randomLongBetween(1000, 100000));
+            if (randomBoolean()) {
+                String colName = randomAlphaOfLength(4);
+                stats.put("_stats.columns." + colName + ".null_count", randomLongBetween(0, 100));
+                stats.put("_stats.columns." + colName + ".min", randomIntBetween(0, 50));
+                stats.put("_stats.columns." + colName + ".max", randomIntBetween(50, 200));
+            }
+            if (randomBoolean()) {
+                String strCol = randomAlphaOfLength(4);
+                stats.put("_stats.columns." + strCol + ".null_count", randomLongBetween(0, 50));
+                stats.put("_stats.columns." + strCol + ".min", randomAlphaOfLength(4));
+                stats.put("_stats.columns." + strCol + ".max", randomAlphaOfLength(4));
+            }
+            statistics = Map.copyOf(stats);
+        }
         return new FileSplit(
             "file",
             path,
@@ -63,7 +112,9 @@ public class ExternalSourceExecSerializationTests extends AbstractPhysicalPlanSe
             randomLongBetween(1, 10000),
             ".parquet",
             Map.of(),
-            randomBoolean() ? Map.of() : Map.of("year", randomIntBetween(2020, 2026))
+            randomBoolean() ? Map.of() : Map.of("year", randomIntBetween(2020, 2026)),
+            null,
+            statistics
         );
     }
 
@@ -102,9 +153,11 @@ public class ExternalSourceExecSerializationTests extends AbstractPhysicalPlanSe
             config,
             sourceMetadata,
             null,
+            List.of(),
             FormatReader.NO_LIMIT,
             estimatedRowSize,
             null,
+            Map.of(),
             splits
         );
     }
@@ -112,5 +165,61 @@ public class ExternalSourceExecSerializationTests extends AbstractPhysicalPlanSe
     @Override
     protected boolean alwaysEmptySource() {
         return true;
+    }
+
+    private static ExternalSourceExec externalSourceExecWithConfig(Map<String, Object> config) {
+        return new ExternalSourceExec(
+            randomSource(),
+            "teststore:///data.csv",
+            "csv",
+            randomFieldAttributes(1, 3, false),
+            config,
+            Map.of(),
+            null,
+            List.of(),
+            FormatReader.NO_LIMIT,
+            null,
+            null,
+            Map.of(),
+            List.of()
+        );
+    }
+
+    /**
+     * A target node on a transport version that supports the encrypted carrier receives the secret still
+     * encrypted in the plan config — it decrypts at the point of use, not over the wire.
+     */
+    public void testEncryptedDatasourceSecretSurvivesRoundTripWhenSupported() throws IOException {
+        EncryptedData secret = new EncryptedData("test-key", new byte[] { 1, 2, 3, 4 });
+        Map<String, Object> datasource = new HashMap<>();
+        datasource.put("secret_token", secret);
+        Map<String, Object> config = new HashMap<>();
+        config.put("format", "csv");
+        config.put(ExternalSourceResolver.DATASOURCE_CONFIG_KEY, datasource);
+
+        ExternalSourceExec roundTripped = copyInstance(externalSourceExecWithConfig(config), TransportVersion.current());
+
+        Object ds = roundTripped.config().get(ExternalSourceResolver.DATASOURCE_CONFIG_KEY);
+        assertThat(ds, instanceOf(Map.class));
+        assertThat(((Map<?, ?>) ds).get("secret_token"), equalTo(secret));
+    }
+
+    /**
+     * A target node on a transport version that predates the carrier cannot deserialize it, so the
+     * coordinator strips {@code _datasource} before serializing and the node reverts to prior behavior.
+     */
+    public void testEncryptedDatasourceSecretStrippedForOlderTransportVersion() throws IOException {
+        EncryptedData secret = new EncryptedData("test-key", new byte[] { 1, 2, 3, 4 });
+        Map<String, Object> datasource = new HashMap<>();
+        datasource.put("secret_token", secret);
+        Map<String, Object> config = new HashMap<>();
+        config.put("format", "csv");
+        config.put(ExternalSourceResolver.DATASOURCE_CONFIG_KEY, datasource);
+
+        TransportVersion beforeCarrier = TransportVersionUtils.getPreviousVersion(TransportVersion.fromName("data_source_encrypted_data"));
+        ExternalSourceExec roundTripped = copyInstance(externalSourceExecWithConfig(config), beforeCarrier);
+
+        assertThat(roundTripped.config().containsKey(ExternalSourceResolver.DATASOURCE_CONFIG_KEY), equalTo(false));
+        assertThat(roundTripped.config().get("format"), equalTo("csv"));
     }
 }

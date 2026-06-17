@@ -40,14 +40,15 @@ import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MapperMetrics;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
-import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.mapper.RootObjectMapper;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -82,15 +83,19 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
 import java.util.function.Predicate;
 
 import static org.elasticsearch.common.Strings.format;
 import static org.elasticsearch.common.util.concurrent.EsExecutors.DIRECT_EXECUTOR_SERVICE;
 import static org.elasticsearch.search.SearchService.isExecutorQueuedBeyondPrewarmingFactor;
+import static org.elasticsearch.search.SearchService.wrapFailureListener;
 import static org.elasticsearch.search.SearchService.wrapListenerForErrorHandling;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.not;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class SearchServiceTests extends IndexShardTestCase {
 
@@ -134,6 +139,40 @@ public class SearchServiceTests extends IndexShardTestCase {
         LocalDateTime localDateTime = LocalDateTime.of(2025, 12, 15, 0, 0);
         assertEquals(
             localDateTime.atZone(ZoneOffset.UTC).toInstant().toEpochMilli(),
+            canMatchContext.getTimeRangeFilterFromMillis().longValue()
+        );
+    }
+
+    // Verify that a range filter nested inside a bool `should` clause does not contribute to
+    // the time_range_filter_from metric — only mandatory (must/filter) clauses should be tracked.
+    public void testCanMatchTimeRangeFilterInsideShouldClauseIsNotTracked() throws IOException {
+        dotestNotTrackedTimeRangeFilter(BoolQueryBuilder::should);
+    }
+
+    // Verify that a range filter nested inside a bool `mustNot` clause does not contribute to
+    // the time_range_filter_from metric — only mandatory (must/filter) clauses should be tracked.
+    public void testCanMatchTimeRangeFilterInsideMustNotClauseIsNotTracked() throws IOException {
+        dotestNotTrackedTimeRangeFilter(BoolQueryBuilder::mustNot);
+    }
+
+    private void dotestNotTrackedTimeRangeFilter(BiFunction<BoolQueryBuilder, QueryBuilder, BoolQueryBuilder> queryWrapper)
+        throws IOException {
+        // outer filter: @timestamp >= 2025-12-01 (should match the indexed doc from 2025-12-09)
+        // inner should: @timestamp >= 2020-01-01 (old date in an optional clause — must not be tracked)
+        SearchRequest searchRequest = new SearchRequest().allowPartialSearchResults(false)
+            .source(
+                new SearchSourceBuilder().query(
+                    queryWrapper.apply(
+                        new BoolQueryBuilder().filter(new RangeQueryBuilder("@timestamp").from("2025-12-01")),
+                        new BoolQueryBuilder().filter(new RangeQueryBuilder("@timestamp").from("2020-01-01"))
+                    )
+                )
+            );
+        SearchService.CanMatchContext canMatchContext = doTestCanMatch(searchRequest, null, true, null, false);
+        // Only the outer filter range should be reported; Math.min must not drag it back to 2020-01-01
+        LocalDateTime expectedFrom = LocalDateTime.of(2025, 12, 1, 0, 0);
+        assertEquals(
+            expectedFrom.atZone(ZoneOffset.UTC).toInstant().toEpochMilli(),
             canMatchContext.getTimeRangeFilterFromMillis().longValue()
         );
     }
@@ -317,6 +356,56 @@ public class SearchServiceTests extends IndexShardTestCase {
             );
             listener.onFailure(e);
         }
+    }
+
+    public void testWrapFailureListenerOnResponse() {
+        var releasableClosed = new AtomicBoolean(false);
+        var response = new AtomicReference<String>();
+
+        var wrapped = wrapFailureListener(ActionListener.<String>wrap((r) -> {
+            assertTrue("releasable must be closed before listener.onResponse runs", releasableClosed.get());
+            response.set(r);
+        }, e -> fail("unexpected failure")), () -> releasableClosed.set(true), e -> fail("cleanup must not run on success"));
+        wrapped.onResponse("ok");
+
+        assertTrue("releasable must be closed after onResponse", releasableClosed.get());
+        assertEquals("ok", response.get());
+    }
+
+    public void testWrapFailureListenerOnFailure() {
+        var releasableClosed = new AtomicBoolean(false);
+        var cleanupRan = new AtomicBoolean(false);
+        var failure = new AtomicReference<Exception>();
+        var cause = new RuntimeException("search failed");
+
+        var wrapped = wrapFailureListener(
+            ActionListener.<String>wrap(r -> fail("unexpected response"), failure::set),
+            () -> releasableClosed.set(true),
+            e -> cleanupRan.set(true)
+        );
+        wrapped.onFailure(cause);
+
+        assertTrue("cleanup must run on failure", cleanupRan.get());
+        assertTrue("releasable must be closed after onFailure", releasableClosed.get());
+        assertSame("original exception must reach the listener", cause, failure.get());
+    }
+
+    public void testWrapFailureListenerCleanupThrows() {
+        var releasableClosed = new AtomicBoolean(false);
+        var failure = new AtomicReference<Exception>();
+        var cause = new RuntimeException("search failed");
+
+        var wrapped = wrapFailureListener(
+            ActionListener.<String>wrap(r -> fail("unexpected response"), failure::set),
+            () -> releasableClosed.set(true),
+            e -> {
+                throw new RuntimeException("cleanup exploded");
+            }
+        );
+
+        expectThrows(RuntimeException.class, () -> wrapped.onFailure(cause));
+        assertTrue("releasable must be closed even when cleanup throws", releasableClosed.get());
+        assertSame("listener.onFailure must be called even when cleanup throws", cause, failure.get());
     }
 
     public void testIsExecutorQueuedBeyondPrewarmingFactor() throws InterruptedException {
@@ -562,7 +651,7 @@ public class SearchServiceTests extends IndexShardTestCase {
         Predicate<String> indexNameMatcher = pattern -> Regex.simpleMatch(pattern, "index");
 
         MapperBuilderContext root = MapperBuilderContext.root(false, false);
-        RootObjectMapper.Builder builder = new RootObjectMapper.Builder("_doc", ObjectMapper.Defaults.SUBOBJECTS);
+        RootObjectMapper.Builder builder = new RootObjectMapper.Builder("_doc");
         Mapping mapping = new Mapping(
             builder.build(MapperBuilderContext.root(false, false)),
             new MetadataFieldMapper[0],
@@ -582,13 +671,15 @@ public class SearchServiceTests extends IndexShardTestCase {
             Collections.emptyList(),
             IndexMode.STANDARD
         );
+        MapperService mapperService = mock(MapperService.class);
+        when(mapperService.getIdFieldDataEnabled()).thenReturn(() -> false);
         return new SearchExecutionContext(
             0,
             0,
             indexSettings,
             null,
             indexFieldDataLookup,
-            null,
+            mapperService,
             mappingLookup,
             null,
             null,

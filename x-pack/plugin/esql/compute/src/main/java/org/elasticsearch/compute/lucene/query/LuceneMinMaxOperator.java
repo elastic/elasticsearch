@@ -7,6 +7,7 @@
 
 package org.elasticsearch.compute.lucene.query;
 
+import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.PointValues;
 import org.apache.lucene.index.SortedNumericDocValues;
@@ -73,9 +74,10 @@ final class LuceneMinMaxOperator extends LuceneOperator {
         String fieldName,
         NumberType numberType,
         int limit,
-        long initialResult
+        long initialResult,
+        java.util.function.LongSupplier directoryBytesRead
     ) {
-        super(shardRefCounters, blockFactory, PAGE_SIZE, sliceQueue);
+        super(shardRefCounters, blockFactory, PAGE_SIZE, sliceQueue, directoryBytesRead);
         this.remainingDocs = limit;
         this.numberType = numberType;
         this.fieldName = fieldName;
@@ -135,7 +137,7 @@ final class LuceneMinMaxOperator extends LuceneOperator {
                 }
                 if (scorer.isDone() == false) {
                     // could not apply shortcut, trigger the search
-                    final LongValues values = numberType.multiValueMode(reader.getSortedNumericDocValues(fieldName));
+                    final LongValues values = numberType.multiValueMode(DocValues.getSortedNumeric(reader, fieldName));
                     final LeafCollector leafCollector = new LeafCollector() {
                         @Override
                         public void setScorer(Scorable scorer) {}

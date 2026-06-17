@@ -20,14 +20,18 @@ import java.io.IOException;
  * Block that stores float values.
  * This class is generated. Edit {@code X-Block.java.st} instead.
  */
-public sealed interface FloatBlock extends Block permits FloatArrayBlock, FloatVectorBlock, ConstantNullBlock, FloatBigArrayBlock {
+public sealed interface FloatBlock extends Block permits FloatArrayBlock, FloatVectorBlock, ConstantNullBlock, FloatBigArrayBlock,
+    org.elasticsearch.compute.data.arrow.FloatArrowBufBlock {
 
     /**
      * Retrieves the float value stored at the given value index.
-     *
-     * <p> Values for a given position are between getFirstValueIndex(position) (inclusive) and
-     * getFirstValueIndex(position) + getValueCount(position) (exclusive).
-     *
+     * <p>
+     *    The {@code valueIndex} for a position is between.
+     * </p>
+     * {@snippet :
+     *    int start = getFirstValueIndex(position);  // @highlight
+     *    int end = start + getValueCount(position);  // @highlight
+     * }
      * @param valueIndex the value index
      * @return the data value (as a float)
      */
@@ -84,7 +88,24 @@ public sealed interface FloatBlock extends Block permits FloatArrayBlock, FloatV
     FloatVector asVector();
 
     @Override
-    FloatBlock filter(boolean mayContainDuplicates, int... positions);
+    default FloatBlock slice(int beginInclusive, int endExclusive) {
+        if (beginInclusive == 0 && endExclusive == getPositionCount()) {
+            incRef();
+            return this;
+        }
+        try (FloatBlock.Builder builder = blockFactory().newFloatBlockBuilder(endExclusive - beginInclusive)) {
+            builder.copyFrom(this, beginInclusive, endExclusive);
+            return builder.build();
+        }
+    }
+
+    @Override
+    FloatBlock filter(boolean mayContainDuplicates, int[] positions, int offset, int length);
+
+    @Override
+    default FloatBlock filter(boolean mayContainDuplicates, int... positions) {
+        return filter(mayContainDuplicates, positions, 0, positions.length);
+    }
 
     /**
      * Make a deep copy of this {@link Block} using the provided {@link BlockFactory},
@@ -107,6 +128,12 @@ public sealed interface FloatBlock extends Block permits FloatArrayBlock, FloatV
 
     @Override
     FloatBlock expand();
+
+    /**
+     * The maximum size in bytes of any single value stored in this block, or {@code 0} if there are no values.
+     * Always {@code Float.BYTES} since all float values encode to the same number of bytes.
+     */
+    int valueMaxByteSize();
 
     static FloatBlock readFrom(BlockStreamInput in) throws IOException {
         final byte serializationType = in.readByte();

@@ -22,22 +22,26 @@ import java.util.Map;
 
 public class DotExpandingXContentParserTests extends ESTestCase {
 
+    protected XContentParser decorateParser(XContentParser parser) {
+        return parser;
+    }
+
     private void assertXContentMatches(String dotsExpanded, String withDots) throws IOException {
         final ContentPath contentPath = new ContentPath();
         try (
             XContentParser inputParser = createParser(JsonXContent.jsonXContent, withDots);
-            XContentParser expandedParser = DotExpandingXContentParser.expandDots(inputParser, contentPath)
+            XContentParser expandedParser = decorateParser(DotExpandingXContentParser.expandDots(inputParser, contentPath))
         ) {
             expandedParser.allowDuplicateKeys(true);
 
             XContentBuilder actualOutput = XContentBuilder.builder(JsonXContent.jsonXContent).copyCurrentStructure(expandedParser);
             assertEquals(dotsExpanded, Strings.toString(actualOutput));
 
-            try (XContentParser expectedParser = createParser(JsonXContent.jsonXContent, dotsExpanded)) {
+            try (XContentParser expectedParser = decorateParser(createParser(JsonXContent.jsonXContent, dotsExpanded))) {
                 expectedParser.allowDuplicateKeys(true);
                 try (
                     var p = createParser(JsonXContent.jsonXContent, withDots);
-                    XContentParser actualParser = DotExpandingXContentParser.expandDots(p, contentPath)
+                    XContentParser actualParser = decorateParser(DotExpandingXContentParser.expandDots(p, contentPath))
                 ) {
                     XContentParser.Token currentToken;
                     while ((currentToken = actualParser.nextToken()) != null) {
@@ -126,8 +130,8 @@ public class DotExpandingXContentParserTests extends ESTestCase {
 
     public void testDotsCollapsingFlatPaths() throws IOException {
         ContentPath contentPath = new ContentPath();
-        XContentParser parser = DotExpandingXContentParser.expandDots(createParser(JsonXContent.jsonXContent, """
-            {"metrics.service.time": 10, "metrics.service.time.max": 500, "metrics.foo": "value"}"""), contentPath);
+        XContentParser parser = decorateParser(DotExpandingXContentParser.expandDots(createParser(JsonXContent.jsonXContent, """
+            {"metrics.service.time": 10, "metrics.service.time.max": 500, "metrics.foo": "value"}"""), contentPath));
         parser.nextToken();
         assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
         assertEquals("metrics", parser.currentName());
@@ -188,7 +192,7 @@ public class DotExpandingXContentParserTests extends ESTestCase {
 
     public void testDotsCollapsingStructuredPath() throws IOException {
         ContentPath contentPath = new ContentPath();
-        XContentParser parser = DotExpandingXContentParser.expandDots(createParser(JsonXContent.jsonXContent, """
+        XContentParser parser = decorateParser(DotExpandingXContentParser.expandDots(createParser(JsonXContent.jsonXContent, """
             {
               "metrics" : {
                 "service" : {
@@ -197,7 +201,7 @@ public class DotExpandingXContentParserTests extends ESTestCase {
                 },
                 "foo" : "value"
               }
-            }"""), contentPath);
+            }"""), contentPath));
         parser.nextToken();
         assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
         assertEquals("metrics", parser.currentName());
@@ -234,8 +238,8 @@ public class DotExpandingXContentParserTests extends ESTestCase {
     }
 
     public void testSkipChildren() throws IOException {
-        XContentParser parser = DotExpandingXContentParser.expandDots(createParser(JsonXContent.jsonXContent, """
-            { "test.with.dots" : "value", "nodots" : "value2" }"""), new ContentPath());
+        XContentParser parser = decorateParser(DotExpandingXContentParser.expandDots(createParser(JsonXContent.jsonXContent, """
+            { "test.with.dots" : "value", "nodots" : "value2" }"""), new ContentPath()));
         parser.nextToken();     // start object
         assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
         assertEquals("test", parser.currentName());
@@ -257,8 +261,8 @@ public class DotExpandingXContentParserTests extends ESTestCase {
     }
 
     public void testSkipChildrenWithinInnerObject() throws IOException {
-        XContentParser parser = DotExpandingXContentParser.expandDots(createParser(JsonXContent.jsonXContent, """
-            { "test.with.dots" : {"obj" : {"field":"value"}}, "nodots" : "value2" }"""), new ContentPath());
+        XContentParser parser = decorateParser(DotExpandingXContentParser.expandDots(createParser(JsonXContent.jsonXContent, """
+            { "test.with.dots" : {"obj" : {"field":"value"}}, "nodots" : "value2" }"""), new ContentPath()));
 
         parser.nextToken();     // start object
         assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
@@ -303,10 +307,9 @@ public class DotExpandingXContentParserTests extends ESTestCase {
             {"first.dot":{"second.dot":"value",
             "value":null}}\
             """;
-        XContentParser expectedParser = createParser(JsonXContent.jsonXContent, jsonInput);
-        XContentParser dotExpandedParser = DotExpandingXContentParser.expandDots(
-            createParser(JsonXContent.jsonXContent, jsonInput),
-            new ContentPath()
+        XContentParser expectedParser = decorateParser(createParser(JsonXContent.jsonXContent, jsonInput));
+        XContentParser dotExpandedParser = decorateParser(
+            DotExpandingXContentParser.expandDots(createParser(JsonXContent.jsonXContent, jsonInput), new ContentPath())
         );
 
         assertEquals(expectedParser.getTokenLocation(), dotExpandedParser.getTokenLocation());
@@ -362,33 +365,29 @@ public class DotExpandingXContentParserTests extends ESTestCase {
     }
 
     public void testParseMapUOE() throws Exception {
-        XContentParser dotExpandedParser = DotExpandingXContentParser.expandDots(
-            createParser(JsonXContent.jsonXContent, ""),
-            new ContentPath()
+        XContentParser dotExpandedParser = decorateParser(
+            DotExpandingXContentParser.expandDots(createParser(JsonXContent.jsonXContent, ""), new ContentPath())
         );
         expectThrows(UnsupportedOperationException.class, dotExpandedParser::map);
     }
 
     public void testParseMapOrderedUOE() throws Exception {
-        XContentParser dotExpandedParser = DotExpandingXContentParser.expandDots(
-            createParser(JsonXContent.jsonXContent, ""),
-            new ContentPath()
+        XContentParser dotExpandedParser = decorateParser(
+            DotExpandingXContentParser.expandDots(createParser(JsonXContent.jsonXContent, ""), new ContentPath())
         );
         expectThrows(UnsupportedOperationException.class, dotExpandedParser::mapOrdered);
     }
 
     public void testParseMapStringsUOE() throws Exception {
-        XContentParser dotExpandedParser = DotExpandingXContentParser.expandDots(
-            createParser(JsonXContent.jsonXContent, ""),
-            new ContentPath()
+        XContentParser dotExpandedParser = decorateParser(
+            DotExpandingXContentParser.expandDots(createParser(JsonXContent.jsonXContent, ""), new ContentPath())
         );
         expectThrows(UnsupportedOperationException.class, dotExpandedParser::mapStrings);
     }
 
     public void testParseMapSupplierUOE() throws Exception {
-        XContentParser dotExpandedParser = DotExpandingXContentParser.expandDots(
-            createParser(JsonXContent.jsonXContent, ""),
-            new ContentPath()
+        XContentParser dotExpandedParser = decorateParser(
+            DotExpandingXContentParser.expandDots(createParser(JsonXContent.jsonXContent, ""), new ContentPath())
         );
         expectThrows(UnsupportedOperationException.class, () -> dotExpandedParser.map(HashMap::new, XContentParser::text));
     }
@@ -401,9 +400,8 @@ public class DotExpandingXContentParserTests extends ESTestCase {
 
         ContentPath contentPath = new ContentPath();
         contentPath.setWithinLeafObject(true);
-        XContentParser dotExpandedParser = DotExpandingXContentParser.expandDots(
-            createParser(JsonXContent.jsonXContent, jsonInput),
-            contentPath
+        XContentParser dotExpandedParser = decorateParser(
+            DotExpandingXContentParser.expandDots(createParser(JsonXContent.jsonXContent, jsonInput), contentPath)
         );
         assertEquals(XContentParser.Token.START_OBJECT, dotExpandedParser.nextToken());
         assertEquals(XContentParser.Token.FIELD_NAME, dotExpandedParser.nextToken());
@@ -416,17 +414,15 @@ public class DotExpandingXContentParserTests extends ESTestCase {
     }
 
     public void testParseListUOE() throws Exception {
-        XContentParser dotExpandedParser = DotExpandingXContentParser.expandDots(
-            createParser(JsonXContent.jsonXContent, ""),
-            new ContentPath()
+        XContentParser dotExpandedParser = decorateParser(
+            DotExpandingXContentParser.expandDots(createParser(JsonXContent.jsonXContent, ""), new ContentPath())
         );
         expectThrows(UnsupportedOperationException.class, dotExpandedParser::list);
     }
 
     public void testParseListOrderedUOE() throws Exception {
-        XContentParser dotExpandedParser = DotExpandingXContentParser.expandDots(
-            createParser(JsonXContent.jsonXContent, ""),
-            new ContentPath()
+        XContentParser dotExpandedParser = decorateParser(
+            DotExpandingXContentParser.expandDots(createParser(JsonXContent.jsonXContent, ""), new ContentPath())
         );
         expectThrows(UnsupportedOperationException.class, dotExpandedParser::listOrderedMap);
     }
@@ -438,9 +434,8 @@ public class DotExpandingXContentParserTests extends ESTestCase {
 
         ContentPath contentPath = new ContentPath();
         contentPath.setWithinLeafObject(true);
-        XContentParser dotExpandedParser = DotExpandingXContentParser.expandDots(
-            createParser(JsonXContent.jsonXContent, jsonInput),
-            contentPath
+        XContentParser dotExpandedParser = decorateParser(
+            DotExpandingXContentParser.expandDots(createParser(JsonXContent.jsonXContent, jsonInput), contentPath)
         );
         assertEquals(XContentParser.Token.START_OBJECT, dotExpandedParser.nextToken());
         assertEquals(XContentParser.Token.FIELD_NAME, dotExpandedParser.nextToken());
@@ -449,5 +444,82 @@ public class DotExpandingXContentParserTests extends ESTestCase {
         assertEquals(2, list.size());
         assertEquals("one", list.get(0));
         assertEquals("two", list.get(1));
+    }
+
+    public void testGetCurrentLocation() throws IOException {
+        // Mirrors testGetTokenLocation structure. getCurrentLocation() tracks the parser cursor,
+        // not the token start. For synthetic tokens (expanded dots), it returns the cached location
+        // (same as getTokenLocation). For original content tokens, it delegates to the underlying parser.
+        String jsonInput = """
+            {"first.dot":{"second.dot":"value",
+            "value":null}}\
+            """;
+        XContentParser expectedParser = decorateParser(createParser(JsonXContent.jsonXContent, jsonInput));
+        XContentParser dotExpandedParser = decorateParser(
+            DotExpandingXContentParser.expandDots(createParser(JsonXContent.jsonXContent, jsonInput), new ContentPath())
+        );
+
+        assertNotNull(dotExpandedParser.getCurrentLocation());
+        // START_OBJECT - original content
+        assertEquals(XContentParser.Token.START_OBJECT, dotExpandedParser.nextToken());
+        assertEquals(XContentParser.Token.START_OBJECT, expectedParser.nextToken());
+        assertEquals(expectedParser.getCurrentLocation(), dotExpandedParser.getCurrentLocation());
+        // FIELD_NAME "first" - synthetic, getCurrentLocation == getTokenLocation (cached)
+        assertEquals(XContentParser.Token.FIELD_NAME, expectedParser.nextToken());
+        assertEquals(XContentParser.Token.FIELD_NAME, dotExpandedParser.nextToken());
+        assertEquals("first", dotExpandedParser.currentName());
+        assertEquals(dotExpandedParser.getTokenLocation(), dotExpandedParser.getCurrentLocation());
+        // START_OBJECT - synthetic
+        assertEquals(XContentParser.Token.START_OBJECT, dotExpandedParser.nextToken());
+        assertEquals(dotExpandedParser.getTokenLocation(), dotExpandedParser.getCurrentLocation());
+        // FIELD_NAME "dot" - synthetic
+        assertEquals(XContentParser.Token.FIELD_NAME, dotExpandedParser.nextToken());
+        assertEquals("dot", dotExpandedParser.currentName());
+        assertEquals(dotExpandedParser.getTokenLocation(), dotExpandedParser.getCurrentLocation());
+        // START_OBJECT - original content
+        assertEquals(XContentParser.Token.START_OBJECT, expectedParser.nextToken());
+        assertEquals(XContentParser.Token.START_OBJECT, dotExpandedParser.nextToken());
+        assertEquals(expectedParser.getCurrentLocation(), dotExpandedParser.getCurrentLocation());
+        // FIELD_NAME "second" - synthetic
+        assertEquals(XContentParser.Token.FIELD_NAME, expectedParser.nextToken());
+        assertEquals(XContentParser.Token.FIELD_NAME, dotExpandedParser.nextToken());
+        assertEquals("second", dotExpandedParser.currentName());
+        assertEquals(dotExpandedParser.getTokenLocation(), dotExpandedParser.getCurrentLocation());
+        // START_OBJECT - synthetic
+        assertEquals(XContentParser.Token.START_OBJECT, dotExpandedParser.nextToken());
+        assertEquals(dotExpandedParser.getTokenLocation(), dotExpandedParser.getCurrentLocation());
+        // FIELD_NAME "dot" - synthetic
+        assertEquals(XContentParser.Token.FIELD_NAME, dotExpandedParser.nextToken());
+        assertEquals("dot", dotExpandedParser.currentName());
+        assertEquals(dotExpandedParser.getTokenLocation(), dotExpandedParser.getCurrentLocation());
+        // VALUE_STRING "value" - original content
+        assertEquals(XContentParser.Token.VALUE_STRING, expectedParser.nextToken());
+        assertEquals(XContentParser.Token.VALUE_STRING, dotExpandedParser.nextToken());
+        assertEquals(expectedParser.getCurrentLocation(), dotExpandedParser.getCurrentLocation());
+        // END_OBJECT - synthetic
+        assertEquals(XContentParser.Token.END_OBJECT, dotExpandedParser.nextToken());
+        assertEquals(dotExpandedParser.getTokenLocation(), dotExpandedParser.getCurrentLocation());
+        // FIELD_NAME "value" - original content
+        assertEquals(XContentParser.Token.FIELD_NAME, expectedParser.nextToken());
+        assertEquals(XContentParser.Token.FIELD_NAME, dotExpandedParser.nextToken());
+        assertEquals("value", dotExpandedParser.currentName());
+        assertEquals(expectedParser.getCurrentLocation(), dotExpandedParser.getCurrentLocation());
+        // VALUE_NULL - original content
+        assertEquals(XContentParser.Token.VALUE_NULL, expectedParser.nextToken());
+        assertEquals(XContentParser.Token.VALUE_NULL, dotExpandedParser.nextToken());
+        assertEquals(expectedParser.getCurrentLocation(), dotExpandedParser.getCurrentLocation());
+        // END_OBJECT - original content (inner `}`)
+        assertEquals(XContentParser.Token.END_OBJECT, dotExpandedParser.nextToken());
+        assertEquals(XContentParser.Token.END_OBJECT, expectedParser.nextToken());
+        assertEquals(expectedParser.getCurrentLocation(), dotExpandedParser.getCurrentLocation());
+        // END_OBJECT - synthetic (closing "first.dot" expansion)
+        assertEquals(XContentParser.Token.END_OBJECT, dotExpandedParser.nextToken());
+        assertEquals(dotExpandedParser.getTokenLocation(), dotExpandedParser.getCurrentLocation());
+        // END_OBJECT - original content (outer `}`)
+        assertEquals(XContentParser.Token.END_OBJECT, dotExpandedParser.nextToken());
+        assertEquals(XContentParser.Token.END_OBJECT, expectedParser.nextToken());
+        assertEquals(expectedParser.getCurrentLocation(), dotExpandedParser.getCurrentLocation());
+        assertNull(dotExpandedParser.nextToken());
+        assertNull(expectedParser.nextToken());
     }
 }

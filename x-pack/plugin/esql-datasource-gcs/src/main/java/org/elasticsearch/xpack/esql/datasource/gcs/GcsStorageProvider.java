@@ -7,14 +7,23 @@
 
 package org.elasticsearch.xpack.esql.datasource.gcs;
 
+import com.google.auth.Credentials;
+import com.google.auth.oauth2.AccessToken;
+import com.google.auth.oauth2.ComputeEngineCredentials;
+import com.google.auth.oauth2.ExternalAccountCredentials;
 import com.google.auth.oauth2.GoogleCredentials;
+import com.google.auth.oauth2.IdentityPoolCredentials;
 import com.google.auth.oauth2.ServiceAccountCredentials;
+import com.google.cloud.ReadChannel;
 import com.google.cloud.storage.Blob;
 import com.google.cloud.storage.BlobId;
 import com.google.cloud.storage.Storage;
 import com.google.cloud.storage.StorageException;
 import com.google.cloud.storage.StorageOptions;
 
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.workloadidentity.spi.WorkloadIdentityIssuerClient;
+import org.elasticsearch.workloadidentity.spi.WorkloadIdentityRegistry;
 import org.elasticsearch.xpack.esql.datasources.StorageEntry;
 import org.elasticsearch.xpack.esql.datasources.StorageIterator;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
@@ -35,27 +44,39 @@ import java.util.NoSuchElementException;
 /**
  * StorageProvider implementation for Google Cloud Storage.
  * <p>
- * Supports the {@code gs://} URI scheme. Authentication can be provided via:
+ * Supports the {@code gs://} URI scheme. Authentication must be provided explicitly via:
  * <ul>
  *   <li>Explicit service account JSON credentials</li>
- *   <li>Application Default Credentials (ADC) — environment variable, metadata server, etc.</li>
+ *   <li>Workload identity federation via {@code jwt_audience}, {@code sts_audience}, and
+ *       {@code service_account_impersonation_url}</li>
+ *   <li>{@code auth=none} for anonymous access to public buckets</li>
  * </ul>
+ * {@code auth=workload_identity} uses the GCE/GKE metadata server ({@link ComputeEngineCredentials}).
+ * File-based ADC sources ({@code GOOGLE_APPLICATION_CREDENTIALS}, the well-known gcloud credential
+ * file) are excluded because file reads are blocked by entitlements. GKE Workload Identity
+ * Federation is handled separately via {@code auth=keyless}. Requires the
+ * {@code esql.datasource.workload_identity.enabled} cluster setting.
  * <p>
- * Note: this implementation does not currently provide native async support
- * ({@code readBytesAsync} / {@code supportsNativeAsync}). The GCS Java client does support
- * async operations, and adding native async would improve Parquet parallel column chunk reads.
- * TODO: implement native async via the GCS async client for improved Parquet read performance.
+ * {@link GcsStorageObject} provides optimized I/O via GCS {@link com.google.cloud.ReadChannel}:
+ * <ul>
+ *   <li>{@code readBytes} reads directly into {@link java.nio.ByteBuffer} without intermediate copies</li>
+ *   <li>{@code readBytesAsync} uses executor-based async with efficient ReadChannel reads</li>
+ * </ul>
+ * The async path blocks a worker thread (not truly non-blocking like HTTP sendAsync or S3AsyncClient)
+ * but avoids the byte[] allocation overhead of the default InputStream-based wrappers.
  */
-public final class GcsStorageProvider implements StorageProvider {
+public class GcsStorageProvider implements StorageProvider {
     private volatile Storage storage;
     private final GcsConfiguration config;
 
+    @SuppressWarnings("this-escape")
     public GcsStorageProvider(GcsConfiguration config) {
         this.config = config;
-        // When explicit credentials are provided, build the client eagerly so misconfigurations
-        // are caught early. When using ADC (config is null), defer client creation to first use
-        // so the plugin can load even when no GCS credentials are configured.
-        if (config != null && config.hasCredentials()) {
+        // When explicit credentials, keyless auth, or anonymous mode are configured, build the client
+        // eagerly so misconfigurations are caught early. When no credentials are configured (config is null),
+        // defer client creation to first use so the plugin can load; the missing-credentials error then
+        // surfaces only when a gs:// query is actually executed.
+        if (config != null && (config.hasCredentials() || config.hasKeylessAuth() || config.isAnonymous())) {
             this.storage = buildStorageClient(config);
         }
     }
@@ -85,22 +106,21 @@ public final class GcsStorageProvider implements StorageProvider {
         return storage;
     }
 
-    private static Storage buildStorageClient(GcsConfiguration config) {
+    private Storage buildStorageClient(GcsConfiguration config) {
         try {
-            StorageOptions.Builder builder = StorageOptions.newBuilder();
-
-            if (config != null && config.hasCredentials()) {
-                ServiceAccountCredentials credentials = ServiceAccountCredentials.fromStream(
-                    new ByteArrayInputStream(config.serviceAccountCredentials().getBytes(StandardCharsets.UTF_8))
-                );
-                // Override the token server URI if provided (used for testing with mock GCS fixtures)
-                if (config.tokenUri() != null) {
-                    credentials = credentials.toBuilder().setTokenServerUri(URI.create(config.tokenUri())).build();
+            if (config != null && config.isAnonymous()) {
+                StorageOptions.Builder builder = StorageOptions.getUnauthenticatedInstance().toBuilder();
+                if (config.projectId() != null) {
+                    builder.setProjectId(config.projectId());
                 }
-                builder.setCredentials(credentials);
-            } else {
-                builder.setCredentials(GoogleCredentials.getApplicationDefault());
+                if (config.endpoint() != null) {
+                    builder.setHost(config.endpoint());
+                }
+                return builder.build().getService();
             }
+
+            StorageOptions.Builder builder = StorageOptions.newBuilder();
+            builder.setCredentials(credentials(config));
 
             if (config != null && config.projectId() != null) {
                 builder.setProjectId(config.projectId());
@@ -120,6 +140,86 @@ public final class GcsStorageProvider implements StorageProvider {
                 e
             );
         }
+    }
+
+    /**
+     * Builds the Google credentials for the given configuration:
+     * <ul>
+     *   <li>service account JSON — {@link ServiceAccountCredentials}</li>
+     *   <li>access_token — short-lived OAuth2 credentials</li>
+     *   <li>keyless workload-identity federation — {@link IdentityPoolCredentials}</li>
+     * </ul>
+     * When more than one is supplied, service account credentials take precedence, then access_token, then
+     * keyless federation. When {@code auth=workload_identity} is set,
+     * the GCE/GKE metadata server is used via ComputeEngineCredentials.
+     */
+    Credentials credentials(GcsConfiguration config) throws IOException {
+        if (config != null && Strings.hasText(config.serviceAccountCredentials())) {
+            ServiceAccountCredentials credentials = ServiceAccountCredentials.fromStream(
+                new ByteArrayInputStream(config.serviceAccountCredentials().getBytes(StandardCharsets.UTF_8))
+            );
+            // Override the token server URI if provided (used for testing with mock GCS fixtures)
+            if (config.tokenUri() != null) {
+                credentials = credentials.toBuilder().setTokenServerUri(URI.create(config.tokenUri())).build();
+            }
+            return credentials;
+        }
+        if (config != null && Strings.hasText(config.accessToken())) {
+            return GoogleCredentials.create(new AccessToken(config.accessToken(), null));
+        }
+        if (config != null && config.hasKeylessAuth()) {
+            return buildIdentityPoolCredentials(config);
+        }
+        if (config != null && config.isWorkloadIdentity()) {
+            return buildWorkloadIdentityCredentials();
+        }
+        throw new IllegalArgumentException(
+            "GCS data source requires credentials: provide WITH {\"credentials\": \"...\"}, "
+                + "WITH {\"access_token\": \"...\"} for short-lived OAuth credentials, "
+                + "configure keyless authentication settings, WITH {\"auth\": \"none\"} for public buckets, "
+                + "or WITH {\"auth\": \"workload_identity\"} to use Application Default Credentials (requires cluster setting)"
+        );
+    }
+
+    /**
+     * Builds the credential used when {@code auth=workload_identity} is configured. Default returns
+     * {@link ComputeEngineCredentials#create()}, which contacts the GCE/GKE metadata server.
+     * <p>
+     * {@code GoogleCredentials.getApplicationDefault()} is deliberately not used: it reads
+     * {@code GOOGLE_APPLICATION_CREDENTIALS} and the well-known gcloud credential file, both
+     * blocked by the entitlement system. {@code ComputeEngineCredentials} contacts only the
+     * metadata server over the network (covered by the {@code outbound_network} entitlement).
+     * GKE Workload Identity Federation is handled separately via {@code auth=keyless}.
+     * <p>
+     * Tests may override this method (anonymous subclass) to inject a credential built with a
+     * mock {@link com.google.api.client.http.HttpTransport} — the same pattern used by
+     * {@code GoogleCloudStorageAdcTests} in {@code repository-gcs}.
+     */
+    protected Credentials buildWorkloadIdentityCredentials() {
+        return ComputeEngineCredentials.create();
+    }
+
+    private static GoogleCredentials buildIdentityPoolCredentials(GcsConfiguration config) throws IOException {
+        WorkloadIdentityIssuerClient issuerClient = WorkloadIdentityRegistry.getSharedIssuerClient();
+        if (issuerClient.isEnabled() == false) {
+            throw new IllegalStateException("GCS keyless authentication requires the workload-identity feature to be enabled on this node");
+        }
+
+        IdentityPoolCredentials.Builder credentialsBuilder = IdentityPoolCredentials.newBuilder()
+            .setAudience(config.stsAudience())
+            .setSubjectTokenType(ExternalAccountCredentials.SubjectTokenTypes.JWT)
+            .setSubjectTokenSupplier(new GcsWorkloadIdentitySubjectTokenSupplier(issuerClient, config.jwtAudience()));
+
+        // Optional: when absent, the federated identity maps directly to a principal without impersonation.
+        if (config.serviceAccountImpersonationUrl() != null) {
+            credentialsBuilder.setServiceAccountImpersonationUrl(config.serviceAccountImpersonationUrl());
+        }
+
+        if (config.tokenUri() != null) {
+            credentialsBuilder.setTokenUrl(config.tokenUri());
+        }
+
+        return credentialsBuilder.build();
     }
 
     @Override
@@ -172,8 +272,31 @@ public final class GcsStorageProvider implements StorageProvider {
             if (e.getCode() == 404) {
                 return false;
             }
-            throw new IOException("Failed to check existence of " + path, e);
+            if (e.getCode() == 403) {
+                return existsViaRead(bucket, objectName, path);
+            }
+            throw new IOException("Failed to check existence of " + path + credentialHint(), e);
         }
+    }
+
+    private boolean existsViaRead(String bucket, String objectName, StoragePath path) throws IOException {
+        try (ReadChannel reader = storage().reader(BlobId.of(bucket, objectName))) {
+            return true;
+        } catch (StorageException e) {
+            if (e.getCode() == 404) {
+                return false;
+            }
+            throw new IOException("Failed to check existence of " + path + " (metadata denied, read also failed)", e);
+        }
+    }
+
+    private String credentialHint() {
+        if (config == null || (config.isAnonymous() == false && config.hasCredentials() == false && config.hasKeylessAuth() == false)) {
+            return ". If accessing a public bucket, use WITH {\"auth\": \"none\"}. "
+                + "Otherwise, provide credentials via WITH {\"credentials\": \"...\"}, configure keyless authentication settings, "
+                + "or set GOOGLE_APPLICATION_CREDENTIALS";
+        }
+        return "";
     }
 
     @Override
@@ -303,10 +426,17 @@ public final class GcsStorageProvider implements StorageProvider {
 
                 com.google.api.gax.paging.Page<Blob> page = storage.list(bucket, options);
                 currentIterator = page.iterateAll().iterator();
-            } catch (StorageException e) {
-                throw new UncheckedIOException(new IOException("Failed to list objects in bucket " + bucket + " with prefix " + prefix, e));
             } catch (Exception e) {
-                throw new UncheckedIOException(new IOException("Failed to list objects in bucket " + bucket + " with prefix " + prefix, e));
+                String msg = (e instanceof StorageException se && se.getCode() == 403)
+                    ? "Access denied listing objects in bucket ["
+                        + bucket
+                        + "] with prefix ["
+                        + prefix
+                        + "]. "
+                        + "Verify that the configured credentials have storage.objects.list permission, "
+                        + "or use exact file paths instead of glob patterns."
+                    : "Failed to list objects in bucket [" + bucket + "] with prefix [" + prefix + "]";
+                throw new UncheckedIOException(new IOException(msg, e));
             }
         }
     }

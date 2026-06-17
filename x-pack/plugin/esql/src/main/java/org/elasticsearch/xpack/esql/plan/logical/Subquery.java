@@ -12,6 +12,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
+import org.elasticsearch.xpack.esql.core.tree.NodeStringMapper;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
@@ -21,28 +22,19 @@ import java.util.Objects;
 
 public class Subquery extends UnaryPlan implements TelemetryAware, SortAgnostic {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(LogicalPlan.class, "Subquery", Subquery::new);
-    private final String name;  // named subqueries are views (information useful for debugging planning)
-
-    // subquery alias/qualifier could be added in the future if needed
 
     public Subquery(Source source, LogicalPlan subqueryPlan) {
-        this(source, subqueryPlan, null);
-    }
-
-    public Subquery(Source source, LogicalPlan subqueryPlan, String name) {
         super(source, subqueryPlan);
-        this.name = name;
     }
 
     private Subquery(StreamInput in) throws IOException {
-        this(Source.readFrom((PlanStreamInput) in), in.readNamedWriteable(LogicalPlan.class), null);
+        this(Source.readFrom((PlanStreamInput) in), in.readNamedWriteable(LogicalPlan.class));
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         Source.EMPTY.writeTo(out);
         out.writeNamedWriteable(child());
-        // View names are not needed on the data nodes, only on the coordinating node for debugging purposes
     }
 
     @Override
@@ -51,13 +43,13 @@ public class Subquery extends UnaryPlan implements TelemetryAware, SortAgnostic 
     }
 
     @Override
-    protected NodeInfo<Subquery> info() {
-        return NodeInfo.create(this, Subquery::new, child(), name);
+    protected NodeInfo<? extends Subquery> info() {
+        return NodeInfo.create(this, Subquery::new, child());
     }
 
     @Override
     public UnaryPlan replaceChild(LogicalPlan newChild) {
-        return new Subquery(source(), newChild, name);
+        return new Subquery(source(), newChild);
     }
 
     @Override
@@ -90,8 +82,8 @@ public class Subquery extends UnaryPlan implements TelemetryAware, SortAgnostic 
     }
 
     @Override
-    public String nodeString(NodeStringFormat format) {
-        return nodeName() + "[" + (name == null ? "" : name) + "]";
+    public void nodeString(StringBuilder sb, NodeStringFormat format, NodeStringMapper mapper) {
+        sb.append(nodeName()).append("[]");
     }
 
     public LogicalPlan plan() {

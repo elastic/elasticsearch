@@ -7,6 +7,7 @@
 
 apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.publish'
+apply plugin: 'elasticsearch.esql-release'
 
 esplugin {
   name = 'esql-datasource-bzip2'
@@ -26,42 +27,10 @@ dependencies {
   compileOnly project(':server')
   compileOnly project(xpackModule('esql:compute'))
 
-  implementation("org.apache.commons:commons-compress:${versions.esql_commons_compress}") {
-    exclude group: 'commons-codec', module: 'commons-codec'
-  }
-
   testImplementation project(':test:framework')
   testImplementation(testArtifact(project(xpackModule('core'))))
+  // Tests use BZip2CompressorOutputStream (encoder) to build fixture bzip2 inputs; production
+  // code does not depend on commons-compress and uses the in-tree CBZip2InputStream instead.
+  testImplementation "org.apache.commons:commons-compress:${versions.esql_commons_compress}"
 }
 
-tasks.withType(org.elasticsearch.gradle.internal.AbstractDependenciesTask).configureEach {
-  mapping from: /commons-compress-.*/, to: 'commons-compress'
-}
-
-tasks.named("thirdPartyAudit").configure {
-  ignoreMissingClasses(
-    // commons-compress optional deps for formats we don't use (pack200, xz, zstd, brotli)
-    'org.objectweb.asm.AnnotationVisitor',
-    'org.objectweb.asm.Attribute',
-    'org.objectweb.asm.ClassReader',
-    'org.objectweb.asm.ClassVisitor',
-    'org.objectweb.asm.FieldVisitor',
-    'org.objectweb.asm.Label',
-    'org.objectweb.asm.MethodVisitor',
-    'org.objectweb.asm.Type',
-    'org.tukaani.xz.DeltaOptions',
-    'org.tukaani.xz.FilterOptions',
-    'org.tukaani.xz.LZMA2InputStream',
-    'org.tukaani.xz.LZMA2Options',
-    'org.tukaani.xz.LZMAInputStream',
-    'org.tukaani.xz.LZMAOutputStream',
-    'org.tukaani.xz.MemoryLimitException',
-    'org.tukaani.xz.UnsupportedOptionsException',
-    'org.tukaani.xz.XZ',
-    'org.tukaani.xz.XZOutputStream',
-    'com.github.luben.zstd.BufferPool',
-    'com.github.luben.zstd.ZstdInputStream',
-    'com.github.luben.zstd.ZstdOutputStream',
-    'org.brotli.dec.BrotliInputStream'
-  )
-}

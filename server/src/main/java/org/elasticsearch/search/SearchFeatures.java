@@ -18,6 +18,7 @@ public final class SearchFeatures implements FeatureSpecification {
 
     public static final NodeFeature LUCENE_10_0_0_UPGRADE = new NodeFeature("lucene_10_upgrade");
     public static final NodeFeature LUCENE_10_1_0_UPGRADE = new NodeFeature("lucene_10_1_upgrade");
+    public static final NodeFeature LUCENE_10_4_0_UPGRADE_TEST = new NodeFeature("lucene_10_4_upgrade");
 
     @Override
     public Set<NodeFeature> getFeatures() {
@@ -33,6 +34,7 @@ public final class SearchFeatures implements FeatureSpecification {
     static final NodeFeature MULTI_MATCH_CHECKS_POSITIONS = new NodeFeature("search.multi.match.checks.positions");
     public static final NodeFeature BBQ_HNSW_DEFAULT_INDEXING = new NodeFeature("search.vectors.mappers.default_bbq_hnsw");
     public static final NodeFeature SEARCH_WITH_NO_DIMENSIONS_BUGFIX = new NodeFeature("search.vectors.no_dimensions_bugfix");
+    public static final NodeFeature HNSW_FLAT_INDEX_THRESHOLD = new NodeFeature("search.vectors.flat_index_threshold");
     public static final NodeFeature SEARCH_RESCORE_SCRIPT = new NodeFeature("search.rescore.script");
     public static final NodeFeature NEGATIVE_FUNCTION_SCORE_BAD_REQUEST = new NodeFeature("search.negative.function.score.bad.request");
     public static final NodeFeature INDICES_BOOST_REMOTE_INDEX_FIX = new NodeFeature("search.indices_boost_remote_index_fix");
@@ -50,10 +52,34 @@ public final class SearchFeatures implements FeatureSpecification {
     public static final NodeFeature EXPONENTIAL_HISTOGRAM_QUERYDSL_PERCENTILE_RANKS = new NodeFeature(
         "search.exponential_histogram_querydsl_percentile_ranks"
     );
+    public static final NodeFeature EXPONENTIAL_HISTOGRAM_UPSCALING_REMOVED = new NodeFeature(
+        "search.exponential_histogram_upscaling_removed"
+    );
     public static final NodeFeature CLOSING_INVALID_PIT_ID = new NodeFeature("closing_invalid_pit_id");
     public static final NodeFeature EXPONENTIAL_HISTOGRAM_QUERYDSL_BOXPLOT = new NodeFeature(
         "search.exponential_histogram_querydsl_boxplot"
     );
+    public static final NodeFeature EXPONENTIAL_HISTOGRAM_QUERYDSL_RANGE = new NodeFeature("search.exponential_histogram_querydsl_range");
+    public static final NodeFeature DEFAULT_DISK_BBQ = new NodeFeature("search.default_disk_bbq");
+    /**
+     * Test-only gate for REST tests that assert coordinator {@code profile.request} metadata; that response shape
+     * depends on {@code TransportVersion} {@code include_original_query_indices_in_search_profile_results}, which
+     * is not supported on mixed BWC clusters that still contain pre-9.5 nodes.
+     */
+    public static final NodeFeature PROFILE_COORDINATOR_REQUEST_METADATA = new NodeFeature("search.profile.coordinator_request_metadata");
+    /**
+     * Scroll requests whose scroll id encodes zero shard contexts (empty index pattern, all shards skipped by
+     * can_match) now return an empty 200 response instead of a 503 {@code SearchPhaseExecutionException}.
+     */
+    public static final NodeFeature SCROLL_EMPTY_CONTEXT_RETURNS_200 = new NodeFeature("search.scroll.empty_context_returns_200");
+    /**
+     * A non-top-level {@code date_histogram} with {@code hard_bounds} that excludes every fixed rounding point
+     * produced from the data no longer throws {@code ArrayIndexOutOfBoundsException}; it returns an empty histogram.
+     */
+    public static final NodeFeature DATE_HISTOGRAM_HARD_BOUNDS_OUTSIDE_DATA_FIX = new NodeFeature(
+        "search.aggs.date_histogram.hard_bounds_outside_data_fix"
+    );
+    public static final NodeFeature COUNT_STATS_PARAMETER = new NodeFeature("search.count.stats_parameter");
 
     @Override
     public Set<NodeFeature> getTestFeatures() {
@@ -65,6 +91,7 @@ public final class SearchFeatures implements FeatureSpecification {
             MULTI_MATCH_CHECKS_POSITIONS,
             BBQ_HNSW_DEFAULT_INDEXING,
             SEARCH_WITH_NO_DIMENSIONS_BUGFIX,
+            HNSW_FLAT_INDEX_THRESHOLD,
             SEARCH_RESCORE_SCRIPT,
             NEGATIVE_FUNCTION_SCORE_BAD_REQUEST,
             INDICES_BOOST_REMOTE_INDEX_FIX,
@@ -77,7 +104,15 @@ public final class SearchFeatures implements FeatureSpecification {
             EXPONENTIAL_HISTOGRAM_QUERYDSL_PERCENTILE_RANKS,
             CLOSING_INVALID_PIT_ID,
             FUNCTION_SCORE_NAMED_QUERIES,
-            EXPONENTIAL_HISTOGRAM_QUERYDSL_BOXPLOT
+            LUCENE_10_4_0_UPGRADE_TEST,
+            EXPONENTIAL_HISTOGRAM_QUERYDSL_BOXPLOT,
+            EXPONENTIAL_HISTOGRAM_QUERYDSL_RANGE,
+            EXPONENTIAL_HISTOGRAM_UPSCALING_REMOVED,
+            DEFAULT_DISK_BBQ,
+            PROFILE_COORDINATOR_REQUEST_METADATA,
+            SCROLL_EMPTY_CONTEXT_RETURNS_200,
+            DATE_HISTOGRAM_HARD_BOUNDS_OUTSIDE_DATA_FIX,
+            COUNT_STATS_PARAMETER
         );
     }
 }

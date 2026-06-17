@@ -23,10 +23,14 @@ module org.elasticsearch.compute {
     requires hppc;
     requires org.elasticsearch.exponentialhistogram;
     requires org.elasticsearch.swisshash;
+    requires org.objectweb.asm;  // for ConstantMethodResultSpecializer runtime bytecode generation
+    requires transitive org.apache.arrow.memory.core;
+    requires org.apache.arrow.vector;
 
     exports org.elasticsearch.compute;
     exports org.elasticsearch.compute.aggregation;
     exports org.elasticsearch.compute.data;
+    exports org.elasticsearch.compute.data.arrow;
     exports org.elasticsearch.compute.lucene;
     exports org.elasticsearch.compute.operator;
     exports org.elasticsearch.compute.operator.exchange;
@@ -41,4 +45,5 @@ module org.elasticsearch.compute {
     exports org.elasticsearch.compute.lucene.read;
     exports org.elasticsearch.compute.operator.fuse;
     exports org.elasticsearch.compute.lucene.query;
+    exports org.elasticsearch.compute.expression;
 }

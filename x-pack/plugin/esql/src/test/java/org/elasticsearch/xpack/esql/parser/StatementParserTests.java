@@ -13,7 +13,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexMode;
@@ -38,6 +37,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.evaluator.command.RegisteredDomainFunctionBridge;
 import org.elasticsearch.xpack.esql.evaluator.command.UriPartsFunctionBridge;
+import org.elasticsearch.xpack.esql.evaluator.command.UserAgentFunctionBridge;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
 import org.elasticsearch.xpack.esql.expression.function.DocsV3Support;
@@ -45,7 +45,8 @@ import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.FilteredExpression;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.MatchOperator;
-import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDenseVector;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToCounter;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToGauge;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToInteger;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.RLike;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLike;
@@ -62,6 +63,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Les
 import org.elasticsearch.xpack.esql.inference.InferenceSettings;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
+import org.elasticsearch.xpack.esql.plan.logical.Dedup;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.Drop;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
@@ -70,9 +72,11 @@ import org.elasticsearch.xpack.esql.plan.logical.Explain;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
+import org.elasticsearch.xpack.esql.plan.logical.Highlight;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.Keep;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
+import org.elasticsearch.xpack.esql.plan.logical.LimitBy;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Lookup;
 import org.elasticsearch.xpack.esql.plan.logical.MMR;
@@ -85,6 +89,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UriParts;
+import org.elasticsearch.xpack.esql.plan.logical.UserAgent;
 import org.elasticsearch.xpack.esql.plan.logical.fuse.Fuse;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
@@ -95,7 +100,6 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -107,6 +111,8 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_FUNCTION_REGISTRY;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.assertEqualsIgnoringIds;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.equalToIgnoringIds;
@@ -125,19 +131,20 @@ import static org.elasticsearch.xpack.esql.analysis.AnalyzerTests.withInlinestat
 import static org.elasticsearch.xpack.esql.core.expression.Literal.FALSE;
 import static org.elasticsearch.xpack.esql.core.expression.Literal.TRUE;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
-import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
-import static org.elasticsearch.xpack.esql.expression.function.FunctionResolutionStrategy.DEFAULT;
 import static org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizerTests.releaseBuildForInlineStats;
 import static org.elasticsearch.xpack.esql.parser.ExpressionBuilder.breakIntoFragments;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
 
 //@TestLogging(value = "org.elasticsearch.xpack.esql:TRACE", reason = "debug")
@@ -336,7 +343,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
                         new UnresolvedFunction(
                             EMPTY,
                             "fn",
-                            DEFAULT,
                             List.of(new Add(EMPTY, attribute("a"), integer(1), ConfigurationAware.CONFIGURATION_MARKER))
                         )
                     )
@@ -353,7 +359,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 PROCESSING_CMD_INPUT,
                 List.of(attribute("c"), attribute("d.e")),
                 List.of(
-                    new Alias(EMPTY, "b", new UnresolvedFunction(EMPTY, "min", DEFAULT, List.of(attribute("a")))),
+                    new Alias(EMPTY, "b", new UnresolvedFunction(EMPTY, "min", List.of(attribute("a")))),
                     attribute("c"),
                     attribute("d.e")
                 )
@@ -369,7 +375,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 PROCESSING_CMD_INPUT,
                 List.of(),
                 List.of(
-                    new Alias(EMPTY, "min(a)", new UnresolvedFunction(EMPTY, "min", DEFAULT, List.of(attribute("a")))),
+                    new Alias(EMPTY, "min(a)", new UnresolvedFunction(EMPTY, "min", List.of(attribute("a")))),
                     new Alias(EMPTY, "c", integer(1))
                 )
             ),
@@ -411,7 +417,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
 
     public void testStatsWithGroupKeyAndAggFilter() {
         var a = attribute("a");
-        var f = new UnresolvedFunction(EMPTY, "min", DEFAULT, List.of(a));
+        var f = new UnresolvedFunction(EMPTY, "min", List.of(a));
         var filter = new Alias(EMPTY, "min(a) where a > 1", new FilteredExpression(EMPTY, f, new GreaterThan(EMPTY, a, integer(1))));
         assertEqualsIgnoringIds(
             new Aggregate(EMPTY, PROCESSING_CMD_INPUT, List.of(a), List.of(filter, a)),
@@ -421,9 +427,9 @@ public class StatementParserTests extends AbstractStatementParserTests {
 
     public void testStatsWithGroupKeyAndMixedAggAndFilter() {
         var a = attribute("a");
-        var min = new UnresolvedFunction(EMPTY, "min", DEFAULT, List.of(a));
-        var max = new UnresolvedFunction(EMPTY, "max", DEFAULT, List.of(a));
-        var avg = new UnresolvedFunction(EMPTY, "avg", DEFAULT, List.of(a));
+        var min = new UnresolvedFunction(EMPTY, "min", List.of(a));
+        var max = new UnresolvedFunction(EMPTY, "max", List.of(a));
+        var avg = new UnresolvedFunction(EMPTY, "avg", List.of(a));
         var min_alias = new Alias(EMPTY, "min", min);
 
         var max_filter_ex = new Or(
@@ -450,7 +456,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
 
     public void testStatsWithoutGroupKeyMixedAggAndFilter() {
         var a = attribute("a");
-        var f = new UnresolvedFunction(EMPTY, "min", DEFAULT, List.of(a));
+        var f = new UnresolvedFunction(EMPTY, "min", List.of(a));
         var filter = new Alias(EMPTY, "min(a) where a > 1", new FilteredExpression(EMPTY, f, new GreaterThan(EMPTY, a, integer(1))));
         assertEqualsIgnoringIds(
             new Aggregate(EMPTY, PROCESSING_CMD_INPUT, List.of(), List.of(filter)),
@@ -474,7 +480,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
                             PROCESSING_CMD_INPUT,
                             List.of(attribute("c"), attribute("d.e")),
                             List.of(
-                                new Alias(EMPTY, "b", new UnresolvedFunction(EMPTY, "MIN", DEFAULT, List.of(attribute("a")))),
+                                new Alias(EMPTY, "b", new UnresolvedFunction(EMPTY, "MIN", List.of(attribute("a")))),
                                 attribute("c"),
                                 attribute("d.e")
                             )
@@ -500,7 +506,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
                         PROCESSING_CMD_INPUT,
                         List.of(),
                         List.of(
-                            new Alias(EMPTY, "MIN(a)", new UnresolvedFunction(EMPTY, "MIN", DEFAULT, List.of(attribute("a")))),
+                            new Alias(EMPTY, "MIN(a)", new UnresolvedFunction(EMPTY, "MIN", List.of(attribute("a")))),
                             new Alias(EMPTY, "c", integer(1))
                         )
                     )
@@ -996,6 +1002,31 @@ public class StatementParserTests extends AbstractStatementParserTests {
         );
     }
 
+    /** Regression test for <a href="https://github.com/elastic/elasticsearch/issues/146073">#146073</a>. */
+    public void testWildcardPatternWithReservedPrefixChar() {
+        List<String> commands = new ArrayList<>();
+        commands.add("FROM");
+        if (Build.current().isSnapshot()) {
+            commands.add("TS");
+        }
+        for (String command : commands) {
+            assertStringAsIndexPattern("*_logs", command + " *_logs");
+            assertStringAsIndexPattern("*+logs", command + " *+logs");
+            assertStringAsIndexPattern("**_logs", command + " **_logs");
+            assertStringAsIndexPattern("foo*_logs", command + " foo*_logs");
+            assertStringAsIndexPattern("*_logs,*_metrics", command + " *_logs,*_metrics");
+            assertStringAsIndexPattern("cluster:*_logs", command + " cluster:*_logs");
+            if (EsqlCapabilities.Cap.INDEX_COMPONENT_SELECTORS.isEnabled()) {
+                assertStringAsIndexPattern("*_logs::data", command + " *_logs::data");
+            }
+
+            String lineNumber = command.equals("FROM") ? "line 1:6: " : "line 1:4: ";
+            expectError(command + " _logs*", lineNumber + "Invalid index name [_logs], must not start with '_', '-', or '+'");
+            expectError(command + " _*logs", lineNumber + "Invalid index name [_logs], must not start with '_', '-', or '+'");
+            expectError(command + " +logs*", lineNumber + "Invalid index name [+logs], must not start with '_', '-', or '+'");
+        }
+    }
+
     public void testInvalidQuotingAsFromIndexPattern() {
         expectError("FROM \"foo", ": token recognition error at: '\"foo'");
         expectError("FROM \"foo | LIMIT 1", ": token recognition error at: '\"foo | LIMIT 1'");
@@ -1080,6 +1111,212 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertThat(limit.children().get(0), instanceOf(Filter.class));
         assertThat(limit.children().get(0).children().size(), equalTo(1));
         assertThat(limit.children().get(0).children().get(0), instanceOf(UnresolvedRelation.class));
+    }
+
+    public void testLimitBy() {
+        LogicalPlan plan = query("""
+                FROM foo
+                | SORT @timestamp DESC
+                | LIMIT 10 BY hostname, @timestamp / 10
+            """);
+        assertThat(plan, instanceOf(LimitBy.class));
+        LimitBy limitBy = (LimitBy) plan;
+        assertThat(limitBy.limitPerGroup(), instanceOf(Literal.class));
+        assertThat(((Literal) limitBy.limitPerGroup()).value(), equalTo(10));
+
+        assertThat(limitBy.groupings().size(), equalTo(2));
+        assertThat(limitBy.groupings().get(0), instanceOf(UnresolvedAttribute.class));
+        assertThat(((UnresolvedAttribute) limitBy.groupings().get(0)).name(), equalTo("hostname"));
+        assertThat(limitBy.groupings().get(1), instanceOf(Div.class));
+        Div divExpr = (Div) limitBy.groupings().get(1);
+        assertThat(divExpr.left(), instanceOf(UnresolvedAttribute.class));
+        assertThat(((UnresolvedAttribute) divExpr.left()).name(), equalTo("@timestamp"));
+        assertThat(divExpr.right(), instanceOf(Literal.class));
+        assertThat(((Literal) divExpr.right()).value(), equalTo(10));
+
+        assertThat(limitBy.child(), instanceOf(OrderBy.class));
+        OrderBy orderBy = (OrderBy) limitBy.child();
+        assertThat(orderBy.expressionsResolved(), equalTo(false));
+
+        var orders = orderBy.order();
+        assertThat(orders.size(), equalTo(1));
+        assertThat(orders.getFirst(), instanceOf(Order.class));
+        Expression order = orders.getFirst().child();
+        assertThat(order, instanceOf(UnresolvedAttribute.class));
+        assertThat(((UnresolvedAttribute) order).name(), equalTo("@timestamp"));
+
+        LogicalPlan relation = orderBy.child();
+        assertThat(relation, instanceOf(UnresolvedRelation.class));
+        assertThat(((UnresolvedRelation) relation).indexPattern().indexPattern(), equalTo("foo"));
+    }
+
+    public void testLimitByQualifiedName() {
+        assumeTrue("Requires qualifier support", EsqlCapabilities.Cap.NAME_QUALIFIERS.isEnabled());
+        LogicalPlan plan = query("""
+                FROM foo
+                | SORT @timestamp DESC
+                | LIMIT 10 BY [foo].[hostname]
+            """);
+        assertThat(plan, instanceOf(LimitBy.class));
+        LimitBy limitBy = (LimitBy) plan;
+        assertThat(limitBy.limitPerGroup(), instanceOf(Literal.class));
+        assertThat(((Literal) limitBy.limitPerGroup()).value(), equalTo(10));
+
+        assertThat(limitBy.groupings(), everyItem(instanceOf(UnresolvedAttribute.class)));
+        assertThat(limitBy.groupings().size(), equalTo(1));
+        UnresolvedAttribute groupKey = (UnresolvedAttribute) limitBy.groupings().getFirst();
+        assertThat(groupKey.qualifier(), equalTo("foo"));
+        assertThat(groupKey.name(), equalTo("hostname"));
+
+        assertThat(limitBy.child(), instanceOf(OrderBy.class));
+        OrderBy orderBy = (OrderBy) limitBy.child();
+        assertThat(orderBy.expressionsResolved(), equalTo(false));
+
+        var orders = orderBy.order();
+        assertThat(orders.size(), equalTo(1));
+        assertThat(orders.getFirst(), instanceOf(Order.class));
+        Expression order = orders.getFirst().child();
+        assertThat(order, instanceOf(UnresolvedAttribute.class));
+        assertThat(((UnresolvedAttribute) order).name(), equalTo("@timestamp"));
+
+        LogicalPlan relation = orderBy.child();
+        assertThat(relation, instanceOf(UnresolvedRelation.class));
+        assertThat(((UnresolvedRelation) relation).indexPattern().indexPattern(), equalTo("foo"));
+    }
+
+    public void testLimitByNegativeValue() {
+        expectThrows(
+            ParsingException.class,
+            containsString("value of [LIMIT -1 BY languages] must be a non negative integer, found value [-1] type [integer]"),
+            () -> query("""
+                FROM foo
+                | LIMIT -1 BY languages
+                """)
+        );
+    }
+
+    public void testLimitByExpressionForN() {
+        expectThrows(ParsingException.class, containsString("mismatched input '*'"), () -> query("""
+            FROM foo
+            | LIMIT -1 * 42 BY languages
+            """));
+
+        expectThrows(ParsingException.class, containsString("mismatched input '*'"), () -> query("""
+            FROM foo
+            | LIMIT -1 * -42 BY languages
+            """));
+
+        expectThrows(ParsingException.class, containsString("mismatched input '+'"), () -> query("""
+            FROM foo
+            | LIMIT -1 + 5 BY languages
+            """));
+    }
+
+    public void testDedup() {
+        assumeTrue("requires snapshot build", Build.current().isSnapshot());
+        LogicalPlan plan = query("FROM foo | DEDUP");
+        Dedup dedup = as(plan, Dedup.class);
+        UnresolvedRelation relation = as(dedup.child(), UnresolvedRelation.class);
+        assertThat(relation.indexPattern().indexPattern(), equalTo("foo"));
+    }
+
+    public void testDedupAfterProcessingCommands() {
+        assumeTrue("requires snapshot build", Build.current().isSnapshot());
+        LogicalPlan plan = query("FROM foo | EVAL x = a + 1 | WHERE b > 0 | DEDUP");
+        Dedup dedup = as(plan, Dedup.class);
+        as(dedup.child(), Filter.class);
+    }
+
+    public void testDedupChained() {
+        assumeTrue("requires snapshot build", Build.current().isSnapshot());
+        LogicalPlan plan = query("FROM foo | DEDUP | LIMIT 10");
+        Limit limit = as(plan, Limit.class);
+        as(limit.child(), Dedup.class);
+    }
+
+    public void testDedupOnRow() {
+        assumeTrue("requires snapshot build", Build.current().isSnapshot());
+        assertEqualsIgnoringIds(new Dedup(EMPTY, PROCESSING_CMD_INPUT), processingCommand("DEDUP"));
+    }
+
+    public void testDedupRejectsArguments() {
+        assumeTrue("requires snapshot build", Build.current().isSnapshot());
+        expectThrows(ParsingException.class, containsString("extraneous input 'a' expecting"), () -> query("FROM foo | DEDUP a"));
+        expectThrows(ParsingException.class, containsString("extraneous input '*' expecting"), () -> query("FROM foo | DEDUP *"));
+    }
+
+    public void testDedupNotInReleaseBuild() {
+        assumeFalse("only runs on release build", Build.current().isSnapshot());
+        expectThrows(ParsingException.class, containsString("mismatched input 'DEDUP'"), () -> query("FROM foo | DEDUP"));
+    }
+
+    public void testHighlightOnFields() {
+        assumeTrue("requires HIGHLIGHT_V0 capability", EsqlCapabilities.Cap.HIGHLIGHT_V0.isEnabled());
+        LogicalPlan plan = query("FROM foo | HIGHLIGHT \"elasticsearch\" ON title, body");
+        Highlight highlight = as(plan, Highlight.class);
+        assertThat(highlight.prefix(), equalTo("highlight_"));
+        Literal q = as(highlight.query(), Literal.class);
+        assertThat(BytesRefs.toString(q.value()), equalTo("elasticsearch"));
+        assertThat(highlight.fields().size(), equalTo(2));
+        assertThat(((UnresolvedAttribute) highlight.fields().get(0)).name(), equalTo("title"));
+        assertThat(((UnresolvedAttribute) highlight.fields().get(1)).name(), equalTo("body"));
+        assertThat(highlight.options(), nullValue());
+        UnresolvedRelation relation = as(highlight.child(), UnresolvedRelation.class);
+        assertThat(relation.indexPattern().indexPattern(), equalTo("foo"));
+    }
+
+    public void testHighlightRequiresQueryAndOnClause() {
+        assumeTrue("requires HIGHLIGHT_V0 capability", EsqlCapabilities.Cap.HIGHLIGHT_V0.isEnabled());
+        // Both query and ON are grammatically required in v1. The plan node keeps `query` nullable
+        // and `fields` allowed-empty so the bare form can be enabled later without serialization changes.
+        expectThrows(ParsingException.class, () -> query("FROM foo | HIGHLIGHT"));
+        expectThrows(ParsingException.class, () -> query("FROM foo | HIGHLIGHT \"elasticsearch\""));
+        expectThrows(ParsingException.class, () -> query("FROM foo | HIGHLIGHT ON title"));
+    }
+
+    public void testHighlightRejectsPrefixSyntax() {
+        assumeTrue("requires HIGHLIGHT_V0 capability", EsqlCapabilities.Cap.HIGHLIGHT_V0.isEnabled());
+        // The plan node still carries a prefix field (hard-coded to "highlight_") so a future
+        // grammar extension can flip it on without breaking serialization.
+        expectThrows(ParsingException.class, () -> query("FROM foo | HIGHLIGHT prefix = \"h_\" \"elasticsearch\" ON title"));
+    }
+
+    public void testHighlightWithOptions() {
+        assumeTrue("requires HIGHLIGHT_V0 capability", EsqlCapabilities.Cap.HIGHLIGHT_V0.isEnabled());
+        LogicalPlan plan = query(
+            "FROM foo | HIGHLIGHT \"elasticsearch\" ON title WITH { \"fragment_size\": 150, \"number_of_fragments\": 2 }"
+        );
+        Highlight highlight = as(plan, Highlight.class);
+        assertThat(highlight.options(), notNullValue());
+        assertThat(highlight.options().keyFoldedMap().keySet(), equalTo(Set.of("fragment_size", "number_of_fragments")));
+    }
+
+    public void testHighlightRejectsUnknownOption() {
+        assumeTrue("requires HIGHLIGHT_V0 capability", EsqlCapabilities.Cap.HIGHLIGHT_V0.isEnabled());
+        expectThrows(
+            ParsingException.class,
+            containsString("Invalid option [bogus] in HIGHLIGHT"),
+            () -> query("FROM foo | HIGHLIGHT \"elasticsearch\" ON title WITH { \"bogus\": 1 }")
+        );
+    }
+
+    public void testHighlightRejectsExpressionQuery() {
+        assumeTrue("requires HIGHLIGHT_V0 capability", EsqlCapabilities.Cap.HIGHLIGHT_V0.isEnabled());
+        expectThrows(ParsingException.class, () -> query("FROM foo | HIGHLIGHT MATCH(title, \"x\") ON title"));
+    }
+
+    public void testHighlightRejectsWildcardFields() {
+        assumeTrue("requires HIGHLIGHT_V0 capability", EsqlCapabilities.Cap.HIGHLIGHT_V0.isEnabled());
+        expectThrows(ParsingException.class, () -> query("FROM foo | HIGHLIGHT \"elasticsearch\" ON *"));
+    }
+
+    public void testHighlightNotInReleaseBuild() {
+        assumeFalse("only runs on release build", EsqlCapabilities.Cap.HIGHLIGHT_V0.isEnabled());
+        expectThrows(
+            ParsingException.class,
+            containsString("mismatched input 'HIGHLIGHT'"),
+            () -> query("FROM foo | HIGHLIGHT \"elasticsearch\" ON title")
+        );
     }
 
     public void testBasicSortCommand() {
@@ -2495,6 +2732,15 @@ public class StatementParserTests extends AbstractStatementParserTests {
         expectError("ROW (1+2)::doesnotexist", "line 1:12: Unknown data type named [doesnotexist]");
     }
 
+    public void testInlineConvertToSnapshotOnlyType() {
+        assumeFalse("date_range is exposed on snapshot builds", Build.current().isSnapshot());
+        expectError(
+            "ROW str = \"2020-01-01T00:00:00.000Z..2021-01-01T00:00:00.000Z\" | EVAL range = str::date_range",
+            "Unknown data type named [date_range]"
+        );
+        expectError("ROW range = \"x\"::date_range", "Unknown data type named [date_range]");
+    }
+
     public void testLookup() {
         String query = "ROW a = 1 | LOOKUP_🐔 t ON j";
         if (Build.current().isSnapshot() == false) {
@@ -2541,12 +2787,10 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 EMPTY,
                 unresolvedTSRelation("foo"),
                 List.of(attribute("ts")),
-                List.of(
-                    new Alias(EMPTY, "load", new UnresolvedFunction(EMPTY, "avg", DEFAULT, List.of(attribute("cpu")))),
-                    attribute("ts")
-                ),
+                List.of(new Alias(EMPTY, "load", new UnresolvedFunction(EMPTY, "avg", List.of(attribute("cpu")))), attribute("ts")),
                 null,
-                new UnresolvedTimestamp(new Source(Location.EMPTY, "STATS load=avg(cpu) BY ts"))
+                new UnresolvedTimestamp(new Source(Location.EMPTY, "STATS load=avg(cpu) BY ts")),
+                TimeSeriesAggregate.Origin.TS_COMMAND
             )
         );
         assertQuery(
@@ -2555,12 +2799,10 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 EMPTY,
                 unresolvedTSRelation("foo,bar"),
                 List.of(attribute("ts")),
-                List.of(
-                    new Alias(EMPTY, "load", new UnresolvedFunction(EMPTY, "avg", DEFAULT, List.of(attribute("cpu")))),
-                    attribute("ts")
-                ),
+                List.of(new Alias(EMPTY, "load", new UnresolvedFunction(EMPTY, "avg", List.of(attribute("cpu")))), attribute("ts")),
                 null,
-                new UnresolvedTimestamp(new Source(Location.EMPTY, "STATS load=avg(cpu) BY ts"))
+                new UnresolvedTimestamp(new Source(Location.EMPTY, "STATS load=avg(cpu) BY ts")),
+                TimeSeriesAggregate.Origin.TS_COMMAND
             )
         );
         assertQuery(
@@ -2570,21 +2812,17 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 unresolvedTSRelation("foo,bar"),
                 List.of(attribute("ts")),
                 List.of(
-                    new Alias(EMPTY, "load", new UnresolvedFunction(EMPTY, "avg", DEFAULT, List.of(attribute("cpu")))),
+                    new Alias(EMPTY, "load", new UnresolvedFunction(EMPTY, "avg", List.of(attribute("cpu")))),
                     new Alias(
                         EMPTY,
                         "max(rate(requests))",
-                        new UnresolvedFunction(
-                            EMPTY,
-                            "max",
-                            DEFAULT,
-                            List.of(new UnresolvedFunction(EMPTY, "rate", DEFAULT, List.of(attribute("requests"))))
-                        )
+                        new UnresolvedFunction(EMPTY, "max", List.of(new UnresolvedFunction(EMPTY, "rate", List.of(attribute("requests")))))
                     ),
                     attribute("ts")
                 ),
                 null,
-                new UnresolvedTimestamp(new Source(Location.EMPTY, "STATS load=avg(cpu),max(rate(requests)) BY ts"))
+                new UnresolvedTimestamp(new Source(Location.EMPTY, "STATS load=avg(cpu),max(rate(requests)) BY ts")),
+                TimeSeriesAggregate.Origin.TS_COMMAND
             )
         );
         assertQuery(
@@ -2593,9 +2831,10 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 EMPTY,
                 unresolvedTSRelation("foo*"),
                 List.of(),
-                List.of(new Alias(EMPTY, "count(errors)", new UnresolvedFunction(EMPTY, "count", DEFAULT, List.of(attribute("errors"))))),
+                List.of(new Alias(EMPTY, "count(errors)", new UnresolvedFunction(EMPTY, "count", List.of(attribute("errors"))))),
                 null,
-                new UnresolvedTimestamp(new Source(Location.EMPTY, "STATS count(errors)"))
+                new UnresolvedTimestamp(new Source(Location.EMPTY, "STATS count(errors)")),
+                TimeSeriesAggregate.Origin.TS_COMMAND
             )
         );
         assertQuery(
@@ -2604,9 +2843,10 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 EMPTY,
                 unresolvedTSRelation("foo*"),
                 List.of(),
-                List.of(new Alias(EMPTY, "a(b)", new UnresolvedFunction(EMPTY, "a", DEFAULT, List.of(attribute("b"))))),
+                List.of(new Alias(EMPTY, "a(b)", new UnresolvedFunction(EMPTY, "a", List.of(attribute("b"))))),
                 null,
-                new UnresolvedTimestamp(new Source(Location.EMPTY, "STATS a(b)"))
+                new UnresolvedTimestamp(new Source(Location.EMPTY, "STATS a(b)")),
+                TimeSeriesAggregate.Origin.TS_COMMAND
             )
         );
         assertQuery(
@@ -2615,9 +2855,10 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 EMPTY,
                 unresolvedTSRelation("foo*"),
                 List.of(),
-                List.of(new Alias(EMPTY, "a(b)", new UnresolvedFunction(EMPTY, "a", DEFAULT, List.of(attribute("b"))))),
+                List.of(new Alias(EMPTY, "a(b)", new UnresolvedFunction(EMPTY, "a", List.of(attribute("b"))))),
                 null,
-                new UnresolvedTimestamp(new Source(Location.EMPTY, "STATS a(b)"))
+                new UnresolvedTimestamp(new Source(Location.EMPTY, "STATS a(b)")),
+                TimeSeriesAggregate.Origin.TS_COMMAND
             )
         );
         assertQuery(
@@ -2626,9 +2867,10 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 EMPTY,
                 unresolvedTSRelation("foo*"),
                 List.of(),
-                List.of(new Alias(EMPTY, "a1(b2)", new UnresolvedFunction(EMPTY, "a1", DEFAULT, List.of(attribute("b2"))))),
+                List.of(new Alias(EMPTY, "a1(b2)", new UnresolvedFunction(EMPTY, "a1", List.of(attribute("b2"))))),
                 null,
-                new UnresolvedTimestamp(new Source(Location.EMPTY, "STATS a1(b2)"))
+                new UnresolvedTimestamp(new Source(Location.EMPTY, "STATS a1(b2)")),
+                TimeSeriesAggregate.Origin.TS_COMMAND
             )
         );
         assertQuery(
@@ -2638,12 +2880,13 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 unresolvedTSRelation("foo*,bar*"),
                 List.of(attribute("c"), attribute("d.e")),
                 List.of(
-                    new Alias(EMPTY, "b", new UnresolvedFunction(EMPTY, "min", DEFAULT, List.of(attribute("a")))),
+                    new Alias(EMPTY, "b", new UnresolvedFunction(EMPTY, "min", List.of(attribute("a")))),
                     attribute("c"),
                     attribute("d.e")
                 ),
                 null,
-                new UnresolvedTimestamp(new Source(Location.EMPTY, "STATS b = min(a) by c, d.e"))
+                new UnresolvedTimestamp(new Source(Location.EMPTY, "STATS b = min(a) by c, d.e")),
+                TimeSeriesAggregate.Origin.TS_COMMAND
             )
         );
     }
@@ -3137,11 +3380,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
 
         for (Map.Entry<String, String> command : commands.entrySet()) {
             String cmd = command.getKey();
-            String error = command.getValue();
-            expectError(
-                LoggerMessageFormat.format(null, "from test | " + cmd, "fn(f1, {\"option\":null})"),
-                LoggerMessageFormat.format(null, "line 1:{}: {}", error, "Invalid named parameter [\"option\":null], NULL is not supported")
-            );
+            query(LoggerMessageFormat.format(null, "from test | " + cmd, "fn(f1, {\"option\":null})"));
         }
     }
 
@@ -3606,11 +3845,13 @@ public class StatementParserTests extends AbstractStatementParserTests {
     // this test checks that they are properly replaced in the error message
     public void testPreserveParentheses() {
         // test for (
-        expectError("row a = 1 not in", "line 1:17: mismatched input '<EOF>' expecting '('");
-        expectError("row a = 1 | where a not in", "line 1:27: mismatched input '<EOF>' expecting '('");
+        // With WHERE_IN_SUBQUERY enabled the parser has two IN alternatives (value list / subquery),
+        // so error recovery emits a "no viable alternative" message instead of the single-alt one.
+        expectError("row a = 1 not in", "line 1:17: no viable alternative at input '1 not in'");
+        expectError("row a = 1 | where a not in", "line 1:27: no viable alternative at input 'a not in'");
+        expectError("row a = 1 | where a not in [1", "line 1:28: no viable alternative at input 'a not in ['");
+        expectError("row a = 1 | where a not in 123", "line 1:28: no viable alternative at input 'a not in 123'");
         expectError("row a = 1 | where a not in (1", "line 1:30: mismatched input '<EOF>' expecting {',', ')'}");
-        expectError("row a = 1 | where a not in [1", "line 1:28: missing '(' at '['");
-        expectError("row a = 1 | where a not in 123", "line 1:28: missing '(' at '123'");
         // test for [
         if (EsqlCapabilities.Cap.EXPLAIN.isEnabled()) {
             expectError("explain", "line 1:8: mismatched input '<EOF>' expecting '('");
@@ -3766,7 +4007,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     public void testRerankWithPositionalParameters() {
         var queryParams = new QueryParams(List.of(paramAsConstant(null, "statement text"), paramAsConstant(null, "reranker")));
         var rerank = as(
-            parser.parseQuery("row a = 1 | RERANK rerank_score = ? ON title WITH { \"inference_id\" : ? }", queryParams),
+            TEST_PARSER.parseQuery("row a = 1 | RERANK rerank_score = ? ON title WITH { \"inference_id\" : ? }", queryParams),
             Rerank.class
         );
 
@@ -3782,7 +4023,10 @@ public class StatementParserTests extends AbstractStatementParserTests {
             List.of(paramAsConstant("queryText", "statement text"), paramAsConstant("inferenceId", "reranker"))
         );
         var rerank = as(
-            parser.parseQuery("row a = 1 | RERANK rerank_score=?queryText ON title WITH { \"inference_id\": ?inferenceId }", queryParams),
+            TEST_PARSER.parseQuery(
+                "row a = 1 | RERANK rerank_score=?queryText ON title WITH { \"inference_id\": ?inferenceId }",
+                queryParams
+            ),
             Rerank.class
         );
 
@@ -3868,13 +4112,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
         );
     }
 
-    public void testCompletionTaskSettingsNull() {
-        expectError(
-            "FROM foo* | COMPLETION prompt WITH { \"inference_id\": \"inferenceId\", \"task_settings\": null }",
-            "Invalid named parameter [\"task_settings\":null], NULL is not supported"
-        );
-    }
-
     public void testCompletionTaskSettingsNotAMap() {
         expectError(
             "FROM foo* | COMPLETION prompt WITH { \"inference_id\": \"inferenceId\", \"task_settings\": \"not_a_valid_map\" }",
@@ -3899,7 +4136,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         );
         expectError(
             "FROM foo* | RERANK \"query text\" ON title WITH { \"inference_id\": \"inferenceId\", \"unknown_option\": 3 }",
-            "line 1:42: Invalid option [unknown_option] in RERANK, expected one of [[inference_id]]"
+            "line 1:42: Invalid option [unknown_option] in RERANK, expected one of [[inference_id, timeout]]"
         );
         expectError("FROM foo* | RERANK ON title WITH inferenceId", "line 1:20: extraneous input 'ON' expecting {QUOTED_STRING");
         expectError("FROM foo* | RERANK \"query text\" WITH inferenceId", "line 1:33: mismatched input 'WITH' expecting 'on'");
@@ -3907,6 +4144,10 @@ public class StatementParserTests extends AbstractStatementParserTests {
         expectError(
             "FROM foo* | RERANK \"query text\" ON title WITH { \"inference_id\": { \"a\": 123 } }",
             "Option [inference_id] must be a valid string, found [{ \"a\": 123 }]"
+        );
+        expectError(
+            "FROM foo* | RERANK \"query text\" ON title WITH { \"inference_id\": \"my_inference_id\", \"timeout\": \"a long one\" }",
+            "Invalid timeout value [a long one] for option [timeout] in RERANK: [failed to parse setting [timeout]"
         );
     }
 
@@ -3958,7 +4199,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     public void testCompletionWithPositionalParameters() {
         var queryParams = new QueryParams(List.of(paramAsConstant(null, "inferenceId")));
         var plan = as(
-            parser.parseQuery("row a = 1 | COMPLETION prompt_field WITH { \"inference_id\" : ? }", queryParams),
+            TEST_PARSER.parseQuery("row a = 1 | COMPLETION prompt_field WITH { \"inference_id\" : ? }", queryParams),
             Completion.class
         );
 
@@ -3971,7 +4212,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     public void testCompletionWithNamedParameters() {
         var queryParams = new QueryParams(List.of(paramAsConstant("inferenceId", "myInference")));
         var plan = as(
-            parser.parseQuery("row a = 1 | COMPLETION prompt_field WITH { \"inference_id\" : ?inferenceId }", queryParams),
+            TEST_PARSER.parseQuery("row a = 1 | COMPLETION prompt_field WITH { \"inference_id\" : ?inferenceId }", queryParams),
             Completion.class
         );
 
@@ -4010,7 +4251,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         );
         expectError(
             "FROM foo* | COMPLETION prompt WITH { \"inference_id\": \"inferenceId\", \"unknown_option\": 3 }",
-            "line 1:31: Invalid option [unknown_option] in COMPLETION, expected one of [[inference_id, task_settings]]"
+            "line 1:31: Invalid option [unknown_option] in COMPLETION, expected one of [[inference_id, task_settings, timeout]]"
         );
 
         expectError("FROM foo* | COMPLETION WITH inferenceId", "line 1:24: extraneous input 'WITH' expecting {");
@@ -4020,6 +4261,10 @@ public class StatementParserTests extends AbstractStatementParserTests {
         expectError(
             "FROM foo* | COMPLETION prompt WITH { \"inference_id\": { \"a\": 123 } }",
             "line 1:54: Option [inference_id] must be a valid string, found [{ \"a\": 123 }]"
+        );
+        expectError(
+            "FROM foo* | COMPLETION prompt WITH { \"inference_id\": \"inferenceId\", \"timeout\": \"a long one\" }",
+            "Invalid timeout value [a long one] for option [timeout] in COMPLETION: [failed to parse setting [timeout]"
         );
     }
 
@@ -4307,7 +4552,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
      * builds a little json report of the valid types.
      */
     public void testInlineCast() throws IOException {
-        EsqlFunctionRegistry registry = new EsqlFunctionRegistry();
+        EsqlFunctionRegistry registry = TEST_FUNCTION_REGISTRY;
         Path dir = PathUtils.get(System.getProperty("java.io.tmpdir"))
             .resolve("query-languages")
             .resolve("esql")
@@ -4318,7 +4563,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         try (XContentBuilder report = JsonXContent.contentBuilder().humanReadable(true).prettyPrint().lfAtEnd()) {
             report.startObject();
             List<String> namesAndAliases = new ArrayList<>(DataType.namesAndAliases());
-            if (EsqlCapabilities.Cap.DATE_RANGE_FIELD_TYPE.isEnabled() == false) {
+            if (EsqlCapabilities.Cap.DATE_RANGE_FIELD_TYPE_V6.isEnabled() == false) {
                 // Some types do not have a converter function if the capability is disabled
                 namesAndAliases.removeAll(List.of("date_range"));
             }
@@ -4328,13 +4573,33 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 if (EsqlDataTypeConverter.converterFunctionFactory(expectedType) == null) {
                     continue;
                 }
-                LogicalPlan plan = parser.parseQuery("ROW a = 1::" + nameOrAlias);
+                LogicalPlan plan = TEST_PARSER.parseQuery("ROW a = 1::" + nameOrAlias);
                 Row row = as(plan, Row.class);
                 assertThat(row.fields(), hasSize(1));
                 org.elasticsearch.xpack.esql.core.expression.function.Function functionCall =
                     (org.elasticsearch.xpack.esql.core.expression.function.Function) row.fields().get(0).child();
                 assertThat(functionCall.dataType(), equalTo(expectedType));
                 report.field(nameOrAlias, registry.snapshotRegistry().functionName(functionCall.getClass()).toLowerCase(Locale.ROOT));
+            }
+            if (EsqlCapabilities.Cap.TO_COUNTER.isEnabled()) {
+                // counter is a virtual cast target — not a real DataType — so it is not in namesAndAliases()
+                LogicalPlan plan = TEST_PARSER.parseQuery("ROW a = 1::" + DataType.COUNTER_CAST_NAME);
+                Row row = as(plan, Row.class);
+                assertThat(row.fields(), hasSize(1));
+                org.elasticsearch.xpack.esql.core.expression.function.Function functionCall =
+                    (org.elasticsearch.xpack.esql.core.expression.function.Function) row.fields().get(0).child();
+                assertThat(functionCall, instanceOf(ToCounter.class));
+                report.field(DataType.COUNTER_CAST_NAME, ToCounter.DEFINITION.name());
+            }
+            if (EsqlCapabilities.Cap.TO_GAUGE.isEnabled()) {
+                // gauge is a virtual cast target — not a real DataType — so it is not in namesAndAliases()
+                LogicalPlan plan = TEST_PARSER.parseQuery("ROW a = 1::" + DataType.GAUGE_CAST_NAME);
+                Row row = as(plan, Row.class);
+                assertThat(row.fields(), hasSize(1));
+                org.elasticsearch.xpack.esql.core.expression.function.Function functionCall =
+                    (org.elasticsearch.xpack.esql.core.expression.function.Function) row.fields().get(0).child();
+                assertThat(functionCall, instanceOf(ToGauge.class));
+                report.field(DataType.GAUGE_CAST_NAME, ToGauge.DEFINITION.name());
             }
             report.endObject();
             String rendered = Strings.toString(report);
@@ -4395,79 +4660,68 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testMMRCommandWithLimitOnly() {
-        assumeTrue("MMR requires corresponding capability", EsqlCapabilities.Cap.MMR.isEnabled());
-
         var cmd = processingCommand("mmr on dense_embedding limit 10");
         assertEquals(MMR.class, cmd.getClass());
         MMR mmrCmd = (MMR) cmd;
 
         assertThat(mmrCmd.diversifyField(), equalToIgnoringIds(attribute("dense_embedding")));
-        verifyMMRLimitValue(mmrCmd.limit(), 10);
+        assertEquals(integer(10), mmrCmd.limit());
         assertNull(mmrCmd.queryVector());
-        verifyMMRLambdaValue(mmrCmd, null);
+        assertNull(mmrCmd.options());
     }
 
     public void testMMRCommandWithLimitAndLambda() {
-        assumeTrue("MMR requires corresponding capability", EsqlCapabilities.Cap.MMR.isEnabled());
-
         var cmd = processingCommand("mmr on dense_embedding limit 10 with { \"lambda\": 0.5 }");
         assertEquals(MMR.class, cmd.getClass());
         MMR mmrCmd = (MMR) cmd;
 
         assertThat(mmrCmd.diversifyField(), equalToIgnoringIds(attribute("dense_embedding")));
 
-        verifyMMRLimitValue(mmrCmd.limit(), 10);
-        verifyMMRLambdaValue(mmrCmd, 0.5);
+        assertEquals(integer(10), mmrCmd.limit());
+        assertEquals(mapExpression(Map.of("lambda", 0.5)), mmrCmd.options());
 
         assertNull(mmrCmd.queryVector());
     }
 
     public void testMMRCommandWithConstantQueryVector() {
-        assumeTrue("MMR requires corresponding capability", EsqlCapabilities.Cap.MMR.isEnabled());
-
         var mmrCmd = as(processingCommand("mmr [0.5, 0.4, 0.3, 0.2] on dense_embedding limit 10 with { \"lambda\": 0.5 }"), MMR.class);
         assertThat(mmrCmd.diversifyField(), equalToIgnoringIds(attribute("dense_embedding")));
 
-        verifyMMRLimitValue(mmrCmd.limit(), 10);
-        verifyMMRLambdaValue(mmrCmd, 0.5);
-        verifyMMRQueryVectorValue(mmrCmd.queryVector(), List.of(0.5, 0.4, 0.3, 0.2));
+        assertEquals(integer(10), mmrCmd.limit());
+        assertEquals(mapExpression(Map.of("lambda", 0.5)), mmrCmd.options());
+        assertEquals(literalDoubles(0.5, 0.4, 0.3, 0.2), mmrCmd.queryVector());
     }
 
     public void testMMRCommandWithByteVectorQuery() {
-        assumeTrue("MMR requires corresponding capability", EsqlCapabilities.Cap.MMR.isEnabled());
-
         var mmrByteArray = as(processingCommand("mmr [17, 48, 56] on dense_embedding limit 10 with { \"lambda\": 0.5 }"), MMR.class);
         assertThat(mmrByteArray.diversifyField(), equalToIgnoringIds(attribute("dense_embedding")));
-        verifyMMRLimitValue(mmrByteArray.limit(), 10);
-        verifyMMRLambdaValue(mmrByteArray, 0.5);
-        verifyMMRQueryVectorValue(mmrByteArray.queryVector(), List.of(17, 48, 56));
+        assertEquals(integer(10), mmrByteArray.limit());
+        assertEquals(mapExpression(Map.of("lambda", 0.5)), mmrByteArray.options());
+        assertEquals(integers(17, 48, 56), mmrByteArray.queryVector());
 
-        var mmrByteArrayString = as(processingCommand("mmr \"113038\" on dense_embedding limit 10 with { \"lambda\": 0.5 }"), MMR.class);
+        var mmrByteArrayString = as(processingCommand("mmr \"113038\" on dense_embedding limit 50 with { \"lambda\": 0.8 }"), MMR.class);
         assertThat(mmrByteArrayString.diversifyField(), equalToIgnoringIds(attribute("dense_embedding")));
-        verifyMMRLimitValue(mmrByteArrayString.limit(), 10);
-        verifyMMRLambdaValue(mmrByteArrayString, 0.5);
-        verifyMMRQueryVectorValue(mmrByteArrayString.queryVector(), List.of(), "113038");
+        assertEquals(integer(50), mmrByteArrayString.limit());
+        assertEquals(mapExpression(Map.of("lambda", 0.8)), mmrByteArrayString.options());
+        assertEquals(literalString("113038"), mmrByteArrayString.queryVector());
     }
 
     public void testMMRCommandWithFieldQueryVector() {
-        assumeTrue("MMR requires corresponding capability", EsqlCapabilities.Cap.MMR.isEnabled());
+        var queryVectorParam = List.of(0.5, 0.4, 0.3, 0.2);
 
-        var queryParams = new QueryParams(List.of(paramAsConstant("query_vector_field", "[0.5, 0.4, 0.3, 0.2]")));
+        var queryParams = new QueryParams(List.of(paramAsConstant("query_vector_field", queryVectorParam)));
         var mmrCmd = as(
-            parser.parseQuery("row a = 1 | mmr ?query_vector_field on dense_embedding limit 10 with { \"lambda\": 0.5 }", queryParams),
+            TEST_PARSER.parseQuery("row a = 1 | mmr ?query_vector_field on dense_embedding limit 10 with { \"lambda\": 0.5 }", queryParams),
             MMR.class
         );
 
         assertThat(mmrCmd.diversifyField(), equalToIgnoringIds(attribute("dense_embedding")));
-
-        verifyMMRLimitValue(mmrCmd.limit(), 10);
-        verifyMMRLambdaValue(mmrCmd, 0.5);
-        verifyMMRQueryVectorValue(mmrCmd.queryVector(), List.of(), "[0.5, 0.4, 0.3, 0.2]");
+        assertEquals(integer(10), mmrCmd.limit());
+        assertEquals(mapExpression(Map.of("lambda", 0.5)), mmrCmd.options());
+        assertEquals(literalDoubles(0.5, 0.4, 0.3, 0.2), mmrCmd.queryVector());
     }
 
     public void testMMRCommandWithTextEmbeddingQueryVector() {
-        assumeTrue("MMR requires corresponding capability", EsqlCapabilities.Cap.MMR.isEnabled());
-
         var mmrCmd = as(
             processingCommand(
                 "mmr TEXT_EMBEDDING(\"test text\", \"test_inference_id\") on dense_embedding limit 10 with { \"lambda\": 0.5 }"
@@ -4477,8 +4731,8 @@ public class StatementParserTests extends AbstractStatementParserTests {
 
         assertThat(mmrCmd.diversifyField(), equalToIgnoringIds(attribute("dense_embedding")));
 
-        verifyMMRLimitValue(mmrCmd.limit(), 10);
-        verifyMMRLambdaValue(mmrCmd, 0.5);
+        assertEquals(integer(10), mmrCmd.limit());
+        assertEquals(mapExpression(Map.of("lambda", 0.5)), mmrCmd.options());
 
         Expression queryVectorExpression = mmrCmd.queryVector();
         if (queryVectorExpression instanceof UnresolvedFunction uaFunctioon) {
@@ -4489,71 +4743,14 @@ public class StatementParserTests extends AbstractStatementParserTests {
         }
     }
 
-    private void verifyMMRLimitValue(Expression expression, int limit) {
-        assertThat(expression.dataType(), equalTo(INTEGER));
-        int limitValue = (Integer) (((Literal) expression).value());
-        assertEquals(limit, limitValue);
-    }
-
-    private void verifyMMRQueryVectorValue(Expression expression, List<?> expected) {
-        verifyMMRQueryVectorValue(expression, expected, null);
-    }
-
-    private void verifyMMRQueryVectorValue(Expression expression, List<?> expected, @Nullable String expectedString) {
-        if (expression instanceof Literal litExpression) {
-            var thisValue = litExpression.value();
-            if (thisValue instanceof Collection<?> litCollection) {
-                assertEquals(expected, litCollection);
-                return;
-            }
-        } else if (expression instanceof ToDenseVector asDenseVector) {
-            var thisValue = ((Literal) asDenseVector.field()).value();
-            if (thisValue instanceof Collection<?> litCollection) {
-                assertEquals(expected, litCollection);
-                return;
-            } else if (thisValue instanceof BytesRef bytesRef && expectedString != null) {
-                assertEquals(new BytesRef(expectedString), bytesRef);
-                return;
-            }
-        }
-
-        fail("query vector expression [" + expression + "] is not a valid dense vector convertable type");
-    }
-
-    private void verifyMMRLambdaValue(MMR mmrCmd, Double value) {
-        if (value == null) {
-            assertNull(mmrCmd.options());
-            return;
-        }
-
-        assertTrue(mmrCmd.options() instanceof MapExpression);
-        assertEquals(getLambdaFromMMROptions((MapExpression) mmrCmd.options()), value);
-    }
-
-    public Double getLambdaFromMMROptions(@Nullable MapExpression options) {
-        if (options == null) {
-            return null;
-        }
-
-        Map<String, Expression> optionsMap = options.keyFoldedMap();
-
-        Expression lambdaValueExpression = optionsMap.remove(MMR.LAMBDA_OPTION_NAME);
-        assertNotNull(lambdaValueExpression);
-        Literal litLambdaValue = (Literal) lambdaValueExpression;
-        assertNotNull(litLambdaValue);
-        assertEquals(DOUBLE, litLambdaValue.dataType());
-        return (Double) litLambdaValue.value();
-    }
-
     public void testInvalidMMRCommands() {
-        assumeTrue("MMR requires corresponding capability", EsqlCapabilities.Cap.MMR.isEnabled());
-
         expectError("row a = 1 | mmr on some_field", "line 1:30: mismatched input '<EOF>' expecting {'.', MMR_LIMIT}");
         expectError("row a = 1 | mmr on some_field limit", "line 1:36: mismatched input '<EOF>' expecting {INTEGER_LITERAL, '+', '-'}");
         expectError(
             "row a = 1 | mmr on some_field limit 5 {\"unknown\": true}",
             "line 1:39: mismatched input '{' expecting {<EOF>, '|', 'with'}"
         );
+        expectError("row a = 1 | mmr on some_field limit 2.5", "line 1:37: mismatched input '2.5' expecting {INTEGER_LITERAL, '+', '-'}");
     }
 
     public void testInvalidSample() {
@@ -4608,4 +4805,66 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertEquals(expectedFieldNames, actualFieldNames);
     }
 
+    public void testUserAgentCommand() {
+        assumeTrue("requires user_agent command capability", EsqlCapabilities.Cap.USER_AGENT_COMMAND.isEnabled());
+        LogicalPlan cmd = processingCommand("user_agent ua = a ");
+        UserAgent ua = as(cmd, UserAgent.class);
+        assertEqualsIgnoringIds(attribute("a"), ua.getInput());
+        assertFalse(ua.extractDeviceType());
+        assertEquals("_default_", ua.regexFile());
+
+        List<String> expectedFieldNames = UserAgentFunctionBridge.getAllOutputFields()
+            .keySet()
+            .stream()
+            .filter(name -> name.equals("device.type") == false)
+            .map(name -> "ua." + name)
+            .collect(Collectors.toList());
+
+        List<String> actualFieldNames = ua.generatedAttributes().stream().map(NamedExpression::name).collect(Collectors.toList());
+        assertEquals(expectedFieldNames, actualFieldNames);
+    }
+
+    public void testUserAgentCommandWithOptions() {
+        assumeTrue("requires user_agent command capability", EsqlCapabilities.Cap.USER_AGENT_COMMAND.isEnabled());
+        LogicalPlan cmd = processingCommand("user_agent ua = a WITH { \"regex_file\": \"custom\", \"extract_device_type\": true }");
+        UserAgent ua = as(cmd, UserAgent.class);
+        assertEqualsIgnoringIds(attribute("a"), ua.getInput());
+        assertTrue(ua.extractDeviceType());
+        assertEquals("custom", ua.regexFile());
+
+        List<String> expectedFieldNames = UserAgentFunctionBridge.getAllOutputFields()
+            .keySet()
+            .stream()
+            .map(name -> "ua." + name)
+            .collect(Collectors.toList());
+
+        List<String> actualFieldNames = ua.generatedAttributes().stream().map(NamedExpression::name).collect(Collectors.toList());
+        assertEquals(expectedFieldNames, actualFieldNames);
+    }
+
+    public void testUserAgentCommandWithProperties() {
+        assumeTrue("requires user_agent command capability", EsqlCapabilities.Cap.USER_AGENT_COMMAND.isEnabled());
+        LogicalPlan cmd = processingCommand("user_agent ua = a WITH { \"properties\": [\"name\", \"os\"] }");
+        UserAgent ua = as(cmd, UserAgent.class);
+
+        List<String> expectedFieldNames = List.of("ua.name", "ua.os.name", "ua.os.version", "ua.os.full");
+
+        List<String> actualFieldNames = ua.generatedAttributes().stream().map(NamedExpression::name).collect(Collectors.toList());
+        assertEquals(expectedFieldNames, actualFieldNames);
+    }
+
+    public void testUserAgentCommandInvalidOption() {
+        assumeTrue("requires user_agent command capability", EsqlCapabilities.Cap.USER_AGENT_COMMAND.isEnabled());
+        expectError(
+            "row a = \"test\" | user_agent ua = a WITH { \"unknown_option\": \"value\" }",
+            "Invalid option [unknown_option] in USER_AGENT"
+        );
+    }
+
+    public void testUserAgentCommandOriginalIgnored() {
+        assumeTrue("requires user_agent command capability", EsqlCapabilities.Cap.USER_AGENT_COMMAND.isEnabled());
+        LogicalPlan cmd = processingCommand("user_agent ua = a WITH { \"original\": true }");
+        UserAgent ua = as(cmd, UserAgent.class);
+        assertEqualsIgnoringIds(attribute("a"), ua.getInput());
+    }
 }

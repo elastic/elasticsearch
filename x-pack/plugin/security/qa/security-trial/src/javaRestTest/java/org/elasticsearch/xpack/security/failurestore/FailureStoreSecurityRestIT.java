@@ -2229,8 +2229,8 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
         Request request = new Request("POST", "_watcher/watch/" + watchId + "/_execute");
         Response response = performRequest(user, request);
         ObjectPath path = assertOKAndCreateObjectPath(response);
+        assertThat("watch_record: " + path.evaluate("watch_record"), path.evaluate("watch_record.state"), equalTo("executed"));
         assertThat(path.evaluate("watch_record.user"), equalTo(user));
-        assertThat(path.evaluate("watch_record.state"), equalTo("executed"));
         assertThat(path.evaluate("watch_record.result.input.status"), equalTo("success"));
         assertThat(path.evaluate("watch_record.result.input.payload.hits.total"), equalTo(expectedIndices.length));
         List<Map<String, ?>> hits = path.evaluate("watch_record.result.input.payload.hits.hits");
@@ -2241,8 +2241,8 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
         Request request = new Request("POST", "_watcher/watch/" + watchId + "/_execute");
         Response response = performRequest(user, request);
         ObjectPath path = assertOKAndCreateObjectPath(response);
+        assertThat("watch_record: " + path.evaluate("watch_record"), path.evaluate("watch_record.state"), equalTo("executed"));
         assertThat(path.evaluate("watch_record.user"), equalTo(user));
-        assertThat(path.evaluate("watch_record.state"), equalTo("executed"));
         assertThat(path.evaluate("watch_record.result.input.status"), equalTo("success"));
         assertThat(path.evaluate("watch_record.result.input.payload.hits.total"), equalTo(0));
         List<Map<String, ?>> hits = path.evaluate("watch_record.result.input.payload.hits.hits");

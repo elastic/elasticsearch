@@ -7,27 +7,39 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.datasources.spi.FileList;
+import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.optimizer.AbstractLogicalPlanOptimizerTests;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
+import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
+import org.elasticsearch.xpack.esql.plan.logical.LimitBy;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.MetricsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
+import org.elasticsearch.xpack.esql.plan.logical.Subquery;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
+import org.elasticsearch.xpack.esql.plan.logical.TsInfo;
+import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
@@ -37,6 +49,7 @@ import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -109,11 +122,11 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
 
     /**
      * Expects
-     * <pre>{@code
+     * {@snippet lang="text":
      * Limit[1000[INTEGER]]
      * \_Aggregate[[],[COUNT(salary{f}#1345) AS c]]
      *   \_EsRelation[test][_meta_field{f}#1346, emp_no{f}#1340, first_name{f}#..]
-     * }</pre>
+     * }
      */
     public void testPruneEvalDueToStats() {
         var plan = plan("""
@@ -150,11 +163,11 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
 
     /**
      * Expects
-     * <pre>{@code
+     * {@snippet lang="text":
      * Limit[1000[INTEGER]]
      * \_Aggregate[[],[COUNT(salary{f}#19) AS x]]
      *   \_EsRelation[test][_meta_field{f}#20, emp_no{f}#14, first_name{f}#15, ..]
-     * }</pre>
+     * }
      */
     public void testPruneUnusedAggMixedWithEval() {
         var plan = plan("""
@@ -196,13 +209,13 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
 
     /**
      * Expects
-     * <pre>{@code
+     * {@snippet lang="text":
      * Project[[c{r}#342]]
      * \_Limit[1000[INTEGER]]
      *   \_Filter[min{r}#348 > 10[INTEGER]]
      *     \_Aggregate[[],[COUNT(salary{f}#367) AS c, MIN(salary{f}#367) AS min]]
      *       \_EsRelation[test][_meta_field{f}#368, emp_no{f}#362, first_name{f}#36..]
-     * }</pre>
+     * }
      */
     public void testPruneMixedAggInsideUnusedEval() {
         var plan = plan("""
@@ -229,12 +242,12 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
 
     /**
      * Expects
-     * <pre>{@code
+     * {@snippet lang="text":
      * Eval[[max{r}#6 + min{r}#9 + c{r}#3 AS x, min{r}#9 AS y, c{r}#3 AS z]]
      * \_Limit[1000[INTEGER]]
      *   \_Aggregate[[],[COUNT(salary{f}#26) AS c, MAX(salary{f}#26) AS max, MIN(salary{f}#26) AS min]]
      *     \_EsRelation[test][_meta_field{f}#27, emp_no{f}#21, first_name{f}#22, ..]
-     * }</pre>
+     * }
      */
     public void testNoPruningWhenDealingJustWithEvals() {
         var plan = plan("""
@@ -252,12 +265,12 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
 
     /**
      * Expects
-     * <pre>{@code
+     * {@snippet lang="text":
      * Project[[y{r}#6 AS z]]
      * \_Eval[[emp_no{f}#11 + 1[INTEGER] AS y]]
      *   \_Limit[1000[INTEGER]]
      *     \_EsRelation[test][_meta_field{f}#17, emp_no{f}#11, first_name{f}#12, ..]
-     * }</pre>
+     * }
      */
     public void testNoPruningWhenChainedEvals() {
         var plan = plan("""
@@ -276,11 +289,11 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
 
     /**
      * Expects
-     * <pre>{@code
+     * {@snippet lang="text":
      * Project[[salary{f}#20 AS x, emp_no{f}#15 AS y]]
      * \_Limit[1000[INTEGER]]
      *   \_EsRelation[test][_meta_field{f}#21, emp_no{f}#15, first_name{f}#16, ..]
-     * }</pre>
+     * }
      */
     public void testPruningDuplicateEvals() {
         var plan = plan("""
@@ -303,10 +316,13 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
         var source = as(limit.child(), EsRelation.class);
     }
 
-    /*
+    /**
+     * Expects
+     * {@snippet lang="text":
      * Project[[emp_no{f}#12 AS x#8, emp_no{f}#12]]
      * \_TopN[[Order[emp_no{f}#12,ASC,LAST]],1[INTEGER]]
      *   \_EsRelation[test][_meta_field{f}#18, emp_no{f}#12, first_name{f}#13, ..]
+     * }
      */
     public void testInlinestatsGetsPrunedEntirely() {
         var query = """
@@ -329,7 +345,9 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
         var relation = as(topN.child(), EsRelation.class);
     }
 
-    /*
+    /**
+     * Expects
+     * {@snippet lang="text":
      * Project[[emp_no{f}#16, count{r}#7]]
      * \_TopN[[Order[emp_no{f}#16,ASC,LAST]],5[INTEGER]]
      *   \_InlineJoin[LEFT,[salaryK{r}#5],[salaryK{r}#5],[salaryK{r}#5]]
@@ -338,6 +356,7 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
      *     \_Aggregate[[salaryK{r}#5],[COUNT(*[KEYWORD],true[BOOLEAN]) AS count#7, salaryK{r}#5]]
      *       \_StubRelation[[_meta_field{f}#22, emp_no{f}#16, first_name{f}#17, gender{f}#18, hire_date{f}#23, job{f}#24, job.raw{f}#25,
      *              languages{f}#19, last_name{f}#20, long_noidx{f}#26, salary{f}#21, salaryK{r}#5]]
+     * }
      */
     public void testDoubleInlineStatsWithEvalGetsPrunedEntirely() {
         var query = """
@@ -377,10 +396,13 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
         var stub = as(agg.child(), StubRelation.class);
     }
 
-    /*
+    /**
+     * Expects
+     * {@snippet lang="text":
      * Project[[emp_no{f}#19 AS x#15, emp_no{f}#19]]
      * \_TopN[[Order[emp_no{f}#19,ASC,LAST]],1[INTEGER]]
      *   \_EsRelation[test][_meta_field{f}#25, emp_no{f}#19, first_name{f}#20, ..]
+     * }
      */
     public void testDoubleInlineStatsGetsPrunedEntirely() {
         var query = """
@@ -405,7 +427,9 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
         var relation = as(topN.child(), EsRelation.class);
     }
 
-    /*
+    /**
+     * Expects
+     * {@snippet lang="text":
      * Project[[emp_no{f}#15 AS x#11, a{r}#7, emp_no{f}#15]]
      * \_Limit[1[INTEGER],false]
      *   \_InlineJoin[LEFT,[emp_no{f}#15],[emp_no{f}#15],[emp_no{r}#15]]
@@ -413,6 +437,7 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
      *     \_Aggregate[[emp_no{f}#15],[COUNTDISTINCT(languages{f}#18,true[BOOLEAN]) AS a#7, emp_no{f}#15]]
      *       \_StubRelation[[_meta_field{f}#21, emp_no{f}#15, first_name{f}#16, gender{f}#17, hire_date{f}#22, job{f}#23, job.raw{f}#24, l
      *          anguages{f}#18, last_name{f}#19, long_noidx{f}#25, salary{f}#20]]
+     * }
      */
     public void testInlineStatsGetsPrunedPartially() {
         var query = """
@@ -471,7 +496,7 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
 
     /**
      * Expects
-     * <pre>{@code
+     * {@snippet lang="text":
      * Project[[emp_no{f}#27, salaryK{r}#5, count{r}#7, min{r}#20]]
      * \_TopN[[Order[emp_no{f}#27,ASC,LAST]],5[INTEGER],false]
      *   \_InlineJoin[LEFT,[salaryK{r}#5],[salaryK{r}#5]]
@@ -487,7 +512,7 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
      *         \_StubRelation[[_meta_field{f}#33, emp_no{f}#27, first_name{f}#28, gender{f}#29, hire_date{f}#34, job{f}#35, job.raw{f}#36,
      *         languages{f}#30, last_name{f}#31, long_noidx{f}#37, salary{f}#32, count{r}#7, salaryK{r}#5, sum{r}#14,
      *         hire_date_string{r}#11, date{r}#16, $$MV_COUNT(langua>$MIN$0{r$}#38]]
-     * }</pre>
+     * }
      */
     public void testTripleInlineStatsMultipleAssignmentsGetsPrunedPartially() {
         // TODO: reenable 1st sort, pull the 2nd further up when #132417 is in
@@ -551,11 +576,11 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
 
     /**
      * Expects
-     * <pre>{@code
+     * {@snippet lang="text":
      * Project[[emp_no{f}#24]]
      * \_TopN[[Order[emp_no{f}#24,ASC,LAST]],5[INTEGER],false]
      *   \_EsRelation[employees][_meta_field{f}#30, emp_no{f}#24, first_name{f}#25, ..]
-     * }</pre>
+     * }
      */
     public void testTripleInlineStatsMultipleAssignmentsGetsPrunedEntirely() {
         // same as the above query, but only keep emp_no
@@ -840,18 +865,17 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
     }
 
     /**
-     * Project[[first_name{r}#32]]
+     * {@snippet lang="text":
+     * Project[[first_name{r}#34]]
      * \_Limit[1000[INTEGER],false,false]
-     *   \_Filter[_fork{r}#33 == fork1[KEYWORD]]
-     *     \_Fork[[first_name{r}#32, _fork{r}#33]]
-     *       |_Project[[first_name{f}#11, _fork{r}#7]]
-     *       | \_Eval[[fork1[KEYWORD] AS _fork#7]]
-     *       |   \_Limit[1000[INTEGER],false,false]
-     *       |     \_EsRelation[employees][_meta_field{f}#16, emp_no{f}#10, first_name{f}#11, ..]
-     *       \_Project[[first_name{f}#22, _fork{r}#7]]
-     *         \_Eval[[fork2[KEYWORD] AS _fork#7]]
-     *           \_Limit[1000[INTEGER],false,false]
-     *             \_EsRelation[employees][_meta_field{f}#27, emp_no{f}#21, first_name{f}#22, ..]
+     *   \_Fork[[first_name{r}#34]]
+     *     |_Project[[first_name{f}#13]]
+     *     | \_Limit[1000[INTEGER],false,false]
+     *     |   \_EsRelation[employees][_meta_field{f}#18, emp_no{f}#12, first_name{f}#13, ..]
+     *     \_Project[[first_name{f}#24]]
+     *       \_Limit[1000[INTEGER],false,false]
+     *         \_EsRelation[employees][_meta_field{f}#29, emp_no{f}#23, first_name{f}#24, ..]
+     * }
      */
     public void testPruneColumnsInForkBranchesSimpleEvalOutsideBranches() {
         var query = """
@@ -862,7 +886,7 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
                 | FORK
                     (WHERE true)
                     (WHERE true)
-                | WHERE _fork == "fork1"
+                | WHERE _fork == "fork1" OR _fork == "fork2"
                 | DROP _fork
             """;
         var plan = optimizedPlan(query);
@@ -870,19 +894,15 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
         assertThat(project.projections().size(), equalTo(1));
         assertThat(Expressions.names(project.projections()), contains("first_name"));
         var limit = as(project.child(), Limit.class);
-        var filter = as(limit.child(), Filter.class);
-        var fork = as(filter.child(), Fork.class);
-        assertThat(fork.output(), hasSize(2));
-        assertThat(fork.output().stream().map(Attribute::name).collect(Collectors.toSet()), hasItems("first_name", "_fork"));
+        var fork = as(limit.child(), Fork.class);
+        assertThat(fork.output(), hasSize(1));
+        assertThat(fork.output().stream().map(Attribute::name).collect(Collectors.toList()), equalTo(List.of("first_name")));
         for (LogicalPlan branch : fork.children()) {
             var branchProject = as(branch, Project.class);
-            assertThat(branchProject.projections().size(), equalTo(2));
-            assertThat(Expressions.names(branchProject.projections()), containsInAnyOrder("first_name", "_fork"));
-            var branchEval = as(branchProject.child(), Eval.class);
-            var alias = as(branchEval.fields().getFirst(), Alias.class);
-            assertThat(alias.name(), equalTo("_fork"));
-            var limitInBranch = as(branchEval.child(), Limit.class);
-            var relation = as(limitInBranch.child(), EsRelation.class);
+            assertThat(branchProject.projections().size(), equalTo(1));
+            assertThat(Expressions.names(branchProject.projections()), equalTo(List.of("first_name")));
+            var branchLimit = as(branchProject.child(), Limit.class);
+            var relation = as(branchLimit.child(), EsRelation.class);
             assertThat(relation.output().stream().map(Attribute::name).collect(Collectors.toSet()), hasItems("emp_no", "first_name"));
         }
     }
@@ -933,7 +953,8 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
             var branchProject = as(branch, Project.class);
             assertThat(branchProject.projections().size(), equalTo(5));
             assertThat(Expressions.names(branchProject.projections()), containsInAnyOrder("emp_no", "x", "y", "z", "_fork"));
-            var branchEval = as(branchProject.child(), Eval.class);
+            var topNBranch = as(branchProject.child(), TopN.class);
+            var branchEval = as(topNBranch.child(), Eval.class);
             var forkAlias = as(branchEval.fields().getFirst(), Alias.class);
             assertThat(forkAlias.name(), equalTo("_fork"));
             var grok = as(branchEval.child(), Grok.class);
@@ -943,8 +964,7 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
             var aliasInBranch = as(evalInBranch.fields().getFirst(), Alias.class);
             // The EVAL that created 'a' or 'b' should still be present in the branch even if not part of the output
             assertThat(aliasInBranch.name(), anyOf(equalTo("a"), equalTo("b")));
-            var limitInBranch = as(evalInBranch.child(), Limit.class);
-            var filter = as(limitInBranch.child(), Filter.class);
+            var filter = as(evalInBranch.child(), Filter.class);
             assertThat(filter.toString(), containsString("IN(10048[INTEGER],10081[INTEGER],emp_no"));
             var relation = as(filter.child(), EsRelation.class);
             assertThat(
@@ -955,7 +975,7 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
     }
 
     /**
-     * <pre>{@code
+     * {@snippet lang="text":
      * Limit[10000[INTEGER],false,false]
      * \_Aggregate[[],[COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]) AS count(*)#36, COUNT(emp_no{r}#109,true[BOOLEAN],PT0S[
      * TIME_DURATION]) AS d#39, MAX(_fork{r}#124,true[BOOLEAN],PT0S[TIME_DURATION]) AS m#42, COUNT(s{r}#119,true[BOOLEAN],PT0S[
@@ -981,7 +1001,7 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
      *         \_Limit[1000[INTEGER],false,false]
      *           \_Filter[IN(10048[INTEGER],10081[INTEGER],emp_no{f}#79)]
      *             \_EsRelation[employees][_meta_field{f}#85, emp_no{f}#79, first_name{f}#80, ..]
-     * }</pre>
+     * }
      */
     public void testPruneColumnsInForkBranchesPruneIfAggregation() {
         var query = """
@@ -1011,8 +1031,7 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
         // Dissect and Eval(a) have been pruned since x, y, z fields are not used in the final aggregation
         var evalInFirstBranch = as(firstBranchProject.child(), Eval.class);
         assertThat(Expressions.names(evalInFirstBranch.fields()), containsInAnyOrder("s", "_fork"));
-        var limitInFirstBranch = as(evalInFirstBranch.child(), Limit.class);
-        var filterInFirstBranch = as(limitInFirstBranch.child(), Filter.class);
+        var filterInFirstBranch = as(evalInFirstBranch.child(), Filter.class);
         var firstBranchRelation = as(filterInFirstBranch.child(), EsRelation.class);
         assertThat(
             firstBranchRelation.output().stream().map(Attribute::name).collect(Collectors.toSet()),
@@ -1024,8 +1043,7 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
         assertThat(secondBranchProject.projections().size(), equalTo(3));
         // x, y, z from STATS are pruned since they are not used in the final aggregation
         var evalInSecondBranch = as(secondBranchProject.child(), Eval.class);
-        var limitInSecondBranch = as(evalInSecondBranch.child(), Limit.class);
-        var localRelation = as(limitInSecondBranch.child(), LocalRelation.class);
+        var localRelation = as(evalInSecondBranch.child(), LocalRelation.class);
         assertThat(
             localRelation.output().stream().map(Attribute::name).collect(Collectors.toSet()),
             hasItems("$$COUNT$COUNT(*)::keywo>$0")
@@ -1052,8 +1070,7 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
         assertThat(Expressions.names(fourthBranchProject.projections()), containsInAnyOrder("emp_no", "s", "_fork"));
         // x (= "abc") and y (= "aaa") are pruned since they are not used in the final aggregation
         var evalInFourthBranch = as(fourthBranchProject.child(), Eval.class);
-        var limitInFourthBranch = as(evalInFourthBranch.child(), Limit.class);
-        var filterInFourthBranch = as(limitInFourthBranch.child(), Filter.class);
+        var filterInFourthBranch = as(evalInFourthBranch.child(), Filter.class);
         var fourthBranchRelation = as(filterInFourthBranch.child(), EsRelation.class);
         assertThat(
             fourthBranchRelation.output().stream().map(Attribute::name).collect(Collectors.toSet()),
@@ -1115,18 +1132,19 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
     }
 
     /**
-     * Project[[languages{r}#55]]
+     * {@snippet lang="text":
+     * Project[[languages{r}#57]]
      * \_Limit[1000[INTEGER],false,false]
-     *   \_Filter[_fork{r}#57 == fork1[KEYWORD]]
-     *     \_Fork[[languages{r}#55, _fork{r}#57]]
-     *       |_Project[[x{r}#15 AS languages#9, _fork{r}#13]]
-     *       | \_Eval[[1[INTEGER] AS x#15, fork1[KEYWORD] AS _fork#13]]
-     *       |   \_Limit[1000[INTEGER],false,false]
-     *       |     \_EsRelation[employees][_meta_field{f}#27, emp_no{f}#21, first_name{f}#22, ..]
-     *       \_Project[[languages{r}#43, _fork{r}#13]]
-     *         \_Eval[[fork2[KEYWORD] AS _fork#13, null[INTEGER] AS languages#43]]
-     *           \_Limit[1000[INTEGER],false,false]
-     *             \_EsRelation[employees][_meta_field{f}#38, emp_no{f}#32, first_name{f}#33, ..]
+     *   \_Fork[[languages{r}#57]]
+     *     |_Project[[x{r}#14 AS languages#9]]
+     *     | \_Eval[[1[INTEGER] AS x#14]]
+     *     |   \_Limit[1000[INTEGER],false,false]
+     *     |     \_EsRelation[employees][_meta_field{f}#29, emp_no{f}#23, first_name{f}#24, ..]
+     *     \_Project[[languages{r}#45]]
+     *       \_Eval[[null[INTEGER] AS languages#45]]
+     *         \_Limit[1000[INTEGER],false,false]
+     *           \_EsRelation[employees][_meta_field{f}#40, emp_no{f}#34, first_name{f}#35, ..]
+     * }
      */
     public void testPruneColumnsInForkBranchesShouldKeepAliasWithSameNameAsColumn() {
         var query = """
@@ -1135,7 +1153,7 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
             | fork
                 (eval x = 1 | rename x as lang | rename lang as languages | eval a = "aardvark" | rename a as foo)
                 (where true)
-            | where _fork == "fork1"
+            | where _fork == "fork1" OR _fork == "fork2"
             | drop _fork
             | keep languages
             """;
@@ -1144,22 +1162,19 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
         assertThat(project.projections().size(), equalTo(1));
         assertThat(Expressions.names(project.projections()), contains("languages"));
         var limit = as(project.child(), Limit.class);
-        var filter = as(limit.child(), Filter.class);
-        var fork = as(filter.child(), Fork.class);
-        assertThat(fork.output(), hasSize(2));
+        var fork = as(limit.child(), Fork.class);
+        assertThat(fork.output(), hasSize(1));
         assertThat(fork.children(), hasSize(2));
-        assertThat(fork.output().stream().map(Attribute::name).collect(Collectors.toSet()), hasItems("languages", "_fork"));
+        assertThat(fork.output().stream().map(Attribute::name).collect(Collectors.toSet()), hasItems("languages"));
 
         var firstBranch = fork.children().getFirst();
         var firstBranchProject = as(firstBranch, Project.class);
-        assertThat(firstBranchProject.projections().size(), equalTo(2));
-        assertThat(Expressions.names(firstBranchProject.projections()), containsInAnyOrder("languages", "_fork"));
+        assertThat(Expressions.names(firstBranchProject.projections()), equalTo(List.of("languages")));
         var firstBranchEval = as(firstBranchProject.child(), Eval.class);
         var firstBranchFields = firstBranchEval.fields();
-        assertThat(firstBranchFields.size(), equalTo(2));
-        assertThat(Expressions.names(firstBranchFields), containsInAnyOrder("x", "_fork"));
-        var limitInFirstBranch = as(firstBranchEval.child(), Limit.class);
-        var firstBranchRelation = as(limitInFirstBranch.child(), EsRelation.class);
+        assertThat(Expressions.names(firstBranchFields), equalTo(List.of("x")));
+        var firstBranchLimit = as(firstBranchEval.child(), Limit.class);
+        var firstBranchRelation = as(firstBranchLimit.child(), EsRelation.class);
         assertThat(
             firstBranchRelation.output().stream().map(Attribute::name).collect(Collectors.toSet()),
             hasItems("emp_no", "first_name")
@@ -1167,14 +1182,12 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
 
         var secondBranch = fork.children().get(1);
         var secondBranchProject = as(secondBranch, Project.class);
-        assertThat(secondBranchProject.projections().size(), equalTo(2));
-        assertThat(Expressions.names(secondBranchProject.projections()), containsInAnyOrder("languages", "_fork"));
+        assertThat(Expressions.names(secondBranchProject.projections()), equalTo(List.of("languages")));
         var secondBranchEval = as(secondBranchProject.child(), Eval.class);
         var secondBranchFields = secondBranchEval.fields();
-        assertThat(secondBranchFields.size(), equalTo(2));
-        assertThat(Expressions.names(secondBranchFields), containsInAnyOrder("languages", "_fork"));
-        var limitInSecondBranch = as(secondBranchEval.child(), Limit.class);
-        var secondBranchRelation = as(limitInSecondBranch.child(), EsRelation.class);
+        assertThat(Expressions.names(secondBranchFields), equalTo(List.of("languages")));
+        var secondBranchLimit = as(secondBranchEval.child(), Limit.class);
+        var secondBranchRelation = as(secondBranchLimit.child(), EsRelation.class);
         assertThat(
             secondBranchRelation.output().stream().map(Attribute::name).collect(Collectors.toSet()),
             hasItems("emp_no", "first_name")
@@ -1182,24 +1195,17 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
     }
 
     /**
-     * <pre>{@code
-     * Project[[_meta_field{r}#48, emp_no{r}#49, first_name{r}#50, gender{r}#51, hire_date{r}#52, job{r}#53, job.raw{r}#54, l
-     * ast_name{r}#55, long_noidx{r}#56, salary{r}#57]]
+     * {@snippet lang="text":
+     * Project[[_meta_field{r}#50, emp_no{r}#51, first_name{r}#52, gender{r}#53, hire_date{r}#54, job{r}#55, job.raw{r}#56, l
+     * ast_name{r}#57, long_noidx{r}#58, salary{r}#59]]
      * \_Limit[1000[INTEGER],false,false]
-     *   \_Filter[_fork{r}#59 == fork1[KEYWORD]]
-     *     \_Fork[[_meta_field{r}#48, emp_no{r}#49, first_name{r}#50, gender{r}#51, hire_date{r}#52, job{r}#53, job.raw{r}#54, l
-     * ast_name{r}#55, long_noidx{r}#56, salary{r}#57, _fork{r}#59]]
-     *       |_Project[[_meta_field{f}#21, emp_no{f}#15, first_name{f}#16, gender{f}#17, hire_date{f}#22, job{f}#23, job.raw{f}#24, l
-     * ast_name{f}#19, long_noidx{f}#25, salary{f}#20, _fork{r}#9]]
-     *       | \_Eval[[fork1[KEYWORD] AS _fork#9]]
-     *       |   \_Limit[1000[INTEGER],false,false]
-     *       |     \_EsRelation[employees][_meta_field{f}#21, emp_no{f}#15, first_name{f}#16, ..]
-     *       \_Project[[_meta_field{f}#43, emp_no{f}#37, first_name{f}#38, gender{f}#39, hire_date{f}#44, job{f}#45, job.raw{f}#46, l
-     * ast_name{f}#41, long_noidx{f}#47, salary{f}#42, _fork{r}#9]]
-     *         \_Eval[[fork3[KEYWORD] AS _fork#9]]
-     *           \_Limit[1000[INTEGER],false,false]
-     *             \_EsRelation[employees][_meta_field{f}#43, emp_no{f}#37, first_name{f}#38, ..]
-     * }</pre>
+     *   \_Fork[[_meta_field{r}#50, emp_no{r}#51, first_name{r}#52, gender{r}#53, hire_date{r}#54, job{r}#55, job.raw{r}#56, l
+     * ast_name{r}#57, long_noidx{r}#58, salary{r}#59]]
+     *     \_Project[[_meta_field{f}#23, emp_no{f}#17, first_name{f}#18, gender{f}#19, hire_date{f}#24, job{f}#25, job.raw{f}#26, l
+     * ast_name{f}#21, long_noidx{f}#27, salary{f}#22]]
+     *       \_Limit[1000[INTEGER],false,false]
+     *         \_EsRelation[employees][_meta_field{f}#23, emp_no{f}#17, first_name{f}#18, ..]
+     * }
      */
     public void testPruneColumnsInForkBranchesShouldPruneNestedEvalsIfColumnIsDropped() {
         var query = """
@@ -1216,36 +1222,19 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
         var project = as(plan, Project.class);
         assertThat(project.projections().size(), equalTo(10));
         var limit = as(project.child(), Limit.class);
-        var filter = as(limit.child(), Filter.class);
-        var fork = as(filter.child(), Fork.class);
-        assertThat(fork.output().size(), equalTo(11));
+        var fork = as(limit.child(), Fork.class);
+        assertThat(fork.output().size(), equalTo(10));
 
-        // second branch is completely removed
-        assertEquals(2, fork.children().size());
+        // second and third branches are completely removed
+        assertEquals(1, fork.children().size());
 
         var firstBranch = fork.children().getFirst();
         var firstBranchProject = as(firstBranch, Project.class);
-        assertThat(firstBranchProject.projections().size(), equalTo(11));
-        var firstBranchEval = as(firstBranchProject.child(), Eval.class);
-        var forkAliasInFirstBranch = as(firstBranchEval.fields().getFirst(), Alias.class);
-        assertThat(forkAliasInFirstBranch.name(), equalTo("_fork"));
-        var limitInFirstBranch = as(firstBranchEval.child(), Limit.class);
-        var firstBranchRelation = as(limitInFirstBranch.child(), EsRelation.class);
+        assertThat(firstBranchProject.projections().size(), equalTo(10));
+        var limitFirstBranch = as(firstBranchProject.child(), Limit.class);
+        var firstBranchRelation = as(limitFirstBranch.child(), EsRelation.class);
         assertThat(
             firstBranchRelation.output().stream().map(Attribute::name).collect(Collectors.toSet()),
-            hasItems("emp_no", "first_name", "gender", "hire_date", "job", "job.raw", "last_name", "long_noidx", "salary")
-        );
-
-        var thirdBranch = fork.children().get(1);
-        var thirdBranchProject = as(thirdBranch, Project.class);
-        assertThat(thirdBranchProject.projections().size(), equalTo(11));
-        var thirdBranchEval = as(thirdBranchProject.child(), Eval.class);
-        var forkAliasInThirdBranch = as(thirdBranchEval.fields().getFirst(), Alias.class);
-        assertThat(forkAliasInThirdBranch.name(), equalTo("_fork"));
-        var limitInThirdBranch = as(thirdBranchEval.child(), Limit.class);
-        var thirdBranchRelation = as(limitInThirdBranch.child(), EsRelation.class);
-        assertThat(
-            thirdBranchRelation.output().stream().map(Attribute::name).collect(Collectors.toSet()),
             hasItems("emp_no", "first_name", "gender", "hire_date", "job", "job.raw", "last_name", "long_noidx", "salary")
         );
     }
@@ -1279,16 +1268,119 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
         assertThat(fork.output().size(), equalTo(1));
         assertThat(fork.output().stream().map(Attribute::name).collect(Collectors.toSet()), hasItems("a"));
         for (LogicalPlan branch : fork.children()) {
-            var branchProject = as(branch, Project.class);
-            assertThat(branchProject.projections().size(), equalTo(1));
-            assertThat(Expressions.names(branchProject.projections()), contains("a"));
-            var limitInBranch = as(branchProject.child(), Limit.class);
-            var aggregateInBranch = as(limitInBranch.child(), Aggregate.class);
+            var aggregateInBranch = as(branch, Aggregate.class);
             assertThat(aggregateInBranch.aggregates().size(), equalTo(1));
             assertThat(Expressions.names(aggregateInBranch.aggregates()), contains("a"));
             var relation = as(aggregateInBranch.child(), EsRelation.class);
             assertThat(relation.output().stream().map(Attribute::name).collect(Collectors.toSet()), hasItems("salary"));
         }
+    }
+
+    /**
+     * {@snippet lang="text":
+     * Limit[1000[INTEGER],false,false]
+     * \_Aggregate[[],[COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]) AS y#28]]
+     *   \_Fork[[]]
+     *     |_Project[[]]
+     *     | \_Filter[NOT(STARTSWITH(gender{f}#31,v[KEYWORD]))]
+     *     |   \_Aggregate[[gender{f}#31],[gender{f}#31]]
+     *     |     \_EsRelation[employees][_meta_field{f}#35, emp_no{f}#29, first_name{f}#30, ..]
+     *     |_Project[[]]
+     *     | \_Filter[salary{f}#45 > 100000[INTEGER]]
+     *     |   \_Aggregate[[salary{f}#45],[salary{f}#45]]
+     *     |     \_EsRelation[employees][_meta_field{f}#46, emp_no{f}#40, first_name{f}#41, ..]
+     *     \_Project[[]]
+     *       \_Filter[emp_no{f}#51 > 10000[INTEGER]]
+     *         \_EsRelation[employees][_meta_field{f}#57, emp_no{f}#51, first_name{f}#52, ..]
+     * }
+     */
+    public void testPruneColumnsInForkBranchesWithFinalCountStats() {
+        var query = """
+             from employees
+             // reusing the same column name as in the final STATS
+            | FORK ( stats salary = count(*)::int, z = count(*) by gender
+                    | where NOT starts_with(gender, "v")
+                    | eval gender = gender::keyword )
+                   ( stats gender = values(gender), z = count(*) by salary
+                    | where salary > 100000 )
+                   ( where emp_no > 10000
+                    | eval gender = gender::keyword )
+            | sort salary
+            | stats y = count(*) // this removes all existing columns
+            """;
+
+        var plan = optimizedPlan(query);
+        var limit = as(plan, Limit.class);
+        var aggregate = as(limit.child(), Aggregate.class);
+        assertThat(aggregate.aggregates().size(), equalTo(1));
+        assertThat(Expressions.names(aggregate.aggregates()), contains("y"));
+        var fork = as(aggregate.child(), Fork.class);
+
+        assertThat(fork.output().size(), equalTo(0));
+        assertThat(fork.children().size(), equalTo(3));
+
+        var firstBranch = fork.children().getFirst();
+        var firstBranchProject = as(firstBranch, Project.class);
+        var firstBranchFilter = as(firstBranchProject.child(), Filter.class);
+        var firstBranchAggregate = as(firstBranchFilter.child(), Aggregate.class);
+        assertThat(firstBranchAggregate.aggregates().size(), equalTo(1));
+        assertThat(Expressions.names(firstBranchAggregate.aggregates()), contains("gender"));
+        var firstBranchRelation = as(firstBranchAggregate.child(), EsRelation.class);
+        assertThat(firstBranchRelation.output().stream().map(Attribute::name).collect(Collectors.toSet()), hasItems("gender"));
+
+        var secondBranch = fork.children().get(1);
+        var secondBranchProject = as(secondBranch, Project.class);
+        var secondBranchFilter = as(secondBranchProject.child(), Filter.class);
+        var secondBranchAggregate = as(secondBranchFilter.child(), Aggregate.class);
+        assertThat(secondBranchAggregate.aggregates().size(), equalTo(1));
+        assertThat(Expressions.names(secondBranchAggregate.aggregates()), contains("salary"));
+        var secondBranchRelation = as(secondBranchAggregate.child(), EsRelation.class);
+        assertThat(secondBranchRelation.output().stream().map(Attribute::name).collect(Collectors.toSet()), hasItems("salary"));
+
+        var thirdBranch = fork.children().get(2);
+        var thirdBranchProject = as(thirdBranch, Project.class);
+        var thirdBranchFilter = as(thirdBranchProject.child(), Filter.class);
+        var thirdBranchRelation = as(thirdBranchFilter.child(), EsRelation.class);
+        assertThat(thirdBranchRelation.output().stream().map(Attribute::name).collect(Collectors.toSet()), hasItems("emp_no", "gender"));
+    }
+
+    /**
+     * {@snippet lang="text":
+     * Limit[1000[INTEGER],false,false]
+     * \_Aggregate[[],[COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]) AS y#12]]
+     *   \_Fork[[]]
+     *     \_Project[[]]
+     *       \_Filter[emp_no{f}#13 > 10000[INTEGER]]
+     *         \_Aggregate[[emp_no{f}#13],[emp_no{f}#13]]
+     *           \_EsRelation[employees][_meta_field{f}#19, emp_no{f}#13, first_name{f}#14, ..]
+     * }
+     */
+    public void testPruneColumnsInForkWithSingleBranchAndFinalStats() {
+        var query = """
+                 from employees
+                | stats x = count(*), y = count(*) by emp_no
+                | FORK (where emp_no > 10000)
+                | sort x
+                | stats y = count(*)
+            """;
+
+        var plan = optimizedPlan(query);
+        var limit = as(plan, Limit.class);
+        var aggregate = as(limit.child(), Aggregate.class);
+        assertThat(aggregate.aggregates().size(), equalTo(1));
+        assertThat(Expressions.names(aggregate.aggregates()), contains("y"));
+        var fork = as(aggregate.child(), Fork.class);
+        assertThat(fork.output().size(), equalTo(0));
+        assertThat(fork.children().size(), equalTo(1));
+
+        var project = as(fork.children().getFirst(), Project.class);
+        assertThat(project.projections().size(), equalTo(0));
+        var filter = as(project.child(), Filter.class);
+        var branchAggregate = as(filter.child(), Aggregate.class);
+        assertThat(branchAggregate.aggregates().size(), equalTo(1));
+        assertThat(Expressions.names(branchAggregate.aggregates()), contains("emp_no"));
+        var relation = as(branchAggregate.child(), EsRelation.class);
+        assertThat(relation.output().stream().map(Attribute::name).collect(Collectors.toSet()), hasItems("emp_no"));
     }
 
     /*
@@ -1600,7 +1692,7 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
             | keep id
             """;
 
-        var analyzedPlan = unionIndexAnalyzer.analyze(parser.parseQuery(query));
+        var analyzedPlan = unionIndexAnalyzer().query(query);
 
         // run through this rule only because this is the one which enables the project pruning in this case and it's
         // how PruneColumns does its thing in case of Project prunning
@@ -1651,7 +1743,7 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
             | keep id
             """;
 
-        var analyzedPlan = unionIndexAnalyzer.analyze(parser.parseQuery(query));
+        var analyzedPlan = unionIndexAnalyzer().query(query);
 
         // run through this rule only because this is the one which enables the project pruning in this case and it's
         // how PruneColumns does its thing in case of Project prunning
@@ -1710,7 +1802,7 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
             | keep id
             """;
 
-        var analyzedPlan = unionIndexAnalyzer.analyze(parser.parseQuery(query));
+        var analyzedPlan = unionIndexAnalyzer().query(query);
 
         // run through this rule only because this is the one which enables the project pruning in this case and it's
         // how PruneColumns does its thing in case of Project prunning
@@ -1772,14 +1864,14 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
 
     /**
      * Expects
-     * <pre>{@code
+     * {@snippet lang="text":
      * Project[[date{r}#60]]
      * \_Dissect[message{r}#59,Parser[pattern=%{date} - %{level} - %{ip}, appendSeparator=, parser=org.elasticsearch.dissect.Dis
      * sectParser@981fdf8],[date{r}#60, level{r}#61, ip{r}#62]]
      *   \_Limit[1000[INTEGER],false,false]
      *     \_LocalRelation[[message{r}#59],Page{blocks=[BytesRefVectorBlock[vector=ConstantBytesRefVector[positions=1, value=[32 30 32 33
      * 2d 30 31 2d 32 33 54 31 32 3a 31 35 3a 30 30 5a 20 2d 20 65 72 72 6f 72 20 2d 20 31 39 32 2e 31 36 38 2e 31 2e 31]]]]}]
-     * }</pre>
+     * }
      */
     public void testCannotPartiallyPruneDissectFields() {
         var plan = plan("""
@@ -1799,11 +1891,11 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
 
     /**
      * Expects
-     * <pre>{@code
+     * {@snippet lang="text":
      * Project[[message{r}#46]]
      * \_Limit[1000[INTEGER],false,false]
      *   \_LocalRelation[[message{r}#46],Page{blocks=[BytesRefVectorBlock[vector=ConstantBytesRefVector[positions=1, value=...]]]}]
-     * }</pre>
+     * }
      */
     public void testPruneAllDissectFields() {
         var plan = plan("""
@@ -1821,14 +1913,14 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
 
     /**
      * Expects
-     * <pre>{@code
+     * {@snippet lang="text":
      * Limit[1000[INTEGER],false,false]
      * \_Aggregate[[extracted_last{r}#19],[COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]) AS count#23, extracted_last{r}#19]]
      *   \_Dissect[full_name{r}#17,Parser[pattern=%{extracted_first} %{extracted_last}, appendSeparator=, parser=org.elasticsearch
      * .dissect.DissectParser@43bbc401],[extracted_first{r}#18, extracted_last{r}#19]]
      *     \_Eval[[CONCAT(first_name{f}#25, [KEYWORD],last_name{f}#28) AS full_name#17]]
      *       \_EsRelation[test][_meta_field{f}#30, emp_no{f}#24, first_name{f}#25, ..]
-     * }</pre>
+     * }
      */
     public void testCannotPartiallyPruneDissectFieldsInAgg() {
         var plan = plan("""
@@ -1851,7 +1943,7 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
 
     /**
      * Expects
-     * <pre>{@code
+     * {@snippet lang="text":
      * Project[[date{r}#99]]
      * \_Grok[message{r}#93,Parser[pattern=%{TIMESTAMP_ISO8601:date} %{IP:ip} %{EMAILADDRESS:email} %{NUMBER:num:int}, grok=o
      * rg.elasticsearch.grok.Grok@2991a7bb],[date{r}#99, email{r}#100, ip{r}#101, num{r}#102]]
@@ -1859,7 +1951,7 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
      *     \_LocalRelation[[message{r}#93],Page{blocks=[BytesRefVectorBlock[vector=ConstantBytesRefVector[positions=1, value=[32 30 32 33
      * 2d 30 31 2d 32 33 54 31 32 3a 31 35 3a 30 30 5a 20 31 39 32 2e 31 36 38 2e 31 2e 31 20 75 73 65 72 40 65 78 61 6d 70 6c 65 2e 63 6f
      * 6d 20 34 32]]]]}]
-     * }</pre>
+     * }
      */
     public void testCannotPartiallyPruneGrokFields() {
         var plan = plan("""
@@ -1879,11 +1971,11 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
 
     /**
      * Expects
-     * <pre>{@code
+     * {@snippet lang="text":
      * Project[[message{r}#53]]
      * \_Limit[1000[INTEGER],false,false]
      *   \_LocalRelation[[message{r}#53],Page{blocks=[BytesRefVectorBlock[vector=ConstantBytesRefVector[positions=1, value=...]]]}]
-     * }</pre>
+     * }
      */
     public void testPruneAllGrokFields() {
         var plan = plan("""
@@ -1901,14 +1993,14 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
 
     /**
      * Expects
-     * <pre>{@code
+     * {@snippet lang="text":
      * Limit[1000[INTEGER],false,false]
      * \_Aggregate[[extracted_last{r}#43],[COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]) AS count#46, extracted_last{r}#43]]
      *   \_Grok[full_name{r}#38,Parser[pattern=%{WORD:extracted_first} %{WORD:extracted_last}, grok=org.elasticsearch.grok.Grok
      * @1df7d04d],[extracted_first{r}#42, extracted_last{r}#43]]
      *     \_Eval[[CONCAT(first_name{f}#48, [KEYWORD],last_name{f}#51) AS full_name#38]]
      *       \_EsRelation[test][_meta_field{f}#53, emp_no{f}#47, first_name{f}#48, ..]
-     * }</pre>
+     * }
      */
     public void testCannotPartiallyPruneGrokFieldsInAgg() {
         var plan = plan("""
@@ -1932,12 +2024,12 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
     /**
      * Expects
      *
-     * <pre>{@code
+     * {@snippet lang="text":
      * Project[[_meta_field{f}#300, emp_no{f}#294, first_name{f}#295, gender{f}#296, hire_date{f}#301, job{f}#302, job.raw{f}
      * #303, languages{f}#297, last_name{f}#298, long_noidx{f}#304, salary{f}#299]]
      * \_Limit[1000[INTEGER],false,false]
      *   \_EsRelation[test][_meta_field{f}#300, emp_no{f}#294, first_name{f}#29..]
-     * }</pre>
+     * }
      */
     public void testPruneDissectFieldsViaDrop() {
         var plan = plan("""
@@ -1959,12 +2051,12 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
     /**
      * Expects
      *
-     * <pre>{@code
+     * {@snippet lang="text":
      * Project[[_meta_field{f}#265, emp_no{f}#259, first_name{f}#260, gender{f}#261, hire_date{f}#266, job{f}#267, job.raw{f}
      * #268, languages{f}#262, last_name{f}#263, long_noidx{f}#269, salary{f}#264]]
      * \_Limit[1000[INTEGER],false,false]
      *   \_EsRelation[test][_meta_field{f}#265, emp_no{f}#259, first_name{f}#26..]
-     * }</pre>
+     * }
      */
     public void testPruneGrokFieldsViaDrop() {
         var plan = plan("""
@@ -1986,14 +2078,14 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
     /**
      * Expects
      *
-     * <pre>{@code
+     * {@snippet lang="text":
      * Project[[message{r}#142, date{r}#143]]
      * \_Dissect[message{r}#142,Parser[pattern=%{date} - %{level} - %{ip}, appendSeparator=, parser=org.elasticsearch.dissect.Di
      * ssectParser@223d640a],[date{r}#143, level{r}#144, ip{r}#145]]
      *   \_Limit[1000[INTEGER],false,false]
      *     \_LocalRelation[[message{r}#142],Page{blocks=[BytesRefVectorBlock[vector=ConstantBytesRefVector[positions=1, value=[32 30 32 33
      *  2d 30 31 2d 32 33 54 31 32 3a 31 35 3a 30 30 5a 20 2d 20 65 72 72 6f 72 20 2d 20 31 39 32 2e 31 36 38 2e 31 2e 31]]]]}]
-     * }</pre>
+     * }
      */
     public void testCannotPartiallyPruneDissectFieldsViaDrop() {
         var plan = plan("""
@@ -2016,13 +2108,13 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
     /**
      * Expects
      *
-     * <pre>{@code
+     * {@snippet lang="text":
      * Project[[message{r}#77, date{r}#83, level{r}#85, ip{r}#87]]
      * \_Eval[[overwritten[KEYWORD] AS date#83, overwritten[KEYWORD] AS level#85, overwritten[KEYWORD] AS ip#87]]
      *   \_Limit[1000[INTEGER],false,false]
      *     \_LocalRelation[[message{r}#77],Page{blocks=[BytesRefVectorBlock[vector=ConstantBytesRefVector[positions=1, value=[32 30 32 33
      * 2d 30 31 2d 32 33 54 31 32 3a 31 35 3a 30 30 5a 20 2d 20 65 72 72 6f 72 20 2d 20 31 39 32 2e 31 36 38 2e 31 2e 31]]]]}]
-     * }</pre>
+     * }
      */
     public void testPruneDissectFieldsShadowedByEval() {
         var plan = plan("""
@@ -2046,14 +2138,14 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
     /**
      * Expects
      *
-     * <pre>{@code
+     * {@snippet lang="text":
      * Project[[message{r}#227, date{r}#238]]
      * \_Eval[[overwritten[KEYWORD] AS date#238]]
      *   \_Limit[1000[INTEGER],false,false]
      *     \_LocalRelation[[message{r}#227],Page{blocks=[BytesRefVectorBlock[vector=ConstantBytesRefVector[positions=1, value=[32 30 32 33
      *  2d 30 31 2d 32 33 54 31 32 3a 31 35 3a 30 30 5a 20 31 39 32 2e 31 36 38 2e 31 2e 31 20 75 73 65 72 40 65 78 61 6d 70 6c 65 2e 63 6f
      *  6d 20 34 32]]]]}]
-     * }</pre>
+     * }
      */
     public void testPruneGrokFieldsShadowedByEval() {
         var plan = plan("""
@@ -2077,14 +2169,14 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
     /**
      * Expects
      *
-     * <pre>{@code
+     * {@snippet lang="text":
      * Project[[first_name{f}#117 AS extracted_first#113, extracted_last{r}#109]]
      * \_Dissect[full_name{r}#107,Parser[pattern=%{extracted_first} %{extracted_last}, appendSeparator=, parser=org.elasticsearc
      * h.dissect.DissectParser@4eafab7f],[extracted_first{r}#108, extracted_last{r}#109]]
      *   \_Eval[[CONCAT(first_name{f}#117, [KEYWORD],last_name{f}#120) AS full_name#107]]
      *     \_Limit[1000[INTEGER],false,false]
      *       \_EsRelation[test][_meta_field{f}#122, emp_no{f}#116, first_name{f}#11..]
-     * }</pre>
+     * }
      */
     public void testCannotPartiallyPruneDissectFieldShadowedByRename() {
         var plan = plan("""
@@ -2111,7 +2203,7 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
     /**
      * Expects
      *
-     * <pre>{@code
+     * {@snippet lang="text":
      * Project[[emp_no{f}#79, avg_salary{r}#74]]
      * \_TopN[[Order[emp_no{f}#79,ASC,LAST]],5[INTEGER],false]
      *   \_InlineJoin[LEFT,[extracted_last{r}#70],[extracted_last{r}#70]]
@@ -2125,7 +2217,7 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
      * alary$0#90, COUNT(salary{f}#84,true[BOOLEAN],PT0S[TIME_DURATION]) AS $$COUNT$avg_salary$1#91, extracted_last{r}#70]]
      *           \_StubRelation[[_meta_field{f}#85, emp_no{f}#79, first_name{f}#80, gender{f}#81, hire_date{f}#86, job{f}#87, job.raw{f}#88,
      * languages{f}#82, last_name{f}#83, long_noidx{f}#89, salary{f}#84, full_name{r}#68, extracted_first{r}#69, extracted_last{r}#70]]
-     * }</pre>
+     * }
      */
     public void testCannotPartiallyPruneDissectWithInlineStats() {
         var query = """
@@ -2161,11 +2253,11 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
     /**
      * Expects
      *
-     * <pre>{@code
+     * {@snippet lang="text":
      * Project[[emp_no{f}#63, emp_no{f}#63 AS avg_salary#59]]
      * \_TopN[[Order[emp_no{f}#63,ASC,LAST]],5[INTEGER],false]
      *   \_EsRelation[employees][_meta_field{f}#69, emp_no{f}#63, first_name{f}#64, ..]
-     * }</pre>
+     * }
      */
     public void testPruneGrokWithInlineStatsPrunedEntirely() {
         var query = """
@@ -2194,14 +2286,14 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
     /**
      * Expects
      *
-     * <pre>{@code
+     * {@snippet lang="text":
      * Project[[emp_no{f}#108, language_name{f}#120]]
      * \_Limit[1000[INTEGER],true,false]
      *   \_Join[LEFT,[languages{f}#111],[language_code{f}#119],null]
      *     |_Limit[1000[INTEGER],false,false]
      *     | \_EsRelation[test][_meta_field{f}#114, emp_no{f}#108, first_name{f}#10..]
      *     \_EsRelation[languages_lookup][LOOKUP][language_code{f}#119, language_name{f}#120]
-     * }</pre>
+     * }
      */
     public void testPruneDissectWithLookupJoin() {
         var plan = plan("""
@@ -2228,14 +2320,14 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
     /**
      * Expects
      *
-     * <pre>{@code
+     * {@snippet lang="text":
      * Project[[emp_no{f}#31, language_name{f}#43]]
      * \_Limit[1000[INTEGER],true,false]
      *   \_Join[LEFT,[languages{f}#34],[language_code{f}#42],null]
      *     |_Limit[1000[INTEGER],false,false]
      *     | \_EsRelation[test][_meta_field{f}#37, emp_no{f}#31, first_name{f}#32, ..]
      *     \_EsRelation[languages_lookup][LOOKUP][language_code{f}#42, language_name{f}#43]
-     * }</pre>
+     * }
      */
     public void testPruneGrokWithLookupJoin() {
         var plan = plan("""
@@ -2262,12 +2354,12 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
     /**
      * Expects
      *
-     * <pre>{@code
+     * {@snippet lang="text":
      * Project[[message{r}#122]]
      * \_Limit[1000[INTEGER],false,false]
      *   \_LocalRelation[[message{r}#122],Page{blocks=[BytesRefVectorBlock[vector=ConstantBytesRefVector[positions=1, value=[32 30 32 33
      *  2d 30 31 2d 32 33 20 65 72 72 6f 72 20 31 39 32 2e 31 36 38 2e 31 2e 31]]]]}]
-     * }</pre>
+     * }
      */
     public void testPruneChainedDissectAndGrok() {
         var plan = plan("""
@@ -2288,7 +2380,7 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
     /**
      * Expects
      *
-     * <pre>{@code
+     * {@snippet lang="text":
      * Project[[level{r}#12]]
      * \_Grok[rest{r}#6,Parser[pattern=%{WORD:level} %{IP:ip}, grok=org.elasticsearch.grok.Grok@883ecd6],[ip{r}#11, level{r}#1
      * 2]]
@@ -2297,7 +2389,7 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
      *     \_Limit[1000[INTEGER],false,false]
      *       \_LocalRelation[[message{r}#4],Page{blocks=[BytesRefVectorBlock[vector=ConstantBytesRefVector[positions=1, value=[32 30 32 33
      *  2d 30 31 2d 32 33 20 65 72 72 6f 72 20 31 39 32 2e 31 36 38 2e 31 2e 31]]]]}]
-     * }</pre>
+     * }
      */
     public void testCannotPartiallyPruneChainedDissectAndGrok() {
         var plan = plan("""
@@ -2325,13 +2417,13 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
     /**
      * Expects
      *
-     * <pre>{@code
+     * {@snippet lang="text":
      * Limit[1000[INTEGER],false,false]
      * \_Aggregate[[extracted_first{r}#163],[COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]) AS count#168, extracted_first{r}#
      * 163]]
      *   \_Eval[[constant[KEYWORD] AS extracted_first#163]]
      *     \_EsRelation[test][_meta_field{f}#175, emp_no{f}#169, first_name{f}#17..]
-     * }</pre>
+     * }
      */
     public void testPruneDissectFieldRedefinedBeforeStats() {
         var plan = plan("""
@@ -2344,18 +2436,18 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
 
         var limit = as(plan, Limit.class);
         var agg = as(limit.child(), Aggregate.class);
+        assertThat(Expressions.names(agg.groupings()), contains("extracted_first"));
         assertThat(Expressions.names(agg.aggregates()), contains("count", "extracted_first"));
         // Dissect is fully pruned since extracted_first/extracted_last are overwritten by EVAL
         var eval = as(agg.child(), Eval.class);
         assertThat(Expressions.names(eval.fields()), contains("extracted_first"));
-        // Dissect is fully pruned — next node is EsRelation, no Dissect in the tree
         as(eval.child(), EsRelation.class);
     }
 
     /**
      * Expects
      *
-     * <pre>{@code
+     * {@snippet lang="text":
      * Project[[message{r}#128, ip{r}#136]]
      * \_Limit[1000[INTEGER],false,false]
      *   \_Filter[ip{r}#136 == 192.168.1.1[KEYWORD]]
@@ -2364,7 +2456,7 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
      *       \_LocalRelation[[message{r}#128],Page{blocks=[BytesRefVectorBlock[vector=ConstantBytesRefVector[positions=1, value=[32 30 32 33
      *  2d 30 31 2d 32 33 54 31 32 3a 31 35 3a 30 30 5a 20 31 39 32 2e 31 36 38 2e 31 2e 31 20 75 73 65 72 40 65 78 61 6d 70 6c 65 2e 63 6f
      *  6d 20 34 32]]]]}]
-     * }</pre>
+     * }
      */
     public void testCannotPartiallyPruneGrokFieldsUsedInFilter() {
         var plan = plan("""
@@ -2389,7 +2481,7 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
     /**
      * Expects
      *
-     * <pre>{@code
+     * {@snippet lang="text":
      * Project[[combined{r}#11]]
      * \_Eval[[CONCAT(a{r}#5,-[KEYWORD],b{r}#6) AS combined#11]]
      *   \_Dissect[message{r}#4,Parser[pattern=%{a} %{b}, appendSeparator=, parser=org.elasticsearch.dissect.DissectParser@63bbe42
@@ -2397,7 +2489,7 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
      *     \_Limit[1000[INTEGER],false,false]
      *       \_LocalRelation[[message{r}#4],Page{blocks=[BytesRefVectorBlock[vector=ConstantBytesRefVector[positions=1, value=[68 65 6c 6c 6
      * f 20 77 6f 72 6c 64]]]]}]
-     * }</pre>
+     * }
      */
     public void testNoPruneDissectFieldsUsedInEvalExpression() {
         var plan = plan("""
@@ -2422,4 +2514,462 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
         as(limit.child(), LocalRelation.class);
     }
 
+    // === ExternalRelation pruning tests ===
+
+    public void testPruneColumnsInExternalRelation() {
+        Attribute colA = extAttr("col_a", KEYWORD);
+        Attribute colB = extAttr("col_b", LONG);
+        Attribute colC = extAttr("col_c", INTEGER);
+        ExternalRelation ext = externalRelation(List.of(colA, colB, colC));
+
+        // Project only col_a — col_b and col_c should be pruned
+        LogicalPlan plan = new Project(EMPTY, ext, List.of(colA));
+        LogicalPlan result = new PruneColumns().apply(plan);
+
+        var project = as(result, Project.class);
+        var prunedExt = as(project.child(), ExternalRelation.class);
+        assertThat(prunedExt.output(), hasSize(1));
+        assertThat(Expressions.names(prunedExt.output()), contains("col_a"));
+    }
+
+    public void testNoPruningWhenAllColumnsUsedInExternalRelation() {
+        Attribute colA = extAttr("col_a", KEYWORD);
+        Attribute colB = extAttr("col_b", LONG);
+        ExternalRelation ext = externalRelation(List.of(colA, colB));
+
+        // Project all columns — nothing should be pruned
+        LogicalPlan plan = new Project(EMPTY, ext, List.of(colA, colB));
+        LogicalPlan result = new PruneColumns().apply(plan);
+
+        var project = as(result, Project.class);
+        var prunedExt = as(project.child(), ExternalRelation.class);
+        assertThat(prunedExt.output(), hasSize(2));
+        assertThat(Expressions.names(prunedExt.output()), contains("col_a", "col_b"));
+    }
+
+    public void testPruneColumnsInExternalRelationThroughEval() {
+        Attribute colA = extAttr("col_a", LONG);
+        Attribute colB = extAttr("col_b", LONG);
+        ExternalRelation ext = externalRelation(List.of(colA, colB));
+
+        // Eval references col_a, Project keeps only the computed field — col_b should be pruned
+        Alias computed = new Alias(EMPTY, "computed", colA);
+        Eval eval = new Eval(EMPTY, ext, List.of(computed));
+        LogicalPlan plan = new Project(EMPTY, eval, List.of(computed.toAttribute()));
+        LogicalPlan result = new PruneColumns().apply(plan);
+
+        var project = as(result, Project.class);
+        var resultEval = as(project.child(), Eval.class);
+        var prunedExt = as(resultEval.child(), ExternalRelation.class);
+        assertThat(prunedExt.output(), hasSize(1));
+        assertThat(Expressions.names(prunedExt.output()), contains("col_a"));
+    }
+
+    public void testPruneColumnsInExternalRelationWithFilter() {
+        Attribute colA = extAttr("col_a", KEYWORD);
+        Attribute colB = extAttr("col_b", LONG);
+        Attribute colC = extAttr("col_c", INTEGER);
+        ExternalRelation ext = externalRelation(List.of(colA, colB, colC));
+
+        // Filter references col_b, Project keeps col_a — both col_a and col_b should be retained, col_c pruned
+        var condition = new GreaterThan(EMPTY, colB, new Literal(EMPTY, 10L, LONG), null);
+        Filter filter = new Filter(EMPTY, ext, condition);
+        LogicalPlan plan = new Project(EMPTY, filter, List.of(colA));
+        LogicalPlan result = new PruneColumns().apply(plan);
+
+        var project = as(result, Project.class);
+        var resultFilter = as(project.child(), Filter.class);
+        var prunedExt = as(resultFilter.child(), ExternalRelation.class);
+        assertThat(prunedExt.output(), hasSize(2));
+        assertThat(Expressions.names(prunedExt.output()), contains("col_a", "col_b"));
+    }
+
+    /**
+     * Ensures that PruneColumns does not drop a column used by LIMIT BY even when a subsequent DROP removes it from the output.
+     * <pre>{@code
+     * Project[[emp_no, first_name, ...excluding x]]
+     * \_LimitBy[1,[x]]
+     *   \_Eval[[salary + 4 AS x]]
+     *     \_Limit[1000]
+     *       \_EsRelation[test]
+     * }</pre>
+     */
+    public void testPruneColumnsKeepsLimitByGrouping() {
+        var plan = plan("""
+            from test
+            | eval x = salary + 4
+            | limit 1 by x
+            | drop x
+            """);
+
+        var project = as(plan, Project.class);
+        assertThat(Expressions.names(project.projections()), org.hamcrest.Matchers.not(hasItems("x")));
+        var defaultLimit = as(project.child(), Limit.class);
+        var limitBy = as(defaultLimit.child(), LimitBy.class);
+        assertThat(Expressions.names(limitBy.groupings()), contains("x"));
+        var eval = as(limitBy.child(), Eval.class);
+        assertThat(Expressions.names(eval.fields()), contains("x"));
+    }
+
+    private static Attribute extAttr(String name, DataType type) {
+        return new FieldAttribute(EMPTY, name, new EsField(name, type, Map.of(), false, EsField.TimeSeriesFieldType.NONE));
+    }
+
+    private static ExternalRelation externalRelation(List<Attribute> attributes) {
+        SourceMetadata metadata = new SourceMetadata() {
+            @Override
+            public List<Attribute> schema() {
+                return attributes;
+            }
+
+            @Override
+            public String sourceType() {
+                return "parquet";
+            }
+
+            @Override
+            public String location() {
+                return "s3://bucket/data.parquet";
+            }
+
+            @Override
+            public boolean equals(Object o) {
+                return o instanceof SourceMetadata;
+            }
+
+            @Override
+            public int hashCode() {
+                return 1;
+            }
+        };
+        return new ExternalRelation(EMPTY, "s3://bucket/data.parquet", metadata, attributes, FileList.UNRESOLVED, Map.of());
+    }
+
+    /**
+     * PruneColumns must not descend into MetricsInfo children. MetricsInfo.computeReferences()
+     * returns EMPTY, so without the skip the rule would prune every projection below it to
+     * Project[[]], breaking the data pipeline on data nodes.
+     */
+    public void testPruneColumnsSkipsMetricsInfo() {
+        FieldAttribute cpuField = new FieldAttribute(
+            EMPTY,
+            "cpu",
+            new EsField("cpu", LONG, Map.of(), true, EsField.TimeSeriesFieldType.METRIC)
+        );
+        EsRelation esRelation = new EsRelation(
+            EMPTY,
+            "k8s",
+            IndexMode.TIME_SERIES,
+            Map.of(),
+            Map.of(),
+            Map.of("k8s", IndexMode.TIME_SERIES),
+            List.of(cpuField)
+        );
+        Project project = new Project(EMPTY, esRelation, List.of(cpuField));
+        MetricsInfo metricsInfo = new MetricsInfo(EMPTY, project);
+
+        LogicalPlan result = new PruneColumns().apply(metricsInfo);
+
+        MetricsInfo resultMetricsInfo = as(result, MetricsInfo.class);
+        Project resultProject = as(resultMetricsInfo.child(), Project.class);
+        assertThat(resultProject.projections(), hasSize(1));
+        assertThat(Expressions.names(resultProject.projections()), contains("cpu"));
+    }
+
+    /**
+     * Same as {@link #testPruneColumnsSkipsMetricsInfo()} but for TsInfo.
+     */
+    public void testPruneColumnsSkipsTsInfo() {
+        FieldAttribute cpuField = new FieldAttribute(
+            EMPTY,
+            "cpu",
+            new EsField("cpu", LONG, Map.of(), true, EsField.TimeSeriesFieldType.METRIC)
+        );
+        EsRelation esRelation = new EsRelation(
+            EMPTY,
+            "k8s",
+            IndexMode.TIME_SERIES,
+            Map.of(),
+            Map.of(),
+            Map.of("k8s", IndexMode.TIME_SERIES),
+            List.of(cpuField)
+        );
+        Project project = new Project(EMPTY, esRelation, List.of(cpuField));
+        TsInfo tsInfo = new TsInfo(EMPTY, project);
+
+        LogicalPlan result = new PruneColumns().apply(tsInfo);
+
+        TsInfo resultTsInfo = as(result, TsInfo.class);
+        Project resultProject = as(resultTsInfo.child(), Project.class);
+        assertThat(resultProject.projections(), hasSize(1));
+        assertThat(Expressions.names(resultProject.projections()), contains("cpu"));
+    }
+
+    /*
+     * Limit[1000[INTEGER],false,false]
+     * \_Aggregate[[],[COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]) AS d2#10]]
+     *   \_UnionAll[[_meta_field{r}#33, emp_no{r}#34, first_name{r}#35, gender{r}#36, hire_date{r}#37, job{r}#38, job.raw{r}#39,
+     *               languages{r}#40, last_name{r}#41, long_noidx{r}#42, salary{r}#43]]
+     *     |_Project[[_meta_field{f}#17, emp_no{f}#11, first_name{f}#12, gender{f}#13, hire_date{f}#18, job{f}#19, job.raw{f}#20,
+     *                languages{f}#14, last_name{f}#15, long_noidx{f}#21, salary{f}#16]]
+     *     | \_EsRelation[test][_meta_field{f}#17, emp_no{f}#11, first_name{f}#12, ..]
+     *     \_Project[[_meta_field{f}#28, emp_no{f}#22, first_name{f}#23, gender{f}#24, hire_date{f}#29, job{f}#30, job.raw{f}#31,
+     *                languages{f}#25, last_name{f}#26, long_noidx{f}#32, salary{f}#27]]
+     *       \_Subquery[]
+     *         \_EsRelation[test][_meta_field{f}#28, emp_no{f}#22, first_name{f}#23, ..]
+     */
+    public void testInlineStatsOverSubqueryUnusedOutput() {
+        var query = """
+            FROM test, (FROM test)
+            | EVAL x = emp_no
+            | INLINE STATS d = max(x)
+            | STATS d2 = count(*)
+            """;
+
+        var plan = planSubquery(query);
+
+        // No InlineJoin should survive: the right side reduces to StubRelation and gets pruned away.
+        assertFalse("InlineJoin should have been pruned", plan.anyMatch(p -> p instanceof InlineJoin));
+        // The EVAL that defined `x` is gone too since `d` (its only consumer) was dropped.
+        assertFalse("EVAL feeding the dropped aggregate should have been pruned", plan.anyMatch(p -> p instanceof Eval));
+
+        var limit = as(plan, Limit.class);
+        var agg = as(limit.child(), Aggregate.class);
+        assertThat(Expressions.names(agg.aggregates()), contains("d2"));
+        var count = as(Alias.unwrap(agg.aggregates().get(0)), Count.class);
+        assertTrue("expected count(*)", count.field().foldable());
+
+        var unionAll = as(agg.child(), UnionAll.class);
+        assertEquals(2, unionAll.children().size());
+
+        var firstChild = as(unionAll.children().get(0), Project.class);
+        var firstRelation = as(firstChild.child(), EsRelation.class);
+        assertEquals("test", firstRelation.indexPattern());
+
+        var secondChild = as(unionAll.children().get(1), Project.class);
+        var subquery = as(secondChild.child(), Subquery.class);
+        var secondRelation = as(subquery.child(), EsRelation.class);
+        assertEquals("test", secondRelation.indexPattern());
+    }
+
+    /*
+     * Project[[d{r}#8]]
+     * \_Limit[1000[INTEGER],false,false]
+     *   \_InlineJoin[LEFT,[],[]]
+     *     |_Project[[emp_no{r}#33, emp_no{r}#33 AS x#5]]
+     *     | \_UnionAll[[_meta_field{r}#32, emp_no{r}#33, first_name{r}#34, gender{r}#35, hire_date{r}#36, job{r}#37, job.raw{r}#38,
+     *                   languages{r}#39, last_name{r}#40, long_noidx{r}#41, salary{r}#42]]
+     *     |   |_Project[[_meta_field{f}#16, emp_no{f}#10, first_name{f}#11, gender{f}#12, hire_date{f}#17, job{f}#18, job.raw{f}#19,
+     *                    languages{f}#13, last_name{f}#14, long_noidx{f}#20, salary{f}#15]]
+     *     |   | \_EsRelation[test][_meta_field{f}#16, emp_no{f}#10, first_name{f}#11, ..]
+     *     |   \_Project[[_meta_field{f}#27, emp_no{f}#21, first_name{f}#22, gender{f}#23, hire_date{f}#28, job{f}#29, job.raw{f}#30,
+     *                    languages{f}#24, last_name{f}#25, long_noidx{f}#31, salary{f}#26]]
+     *     |     \_Subquery[]
+     *     |       \_EsRelation[test][_meta_field{f}#27, emp_no{f}#21, first_name{f}#22, ..]
+     *     \_Aggregate[[],[MAX(x{r}#5,true[BOOLEAN],PT0S[TIME_DURATION]) AS d#8]]
+     *       \_StubRelation[[_meta_field{r}#32, emp_no{r}#33, first_name{r}#34, gender{r}#35, hire_date{r}#36, job{r}#37, job.raw{r}#38,
+     *                       languages{r}#39, last_name{r}#40, long_noidx{r}#41, salary{r}#42, x{r}#5]]
+     */
+    public void testInlineStatsOverSubqueryWithUsedOutput() {
+        var query = """
+            FROM test, (FROM test)
+            | EVAL x = emp_no
+            | INLINE STATS d = max(x)
+            | KEEP d
+            """;
+
+        var plan = planSubquery(query);
+
+        // d is used by KEEP so the InlineJoin must remain.
+        var inlineJoins = plan.collect(InlineJoin.class);
+        assertFalse("InlineJoin must be present because d is used", inlineJoins.isEmpty());
+
+        var ij = inlineJoins.get(0);
+
+        // The right side must still compute d = max(x).
+        assertTrue(
+            "Right side must compute d = max(x)",
+            ij.right().anyMatch(p -> p instanceof Aggregate agg && Expressions.names(agg.aggregates()).contains("d"))
+        );
+
+        // The left side must contain the UnionAll produced by FROM test, (FROM test).
+        assertTrue("Left side must contain UnionAll", ij.left().anyMatch(p -> p instanceof UnionAll));
+    }
+
+    /*
+     * Project[[d1{r}#11]]
+     * \_Limit[1000[INTEGER],false,false]
+     *   \_InlineJoin[LEFT,[],[]]
+     *     |_Project[[emp_no{r}#39, emp_no{r}#39 AS x#5]]
+     *     | \_UnionAll[[_meta_field{r}#38, emp_no{r}#39, first_name{r}#40, gender{r}#41, hire_date{r}#42, job{r}#43, job.raw{r}#44,
+     *                   languages{r}#45, last_name{r}#46, long_noidx{r}#47, salary{r}#48]]
+     *     |   |_Project[[_meta_field{f}#22, emp_no{f}#16, first_name{f}#17, gender{f}#18, hire_date{f}#23, job{f}#24, job.raw{f}#25,
+     *                    languages{f}#19, last_name{f}#20, long_noidx{f}#26, salary{f}#21]]
+     *     |   | \_EsRelation[test][_meta_field{f}#22, emp_no{f}#16, first_name{f}#17, ..]
+     *     |   \_Project[[_meta_field{f}#33, emp_no{f}#27, first_name{f}#28, gender{f}#29, hire_date{f}#34, job{f}#35, job.raw{f}#36,
+     *                    languages{f}#30, last_name{f}#31, long_noidx{f}#37, salary{f}#32]]
+     *     |     \_Subquery[]
+     *     |       \_EsRelation[test][_meta_field{f}#33, emp_no{f}#27, first_name{f}#28, ..]
+     *     \_Aggregate[[],[MAX(x{r}#5,true[BOOLEAN],PT0S[TIME_DURATION]) AS d1#11]]
+     *       \_StubRelation[[_meta_field{r}#38, emp_no{r}#39, first_name{r}#40, gender{r}#41, hire_date{r}#42, job{r}#43, job.raw{r}#44,
+     *                       languages{r}#45, last_name{r}#46, long_noidx{r}#47, salary{r}#48, x{r}#5, y{r}#8]]
+     */
+    public void testInlineStatsOverSubqueryPartialOutputPruning() {
+        var query = """
+            FROM test, (FROM test)
+            | EVAL x = emp_no, y = salary
+            | INLINE STATS d1 = max(x), d2 = max(y)
+            | KEEP d1
+            """;
+
+        var plan = planSubquery(query);
+
+        // d1 is kept by KEEP so the InlineJoin must still be present.
+        var inlineJoins = plan.collect(InlineJoin.class);
+        assertFalse("InlineJoin must be present because d1 is used", inlineJoins.isEmpty());
+
+        var ij = inlineJoins.get(0);
+
+        // d1 must still be in the right-side aggregate.
+        assertTrue(
+            "d1 must remain in InlineJoin right side",
+            ij.right().anyMatch(p -> p instanceof Aggregate agg && Expressions.names(agg.aggregates()).contains("d1"))
+        );
+
+        // d2 must have been pruned — the key assertion that catches the pre-fix bug.
+        assertFalse(
+            "d2 must be pruned from InlineJoin right side (was unused)",
+            ij.right().anyMatch(p -> p instanceof Aggregate agg && Expressions.names(agg.aggregates()).contains("d2"))
+        );
+
+        // y was only needed for d2, so it must also be pruned from all EVALs on the left side.
+        assertFalse(
+            "y must be pruned from all EVALs on the left side",
+            ij.left().anyMatch(p -> p instanceof Eval eval && Expressions.names(eval.fields()).contains("y"))
+        );
+    }
+
+    /*
+     * Limit[1000[INTEGER],false,false]
+     * \_Aggregate[[],[COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]) AS cnt#16]]
+     *   \_UnionAll[[_meta_field{r}#39, emp_no{r}#40, first_name{r}#41, gender{r}#42, hire_date{r}#43, job{r}#44, job.raw{r}#45,
+     *               languages{r}#46, last_name{r}#47, long_noidx{r}#48, salary{r}#49]]
+     *     |_Project[[_meta_field{f}#23, emp_no{f}#17, first_name{f}#18, gender{f}#19, hire_date{f}#24, job{f}#25, job.raw{f}#26,
+     *                languages{f}#20, last_name{f}#21, long_noidx{f}#27, salary{f}#22]]
+     *     | \_EsRelation[test][_meta_field{f}#23, emp_no{f}#17, first_name{f}#18, ..]
+     *     \_Project[[_meta_field{f}#34, emp_no{f}#28, first_name{f}#29, gender{f}#30, hire_date{f}#35, job{f}#36, job.raw{f}#37,
+     *                languages{f}#31, last_name{f}#32, long_noidx{f}#38, salary{f}#33]]
+     *       \_Subquery[]
+     *         \_EsRelation[test][_meta_field{f}#34, emp_no{f}#28, first_name{f}#29, ..]
+     */
+    public void testMultipleInlineStatsOverSubqueryBothUnused() {
+        var query = """
+            FROM test, (FROM test)
+            | EVAL x = emp_no
+            | INLINE STATS d1 = max(x)
+            | EVAL z = salary
+            | INLINE STATS d2 = max(z)
+            | STATS cnt = count(*)
+            """;
+
+        var plan = planSubquery(query);
+
+        // Both d1 and d2 are unused, so both InlineJoins must be eliminated.
+        assertFalse("Both InlineJoins must be pruned", plan.anyMatch(p -> p instanceof InlineJoin));
+        // x and z were only needed to feed the pruned aggregates, so their EVALs must also be gone.
+        assertFalse("All EVALs must be pruned", plan.anyMatch(p -> p instanceof Eval));
+
+        // The surviving plan is just count(*) over the raw UnionAll.
+        var limit = as(plan, Limit.class);
+        var agg = as(limit.child(), Aggregate.class);
+        assertThat(Expressions.names(agg.aggregates()), contains("cnt"));
+        assertTrue("UnionAll must be present below the outer aggregate", agg.child().anyMatch(p -> p instanceof UnionAll));
+    }
+
+    /*
+     * Limit[1000[INTEGER],false,false]
+     * \_Aggregate[[],[COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]) AS cnt#14]]
+     *   \_Fork[[]]
+     *     |_Project[[]]
+     *     | \_Filter[emp_no{f}#15 > 100[INTEGER]]
+     *     |   \_EsRelation[employees][_meta_field{f}#21, emp_no{f}#15, first_name{f}#16, ..]
+     *     \_Project[[]]
+     *       \_Filter[emp_no{f}#26 < 200[INTEGER]]
+     *         \_EsRelation[employees][_meta_field{f}#32, emp_no{f}#26, first_name{f}#27, ..]
+     */
+    public void testInlineStatsOverForkUnusedOutput() {
+        var query = """
+            from employees
+            | fork (where emp_no > 100)
+                   (where emp_no < 200)
+            | eval x = emp_no
+            | inline stats d = max(x)
+            | stats cnt = count(*)
+            """;
+
+        var plan = optimizedPlan(query);
+
+        // d is not used by the final STATS, so the InlineJoin must be pruned entirely.
+        assertFalse("InlineJoin must be pruned when its output is unused", plan.anyMatch(p -> p instanceof InlineJoin));
+        // The EVAL that defined x is also gone since d (its only consumer) was dropped.
+        assertFalse("EVAL feeding the dropped aggregate must be pruned", plan.anyMatch(p -> p instanceof Eval));
+        // The Fork must still be present — it feeds the outer count(*).
+        assertTrue("Fork must be present below the outer aggregate", plan.anyMatch(p -> p instanceof Fork));
+    }
+
+    /*
+     * Project[[d1{r}#15]]
+     * \_Limit[1000[INTEGER],false,false]
+     *   \_InlineJoin[LEFT,[],[]]
+     *     |_Project[[emp_no{r}#43, emp_no{r}#43 AS x#9]]
+     *     | \_Fork[[emp_no{r}#43]]
+     *     |   |_Project[[emp_no{f}#20]]
+     *     |   | \_Filter[emp_no{f}#20 > 100[INTEGER]]
+     *     |   |   \_EsRelation[employees][_meta_field{f}#26, emp_no{f}#20, first_name{f}#21, ..]
+     *     |   \_Project[[emp_no{f}#31]]
+     *     |     \_Filter[emp_no{f}#31 < 200[INTEGER]]
+     *     |       \_EsRelation[employees][_meta_field{f}#37, emp_no{f}#31, first_name{f}#32, ..]
+     *     \_Aggregate[[],[MAX(x{r}#9,true[BOOLEAN],PT0S[TIME_DURATION]) AS d1#15]]
+     *       \_StubRelation[[_meta_field{r}#42, emp_no{r}#43, first_name{r}#44, gender{r}#45, hire_date{r}#46, job{r}#47, job.raw{r}#48,
+     *                       languages{r}#49, last_name{r}#50, long_noidx{r}#51, salary{r}#52, _fork{r}#53, x{r}#9, y{r}#12]]
+     */
+    public void testInlineStatsOverForkPartialOutputPruning() {
+        var query = """
+            from employees
+            | fork (where emp_no > 100)
+                   (where emp_no < 200)
+            | eval x = emp_no, y = salary
+            | inline stats d1 = max(x), d2 = max(y)
+            | keep d1
+            """;
+
+        var plan = optimizedPlan(query);
+
+        // d1 is kept by KEEP so the InlineJoin must remain.
+        var inlineJoins = plan.collect(InlineJoin.class);
+        assertFalse("InlineJoin must be present because d1 is used", inlineJoins.isEmpty());
+
+        var ij = inlineJoins.get(0);
+
+        // d1 must still be in the right-side aggregate.
+        assertTrue(
+            "d1 must remain in InlineJoin right side",
+            ij.right().anyMatch(p -> p instanceof Aggregate agg && Expressions.names(agg.aggregates()).contains("d1"))
+        );
+
+        // d2 must have been pruned — the key assertion that catches the pre-fix bug.
+        assertFalse(
+            "d2 must be pruned from InlineJoin right side (was unused)",
+            ij.right().anyMatch(p -> p instanceof Aggregate agg && Expressions.names(agg.aggregates()).contains("d2"))
+        );
+
+        // y was only needed for d2, so it must be pruned from all EVALs on the left side.
+        assertFalse(
+            "y must be pruned from all EVALs on the left side",
+            ij.left().anyMatch(p -> p instanceof Eval eval && Expressions.names(eval.fields()).contains("y"))
+        );
+
+        // The Fork must still be present on the left of the InlineJoin.
+        assertTrue("Fork must be present on the left of the InlineJoin", ij.left().anyMatch(p -> p instanceof Fork));
+    }
 }

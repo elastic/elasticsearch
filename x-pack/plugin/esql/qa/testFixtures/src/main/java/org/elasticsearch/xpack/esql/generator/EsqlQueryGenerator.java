@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.generator;
 import org.elasticsearch.xpack.esql.CsvTestsDataLoader;
 import org.elasticsearch.xpack.esql.generator.command.CommandGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.ChangePointGenerator;
+import org.elasticsearch.xpack.esql.generator.command.pipe.DedupGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.DissectGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.DropAllGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.DropGenerator;
@@ -19,6 +20,7 @@ import org.elasticsearch.xpack.esql.generator.command.pipe.ForkGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.GrokGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.InlineStatsGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.KeepGenerator;
+import org.elasticsearch.xpack.esql.generator.command.pipe.LimitByGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.LimitGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.LookupJoinGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.MvExpandGenerator;
@@ -29,9 +31,11 @@ import org.elasticsearch.xpack.esql.generator.command.pipe.SortGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.StatsGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.TimeSeriesStatsGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.UriPartsGenerator;
+import org.elasticsearch.xpack.esql.generator.command.pipe.UserAgentGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.WhereGenerator;
 import org.elasticsearch.xpack.esql.generator.command.source.FromGenerator;
 import org.elasticsearch.xpack.esql.generator.command.source.PromQLGenerator;
+import org.elasticsearch.xpack.esql.generator.command.source.RowGenerator;
 import org.elasticsearch.xpack.esql.generator.command.source.TimeSeriesGenerator;
 import org.elasticsearch.xpack.esql.parser.ParserUtils;
 
@@ -87,7 +91,7 @@ public class EsqlQueryGenerator {
     /**
      * These are commands that are at the beginning of the query, eg. FROM
      */
-    static List<CommandGenerator> SOURCE_COMMANDS = List.of(FromGenerator.INSTANCE);
+    static List<CommandGenerator> SOURCE_COMMANDS = List.of(FromGenerator.INSTANCE, RowGenerator.INSTANCE);
 
     /**
      * Commands at the beginning of queries that begin queries on time series indices, eg. TS
@@ -105,6 +109,7 @@ public class EsqlQueryGenerator {
     public static List<CommandGenerator> PIPE_COMMANDS = List.of(
         ChangePointGenerator.INSTANCE,
         DissectGenerator.INSTANCE,
+        DedupGenerator.INSTANCE,
         DropGenerator.INSTANCE,
         DropAllGenerator.INSTANCE,
         EnrichGenerator.INSTANCE,
@@ -113,6 +118,7 @@ public class EsqlQueryGenerator {
         GrokGenerator.INSTANCE,
         KeepGenerator.INSTANCE,
         InlineStatsGenerator.INSTANCE,
+        LimitByGenerator.INSTANCE,
         LimitGenerator.INSTANCE,
         LookupJoinGenerator.INSTANCE,
         MvExpandGenerator.INSTANCE,
@@ -121,6 +127,7 @@ public class EsqlQueryGenerator {
         SortGenerator.INSTANCE,
         StatsGenerator.INSTANCE,
         UriPartsGenerator.INSTANCE,
+        UserAgentGenerator.INSTANCE,
         RegisteredDomainGenerator.INSTANCE,
         WhereGenerator.INSTANCE
     );
@@ -166,7 +173,8 @@ public class EsqlQueryGenerator {
         final CommandGenerator.QuerySchema schema,
         Executor executor,
         boolean isTimeSeries,
-        QueryExecutor queryExecutor
+        QueryExecutor queryExecutor,
+        GenerationContext context
     ) {
         boolean canGenerateTimeSeries = isTimeSeries;
         CommandGenerator.CommandDescription desc;
@@ -174,10 +182,10 @@ public class EsqlQueryGenerator {
         if (commandGenerator instanceof PromQLGenerator promQLGenerator) {
             String index = promQLGenerator.generateIndices(schema);
             List<Column> fieldSchema = discoverFieldsViaMetricsInfo(index, queryExecutor);
-            desc = promQLGenerator.generateWithIndices(List.of(), fieldSchema, schema, queryExecutor, index);
+            desc = promQLGenerator.generateWithIndices(List.of(), fieldSchema, schema, queryExecutor, context, index);
             canGenerateTimeSeries = false;
         } else {
-            desc = commandGenerator.generate(List.of(), List.of(), schema, queryExecutor);
+            desc = commandGenerator.generate(List.of(), List.of(), schema, queryExecutor, context);
         }
         executor.run(commandGenerator, desc);
         if (executor.continueExecuting() == false) {
@@ -206,7 +214,7 @@ public class EsqlQueryGenerator {
                 }
             }
 
-            desc = commandGenerator.generate(executor.previousCommands(), executor.currentSchema(), schema, queryExecutor);
+            desc = commandGenerator.generate(executor.previousCommands(), executor.currentSchema(), schema, queryExecutor, context);
             if (desc == CommandGenerator.EMPTY_DESCRIPTION) {
                 continue;
             }
@@ -282,7 +290,7 @@ public class EsqlQueryGenerator {
     }
 
     public static boolean needsQuoting(String rawName) {
-        return rawName.contains("`") || rawName.contains("-");
+        return rawName.contains("`") || rawName.contains("-") || rawName.contains("(") || rawName.contains(")");
     }
 
     /**
@@ -660,25 +668,12 @@ public class EsqlQueryGenerator {
         return randomBoolean() ? indexName : indexName.substring(0, randomIntBetween(0, indexName.length())) + "*";
     }
 
-    public static String row() {
-        StringBuilder cmd = new StringBuilder("row ");
-        int nFields = randomIntBetween(1, 10);
-        for (int i = 0; i < nFields; i++) {
-            String name = randomIdentifier();
-            String expression = constantExpression();
-            if (i > 0) {
-                cmd.append(",");
-            }
-            cmd.append(" ");
-            cmd.append(name);
-            cmd.append(" = ");
-            cmd.append(expression);
-        }
-        return cmd.toString();
-    }
-
     public static String constantExpression() {
         // TODO not only simple values, but also foldable expressions
+        if (randomIntBetween(0, 9) == 0) {
+            return multivalueConstant();
+        }
+        // TODO: Add more types (double, geo, ranges...)
         return switch (randomIntBetween(0, 4)) {
             case 0 -> "" + randomIntBetween(Integer.MIN_VALUE, Integer.MAX_VALUE);
             case 1 -> "" + randomLongBetween(Long.MIN_VALUE, Long.MAX_VALUE);
@@ -686,7 +681,45 @@ public class EsqlQueryGenerator {
             case 3 -> "" + randomBoolean();
             default -> "null";
         };
+    }
 
+    /**
+     * Generates a multivalue array literal of numeric, string, or boolean types.
+     */
+    public static String multivalueConstant() {
+        int n = randomIntBetween(1, 10);
+        StringBuilder sb = new StringBuilder("[");
+        // TODO: Add more types (double, geo, ranges...)
+        return switch (randomIntBetween(0, 3)) {
+            case 0 -> {
+                for (int i = 0; i < n; i++) {
+                    if (i > 0) sb.append(", ");
+                    sb.append(randomIntBetween(Integer.MIN_VALUE, Integer.MAX_VALUE));
+                }
+                yield sb.append("]").toString();
+            }
+            case 1 -> {
+                for (int i = 0; i < n; i++) {
+                    if (i > 0) sb.append(", ");
+                    sb.append(randomLongBetween(Long.MIN_VALUE, Long.MAX_VALUE));
+                }
+                yield sb.append("]").toString();
+            }
+            case 2 -> {
+                for (int i = 0; i < n; i++) {
+                    if (i > 0) sb.append(", ");
+                    sb.append("\"").append(randomAlphaOfLength(randomIntBetween(1, 10))).append("\"");
+                }
+                yield sb.append("]").toString();
+            }
+            default -> {
+                for (int i = 0; i < n; i++) {
+                    if (i > 0) sb.append(", ");
+                    sb.append(randomBoolean());
+                }
+                yield sb.append("]").toString();
+            }
+        };
     }
 
     /**

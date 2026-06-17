@@ -22,9 +22,11 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.features.NodeFeature;
+import org.elasticsearch.iplocation.api.IpLocationService;
 import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.useragent.api.UserAgentParserRegistry;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.util.Collections;
@@ -163,6 +165,8 @@ public class SimulateIngestServiceTests extends ESTestCase {
             List.of(ingestPlugin),
             client,
             null,
+            UserAgentParserRegistry.NOOP,
+            IpLocationService.NOOP,
             FailureStoreMetrics.NOOP,
             TestProjectResolvers.singleProject(projectId),
             new FeatureService(List.of()) {

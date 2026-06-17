@@ -6,5 +6,5 @@ mapped_pages:
 
 # ES|QL `MV_FIRST` function [esql-mv_first]
 
-:::{include} ../../_snippets/functions/layout/mv_first.md
+:::{include} ../../_snippets/generated/x-pack-esql/functions/layout/mv_first.md
 :::

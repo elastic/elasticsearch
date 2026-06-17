@@ -14,6 +14,7 @@ import org.elasticsearch.test.AzureReactorThreadFilter;
 import org.elasticsearch.test.TestClustersThreadFilter;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.xpack.esql.CsvSpecReader.CsvTestCase;
+import org.elasticsearch.xpack.esql.datasources.FormatNameResolver;
 import org.elasticsearch.xpack.esql.qa.rest.AbstractExternalSourceSpecTestCase;
 import org.junit.ClassRule;
 
@@ -42,12 +43,22 @@ public class ParquetFormatSpecIT extends AbstractExternalSourceSpecTestCase {
     }
 
     @Override
+    protected String readerName() {
+        return FormatNameResolver.READER_JAVA;
+    }
+
+    @Override
     protected String getTestRestCluster() {
         return cluster.getHttpAddresses();
     }
 
+    @Override
+    protected boolean enableRoundingDoubleValuesOnAsserting() {
+        return true;
+    }
+
     @ParametersFactory(argumentFormatting = "csv-spec:%2$s.%3$s [%7$s]")
     public static List<Object[]> readScriptSpec() throws Exception {
-        return readExternalSpecTests("/external-*.csv-spec");
+        return readExternalSpecTests("/external-*.csv-spec", "/parquet-*.csv-spec");
     }
 }

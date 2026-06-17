@@ -13,7 +13,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Assertions;
-import org.elasticsearch.telemetry.apm.metrics.MetricAttributes;
+import org.elasticsearch.telemetry.metric.MetricAttributes;
 
 import java.util.Map;
 import java.util.Objects;
@@ -23,6 +23,13 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import static java.util.Collections.emptySet;
+import static org.elasticsearch.inference.telemetry.InferenceStats.INFERENCE_DEPLOYMENT_DURATION;
+import static org.elasticsearch.inference.telemetry.InferenceStats.INFERENCE_REQUEST_COUNT_TOTAL;
+import static org.elasticsearch.inference.telemetry.InferenceStats.INFERENCE_REQUEST_DURATION;
+import static org.elasticsearch.inference.telemetry.InferenceStats.INFERENCE_SOURCE_ATTRIBUTE;
+import static org.elasticsearch.inference.telemetry.InferenceStats.SERVICE_ATTRIBUTE;
+import static org.elasticsearch.inference.telemetry.InferenceStats.STATUS_CODE_ATTRIBUTE;
+import static org.elasticsearch.inference.telemetry.InferenceStats.TASK_TYPE_ATTRIBUTE;
 
 public class MetricValidator {
     static final int MAX_LENGTH = 255;
@@ -67,7 +74,16 @@ public class MetricValidator {
         "es.thread_pool.searchable_snapshots_cache_fetch_async.*",
         "es.thread_pool.searchable_snapshots_cache_prewarming.*",
         "es.thread_pool.security-crypto.*",
-        "es.thread_pool.security-token-key.*"
+        "es.thread_pool.security-token-key.*",
+        // APM Java agent-compatible metric names (see https://www.elastic.co/docs/reference/apm/agents/java/metrics#metrics-jvm)
+        "system.cpu.*",
+        "system.memory.*",
+        "system.process.*",
+        "jvm.fd.*",
+        "jvm.file_descriptor.*",
+        "jvm.gc.*",
+        "jvm.memory.*",
+        "jvm.thread.*"
     );
 
     /**
@@ -118,7 +134,12 @@ public class MetricValidator {
 
         static final Set<String> BLOB_CACHE_ATTRIBUTES = Set.of("executor", "file_extension", "reason", "source");
 
-        static final Set<String> INFERENCE_ATTRIBUTES = Set.of("inference_source", "service", "status_code", "task_type");
+        static final Set<String> INFERENCE_ATTRIBUTES = Set.of(
+            INFERENCE_SOURCE_ATTRIBUTE,
+            SERVICE_ATTRIBUTE,
+            STATUS_CODE_ATTRIBUTE,
+            TASK_TYPE_ATTRIBUTE
+        );
 
         static final Set<String> ML_ATTRIBUTES = Set.of("deployment_id", "scales_to_zero");
 
@@ -179,9 +200,9 @@ public class MetricValidator {
             Map.entry("es.esql.functions.usages.total", ESQL_ATTRIBUTES),
             Map.entry("es.esql.settings.queries.total", ESQL_ATTRIBUTES),
             Map.entry("es.esql.settings.usages.total", ESQL_ATTRIBUTES),
-            Map.entry("es.inference.requests.count.total", INFERENCE_ATTRIBUTES),
-            Map.entry("es.inference.requests.time", INFERENCE_ATTRIBUTES),
-            Map.entry("es.inference.trained_model.deployment.time", INFERENCE_ATTRIBUTES),
+            Map.entry(INFERENCE_REQUEST_COUNT_TOTAL, INFERENCE_ATTRIBUTES),
+            Map.entry(INFERENCE_REQUEST_DURATION, INFERENCE_ATTRIBUTES),
+            Map.entry(INFERENCE_DEPLOYMENT_DURATION, INFERENCE_ATTRIBUTES),
             Map.entry("es.ml.trained_models.adaptive_allocations.actual_number_of_allocations.current", ML_ATTRIBUTES),
             Map.entry("es.ml.trained_models.adaptive_allocations.needed_number_of_allocations.current", ML_ATTRIBUTES),
             Map.entry("es.projects.linked.connections.error.total", LINKED_PROJECT_ATTRIBUTES),
@@ -198,6 +219,7 @@ public class MetricValidator {
             Map.entry("es.recovery.translog.operations.total", TRANSLOG_ATTRIBUTES),
             Map.entry("es.reindex.completion.total", REINDEX_ATTRIBUTES),
             Map.entry("es.reindex.duration.histogram", REINDEX_ATTRIBUTES),
+            Map.entry("es.reindex.relocation.total", REINDEX_ATTRIBUTES),
             Map.entry("es.repositories.exceptions.histogram", REPO_ATTRIBUTES),
             Map.entry("es.repositories.exceptions.request_range_not_satisfied.total", REPO_ATTRIBUTES),
             Map.entry("es.repositories.exceptions.total", REPO_ATTRIBUTES),
@@ -218,6 +240,7 @@ public class MetricValidator {
             Map.entry("es.repositories.snapshots.shards.completed.total", REPO_SNAPSHOT_ATTRIBUTES),
             Map.entry("es.repositories.snapshots.shards.current", REPO_SNAPSHOT_ATTRIBUTES),
             Map.entry("es.repositories.snapshots.shards.duration.histogram", REPO_SNAPSHOT_ATTRIBUTES),
+            Map.entry("es.repositories.snapshots.shards.queue_time.histogram", REPO_SNAPSHOT_ATTRIBUTES),
             Map.entry("es.repositories.snapshots.shards.started.total", REPO_SNAPSHOT_ATTRIBUTES),
             Map.entry("es.repositories.snapshots.started.total", REPO_SNAPSHOT_ATTRIBUTES),
             Map.entry("es.repositories.snapshots.upload.bytes.total", REPO_SNAPSHOT_ATTRIBUTES),
@@ -241,7 +264,16 @@ public class MetricValidator {
             Map.entry("es.tsdb.downsample.actions.shard.total", DOWNSAMPLE_ATTRIBUTES),
             Map.entry("es.tsdb.downsample.actions.total", DOWNSAMPLE_ATTRIBUTES),
             Map.entry("es.tsdb.downsample.latency.shard.histogram", DOWNSAMPLE_ATTRIBUTES),
-            Map.entry("es.tsdb.downsample.latency.total.histogram", DOWNSAMPLE_ATTRIBUTES)
+            Map.entry("es.tsdb.downsample.latency.total.histogram", DOWNSAMPLE_ATTRIBUTES),
+            // APM Java agent-compatible metrics (see https://www.elastic.co/docs/reference/apm/agents/java/metrics#metrics-jvm)
+            Map.entry("jvm.gc.count", Set.of("name")),
+            Map.entry("jvm.gc.time", Set.of("name")),
+            Map.entry("jvm.memory.heap.pool.used", Set.of("name")),
+            Map.entry("jvm.memory.heap.pool.committed", Set.of("name")),
+            Map.entry("jvm.memory.heap.pool.max", Set.of("name")),
+            Map.entry("jvm.memory.non_heap.pool.used", Set.of("name")),
+            Map.entry("jvm.memory.non_heap.pool.committed", Set.of("name")),
+            Map.entry("jvm.memory.non_heap.pool.max", Set.of("name"))
         );
 
         // forbidden attributes known to cause issues due to mapping conflicts or high cardinality
@@ -317,6 +349,11 @@ public class MetricValidator {
 
             assert Attributes.OTEL_ATTRIBUTES.contains(attribute)
                 || Attributes.SKIP_VALIDATION.getOrDefault(metricName, emptySet()).contains(attribute)
+                // allow percentile for all thread pools
+                // https://github.com/elastic/dev/issues/3436 remove the usage of percentile as attribute and move to metric name.
+                || (metricName.startsWith("es.thread_pool.") && attribute.equals("percentile"))
+                // ML metrics use dot-separated attribute key
+                || (metricName.startsWith("es.ml.") && attribute.equals("es.ml.is_master"))
                 || Attributes.ATTRIBUTE_PATTERN.matcher(attribute).matches()
                 : Strings.format(
                     "Attribute [%s] of [%s] does not match the required naming pattern [%s], see the naming guidelines.",

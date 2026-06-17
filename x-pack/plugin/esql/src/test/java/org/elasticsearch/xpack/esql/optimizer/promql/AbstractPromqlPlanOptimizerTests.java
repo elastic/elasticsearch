@@ -7,39 +7,24 @@
 
 package org.elasticsearch.xpack.esql.optimizer.promql;
 
-import org.elasticsearch.TransportVersion;
-import org.elasticsearch.index.IndexMode;
-import org.elasticsearch.xpack.esql.EsqlTestUtils;
-import org.elasticsearch.xpack.esql.analysis.Analyzer;
-import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
+import org.elasticsearch.xpack.esql.TestAnalyzer;
+import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
-import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
-import org.elasticsearch.xpack.esql.index.EsIndex;
-import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.optimizer.AbstractLogicalPlanOptimizerTests;
-import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
+import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesCollapse;
 import org.hamcrest.Matcher;
-import org.junit.BeforeClass;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
-import java.util.Map;
-import java.util.Set;
 
-import static java.util.Collections.emptyMap;
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.emptyInferenceResolution;
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
-import static org.elasticsearch.xpack.esql.plan.QuerySettings.UNMAPPED_FIELDS;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
@@ -47,42 +32,26 @@ import static org.hamcrest.Matchers.not;
 // @TestLogging(value = "org.elasticsearch.xpack.esql:TRACE", reason = "debug tests")
 public abstract class AbstractPromqlPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests {
 
-    protected static Analyzer tsAnalyzer;
-
-    @BeforeClass
-    public static void initPromql() {
-        var timeSeriesMapping = loadMapping("k8s-mappings.json");
-        var timeSeriesIndex = IndexResolution.valid(
-            new EsIndex("k8s", timeSeriesMapping, Map.of("k8s", IndexMode.TIME_SERIES), Map.of(), Map.of(), Set.of())
-        );
-        tsAnalyzer = new Analyzer(
-            new AnalyzerContext(
-                EsqlTestUtils.TEST_CFG,
-                new EsqlFunctionRegistry(),
-                Map.of(new IndexPattern(Source.EMPTY, "k8s"), timeSeriesIndex),
-                emptyMap(),
-                enrichResolution,
-                emptyInferenceResolution(),
-                TransportVersion.current(),
-                UNMAPPED_FIELDS.defaultValue()
-            ),
-            TEST_VERIFIER
-        );
+    protected static TestAnalyzer tsAnalyzer() {
+        return analyzerWithEnrichPolicies().addK8s()
+            .addEmptyIndex()
+            .unmappedResolution(UnmappedResolution.NULLIFY)
+            .minimumTransportVersion(TimeSeriesCollapse.TS_COLLAPSE);
     }
 
     protected LogicalPlan planPromql(String query) {
-        return planPromql(query, false);
+        return planPromql(query, false, true);
     }
 
-    protected LogicalPlan planPromqlExpectNoReferences(String query) {
-        return planPromql(query, true);
+    protected LogicalPlan planPromql(String query, boolean optimize) {
+        return planPromql(query, false, optimize);
     }
 
-    protected LogicalPlan planPromql(String query, boolean allowEmptyReferences) {
+    protected LogicalPlan planPromql(String query, boolean allowEmptyReferences, boolean optimize) {
         var now = Instant.now();
         query = query.replace("$now-1h", "\"" + now.minus(1, ChronoUnit.HOURS) + "\"");
         query = query.replace("$now", "\"" + now + "\"");
-        var analyzed = tsAnalyzer.analyze(parser.parseQuery(query));
+        var analyzed = tsAnalyzer().query(query);
         AttributeSet.Builder references = AttributeSet.builder();
         analyzed.forEachDown(lp -> references.addAll(lp.references()));
         if (allowEmptyReferences) {
@@ -91,13 +60,16 @@ public abstract class AbstractPromqlPlanOptimizerTests extends AbstractLogicalPl
             assertThat(references.build(), not(empty()));
         }
         logger.trace("analyzed plan:\n{}", analyzed);
+        if (optimize == false) {
+            return analyzed;
+        }
         var optimized = logicalOptimizer.optimize(analyzed);
         logger.trace("optimized plan:\n{}", optimized);
         return optimized;
     }
 
     protected void assertConstantResult(String query, Matcher<Double> matcher) {
-        var plan = planPromqlExpectNoReferences("PROMQL index=k8s step=1m " + query);
+        var plan = planPromql("PROMQL index=k8s step=1m " + query, true);
         Eval eval = plan.collect(Eval.class).getFirst();
         Literal literal = as(eval.fields().getFirst().child(), Literal.class);
         assertThat(as(literal.value(), Double.class), matcher);

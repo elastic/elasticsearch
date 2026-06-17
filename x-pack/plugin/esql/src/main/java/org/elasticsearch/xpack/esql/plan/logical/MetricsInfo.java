@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -101,7 +102,12 @@ public class MetricsInfo extends UnaryPlan implements TelemetryAware, PostAnalys
 
     @Override
     protected AttributeSet computeReferences() {
-        return AttributeSet.EMPTY;
+        for (Attribute attribute : child().outputSet()) {
+            if (EsQueryExec.isDocAttribute(attribute)) {
+                return AttributeSet.of(attribute);
+            }
+        }
+        return child().outputSet();
     }
 
     @Override
@@ -124,16 +130,18 @@ public class MetricsInfo extends UnaryPlan implements TelemetryAware, PostAnalys
 
     @Override
     public void postAnalysisVerification(Failures failures) {
-        boolean hasTsSource = child().anyMatch(p -> p instanceof EsRelation er && er.indexMode() == IndexMode.TIME_SERIES);
-        if (hasTsSource == false) {
-            failures.add(fail(this, "METRICS_INFO can only be used with TS source command"));
-        }
-
         child().forEachDown(p -> {
             if (p instanceof PipelineBreaker) {
                 failures.add(fail(this, "METRICS_INFO cannot be used after {} command", pipelineBreakerCommandName(p)));
             }
         });
+        if (failures.hasFailures()) {
+            return;
+        }
+        boolean hasTsSource = child().anyMatch(p -> p instanceof EsRelation er && er.indexMode() == IndexMode.TIME_SERIES);
+        if (hasTsSource == false) {
+            failures.add(fail(this, "METRICS_INFO can only be used with TS source command"));
+        }
     }
 
     private static String pipelineBreakerCommandName(LogicalPlan plan) {

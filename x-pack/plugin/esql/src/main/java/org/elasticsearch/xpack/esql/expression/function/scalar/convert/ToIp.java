@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
 
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.BytesRefs;
-import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.OnlySurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.MapParam;
 import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
@@ -69,8 +70,11 @@ public class ToIp extends EsqlScalarFunction implements OnlySurrogateExpression,
     private final Expression field;
     private final Expression options;
 
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(ToIp.class).binary(ToIp::new).name("to_ip");
+
     @FunctionInfo(
         returnType = "ip",
+        briefSummary = "Converts a string to an IP value.",
         description = "Converts an input string to an IP value.",
         examples = {
             @Example(file = "ip", tag = "to_ip", explanation = """
@@ -141,7 +145,7 @@ public class ToIp extends EsqlScalarFunction implements OnlySurrogateExpression,
     }
 
     @Override
-    public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
+    public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         throw new UnsupportedOperationException("should be rewritten");
     }
 

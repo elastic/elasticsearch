@@ -10,14 +10,17 @@
 package org.elasticsearch.index.mapper.extras;
 
 import org.apache.lucene.index.DocValuesType;
+import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentParsingException;
+import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
@@ -56,6 +59,12 @@ public class ScaledFloatFieldMapperTests extends NumberFieldMapperTests {
     }
 
     @Override
+    protected FieldMapper.DocValuesParameter.Values getDocValuesParameters(MapperService mapperService) {
+        ScaledFloatFieldMapper mapper = (ScaledFloatFieldMapper) mapperService.documentMapper().mappers().getMapper("field");
+        return mapper.docValuesParameters();
+    }
+
+    @Override
     protected Object getSampleValueForDocument() {
         return 123;
     }
@@ -75,7 +84,8 @@ public class ScaledFloatFieldMapperTests extends NumberFieldMapperTests {
         checker.registerConflictCheck("index", b -> b.field("index", false));
         checker.registerConflictCheck("store", b -> b.field("store", true));
         checker.registerConflictCheck("null_value", b -> b.field("null_value", 1));
-        checker.registerUpdateCheck(b -> b.field("coerce", false), m -> assertFalse(((ScaledFloatFieldMapper) m).coerce()));
+        checker.registerUpdateCheck("coerce", b -> b.field("coerce", false), m -> assertFalse(((ScaledFloatFieldMapper) m).coerce()));
+        checker.registerConflictCheck("time_series_metric", b -> b.field("time_series_metric", "gauge"));
     }
 
     @Override
@@ -127,7 +137,8 @@ public class ScaledFloatFieldMapperTests extends NumberFieldMapperTests {
         assertThat(e.getMessage(), containsString("[scaling_factor] must be a positive number, got [-1.0]"));
     }
 
-    public void testNotIndexed() throws Exception {
+    @Override
+    public void testNotIndexed() throws IOException {
         DocumentMapper mapper = createDocumentMapper(
             fieldMapping(b -> b.field("type", "scaled_float").field("index", false).field("scaling_factor", 10.0))
         );
@@ -143,6 +154,7 @@ public class ScaledFloatFieldMapperTests extends NumberFieldMapperTests {
         List<IndexableField> fields = doc.rootDoc().getFields("field");
         assertEquals(1, fields.size());
         IndexableField dvField = fields.get(0);
+        assertEquals(IndexOptions.NONE, dvField.fieldType().indexOptions());
         assertEquals(DocValuesType.SORTED_NUMERIC, dvField.fieldType().docValuesType());
         assertEquals(1230, dvField.numericValue().longValue());
     }
@@ -661,5 +673,23 @@ public class ScaledFloatFieldMapperTests extends NumberFieldMapperTests {
             // TODO doubles currently disable pruning, can we re-enable?
             new SortShortcutSupport(this::minimalMapping, this::writeField, false)
         );
+    }
+
+    public void testColumnarArrayOrderRoundTrip() throws IOException {
+        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.name()).build();
+        double scalingFactor = 100.0;
+        DocumentMapper mapper = createMapperService(
+            settings,
+            mapping(b -> b.startObject("field").field("type", "scaled_float").field("scaling_factor", scalingFactor).endObject())
+        ).documentMapper();
+
+        // Pick raw ints then divide by the scaling factor so values already lie on the scaled grid — no quantization loss.
+        double v1 = randomIntBetween(0, 100_000) / scalingFactor;
+        double v2 = randomIntBetween(0, 100_000) / scalingFactor;
+        double v3 = randomIntBetween(0, 100_000) / scalingFactor;
+
+        String src = syntheticSource(mapper, b -> b.array("field", v2, v1, v3, v2));
+        assertThat(src, containsString("\"field\":[" + v2 + "," + v1 + "," + v3 + "," + v2 + "]"));
     }
 }

@@ -11,88 +11,69 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.core.Nullable;
-import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ServiceSettings;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
-import org.elasticsearch.xpack.inference.services.ServiceFields;
-import org.elasticsearch.xpack.inference.services.ServiceUtils;
-import org.elasticsearch.xpack.inference.services.contextualai.ContextualAiRateLimitServiceSettings;
-import org.elasticsearch.xpack.inference.services.contextualai.ContextualAiService;
-import org.elasticsearch.xpack.inference.services.settings.FilteredXContentObject;
+import org.elasticsearch.xpack.inference.services.contextualai.ContextualAiServiceSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
 import java.io.IOException;
-import java.net.URI;
 import java.util.Map;
-import java.util.Objects;
 
-import static org.elasticsearch.xpack.inference.services.ServiceFields.URL;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalString;
+import static org.elasticsearch.xpack.inference.services.contextualai.ContextualAiUtils.INFERENCE_CONTEXTUAL_AI_ADDED;
+import static org.elasticsearch.xpack.inference.services.contextualai.ContextualAiUtils.INFERENCE_CONTEXTUAL_AI_URL_SERVICE_SETTING_REMOVED;
 
-public class ContextualAiRerankServiceSettings extends FilteredXContentObject
-    implements
-        ContextualAiRateLimitServiceSettings,
-        ServiceSettings {
+public class ContextualAiRerankServiceSettings extends ContextualAiServiceSettings {
 
     public static final String NAME = "contextualai_rerank_service_settings";
-    private static final String API_KEY = "api_key";
 
-    // TODO: Make this configurable instead of hardcoded. Should support custom endpoints or different ContextualAI regions.
-    private static final String DEFAULT_URL = "https://api.contextual.ai/v1/rerank";
+    private static final RateLimitSettings DEFAULT_RATE_LIMIT_SETTINGS = new RateLimitSettings(1000);
 
-    // Default rate limit settings - can be adjusted based on ContextualAI's actual limits
-    private static final RateLimitSettings DEFAULT_RATE_LIMIT_SETTINGS = new RateLimitSettings(1000); // 1000 requests per minute
+    public static ContextualAiRerankServiceSettings fromMap(Map<String, Object> serviceSettingsMap, ConfigurationParseContext context) {
+        var validationException = new ValidationException();
 
-    private final URI uri;
-    private final String modelId;
-    private final RateLimitSettings rateLimitSettings;
-
-    public static ContextualAiRerankServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
-        ValidationException validationException = new ValidationException();
-
-        String url = extractOptionalString(map, URL, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        String modelId = extractOptionalString(map, ServiceFields.MODEL_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
-
-        RateLimitSettings rateLimitSettings = RateLimitSettings.of(
-            map,
+        var commonSettings = ContextualAiServiceSettings.fromMap(
+            serviceSettingsMap,
+            context,
             DEFAULT_RATE_LIMIT_SETTINGS,
-            validationException,
-            ContextualAiService.NAME,
-            context
+            validationException
         );
 
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
+        validationException.throwIfValidationErrorsExist();
 
-        URI uri = url != null ? ServiceUtils.createUri(url) : ServiceUtils.createUri(DEFAULT_URL);
-        return new ContextualAiRerankServiceSettings(uri, modelId, rateLimitSettings);
+        return new ContextualAiRerankServiceSettings(commonSettings);
     }
 
-    public ContextualAiRerankServiceSettings(URI uri, @Nullable String modelId, @Nullable RateLimitSettings rateLimitSettings) {
-        this.uri = Objects.requireNonNull(uri);
-        this.modelId = modelId; // Can be null for REQUEST context
-        this.rateLimitSettings = Objects.requireNonNullElse(rateLimitSettings, DEFAULT_RATE_LIMIT_SETTINGS);
+    @Override
+    public ServiceSettings updateServiceSettings(Map<String, Object> serviceSettings) {
+        var validationException = new ValidationException();
+
+        var commonSettings = updateCommonSettings(serviceSettings, validationException);
+
+        validationException.throwIfValidationErrorsExist();
+
+        return new ContextualAiRerankServiceSettings(commonSettings);
+    }
+
+    public ContextualAiRerankServiceSettings(CommonSettings commonSettings) {
+        super(commonSettings);
     }
 
     public ContextualAiRerankServiceSettings(StreamInput in) throws IOException {
-        this.uri = ServiceUtils.createUri(in.readString());
-        this.modelId = in.readString();
-        this.rateLimitSettings = Objects.requireNonNullElse(in.readOptionalWriteable(RateLimitSettings::new), DEFAULT_RATE_LIMIT_SETTINGS);
+        super(in);
     }
 
-    public URI uri() {
-        return uri;
-    }
-
-    public String modelId() {
-        return modelId;
-    }
-
-    public RateLimitSettings rateLimitSettings() {
-        return rateLimitSettings;
+    /**
+     * For versions that still support the URL service setting, we need to write out a value to avoid serialization errors.
+     * This value will be set as URI to send ContextualAI rerank request to.
+     * @param out the output stream to write to
+     * @throws IOException if an I/O error occurs during writing
+     */
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        if (out.getTransportVersion().supports(INFERENCE_CONTEXTUAL_AI_URL_SERVICE_SETTING_REMOVED) == false) {
+            out.writeString(ContextualAiRerankModel.DEFAULT_RERANK_URI.toString());
+        }
+        super.writeTo(out);
     }
 
     @Override
@@ -101,52 +82,7 @@ public class ContextualAiRerankServiceSettings extends FilteredXContentObject
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject();
-
-        builder.field(URL, uri.toString());
-        builder.field(ServiceFields.MODEL_ID, modelId);
-
-        rateLimitSettings.toXContent(builder, params);
-
-        builder.endObject();
-        return builder;
-    }
-
-    @Override
-    protected XContentBuilder toXContentFragmentOfExposedFields(XContentBuilder builder, Params params) throws IOException {
-        builder.field(URL, uri.toString());
-        builder.field(ServiceFields.MODEL_ID, modelId);
-
-        rateLimitSettings.toXContent(builder, params);
-
-        return builder;
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(uri.toString());
-        out.writeString(modelId);
-        out.writeOptionalWriteable(rateLimitSettings);
-    }
-
-    @Override
-    public boolean equals(Object object) {
-        if (this == object) return true;
-        if (object == null || getClass() != object.getClass()) return false;
-        ContextualAiRerankServiceSettings that = (ContextualAiRerankServiceSettings) object;
-        return Objects.equals(uri, that.uri)
-            && Objects.equals(modelId, that.modelId)
-            && Objects.equals(rateLimitSettings, that.rateLimitSettings);
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(uri, modelId, rateLimitSettings);
-    }
-
-    @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.minimumCompatible();
+        return INFERENCE_CONTEXTUAL_AI_ADDED;
     }
 }

@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 149513
+pr: 149521
+summary: "`JSON_EXTRACT(_source, ...)` warns when `_source` is null instead of returning silent nulls"
+type: bug

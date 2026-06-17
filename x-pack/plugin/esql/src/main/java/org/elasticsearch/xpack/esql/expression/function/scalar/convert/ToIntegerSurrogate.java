@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
 
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.OnlySurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.esql.expression.function.Param;
@@ -48,8 +49,13 @@ public class ToIntegerSurrogate extends EsqlScalarFunction implements OnlySurrog
     private final Expression field;
     private final Expression base;
 
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(ToIntegerSurrogate.class)
+        .binary(ToIntegerSurrogate::new)
+        .name("to_integer", "to_int");
+
     @FunctionInfo(
         returnType = "integer",
+        briefSummary = "Converts a value to an integer.",
         description = """
             Converts an input value to an integer value.
             If the input parameter is of a date type, its value will be interpreted as milliseconds
@@ -124,7 +130,7 @@ public class ToIntegerSurrogate extends EsqlScalarFunction implements OnlySurrog
     }
 
     @Override
-    public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
+    public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         throw new UnsupportedOperationException("should be rewritten");
     }
 

@@ -8,9 +8,12 @@
 package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
+import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.SplitDiscoveryContext;
 import org.elasticsearch.xpack.esql.datasources.spi.SplitProvider;
 import org.elasticsearch.xpack.esql.plan.physical.ExternalSourceExec;
@@ -37,16 +40,29 @@ public final class SplitDiscoveryPhase {
     private SplitDiscoveryPhase() {}
 
     public static PhysicalPlan resolveExternalSplits(PhysicalPlan plan, Map<String, ExternalSourceFactory> sourceFactories) {
-        return resolveRecursive(plan, List.of(), sourceFactories);
+        return resolveExternalSplits(
+            plan,
+            sourceFactories,
+            org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES
+        );
+    }
+
+    public static PhysicalPlan resolveExternalSplits(
+        PhysicalPlan plan,
+        Map<String, ExternalSourceFactory> sourceFactories,
+        int maxRecordBytes
+    ) {
+        return resolveRecursive(plan, List.of(), sourceFactories, maxRecordBytes);
     }
 
     private static PhysicalPlan resolveRecursive(
         PhysicalPlan plan,
         List<Expression> ancestorFilters,
-        Map<String, ExternalSourceFactory> sourceFactories
+        Map<String, ExternalSourceFactory> sourceFactories,
+        int maxRecordBytes
     ) {
         if (plan instanceof ExternalSourceExec exec) {
-            return resolveExternalSource(exec, ancestorFilters, sourceFactories);
+            return resolveExternalSource(exec, ancestorFilters, sourceFactories, maxRecordBytes);
         }
 
         List<Expression> filtersForChildren = ancestorFilters;
@@ -66,7 +82,7 @@ public final class SplitDiscoveryPhase {
         boolean changed = false;
         List<PhysicalPlan> newChildren = new ArrayList<>(children.size());
         for (PhysicalPlan child : children) {
-            PhysicalPlan resolved = resolveRecursive(child, filtersForChildren, sourceFactories);
+            PhysicalPlan resolved = resolveRecursive(child, filtersForChildren, sourceFactories, maxRecordBytes);
             if (resolved != child) {
                 changed = true;
             }
@@ -86,20 +102,33 @@ public final class SplitDiscoveryPhase {
     private static PhysicalPlan resolveExternalSource(
         ExternalSourceExec exec,
         List<Expression> ancestorFilters,
-        Map<String, ExternalSourceFactory> sourceFactories
+        Map<String, ExternalSourceFactory> sourceFactories,
+        int maxRecordBytes
     ) {
         ExternalSourceFactory factory = sourceFactories.get(exec.sourceType());
         SplitProvider splitProvider = factory != null ? factory.splitProvider() : SplitProvider.SINGLE;
 
-        FileSet fileSet = exec.fileSet();
-        PartitionMetadata partitionInfo = fileSet != null ? fileSet.partitionMetadata() : null;
+        FileList fileList = exec.fileList();
+        PartitionMetadata partitionInfo = fileList != null ? fileList.partitionMetadata() : null;
+
+        List<Attribute> queryDataAttributes = new ArrayList<>(exec.output().size());
+        for (Attribute attr : exec.output()) {
+            if (attr instanceof MetadataAttribute == false) {
+                queryDataAttributes.add(attr);
+            }
+        }
+        ExternalSchema querySchema = new ExternalSchema(queryDataAttributes);
 
         SplitDiscoveryContext context = new SplitDiscoveryContext(
             null,
-            fileSet != null ? fileSet : FileSet.UNRESOLVED,
+            fileList != null ? fileList : FileList.UNRESOLVED,
+            exec.schemaMap(),
             exec.config(),
             partitionInfo,
-            ancestorFilters
+            ancestorFilters,
+            querySchema,
+            exec.unifiedSchema(),
+            maxRecordBytes
         );
 
         List<ExternalSplit> splits;

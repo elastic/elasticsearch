@@ -42,14 +42,13 @@ dependencies {
   javaRestTestImplementation 'com.google.api:api-common:2.46.1'
   javaRestTestImplementation 'com.google.api:gax:2.63.1'
 
-  // Repository GCS module for cluster
-  clusterModules project(':modules:repository-gcs')
+  // The DEFAULT distribution already bundles repository-gcs, workload-identity, and every
+  // esql-datasource-* module needed by GcsWorkloadIdentityAuthIT (the only test in this source set
+  // that boots a cluster). Re-declaring them as clusterPlugins/clusterModules duplicates them
+  // under both distro/modules/ and distro/plugins/ and crashes ES boot with a duplicate-key
+  // error. Mapper plugins are not in DEFAULT and remain as clusterPlugins.
   clusterPlugins project(':plugins:mapper-size')
   clusterPlugins project(':plugins:mapper-murmur3')
-
-  // The GCS datasource plugin under test
-  clusterPlugins project(xpackModule('esql-datasource-gcs'))
-  clusterPlugins project(xpackModule('esql-datasource-http'))
 }
 
 tasks.named('javaRestTestTestingConventions').configure {

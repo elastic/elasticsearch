@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.MapParam;
 import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
@@ -60,6 +61,9 @@ public class MatchPhrase extends SingleFieldFullTextFunction implements Optional
         "MatchPhrase",
         MatchPhrase::readFrom
     );
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(MatchPhrase.class)
+        .ternary(MatchPhrase::new)
+        .name("match_phrase");
     public static final Set<DataType> FIELD_DATA_TYPES = Set.of(KEYWORD, TEXT, NULL);
     public static final Set<DataType> QUERY_DATA_TYPES = Set.of(KEYWORD, TEXT);
 
@@ -73,6 +77,7 @@ public class MatchPhrase extends SingleFieldFullTextFunction implements Optional
     @FunctionInfo(
         returnType = "boolean",
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA, version = "9.1.0") },
+        briefSummary = "Performs a match_phrase query on the specified field.",
         description = """
             Use `MATCH_PHRASE` to perform a [`match_phrase`](/reference/query-languages/query-dsl/query-dsl-match-query-phrase.md) on the
             specified field.
@@ -85,7 +90,12 @@ public class MatchPhrase extends SingleFieldFullTextFunction implements Optional
             match_phrase query.
             All [`match_phrase`](/reference/query-languages/query-dsl/query-dsl-match-query-phrase.md) query parameters are supported.
 
-            `MATCH_PHRASE` returns true if the provided query matches the row.""",
+            `MATCH_PHRASE` returns true if the provided query matches the row.
+
+            :::{tip}
+            Learn more about using [ES|QL for search use cases](docs-content://solutions/search/esql-for-search.md).
+            :::
+            """,
         examples = { @Example(file = "match-phrase-function", tag = "match-phrase-with-field", applies_to = "stack: ga 9.1.0") }
     )
     public MatchPhrase(

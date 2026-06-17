@@ -432,6 +432,7 @@ abbrev:keyword |  type:keyword   | scalerank:integer | min_scalerank:integer
 ;
 
 byMultivaluedMvExpand
+skip_flattened_rewrite: field_extract_multivalue_null
 required_capability: inline_stats
 
 FROM airports
@@ -448,6 +449,7 @@ GWL            |9                  |4                      |military
 ;
 
 byMvExpand
+skip_flattened_rewrite: field_extract_multivalue_null
 required_capability: inline_stats
 required_capability: st_x_y_quantized
 // ST_X and ST_Y return slightly different precision in older versions
@@ -565,6 +567,7 @@ ZNZ            |4                       |German
 ;
 
 afterEnrich
+skip_flattened_rewrite: enrich_on_rejects_flattened
 required_capability: inline_stats
 required_capability: enrich_load
 
@@ -627,6 +630,7 @@ emp_no:integer | languages:integer | max_salary:integer
 ;
 
 beforeEnrich
+skip_flattened_rewrite: enrich_on_rejects_flattened
 required_capability: inline_stats
 required_capability: enrich_load
 
@@ -646,6 +650,7 @@ ACA            |Acapulco de Juárez|385            |major          |Acapulco de 
 ;
 
 beforeAndAfterEnrich
+skip_flattened_rewrite: enrich_on_rejects_flattened
 required_capability: inline_stats
 required_capability: enrich_load
 
@@ -1443,6 +1448,7 @@ salary:integer |x:keyword|gender:keyword |min_sl:integer |emp_no:integer
 ;
 
 overridingGroupings
+skip_flattened_rewrite: field_extract_multivalue_null
 required_capability: inline_stats
 
 FROM employees
@@ -1462,6 +1468,7 @@ salary:integer |x:integer      |gender:keyword |min_sl:integer |emp_no:integer
 ;
 
 overridingExpressionGroupings
+skip_flattened_rewrite: field_extract_multivalue_null
 required_capability: inline_stats
 
 FROM employees
@@ -2422,6 +2429,8 @@ emp_no:integer |  c1:long
 
 simpleCountWithFilteringAndNoGroupingOnFieldWithMultivalues
 required_capability: inline_stats
+required_capability: keywords_mv_count_as_single_value_fix
+
 from employees
 | inline stats c1 = count(job_positions) where emp_no <= 10003
 | keep emp_no, c1
@@ -2572,6 +2581,7 @@ FROM employees
 ;
 
 groupingFilterIsAlwaysTrue
+skip_flattened_rewrite: field_extract_multivalue_null
 required_capability: inline_stats
 FROM employees
 | MV_EXPAND job_positions
@@ -2590,6 +2600,7 @@ FROM employees
 
 
 groupingFilterIsAlwaysFalse
+skip_flattened_rewrite: field_extract_multivalue_null
 required_capability: inline_stats
 FROM employees
 | MV_EXPAND job_positions
@@ -2608,6 +2619,7 @@ null           |48942          |Patricio          |A                      |10012
 
 
 groupingFilterSometimesMatches
+skip_flattened_rewrite: field_extract_multivalue_null
 required_capability: inline_stats
 FROM employees
 | MV_EXPAND job_positions
@@ -3235,6 +3247,7 @@ count:long
 ;
 
 multiIndexTsLongInlinestatsInline2
+skip_flattened_rewrite: inline_stats_multi_index_column_mismatch
 required_capability: inline_stats
 
 FROM sample_data, sample_data_ts_long, sample_data_ts_nanos
@@ -3498,7 +3511,7 @@ client_ip:ip | event_duration:long |    message:keyword    |count:long|    @time
 172.21.2.113 |             2764889 | Connected to 10.1.0.2 |2         | 2023-10-23T12:27:28.948Z
 ;
 
-multiIndexIndirectUseOfUnionTypesInInlinestats 
+multiIndexIndirectUseOfUnionTypesInInlineStatsGrouping
 required_capability: inline_stats
 
 FROM sample_data, sample_data_ts_long
@@ -4180,12 +4193,13 @@ FROM languages_lookup_non_unique_key
 | EVAL language_code = null::integer
 | INLINE STATS MAX(language_code) BY language_code
 | SORT country
-| LIMIT 5
+| LIMIT 6
 ;
 
 country:keyword   |language_name:keyword |MAX(language_code):integer |language_code:integer
 Atlantis          |null                  |null                       |null
 [Austria, Germany]|German                |null                       |null
+[Belgium, Germany]|German                |null                       |null
 Canada            |English               |null                       |null
 Mv-Land           |Mv-Lang               |null                       |null
 Mv-Land2          |Mv-Lang2              |null                       |null
@@ -4277,11 +4291,12 @@ null                 | 0
 
 
 inlineStatsAfterPruningAggregate6
+skip_flattened_rewrite: match_family_rejects_field_extract
 // https://github.com/elastic/elasticsearch/issues/135679
 required_capability: inline_stats_double_release_fix
 required_capability: join_lookup_v12
 
-from d*,*
+from date*,decades,dense*,distances,*,-addresses_*
 | rename scalerank as other2
 | rename author.keyword as name_str
 | rename intersects as is_active_bool
@@ -4618,6 +4633,7 @@ emp_idx:integer|salary:integer |sum:long       |languages:integer
 ;
 
 inlineStatsAfterEnrichAndSort
+skip_flattened_rewrite: enrich_output_type_mismatch
 required_capability: inline_stats_preceeded_by_sort
 required_capability: enrich_load
 
@@ -4642,7 +4658,7 @@ emp_no:integer |first_name:keyword|sal:integer    |language_code:keyword | langu
 10058          |Berhard           |38376          |3                     |Spanish                |17             |3
 ;
 
-inlineStatsAfterSortDropped
+inlineStatsAfterSortDroppedWithLimit
 required_capability: inline_stats_preceeded_by_sort
 
 FROM employees
@@ -5726,10 +5742,104 @@ from employees
 | limit 5
 ;
 
-   languages:i |    emp_no:i   |    gender:s   |     w_avg:d   |   w:i       
-2              |10001          |M              |[1.0, 1.0, 1.0]|[1, 2, 3]      
-5              |10002          |F              |[1.0, 1.0, 1.0]|[1, 2, 3]      
-4              |10003          |M              |[1.0, 1.0, 1.0]|[1, 2, 3]      
-5              |10004          |M              |[1.0, 1.0, 1.0]|[1, 2, 3]      
-1              |10005          |M              |[1.0, 1.0, 1.0]|[1, 2, 3]      
+   languages:i |    emp_no:i   |    gender:s   |     w_avg:d   |   w:i
+2              |10001          |M              |[1.0, 1.0, 1.0]|[1, 2, 3]
+5              |10002          |F              |[1.0, 1.0, 1.0]|[1, 2, 3]
+4              |10003          |M              |[1.0, 1.0, 1.0]|[1, 2, 3]
+5              |10004          |M              |[1.0, 1.0, 1.0]|[1, 2, 3]
+1              |10005          |M              |[1.0, 1.0, 1.0]|[1, 2, 3]
+;
+
+inlineStatsAbsentOnTopWithDateTrunc
+required_capability: fix_push_count_query_and_tags_with_multiple_aggs
+
+FROM date_nanos
+| STATS a = COUNT(*), y = TOP(DATE_TRUNC(1 year, millis), 2, "desc") BY num
+| INLINE STATS x = COUNT(*), z = ABSENT(y)
+| KEEP x, z, a
+;
+ignoreOrder:true
+
+x:long | z:boolean | a:long
+8      | false     | 1
+8      | false     | 1
+8      | false     | 1
+8      | false     | 1
+8      | false     | 1
+8      | false     | 1
+8      | false     | 2
+8      | false     | 2
+;
+
+inlineStatsAbsentOnMaxWithDateTrunc
+required_capability: fix_push_count_query_and_tags_with_multiple_aggs
+
+FROM date_nanos
+| STATS a = COUNT(*), y = MAX(DATE_TRUNC(1 year, millis)) BY num
+| INLINE STATS x = COUNT(*), z = ABSENT(y)
+| KEEP x, z, a
+;
+ignoreOrder:true
+
+x:long | z:boolean | a:long
+8      | false     | 1
+8      | false     | 1
+8      | false     | 1
+8      | false     | 1
+8      | false     | 1
+8      | false     | 1
+8      | false     | 2
+8      | false     | 2
+;
+
+inlineStatsAbsentOnTopHireDateByLanguages
+required_capability: fix_push_count_query_and_tags_with_multiple_aggs
+
+FROM employees
+| STATS a = COUNT(*), y = TOP(DATE_TRUNC(1 year, hire_date), 2, "desc") BY languages
+| INLINE STATS x = COUNT(*), z = ABSENT(y)
+| KEEP x, z, a
+;
+ignoreOrder:true
+
+x:long | z:boolean | a:long
+6      | false     | 10
+6      | false     | 15
+6      | false     | 17
+6      | false     | 18
+6      | false     | 19
+6      | false     | 21
+;
+
+inlineStatsSumCountWithDateTruncDropGroupingKey
+required_capability: fix_push_count_query_and_tags_with_multiple_aggs
+
+FROM employees
+| EVAL x = DATE_TRUNC(1 year, hire_date)
+| STATS a = COUNT(*), y = MAX(salary) BY x
+| INLINE STATS total = SUM(a)
+| KEEP a, y, total
+| SORT a ASC, y ASC
+| LIMIT 5
+;
+
+a:long | y:integer | total:long
+1      | 45656     | 100
+1      | 64675     | 100
+1      | 73717     | 100
+3      | 58715     | 100
+4      | 67492     | 100
+;
+
+inlineStatsSumExpressionWithConstantMultipleClauses
+required_capability: inline_stats
+
+FROM employees
+| INLINE STATS s1 = SUM(salary + 1), s2 = SUM(salary + 2)
+| WHERE emp_no == 10001
+| KEEP s1, s2
+;
+
+s1:long  | s2:long
+4824955  | 4825055
 ;

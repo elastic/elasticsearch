@@ -24,6 +24,7 @@ import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.transform.transforms.SettingsConfig;
 import org.elasticsearch.xpack.core.transform.transforms.SourceConfig;
+import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformEffectiveSettings;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.PivotConfig;
 
@@ -296,7 +297,10 @@ public final class SchemaUtil {
             .indexFilter(sourceConfig.getQueryConfig().getQuery())
             .fields(fields)
             .runtimeFields(sourceConfig.getRuntimeMappings())
-            .indicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN);
+            .indicesOptions(sourceConfig.indicesOptions());
+        if (TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled()) {
+            fieldCapabilitiesRequest.projectRouting(sourceConfig.getProjectRouting());
+        }
         ClientHelper.executeWithHeadersAsync(
             headers,
             ClientHelper.TRANSFORM_ORIGIN,

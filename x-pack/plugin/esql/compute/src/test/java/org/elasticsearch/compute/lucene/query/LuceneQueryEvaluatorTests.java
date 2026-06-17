@@ -208,7 +208,7 @@ public abstract class LuceneQueryEvaluatorTests<T extends Block, U extends Block
                             FIELD,
                             ElementType.BYTES_REF,
                             false,
-                            unused -> ValuesSourceReaderOperator.load(
+                            (ctx, unused) -> ValuesSourceReaderOperator.load(
                                 new BytesRefsFromOrdsBlockLoader(FIELD, ByteSizeValue.ofBytes(randomLongBetween(1, 1000)))
                             )
                         )
@@ -218,7 +218,9 @@ public abstract class LuceneQueryEvaluatorTests<T extends Block, U extends Block
                     }, 0.2)),
                     true,
                     0,
-                    randomDoubleBetween(0.1, 10.0, true)
+                    randomDoubleBetween(0.1, 10.0, true),
+                    500,
+                    () -> 0L
                 )
             );
             var shardConfig = new IndexedByShardIdFromSingleton<>(new LuceneQueryEvaluator.ShardConfig(searcher.rewrite(query), searcher));
@@ -284,10 +286,12 @@ public abstract class LuceneQueryEvaluatorTests<T extends Block, U extends Block
             ctx -> List.of(new LuceneSliceQueue.QueryAndTags(query, List.of())),
             randomFrom(DataPartitioning.values()),
             DataPartitioning.AutoStrategy.DEFAULT,
+            LuceneOperator.SMALL_INDEX_BOUNDARY,
             randomIntBetween(1, 10),
             randomPageSize(),
             LuceneOperator.NO_LIMIT,
-            scoring
+            scoring,
+            () -> 0L
         );
     }
 

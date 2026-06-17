@@ -286,6 +286,23 @@ Very Tall           | null                     | 9         | fork1
 Medium Height       | null                     | null      | fork2
 ;
 
+
+forkWithUnsupportedAttributes2
+required_capability: fork_v9
+
+FROM k8s-downsampled, k8s
+| FORK (WHERE TRUE) (WHERE TRUE)
+| WHERE client.ip == "10.10.20.34"
+| SORT @timestamp, cluster, pod
+| KEEP network.eth*
+| LIMIT 1
+;
+
+network.eth0.currently_connected_clients:integer	| network.eth0.firmware_version:version	| network.eth0.last_up:date_nanos	| network.eth0.rx:unsupported	| network.eth0.tx:unsupported	| network.eth0.up:boolean
+862                                             	| 7.8.4                                	| 2024-04-13T05:15:29.735829818Z 	| null                       	| null                       	| true  
+;
+
+
 forkAfterLookupJoin
 required_capability: fork_v9
 
@@ -656,6 +673,7 @@ United States of America  | South San Francisco | fork2         | San Francisco 
 ;
 
 forkBeforeMvExpand
+skip_flattened_rewrite: field_extract_multivalue_null
 required_capability: fork_v9
 
 FROM employees
@@ -677,6 +695,7 @@ emp_no:integer | job_positions:keyword | _fork:keyword
 ;
 
 forkBranchWithMvExpand
+skip_flattened_rewrite: field_extract_multivalue_null
 required_capability: fork_v9
 
 FROM employees
@@ -695,6 +714,7 @@ emp_no:integer | job_positions:keyword          | _fork:keyword
 ;
 
 forkAfterMvExpand
+skip_flattened_rewrite: field_extract_multivalue_null
 required_capability: fork_v9
 
 FROM employees
@@ -992,4 +1012,463 @@ FROM books METADATA _score
 ;
 
 author:text | _fork:keyword | total:long
+;
+
+forkWithFinalStatsCount
+required_capability: fork_v9
+required_capability: fork_prune_all_columns_fix
+
+from employees
+| stats x = count(*), y = count(*) by emp_no
+| FORK (where emp_no > 10050)
+| stats y = count(*)
+;
+
+y:long
+50
+;
+
+forkWithEmptyBranchOutputs
+required_capability: fork_v9
+required_capability: fork_prune_all_columns_fix
+
+from employees
+| fork ( stats salary = count(*)::int, z = count(*) by gender
+        | where NOT starts_with(gender, "v")
+        | eval gender = gender::keyword )
+       ( stats gender = values(gender), z = count(*) by salary
+        | where salary > 100000 )
+       ( where emp_no > 10050
+        | eval gender = gender::keyword )
+| sort salary
+| stats y = count(*)
+;
+
+y:long
+52
+;
+
+forkWithEmptyBranchOutputsAndNoRows
+required_capability: fork_v9
+required_capability: fork_prune_all_columns_fix
+
+from employees
+| fork ( stats salary = count(*)::int, z = count(*) by gender
+        | where starts_with(gender, "zzz")
+        | eval gender = gender::keyword )
+       ( stats gender = values(gender), z = count(*) by salary
+        | where salary < 0 )
+       ( where emp_no < 0
+        | eval gender = gender::keyword )
+| sort salary
+| stats y = count(*)
+;
+
+y:long
+0
+;
+
+forkWithMixedBranchesUsingSortNoBranchOutputAndFinalFilterAndStats
+
+required_capability: fork_v9
+required_capability: fork_project_away_columns_fix
+
+FROM employees
+| EVAL x = 1
+| FORK (SORT x | LIMIT 10) (WHERE true)
+| WHERE _fork == "fork1"
+| STATS y = COUNT(*)
+;
+
+y:long
+10
+;
+
+forkWithMixedBranchesAndFinalStats
+
+required_capability: fork_v9
+required_capability: fork_project_away_columns_fix
+
+from employees
+| fork (stats z = count(*) by first_name)
+       (where emp_no > 10000 | sort emp_no | limit 10)
+       (stats x = count(*))
+| stats y = count(*)
+;
+
+y:long
+102
+;
+
+forkWithAggregatingBranchEmptyOutputAndFinalStats
+
+required_capability: fork_v9
+required_capability: fork_project_away_columns_fix
+
+from employees
+| fork (stats c = sum(emp_no) | stats by c)
+       (where true)
+| stats y = count(*)
+;
+
+y:long
+101
+;
+
+forkWithAllColumnsDroppedThenEval
+
+required_capability: fork_v9
+required_capability: fork_project_away_columns_fix
+
+from employees
+| fork (where true | limit 1)
+| keep _fork
+| drop _fork
+| eval x = 1
+;
+
+x:integer
+1
+;
+
+forkWithAllColumnsDroppedThenStats
+
+required_capability: fork_v9
+required_capability: fork_project_away_columns_fix
+
+from employees
+| fork (where true | limit 1)
+| keep _fork
+| drop _fork
+| stats c = count(*)
+;
+
+c:long
+1
+;
+
+forkWithAllColumnsDroppedThenFilteredStats
+
+required_capability: fork_v9
+required_capability: fork_project_away_columns_fix
+
+from employees
+| fork (where true | limit 1)
+| keep _fork
+| drop _fork
+| where false
+| stats c = count(*)
+;
+
+c:long
+0
+;
+
+forkWithAllColumnsDroppedThenInlineStats
+
+required_capability: fork_v9
+required_capability: fork_project_away_columns_fix
+required_capability: inline_stats
+
+from employees
+| eval x = salary + 1
+| fork (where true) (where true)
+| keep x
+| drop x
+| inline stats y = count(*)
+| limit 2
+;
+
+y:long
+200
+200
+;
+
+forkWithSortBranchesNoOutputAndFinalStats
+
+required_capability: fork_v9
+required_capability: fork_project_away_columns_fix
+
+from employees
+| eval x = salary + 1
+| fork (sort x | limit 10) (sort x desc | limit 2)
+| keep emp_no
+| drop emp_no
+| stats y = count(*)
+;
+
+y:long
+12
+;
+
+forkWithSortedBranchesDropOutputAndFinalStats
+
+required_capability: fork_v9
+required_capability: fork_project_away_columns_fix
+
+from employees
+| eval x = salary + 1
+| fork (sort x | limit 10 | keep x | drop x)
+       (sort x desc | limit 2 | keep x | drop x)
+| stats y = count(*)
+;
+
+y:long
+12
+;
+
+forkWithSortedAndWhereBranchesDropOutputAndFinalStats
+
+required_capability: fork_v9
+required_capability: fork_project_away_columns_fix
+
+from employees
+| eval x = salary + 1
+| fork (sort x | limit 10 | keep x | drop x)
+       (where true | keep x | drop x)
+| stats y = count(*)
+;
+
+y:long
+110
+;
+
+forkWithSortedAndStatsBranchesDropOutputAndFinalStats
+
+required_capability: fork_v9
+required_capability: fork_project_away_columns_fix
+
+from employees
+| eval x = salary + 1
+| fork (sort x | limit 10 | keep x | drop x)
+       (stats x = count(*) | keep x | drop x)
+| stats y = count(*)
+;
+
+y:long
+11
+;
+
+forkWithStatsBranchesDropOutputAndFinalStats
+
+required_capability: fork_v9
+required_capability: fork_project_away_columns_fix
+
+from employees
+| eval x = salary + 1
+| fork (stats x = count(1) | keep x | drop x)
+       (stats x = count(*) | keep x | drop x)
+| stats y = count(*)
+;
+
+y:long
+2
+;
+
+forkWithLimitByAndStatsBranchesDropOutputAndFinalStats
+
+required_capability: fork_v9
+required_capability: fork_project_away_columns_fix
+
+from employees
+| eval x = salary + 1
+| fork (limit 1 by emp_no | keep x | drop x)
+       (stats c = count(*) | keep c | drop c)
+| stats y = count(*)
+;
+
+y:long
+101
+;
+
+forkWithStatsBranchesAndDroppedForkOutput
+
+required_capability: fork_v9
+required_capability: fork_project_away_columns_fix
+
+from employees
+| eval x = salary + 1
+| fork (stats x = count(1))
+       (stats x = count(*))
+| drop x, _fork
+| stats y = count(*)
+;
+
+y:long
+2
+;
+
+forkRegressionInlineStatsAndKeepDropAll
+
+required_capability: fork_v9
+required_capability: fork_project_away_columns_fix
+required_capability: inline_stats
+
+from employees
+| eval YYY = to_string(emp_no), L = 123
+| inline stats m = min(L) by L
+| fork (where starts_with(YYY, "1004"))
+       (where true)
+| keep YYY
+| drop YYY
+| stats c = count(*)
+;
+
+c:long
+110
+;
+
+forkRegressionInlineStatsAndSortOnGeneratedColumn
+
+required_capability: fork_v9
+required_capability: fork_project_away_columns_fix
+required_capability: inline_stats
+
+from employees
+| inline stats z = min(emp_no) by first_name
+| limit 1
+| fork (where z > 0) (sort z | limit 1)
+| stats c = count(*)
+;
+
+c:long
+2
+;
+
+forkRegressionMvExpandSortAndKeepDropAll
+
+required_capability: fork_v9
+required_capability: fork_project_away_columns_fix
+
+from employees
+| eval y = "a", language_name = ["a", "b"]
+| keep y, language_name
+| mv_expand language_name
+| sort language_name
+| limit 1000
+| fork (where true) (where true)
+| where _fork == "fork1"
+| drop _fork
+| keep language_name
+| drop language_name
+| stats c = count(*)
+;
+
+c:long
+200
+;
+
+forkWithAvgInBranchEmptyOutputAndFinalStats
+
+required_capability: fork_v9
+required_capability: fork_project_away_columns_fix
+
+from employees
+| fork (stats c = avg(salary) | stats by c)
+       (where true)
+| stats y = count(*)
+;
+
+y:long
+101
+;
+
+forkWithGroupedStatsBranchEmptyOutputAndFinalStats
+
+required_capability: fork_v9
+required_capability: fork_project_away_columns_fix
+
+from employees
+| fork (stats c = sum(emp_no) by gender | stats by c)
+       (where true)
+| stats y = count(*)
+;
+
+y:long
+103
+;
+
+forkWithAggregatingBranchInSecondPosition
+
+required_capability: fork_v9
+required_capability: fork_project_away_columns_fix
+
+from employees
+| fork (where true)
+       (stats c = sum(emp_no) | stats by c)
+| stats y = count(*)
+;
+
+y:long
+101
+;
+
+forkWithCountByForkAfterEmptyBranches
+
+required_capability: fork_v9
+required_capability: fork_project_away_columns_fix
+
+from employees
+| fork (where true | keep emp_no | drop emp_no)
+       (where false | keep emp_no | drop emp_no)
+| stats y = count(*) by _fork
+| sort _fork
+;
+
+y:long | _fork:keyword
+100    | fork1
+;
+
+forkBeforeInlineStatsAllOutputsUnused
+required_capability: fork_v9
+required_capability: inline_stats
+required_capability: subquery_in_from_command_inline_stats_pruning
+
+FROM employees
+| KEEP emp_no, languages
+| FORK (WHERE emp_no == 10048 OR emp_no == 10081)
+       (WHERE emp_no == 10081 OR emp_no == 10087)
+| EVAL x = languages
+| INLINE STATS max_lang = MAX(x)
+| STATS cnt = count(*)
+;
+
+cnt:long
+4
+;
+
+forkBeforeInlineStatsPartialOutputPruning
+required_capability: fork_v9
+required_capability: inline_stats
+required_capability: subquery_in_from_command_inline_stats_pruning
+
+FROM employees
+| KEEP emp_no, languages, salary
+| FORK (WHERE emp_no == 10048 OR emp_no == 10081)
+       (WHERE emp_no == 10081 OR emp_no == 10087)
+| EVAL x = languages, y = salary
+| INLINE STATS d1 = MAX(x), d2 = MAX(y)
+| STATS max_d1 = MAX(d1)
+;
+
+max_d1:integer
+5
+;
+
+forkBeforeInlineStatsOutputUsed
+required_capability: fork_v9
+required_capability: inline_stats
+required_capability: subquery_in_from_command_inline_stats_pruning
+
+FROM employees
+| KEEP emp_no, languages
+| FORK (WHERE emp_no == 10048 OR emp_no == 10081)
+       (WHERE emp_no == 10081 OR emp_no == 10087)
+| EVAL x = languages
+| INLINE STATS max_lang = MAX(x)
+| STATS max_max = MAX(max_lang)
+;
+
+max_max:integer
+5
 ;

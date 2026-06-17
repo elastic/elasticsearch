@@ -9,6 +9,9 @@
 
 package org.elasticsearch.gradle.testclusters;
 
+import io.opentelemetry.proto.collector.logs.v1.ExportLogsServiceRequest;
+import io.opentelemetry.proto.collector.metrics.v1.ExportMetricsServiceRequest;
+
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -48,6 +51,9 @@ import javax.annotation.concurrent.NotThreadSafe;
  * can be used as a basic APM server for testing.
  * <p>
  * The HTTP server used is the JDK embedded com.sun.net.httpserver
+ * <p>
+ * Note: automated integration tests use {@code RecordingApmServer} (in {@code test/external-modules/apm-integration}),
+ * not this class.
  */
 @NotThreadSafe
 public class MockApmServer {
@@ -89,6 +95,8 @@ public class MockApmServer {
         }
         InetSocketAddress addr = new InetSocketAddress("0.0.0.0", 0);
         HttpServer server = HttpServer.create(addr, 10);
+        server.createContext("/v1/metrics", new OtlpMetricsHandler());
+        server.createContext("/v1/logs", new OtlpLogsHandler());
         server.createContext("/", new RootHandler());
         server.start();
         instance = server;
@@ -207,6 +215,50 @@ public class MockApmServer {
                     }
                 }
             }
+        }
+    }
+
+    class OtlpLogsHandler implements HttpHandler {
+        @Override
+        public void handle(HttpExchange t) throws IOException {
+            byte[] bytes = t.getRequestBody().readAllBytes();
+            ExportLogsServiceRequest logs = ExportLogsServiceRequest.parseFrom(bytes);
+            for (var resourceLogs : logs.getResourceLogsList()) {
+                for (var scopeLogs : resourceLogs.getScopeLogsList()) {
+                    for (var record : scopeLogs.getLogRecordsList()) {
+                        logger.lifecycle("OTLP LogRecord:\n{}", record);
+                    }
+                }
+            }
+
+            t.sendResponseHeaders(200, 0);
+            t.getResponseBody().close();
+        }
+    }
+
+    class OtlpMetricsHandler implements HttpHandler {
+        @Override
+        public void handle(HttpExchange t) throws IOException {
+            byte[] bytes = t.getRequestBody().readAllBytes();
+            ExportMetricsServiceRequest metrics = ExportMetricsServiceRequest.parseFrom(bytes);
+            for (var resourceMetrics : metrics.getResourceMetricsList()) {
+                var samples = new ArrayList<String>();
+                for (var scopeMetrics : resourceMetrics.getScopeMetricsList()) {
+                    for (var metric : scopeMetrics.getMetricsList()) {
+                        String name = metric.getName();
+                        if (metricFilter != null && metricFilter.matcher(name).matches() == false) {
+                            continue;
+                        }
+                        samples.add(metric.toString());
+                    }
+                }
+                if (samples.isEmpty() == false) {
+                    logger.lifecycle("OTLP Metricset:\n{}", String.join("\n", samples));
+                }
+            }
+
+            t.sendResponseHeaders(200, 0);
+            t.getResponseBody().close();
         }
     }
 }

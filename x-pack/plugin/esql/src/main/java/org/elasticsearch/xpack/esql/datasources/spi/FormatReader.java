@@ -9,26 +9,34 @@ package org.elasticsearch.xpack.esql.datasources.spi;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
-import org.elasticsearch.xpack.esql.datasources.CloseableIterator;
 
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.List;
-import java.util.NoSuchElementException;
+import java.util.Map;
 import java.util.concurrent.Executor;
 
 /**
  * Unified interface for reading data formats.
  * <p>
- * Simple formats: implement only {@link #read} (sync) - async wrapping is automatic.
- * Async-capable formats: override {@link #readAsync} for native async behavior.
+ * Simple formats: implement only {@link #read(StorageObject, FormatReadContext)} (sync) -
+ * async wrapping is automatic.
+ * Async-capable formats: override {@link #readAsync(StorageObject, FormatReadContext, Executor, ActionListener)}
+ * for native async behavior.
  * <p>
  * The output is ESQL's native Page format rather than Arrow to avoid
  * mandating Arrow as a dependency for all format implementations.
  * <p>
  * Implementations should provide metadata discovery via {@link #metadata(StorageObject)}
  * which returns a unified {@link SourceMetadata} containing schema and source information.
+ * <p>
+ * Per-query format configuration (delimiter, encoding, etc.) is set on the reader instance
+ * via {@link #withConfig(Map)}. Per-query optimizer hints (pushed filters for row-group
+ * or stripe skipping) are set via {@link #withPushedFilter(Object)}. Per-read execution
+ * parameters (projection, batch size, limit, error policy, split config) are bundled in
+ * {@link FormatReadContext}.
  */
 public interface FormatReader extends Closeable {
 
@@ -40,17 +48,46 @@ public interface FormatReader extends Closeable {
     enum SchemaResolution {
         /** Use the schema from the first file; ignore differences in subsequent files. */
         FIRST_FILE_WINS,
-        // TODO: implement strict schema validation across files
+        /** Require all files to share the exact same schema (modulo nullability). */
         STRICT,
-        // TODO: implement union-by-name schema merging across files
+        /** Merge schemas from all files by column name, with safe type widening. */
         UNION_BY_NAME
     }
 
+    /**
+     * Cluster-wide default schema resolution strategy when a query does not specify one.
+     * <p>
+     * This is the single source of truth: it is consulted both by this SPI's
+     * {@link #defaultSchemaResolution()} and by {@code ExternalSourceResolver.parseSchemaResolution}
+     * when no {@code schema_resolution} key is present in the per-query config. The format
+     * detected at glob-expansion time is not yet known when the resolver decides whether to
+     * take the read-all-and-reconcile path versus the FFW fast path, so there is no format
+     * dispatch here today; if per-format defaults become desirable in the future the resolver
+     * will need to peek at the lex-smallest file's format first, and this constant becomes the
+     * fallback only.
+     */
+    SchemaResolution DEFAULT_SCHEMA_RESOLUTION = SchemaResolution.UNION_BY_NAME;
+
+    /**
+     * Returns the cluster-wide default schema resolution for this reader. Format implementations
+     * may override this to advertise a different preferred default, but the resolver does not
+     * consult it today (see {@link #DEFAULT_SCHEMA_RESOLUTION} for the rationale). Override is
+     * effectively informational until that wiring exists.
+     */
     default SchemaResolution defaultSchemaResolution() {
-        return SchemaResolution.FIRST_FILE_WINS;
+        return DEFAULT_SCHEMA_RESOLUTION;
     }
 
-    // === SYNC API (required - implement this for simple formats) ===
+    /**
+     * Returns the default error policy for this format.
+     * Override to change the default behavior for a specific format (e.g. NDJSON
+     * defaults to lenient because skipping malformed lines is its natural behavior).
+     */
+    default ErrorPolicy defaultErrorPolicy() {
+        return ErrorPolicy.STRICT;
+    }
+
+    // === METADATA ===
 
     SourceMetadata metadata(StorageObject object) throws IOException;
 
@@ -58,66 +95,131 @@ public interface FormatReader extends Closeable {
         return metadata(object).schema();
     }
 
-    CloseableIterator<Page> read(StorageObject object, List<String> projectedColumns, int batchSize) throws IOException;
+    // === READ API ===
 
-    default CloseableIterator<Page> read(StorageObject object, List<String> projectedColumns, int batchSize, int rowLimit)
-        throws IOException {
-        CloseableIterator<Page> iter = read(object, projectedColumns, batchSize);
-        return rowLimit == NO_LIMIT ? iter : new LimitingIterator(iter, rowLimit);
+    /**
+     * Reads data from the given storage object using the provided context.
+     * <p>
+     * This is the primary read method. All implementations must override this method.
+     */
+    CloseableIterator<Page> read(StorageObject object, FormatReadContext context) throws IOException;
+
+    /**
+     * Convenience overload that delegates to {@link #read(StorageObject, FormatReadContext)}.
+     * Keeps test code and simple call sites working without constructing a context.
+     */
+    default CloseableIterator<Page> read(StorageObject object, List<String> projectedColumns, int batchSize) throws IOException {
+        return read(object, FormatReadContext.of(projectedColumns, batchSize));
     }
 
-    default CloseableIterator<Page> readSplit(
-        StorageObject object,
-        List<String> projectedColumns,
-        int batchSize,
-        boolean skipFirstLine,
-        List<Attribute> resolvedAttributes
-    ) throws IOException {
-        return read(object, projectedColumns, batchSize);
-    }
-
-    default CloseableIterator<Page> readSplit(
-        StorageObject object,
-        List<String> projectedColumns,
-        int batchSize,
-        boolean skipFirstLine,
-        boolean lastSplit,
-        List<Attribute> resolvedAttributes
-    ) throws IOException {
-        return readSplit(object, projectedColumns, batchSize, skipFirstLine, resolvedAttributes);
-    }
-
-    String formatName();
-
-    List<String> fileExtensions();
-
-    // === ASYNC API (optional - default wraps sync in executor) ===
-
+    /**
+     * Asynchronously reads data from the given storage object using the provided context.
+     * <p>
+     * The default wraps the synchronous {@link #read(StorageObject, FormatReadContext)} in the
+     * provided executor. Formats with native async support should override this.
+     */
     default void readAsync(
         StorageObject object,
-        List<String> projectedColumns,
-        int batchSize,
-        Executor executor,
-        ActionListener<CloseableIterator<Page>> listener
-    ) {
-        readAsync(object, projectedColumns, batchSize, NO_LIMIT, executor, listener);
-    }
-
-    default void readAsync(
-        StorageObject object,
-        List<String> projectedColumns,
-        int batchSize,
-        int rowLimit,
+        FormatReadContext context,
         Executor executor,
         ActionListener<CloseableIterator<Page>> listener
     ) {
         executor.execute(() -> {
             try {
-                listener.onResponse(read(object, projectedColumns, batchSize, rowLimit));
+                listener.onResponse(read(object, context));
             } catch (Exception e) {
                 listener.onFailure(e);
             }
         });
+    }
+
+    // === CONFIGURATION ===
+
+    String formatName();
+
+    List<String> fileExtensions();
+
+    /**
+     * Returns a reader configured from the input config map.
+     * Default delegates to {@link #withConfigTrackingConsumedKeys(Map)} and discards the consumed-keys set;
+     * use this overload when the caller does not need to validate against the consumed keys.
+     * <p>
+     * <b>Override target:</b> implementations must override {@link #withConfigTrackingConsumedKeys(Map)},
+     * NOT this method. The default {@code withConfig} delegates through the tracking variant, so an
+     * override here alone would be silently bypassed by every caller. The tracking variant is the
+     * single configuration entry point for the SPI.
+     */
+    default FormatReader withConfig(Map<String, Object> config) {
+        return withConfigTrackingConsumedKeys(config).value();
+    }
+
+    /**
+     * Returns a reader configured from the input config map, paired with the keys consumed from it.
+     * <p>
+     * <b>Required override.</b> Every reader must explicitly declare which keys it claims, even if
+     * the answer is "none" (return {@code Configured.empty(this)}). The previous {@code default}
+     * silently dropped any unknown keys; that footgun is the reason this is no longer optional.
+     * Implementations that read configuration from the map should override this method (not
+     * {@link #withConfig(Map)}); the consumed-keys set is required by {@link ConfigKeyValidator}
+     * for unknown-key rejection at planning time.
+     */
+    Configured<FormatReader> withConfigTrackingConsumedKeys(Map<String, Object> config);
+
+    /**
+     * Returns a format reader configured with the given pushed filter from the optimizer.
+     * <p>
+     * The pushed filter is an opaque object produced by {@code FilterPushdownSupport} during
+     * local physical optimization. Only format readers that support predicate pushdown
+     * (e.g., Parquet row-group skipping, ORC stripe-level predicates) need to override this.
+     * <p>
+     * The filter is per-query: it applies identically to every file/split in the query.
+     * Implementations should cast the filter to their expected type and return a new reader
+     * instance with the filter stored as an instance field.
+     *
+     * @param pushedFilter opaque filter object, or null if no filter was pushed
+     * @return a new reader with the filter applied, or {@code this} if the filter is not applicable
+     */
+    default FormatReader withPushedFilter(Object pushedFilter) {
+        return this;
+    }
+
+    /**
+     * Returns the aggregate pushdown support for this format.
+     * Only format readers with column statistics in their metadata (Parquet, ORC) override this.
+     */
+    default AggregatePushdownSupport aggregatePushdownSupport() {
+        return AggregatePushdownSupport.UNSUPPORTED;
+    }
+
+    /**
+     * Returns a format reader configured with the schema attributes.
+     * <p>
+     * The schema is determined during the planning phase (via {@link #metadata(StorageObject)})
+     * and is constant for all files/splits in a query. Passing it here allows the reader to skip
+     * re-reading/inferring the schema from the file header on every read, which is especially
+     * important for split-based reads where the split may start mid-file (no header available).
+     * <p>
+     * Formats with embedded schemas (Parquet, ORC) may ignore this since they always read
+     * the schema from the file metadata.
+     *
+     * @param schema the planning-phase schema attributes, or null to clear
+     * @return a new reader with the schema set, or {@code this} if the schema is not needed
+     */
+    default FormatReader withSchema(List<Attribute> schema) {
+        return this;
+    }
+
+    /**
+     * Returns the filter pushdown support for this format, or null if not supported.
+     * <p>
+     * When non-null, the optimizer can translate ESQL filter expressions into format-specific
+     * predicates (e.g., Parquet FilterPredicate) that enable row-group skipping via statistics,
+     * dictionary, and bloom filter checks.
+     *
+     * @return FilterPushdownSupport for this format, or null if not supported
+     */
+    default FilterPushdownSupport filterPushdownSupport() {
+        return null;
     }
 
     default boolean supportsNativeAsync() {
@@ -125,64 +227,23 @@ public interface FormatReader extends Closeable {
     }
 
     /**
-     * Iterator wrapper that stops yielding pages once a cumulative row budget is exhausted.
-     * Closes the delegate iterator when the budget is met or when explicitly closed.
-     * When the last page would overshoot the budget, it is trimmed to the exact remaining count.
+     * Whether this format supports being wrapped in a whole-file, stream-only decompressor
+     * (e.g. {@code .parquet.zst} or {@code .orc.gz}). Sequential formats (CSV, NDJSON) return
+     * the default {@code true}. Tail/footer-based formats (Parquet, ORC) must override to
+     * {@code false} because they require random access and a known decompressed length. This
+     * flag does NOT affect a format's own internal compression (e.g. Parquet column-chunk zstd).
      */
-    class LimitingIterator implements CloseableIterator<Page> {
-        private final CloseableIterator<Page> delegate;
-        private int remaining;
-
-        LimitingIterator(CloseableIterator<Page> delegate, int rowLimit) {
-            if (rowLimit <= 0) {
-                throw new IllegalArgumentException("rowLimit must be positive, got: " + rowLimit);
-            }
-            this.delegate = delegate;
-            this.remaining = rowLimit;
-        }
-
-        @Override
-        public boolean hasNext() {
-            if (remaining <= 0) {
-                return false;
-            }
-            return delegate.hasNext();
-        }
-
-        @Override
-        public Page next() {
-            if (hasNext() == false) {
-                throw new NoSuchElementException();
-            }
-            Page page = delegate.next();
-            int rows = page.getPositionCount();
-            if (rows > remaining) {
-                page = truncate(page, remaining);
-                remaining = 0;
-            } else {
-                remaining -= rows;
-            }
-            if (remaining <= 0) {
-                try {
-                    delegate.close();
-                } catch (IOException e) {
-                    throw new RuntimeException(e);
-                }
-            }
-            return page;
-        }
-
-        @Override
-        public void close() throws IOException {
-            delegate.close();
-        }
-
-        private static Page truncate(Page page, int upTo) {
-            int[] positions = new int[upTo];
-            for (int i = 0; i < upTo; i++) {
-                positions[i] = i;
-            }
-            return page.filter(false, positions);
-        }
+    default boolean supportsWholeFileCompression() {
+        return true;
     }
+
+    /**
+     * Returns a typed snapshot of format-reader I/O counters, or {@code null} when the reader
+     * tracks none. The snapshot is folded into the {@code format_reader} field of the
+     * external-source operator status.
+     */
+    default FormatReaderStatus statusSnapshot() {
+        return null;
+    }
+
 }

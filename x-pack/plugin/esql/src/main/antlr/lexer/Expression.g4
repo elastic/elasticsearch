@@ -24,6 +24,8 @@ URI_PARTS: 'uri_parts'                  -> pushMode(EXPRESSION_MODE);
 METRICS_INFO : 'metrics_info'           -> pushMode(EXPRESSION_MODE);
 REGISTERED_DOMAIN: 'registered_domain'  -> pushMode(EXPRESSION_MODE);
 TS_INFO : 'ts_info'                     -> pushMode(EXPRESSION_MODE);
+USER_AGENT : 'user_agent'               -> pushMode(EXPRESSION_MODE);
+TS_COLLAPSE : 'ts_collapse'             -> pushMode(EXPRESSION_MODE);
 
 mode EXPRESSION_MODE;
 
@@ -99,7 +101,7 @@ DESC : 'desc';
 DOT : '.';
 FALSE : 'false';
 FIRST : 'first';
-IN: 'in';
+IN: 'in' -> pushMode(IN_MODE);
 IS: 'is';
 LAST : 'last';
 LIKE: 'like';
@@ -177,3 +179,5 @@ EXPR_MULTILINE_COMMENT
 EXPR_WS
     : WS -> channel(HIDDEN)
     ;
+
+mode IN_MODE;

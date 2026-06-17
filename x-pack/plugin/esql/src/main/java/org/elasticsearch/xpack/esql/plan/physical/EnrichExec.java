@@ -169,7 +169,7 @@ public class EnrichExec extends UnaryExec implements EstimatesRowSize, ExecutesO
 
     @Override
     public PhysicalPlan estimateRowSize(State state) {
-        state.add(false, enrichFields);
+        state.add(false, enrichFields, true);
         return this;
     }
 

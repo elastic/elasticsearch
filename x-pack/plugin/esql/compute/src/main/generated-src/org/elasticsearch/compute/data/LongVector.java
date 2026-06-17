@@ -20,15 +20,31 @@ import java.io.IOException;
  * Vector that stores long values.
  * This class is generated. Edit {@code X-Vector.java.st} instead.
  */
-public sealed interface LongVector extends Vector permits ConstantLongVector, LongArrayVector, LongBigArrayVector, ConstantNullVector {
+public sealed interface LongVector extends Vector permits ConstantLongVector, LongArrayVector, LongBigArrayVector, ConstantNullVector,
+    org.elasticsearch.compute.data.arrow.LongArrowBufVector, org.elasticsearch.compute.data.arrow.UInt32ArrowBufVector,
+    org.elasticsearch.compute.data.arrow.LongMul1kArrowBufVector {
 
     long getLong(int position);
+
+    /**
+     * Copies values from this vector into the destination array.
+     */
+    default void copyTo(int srcPosition, long[] dst, int dstPosition, int length) {
+        for (int i = 0; i < length; i++) {
+            dst[dstPosition + i] = getLong(srcPosition + i);
+        }
+    }
 
     @Override
     LongBlock asBlock();
 
     @Override
-    LongVector filter(boolean mayContainDuplicates, int... positions);
+    LongVector filter(boolean mayContainDuplicates, int[] positions, int offset, int length);
+
+    @Override
+    default LongVector filter(boolean mayContainDuplicates, int... positions) {
+        return filter(mayContainDuplicates, positions, 0, positions.length);
+    }
 
     @Override
     LongBlock keepMask(BooleanVector mask);
@@ -48,6 +64,21 @@ public sealed interface LongVector extends Vector permits ConstantLongVector, Lo
 
     @Override
     ReleasableIterator<? extends LongBlock> lookup(IntBlock positions, ByteSizeValue targetBlockSize);
+
+    /**
+     * Return a subset of this vector from {@code beginInclusive} to
+     * {@code endExclusive}. This <strong>may</strong> return the same
+     * instance if the range covers all positions, but if it does it
+     * will {@link #incRef()} it.
+     */
+    @Override
+    LongVector slice(int beginInclusive, int endExclusive);
+
+    /**
+     * The maximum size in bytes of any single value stored in this vector, or {@code 0} if there are no values.
+     * Always {@code Long.BYTES} since all long values encode to the same number of bytes.
+     */
+    int valueMaxByteSize();
 
     /**
      * Compares the given object with this vector for equality. Returns {@code true} if and only if the

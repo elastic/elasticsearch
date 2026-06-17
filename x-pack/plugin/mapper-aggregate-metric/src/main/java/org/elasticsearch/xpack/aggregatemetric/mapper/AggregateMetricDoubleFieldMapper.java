@@ -39,7 +39,7 @@ import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.SimpleMappedFieldType;
-import org.elasticsearch.index.mapper.SortedNumericDocValuesSyntheticFieldLoader;
+import org.elasticsearch.index.mapper.SortedNumericDocValuesSyntheticFieldLoaderLayer;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.TimeSeriesParams;
@@ -440,7 +440,7 @@ public class AggregateMetricDoubleFieldMapper extends FieldMapper {
                                     subfieldName(getFieldName(), Metric.value_count)
                                 );
 
-                                return new SortedNumericDoubleValues() {
+                                return new SortedNumericDoubleValues(null) {
                                     @Override
                                     public int docValueCount() {
                                         assert countValues.docValueCount() == sumValues.docValueCount()
@@ -546,6 +546,7 @@ public class AggregateMetricDoubleFieldMapper extends FieldMapper {
             final Metric metric;
 
             private AggregateMetricValues(SortedNumericDocValues values, Metric metric) {
+                super(DocValues.unwrapSingleton(values) != null, values);
                 this.values = values;
                 this.metric = metric;
             }
@@ -841,7 +842,7 @@ public class AggregateMetricDoubleFieldMapper extends FieldMapper {
             metricDocValues.clear();
             for (Metric m : metrics) {
                 String fieldName = subfieldName(name, m);
-                SortedNumericDocValues dv = SortedNumericDocValuesSyntheticFieldLoader.docValuesOrNull(reader, fieldName);
+                SortedNumericDocValues dv = SortedNumericDocValuesSyntheticFieldLoaderLayer.docValuesOrNull(reader, fieldName);
                 if (dv != null) {
                     metricDocValues.put(m, dv);
                 }

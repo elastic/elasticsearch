@@ -14,8 +14,18 @@ import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.IOFunction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
+import org.elasticsearch.search.lookup.Source;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.LinkedHashSet;
@@ -74,7 +84,32 @@ public final class TimeSeriesMetadataFieldBlockLoader implements BlockLoader {
         @Override
         public void read(int docId, StoredFields storedFields, Builder builder) throws IOException {
             // TODO support appending BytesReference
-            ((BytesRefBuilder) builder).appendBytesRef(storedFields.source().internalSourceRef().toBytesRef());
+            ((BytesRefBuilder) builder).appendBytesRef(toJson(storedFields.source()).toBytesRef());
+        }
+
+        /**
+         * The {@code _timeseries} keyword column is documented to contain a JSON-encoded object with the dimension
+         * key/value pairs identifying each group. {@link Source#internalSourceRef()} returns bytes in whatever XContent
+         * type the underlying {@code _source} happens to use: synthetic source always reconstructs as JSON, but stored
+         * source preserves the original encoding (e.g. CBOR for documents written via the Prometheus remote-write
+         * endpoint, which builds {@link org.elasticsearch.xcontent.XContentFactory#cborBuilder} requests). Normalize
+         * to JSON so the value is a valid keyword regardless of how {@code _source} is stored. When the underlying
+         * encoding is already JSON we return the bytes unchanged to avoid a parser/builder round-trip.
+         */
+        private static BytesReference toJson(Source source) throws IOException {
+            BytesReference bytes = source.internalSourceRef();
+            XContentType type = source.sourceContentType();
+            if (type == XContentType.JSON) {
+                return bytes;
+            }
+            try (
+                XContentParser parser = XContentHelper.createParserNotCompressed(XContentParserConfiguration.EMPTY, bytes, type);
+                XContentBuilder json = XContentFactory.jsonBuilder()
+            ) {
+                parser.nextToken();
+                json.copyCurrentStructure(parser);
+                return BytesReference.bytes(json);
+            }
         }
 
         @Override
@@ -88,11 +123,23 @@ public final class TimeSeriesMetadataFieldBlockLoader implements BlockLoader {
             throw new IllegalStateException("The TimeSeriesMetadataFieldBlockLoader cannot be used in non-time series mode.");
         }
 
+        assert ctx.blockLoaderFunctionConfig() instanceof BlockLoaderFunctionConfig.TimeSeriesMetadata;
+        var config = (BlockLoaderFunctionConfig.TimeSeriesMetadata) ctx.blockLoaderFunctionConfig();
+
         if (loadMetrics == false) {
             IndexMetadata indexMetadata = ctx.indexSettings().getIndexMetadata();
             List<String> dimensionFieldsFromSettings = indexMetadata.getTimeSeriesDimensions();
-            if (dimensionFieldsFromSettings != null && dimensionFieldsFromSettings.isEmpty() == false) {
-                return new LinkedHashSet<>(dimensionFieldsFromSettings);
+            // The settings shortcut lists dimensions by name and excludes WITHOUT fields via an exact-name removal.
+            // It cannot honor exclusions when an entry is a wildcard (e.g. a passthrough dimension recorded as
+            // "labels.*"), because a concrete field name like "labels.le" never matches the literal "labels.*".
+            // In that case fall through to the mapping-based enumeration below, which resolves the wildcard to
+            // concrete dimension fields and can drop the excluded ones by name.
+            if (dimensionFieldsFromSettings != null
+                && dimensionFieldsFromSettings.isEmpty() == false
+                && (config.withoutFields().isEmpty() || dimensionFieldsFromSettings.stream().noneMatch(Regex::isSimpleMatchPattern))) {
+                Set<String> result = new LinkedHashSet<>(dimensionFieldsFromSettings);
+                result.removeAll(config.withoutFields());
+                return result;
             }
         }
 
@@ -101,7 +148,7 @@ public final class TimeSeriesMetadataFieldBlockLoader implements BlockLoader {
         for (Mapper mapper : mappingLookup.fieldMappers()) {
             if (mapper instanceof FieldMapper fieldMapper) {
                 MappedFieldType fieldType = fieldMapper.fieldType();
-                if (fieldType.isDimension()) {
+                if (fieldType.isDimension() && config.withoutFields().contains(fieldType.name()) == false) {
                     result.add(fieldType.name());
                 }
                 if (loadMetrics && fieldType.getMetricType() != null) {

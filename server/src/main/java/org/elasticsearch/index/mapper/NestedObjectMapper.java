@@ -186,7 +186,7 @@ public class NestedObjectMapper extends ObjectMapper {
         @Override
         public Mapper.Builder parse(String name, Map<String, Object> node, MappingParserContext parserContext)
             throws MapperParsingException {
-            if (parseSubobjects(node).explicit()) {
+            if (parseSubobjects(node, parserContext).explicit()) {
                 throw new MapperParsingException("Nested type [" + name + "] does not support [subobjects] parameter");
             }
             NestedObjectMapper.Builder builder = new NestedObjectMapper.Builder(
@@ -409,7 +409,14 @@ public class NestedObjectMapper extends ObjectMapper {
     }
 
     @Override
-    SourceLoader.SyntheticFieldLoader syntheticFieldLoader(SourceFilter filter, Collection<Mapper> mappers, boolean isFragment) {
+    SourceLoader.SyntheticFieldLoader syntheticFieldLoader(
+        SourceFilter filter,
+        Collection<Mapper> mappers,
+        boolean isFragment,
+        boolean columnarStored
+    ) {
+        assert columnarStored == false : "nested fields are not supported in columnar mode";
+
         // IgnoredSourceFieldMapper integration takes care of writing the source for nested objects that enabled store_array_source.
         if (sourceKeepMode.orElse(SourceKeepMode.NONE) == SourceKeepMode.ALL) {
             // IgnoredSourceFieldMapper integration takes care of writing the source for the nested object.
@@ -418,9 +425,9 @@ public class NestedObjectMapper extends ObjectMapper {
 
         SourceLoader sourceLoader = new SourceLoader.Synthetic(
             filter,
-            () -> super.syntheticFieldLoader(filter, mappers, true),
+            () -> super.syntheticFieldLoader(filter, mappers, true, columnarStored),
             NOOP,
-            IgnoredSourceFieldMapper.ignoredSourceFormat(indexSettings.getIndexVersionCreated())
+            IgnoredSourceFieldMapper.ignoredSourceFormat(indexSettings)
         );
         // Some synthetic source use cases require using _ignored_source field
         var requiredStoredFields = IgnoredSourceFieldMapper.ensureLoaded(sourceLoader.requiredStoredFields(), indexSettings);

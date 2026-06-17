@@ -1333,7 +1333,10 @@ public class TermsAggregatorTests extends AggregatorTestCase {
             null,
             Collections.emptyMap(),
             false,
-            false
+            false,
+            false,
+            false,
+            null
         );
         testCase(iw -> {
             Document document = new Document();
@@ -1435,7 +1438,8 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                 () -> false,
                 aggregationBuilder,
                 b -> {},
-                PipelineTree.EMPTY
+                PipelineTree.EMPTY,
+                null
             );
             InternalAggregation mergedAggs = InternalAggregationTestCase.reduce(aggs, ctx);
             assertTrue(mergedAggs instanceof DoubleTerms);

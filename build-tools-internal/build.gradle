@@ -15,7 +15,6 @@ plugins {
   id 'groovy-gradle-plugin'
   id 'groovy'
   id 'elasticsearch.build-tools'
-  id 'elasticsearch.eclipse'
   id 'elasticsearch.versions'
   id 'elasticsearch.formatting'
 }
@@ -155,6 +154,10 @@ gradlePlugin {
     embeddedProvider {
       id = 'elasticsearch.embedded-providers'
       implementationClass = 'org.elasticsearch.gradle.internal.EmbeddedProviderPlugin'
+    }
+    esqlFunction {
+      id = 'elasticsearch.esql-function'
+      implementationClass = 'org.elasticsearch.gradle.internal.esql.EsqlFunctionPlugin'
     }
     releaseTools {
       id = 'elasticsearch.release-tools'

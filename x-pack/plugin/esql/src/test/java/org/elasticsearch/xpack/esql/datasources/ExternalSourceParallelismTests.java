@@ -13,6 +13,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.test.ESTestCase;
@@ -22,7 +23,8 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
-import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
+import org.elasticsearch.xpack.esql.datasources.spi.NoConfigFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
@@ -86,19 +88,15 @@ public class ExternalSourceParallelismTests extends ESTestCase {
                 final int driverIdx = d;
                 driverPool.submit(() -> {
                     try {
-                        AsyncExternalSourceOperatorFactory factory = new AsyncExternalSourceOperatorFactory(
+                        AsyncExternalSourceOperatorFactory factory = AsyncExternalSourceOperatorFactory.builder(
                             storageProvider,
                             formatReader,
                             StoragePath.of("s3://bucket/f0.parquet"),
                             testAttributes(),
                             100,
                             10,
-                            asyncReadPool,
-                            null,
-                            null,
-                            null,
-                            sliceQueue
-                        );
+                            asyncReadPool
+                        ).sliceQueue(sliceQueue).build();
                         DriverContext driverContext = new DriverContext(BigArrays.NON_RECYCLING_INSTANCE, TEST_BLOCK_FACTORY, null);
                         SourceOperator operator = factory.get(driverContext);
                         while (operator.isFinished() == false) {
@@ -204,19 +202,15 @@ public class ExternalSourceParallelismTests extends ESTestCase {
             for (int d = 0; d < driverCount; d++) {
                 driverPool.submit(() -> {
                     try {
-                        AsyncExternalSourceOperatorFactory factory = new AsyncExternalSourceOperatorFactory(
+                        AsyncExternalSourceOperatorFactory factory = AsyncExternalSourceOperatorFactory.builder(
                             storageProvider,
                             formatReader,
                             StoragePath.of("s3://bucket/f0.parquet"),
                             testAttributes(),
                             100,
                             10,
-                            asyncReadPool,
-                            null,
-                            null,
-                            null,
-                            sliceQueue
-                        );
+                            asyncReadPool
+                        ).sliceQueue(sliceQueue).build();
                         DriverContext driverContext = new DriverContext(BigArrays.NON_RECYCLING_INSTANCE, TEST_BLOCK_FACTORY, null);
                         SourceOperator operator = factory.get(driverContext);
                         while (operator.isFinished() == false) {
@@ -282,19 +276,15 @@ public class ExternalSourceParallelismTests extends ESTestCase {
             )
         );
 
-        AsyncExternalSourceOperatorFactory factory = new AsyncExternalSourceOperatorFactory(
+        AsyncExternalSourceOperatorFactory factory = AsyncExternalSourceOperatorFactory.builder(
             storageProvider,
             formatReader,
             StoragePath.of("s3://bucket/f1.parquet"),
             attributes,
             100,
             10,
-            Runnable::run,
-            null,
-            Set.of("year"),
-            Map.of(),
-            sliceQueue
-        );
+            Runnable::run
+        ).partitionColumnNames(Set.of("year")).partitionValues(Map.of()).sliceQueue(sliceQueue).build();
 
         DriverContext driverContext = new DriverContext(BigArrays.NON_RECYCLING_INSTANCE, TEST_BLOCK_FACTORY, null);
         SourceOperator operator = factory.get(driverContext);
@@ -328,7 +318,8 @@ public class ExternalSourceParallelismTests extends ESTestCase {
         );
     }
 
-    private static class TrackingFormatReader implements FormatReader {
+    private static class TrackingFormatReader implements NoConfigFormatReader {
+
         private final AtomicInteger readCount;
         private final Set<String> filesRead;
 
@@ -343,7 +334,7 @@ public class ExternalSourceParallelismTests extends ESTestCase {
         }
 
         @Override
-        public CloseableIterator<Page> read(StorageObject object, List<String> projectedColumns, int batchSize) {
+        public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) {
             int fileIndex = readCount.getAndIncrement();
             filesRead.add(object.path().toString());
             IntBlock block = TEST_BLOCK_FACTORY.newIntBlockBuilder(1).appendInt(fileIndex).build();

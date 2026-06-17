@@ -1,0 +1,172 @@
+---
+setup:
+  - requires:
+      test_runner_features: [ capabilities, contains ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [ optional_fields_v5, flattened_datatype ]
+      reason: "Loading a subfield a flattened field must fail when unmapped_fields=load"
+  - do:
+      indices.create:
+        index: index1
+        body:
+          mappings:
+            dynamic: false
+            properties:
+              foo:
+                type: flattened
+  - do:
+      indices.create:
+        index: index2
+        body:
+          mappings:
+            dynamic: false
+            properties:
+              foo.bar:
+                type: flattened
+  - do:
+      indices.create:
+        index: index3
+        body:
+          mappings:
+            dynamic: false
+            properties:
+              foo:
+                type: keyword
+  - do:
+      indices.create:
+        index: index4
+        body:
+          mappings:
+            dynamic: false
+            properties:
+              foo.bar:
+                type: keyword
+  - do:
+      indices.create:
+        index: index5
+        body:
+          mappings:
+            dynamic: false
+            properties:
+              foo:
+                type: flattened
+              bar:
+                properties:
+                  baz:
+                    type: flattened
+
+---
+'loading subfield of flattened 1':
+  - do:
+      catch: bad_request
+      esql.query:
+        body:
+          # [foo] is flattened in index1
+          query: 'SET unmapped_fields="load"; FROM index1 | KEEP foo.a'
+  - match: { status: 400 }
+  - match: { error.type: verification_exception }
+  - contains: { error.reason: 'Found 1 problem' }
+  - contains: { error.reason: 'line 1:48: Loading subfield [foo.a] when parent [foo] is of flattened field type is not supported with unmapped_fields="load"' }
+
+---
+'loading subfield of flattened 2':
+  - do:
+      catch: bad_request
+      esql.query:
+        body:
+          # [foo] is flattened in index1
+          query: 'SET unmapped_fields="load"; FROM index1 | KEEP foo.bar.baz'
+  - match: { status: 400 }
+  - match: { error.type: verification_exception }
+  - contains: { error.reason: 'Found 1 problem' }
+  - contains: { error.reason: 'line 1:48: Loading subfield [foo.bar.baz] when parent [foo] is of flattened field type is not supported with unmapped_fields="load"' }
+
+---
+'loading subfield of flattened 3':
+  - do:
+      catch: bad_request
+      esql.query:
+        body:
+          # [foo.bar] is flattened in index2
+          query: 'SET unmapped_fields="load"; FROM index2 | WHERE foo.bar.subfield == "something"'
+  - match: { status: 400 }
+  - match: { error.type: verification_exception }
+  - contains: { error.reason: 'Found 1 problem' }
+  - contains: { error.reason: 'line 1:49: Loading subfield [foo.bar.subfield] when parent [foo.bar] is of flattened field type is not supported with unmapped_fields="load"' }
+
+---
+'loading from two indices with different mappings 1':
+  - do:
+      catch: bad_request
+      esql.query:
+        body:
+          # [foo] is flattened in index1
+          # [foo] is keyword in index3
+          query: 'SET unmapped_fields="load"; FROM index1,index3 | EVAL x = TO_STRING(foo.a), x = TO_STRING(foo.b.c.d)'
+  - match: { status: 400 }
+  - match: { error.type: verification_exception }
+  - contains: { error.reason: 'Found 2 problems' }
+  - contains: { error.reason: 'line 1:69: Loading subfield [foo.a] when parent [foo] is of flattened field type is not supported with unmapped_fields="load"' }
+  - contains: { error.reason: 'line 1:91: Loading subfield [foo.b.c.d] when parent [foo] is of flattened field type is not supported with unmapped_fields="load"' }
+
+---
+'loading from two indices with different mappings 2':
+  - do:
+      catch: bad_request
+      esql.query:
+        body:
+          # [foo] is flattened in index1
+          # [foo.bar] is keyword in index4
+          query: 'SET unmapped_fields="load"; FROM index1,index4 | WHERE foo.bar == "something"'
+
+  - match: { error.type: verification_exception }
+  - contains: { error.reason: 'Found 1 problem' }
+  - contains: { error.reason: 'line 1:29: Loading subfield [foo.bar] when parent [foo] is of flattened field type is not supported with unmapped_fields="load"' }
+
+---
+'loading from two indices with different mappings 3':
+  - do:
+      catch: bad_request
+      esql.query:
+        body:
+          # [foo] is flattened in index1
+          # [foo.bar] is keyword in index4
+          query: 'SET unmapped_fields="load"; FROM index1,index4 | WHERE foo.bar.baz == "something else"'
+  - match: { status: 400 }
+  - match: { error.type: verification_exception }
+  - contains: { error.reason: 'Found 2 problems' }
+  - contains: { error.reason: 'line 1:29: Loading subfield [foo.bar] when parent [foo] is of flattened field type is not supported with unmapped_fields="load"' }
+  - contains: { error.reason: 'line 1:56: Loading subfield [foo.bar.baz] when parent [foo] is of flattened field type is not supported with unmapped_fields="load"' }
+
+---
+'loading from index*':
+  - do:
+      catch: bad_request
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="load"; FROM index* metadata _source | KEEP `foo.*.*.*.*.*.`'
+  - match: { status: 400 }
+  - match: { error.type: verification_exception }
+  - contains: { error.reason: 'Found 1 problem' }
+  - contains: { error.reason: 'line 1:65: Loading subfield [foo.*.*.*.*.*.] when parent [foo] is of flattened field type is not supported with unmapped_fields="load"' }
+
+---
+'loading from index with many-dotted field names':
+  - do:
+      catch: bad_request
+      esql.query:
+        body:
+          # [foo] is flattened in index5
+          # [bar].[baz] is flattened in index5
+          query: 'SET unmapped_fields="load"; FROM index5 metadata _index, _source | KEEP `foo..`, `foo...`, `foo....`, `foo.*`, `bar.baz.a`'
+  - match: { status: 400 }
+  - match: { error.type: verification_exception }
+  - contains: { error.reason: 'Found 5 problems' }
+  - contains: { error.reason: 'line 1:73: Loading subfield [foo..] when parent [foo] is of flattened field type is not support' }
+  - contains: { error.reason: 'line 1:82: Loading subfield [foo...] when parent [foo] is of flattened field type is not supported with unmapped_fields="load"' }
+  - contains: { error.reason: 'line 1:92: Loading subfield [foo....] when parent [foo] is of flattened field type is not supported with unmapped_fields="load"' }
+  - contains: { error.reason: 'line 1:103: Loading subfield [foo.*] when parent [foo] is of flattened field type is not supported with unmapped_fields="load"' }
+  - contains: { error.reason: 'line 1:112: Loading subfield [bar.baz.a] when parent [bar.baz] is of flattened field type is not supported with unmapped_fields="load"' }

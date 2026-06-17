@@ -75,12 +75,14 @@ import org.elasticsearch.grok.MatcherWatchdog;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
+import org.elasticsearch.iplocation.api.IpLocationService;
 import org.elasticsearch.node.ReportingService;
 import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.script.Metadata;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.useragent.api.UserAgentParserRegistry;
 
 import java.time.Instant;
 import java.time.InstantSource;
@@ -242,6 +244,8 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         List<IngestPlugin> ingestPlugins,
         Client client,
         MatcherWatchdog matcherWatchdog,
+        UserAgentParserRegistry userAgentParserRegistry,
+        IpLocationService ipLocationService,
         FailureStoreMetrics failureStoreMetrics,
         ProjectResolver projectResolver,
         FeatureService featureService,
@@ -261,7 +265,9 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                 this,
                 client,
                 threadPool.generic()::execute,
-                matcherWatchdog
+                matcherWatchdog,
+                userAgentParserRegistry,
+                ipLocationService
             )
         );
         this.threadPool = threadPool;
@@ -281,6 +287,8 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         List<IngestPlugin> ingestPlugins,
         Client client,
         MatcherWatchdog matcherWatchdog,
+        UserAgentParserRegistry userAgentParserRegistry,
+        IpLocationService ipLocationService,
         FailureStoreMetrics failureStoreMetrics,
         ProjectResolver projectResolver,
         FeatureService featureService
@@ -294,6 +302,8 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
             ingestPlugins,
             client,
             matcherWatchdog,
+            userAgentParserRegistry,
+            ipLocationService,
             failureStoreMetrics,
             projectResolver,
             featureService,

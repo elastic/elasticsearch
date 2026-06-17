@@ -7,5 +7,4 @@ dependencies {
 
 tasks.named("javaRestTest").configure {
   usesDefaultDistribution("security features require default distribution")
-  systemProperty 'tests.security.manager', 'false'
 }

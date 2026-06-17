@@ -47,6 +47,7 @@ import org.elasticsearch.xpack.esql.expression.Foldables;
 import org.elasticsearch.xpack.esql.expression.Foldables.TypeResolutionValidator;
 import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.Param;
@@ -77,12 +78,14 @@ public class Top extends AggregateFunction
         SurrogateExpression,
         PostOptimizationVerificationAware {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Top", Top::new);
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Top.class).quaternary(Top::new).name("top");
 
     private static final String ORDER_ASC = "ASC";
     private static final String ORDER_DESC = "DESC";
 
     @FunctionInfo(
         returnType = { "boolean", "double", "integer", "long", "date", "ip", "keyword" },
+        briefSummary = "Collects the top values for a field, including repeated values.",
         description = "Collects the top values for a field. Includes repeated values.",
         type = FunctionType.AGGREGATE,
         examples = @Example(file = "stats_top", tag = "top")

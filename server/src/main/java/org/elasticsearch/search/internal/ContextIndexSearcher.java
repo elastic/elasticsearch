@@ -169,6 +169,15 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
     }
 
     /**
+     * Runs all registered cancellation/timeout checks; throws when one fires (e.g.
+     * {@link TimeExceededException}, {@link org.elasticsearch.tasks.TaskCancelledException}).
+     * No-op if none registered.
+     */
+    public void checkCancelled() {
+        this.cancellable.checkCancelled();
+    }
+
+    /**
      * Remove a {@link Runnable} that checks for query cancellation or timeout
      * which is called while accessing documents in the DirectoryReader but also while collecting them.
      */
@@ -558,7 +567,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         if (termStatistics == null) {
             return totalTermFreq;
         }
-        return termStatistics.docFreq();
+        return termStatistics.totalTermFreq();
     }
 
     private TermStatistics termStatisticsFromDfs(Term term) {

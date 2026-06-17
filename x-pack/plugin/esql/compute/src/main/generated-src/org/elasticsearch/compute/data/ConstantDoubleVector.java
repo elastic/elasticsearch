@@ -13,6 +13,8 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.ReleasableIterator;
+
+import java.util.Arrays;
 // end generated imports
 
 /**
@@ -36,13 +38,23 @@ final class ConstantDoubleVector extends AbstractVector implements DoubleVector 
     }
 
     @Override
+    public void copyTo(int srcPosition, double[] dst, int dstPosition, int length) {
+        Arrays.fill(dst, dstPosition, dstPosition + length, value);
+    }
+
+    @Override
     public DoubleBlock asBlock() {
         return new DoubleVectorBlock(this);
     }
 
     @Override
-    public DoubleVector filter(boolean mayContainDuplicates, int... positions) {
-        return blockFactory().newConstantDoubleVector(value, positions.length);
+    public int valueMaxByteSize() {
+        return Double.BYTES;
+    }
+
+    @Override
+    public DoubleVector filter(boolean mayContainDuplicates, int[] positions, int offset, int length) {
+        return blockFactory().newConstantDoubleVector(value, length);
     }
 
     @Override
@@ -91,6 +103,15 @@ final class ConstantDoubleVector extends AbstractVector implements DoubleVector 
             return ReleasableIterator.single(positions.blockFactory().newConstantDoubleBlockWith(value, positions.getPositionCount()));
         }
         return new DoubleLookup(asBlock(), positions, targetBlockSize);
+    }
+
+    @Override
+    public DoubleVector slice(int beginInclusive, int endExclusive) {
+        if (beginInclusive == 0 && endExclusive == getPositionCount()) {
+            incRef();
+            return this;
+        }
+        return blockFactory().newConstantDoubleVector(value, endExclusive - beginInclusive);
     }
 
     @Override

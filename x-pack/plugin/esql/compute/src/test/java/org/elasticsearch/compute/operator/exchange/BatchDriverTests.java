@@ -23,6 +23,7 @@ import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LocalCircuitBreaker;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
@@ -1098,8 +1099,8 @@ public class BatchDriverTests extends ESTestCase {
      * Helper method to create an ExpressionEvaluator that filters out rows where a specific column equals a value.
      * Returns true (keep) when the column value is NOT equal to the filter value.
      */
-    private EvalOperator.ExpressionEvaluator createNotEqualsOneEvaluator(DriverContext driverContext, int columnIndex) {
-        return new EvalOperator.ExpressionEvaluator() {
+    private ExpressionEvaluator createNotEqualsOneEvaluator(DriverContext driverContext, int columnIndex) {
+        return new ExpressionEvaluator() {
             @Override
             public Block eval(Page page) {
                 Page actualPage = page;
@@ -1145,7 +1146,7 @@ public class BatchDriverTests extends ESTestCase {
      * Helper method to create an EvalOperator that adds 1 to int values.
      */
     private EvalOperator createAddOneOperator(DriverContext driverContext) {
-        return new EvalOperator(driverContext, new EvalOperator.ExpressionEvaluator() {
+        return new EvalOperator(driverContext, new ExpressionEvaluator() {
             @Override
             public Block eval(Page page) {
                 Page actualPage = page;

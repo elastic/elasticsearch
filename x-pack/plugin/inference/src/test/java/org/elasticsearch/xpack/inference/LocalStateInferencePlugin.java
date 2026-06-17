@@ -56,6 +56,11 @@ public class LocalStateInferencePlugin extends LocalStateCompositeXPackPlugin {
                     TestStreamingCompletionServiceExtension.TestInferenceService::new
                 );
             }
+
+            @Override
+            public void loadExtensions(ExtensionLoader loader) {
+                // nothing, else it would clash with super class which already loads inference services
+            }
         };
         plugins.add(inferencePlugin);
     }
@@ -63,6 +68,11 @@ public class LocalStateInferencePlugin extends LocalStateCompositeXPackPlugin {
     @Override
     public List<RetrieverSpec<?>> getRetrievers() {
         return this.filterPlugins(SearchPlugin.class).stream().flatMap(p -> p.getRetrievers().stream()).collect(toList());
+    }
+
+    @Override
+    public List<QueryVectorBuilderSpec<?>> getQueryVectorBuilders() {
+        return inferencePlugin.getQueryVectorBuilders();
     }
 
     @Override

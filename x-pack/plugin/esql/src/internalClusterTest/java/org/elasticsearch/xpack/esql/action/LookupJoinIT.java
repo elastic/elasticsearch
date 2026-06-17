@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.action;
 
-import org.elasticsearch.Build;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
@@ -15,6 +14,7 @@ import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.compute.operator.OperatorStatus;
 import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
@@ -41,6 +41,7 @@ import org.elasticsearch.xpack.core.enrich.action.ExecuteEnrichPolicyAction;
 import org.elasticsearch.xpack.core.enrich.action.GetEnrichPolicyAction;
 import org.elasticsearch.xpack.enrich.EnrichPlugin;
 import org.elasticsearch.xpack.esql.CsvTestsDataLoader;
+import org.elasticsearch.xpack.esql.datasources.datasource.TestEncryptionServicePlugin;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 
 import java.io.IOException;
@@ -58,6 +59,8 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.elasticsearch.test.ESIntegTestCase.Scope.SUITE;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.startsWith;
 
 @ClusterScope(scope = SUITE, numDataNodes = 1, numClientNodes = 0, supportsDedicatedMasters = false)
 @TestLogging(
@@ -93,11 +96,12 @@ public class LookupJoinIT extends AbstractEsqlIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         List<Class<? extends Plugin>> plugins = new ArrayList<>();
-        plugins.add(EsqlPlugin.class);
+        plugins.add(EsqlPluginWithEnterpriseOrTrialLicense.class);
         plugins.add(MapperExtrasPlugin.class);
         plugins.add(LocalStateEnrich.class);
         plugins.add(IngestCommonPlugin.class);
         plugins.add(ReindexPlugin.class);
+        plugins.add(TestEncryptionServicePlugin.class);
         return plugins;
     }
 
@@ -266,7 +270,7 @@ public class LookupJoinIT extends AbstractEsqlIntegTestCase {
         }
     }
 
-    // Test ported from csv-spec:lookup-join.FloatJoinScaledFloat
+    // Test ported from csv-spec:lookup-join.floatJoinScaledFloat
     // Tests LOOKUP JOIN with mixed numeric fields, specifically float to scaled_float conversion
     public void testFloatJoinScaledFloat() throws IOException {
         // Required indices and enrich policies for this test
@@ -375,33 +379,50 @@ public class LookupJoinIT extends AbstractEsqlIntegTestCase {
                 )
             );
 
-            // Verify the correct lookup operator is used: streaming in snapshot builds, non-streaming in release builds
-            assertNotNull("profile should be present", response.profile());
-            List<String> allOperators = response.profile()
-                .drivers()
-                .stream()
-                .flatMap(d -> d.operators().stream())
-                .map(OperatorStatus::operator)
-                .toList();
-            if (Build.current().isSnapshot()) {
-                assertTrue(
-                    "expected StreamingLookupOperator in snapshot build, got: " + allOperators,
-                    allOperators.stream().anyMatch(op -> op.contains("StreamingLookupOperator"))
-                );
-                assertFalse(
-                    "unexpected LookupOperator in snapshot build, got: " + allOperators,
-                    allOperators.stream().anyMatch(op -> op.contains("LookupOperator") && op.contains("StreamingLookupOperator") == false)
-                );
-            } else {
-                assertTrue(
-                    "expected LookupOperator in release build, got: " + allOperators,
-                    allOperators.stream().anyMatch(op -> op.contains("LookupOperator") && op.contains("StreamingLookupOperator") == false)
-                );
-                assertFalse(
-                    "unexpected StreamingLookupOperator in release build, got: " + allOperators,
-                    allOperators.stream().anyMatch(op -> op.contains("StreamingLookupOperator"))
-                );
-            }
+            // Verify the streaming lookup operator is used by default
+            assertLookupOperator(response, true);
+        }
+    }
+
+    /**
+     * Tests that disabling {@code esql.query.lookup_join_streaming} falls back to the non-streaming lookup operator.
+     */
+    public void testLookupJoinStreamingDisabled() throws IOException {
+        // Required indices for this test
+        ensureIndices(List.of(SAMPLE_DATA_INDEX, MESSAGE_TYPES_LOOKUP_INDEX));
+
+        String query = String.format(Locale.ROOT, """
+            FROM %s
+            | LOOKUP JOIN %s ON message
+            | KEEP @timestamp, client_ip, event_duration, message, type
+            | SORT @timestamp DESC
+            """, SAMPLE_DATA_INDEX, MESSAGE_TYPES_LOOKUP_INDEX);
+
+        updateClusterSettings(Settings.builder().put(EsqlPlugin.LOOKUP_JOIN_STREAMING.getKey(), false));
+        try (EsqlQueryResponse response = run(syncEsqlQueryRequest(query).profile(true))) {
+            assertLookupOperator(response, false);
+        } finally {
+            updateClusterSettings(Settings.builder().putNull(EsqlPlugin.LOOKUP_JOIN_STREAMING.getKey()));
+        }
+    }
+
+    private static void assertLookupOperator(EsqlQueryResponse response, boolean expectStreaming) {
+        assertNotNull("profile should be present", response.profile());
+        List<String> allOperators = response.profile()
+            .drivers()
+            .stream()
+            .flatMap(d -> d.operators().stream())
+            .map(OperatorStatus::operator)
+            .toList();
+        boolean hasStreaming = allOperators.stream().anyMatch(op -> op.contains("StreamingLookupOperator"));
+        boolean hasNonStreaming = allOperators.stream()
+            .anyMatch(op -> op.contains("LookupOperator") && op.contains("StreamingLookupOperator") == false);
+        if (expectStreaming) {
+            assertTrue("expected StreamingLookupOperator, got: " + allOperators, hasStreaming);
+            assertFalse("unexpected LookupOperator, got: " + allOperators, hasNonStreaming);
+        } else {
+            assertTrue("expected LookupOperator, got: " + allOperators, hasNonStreaming);
+            assertFalse("unexpected StreamingLookupOperator, got: " + allOperators, hasStreaming);
         }
     }
 
@@ -449,13 +470,28 @@ public class LookupJoinIT extends AbstractEsqlIntegTestCase {
         List<String> warnings = capturedWarnings.get();
         assertNotNull("Warnings should not be null", warnings);
 
+        List<String> warningValues = warnings.stream().map(w -> HeaderWarning.extractWarningValueFromWarningHeader(w, false)).toList();
+
         // Filter warnings for the LOOKUP JOIN multi-value warning
-        List<String> lookupJoinWarnings = warnings.stream().filter(w -> w.contains("LOOKUP JOIN encountered multi-value")).toList();
+        List<String> lookupJoinWarnings = warningValues.stream().filter(w -> w.contains("LOOKUP JOIN encountered multi-value")).toList();
 
         assertThat(
-            "Expected LOOKUP JOIN multi-value warning to be present. All warnings: " + warnings,
+            "Expected LOOKUP JOIN multi-value warning to be present. All warnings: " + warningValues,
             lookupJoinWarnings.size(),
             greaterThanOrEqualTo(1)
+        );
+
+        // Verify the source location is correctly propagated (not Line -1:-1 / empty expression).
+        // The LOOKUP JOIN is on line 4, column 3 of the query (after "| ").
+        assertThat(
+            "Warning should contain correct source location, got: " + warningValues,
+            warningValues,
+            hasItem(startsWith("Line 4:3: evaluation of [LOOKUP JOIN languages_lookup ON language_code] failed"))
+        );
+        assertThat(
+            "Warning should contain correct source location, got: " + warningValues,
+            warningValues,
+            hasItem(startsWith("Line 4:3: java.lang.IllegalArgumentException: LOOKUP JOIN encountered multi-value"))
         );
     }
 }

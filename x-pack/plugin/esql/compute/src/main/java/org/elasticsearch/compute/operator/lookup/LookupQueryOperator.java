@@ -55,6 +55,7 @@ public final class LookupQueryOperator implements Operator {
     private final IndexSearcher searcher;
     private final Warnings warnings;
     private final int maxPageSize;
+    private final boolean emptyResult;
 
     private Page currentInputPage;
     private int queryPosition = -1;
@@ -77,7 +78,8 @@ public final class LookupQueryOperator implements Operator {
         IndexedByShardId<? extends ShardContext> shardContexts,
         int shardId,
         SearchExecutionContext searchExecutionContext,
-        Warnings warnings
+        Warnings warnings,
+        boolean emptyResult
     ) {
         this.blockFactory = blockFactory;
         this.maxPageSize = maxPageSize;
@@ -86,6 +88,7 @@ public final class LookupQueryOperator implements Operator {
         this.shardContext = shardContexts.get(shardId);
         this.shardContext.incRef();
         this.searchExecutionContext = searchExecutionContext;
+        this.emptyResult = emptyResult;
         try {
             if (shardContext.searcher().getIndexReader() instanceof DirectoryReader directoryReader) {
                 // This optimization is currently disabled for ParallelCompositeReader
@@ -105,10 +108,14 @@ public final class LookupQueryOperator implements Operator {
         if (currentInputPage != null) {
             throw new IllegalStateException("Operator already has input page, must consume it first");
         }
-        currentInputPage = page;
-        queryPosition = -1; // Reset query position for new page
         pagesReceived++;
         rowsReceived += page.getPositionCount();
+        if (emptyResult) {
+            page.releaseBlocks();
+            return;
+        }
+        currentInputPage = page;
+        queryPosition = -1; // Reset query position for new page
     }
 
     @Override
@@ -146,44 +153,13 @@ public final class LookupQueryOperator implements Operator {
             if (indexReader.leaves().size() > 1) {
                 segmentsBuilder = blockFactory.newIntVectorBuilder(estimatedSize);
             }
-            int totalMatches = 0;
-            do {
-                Query query;
-                try {
-                    query = nextQuery();
-                    if (query == null) {
-                        break;
-                    }
-                    query = searcher.rewrite(new ConstantScoreQuery(query));
-                } catch (Exception e) {
-                    warnings.registerException(e);
-                    continue;
-                }
-                final var weight = searcher.createWeight(query, ScoreMode.COMPLETE_NO_SCORES, 1.0f);
-                if (weight == null) {
-                    continue;
-                }
-                for (LeafReaderContext leaf : indexReader.leaves()) {
-                    var scorer = weight.bulkScorer(leaf);
-                    if (scorer == null) {
-                        continue;
-                    }
-                    final DocCollector collector = new DocCollector(docsBuilder);
-                    scorer.score(collector, leaf.reader().getLiveDocs(), 0, DocIdSetIterator.NO_MORE_DOCS);
-                    int matches = collector.matches;
 
-                    if (segmentsBuilder != null) {
-                        for (int i = 0; i < matches; i++) {
-                            segmentsBuilder.appendInt(leaf.ord);
-                        }
-                    }
-                    // Use current queryPosition (nextQuery increments it before returning query)
-                    for (int i = 0; i < matches; i++) {
-                        positionsBuilder.appendInt(queryPosition);
-                    }
-                    totalMatches += matches;
-                }
-            } while (totalMatches < maxPageSize && queryPosition < positionCount);
+            // Read matches for current position
+            BulkKeywordLookup bulk = queryList.getBulkKeywordLookup();
+            int totalMatches = switch (bulk) {
+                case null -> getMatches(docsBuilder, segmentsBuilder, positionsBuilder, positionCount);
+                default -> getBulkMatches(bulk, docsBuilder, segmentsBuilder, positionsBuilder, positionCount);
+            };
 
             if (totalMatches > 0) {
                 return buildPage(totalMatches, positionsBuilder, segmentsBuilder, docsBuilder);
@@ -202,6 +178,96 @@ public final class LookupQueryOperator implements Operator {
         } finally {
             Releasables.close(docsBuilder, segmentsBuilder, positionsBuilder);
         }
+    }
+
+    private int getMatches(
+        IntVector.Builder docsBuilder,
+        IntVector.Builder segmentsBuilder,
+        IntVector.Builder positionsBuilder,
+        int positionCount
+    ) throws IOException {
+        int totalMatches = 0;
+        do {
+            Query query;
+            try {
+                query = nextQuery();
+                if (query == null) {
+                    break;
+                }
+                query = searcher.rewrite(new ConstantScoreQuery(query));
+            } catch (Exception e) {
+                warnings.registerException(e);
+                continue;
+            }
+            final var weight = searcher.createWeight(query, ScoreMode.COMPLETE_NO_SCORES, 1.0f);
+            if (weight == null) {
+                continue;
+            }
+            for (LeafReaderContext leaf : indexReader.leaves()) {
+                var scorer = weight.bulkScorer(leaf);
+                if (scorer == null) {
+                    continue;
+                }
+                final DocCollector collector = new DocCollector(docsBuilder);
+                scorer.score(collector, leaf.reader().getLiveDocs(), 0, DocIdSetIterator.NO_MORE_DOCS);
+                int matches = collector.matches;
+
+                if (segmentsBuilder != null) {
+                    for (int i = 0; i < matches; i++) {
+                        segmentsBuilder.appendInt(leaf.ord);
+                    }
+                }
+                // Use current queryPosition (nextQuery increments it before returning query)
+                for (int i = 0; i < matches; i++) {
+                    positionsBuilder.appendInt(queryPosition);
+                }
+                totalMatches += matches;
+            }
+        } while (totalMatches < maxPageSize && queryPosition < positionCount);
+        return totalMatches;
+    }
+
+    private int getBulkMatches(
+        BulkKeywordLookup bulkKeywordLookup,
+        IntVector.Builder docsBuilder,
+        IntVector.Builder segmentsBuilder,
+        IntVector.Builder positionsBuilder,
+        int positionCount
+    ) throws IOException {
+
+        int totalMatches = 0;
+        do {
+            /*
+             * Note: in the non-streaming EnrichQuerySourceOperator, queryPosition is incremented
+             * in a slightly different way in the lucene query path and the bulk lookup path.
+             *
+             * There the ordinary path increments queryPosition before comparing to positionCount
+             * but the bulk path increments after the comparison.  That's not great but it's not
+             * a bug because in that getOutput() the path do not share any logic inspecting it.
+             * There each path tests for termination in its own way.
+             *
+             * But here in the LookupQueryOperator, getMatches() and getBulkMatches() share
+             * the getOutput() termination condition so they must follow the same convention
+             * and increment queryPosition before doing the comparison.
+             *
+             * This way getOutput() may always safely assume (queryPosition >= positionCount - 1)
+             * means we've finished processing the page.
+             */
+            ++queryPosition;
+            if (queryPosition >= positionCount) break;
+
+            final int matches = bulkKeywordLookup.processQuery(
+                currentInputPage,
+                queryPosition,
+                indexReader,
+                docsBuilder,
+                segmentsBuilder,
+                positionsBuilder
+            );
+            totalMatches += matches;
+
+        } while (totalMatches < maxPageSize);
+        return totalMatches;
     }
 
     Page buildPage(int positions, IntVector.Builder positionsBuilder, IntVector.Builder segmentsBuilder, IntVector.Builder docsBuilder) {
@@ -327,6 +393,8 @@ public final class LookupQueryOperator implements Operator {
             Status::new
         );
 
+        private static final TransportVersion ESQL_STREAMING_LOOKUP_JOIN = TransportVersion.fromName("esql_streaming_lookup_join");
+
         private final int pagesReceived;
         private final int pagesEmitted;
         private final long rowsReceived;
@@ -417,7 +485,7 @@ public final class LookupQueryOperator implements Operator {
 
         @Override
         public TransportVersion getMinimalSupportedVersion() {
-            return TransportVersion.current();
+            return ESQL_STREAMING_LOOKUP_JOIN;
         }
     }
 }

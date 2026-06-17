@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
@@ -14,13 +15,16 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.IsBlockedResult;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.datasource.ndjson.NdJsonReaderStatus;
+
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
- * Tests for {@link AsyncExternalSourceBuffer}.
- *
- * Tests the thread-safe buffer for async external source data,
- * including backpressure via waitForSpace() and waitForWriting().
+ * Unit tests for {@link AsyncExternalSourceBuffer} backpressure via {@link AsyncExternalSourceBuffer#waitForSpace()}.
  */
 public class AsyncExternalSourceBufferTests extends ESTestCase {
 
@@ -28,268 +32,239 @@ public class AsyncExternalSourceBufferTests extends ESTestCase {
         .breaker(new NoopCircuitBreaker("none"))
         .build();
 
+    private static Page createTestPage(int numColumns, int numRows) {
+        IntBlock.Builder[] builders = new IntBlock.Builder[numColumns];
+        for (int c = 0; c < numColumns; c++) {
+            builders[c] = BLOCK_FACTORY.newIntBlockBuilder(numRows);
+            for (int r = 0; r < numRows; r++) {
+                builders[c].appendInt(r);
+            }
+        }
+        IntBlock[] blocks = new IntBlock[numColumns];
+        for (int c = 0; c < numColumns; c++) {
+            blocks[c] = builders[c].build();
+        }
+        return new Page(blocks);
+    }
+
+    public void testWaitForSpaceReturnsCompletedWhenBufferHasRoom() {
+        AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(1024 * 1024);
+        SubscribableListener<Void> space = buffer.waitForSpace();
+        assertTrue("waitForSpace should be immediately done when buffer is empty", space.isDone());
+        buffer.finish(true);
+    }
+
+    public void testWaitForSpaceReturnsPendingWhenBufferFull() {
+        long maxBufferBytes = 1500;
+        AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(maxBufferBytes);
+
+        while (buffer.bytesInBuffer() < maxBufferBytes) {
+            buffer.addPage(createTestPage(2, 50));
+        }
+        assertTrue(buffer.bytesInBuffer() >= maxBufferBytes);
+
+        SubscribableListener<Void> space = buffer.waitForSpace();
+        assertFalse("waitForSpace should NOT be done when buffer is full", space.isDone());
+
+        buffer.pollPage().releaseBlocks();
+        assertTrue("waitForSpace should complete after pollPage frees space", space.isDone());
+
+        buffer.finish(true);
+    }
+
+    public void testWaitForSpaceCompletesOnFinish() {
+        long maxBufferBytes = 1500;
+        AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(maxBufferBytes);
+
+        while (buffer.bytesInBuffer() < maxBufferBytes) {
+            buffer.addPage(createTestPage(2, 50));
+        }
+
+        SubscribableListener<Void> space = buffer.waitForSpace();
+        assertFalse(space.isDone());
+
+        buffer.finish(true);
+        assertTrue("waitForSpace should complete when buffer is finished (cancelled)", space.isDone());
+    }
+
+    public void testBufferConsistentAfterFullAndDrain() {
+        long maxBufferBytes = 1500;
+        AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(maxBufferBytes);
+
+        long expectedBytes = 0;
+        while (buffer.bytesInBuffer() < maxBufferBytes) {
+            Page p = createTestPage(2, 50);
+            expectedBytes += p.ramBytesUsedByBlocks();
+            buffer.addPage(p);
+        }
+        assertTrue(buffer.bytesInBuffer() >= maxBufferBytes);
+        int sizeBeforeWait = buffer.size();
+
+        assertEquals(sizeBeforeWait, buffer.size());
+        assertEquals(expectedBytes, buffer.bytesInBuffer());
+        assertFalse(buffer.noMoreInputs());
+
+        for (int i = 0; i < sizeBeforeWait; i++) {
+            Page p = buffer.pollPage();
+            assertNotNull(p);
+            p.releaseBlocks();
+        }
+        assertEquals(0, buffer.size());
+        assertEquals(0, buffer.bytesInBuffer());
+        buffer.finish(true);
+    }
+
     /**
-     * Creates a test page with a single integer block.
+     * Regression test for a lost-wakeup race between {@link AsyncExternalSourceBuffer#addPage(Page)}
+     * and {@link AsyncExternalSourceBuffer#pollPage()}.
+     * <p>
+     * The prior implementation guarded {@code notifyNotEmpty()} on a snapshot of {@code bytesInBuffer}
+     * taken BEFORE the page was inserted into the queue, and guarded {@code notifyNotFull()} on a
+     * threshold-crossing check using that same snapshot. A consumer that drained the queue and
+     * installed a {@code notEmptyFuture} in the tiny window between a producer's {@code getAndAdd}
+     * and {@code queue.add} would be orphaned — the producer would see {@code prevBytes != 0} and
+     * skip the wakeup. On buffers with a low max capacity this deadlocks both sides.
+     * <p>
+     * This test runs tens of thousands of add/poll interleavings against a small buffer. Pre-fix it
+     * reliably hangs; post-fix it completes in well under the safety deadline.
      */
-    private Page createTestPage() {
-        IntBlock block = BLOCK_FACTORY.newIntBlockBuilder(1).appendInt(42).build();
-        return new Page(block);
+    public void testNoLostWakeupUnderConcurrentAddAndPoll() throws Exception {
+        // Tight buffer to force frequent back-pressure flips. Each test page is ~224 B (2 cols x 1 row
+        // IntBlocks), so 3 * 8224 comfortably fits a handful of pages, with producer regularly waiting.
+        final long maxBufferBytes = 3L * 8224;
+        final int iterations = 50;
+        final int pagesPerIteration = 5_000;
+        final long deadlineNanos = TimeUnit.SECONDS.toNanos(30);
+
+        for (int iter = 0; iter < iterations; iter++) {
+            AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(maxBufferBytes);
+            AtomicInteger pagesAdded = new AtomicInteger();
+            AtomicInteger pagesConsumed = new AtomicInteger();
+            AtomicReference<Throwable> producerError = new AtomicReference<>();
+
+            Thread producer = new Thread(() -> {
+                try {
+                    for (int i = 0; i < pagesPerIteration; i++) {
+                        SubscribableListener<Void> space = buffer.waitForSpace();
+                        if (space.isDone() == false) {
+                            PlainActionFuture<Void> fut = new PlainActionFuture<>();
+                            space.addListener(fut);
+                            fut.actionGet(TimeValue.timeValueSeconds(10));
+                        }
+                        buffer.addPage(createTestPage(2, 1));
+                        pagesAdded.incrementAndGet();
+                    }
+                    buffer.finish(false);
+                } catch (Throwable t) {
+                    producerError.set(t);
+                }
+            }, "async-buffer-producer");
+            producer.setDaemon(true);
+            producer.start();
+
+            long deadline = System.nanoTime() + deadlineNanos;
+            while (buffer.isFinished() == false) {
+                Page p = buffer.pollPage();
+                if (p != null) {
+                    p.releaseBlocks();
+                    pagesConsumed.incrementAndGet();
+                } else {
+                    IsBlockedResult blk = buffer.waitForReading();
+                    if (blk.listener().isDone() == false) {
+                        PlainActionFuture<Void> fut = new PlainActionFuture<>();
+                        blk.listener().addListener(fut);
+                        try {
+                            fut.actionGet(TimeValue.timeValueSeconds(10));
+                        } catch (Exception e) {
+                            throw new AssertionError(
+                                "consumer stuck waiting for data (lost wakeup) iter="
+                                    + iter
+                                    + " addedSoFar="
+                                    + pagesAdded.get()
+                                    + " consumedSoFar="
+                                    + pagesConsumed.get()
+                                    + " queueSize="
+                                    + buffer.size()
+                                    + " bytesInBuffer="
+                                    + buffer.bytesInBuffer(),
+                                e
+                            );
+                        }
+                    }
+                }
+                if (System.nanoTime() > deadline) {
+                    throw new AssertionError(
+                        "test deadline exceeded iter="
+                            + iter
+                            + " added="
+                            + pagesAdded.get()
+                            + " consumed="
+                            + pagesConsumed.get()
+                            + " queueSize="
+                            + buffer.size()
+                            + " bytesInBuffer="
+                            + buffer.bytesInBuffer()
+                    );
+                }
+            }
+
+            producer.join(TimeUnit.SECONDS.toMillis(5));
+            assertFalse("producer thread should have exited", producer.isAlive());
+            assertNull("producer threw", producerError.get());
+            assertEquals("all pages should have been added", pagesPerIteration, pagesAdded.get());
+            assertEquals("all pages should have been consumed", pagesPerIteration, pagesConsumed.get());
+            assertEquals(0, buffer.size());
+            assertEquals(0, buffer.bytesInBuffer());
+        }
     }
 
-    public void testConstructorValidation() {
-        // Test invalid max size
-        expectThrows(IllegalArgumentException.class, () -> new AsyncExternalSourceBuffer(0));
-        expectThrows(IllegalArgumentException.class, () -> new AsyncExternalSourceBuffer(-1));
+    public void testFormatReaderStatusGetterMatchesLastRecorded() {
+        AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(1024);
+        assertNull(buffer.formatReaderStatus());
 
-        // Valid construction
-        AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(1);
-        assertNotNull(buffer);
-        assertEquals(0, buffer.size());
-        assertFalse(buffer.isFinished());
-        assertFalse(buffer.noMoreInputs());
+        buffer.recordFormatReaderStatus(new NdJsonReaderStatus(3L, 0L, 0L));
+        assertEquals(new NdJsonReaderStatus(3L, 0L, 0L), buffer.formatReaderStatus());
+
+        // Latest snapshot replaces (does not merge) the prior one.
+        buffer.recordFormatReaderStatus(new NdJsonReaderStatus(5L, 17L, 0L));
+        assertEquals(new NdJsonReaderStatus(5L, 17L, 0L), buffer.formatReaderStatus());
+
+        // Null clears the recorded snapshot.
+        buffer.recordFormatReaderStatus(null);
+        assertNull(buffer.formatReaderStatus());
     }
 
-    public void testAddAndPollPage() {
-        AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(10);
+    public void testBytesReadAccumulatesPositiveDeltas() {
+        AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(1024);
+        assertEquals(0L, buffer.bytesRead());
 
-        // Create test page
-        Page page = createTestPage();
+        buffer.addBytesRead(100);
+        buffer.addBytesRead(250);
+        assertEquals(350L, buffer.bytesRead());
 
-        // Add page
-        buffer.addPage(page);
-        assertEquals(1, buffer.size());
-
-        // Poll page
-        Page polled = buffer.pollPage();
-        assertSame(page, polled);
-        assertEquals(0, buffer.size());
-
-        // Poll from empty buffer
-        assertNull(buffer.pollPage());
-
-        // Clean up
-        page.releaseBlocks();
+        // Non-positive deltas are ignored.
+        buffer.addBytesRead(0);
+        buffer.addBytesRead(-50);
+        assertEquals(350L, buffer.bytesRead());
     }
 
-    public void testWaitForSpaceWhenNotFull() {
-        AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(10);
+    public void testSplitTrackingTriplet() {
+        AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(1024);
+        assertEquals(0, buffer.splitsTotal());
+        assertEquals(0, buffer.splitsProcessed());
+        assertEquals(0, buffer.currentSplit());
 
-        // Buffer is not full - should return completed listener
-        SubscribableListener<Void> listener = buffer.waitForSpace();
-        assertTrue("Listener should be done when buffer has space", listener.isDone());
-    }
+        buffer.setSplitsTotal(4);
+        assertEquals(4, buffer.splitsTotal());
 
-    public void testWaitForSpaceWhenFull() {
-        AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(2);
+        buffer.setCurrentSplit(1);
+        buffer.incSplitsProcessed();
+        assertEquals(1, buffer.currentSplit());
+        assertEquals(1, buffer.splitsProcessed());
 
-        // Fill the buffer
-        Page page1 = createTestPage();
-        Page page2 = createTestPage();
-        buffer.addPage(page1);
-        buffer.addPage(page2);
-        assertEquals(2, buffer.size());
-
-        // Buffer is full - should return pending listener
-        SubscribableListener<Void> listener = buffer.waitForSpace();
-        assertFalse("Listener should not be done when buffer is full", listener.isDone());
-
-        // Poll a page to make space
-        Page polled = buffer.pollPage();
-        polled.releaseBlocks();
-        assertEquals(1, buffer.size());
-
-        // Now the listener should be completed
-        assertTrue("Listener should be done after space is made", listener.isDone());
-
-        // Clean up
-        buffer.finish(true);
-    }
-
-    public void testWaitForWritingWhenNotFull() {
-        AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(10);
-
-        // Buffer is not full - should return NOT_BLOCKED
-        IsBlockedResult result = buffer.waitForWriting();
-        assertTrue("Should not be blocked when buffer has space", result.listener().isDone());
-    }
-
-    public void testWaitForWritingWhenFull() {
-        AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(2);
-
-        // Fill the buffer
-        Page page1 = createTestPage();
-        Page page2 = createTestPage();
-        buffer.addPage(page1);
-        buffer.addPage(page2);
-
-        // Buffer is full - should return blocked result
-        IsBlockedResult result = buffer.waitForWriting();
-        assertFalse("Should be blocked when buffer is full", result.listener().isDone());
-        assertEquals("async external source buffer full", result.reason());
-
-        // Poll a page to make space
-        Page polled = buffer.pollPage();
-        polled.releaseBlocks();
-
-        // Now should not be blocked
-        assertTrue("Should not be blocked after space is made", result.listener().isDone());
-
-        // Clean up
-        buffer.finish(true);
-    }
-
-    public void testWaitForReadingWhenEmpty() {
-        AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(10);
-
-        // Buffer is empty - should return blocked result
-        IsBlockedResult result = buffer.waitForReading();
-        assertFalse("Should be blocked when buffer is empty", result.listener().isDone());
-        assertEquals("async external source buffer empty", result.reason());
-
-        // Add a page
-        Page page = createTestPage();
-        buffer.addPage(page);
-
-        // Now should not be blocked
-        assertTrue("Should not be blocked after page is added", result.listener().isDone());
-
-        // Clean up
-        buffer.finish(true);
-    }
-
-    public void testWaitForReadingWhenNotEmpty() {
-        AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(10);
-
-        // Add a page
-        Page page = createTestPage();
-        buffer.addPage(page);
-
-        // Buffer has data - should return NOT_BLOCKED
-        IsBlockedResult result = buffer.waitForReading();
-        assertTrue("Should not be blocked when buffer has data", result.listener().isDone());
-
-        // Clean up
-        buffer.finish(true);
-    }
-
-    public void testFinish() {
-        AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(10);
-
-        assertFalse(buffer.noMoreInputs());
-        assertFalse(buffer.isFinished());
-
-        // Finish without draining
-        buffer.finish(false);
-
-        assertTrue(buffer.noMoreInputs());
-        assertTrue(buffer.isFinished());
-    }
-
-    public void testFinishWithDraining() {
-        AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(10);
-
-        // Add some pages
-        Page page1 = createTestPage();
-        Page page2 = createTestPage();
-        buffer.addPage(page1);
-        buffer.addPage(page2);
-        assertEquals(2, buffer.size());
-
-        // Finish with draining - pages should be released
-        buffer.finish(true);
-
-        assertTrue(buffer.noMoreInputs());
-        assertTrue(buffer.isFinished());
-        assertEquals(0, buffer.size());
-    }
-
-    public void testOnFailure() {
-        AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(10);
-
-        // Add a page
-        Page page = createTestPage();
-        buffer.addPage(page);
-
-        // Fail the buffer
-        Exception failure = new RuntimeException("test failure");
-        buffer.onFailure(failure);
-
-        assertTrue(buffer.noMoreInputs());
-        assertTrue(buffer.isFinished());
-        assertSame(failure, buffer.failure());
-        // Pages should be released by onFailure
-    }
-
-    public void testAddPageAfterFinish() {
-        AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(10);
-
-        // Finish the buffer
-        buffer.finish(false);
-
-        // Try to add a page after finish - it should be released
-        Page page = createTestPage();
-        buffer.addPage(page);
-        // Page should be released since buffer is finished
-    }
-
-    public void testAddPageAfterFailure() {
-        AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(10);
-
-        // Fail the buffer
-        buffer.onFailure(new RuntimeException("test"));
-
-        // Try to add a page after failure - it should be released
-        Page page = createTestPage();
-        buffer.addPage(page);
-        // Page should be released since buffer has failed
-    }
-
-    public void testWaitForSpaceAfterFinish() {
-        AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(2);
-
-        // Fill the buffer
-        Page page1 = createTestPage();
-        Page page2 = createTestPage();
-        buffer.addPage(page1);
-        buffer.addPage(page2);
-
-        // Finish the buffer (with draining to release pages)
-        buffer.finish(true);
-
-        // waitForSpace should return completed listener even if buffer was full
-        SubscribableListener<Void> listener = buffer.waitForSpace();
-        assertTrue("Listener should be done after finish", listener.isDone());
-    }
-
-    public void testCompletionListener() {
-        AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(10);
-
-        // Add completion listener
-        java.util.concurrent.atomic.AtomicBoolean completed = new java.util.concurrent.atomic.AtomicBoolean(false);
-        buffer.addCompletionListener(org.elasticsearch.action.ActionListener.wrap(v -> completed.set(true), e -> fail("Should not fail")));
-
-        assertFalse(completed.get());
-
-        // Finish the buffer
-        buffer.finish(false);
-
-        assertTrue("Completion listener should be called", completed.get());
-    }
-
-    public void testCompletionListenerOnFailure() {
-        AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(10);
-
-        // Add completion listener
-        java.util.concurrent.atomic.AtomicReference<Exception> failureRef = new java.util.concurrent.atomic.AtomicReference<>();
-        buffer.addCompletionListener(org.elasticsearch.action.ActionListener.wrap(v -> fail("Should not succeed"), failureRef::set));
-
-        assertNull(failureRef.get());
-
-        // Fail the buffer
-        Exception failure = new RuntimeException("test failure");
-        buffer.onFailure(failure);
-
-        assertNotNull("Completion listener should receive failure", failureRef.get());
-        assertEquals("test failure", failureRef.get().getCause().getMessage());
+        buffer.setCurrentSplit(2);
+        buffer.incSplitsProcessed();
+        assertEquals(2, buffer.currentSplit());
+        assertEquals(2, buffer.splitsProcessed());
     }
 }

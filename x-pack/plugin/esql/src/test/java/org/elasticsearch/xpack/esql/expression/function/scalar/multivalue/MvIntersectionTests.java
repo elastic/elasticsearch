@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
+import org.elasticsearch.xpack.esql.expression.function.FlattenedCases;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.hamcrest.Matcher;
 
@@ -289,5 +290,42 @@ public class MvIntersectionTests extends AbstractScalarFunctionTestCase {
                 matchResult(result)
             );
         }));
+
+        if (DataType.FLATTENED.supportedVersion().supportedLocally()) {
+            // Random case: intersection nearly always empty because random values rarely collide
+            suppliers.add(new TestCaseSupplier(List.of(DataType.FLATTENED, DataType.FLATTENED), () -> {
+                List<Object> field1 = randomList(1, 10, FlattenedCases.RANDOM::get);
+                List<Object> field2 = randomList(1, 10, FlattenedCases.RANDOM::get);
+                var result = new LinkedHashSet<>(field1);
+                result.retainAll(field2);
+                return new TestCaseSupplier.TestCase(
+                    List.of(
+                        new TestCaseSupplier.TypedData(field1, DataType.FLATTENED, "field1"),
+                        new TestCaseSupplier.TypedData(field2, DataType.FLATTENED, "field2")
+                    ),
+                    "MvIntersectionBytesRefEvaluator[field1=Attribute[channel=0], field2=Attribute[channel=1]]",
+                    DataType.FLATTENED,
+                    matchResult(result)
+                );
+            }));
+
+            // Controlled overlap: one shared value, each side has a unique extra → result is {shared}
+            suppliers.add(new TestCaseSupplier("flattened partial overlap", List.of(DataType.FLATTENED, DataType.FLATTENED), () -> {
+                BytesRef shared = FlattenedCases.RANDOM.get();
+                List<Object> field1 = List.of(shared, FlattenedCases.RANDOM.get());
+                List<Object> field2 = List.of(FlattenedCases.RANDOM.get(), shared);
+                var result = new LinkedHashSet<>(field1);
+                result.retainAll(field2);
+                return new TestCaseSupplier.TestCase(
+                    List.of(
+                        new TestCaseSupplier.TypedData(field1, DataType.FLATTENED, "field1"),
+                        new TestCaseSupplier.TypedData(field2, DataType.FLATTENED, "field2")
+                    ),
+                    "MvIntersectionBytesRefEvaluator[field1=Attribute[channel=0], field2=Attribute[channel=1]]",
+                    DataType.FLATTENED,
+                    matchResult(result)
+                );
+            }));
+        }
     }
 }

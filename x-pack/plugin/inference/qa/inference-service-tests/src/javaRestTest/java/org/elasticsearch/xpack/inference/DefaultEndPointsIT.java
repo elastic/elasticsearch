@@ -201,7 +201,7 @@ public class DefaultEndPointsIT extends InferenceBaseRestTest {
         );
     }
 
-    public void testMultipleInferencesTriggeringDownloadAndDeploy() throws InterruptedException {
+    public void testMultipleInferencesTriggeringDownloadAndDeploy() throws InterruptedException, IOException {
         int numParallelRequests = 4;
         var latch = new CountDownLatch(numParallelRequests);
         var errors = new ArrayList<Exception>();

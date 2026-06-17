@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.esql.expression.function.aggregate;
 
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.data.HistogramBlock;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -29,9 +27,7 @@ import org.elasticsearch.xpack.esql.expression.function.TimestampAware;
 import org.elasticsearch.xpack.esql.expression.function.scalar.histogram.ExtractHistogramComponent;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Div;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition;
-import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
-import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
@@ -46,11 +42,6 @@ public class AvgOverTime extends TimeSeriesAggregateFunction
         SurrogateExpression,
         TimestampAware,
         AggregateMetricDoubleNativeSupport {
-    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
-        Expression.class,
-        "AvgOverTime",
-        AvgOverTime::new
-    );
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(AvgOverTime.class)
         .ternary(AvgOverTime::new)
         .name("avg_over_time");
@@ -95,16 +86,6 @@ public class AvgOverTime extends TimeSeriesAggregateFunction
         this.timestamp = timestamp;
     }
 
-    private AvgOverTime(StreamInput in) throws IOException {
-        this(
-            Source.readFrom((PlanStreamInput) in),
-            in.readNamedWriteable(Expression.class),
-            in.readNamedWriteable(Expression.class),
-            readWindow(in),
-            in.readNamedWriteableCollectionAsList(Expression.class).getFirst()
-        );
-    }
-
     @Override
     protected TypeResolution resolveType() {
         return perTimeSeriesAggregation().resolveType();
@@ -112,7 +93,7 @@ public class AvgOverTime extends TimeSeriesAggregateFunction
 
     @Override
     public String getWriteableName() {
-        return ENTRY.name;
+        throw new UnsupportedOperationException("AvgOverTime is not directly serializable");
     }
 
     @Override

@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.esql.expression.function.aggregate;
 
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.compute.data.HistogramBlock;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -29,10 +27,8 @@ import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.TimestampAware;
 import org.elasticsearch.xpack.esql.expression.function.scalar.histogram.ExtractHistogramComponent;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition;
-import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.planner.ToAggregator;
 
-import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
@@ -46,11 +42,6 @@ public class SumOverTime extends TimeSeriesAggregateFunction
         TimestampAware,
         AggregateMetricDoubleNativeSupport,
         ToAggregator {
-    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
-        Expression.class,
-        "SumOverTime",
-        SumOverTime::new
-    );
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(SumOverTime.class)
         .ternary(SumOverTime::new)
         .name("sum_over_time");
@@ -95,19 +86,9 @@ public class SumOverTime extends TimeSeriesAggregateFunction
         this.timestamp = timestamp;
     }
 
-    private SumOverTime(StreamInput in) throws IOException {
-        this(
-            Source.readFrom((PlanStreamInput) in),
-            in.readNamedWriteable(Expression.class),
-            in.readNamedWriteable(Expression.class),
-            readWindow(in),
-            in.readNamedWriteableCollectionAsList(Expression.class).getFirst()
-        );
-    }
-
     @Override
     public String getWriteableName() {
-        return ENTRY.name;
+        throw new UnsupportedOperationException("SumOverTime is not directly serializable");
     }
 
     @Override

@@ -279,7 +279,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
                 yield mft == null
                     ? null
                     : compact.getConversionExpressionForType(
-                        EsqlDataTypeRegistry.INSTANCE.fromEs(mft.familyTypeName(), mft.getMetricType())
+                        EsqlDataTypeRegistry.INSTANCE.fromEs(mft.familyTypeName(), mft.getMetricType()).widenSmallNumeric()
                     );
             }
             case MultiTypeEsField legacy -> {

@@ -12,6 +12,7 @@ import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.transport.BytesTransportMessage;
+import org.elasticsearch.transport.BytesTransportResponse;
 import org.elasticsearch.transport.OutboundHandler;
 import org.elasticsearch.xpack.stateless.commits.GetVirtualBatchedCompoundCommitChunksPressure;
 
@@ -24,6 +25,11 @@ import java.io.IOException;
  * {@link #writeThin(StreamOutput)} into the transport header and appends {@link #bytes()} as a zero-copy suffix. The
  * {@link GetVirtualBatchedCompoundCommitChunksPressure} releasable is wrapped in the chunk bytes reference, so pressure
  * stays held until the outbound send completes rather than when the response is handed to the transport layer.
+ * <p>
+ * This does not use {@link BytesTransportResponse} because that class extends {@link org.elasticsearch.transport.TransportResponse}
+ * rather than {@link ActionResponse}, and its wire format also differs (it puts the fully serialized body in bytes, whereas
+ * here we split the length into writeThin and the payload into bytes). Also, we do not need its {@link org.elasticsearch.TransportVersion}
+ * since the response is opaque bytes, sent directly from the indexing node to the search node, without a proxy in-between.
  */
 public class GetVirtualBatchedCompoundCommitChunkResponse extends ActionResponse implements BytesTransportMessage {
 

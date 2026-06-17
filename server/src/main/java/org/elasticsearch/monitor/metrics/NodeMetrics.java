@@ -277,7 +277,11 @@ public class NodeMetrics extends AbstractLifecycleComponent {
                 "es.transport.data_read.rx.size",
                 "Size, in bytes, of data read operation requests received by the node, by operation type.",
                 "bytes",
-                () -> groupTransportBytesByOperation("indices:data/read/", true)
+                () -> groupTransportBytesByOperation(
+                    Optional.ofNullable(stats.getOrRefresh()).map(NodeStats::getTransport).orElse(null),
+                    "indices:data/read/",
+                    true
+                )
             )
         );
 
@@ -286,7 +290,11 @@ public class NodeMetrics extends AbstractLifecycleComponent {
                 "es.transport.data_read.tx.size",
                 "Size, in bytes, of data read operation responses sent by the node, by operation type.",
                 "bytes",
-                () -> groupTransportBytesByOperation("indices:data/read/", false)
+                () -> groupTransportBytesByOperation(
+                    Optional.ofNullable(stats.getOrRefresh()).map(NodeStats::getTransport).orElse(null),
+                    "indices:data/read/",
+                    false
+                )
             )
         );
 
@@ -295,7 +303,11 @@ public class NodeMetrics extends AbstractLifecycleComponent {
                 "es.transport.data_write.rx.size",
                 "Size, in bytes, of data write operation requests received by the node, by operation type.",
                 "bytes",
-                () -> groupTransportBytesByOperation("indices:data/write/", true)
+                () -> groupTransportBytesByOperation(
+                    Optional.ofNullable(stats.getOrRefresh()).map(NodeStats::getTransport).orElse(null),
+                    "indices:data/write/",
+                    true
+                )
             )
         );
 
@@ -304,7 +316,11 @@ public class NodeMetrics extends AbstractLifecycleComponent {
                 "es.transport.data_write.tx.size",
                 "Size, in bytes, of data write operation responses sent by the node, by operation type.",
                 "bytes",
-                () -> groupTransportBytesByOperation("indices:data/write/", false)
+                () -> groupTransportBytesByOperation(
+                    Optional.ofNullable(stats.getOrRefresh()).map(NodeStats::getTransport).orElse(null),
+                    "indices:data/write/",
+                    false
+                )
             )
         );
 
@@ -769,8 +785,11 @@ public class NodeMetrics extends AbstractLifecycleComponent {
      * the normalized segment (e.g. {@code search}, {@code esql}, {@code bulk}).
      * {@code useRequestSize} selects between request bytes (rx) and response bytes (tx).
      */
-    private Collection<LongWithAttributes> groupTransportBytesByOperation(String prefix, boolean useRequestSize) {
-        TransportStats transport = Optional.ofNullable(stats.getOrRefresh()).map(NodeStats::getTransport).orElse(null);
+    private static Collection<LongWithAttributes> groupTransportBytesByOperation(
+        TransportStats transport,
+        String prefix,
+        boolean useRequestSize
+    ) {
         if (transport == null) {
             return List.of();
         }

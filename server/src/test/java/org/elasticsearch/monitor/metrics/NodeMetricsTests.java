@@ -33,6 +33,22 @@ import static org.mockito.Mockito.when;
 
 public class NodeMetricsTests extends ESTestCase {
 
+    private static final List<String> TRANSPORT_DATA_COUNTER_NAMES = List.of(
+        "es.transport.data_read.rx.size",
+        "es.transport.data_read.tx.size",
+        "es.transport.data_write.rx.size",
+        "es.transport.data_write.tx.size"
+    );
+
+    private RecordingMeterRegistry registry;
+    private NodeMetrics nodeMetrics;
+
+    @Override
+    public void tearDown() throws Exception {
+        super.tearDown();
+        nodeMetrics.close();
+    }
+
     /**
      * Verifies that transport byte metrics for data read and write operations are correctly categorized
      * by operation, aggregated across action name variants (e.g. search phase sub-actions), and that
@@ -75,6 +91,55 @@ public class NodeMetricsTests extends ESTestCase {
             actionStats
         );
 
+        withTransportDataCounters(transportStats);
+
+        Map<String, Long> readRx = measurementsByOperation(registry, "es.transport.data_read.rx.size");
+        // search: 1000 (query phase) + 500 (fetch phase) aggregated
+        assertEquals(1500L, (long) readRx.get("search"));
+        assertEquals(300L, (long) readRx.get("esql"));
+        assertNull("cluster:admin actions must be excluded", readRx.get("settings"));
+        assertNull("indices:admin actions must be excluded", readRx.get("refresh"));
+
+        Map<String, Long> readTx = measurementsByOperation(registry, "es.transport.data_read.tx.size");
+        // search: 2000 (query phase) + 800 (fetch phase) aggregated
+        assertEquals(2800L, (long) readTx.get("search"));
+        assertEquals(600L, (long) readTx.get("esql"));
+
+        Map<String, Long> writeRx = measurementsByOperation(registry, "es.transport.data_write.rx.size");
+        assertEquals(5000L, (long) writeRx.get("bulk"));
+        assertEquals(4000L, (long) writeRx.get("bulk_shard_operations"));
+
+        Map<String, Long> writeTx = measurementsByOperation(registry, "es.transport.data_write.tx.size");
+        assertEquals(100L, (long) writeTx.get("bulk"));
+        assertEquals(80L, (long) writeTx.get("bulk_shard_operations"));
+    }
+
+    /**
+     * Verifies that all four transport byte counters emit no measurements when NodeStats returns null
+     * transport stats, rather than throwing.
+     */
+    public void testTransportDataActionMetricsWithNullTransport() {
+        withTransportDataCounters(null);
+
+        for (String name : TRANSPORT_DATA_COUNTER_NAMES) {
+            assertTrue(
+                "expected no measurements for " + name + " when transport stats are null",
+                registry.getRecorder().getMeasurements(InstrumentType.LONG_ASYNC_COUNTER, name).isEmpty()
+            );
+        }
+    }
+
+    /**
+     * Initializes {@link #registry} and {@link #nodeMetrics} backed by the given TransportStats and
+     * invokes the four transport data byte counters. Accepts null TransportStats to test the no-transport case.
+     *
+     * <p>NodeService requires a fully running Elasticsearch node to instantiate; a mock is used here.
+     * Only the four transport counters are invoked: collecting all registered metrics would trigger
+     * unrelated callbacks that NPE when NodeStats.indices is null (we only populate transport).
+     * RecordingAsyncLongCounter extends CallbackRecordingInstrument which implements Runnable;
+     * the cast triggers the observer callback and records measurements.
+     */
+    private void withTransportDataCounters(TransportStats transportStats) {
         NodeStats nodeStats = new NodeStats(
             DiscoveryNodeUtils.create("test-node"),
             0L,
@@ -97,7 +162,6 @@ public class NodeMetricsTests extends ESTestCase {
             null
         );
 
-        // NodeService requires a fully running Elasticsearch node to instantiate; a mock is used here
         NodeService nodeService = mock(NodeService.class);
         when(
             nodeService.stats(
@@ -121,39 +185,11 @@ public class NodeMetricsTests extends ESTestCase {
             )
         ).thenReturn(nodeStats);
 
-        RecordingMeterRegistry registry = new RecordingMeterRegistry();
-        try (NodeMetrics nodeMetrics = new NodeMetrics(registry, nodeService, TimeValue.timeValueSeconds(10))) {
-            nodeMetrics.start();
-            // Invoke only the four transport counters; collecting all registered metrics would trigger
-            // unrelated callbacks that NPE when NodeStats.indices is null (we only populate transport)
-            for (String name : List.of(
-                "es.transport.data_read.rx.size",
-                "es.transport.data_read.tx.size",
-                "es.transport.data_write.rx.size",
-                "es.transport.data_write.tx.size"
-            )) {
-                ((Runnable) registry.getLongAsyncCounter(name)).run();
-            }
-
-            Map<String, Long> readRx = measurementsByOperation(registry, "es.transport.data_read.rx.size");
-            // search: 1000 (query phase) + 500 (fetch phase) aggregated
-            assertEquals(1500L, (long) readRx.get("search"));
-            assertEquals(300L, (long) readRx.get("esql"));
-            assertNull("cluster:admin actions must be excluded", readRx.get("settings"));
-            assertNull("indices:admin actions must be excluded", readRx.get("refresh"));
-
-            Map<String, Long> readTx = measurementsByOperation(registry, "es.transport.data_read.tx.size");
-            // search: 2000 (query phase) + 800 (fetch phase) aggregated
-            assertEquals(2800L, (long) readTx.get("search"));
-            assertEquals(600L, (long) readTx.get("esql"));
-
-            Map<String, Long> writeRx = measurementsByOperation(registry, "es.transport.data_write.rx.size");
-            assertEquals(5000L, (long) writeRx.get("bulk"));
-            assertEquals(4000L, (long) writeRx.get("bulk_shard_operations"));
-
-            Map<String, Long> writeTx = measurementsByOperation(registry, "es.transport.data_write.tx.size");
-            assertEquals(100L, (long) writeTx.get("bulk"));
-            assertEquals(80L, (long) writeTx.get("bulk_shard_operations"));
+        registry = new RecordingMeterRegistry();
+        nodeMetrics = new NodeMetrics(registry, nodeService, TimeValue.timeValueSeconds(10));
+        nodeMetrics.start();
+        for (String name : TRANSPORT_DATA_COUNTER_NAMES) {
+            ((Runnable) registry.getLongAsyncCounter(name)).run();
         }
     }
 

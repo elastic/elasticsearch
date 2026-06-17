@@ -23,10 +23,16 @@ import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.SegmentReader;
+import org.apache.lucene.index.TieredMergePolicy;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.util.TestUtil;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.index.codec.vectors.diskbbq.CalibrationAwareReader;
+import org.elasticsearch.index.codec.vectors.diskbbq.IvfAutoCalibration;
+import org.elasticsearch.index.codec.vectors.diskbbq.IvfFlushConfigSource;
+import org.elasticsearch.index.codec.vectors.diskbbq.IvfMergeConfigResolver;
+import org.elasticsearch.index.codec.vectors.diskbbq.IvfSegmentConfig;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 
 import java.io.IOException;
@@ -157,23 +163,140 @@ public final class ESNextRescoreOversampleTestFixture {
         }
     }
 
+    /**
+     * Builds two flushed segments with disagreeing calibration metadata, then force-merges to one segment
+     *  so merge-time auto-calibration runs.
+     */
+    public static DirectoryReader buildForceMergedWithDisagreeingFlushCalibration(
+        Directory dir,
+        Random rnd,
+        int vectorDimensions,
+        int vectorsPerSegment,
+        int vectorsPerCluster
+    ) throws IOException {
+        AtomicInteger flushSequence = new AtomicInteger(0);
+        IvfFlushConfigSource flushConfig = (state, fieldInfo) -> {
+            if (FIELD_NAME.equals(fieldInfo.name) == false) {
+                return Optional.empty();
+            }
+            int seq = flushSequence.getAndIncrement();
+            if (seq == 0) {
+                return Optional.of(new IvfSegmentConfig(ESNextDiskBBQVectorsFormat.QuantEncoding.ONE_BIT_4BIT_QUERY, false, 2f));
+            }
+            return Optional.of(new IvfSegmentConfig(ESNextDiskBBQVectorsFormat.QuantEncoding.TWO_BIT_4BIT_QUERY, false, 3f));
+        };
+        Codec codec = createDiskBbqCodec(flushConfig, IvfAutoCalibration.mergeConfigResolver(vectorsPerCluster));
+        IndexWriterConfig iwcNoMerge = new IndexWriterConfig(new StandardAnalyzer()).setCodec(codec).setMergePolicy(NoMergePolicy.INSTANCE);
+        writeTwoCommits(rnd, vectorsPerSegment, vectorDimensions, dir, iwcNoMerge);
+
+        IndexWriterConfig iwcMerge = new IndexWriterConfig(new StandardAnalyzer()).setCodec(codec);
+        try (IndexWriter mergeWriter = new IndexWriter(dir, iwcMerge)) {
+            mergeWriter.forceMerge(1);
+        }
+        DirectoryReader reader = DirectoryReader.open(dir);
+        assertEquals(1, reader.leaves().size());
+        return reader;
+    }
+
+    /**
+     * Two flushed segments with disagreeing calibration metadata, merged by a background tiered merge
+     * (not force-merge), so {@link IvfAutoCalibration} falls back to codec default when metadata reuse fails.
+     */
+    public static DirectoryReader buildBackgroundMergedWithDisagreeingFlushCalibration(
+        Directory dir,
+        Random rnd,
+        int vectorDimensions,
+        int vectorsPerSegment,
+        int vectorsPerCluster
+    ) throws IOException {
+        AtomicInteger flushSequence = new AtomicInteger(0);
+        IvfFlushConfigSource flushConfig = (state, fieldInfo) -> {
+            if (FIELD_NAME.equals(fieldInfo.name) == false) {
+                return Optional.empty();
+            }
+            int seq = flushSequence.getAndIncrement();
+            if (seq == 0) {
+                return Optional.of(new IvfSegmentConfig(ESNextDiskBBQVectorsFormat.QuantEncoding.ONE_BIT_4BIT_QUERY, false, 2f));
+            }
+            return Optional.of(new IvfSegmentConfig(ESNextDiskBBQVectorsFormat.QuantEncoding.TWO_BIT_4BIT_QUERY, false, 3f));
+        };
+        Codec codec = createDiskBbqCodec(flushConfig, IvfAutoCalibration.mergeConfigResolver(vectorsPerCluster));
+        IndexWriterConfig iwcNoMerge = new IndexWriterConfig(new StandardAnalyzer()).setCodec(codec).setMergePolicy(NoMergePolicy.INSTANCE);
+        writeTwoCommits(rnd, vectorsPerSegment, vectorDimensions, dir, iwcNoMerge);
+
+        TieredMergePolicy mergePolicy = new TieredMergePolicy();
+        mergePolicy.setSegmentsPerTier(2);
+        mergePolicy.setMaxMergeAtOnce(10);
+        IndexWriterConfig iwcMerge = new IndexWriterConfig(new StandardAnalyzer()).setCodec(codec).setMergePolicy(mergePolicy);
+        try (IndexWriter mergeWriter = new IndexWriter(dir, iwcMerge)) {
+            for (int i = 0; i < vectorsPerSegment; i++) {
+                Document d = new Document();
+                d.add(new KnnFloatVectorField(FIELD_NAME, randomUnitVector(rnd, vectorDimensions), VectorSimilarityFunction.EUCLIDEAN));
+                mergeWriter.addDocument(d);
+            }
+            mergeWriter.commit();
+        }
+        DirectoryReader reader = DirectoryReader.open(dir);
+        assertEquals("background merge should collapse disagreeing segments", 1, reader.leaves().size());
+        return reader;
+    }
+
+    public static IvfSegmentConfig readPersistedSegmentConfig(LeafReader leaf) throws IOException {
+        ESNextDiskBBQVectorsFormat.QuantEncoding encoding = persistedQuantEncodingOnLeaf(leaf);
+        if (encoding == null) {
+            return null;
+        }
+        return new IvfSegmentConfig(encoding, persistedPreconditionOnLeaf(leaf), persistedOversampleOnLeaf(leaf));
+    }
+
+    public static ESNextDiskBBQVectorsFormat.QuantEncoding persistedQuantEncodingOnLeaf(LeafReader leaf) throws IOException {
+        CalibrationAwareReader reader = calibrationAwareReaderOnLeaf(leaf);
+        if (reader == null) {
+            return null;
+        }
+        FieldInfo fieldInfo = fieldInfoOnLeaf(leaf);
+        return fieldInfo == null ? null : reader.getQuantEncoding(fieldInfo);
+    }
+
+    public static boolean persistedPreconditionOnLeaf(LeafReader leaf) throws IOException {
+        CalibrationAwareReader reader = calibrationAwareReaderOnLeaf(leaf);
+        if (reader == null) {
+            return false;
+        }
+        FieldInfo fieldInfo = fieldInfoOnLeaf(leaf);
+        return fieldInfo != null && reader.shouldPrecondition(fieldInfo);
+    }
+
     public static float persistedOversampleOnLeaf(LeafReader leaf) throws IOException {
-        SegmentReader segmentReader = Lucene.tryUnwrapSegmentReader(leaf);
-        if (segmentReader == null) {
+        CalibrationAwareReader reader = calibrationAwareReaderOnLeaf(leaf);
+        if (reader == null) {
             return Float.NaN;
         }
-        FieldInfo fieldInfo = segmentReader.getFieldInfos().fieldInfo(FIELD_NAME);
-        if (fieldInfo == null) {
-            return Float.NaN;
+        FieldInfo fieldInfo = fieldInfoOnLeaf(leaf);
+        return fieldInfo == null ? Float.NaN : reader.getOversampleFactor(fieldInfo);
+    }
+
+    private static FieldInfo fieldInfoOnLeaf(LeafReader leaf) throws IOException {
+        SegmentReader segmentReader = Lucene.tryUnwrapSegmentReader(leaf);
+        if (segmentReader == null) {
+            return null;
+        }
+        return segmentReader.getFieldInfos().fieldInfo(FIELD_NAME);
+    }
+
+    private static CalibrationAwareReader calibrationAwareReaderOnLeaf(LeafReader leaf) throws IOException {
+        SegmentReader segmentReader = Lucene.tryUnwrapSegmentReader(leaf);
+        if (segmentReader == null) {
+            return null;
         }
         KnnVectorsReader kvr = segmentReader.getVectorReader();
         if (kvr instanceof PerFieldKnnVectorsFormat.FieldsReader perField) {
             kvr = perField.getFieldReader(FIELD_NAME);
         }
-        if (kvr instanceof ESNextDiskBBQVectorsReader esr) {
-            return esr.getRescoreOversample(fieldInfo);
+        if (kvr instanceof CalibrationAwareReader calibrationAwareReader) {
+            return calibrationAwareReader;
         }
-        return Float.NaN;
+        return null;
     }
 
     public static void assertLeafOversamples(DirectoryReader reader, float oversampleSegmentA, float oversampleSegmentB)

@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.prometheus.rest.PrometheusQueryResponseListener.Q
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
@@ -173,6 +174,21 @@ public class PrometheusQueryResponseListenerTests extends ESTestCase {
             ObjectPath path = toObjectPath(builder);
             // 2025-01-01T00:00:00.000Z = 1735689600 epoch seconds
             assertThat(path.evaluate("data.result.0.values.0"), equalTo(List.of(1735689600.0, "1.0")));
+        }
+    }
+
+    public void testConvertRangeFoldableScalarQuery() throws IOException {
+        List<TestColumnInfo> columns = List.of(new TestColumnInfo("value", "double"), new TestColumnInfo("step", "long"));
+        List<List<Object>> rows = List.of(List.of(List.of(42.0, 42.0), List.of(1735689600000L, 1735689660000L)));
+
+        EsqlResponse response = new TestEsqlResponse(columns, rows);
+        try (XContentBuilder builder = PrometheusQueryResponseListener.convertToPrometheusJson(response, "matrix", QueryMode.RANGE)) {
+            ObjectPath path = toObjectPath(builder);
+            assertSuccessMatrix(path);
+            assertThat(path.evaluate("data.result"), hasSize(1));
+            assertThat(path.evaluate("data.result.0.metric"), equalTo(Map.of()));
+            assertThat(path.evaluate("data.result.0.values.0"), equalTo(List.of(1735689600.0, "42.0")));
+            assertThat(path.evaluate("data.result.0.values.1"), equalTo(List.of(1735689660.0, "42.0")));
         }
     }
 

@@ -415,4 +415,39 @@ public class TranslogIndexBatchTests extends ESTestCase {
         assertTrue("unexpected exception message: " + ex.getMessage(), ex.getMessage() != null && ex.getMessage().contains("batch"));
     }
 
+    public void testSeqNumberConflictAssertsDifferentOps() throws IOException {
+        final long term = primaryTerm.get();
+        final Translog.Index op0 = new Translog.Index(Uid.encodeId("solo-0"), 0, term, 1L, new BytesArray("{\"k\":\"v0\"}"), null, -1L);
+        translog.add(op0);
+
+        translog.add(new Translog.Delete("solo-3", 2, term));
+
+        final Translog.IndexBatch batchA = buildBatch(List.of(Map.of("k", "v1"), Map.of("k", "v2")), XContentType.JSON, 1L, term);
+
+        // Assertion should fail since batchA will contain seqNo 2 which was added as a Delete Op.
+        expectThrows(AssertionError.class, () -> translog.add(batchA));
+    }
+
+    public void testSeqNumberConflictAssertsSemanticEquality() throws IOException {
+        final long term = primaryTerm.get();
+        final Translog.Index op0 = new Translog.Index(Uid.encodeId("doc-0"), 0, term, 1L, new BytesArray("{\"k\":\"v1\"}"), null, -1L);
+        translog.add(op0);
+
+        final Translog.IndexBatch batchA = buildBatch(List.of(Map.of("k", "v1"), Map.of("k", "v2")), XContentType.JSON, 0L, term);
+
+        // Assertion should succeed since batchA will contain seqNo 0 which was same as the individual op that was added.
+        translog.add(batchA);
+    }
+
+    public void testSeqNumberConflictAssertsSemanticInEquality() throws IOException {
+        final long term = primaryTerm.get();
+        final Translog.Index op0 = new Translog.Index(Uid.encodeId("solo-0"), 0, term, 1L, new BytesArray("{\"k\":\"v1\"}"), null, -1L);
+        translog.add(op0);
+
+        final Translog.IndexBatch batchA = buildBatch(List.of(Map.of("k", "v1"), Map.of("k", "v2")), XContentType.JSON, 0L, term);
+
+        // Assertion should fail since batchA will contain seqNo 0 with a different uid.
+        expectThrows(AssertionError.class, () -> translog.add(batchA));
+    }
+
 }

@@ -57,13 +57,11 @@
 
   # Delete a doc and force merge
   - do:
-      bulk:
+      delete:
         index: my_vectors
+        id: "1"
         refresh: true
-        body:
-          - delete:
-              _id: "1"
-  - match: { errors: false }
+  - match: { result: "deleted" }
 
   - do:
       indices.forcemerge:
@@ -84,13 +82,12 @@
 
   # Re-index doc 3 with a vector close to doc 1's original, then force merge
   - do:
-      bulk:
+      index:
         index: my_vectors
+        id: "3"
         refresh: true
         body:
-          - index:
-              _id: "3"
-          - vector: [230.0, 300.33, -34.8988, 15.555, -200.0]
+          vector: [230.0, 300.33, -34.8988, 15.555, -200.0]
 
   - do:
       indices.forcemerge:

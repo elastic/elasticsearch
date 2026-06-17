@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.inference.external.http.sender;
 
+import org.elasticsearch.inference.InferenceObjectRamBytesUsedTest;
+
 import java.util.List;
 
 public class ChatCompletionInputTests extends InferenceObjectRamBytesUsedTest<ChatCompletionInput> {

@@ -31,12 +31,12 @@ FROM partial_mapping_sample_data
 // The output column is only _unmapped_fields (no mapped columns match unmapped*).
 keepUnmappedStar
 required_capability: optional_fields_load_all
-ignoreOrder:true
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM partial_mapping_sample_data
 | KEEP unmapped*
 ;
+ignoreOrder:true
 
 _unmapped_fields:keyword
 "{""unmapped.nested"":""a"",""unmapped_event_duration"":""1756468"",""unmapped_message"":""Disconnected from 10.1.0.1""}"
@@ -122,11 +122,11 @@ FROM partial_mapping_sample_data
 // lands in _unmapped_fields. The output has only the synthetic column.
 allFieldsUnmapped
 required_capability: optional_fields_load_all
-ignoreOrder:true
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM no_mapping_sample_data
 ;
+ignoreOrder:true
 
 _unmapped_fields:keyword
 "{""@timestamp"":""2024-10-23T12:15:03.360Z"",""client_ip"":""173.21.2.162"",""event_duration"":3450232,""language_code"":""4"",""message"":""Connected to 10.1.0.3!"",""unmapped.nested"":""g"",""unmapped_event_duration"":""3450234"",""unmapped_message"":""Disconnected from 10.1.0.3""}"

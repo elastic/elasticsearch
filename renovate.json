@@ -50,8 +50,8 @@
       "separateMinorPatch": true,
       "automerge": false,
       "rebaseWhen": "behind-base-branch",
-      "branchTopic": "gradle-wrapper-{{{newMajor}}}.{{{newMinor}}}.x",
-      "commitMessageTopic": "Gradle wrapper {{{newMajor}}}.{{{newMinor}}}.x",
+      "branchTopic": "gradle-wrapper-{{{newMajor}}}.{{{newMinor}}}.{{{newBugfix}}}",
+      "commitMessageTopic": "Gradle wrapper {{{newMajor}}}.{{{newMinor}}}.{{{newBugfix}}}",
       "schedule": ["at any time"],
       "labels": [":Delivery/Build", ">non-issue", "auto-backport"]
     }

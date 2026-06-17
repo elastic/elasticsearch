@@ -227,9 +227,11 @@ FROM logs-*
 Use wildcards in [`KEEP`](/reference/query-languages/esql/commands/keep.md) sparingly. `host.*` is better than no `KEEP` at all, but `host.name` is better than `host.*` because it avoids pulling in adjacent fields.
 :::
 
+When using the REST API on sparse datasets where many columns are `null`, consider setting the [`drop_null_columns`](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-esql-async-query-get#operation-esql-async-query-get-drop_null_columns) query parameter. This removes columns that contain only `null` values from the response, which can significantly reduce serialization overhead.
+
 ### Cap rows with LIMIT
 
-Always include a [`LIMIT`](/reference/query-languages/esql/commands/limit.md) on queries that return raw rows. Large result sets cause slow serialization and can trigger deserialization errors in {{kib}}.
+Always include a [`LIMIT`](/reference/query-languages/esql/commands/limit.md) on queries that return raw rows. {{esql}} appends a default limit of 1000 rows to every query. Reducing it with an explicit `LIMIT` is one of the simplest ways to speed up a query. Increasing it beyond the default makes serialization slower and can trigger deserialization errors in {{kib}}. The maximum configurable limit is 10,000 rows.
 
 ❌ **Don't:** Leave the result set unbounded
 ```esql
@@ -253,7 +255,7 @@ Some {{esql}} operations are intrinsically more expensive than their alternative
 
 ### Use full-text search instead of LIKE or RLIKE
 
-For text search, prefer [`MATCH`](/reference/query-languages/esql/functions-operators/search-functions/match.md), [`MATCH_PHRASE`](/reference/query-languages/esql/functions-operators/search-functions/match_phrase.md), [`QSTR`](/reference/query-languages/esql/functions-operators/search-functions/qstr.md), or [`KQL`](/reference/query-languages/esql/functions-operators/search-functions/kql.md) over [`LIKE`](/reference/query-languages/esql/functions-operators/operators.md#esql-like) or [`RLIKE`](/reference/query-languages/esql/functions-operators/operators.md#esql-rlike). The full-text search functions use the inverted index and are optimized for analyzed text. `LIKE` and `RLIKE` are pattern-matching operators. Pre 8.18/9.0 they are especially costly because they are not pushed down to Lucene.
+For text search, prefer [`MATCH`](/reference/query-languages/esql/functions-operators/search-functions/match.md), [`MATCH_PHRASE`](/reference/query-languages/esql/functions-operators/search-functions/match_phrase.md), [`QSTR`](/reference/query-languages/esql/functions-operators/search-functions/qstr.md), or [`KQL`](/reference/query-languages/esql/functions-operators/search-functions/kql.md) over [`LIKE`](/reference/query-languages/esql/functions-operators/operators.md#esql-like) or [`RLIKE`](/reference/query-languages/esql/functions-operators/operators.md#esql-rlike). The full-text search functions use the inverted index and are optimized for analyzed text. `LIKE` and `RLIKE` are pattern-matching operators. Pre 8.18/9.0 they are especially costly because they are not pushed down to Lucene. Leading wildcards (for example `*something`) are particularly expensive because they cannot use the inverted index efficiently.
 
 ❌ **Don't:** Use pattern matching on free text with [`LIKE`](/reference/query-languages/esql/functions-operators/operators.md#esql-like)
 ```esql
@@ -305,7 +307,7 @@ Common reductions include: bucketing timestamps with [`DATE_TRUNC`](/reference/q
 
 {{esql}} reads field values through a block-loading system that strongly prefers [doc values](/reference/elasticsearch/mapping-reference/doc-values.md). Fields with doc values, such as `keyword`, [numeric](/reference/elasticsearch/mapping-reference/number.md), `date`, and `ip` types, are read in fast columnar batches. Fields without doc values, such as `text` and `match_only_text`, fall back to reading [`_source`](/reference/elasticsearch/mapping-reference/mapping-source-field.md), which requires decompressing and parsing the full JSON document per row. This applies to any operation that reads the field value, including filtering, grouping, sorting, and returning fields through [`KEEP`](/reference/query-languages/esql/commands/keep.md).
 
-When a `.keyword` subfield exists, prefer it for filtering, grouping, and returning. When one does not, filter aggressively to limit the number of documents that require `_source` reads.
+If an exact `.keyword` subfield exists, the query planner automatically rewrites expressions to use it, so `message` and `message.keyword` perform the same in that case. However, if the `text` field has no `keyword` subfield, or if the subfield is not exact (for example, it uses `ignore_above`), the planner cannot rewrite and falls back to reading from `_source`, which is significantly slower. When no exact subfield is available, filter aggressively to limit the number of documents that require `_source` reads.
 
 ❌ **Don't:** Group by an analyzed field
 ```esql

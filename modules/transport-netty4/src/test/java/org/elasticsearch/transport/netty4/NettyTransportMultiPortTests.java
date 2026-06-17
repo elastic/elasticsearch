@@ -15,7 +15,7 @@ import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.network.NetworkUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
-import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.common.util.PageRecycler;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -108,7 +108,7 @@ public class NettyTransportMultiPortTests extends ESTestCase {
     }
 
     private TcpTransport startTransport(Settings settings, ThreadPool threadPool) {
-        PageCacheRecycler recycler = new MockPageCacheRecycler(Settings.EMPTY);
+        PageRecycler recycler = new MockPageCacheRecycler(Settings.EMPTY);
         TcpTransport transport = new Netty4Transport(
             settings,
             TransportVersion.current(),

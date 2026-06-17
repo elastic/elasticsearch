@@ -15,6 +15,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.common.util.PageRecycler;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -31,7 +32,7 @@ import java.util.Objects;
  */
 public abstract class SwissHash {
 
-    protected final PageCacheRecycler recycler;
+    protected final PageRecycler recycler;
     protected final CircuitBreaker breaker;
 
     protected int capacity;
@@ -40,7 +41,7 @@ public abstract class SwissHash {
     protected int size;
     protected int growCount;
 
-    protected SwissHash(PageCacheRecycler recycler, CircuitBreaker breaker, int initialCapacity, float smallCoreFillFactor) {
+    protected SwissHash(PageRecycler recycler, CircuitBreaker breaker, int initialCapacity, float smallCoreFillFactor) {
         this.breaker = Objects.requireNonNull(breaker);
         this.recycler = recycler == null ? PageCacheRecycler.NON_RECYCLING_INSTANCE : recycler;
 

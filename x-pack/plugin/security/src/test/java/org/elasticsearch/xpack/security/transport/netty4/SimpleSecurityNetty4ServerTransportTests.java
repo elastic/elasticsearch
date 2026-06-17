@@ -34,6 +34,7 @@ import org.elasticsearch.common.ssl.SslClientAuthenticationMode;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.common.util.PageRecycler;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
@@ -1077,7 +1078,7 @@ public class SimpleSecurityNetty4ServerTransportTests extends AbstractSimpleTran
             TransportVersion version,
             ThreadPool threadPool,
             NetworkService networkService,
-            PageCacheRecycler pageCacheRecycler,
+            PageRecycler pageCacheRecycler,
             NamedWriteableRegistry namedWriteableRegistry,
             CircuitBreakerService circuitBreakerService,
             IPFilter authenticator,

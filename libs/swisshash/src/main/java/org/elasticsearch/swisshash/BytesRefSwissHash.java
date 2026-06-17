@@ -22,6 +22,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BytesRefArray;
 import org.elasticsearch.common.util.BytesRefHashTable;
 import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.common.util.PageRecycler;
 import org.elasticsearch.core.Releasables;
 
 import java.lang.invoke.MethodHandles;
@@ -110,7 +111,7 @@ public final class BytesRefSwissHash extends SwissHash implements Accountable, B
     /**
      * Creates a new {@link BytesRefSwissHash} that manages its own {@link BytesRefArray}.
      */
-    BytesRefSwissHash(PageCacheRecycler recycler, CircuitBreaker breaker, BigArrays bigArrays) {
+    BytesRefSwissHash(PageRecycler recycler, CircuitBreaker breaker, BigArrays bigArrays) {
         this(recycler, breaker, new BytesRefArray(PageCacheRecycler.PAGE_SIZE_IN_BYTES, bigArrays), true);
     }
 
@@ -118,11 +119,11 @@ public final class BytesRefSwissHash extends SwissHash implements Accountable, B
      * Creates a new {@link BytesRefSwissHash} that uses the provided {@link BytesRefArray}.
      * This allows multiple {@link BytesRefSwissHash} to share the same key storage and ID space.
      */
-    BytesRefSwissHash(PageCacheRecycler recycler, CircuitBreaker breaker, BytesRefArray bytesRefs) {
+    BytesRefSwissHash(PageRecycler recycler, CircuitBreaker breaker, BytesRefArray bytesRefs) {
         this(recycler, breaker, bytesRefs, false);
     }
 
-    private BytesRefSwissHash(PageCacheRecycler recycler, CircuitBreaker breaker, BytesRefArray bytesRefs, boolean ownsBytesRefs) {
+    private BytesRefSwissHash(PageRecycler recycler, CircuitBreaker breaker, BytesRefArray bytesRefs, boolean ownsBytesRefs) {
         super(recycler, breaker, INITIAL_CAPACITY, SmallCore.FILL_FACTOR);
         this.bytesRefs = bytesRefs;
         this.ownsBytesRefs = ownsBytesRefs;

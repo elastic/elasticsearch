@@ -87,7 +87,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.common.util.PageRecycler;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.SuppressForbidden;
@@ -791,7 +791,7 @@ class NodeConstruction {
             settingsModule.getSettings(),
             settingsModule.getClusterSettings()
         );
-        PageCacheRecycler pageCacheRecycler = serviceProvider.newPageCacheRecycler(pluginsService, settings);
+        PageRecycler pageCacheRecycler = serviceProvider.newPageCacheRecycler(pluginsService, settings);
         BigArrays bigArrays = serviceProvider.newBigArrays(pluginsService, pageCacheRecycler, circuitBreakerService);
 
         final RecoverySettings recoverySettings = new RecoverySettings(settings, settingsModule.getClusterSettings());
@@ -1405,7 +1405,7 @@ class NodeConstruction {
         modules.add(b -> {
             b.bind(NodeService.class).toInstance(nodeService);
             b.bind(BigArrays.class).toInstance(bigArrays);
-            b.bind(PageCacheRecycler.class).toInstance(pageCacheRecycler);
+            b.bind(PageRecycler.class).toInstance(pageCacheRecycler);
             b.bind(IngestService.class).toInstance(ingestService);
             b.bind(UserAgentParserRegistry.class).toInstance(userAgentParserRegistry);
             b.bind(IpLocationService.class).toInstance(ipLocationService);

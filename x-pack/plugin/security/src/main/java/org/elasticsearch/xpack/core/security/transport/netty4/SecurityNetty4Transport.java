@@ -25,7 +25,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.common.util.PageRecycler;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -86,7 +86,7 @@ public class SecurityNetty4Transport extends Netty4Transport {
         final TransportVersion version,
         final ThreadPool threadPool,
         final NetworkService networkService,
-        final PageCacheRecycler pageCacheRecycler,
+        final PageRecycler pageCacheRecycler,
         final NamedWriteableRegistry namedWriteableRegistry,
         final CircuitBreakerService circuitBreakerService,
         final SSLService sslService,

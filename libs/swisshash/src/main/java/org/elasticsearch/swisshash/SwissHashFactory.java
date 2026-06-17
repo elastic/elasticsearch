@@ -11,7 +11,7 @@ package org.elasticsearch.swisshash;
 
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.common.util.PageRecycler;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 
@@ -30,25 +30,25 @@ public abstract class SwissHashFactory {
         return INSTANCE;
     }
 
-    public abstract LongSwissHash newLongSwissHash(PageCacheRecycler recycler, CircuitBreaker breaker);
+    public abstract LongSwissHash newLongSwissHash(PageRecycler recycler, CircuitBreaker breaker);
 
-    public abstract LongLongSwissHash newLongLongSwissHash(PageCacheRecycler recycler, CircuitBreaker breaker);
+    public abstract LongLongSwissHash newLongLongSwissHash(PageRecycler recycler, CircuitBreaker breaker);
 
-    public abstract BytesRefSwissHash newBytesRefSwissHash(PageCacheRecycler recycler, CircuitBreaker breaker, BigArrays bigArrays);
+    public abstract BytesRefSwissHash newBytesRefSwissHash(PageRecycler recycler, CircuitBreaker breaker, BigArrays bigArrays);
 
     private static final class SwissHashFactoryImpl extends SwissHashFactory {
         @Override
-        public LongSwissHash newLongSwissHash(PageCacheRecycler recycler, CircuitBreaker breaker) {
+        public LongSwissHash newLongSwissHash(PageRecycler recycler, CircuitBreaker breaker) {
             return new LongSwissHash(recycler, breaker);
         }
 
         @Override
-        public LongLongSwissHash newLongLongSwissHash(PageCacheRecycler recycler, CircuitBreaker breaker) {
+        public LongLongSwissHash newLongLongSwissHash(PageRecycler recycler, CircuitBreaker breaker) {
             return new LongLongSwissHash(recycler, breaker);
         }
 
         @Override
-        public BytesRefSwissHash newBytesRefSwissHash(PageCacheRecycler recycler, CircuitBreaker breaker, BigArrays bigArrays) {
+        public BytesRefSwissHash newBytesRefSwissHash(PageRecycler recycler, CircuitBreaker breaker, BigArrays bigArrays) {
             return new BytesRefSwissHash(recycler, breaker, bigArrays);
         }
     }

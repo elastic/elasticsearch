@@ -26,8 +26,8 @@ import static org.elasticsearch.common.recycler.Recyclers.concurrentDeque;
 import static org.elasticsearch.common.recycler.Recyclers.dequeFactory;
 import static org.elasticsearch.common.recycler.Recyclers.none;
 
-/** A recycler of fixed-size pages. */
-public class PageCacheRecycler {
+/// A recycler of fixed-size pages.
+public class PageCacheRecycler implements PageRecycler {
 
     public static final Setting<Type> TYPE_SETTING = new Setting<>(
         "cache.recycler.page.type",
@@ -68,7 +68,7 @@ public class PageCacheRecycler {
         Property.NodeScope
     );
 
-    /** Page size in bytes: 16KB */
+    /// Page size in bytes: 16KB
     public static final int PAGE_SIZE_IN_BYTES = 1 << 14;
     public static final int OBJECT_PAGE_SIZE = PAGE_SIZE_IN_BYTES / RamUsageEstimator.NUM_BYTES_OBJECT_REF;
     public static final int LONG_PAGE_SIZE = PAGE_SIZE_IN_BYTES / Long.BYTES;
@@ -77,14 +77,14 @@ public class PageCacheRecycler {
     public static final int DOUBLE_PAGE_SIZE = PAGE_SIZE_IN_BYTES / Double.BYTES;
     public static final int BYTE_PAGE_SIZE = PAGE_SIZE_IN_BYTES;
 
-    private final Recycler<byte[]> bytePage;
-    private final Recycler<Object[]> objectPage;
-
-    public static final PageCacheRecycler NON_RECYCLING_INSTANCE;
+    public static final PageRecycler NON_RECYCLING_INSTANCE;
 
     static {
         NON_RECYCLING_INSTANCE = new PageCacheRecycler(Settings.builder().put(LIMIT_HEAP_SETTING.getKey(), "0%").build());
     }
+
+    private final Recycler<byte[]> bytePage;
+    private final Recycler<Object[]> objectPage;
 
     public PageCacheRecycler(Settings settings) {
         final Type type = TYPE_SETTING.get(settings);
@@ -138,6 +138,7 @@ public class PageCacheRecycler {
         assert PAGE_SIZE_IN_BYTES * (maxBytePageCount + maxObjectPageCount) <= limit;
     }
 
+    @Override
     public Recycler.V<byte[]> bytePage(boolean clear) {
         final Recycler.V<byte[]> v = bytePage.obtain();
         if (v.isRecycled() && clear) {
@@ -146,6 +147,7 @@ public class PageCacheRecycler {
         return v;
     }
 
+    @Override
     public Recycler.V<Object[]> objectPage() {
         // object pages are cleared on release anyway
         return objectPage.obtain();

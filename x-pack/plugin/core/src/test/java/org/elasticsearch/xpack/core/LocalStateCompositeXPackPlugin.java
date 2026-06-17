@@ -36,7 +36,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.common.util.PageRecycler;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
@@ -326,7 +326,7 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin
     public Map<String, Supplier<Transport>> getTransports(
         Settings settings,
         ThreadPool threadPool,
-        PageCacheRecycler pageCacheRecycler,
+        PageRecycler pageCacheRecycler,
         CircuitBreakerService circuitBreakerService,
         NamedWriteableRegistry namedWriteableRegistry,
         NetworkService networkService
@@ -348,7 +348,7 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin
         Settings settings,
         ThreadPool threadPool,
         BigArrays bigArrays,
-        PageCacheRecycler pageCacheRecycler,
+        PageRecycler pageCacheRecycler,
         CircuitBreakerService circuitBreakerService,
         NamedXContentRegistry xContentRegistry,
         NetworkService networkService,

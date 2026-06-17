@@ -14,7 +14,7 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
-import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.common.util.PageRecycler;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
 
@@ -23,7 +23,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.sameInstance;
 
 public class PagedBytesCursorTests extends ESTestCase {
-    private final PageCacheRecycler recycler = new MockPageCacheRecycler(Settings.EMPTY);
+    private final PageRecycler recycler = new MockPageCacheRecycler(Settings.EMPTY);
 
     public void testReadByte() {
         CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(1));

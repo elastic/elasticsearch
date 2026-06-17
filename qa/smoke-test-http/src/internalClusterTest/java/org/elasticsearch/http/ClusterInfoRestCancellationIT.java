@@ -20,7 +20,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.CollectionUtils;
-import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.common.util.PageRecycler;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.http.netty4.Netty4HttpServerTransport;
 import org.elasticsearch.http.netty4.internal.HttpValidator;
@@ -102,7 +102,7 @@ public class ClusterInfoRestCancellationIT extends HttpSmokeTestCase {
             Settings settings,
             ThreadPool threadPool,
             BigArrays bigArrays,
-            PageCacheRecycler pageCacheRecycler,
+            PageRecycler pageCacheRecycler,
             CircuitBreakerService circuitBreakerService,
             NamedXContentRegistry xContentRegistry,
             NetworkService networkService,

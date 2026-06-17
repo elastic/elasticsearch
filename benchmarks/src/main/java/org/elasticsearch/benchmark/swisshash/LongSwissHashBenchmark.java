@@ -14,6 +14,7 @@ import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.LongHash;
 import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.common.util.PageRecycler;
 import org.elasticsearch.swisshash.LongSwissHash;
 import org.elasticsearch.swisshash.SwissHashFactory;
 import org.openjdk.jmh.annotations.Benchmark;
@@ -63,7 +64,7 @@ public class LongSwissHashBenchmark {
         keys = generate(distribution, cardinality);
 
         BigArrays bigArrays = BigArrays.NON_RECYCLING_INSTANCE;
-        PageCacheRecycler recycler = PageCacheRecycler.NON_RECYCLING_INSTANCE;
+        PageRecycler recycler = PageCacheRecycler.NON_RECYCLING_INSTANCE;
         NoopCircuitBreaker breaker = new NoopCircuitBreaker("dummy");
         swiss = SwissHashFactory.getInstance().newLongSwissHash(recycler, breaker);
         legacy = new LongHash(1, bigArrays);

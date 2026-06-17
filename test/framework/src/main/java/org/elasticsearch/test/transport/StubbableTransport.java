@@ -20,7 +20,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
-import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.common.util.PageRecycler;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.BytesRefRecycler;
@@ -52,7 +52,7 @@ public class StubbableTransport implements Transport {
     private volatile SendRequestBehavior defaultSendRequest = null;
     private volatile OpenConnectionBehavior defaultConnectBehavior = null;
     private final Transport delegate;
-    private final PageCacheRecycler recycler = new MockPageCacheRecycler(Settings.EMPTY);
+    private final PageRecycler recycler = new MockPageCacheRecycler(Settings.EMPTY);
 
     public StubbableTransport(Transport transport) {
         this.delegate = transport;

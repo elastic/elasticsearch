@@ -20,7 +20,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.common.util.PageRecycler;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.http.HttpPreRequest;
@@ -202,7 +202,7 @@ public class Netty4Plugin extends Plugin implements NetworkPlugin {
     public Map<String, Supplier<Transport>> getTransports(
         Settings settings,
         ThreadPool threadPool,
-        PageCacheRecycler pageCacheRecycler,
+        PageRecycler pageCacheRecycler,
         CircuitBreakerService circuitBreakerService,
         NamedWriteableRegistry namedWriteableRegistry,
         NetworkService networkService
@@ -227,7 +227,7 @@ public class Netty4Plugin extends Plugin implements NetworkPlugin {
         Settings settings,
         ThreadPool threadPool,
         BigArrays bigArrays,
-        PageCacheRecycler pageCacheRecycler,
+        PageRecycler pageCacheRecycler,
         CircuitBreakerService circuitBreakerService,
         NamedXContentRegistry xContentRegistry,
         NetworkService networkService,

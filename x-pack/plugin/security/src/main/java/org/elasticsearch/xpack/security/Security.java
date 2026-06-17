@@ -50,7 +50,7 @@ import org.elasticsearch.common.ssl.KeyStoreUtil;
 import org.elasticsearch.common.ssl.SslConfiguration;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.common.util.PageRecycler;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
@@ -2130,7 +2130,7 @@ public class Security extends Plugin
     public Map<String, Supplier<Transport>> getTransports(
         Settings settings,
         ThreadPool threadPool,
-        PageCacheRecycler pageCacheRecycler,
+        PageRecycler pageCacheRecycler,
         CircuitBreakerService circuitBreakerService,
         NamedWriteableRegistry namedWriteableRegistry,
         NetworkService networkService
@@ -2169,7 +2169,7 @@ public class Security extends Plugin
         Settings settings,
         ThreadPool threadPool,
         BigArrays bigArrays,
-        PageCacheRecycler pageCacheRecycler,
+        PageRecycler pageCacheRecycler,
         CircuitBreakerService circuitBreakerService,
         NamedXContentRegistry xContentRegistry,
         NetworkService networkService,

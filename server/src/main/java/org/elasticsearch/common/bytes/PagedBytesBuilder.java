@@ -18,6 +18,7 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.util.ByteArray;
 import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.common.util.PageRecycler;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 
@@ -80,7 +81,7 @@ public class PagedBytesBuilder implements Accountable, Releasable, Comparable<Pa
     static final int MIN_SIZE = 64;
     static final int MAX_SMALL_TAIL_SIZE = BYTE_PAGE_SIZE / 2;
 
-    private final PageCacheRecycler recycler;
+    private final PageRecycler recycler;
     private final CircuitBreaker breaker;
     private final String label;
 
@@ -130,7 +131,7 @@ public class PagedBytesBuilder implements Accountable, Releasable, Comparable<Pa
      * @param breaker breaker used for accounting size
      * @param label the label to add to any circuit breaker failures
      */
-    public PagedBytesBuilder(PageCacheRecycler recycler, CircuitBreaker breaker, String label, int initialCapacity) {
+    public PagedBytesBuilder(PageRecycler recycler, CircuitBreaker breaker, String label, int initialCapacity) {
         this.recycler = recycler;
         this.breaker = breaker;
         this.label = label;

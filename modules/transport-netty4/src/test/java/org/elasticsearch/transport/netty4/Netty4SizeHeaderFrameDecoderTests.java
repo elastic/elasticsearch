@@ -15,7 +15,7 @@ import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
-import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.common.util.PageRecycler;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.mocksocket.MockSocket;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
@@ -56,7 +56,7 @@ public class Netty4SizeHeaderFrameDecoderTests extends ESTestCase {
     public void startThreadPool() {
         threadPool = new ThreadPool(settings, MeterRegistry.NOOP, new DefaultBuiltInExecutorBuilders());
         NetworkService networkService = new NetworkService(Collections.emptyList());
-        PageCacheRecycler recycler = new MockPageCacheRecycler(Settings.EMPTY);
+        PageRecycler recycler = new MockPageCacheRecycler(Settings.EMPTY);
         nettyTransport = new Netty4Transport(
             settings,
             TransportVersion.current(),

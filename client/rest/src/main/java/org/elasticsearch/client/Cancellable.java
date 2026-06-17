@@ -44,12 +44,23 @@ public abstract class Cancellable {
      */
     abstract void runIfNotCancelled(Runnable runnable);
 
+    /**
+     * Throws {@link CancellationException} iff the on-going request has been cancelled.
+     * Useful to re-check cancellation state at any point after {@link Cancellable#runIfNotCancelled} has been called.
+     */
+    abstract void throwIfCancelled();
+
     static final Cancellable NO_OP = new Cancellable() {
         @Override
         public void cancel() {}
 
         @Override
         void runIfNotCancelled(Runnable runnable) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        void throwIfCancelled() {
             throw new UnsupportedOperationException();
         }
     };
@@ -86,14 +97,20 @@ public abstract class Cancellable {
          * This method is intentionally not synchronized to avoid a potential deadlock between this object's monitor and Apache HC4's
          * internal connection pool lock (see <a href="https://github.com/elastic/elasticsearch/issues/141558">#141558</a>).
          * Instead, cancellation state is tracked via a separate {@link AtomicBoolean} that is never cleared by
-         * {@link AbstractExecutionAwareRequest#reset()}. If {@link #cancel()} races with this method, at most one additional attempt
-         * may proceed before the next call to {@code runIfNotCancelled} observes the cancellation and throws.
+         * {@link AbstractExecutionAwareRequest#reset()}. Callers can re-check the cancellation state via
+         * {@link #throwIfCancelled()} before dispatching the underlying request, to catch a {@link #cancel()} that races
+         * with the start of a new attempt.
          */
         void runIfNotCancelled(Runnable runnable) {
+            throwIfCancelled();
+            runnable.run();
+        }
+
+        @Override
+        void throwIfCancelled() {
             if (cancelled.get()) {
                 throw newCancellationException();
             }
-            runnable.run();
         }
     }
 

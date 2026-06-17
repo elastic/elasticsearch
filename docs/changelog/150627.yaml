@@ -1,0 +1,5 @@
+area: Recovery
+issues: []
+pr: 150627
+summary: Pre-warm region 0 before BCC headers are fetched
+type: enhancement

@@ -516,6 +516,7 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
     }
 
     void onScrollResponse(ScrollConsumableHitsResponse asyncResponse) {
+        // TODO - https://github.com/elastic/elasticsearch/issues/150875
         // lastBatchStartTime is essentially unused (see WorkerBulkByPaginatedSearchTaskState.throttleWaitTime).
         // Leaving it for now, since it seems like a bug?
         onScrollResponse(System.nanoTime(), this.lastBatchSize, asyncResponse);

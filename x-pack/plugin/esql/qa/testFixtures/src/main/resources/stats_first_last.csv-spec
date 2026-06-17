@@ -683,7 +683,7 @@ first_td:tdigest                                                                
 
 Test first aggregation on flattened type
 required_capability: flattened_datatype
-required_capability: fuse_passthrough_with_first
+required_capability: first_agg_extended_types_3
 
 FROM flattened_many
 | STATS first_flat = FIRST(flat_a, id)
@@ -697,7 +697,7 @@ first_flat:flattened
 
 Test first aggregation on flattened type (NULL sort)
 required_capability: flattened_datatype
-required_capability: fuse_passthrough_with_first
+required_capability: first_agg_extended_types_3
 
 FROM flattened_many
 | WHERE id == 1

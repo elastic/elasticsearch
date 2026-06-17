@@ -3040,6 +3040,11 @@ public class EsqlCapabilities {
         FIRST_AGG_EXTENDED_TYPES_2,
 
         /**
+         * Support FIRST and EARLIEST aggregation on the flattened data type.
+         */
+        FIRST_AGG_EXTENDED_TYPES_3,
+
+        /**
          * FUSE uses FIRST(col, NULL) instead of VALUES for passthrough columns,
          * enabling dense_vector, exponential_histogram, and tdigest fields to
          * flow through FORK + FUSE hybrid-search pipelines.

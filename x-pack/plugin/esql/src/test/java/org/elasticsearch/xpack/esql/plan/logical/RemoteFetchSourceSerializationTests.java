@@ -24,10 +24,7 @@ public class RemoteFetchSourceSerializationTests extends AbstractLogicalPlanSeri
 
     @Override
     protected RemoteFetchSource mutateInstance(RemoteFetchSource instance) throws IOException {
-        return new RemoteFetchSource(
-            instance.source(),
-            randomValueOtherThan(instance.output(), () -> randomFieldAttributes(1, 4, false))
-        );
+        return new RemoteFetchSource(instance.source(), randomValueOtherThan(instance.output(), () -> randomFieldAttributes(1, 4, false)));
     }
 
     @Override

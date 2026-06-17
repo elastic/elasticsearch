@@ -57,6 +57,22 @@ public class SemanticFieldContent {
         return getChunkText(offset.start(), offset.end());
     }
 
+    /**
+     * Resolves a {@code (startOffset, endOffset)} pair back to the original substring of one of the underlying text values.
+     * <p>
+     * Offsets are expressed against a <em>virtual concatenation</em> of all string inputs, with a single separator character inserted
+     * between adjacent values. This matches the representation produced by
+     * {@code ShardBulkInferenceActionFilter#addInferenceRequestsForSourceFieldValues}, which accumulates an {@code offsetAdjustment} of
+     * {@code string.length() + 1} per value so that every text chunk offset is global within that virtual string.
+     * <p>
+     * Because inference never produces chunks that straddle two source values, this method rejects spans that cross a value boundary
+     * or whose start falls on a separator position.
+     *
+     * @param startOffset the start offset (inclusive) of the chunk within the virtual concatenated string
+     * @param endOffset   the end offset (exclusive) of the chunk within the virtual concatenated string
+     * @return the substring of the source text value identified by the offsets
+     * @throws IndexOutOfBoundsException if the start or end offset is invalid
+     */
     String getChunkText(int startOffset, int endOffset) {
         if (textValues.isEmpty()) {
             throw new IndexOutOfBoundsException("Chunk text offset [" + startOffset + ", " + endOffset + "] is out of bounds");

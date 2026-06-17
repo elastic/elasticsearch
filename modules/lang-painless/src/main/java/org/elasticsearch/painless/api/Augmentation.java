@@ -1052,6 +1052,7 @@ public class Augmentation {
     // wrappers; result-returning interfaces capture the result, poll, then return it. The primitive overloads are kept
     // distinct (rather than a single generic Consumer wrapper) so they never box their elements.
 
+    @SuppressWarnings("overloads")
     private static <T> Consumer<T> wrap(PainlessScript script, Consumer<T> action) {
         if (script._getCancellationCheck() == null) {
             return action;
@@ -1062,6 +1063,7 @@ public class Augmentation {
         };
     }
 
+    @SuppressWarnings("overloads")
     private static <A, B> BiConsumer<A, B> wrap(PainlessScript script, BiConsumer<A, B> action) {
         if (script._getCancellationCheck() == null) {
             return action;
@@ -1072,6 +1074,7 @@ public class Augmentation {
         };
     }
 
+    @SuppressWarnings("overloads")
     private static <T> Predicate<T> wrap(PainlessScript script, Predicate<T> action) {
         if (script._getCancellationCheck() == null) {
             return action;
@@ -1083,6 +1086,7 @@ public class Augmentation {
         };
     }
 
+    @SuppressWarnings("overloads")
     private static <T> BinaryOperator<T> wrap(PainlessScript script, BinaryOperator<T> action) {
         if (script._getCancellationCheck() == null) {
             return action;
@@ -1094,6 +1098,7 @@ public class Augmentation {
         };
     }
 
+    @SuppressWarnings("overloads")
     private static <A, B, R> BiFunction<A, B, R> wrap(PainlessScript script, BiFunction<A, B, R> action) {
         if (script._getCancellationCheck() == null) {
             return action;
@@ -1138,6 +1143,7 @@ public class Augmentation {
         };
     }
 
+    @SuppressWarnings("overloads")
     private static IntPredicate wrap(PainlessScript script, IntPredicate action) {
         if (script._getCancellationCheck() == null) {
             return action;
@@ -1149,6 +1155,7 @@ public class Augmentation {
         };
     }
 
+    @SuppressWarnings("overloads")
     private static LongPredicate wrap(PainlessScript script, LongPredicate action) {
         if (script._getCancellationCheck() == null) {
             return action;
@@ -1160,6 +1167,7 @@ public class Augmentation {
         };
     }
 
+    @SuppressWarnings("overloads")
     private static DoublePredicate wrap(PainlessScript script, DoublePredicate action) {
         if (script._getCancellationCheck() == null) {
             return action;
@@ -1171,6 +1179,7 @@ public class Augmentation {
         };
     }
 
+    @SuppressWarnings("overloads")
     private static IntBinaryOperator wrap(PainlessScript script, IntBinaryOperator action) {
         if (script._getCancellationCheck() == null) {
             return action;
@@ -1182,6 +1191,7 @@ public class Augmentation {
         };
     }
 
+    @SuppressWarnings("overloads")
     private static LongBinaryOperator wrap(PainlessScript script, LongBinaryOperator action) {
         if (script._getCancellationCheck() == null) {
             return action;
@@ -1193,6 +1203,7 @@ public class Augmentation {
         };
     }
 
+    @SuppressWarnings("overloads")
     private static DoubleBinaryOperator wrap(PainlessScript script, DoubleBinaryOperator action) {
         if (script._getCancellationCheck() == null) {
             return action;
@@ -1204,6 +1215,7 @@ public class Augmentation {
         };
     }
 
+    @SuppressWarnings("overloads")
     private static <R> ObjIntConsumer<R> wrap(PainlessScript script, ObjIntConsumer<R> action) {
         if (script._getCancellationCheck() == null) {
             return action;
@@ -1214,6 +1226,7 @@ public class Augmentation {
         };
     }
 
+    @SuppressWarnings("overloads")
     private static <R> ObjLongConsumer<R> wrap(PainlessScript script, ObjLongConsumer<R> action) {
         if (script._getCancellationCheck() == null) {
             return action;
@@ -1224,6 +1237,7 @@ public class Augmentation {
         };
     }
 
+    @SuppressWarnings("overloads")
     private static <R> ObjDoubleConsumer<R> wrap(PainlessScript script, ObjDoubleConsumer<R> action) {
         if (script._getCancellationCheck() == null) {
             return action;

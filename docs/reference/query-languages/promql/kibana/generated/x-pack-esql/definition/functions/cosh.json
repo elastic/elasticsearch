@@ -20,6 +20,5 @@
   "examples" : [
     "cosh(some_metric)"
   ],
-  "preview" : true,
   "snapshot_only" : false
 }

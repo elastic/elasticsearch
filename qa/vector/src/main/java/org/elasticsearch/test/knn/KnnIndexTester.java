@@ -226,13 +226,20 @@ public class KnnIndexTester {
                     args.datasetConfig().isSliced() ? KnnIndexer.PARTITION_ID_FIELD : null
                 );
             }
-            case GPU_HNSW -> switch (quantizeBits) {
-                case null -> new ES92GpuHnswVectorsFormat();
-                case 7 -> new ES92GpuHnswSQVectorsFormat();
-                default -> throw new IllegalArgumentException(
-                    "GPU HNSW index type only supports 7 bits quantization, but got: " + quantizeBits
+            case GPU_HNSW -> {
+                int graphDegree = ES92GpuHnswVectorsFormat.cagraGraphDegree(args.hnswM());
+                int intermediateGraphDegree = ES92GpuHnswVectorsFormat.cagraIntermediateGraphDegree(
+                    args.hnswM(),
+                    args.hnswEfConstruction()
                 );
-            };
+                yield switch (quantizeBits) {
+                    case null -> new ES92GpuHnswVectorsFormat(graphDegree, intermediateGraphDegree);
+                    case 7 -> new ES92GpuHnswSQVectorsFormat(graphDegree, intermediateGraphDegree);
+                    default -> throw new IllegalArgumentException(
+                        "GPU HNSW index type only supports 7 bits quantization, but got: " + quantizeBits
+                    );
+                };
+            }
             case HNSW -> switch (quantizeBits) {
                 case null -> new ES93HnswVectorsFormat(
                     args.hnswM(),
@@ -269,7 +276,7 @@ public class KnnIndexTester {
             };
         };
 
-        logger.info("Using format {}", format.getName());
+        logger.info("Using format {} (via {})", format.getName(), format.getClass().getName());
 
         return new Lucene104Codec() {
             @Override

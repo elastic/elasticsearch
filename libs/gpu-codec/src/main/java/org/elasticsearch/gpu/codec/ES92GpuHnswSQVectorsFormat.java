@@ -31,7 +31,7 @@ import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.MAX_
  * HNSW graph is built on GPU, while scalar quantization and search is performed on CPU.
  */
 public class ES92GpuHnswSQVectorsFormat extends KnnVectorsFormat {
-    public static final String NAME = "Lucene99HnswVectorsFormat";
+    public static final String NAME = "ES814HnswScalarQuantizedVectorsFormat";
     static final int MAXIMUM_MAX_CONN = 512;
     static final int MAXIMUM_BEAM_WIDTH = 3200;
     private final int maxConn;
@@ -52,6 +52,10 @@ public class ES92GpuHnswSQVectorsFormat extends KnnVectorsFormat {
             7,
             false
         );
+    }
+
+    public ES92GpuHnswSQVectorsFormat(int maxConn, int beamWidth) {
+        this(CuVSResourceManager::pooling, CuVSGPUSupport.instance().getTotalGpuMemory(), maxConn, beamWidth, null, 7, false);
     }
 
     public ES92GpuHnswSQVectorsFormat(

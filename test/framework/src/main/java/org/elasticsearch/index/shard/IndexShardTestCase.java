@@ -75,6 +75,7 @@ import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.indices.recovery.AsyncRecoveryTarget;
 import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
 import org.elasticsearch.indices.recovery.RecoveryFailedException;
+import org.elasticsearch.indices.recovery.RecoveryListener;
 import org.elasticsearch.indices.recovery.RecoveryResponse;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.indices.recovery.RecoverySourceHandler;
@@ -139,19 +140,22 @@ public abstract class IndexShardTestCase extends ESTestCase {
         }
     };
 
-    protected static final PeerRecoveryTargetService.RecoveryListener recoveryListener = new PeerRecoveryTargetService.RecoveryListener() {
+    protected static final RecoveryListener recoveryListener = new RecoveryListener() {
         @Override
         public void onRecoveryDone(
             RecoveryState state,
             ShardLongFieldRange timestampMillisFieldRange,
             ShardLongFieldRange eventIngestedMillisFieldRange
-        ) {
-
-        }
+        ) {}
 
         @Override
         public void onRecoveryFailure(RecoveryFailedException e, boolean sendShardFailure) {
             throw new AssertionError(e);
+        }
+
+        @Override
+        public void onRecoveryAborted() {
+            // Abortion is a normal reaction to changes in allocation or node shutdown. Don't fail here.
         }
     };
 
@@ -1102,7 +1106,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
     }
 
     protected List<DocIdSeqNoAndSource> getDocIdAndSeqNos(final IndexShard shard, final boolean refresh) throws IOException {
-        return shard.withEngineException(engine -> EngineTestUtils.getDocIds(engine, refresh));
+        return shard.withEngineException(engine -> EngineTestUtils.getDocIds(engine, refresh, false));
     }
 
     protected void assertDocCount(IndexShard shard, int docCount) throws IOException {

@@ -1712,7 +1712,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         return List.of(new TypedDataSupplier("<random date range>", TestCaseSupplier::randomDateRange, DataType.DATE_RANGE));
     }
 
-    static LongRangeBlockBuilder.LongRange randomDateRange() {
+    public static LongRangeBlockBuilder.LongRange randomDateRange() {
         var from = randomMillisUpToYear9999();
         var to = randomLongBetween(from + 1, MAX_MILLIS_BEFORE_9999);
         return new LongRangeBlockBuilder.LongRange(from, to);

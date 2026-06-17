@@ -30,6 +30,7 @@ import org.elasticsearch.index.codec.tsdb.pipeline.MetricRole;
 import org.elasticsearch.index.codec.tsdb.pipeline.PipelineConfig;
 import org.elasticsearch.index.codec.tsdb.pipeline.PipelineDescriptor;
 import org.elasticsearch.index.codec.tsdb.pipeline.StaticPipelineConfigResolver;
+import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
@@ -369,6 +370,15 @@ public class PerFieldMapperCodecTests extends ESTestCase {
     public void testSeqnoField() throws IOException {
         PerFieldFormatSupplier perFieldMapperCodec = createFormatSupplier(IndexMode.LOGSDB, LOGS_MAPPING);
         assertThat((perFieldMapperCodec.useTSDBDocValuesFormat(SeqNoFieldMapper.NAME)), is(true));
+    }
+
+    public void testIdField() throws IOException {
+        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        PerFieldFormatSupplier perFieldMapperCodec = createFormatSupplier(
+            randomFrom(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR, IndexMode.LOGSDB),
+            LOGS_MAPPING
+        );
+        assertThat((perFieldMapperCodec.useTSDBDocValuesFormat(IdFieldMapper.NAME)), is(true));
     }
 
     private PerFieldFormatSupplier createFormatSupplier(IndexMode mode, String mapping) throws IOException {

@@ -541,7 +541,8 @@ public abstract class AbstractBulkByPaginatedSearchRequest<Self extends Abstract
         if (sourceIndicesForDescription != null) {
             request.setSourceIndicesForDescription(sourceIndicesForDescription);
         }
-        // TODO It'd be nice not to refresh on every slice. Instead we should refresh after the sub requests finish.
+        // TODO - https://github.com/elastic/elasticsearch/issues/150879
+        // It'd be nice not to refresh on every slice. Instead we should refresh after the sub requests finish.
         return request;
     }
 

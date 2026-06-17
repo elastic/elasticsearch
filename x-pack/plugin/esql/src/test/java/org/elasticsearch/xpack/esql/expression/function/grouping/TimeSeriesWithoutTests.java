@@ -80,19 +80,18 @@ public class TimeSeriesWithoutTests extends AbstractScalarFunctionTestCase {
         assertThat(without.resolveType().resolved(), equalTo(true));
     }
 
-    public void testResolveTypeRejectsNonDimensionField() {
-        // field(...) builds a plain (non-dimension) field attribute.
+    public void testResolveTypeAcceptsNonDimensionField() {
+        // #149793: excluded labels are matched by name, so a non-dimension field is accepted - excluding a label that
+        // is not a dimension (or not present at all) is simply a no-op, not an error.
         TimeSeriesWithout without = new TimeSeriesWithout(Source.EMPTY, List.of(field("not_a_dimension", DataType.KEYWORD)));
-        Expression.TypeResolution resolution = without.resolveType();
-        assertThat(resolution.unresolved(), equalTo(true));
-        assertThat(resolution.message(), containsString("is not a dimension"));
+        assertThat(without.resolveType().resolved(), equalTo(true));
     }
 
     public void testResolveTypeRejectsNonFieldExpression() {
         TimeSeriesWithout without = new TimeSeriesWithout(Source.EMPTY, List.of(new Literal(Source.EMPTY, 1, DataType.INTEGER)));
         Expression.TypeResolution resolution = without.resolveType();
         assertThat(resolution.unresolved(), equalTo(true));
-        assertThat(resolution.message(), containsString("requires dimension field names"));
+        assertThat(resolution.message(), containsString("requires label names"));
         assertThat(resolution.message(), containsString("integer"));
     }
 

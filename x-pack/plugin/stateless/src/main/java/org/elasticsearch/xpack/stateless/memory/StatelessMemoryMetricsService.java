@@ -105,7 +105,6 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
      * <p>
      * By default, the Fixed Method is used. To switch to the Adaptive Method, explicitly set
      * the `memory_metrics.shard_memory_overhead` setting to -1.
-     * <p>
      */
     public static final ByteSizeValue FIXED_SHARD_MEMORY_OVERHEAD_DEFAULT = ByteSizeValue.ofMb(6);
     public static final Setting<ByteSizeValue> FIXED_SHARD_MEMORY_OVERHEAD_SETTING = Setting.byteSizeSetting(

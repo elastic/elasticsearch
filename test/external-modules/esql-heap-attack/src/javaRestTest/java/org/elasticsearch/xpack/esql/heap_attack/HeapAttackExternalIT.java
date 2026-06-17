@@ -268,8 +268,7 @@ public class HeapAttackExternalIT extends HeapAttackRestHelpers {
         // Wrap in JSON {"query":"..."} the same way HeapAttackRestHelpers#query expects.
         String body = "{\"query\":\"" + esql.replace("\"", "\\\"") + "\"}";
         Response response = query(body, null);
-        @SuppressWarnings("unchecked")
-        Map<String, Object> map = (Map<String, Object>) responseAsMap(response);
+        Map<String, Object> map = responseAsMap(response);
         return map;
     }
 }

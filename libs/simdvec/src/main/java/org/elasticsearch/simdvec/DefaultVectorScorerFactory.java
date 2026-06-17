@@ -9,6 +9,7 @@
 
 package org.elasticsearch.simdvec;
 
+import org.apache.lucene.codecs.hnsw.FlatVectorsScorer;
 import org.apache.lucene.index.ByteVectorValues;
 import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.VectorSimilarityFunction;
@@ -16,6 +17,7 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.hnsw.RandomVectorScorer;
 import org.apache.lucene.util.hnsw.RandomVectorScorerSupplier;
 import org.apache.lucene.util.quantization.QuantizedByteVectorValues;
+import org.elasticsearch.simdvec.internal.ESDefaultFlatVectorScorer;
 import org.elasticsearch.simdvec.internal.vectorization.DefaultES93BinaryQuantizedVectorScorer;
 
 import java.util.Optional;
@@ -53,6 +55,11 @@ final class DefaultVectorScorerFactory implements VectorScorerFactory {
     @Override
     public ES93BinaryQuantizedVectorScorer newES93BinaryQuantizedVectorScorer(IndexInput input, int dimension, int vectorLengthInBytes) {
         return new DefaultES93BinaryQuantizedVectorScorer(input, dimension, vectorLengthInBytes);
+    }
+
+    @Override
+    public FlatVectorsScorer newFlatVectorsScorer() {
+        return new ESDefaultFlatVectorScorer();
     }
 
     @Override

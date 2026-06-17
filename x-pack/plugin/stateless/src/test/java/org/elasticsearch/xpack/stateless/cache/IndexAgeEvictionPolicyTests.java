@@ -125,9 +125,13 @@ public class IndexAgeEvictionPolicyTests extends ESTestCase {
         assertThat(policy, instanceOf(DefaultEvictionPolicy.class));
     }
 
-    public void testCreateEvictionPolicyReturnsIndexAgePolicyWhenSettingEnabled() {
+    public void testCreateEvictionPolicyReturnsIndexAgePolicyWhenExplicitlyConfigured() {
         Settings settings = Settings.builder()
             .put(StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_ENABLED_SETTING.getKey(), true)
+            .put(
+                StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_EVICTION_POLICY_SETTING.getKey(),
+                StatelessCacheEvictionPolicyType.INDEX_AGE
+            )
             .build();
         EvictionPolicy<FileCacheKey> policy = StatelessSharedBlobCacheService.createEvictionPolicy(settings, mock(ClusterService.class));
         assertThat(policy, instanceOf(IndexAgeEvictionPolicy.class));
@@ -175,6 +179,10 @@ public class IndexAgeEvictionPolicyTests extends ESTestCase {
             .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(regionSizeInBytes))
             .put(SharedBlobCacheService.SHARED_CACHE_INITIAL_DECAYS_SETTING.getKey(), 0)
             .put(StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_ENABLED_SETTING.getKey(), true)
+            .put(
+                StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_EVICTION_POLICY_SETTING.getKey(),
+                StatelessCacheEvictionPolicyType.INDEX_AGE
+            )
             .put("path.home", createTempDir())
             .build();
 

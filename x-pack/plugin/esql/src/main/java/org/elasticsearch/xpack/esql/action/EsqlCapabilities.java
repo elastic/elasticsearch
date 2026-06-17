@@ -2969,7 +2969,7 @@ public class EsqlCapabilities {
         /**
          * Match function and match operator support for runtime expressions, not just ES mapped fields.
          */
-        MATCH_SUPPORT_RUNTIME_TEXT(Build.current().isSnapshot()),
+        MATCH_RUNTIME_SEARCH(Build.current().isSnapshot()),
 
         /**
          * Fix for column pruning when FORK branches return no columns.
@@ -3114,6 +3114,12 @@ public class EsqlCapabilities {
          * Bugfix in query approximation to not produce confidence intervals for multivalued functions.
          */
         APPROXIMATION_FIX_MV_FUNCTIONS,
+
+        /**
+         * Support for the {@code HIGHLIGHT} command. Part A: parsing and plan-shape only; execution
+         * throws "not implemented yet". Snapshot-only.
+         */
+        HIGHLIGHT_V0(Build.current().isSnapshot()),
 
         /**
          * Support for PromQL {@code histogram_quantile()} over classic histograms with {@code le} buckets.

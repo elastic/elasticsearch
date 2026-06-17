@@ -970,7 +970,7 @@ required_capability: knn_function_v5
 required_capability: fuse_passthrough_with_first
 
 FROM colors METADATA _id, _index, _score
-| FORK (WHERE color:"red"                  | EVAL score1 = _score | SORT _score DESC | LIMIT 10)
+| FORK (WHERE color:"red"                  | EVAL score1 = 1.0    | SORT _score DESC | LIMIT 10)
        (WHERE knn(rgb_vector, [255, 0, 0]) | EVAL score2 = _score | SORT _score DESC | LIMIT 10)
 | FUSE
 | EVAL _score = round(_score, 5)
@@ -979,7 +979,7 @@ FROM colors METADATA _id, _index, _score
 ;
 
 _score:double | color:keyword | rgb_vector:dense_vector | hex_code:keyword | primary:boolean | _index:keyword | _fork:keyword  | score1:double          | score2:double
-0.03279       | red           | [255.0, 0.0, 0.0]       | #FF0000          | true            | colors         | [fork1, fork2] | 3.9423141479492188     | 1.0
+0.03279       | red           | [255.0, 0.0, 0.0]       | #FF0000          | true            | colors         | [fork1, fork2] | 1.0                    | 1.0
 0.01613       | crimson       | [220.0, 20.0, 60.0]     | #DC143C          | false           | colors         | fork2          | null                   | 1.9135093316435814E-4
 0.01587       | firebrick     | [178.0, 34.0, 34.0]     | #B22222          | false           | colors         | fork2          | null                   | 1.2132977280998603E-4
 0.01563       | brown         | [165.0, 42.0, 42.0]     | #A52A2A          | false           | colors         | fork2          | null                   | 8.599191642133519E-5
@@ -999,8 +999,8 @@ required_capability: knn_function_v5
 required_capability: fuse_passthrough_with_first
 
 FROM colors METADATA _id, _index, _score
-| FORK (WHERE color:"red"                                        | LIMIT 10)
-     (WHERE knn(rgb_byte_vector, [127.0, -128.0, -128.0])     | LIMIT 10)
+| FORK (WHERE color:"red"                                      | SORT _score DESC | LIMIT 10)
+     (WHERE knn(rgb_byte_vector, [127.0, -128.0, -128.0])     | SORT _score DESC | LIMIT 10)
 | FUSE
 | EVAL _fork = mv_sort(_fork)
 | EVAL _score = round(_score, 5)
@@ -1009,16 +1009,16 @@ FROM colors METADATA _id, _index, _score
 ;
 
 _score:double | color:keyword | hex_code:keyword | id:integer | primary:boolean | rgb_byte_vector:dense_vector | rgb_vector:dense_vector | _index:keyword | _fork:keyword
-0.03178       | red           | #FF0000          | 4          | true            | [127.0, -128.0, -128.0]     | [255.0, 0.0, 0.0]     | colors         | [fork1, fork2]
-0.01639       | maroon        | #800000          | 0          | false           | [0.0, -128.0, -128.0]       | [128.0, 0.0, 0.0]     | colors         | fork2
-0.01613       | brown         | #A52A2A          | 1          | false           | [37.0, -86.0, -86.0]        | [165.0, 42.0, 42.0]   | colors         | fork2
-0.01587       | firebrick     | #B22222          | 2          | false           | [50.0, -94.0, -94.0]        | [178.0, 34.0, 34.0]   | colors         | fork2
-0.01563       | crimson       | #DC143C          | 3          | false           | [92.0, -108.0, -68.0]       | [220.0, 20.0, 60.0]   | colors         | fork2
-0.01515       | tomato        | #FF6347          | 5          | false           | [127.0, -29.0, -57.0]       | [255.0, 99.0, 71.0]   | colors         | fork2
-0.01493       | coral         | #FF7F50          | 6          | false           | [127.0, -1.0, -48.0]        | [255.0, 127.0, 80.0]  | colors         | fork2
-0.01471       | sienna        | #A0522D          | 36         | false           | [32.0, -46.0, -83.0]        | [160.0, 82.0, 45.0]   | colors         | fork2
-0.01449       | chocolate     | #D2691E          | 37         | false           | [82.0, -23.0, -98.0]        | [210.0, 105.0, 30.0]  | colors         | fork2
-0.01429       | peru          | #CD853F          | 38         | false           | [77.0, 5.0, -65.0]          | [205.0, 133.0, 63.0]  | colors         | fork2
+0.03279       | red           | #FF0000          | 4          | true            | [127.0, -128.0, -128.0]      | [255.0, 0.0, 0.0]       | colors         | [fork1, fork2]
+0.01613       | crimson       | #DC143C          | 3          | false           | [92.0, -108.0, -68.0]        | [220.0, 20.0, 60.0]     | colors         | fork2
+0.01587       | firebrick     | #B22222          | 2          | false           | [50.0, -94.0, -94.0]         | [178.0, 34.0, 34.0]     | colors         | fork2
+0.01563       | brown         | #A52A2A          | 1          | false           | [37.0, -86.0, -86.0]         | [165.0, 42.0, 42.0]     | colors         | fork2
+0.01538       | chocolate     | #D2691E          | 37         | false           | [82.0, -23.0, -98.0]         | [210.0, 105.0, 30.0]    | colors         | fork2
+0.01515       | tomato        | #FF6347          | 5          | false           | [127.0, -29.0, -57.0]        | [255.0, 99.0, 71.0]     | colors         | fork2
+0.01493       | maroon        | #800000          | 0          | false           | [0.0, -128.0, -128.0]        | [128.0, 0.0, 0.0]       | colors         | fork2
+0.01471       | sienna        | #A0522D          | 36         | false           | [32.0, -46.0, -83.0]         | [160.0, 82.0, 45.0]     | colors         | fork2
+0.01449       | coral         | #FF7F50          | 6          | false           | [127.0, -1.0, -48.0]         | [255.0, 127.0, 80.0]    | colors         | fork2
+0.01429       | peru          | #CD853F          | 38         | false           | [77.0, 5.0, -65.0]           | [205.0, 133.0, 63.0]    | colors         | fork2
 ;
 
 fuseFirstFiltersNullPassthroughColumns

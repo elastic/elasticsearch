@@ -37,6 +37,24 @@ result:double      | step:datetime
 2.167              | 2024-05-10T00:10:00.000Z
 ;
 
+// Same raw bucket selector as above, but evaluated as an instant query.
+histogram_quantile_raw_selector_instant
+required_capability: promql_command_v0
+required_capability: promql_histogram_quantile
+required_capability: promql_histogram_quantile_implicit_le
+required_capability: promql_instant_query
+PROMQL index=promql_classic_histogram time="2024-05-10T00:10:00.000Z" result=(round(histogram_quantile(0.5, request_duration_seconds_bucket), 0.001))
+| KEEP result, step
+| SORT result;
+
+result:double      | step:datetime
+1.25               | 2024-05-10T00:10:00.000Z
+1.375              | 2024-05-10T00:10:00.000Z
+1.5                | 2024-05-10T00:10:00.000Z
+1.583              | 2024-05-10T00:10:00.000Z
+2.167              | 2024-05-10T00:10:00.000Z
+;
+
 histogram_quantile_raw_rate_selector
 required_capability: promql_command_v0
 required_capability: promql_histogram_quantile

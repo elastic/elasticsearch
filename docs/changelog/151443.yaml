@@ -1,6 +1,0 @@
-area: Distributed
-issues:
- - 151173
-pr: 151443
-summary: Fix `WriteLoadForecasterIT.testWriteLoadForecastGetsPopulatedDuringRollovers`
-type: bug

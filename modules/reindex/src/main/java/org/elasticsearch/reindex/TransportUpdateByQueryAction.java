@@ -52,7 +52,7 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
     private final ClusterService clusterService;
     private final UpdateByQueryMetrics updateByQueryMetrics;
     @Nullable
-    private final BulkByScrollSearchContextMetrics bulkByScrollSearchContextMetrics;
+    private final BulkByPaginatedSearchSearchContextMetrics bulkByPaginatedSearchSearchContextMetrics;
     private final TimeValue taskShutdownGracePeriod;
     private final ReindexSettings reindexSettings;
     private final CircuitBreaker requestBreaker;
@@ -66,7 +66,7 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
         ScriptService scriptService,
         ClusterService clusterService,
         @Nullable UpdateByQueryMetrics updateByQueryMetrics,
-        @Nullable BulkByScrollSearchContextMetrics bulkByScrollSearchContextMetrics,
+        @Nullable BulkByPaginatedSearchSearchContextMetrics bulkByPaginatedSearchSearchContextMetrics,
         ReindexSettings reindexSettings,
         CircuitBreakerService circuitBreakerService
     ) {
@@ -76,7 +76,7 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
         this.scriptService = scriptService;
         this.clusterService = clusterService;
         this.updateByQueryMetrics = updateByQueryMetrics;
-        this.bulkByScrollSearchContextMetrics = bulkByScrollSearchContextMetrics;
+        this.bulkByPaginatedSearchSearchContextMetrics = bulkByPaginatedSearchSearchContextMetrics;
         // todo: if relocations are added to update-by-query and it gets its own timeout setting, this should be updated.
         // without this safe default, adding relocations to update-by-query without updating this might open it up to race conditions.
         this.taskShutdownGracePeriod = ShutdownPrepareService.MAXIMUM_REINDEXING_TIMEOUT_SETTING.get(clusterService.getSettings());
@@ -115,7 +115,7 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
                         }
                     }),
                     taskShutdownGracePeriod,
-                    bulkByScrollSearchContextMetrics,
+                    bulkByPaginatedSearchSearchContextMetrics,
                     reindexSettings,
                     requestBreaker
                 ).start();
@@ -139,7 +139,7 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
             UpdateByQueryRequest request,
             ActionListener<BulkByPaginatedSearchResponse> listener,
             TimeValue maxTaskShutdownGracePeriod,
-            @Nullable BulkByScrollSearchContextMetrics bulkByScrollSearchContextMetrics,
+            @Nullable BulkByPaginatedSearchSearchContextMetrics bulkByPaginatedSearchSearchContextMetrics,
             ReindexSettings reindexSettings,
             CircuitBreaker requestBreaker
         ) {
@@ -156,8 +156,8 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
                 listener,
                 scriptService,
                 null,
-                bulkByScrollSearchContextMetrics,
-                BulkByScrollSearchContextMetrics.TaskKind.UPDATE_BY_QUERY,
+                bulkByPaginatedSearchSearchContextMetrics,
+                BulkByPaginatedSearchSearchContextMetrics.TaskKind.UPDATE_BY_QUERY,
                 false,
                 maxTaskShutdownGracePeriod,
                 reindexSettings,

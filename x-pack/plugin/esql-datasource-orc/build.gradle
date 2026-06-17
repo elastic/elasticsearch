@@ -17,6 +17,10 @@ versions << [
   'hadoop' : '3.4.3',
 ]
 
+tasks.withType(JavaCompile).configureEach {
+  options.compilerArgs << '-Xlint:-classfile'
+}
+
 esplugin {
   name = 'esql-datasource-orc'
   description = 'ORC format support for ESQL external data sources'

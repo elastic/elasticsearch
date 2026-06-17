@@ -602,9 +602,6 @@ tests:
 - class: org.elasticsearch.upgrades.MultiVersionRepositoryAccessIT
   method: testUpgradeMovesRepoToNewMetaVersion
   issue: https://github.com/elastic/elasticsearch/issues/151391
-- class: org.elasticsearch.index.store.BytesReadRankFeatureIT
-  method: testRankFeaturePhaseEmptyDocIdsStillReportsDirectoryMetrics
-  issue: https://github.com/elastic/elasticsearch/issues/151392
 - class: org.elasticsearch.xpack.stateless.cluster.coordination.TransportConsistentClusterStateReadIT
   method: testWaitsUntilTheNodeRejoinsTheClusterToReturnAValidClusterState
   issue: https://github.com/elastic/elasticsearch/issues/151402
@@ -618,5 +615,8 @@ tests:
   method: test {p0=esql/160_union_types/load four indices with single conversion function TO_IP}
   issue: https://github.com/elastic/elasticsearch/issues/151413
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
+  method: test {feature:SUBQUERIES}
+  issue: https://github.com/elastic/elasticsearch/issues/149681
+- class: org.elasticsearch.xpack.esql.qa.multi_node.GenerativeIT
   method: test {feature:SUBQUERIES}
   issue: https://github.com/elastic/elasticsearch/issues/149681

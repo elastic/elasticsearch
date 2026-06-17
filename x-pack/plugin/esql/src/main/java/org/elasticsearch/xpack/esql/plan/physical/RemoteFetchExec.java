@@ -100,15 +100,7 @@ public class RemoteFetchExec extends BinaryExec implements EstimatesRowSize {
 
     @Override
     protected NodeInfo<RemoteFetchExec> info() {
-        return NodeInfo.create(
-            this,
-            RemoteFetchExec::new,
-            left(),
-            handleAttribute,
-            attributesToFetch,
-            fetchedOutputAttributes,
-            fetchPlan
-        );
+        return NodeInfo.create(this, RemoteFetchExec::new, left(), handleAttribute, attributesToFetch, fetchedOutputAttributes, fetchPlan);
     }
 
     @Override
@@ -180,7 +172,7 @@ public class RemoteFetchExec extends BinaryExec implements EstimatesRowSize {
 
     @Override
     public PhysicalPlan estimateRowSize(State state) {
-        state.add(true, fetchedOutputAttributes);
+        state.add(false, fetchedOutputAttributes);
         return this;
     }
 

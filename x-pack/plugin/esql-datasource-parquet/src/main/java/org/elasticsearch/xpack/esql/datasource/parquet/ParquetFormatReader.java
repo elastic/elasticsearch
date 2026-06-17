@@ -1164,7 +1164,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
         // them, so this emits zero index ranges.
         IndexColumnPaths indexColumnPaths = computeIndexColumnPaths(
             FilterCompat.isFilteringRequired(recordFilter),
-            pushedExpressions != null,
+            filterPredicate != null,
             predicateColumnPaths,
             dynamicThreshold != null ? dynamicThreshold.columnName() : null,
             projectedSchema
@@ -1297,41 +1297,25 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
     record IndexColumnPaths(Set<String> columnIndexPaths, Set<String> offsetIndexPaths) {}
 
     /**
-     * Computes which columns need their page indexes prefetched, so a full scan does not pay for
-     * ColumnIndex/OffsetIndex bytes that no plan consumes. The page indexes are read only by:
-     * <ul>
-     *   <li>predicate columns — ColumnIndex + OffsetIndex for page-level {@code RowRanges}
-     *       computation ({@code ColumnIndexRowRangesComputer});</li>
-     *   <li>the dynamic-threshold / top-N sort column — ColumnIndex + OffsetIndex for page skipping
-     *       ({@code OptimizedParquetColumnIterator#thresholdRowRanges});</li>
-     *   <li>projected columns — OffsetIndex only, and only when a filter is active, so filtered
-     *       reads can skip non-surviving pages ({@code PrefetchedRowGroupBuilder},
-     *       {@code OptimizedParquetColumnIterator#fetchProjectionPhase}).</li>
-     * </ul>
-     *
-     * <p>When a filter is active but its predicate columns cannot be enumerated (the legacy
-     * {@code FilterPredicateCompat} path, where {@code canEnumeratePredicates} is false), gating is
-     * unsafe: returns {@code null} sets so the preload stays unrestricted and the filter still sees
-     * every page index it may need.
-     *
-     * @param filteringRequired whether a record filter is actually active (not {@code FilterCompat.NOOP})
-     * @param canEnumeratePredicates whether predicate column names are known (i.e. pushed expressions exist)
-     * @param predicateColumnPaths dot-string paths of predicate columns, or {@code null} when none
-     * @param thresholdColumn the dynamic-threshold sort column name, or {@code null} when no threshold
+     * Restricts page-index prefetch to the columns a plan actually consumes, so a full scan does not
+     * pay for ColumnIndex/OffsetIndex bytes nothing reads. Index ranges are only used when a Parquet
+     * {@link FilterPredicate} drives {@code RowRanges} ({@code pageRangeFilterActive}) or for the
+     * dynamic-threshold sort column. Returns {@code null} sets (unrestricted, legacy behavior) when a
+     * filter is active but its predicate columns can't be enumerated ({@code predicateColumnPaths == null}).
      */
     static IndexColumnPaths computeIndexColumnPaths(
         boolean filteringRequired,
-        boolean canEnumeratePredicates,
+        boolean pageRangeFilterActive,
         Set<String> predicateColumnPaths,
         String thresholdColumn,
         MessageType projectedSchema
     ) {
-        if (filteringRequired && canEnumeratePredicates == false) {
+        if (filteringRequired && predicateColumnPaths == null) {
             return new IndexColumnPaths(null, null);
         }
         Set<String> columnIndexPaths = new HashSet<>();
         Set<String> offsetIndexPaths = new HashSet<>();
-        if (predicateColumnPaths != null) {
+        if (pageRangeFilterActive && predicateColumnPaths != null) {
             columnIndexPaths.addAll(predicateColumnPaths);
             offsetIndexPaths.addAll(predicateColumnPaths);
         }
@@ -1339,7 +1323,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             columnIndexPaths.add(thresholdColumn);
             offsetIndexPaths.add(thresholdColumn);
         }
-        if (filteringRequired) {
+        if (pageRangeFilterActive) {
             for (ColumnDescriptor descriptor : projectedSchema.getColumns()) {
                 offsetIndexPaths.add(String.join(".", descriptor.getPath()));
             }

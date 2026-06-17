@@ -52,6 +52,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.NavigableMap;
 import java.util.Set;
+import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
@@ -213,7 +214,7 @@ public class PreloadedRowGroupMetadataTests extends ESTestCase {
             )
         ) {
             int rgCount = reader.getRowGroups().size();
-            java.util.List<long[]> tmp = new java.util.ArrayList<>();
+            List<long[]> tmp = new ArrayList<>();
             for (int rg = 0; rg < rgCount; rg++) {
                 var col = reader.getRowGroups().get(rg).getColumns().get(0);
                 if (col.hasDictionaryPage() == false) {
@@ -555,8 +556,8 @@ public class PreloadedRowGroupMetadataTests extends ESTestCase {
      * file, so the gating tests above are not vacuously satisfied by an absent index.
      */
     private static void assertHasPageIndexReferences(ParquetFileReader reader, String... columnPaths) {
-        for (org.apache.parquet.hadoop.metadata.BlockMetaData block : reader.getRowGroups()) {
-            for (org.apache.parquet.hadoop.metadata.ColumnChunkMetaData col : block.getColumns()) {
+        for (BlockMetaData block : reader.getRowGroups()) {
+            for (ColumnChunkMetaData col : block.getColumns()) {
                 String path = col.getPath().toDotString();
                 for (String wanted : columnPaths) {
                     if (path.equals(wanted)) {
@@ -798,9 +799,9 @@ public class PreloadedRowGroupMetadataTests extends ESTestCase {
      * a counting storage harness can detect fetches that overlap them.
      */
     private static long[][] collectIndexRanges(ParquetFileReader reader) {
-        java.util.List<long[]> tmp = new java.util.ArrayList<>();
-        for (org.apache.parquet.hadoop.metadata.BlockMetaData block : reader.getRowGroups()) {
-            for (org.apache.parquet.hadoop.metadata.ColumnChunkMetaData col : block.getColumns()) {
+        List<long[]> tmp = new ArrayList<>();
+        for (BlockMetaData block : reader.getRowGroups()) {
+            for (ColumnChunkMetaData col : block.getColumns()) {
                 var ci = col.getColumnIndexReference();
                 if (ci != null && ci.getLength() > 0) {
                     tmp.add(new long[] { ci.getOffset(), ci.getOffset() + ci.getLength() });
@@ -998,7 +999,7 @@ public class PreloadedRowGroupMetadataTests extends ESTestCase {
                 long position,
                 long length,
                 DirectBufferFactory factory,
-                java.util.concurrent.Executor ignored,
+                Executor ignored,
                 ActionListener<DirectReadBuffer> listener
             ) {
                 asyncReadCount.incrementAndGet();

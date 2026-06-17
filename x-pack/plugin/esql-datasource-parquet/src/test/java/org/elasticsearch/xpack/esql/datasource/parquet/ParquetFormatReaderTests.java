@@ -3315,13 +3315,33 @@ public class ParquetFormatReaderTests extends ESTestCase {
     public void testComputeIndexColumnPathsLegacyFilterIsUnrestricted() {
         ParquetFormatReader.IndexColumnPaths paths = ParquetFormatReader.computeIndexColumnPaths(
             true,
-            false,
+            true,
             null,
             null,
             threeColumnSchema()
         );
         assertNull("legacy filter path must not gate", paths.columnIndexPaths());
         assertNull("legacy filter path must not gate", paths.offsetIndexPaths());
+    }
+
+    /**
+     * Pushdown that yields no Parquet {@code FilterPredicate} (e.g. a pure {@code WildcardLike}):
+     * predicate columns are enumerable but {@code pageRangeFilterActive} is false, so no page-level
+     * {@code RowRanges} are ever computed. The predicate-column page indexes must not be fetched -
+     * they would be fetched and discarded.
+     */
+    public void testComputeIndexColumnPathsPushdownWithoutFilterPredicate() {
+        ParquetFormatReader.IndexColumnPaths paths = ParquetFormatReader.computeIndexColumnPaths(
+            false,
+            false,
+            Set.of("a"),
+            null,
+            threeColumnSchema()
+        );
+        assertNotNull("must gate (non-null sets), not fall back to unrestricted", paths.columnIndexPaths());
+        assertNotNull(paths.offsetIndexPaths());
+        assertTrue("no FilterPredicate -> predicate column index must not be fetched", paths.columnIndexPaths().isEmpty());
+        assertTrue("no FilterPredicate -> no offset index must be fetched", paths.offsetIndexPaths().isEmpty());
     }
 
 }

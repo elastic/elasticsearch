@@ -37,7 +37,6 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.fielddata.FormattedDocValues;
 import org.elasticsearch.index.fielddata.HistogramValues;
-import org.elasticsearch.index.fielddata.ProcessedDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.fielddata.SortedNumericLongValues;
 import org.elasticsearch.index.mapper.DateFieldMapper;
@@ -650,8 +649,7 @@ class DownsampleShardIndexer {
                 docIdBuffer.elementsCount = 0;
             }
 
-            private <T extends ProcessedDocValues> void collect(AbstractFieldDownsampler<T>[] downsamplers, T[] docValues)
-                throws IOException {
+            private <T> void collect(AbstractFieldDownsampler<T>[] downsamplers, T[] docValues) throws IOException {
                 assert downsamplers.length == docValues.length
                     : "Number of downsamplers [" + downsamplers.length + "] does not match number of doc values [" + docValues.length + "]";
                 for (int i = 0; i < downsamplers.length; i++) {

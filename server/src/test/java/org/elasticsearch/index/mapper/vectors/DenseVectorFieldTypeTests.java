@@ -141,7 +141,8 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
                 IndexVersion.current(),
                 randomBoolean(),
                 randomFrom(1, 2, 4),
-                randomBoolean()
+                randomBoolean(),
+                false
             )
         );
 
@@ -1075,7 +1076,8 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
             IndexVersion.current(),
             false,
             1,
-            true
+            true,
+            false
         );
         return new DenseVectorFieldType(
             "f",

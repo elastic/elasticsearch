@@ -64,7 +64,10 @@ public class StatelessConcurrentRefreshIT extends AbstractStatelessPluginIntegTe
 
         public final AtomicReference<CyclicBarrier> commitIndexWriterBarrierReference = new AtomicReference<>();
         public final AtomicReference<CyclicBarrier> indexBarrierReference = new AtomicReference<>();
-        public final AtomicReference<CyclicBarrier> afterFlushCompletedBarrierReference = new AtomicReference<>();
+        // Separate barriers by flush type to prevent scheduled refreshes (IS_FLUSH_BY_REFRESH=true) from
+        // accidentally consuming the barrier that is meant for the relocation pre-flush (IS_FLUSH_BY_REFRESH=false).
+        public final AtomicReference<CyclicBarrier> afterRealFlushCompletedBarrierReference = new AtomicReference<>();
+        public final AtomicReference<CyclicBarrier> afterRefreshFlushCompletedBarrierReference = new AtomicReference<>();
         public final AtomicReference<CountDownLatch> refreshCompletedLatchReference = new AtomicReference<>();
         public final AtomicInteger indexCounter = new AtomicInteger();
 
@@ -124,7 +127,9 @@ public class StatelessConcurrentRefreshIT extends AbstractStatelessPluginIntegTe
                 @Override
                 protected void afterFlush(long generation) {
                     super.afterFlush(generation);
-                    final CyclicBarrier barrier = afterFlushCompletedBarrierReference.get();
+                    final CyclicBarrier barrier = isFlushByRefresh()
+                        ? afterRefreshFlushCompletedBarrierReference.get()
+                        : afterRealFlushCompletedBarrierReference.get();
                     if (barrier != null) {
                         safeAwait(barrier);
                         safeAwait(barrier);
@@ -309,18 +314,23 @@ public class StatelessConcurrentRefreshIT extends AbstractStatelessPluginIntegTe
         final var indexingThread = new Thread(() -> bulkIndexDocsWithRefresh(indexName, 20, WriteRequest.RefreshPolicy.WAIT_UNTIL));
         indexingThread.start();
 
-        // 2. Start the relocation and block it right after the pre-flush. The pre-flush creates and uploads generation N
+        // 2. Start the relocation and block it right after the pre-flush. The pre-flush creates and uploads generation N.
+        // afterRealFlushCompletedBarrierReference is used so that only this real flush (IS_FLUSH_BY_REFRESH=false) can
+        // trip the barrier; concurrent scheduled refreshes (IS_FLUSH_BY_REFRESH=true) are routed to the other reference
+        // and cannot interfere.
         final var afterFlushCompletedBarrierForPreFlush = new CyclicBarrier(2);
-        testStateless.afterFlushCompletedBarrierReference.set(afterFlushCompletedBarrierForPreFlush);
+        testStateless.afterRealFlushCompletedBarrierReference.set(afterFlushCompletedBarrierForPreFlush);
         logger.info("--> Relocating index shard into [{}]", newIndexNode);
         updateIndexSettings(Settings.builder().put("index.routing.allocation.require._name", newIndexNode), indexName);
         safeAwait(afterFlushCompletedBarrierForPreFlush);
 
         // 3. Issue an external refresh and block it at the end of the (converted) flush and before it notifies refresh listener.
-        // It creates generation N+1 which is not uploaded (since it's a refresh)
+        // It creates generation N+1 which is not uploaded (since it's a refresh).
+        // afterRefreshFlushCompletedBarrierReference is used so that only flush-by-refresh calls (IS_FLUSH_BY_REFRESH=true)
+        // can trip the barrier; the real pre-flush is already past and cannot interfere.
         logger.info("--> Starting external refresh to creates a new generation ");
         final var afterFlushCompletedBarrierForExternalRefresh = new CyclicBarrier(2);
-        testStateless.afterFlushCompletedBarrierReference.set(afterFlushCompletedBarrierForExternalRefresh);
+        testStateless.afterRefreshFlushCompletedBarrierReference.set(afterFlushCompletedBarrierForExternalRefresh);
         final ActionFuture<BroadcastResponse> refreshFuture = indicesAdmin().prepareRefresh(indexName).execute();
         safeAwait(afterFlushCompletedBarrierForExternalRefresh);
 
@@ -333,7 +343,8 @@ public class StatelessConcurrentRefreshIT extends AbstractStatelessPluginIntegTe
         logger.info("--> Resume relocation");
         final CountDownLatch afterRefreshLatch = new CountDownLatch(1);
         testStateless.refreshCompletedLatchReference.set(afterRefreshLatch);
-        testStateless.afterFlushCompletedBarrierReference.set(null);
+        testStateless.afterRealFlushCompletedBarrierReference.set(null);
+        testStateless.afterRefreshFlushCompletedBarrierReference.set(null);
         safeAwait(afterFlushCompletedBarrierForPreFlush); // resumes relocation
         safeAwait(afterRefreshLatch);
 

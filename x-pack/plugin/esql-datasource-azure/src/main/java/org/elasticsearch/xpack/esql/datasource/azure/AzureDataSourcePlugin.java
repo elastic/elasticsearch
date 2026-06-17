@@ -26,7 +26,7 @@ import java.util.concurrent.ExecutorService;
  * <pre>
  *   EXTERNAL "wasbs://account.blob.core.windows.net/container/path/data.parquet"
  *   EXTERNAL "wasbs://account.blob.core.windows.net/container/path/data.parquet"
- *     WITH (account="myaccount", key="...", endpoint="https://myaccount.blob.core.windows.net")
+ *     WITH {"account": "myaccount", "key": "...", "endpoint": "https://myaccount.blob.core.windows.net"}
  * </pre>
  */
 public class AzureDataSourcePlugin extends Plugin implements DataSourcePlugin {

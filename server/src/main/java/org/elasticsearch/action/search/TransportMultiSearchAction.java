@@ -304,7 +304,7 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
      * {@link AtomicArray}), but it cannot prevent a single large response from consuming
      * significant heap before the check fires.
      */
-    static long estimateActualBytes(SearchResponse response) {
+    public static long estimateActualBytes(SearchResponse response) {
         long bytes = BASE_RESPONSE_OVERHEAD;
 
         // One CountingStreamOutput for the entire estimation: reset() before each use.

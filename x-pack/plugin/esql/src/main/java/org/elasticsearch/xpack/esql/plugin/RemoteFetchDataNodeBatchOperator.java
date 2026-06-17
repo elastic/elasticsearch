@@ -8,15 +8,22 @@
 package org.elasticsearch.xpack.esql.plugin;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.xcontent.XContentBuilder;
 
+import java.io.IOException;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Deque;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * Data-node-side batch operator for remote fetch over bidirectional exchange.
@@ -29,6 +36,10 @@ final class RemoteFetchDataNodeBatchOperator implements Operator {
     private final Deque<Page> outputQueue = new ArrayDeque<>();
     private boolean finished;
     private Exception failure;
+    private int pagesReceived;
+    private int pagesEmitted;
+    private long rowsReceived;
+    private long rowsEmitted;
 
     RemoteFetchDataNodeBatchOperator(RemoteFetcher batchFetcher) {
         this.batchFetcher = batchFetcher;
@@ -45,6 +56,8 @@ final class RemoteFetchDataNodeBatchOperator implements Operator {
             if (failure != null) {
                 return;
             }
+            pagesReceived++;
+            rowsReceived += page.getPositionCount();
             List<RemoteFetchHandle> handles = decodeHandles(page);
             validateSingleTargetSession(handles);
             // This executes on the target data node against retained local shard contexts;
@@ -76,7 +89,12 @@ final class RemoteFetchDataNodeBatchOperator implements Operator {
     @Override
     public Page getOutput() {
         if (failure == null) {
-            return outputQueue.pollFirst();
+            Page page = outputQueue.pollFirst();
+            if (page != null) {
+                pagesEmitted++;
+                rowsEmitted += page.getPositionCount();
+            }
+            return page;
         }
         Exception e = failure;
         failure = null;
@@ -92,6 +110,11 @@ final class RemoteFetchDataNodeBatchOperator implements Operator {
             Releasables.closeExpectNoException(page::releaseBlocks);
         }
         outputQueue.clear();
+    }
+
+    @Override
+    public Operator.Status status() {
+        return new Status(pagesReceived, pagesEmitted, rowsReceived, rowsEmitted);
     }
 
     private static List<RemoteFetchHandle> decodeHandles(Page page) {
@@ -155,5 +178,66 @@ final class RemoteFetchDataNodeBatchOperator implements Operator {
     @FunctionalInterface
     interface RemoteFetcher {
         List<Page> fetch(List<RemoteFetchHandle> handles) throws Exception;
+    }
+
+    public record Status(int pagesReceived, int pagesEmitted, long rowsReceived, long rowsEmitted) implements Operator.Status {
+
+        public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
+            Operator.Status.class,
+            "remote_fetch_data_node_batch",
+            Status::new
+        );
+
+        Status(StreamInput in) throws IOException {
+            this(in.readVInt(), in.readVInt(), in.readVLong(), in.readVLong());
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeVInt(pagesReceived);
+            out.writeVInt(pagesEmitted);
+            out.writeVLong(rowsReceived);
+            out.writeVLong(rowsEmitted);
+        }
+
+        @Override
+        public String getWriteableName() {
+            return ENTRY.name;
+        }
+
+        @Override
+        public TransportVersion getMinimalSupportedVersion() {
+            return TransportVersion.minimumCompatible();
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            builder.field("pages_received", pagesReceived);
+            builder.field("pages_emitted", pagesEmitted);
+            builder.field("rows_received", rowsReceived);
+            builder.field("rows_emitted", rowsEmitted);
+            return builder.endObject();
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
+            Status status = (Status) o;
+            return pagesReceived == status.pagesReceived
+                && pagesEmitted == status.pagesEmitted
+                && rowsReceived == status.rowsReceived
+                && rowsEmitted == status.rowsEmitted;
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(pagesReceived, pagesEmitted, rowsReceived, rowsEmitted);
+        }
     }
 }

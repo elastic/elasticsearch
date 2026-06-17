@@ -8,13 +8,13 @@
 package org.elasticsearch.xpack.inference.highlight;
 
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.inference.InferenceString;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.fetch.subphase.highlight.FieldHighlightContext;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightUtils;
 import org.elasticsearch.xpack.inference.common.chunks.SemanticTextChunkUtils;
 import org.elasticsearch.xpack.inference.mapper.OffsetSourceFieldMapper;
 import org.elasticsearch.xpack.inference.mapper.SemanticFieldContent;
+import org.elasticsearch.xpack.inference.mapper.SemanticTextUtils;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -39,28 +39,21 @@ class SemanticChunkContentExtractor implements ChunkContentExtractor {
             fieldToContent.put(offset.field(), content);
         }
 
-        String offsetContent;
-        if (offset.inputIndex() != null) {
-            InferenceString inferenceString = content.getInferenceStringValue(offset.inputIndex());
-            if (inferenceString == null) {
-                throw new IllegalStateException(
-                    "Invalid content detected for field ["
-                        + offset.field()
-                        + "]: missing InferenceString value at index ["
-                        + offset.inputIndex()
-                        + "]"
-                );
-            }
-            offsetContent = inferenceString.value();
-        } else {
-            try {
-                offsetContent = content.getChunkText(offset.start(), offset.end());
-            } catch (IndexOutOfBoundsException e) {
-                throw new IllegalStateException("Invalid content detected for field [" + offset.field() + "]", e);
-            }
-        }
+        try {
+            Object resolved = content.resolve(offset);
 
-        return offsetContent;
+            if (resolved instanceof Map<?, ?> map) {
+                @SuppressWarnings("unchecked")
+                Map<String, Object> stringKeyedMap = (Map<String, Object>) map;
+                return SemanticTextUtils.parseInferenceStringValue(stringKeyedMap).value();
+            } else if (resolved instanceof String string) {
+                return string;
+            } else {
+                throw new IllegalStateException("Unexpected resolved data type [" + resolved.getClass() + "]");
+            }
+        } catch (Exception e) {
+            throw new IllegalStateException("Invalid content detected for field [" + offset.field() + "]", e);
+        }
     }
 
     private SemanticFieldContent extractFieldContent(

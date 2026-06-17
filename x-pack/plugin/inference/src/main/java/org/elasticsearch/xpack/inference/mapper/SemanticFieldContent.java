@@ -20,6 +20,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.inference.mapper.OffsetSourceFieldMapper.OffsetSource;
+
 public class SemanticFieldContent {
     private final List<String> textValues;
     private final Map<Integer, Map<?, ?>> mapValues;
@@ -37,6 +39,27 @@ public class SemanticFieldContent {
             this.mapValues = new HashMap<>(1);
             parseFieldValues(List.of(fieldValue), textValues, mapValues);
         }
+    }
+
+    /**
+     * Resolves the content referenced by the given {@link OffsetSource}.
+     * Returns a {@link Map} for object inputs (representing an {@link InferenceString}) or a {@link String} for text chunk inputs.
+     *
+     * @param offset The offset to use the resolve the content
+     * @return The resolved content
+     * @throws IllegalArgumentException If the offset refers to an object input, but the referenced object is missing
+     * @throws IndexOutOfBoundsException If the offset refers to a text input, but the start or end offset is out of bounds
+     */
+    public Object resolve(OffsetSource offset) {
+        if (offset.inputIndex() != null) {
+            Map<?, ?> mapValue = getMapValue(offset.inputIndex());
+            if (mapValue == null) {
+                throw new IllegalArgumentException("missing object value at input index [" + offset.inputIndex() + "]");
+            }
+            return mapValue;
+        }
+
+        return getChunkText(offset.start(), offset.end());
     }
 
     public String getChunkText(int startOffset, int endOffset) {

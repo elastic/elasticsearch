@@ -40,27 +40,11 @@ class ChunkValuesSemanticFieldValueFetcher extends ChildDocIteratingValueFetcher
                 return new SemanticFieldContent(valueObj);
             });
 
-            final Object chunk;
-            if (offset.inputIndex() != null) {
-                chunk = semanticFieldContent.getMapValue(offset.inputIndex());
-                if (chunk == null) {
-                    throw new IllegalStateException(
-                        "Invalid content detected for field ["
-                            + offset.field()
-                            + "]: missing object value at index ["
-                            + offset.inputIndex()
-                            + "]"
-                    );
-                }
-            } else {
-                try {
-                    chunk = semanticFieldContent.getChunkText(offset.start(), offset.end());
-                } catch (IndexOutOfBoundsException e) {
-                    throw new IllegalStateException("Invalid content detected for field [" + offset.field() + "]", e);
-                }
+            try {
+                chunks.add(semanticFieldContent.resolve(offset));
+            } catch (Exception e) {
+                throw new IllegalStateException("Invalid content detected for field [" + offset.field() + "]", e);
             }
-
-            chunks.add(chunk);
         });
 
         return chunks;

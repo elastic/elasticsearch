@@ -249,6 +249,15 @@ public interface InferenceService extends Closeable {
     }
 
     /**
+     * Called by {@code TransportUpdateInferenceModelAction} after a successful update has been persisted.
+     * Default no-op. Services can override to invalidate any per-model caches (for example,
+     * credential caches) when relevant fields have changed.
+     */
+    default void onModelUpdated(Model oldModel, Model newModel, ActionListener<Void> listener) {
+        listener.onResponse(null);
+    }
+
+    /**
      * Update a text embedding model's dimensions based on a provided embedding
      * size and set the default similarity if required. The default behaviour is to just return the model.
      * @param model The original model without updated embedding details

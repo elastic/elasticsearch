@@ -69,6 +69,7 @@ public class GcsStorageProvider implements StorageProvider {
     private volatile Storage storage;
     private final GcsConfiguration config;
 
+    @SuppressWarnings("this-escape")
     public GcsStorageProvider(GcsConfiguration config) {
         this.config = config;
         // When explicit credentials, keyless auth, or anonymous mode are configured, build the client

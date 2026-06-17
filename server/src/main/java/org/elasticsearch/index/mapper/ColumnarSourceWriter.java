@@ -13,6 +13,7 @@ import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.ByteVectorValues;
 import org.apache.lucene.index.DocValuesSkipper;
 import org.apache.lucene.index.DocValuesType;
+import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.IndexableField;
@@ -91,6 +92,15 @@ final class ColumnarSourceWriter {
     static class ReusableColumnarStoredLeafReader extends LeafReader {
 
         private static final String COUNT_FIELD_SUFFIX = MultiValuedBinaryDocValuesField.SeparateCount.COUNT_FIELD_SUFFIX;
+        private static final FieldInfos EMPTY_FIELD_INFOS = new FieldInfos(new FieldInfo[0]) {
+
+            @Override
+            public FieldInfo fieldInfo(String fieldName) {
+                // Shortcut: no need to to check an empty map.
+                return null;
+            }
+
+        };
 
         // -------------------------------------------------------------------------
         // Slot maps — lazily populated during the one-time leaf() build,
@@ -239,14 +249,14 @@ final class ColumnarSourceWriter {
             return null;
         }
 
+        @Override
+        public FieldInfos getFieldInfos() {
+            return EMPTY_FIELD_INFOS;
+        }
+
         // -------------------------------------------------------------------------
         // Unsupported operations
         // -------------------------------------------------------------------------
-
-        @Override
-        public FieldInfos getFieldInfos() {
-            throw new UnsupportedOperationException();
-        }
 
         @Override
         public StoredFields storedFields() throws IOException {

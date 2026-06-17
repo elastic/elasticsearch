@@ -11,7 +11,9 @@ package org.elasticsearch.foreign.processor.model;
 
 /**
  * Classifies how a Java type participates in a native FFM call: which
- * {@code ValueLayout} it maps to and how it is marshaled (STRING marshaling).
+ * {@code ValueLayout} it maps to and how it is marshaled. {@link #STRING} is the only type that
+ * requires marshaling — the Java {@code String} is passed through native code as a {@code char *},
+ * laid out as {@link #ADDRESS}.
  */
 public enum NativeType {
     INT,
@@ -21,7 +23,12 @@ public enum NativeType {
     BOOLEAN,
     FLOAT,
     DOUBLE,
-    ADDRESS,    // MemorySegment
-    STRING,     // String return type only (UTF-8)
-    VOID        // void return
+    ADDRESS,
+    STRING,
+    VOID;
+
+    /** The native layout to use when describing this type to FFM. {@link #STRING} is laid out as {@link #ADDRESS}. */
+    public NativeType layoutType() {
+        return this == STRING ? ADDRESS : this;
+    }
 }

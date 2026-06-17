@@ -31,6 +31,9 @@ final class ClassWriterUtil {
     static final ClassDesc CD_MemorySegment = ClassDesc.of("java.lang.foreign.MemorySegment");
     private static final ClassDesc CD_ValueLayout = ClassDesc.of("java.lang.foreign.ValueLayout");
 
+    // org.elasticsearch.foreign helpers
+    static final ClassDesc CD_MemorySegmentUtil = ClassDesc.of("org.elasticsearch.foreign.MemorySegmentUtil");
+
     /**
      * Converts a Java release number (e.g. 21) to the corresponding class file major version
      * (e.g. 65) for use with {@link java.lang.classfile.ClassBuilder#withVersion}.

@@ -14,8 +14,7 @@ import org.elasticsearch.foreign.processor.model.LibraryModel;
 
 import java.io.IOException;
 import java.io.Writer;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.LinkedHashSet;
 import java.util.Set;
 
 import javax.annotation.processing.AbstractProcessor;
@@ -25,7 +24,6 @@ import javax.annotation.processing.SupportedAnnotationTypes;
 import javax.annotation.processing.SupportedOptions;
 import javax.lang.model.SourceVersion;
 import javax.lang.model.element.Element;
-import javax.lang.model.element.ElementKind;
 import javax.lang.model.element.TypeElement;
 import javax.tools.Diagnostic.Kind;
 import javax.tools.StandardLocation;
@@ -40,7 +38,8 @@ public class LibraryProcessor extends AbstractProcessor {
     private static final String LIBRARY_PROVIDER_FQN = "org.elasticsearch.foreign.LibraryProvider";
     private static final String LIBRARY_PROVIDER_SERVICE = "META-INF/services/" + LIBRARY_PROVIDER_FQN;
 
-    private final List<String> generatedProviderNames = new ArrayList<>();
+    // LinkedHashSet so the services file output is deterministic across rounds.
+    private final Set<String> generatedProviderNames = new LinkedHashSet<>();
 
     @Override
     public SourceVersion getSupportedSourceVersion() {
@@ -67,21 +66,17 @@ public class LibraryProcessor extends AbstractProcessor {
         ImplClassWriter implGenerator = new ImplClassWriter(filer, classFileVersion);
         ProviderClassWriter providerWriter = new ProviderClassWriter(filer, classFileVersion);
         for (Element element : roundEnv.getElementsAnnotatedWith(LibrarySpecification.class)) {
-            if (element.getKind() != ElementKind.INTERFACE) {
-                processingEnv.getMessager().printMessage(Kind.ERROR, "@LibrarySpecification must be on an interface", element);
+            LibraryModel model = LibraryModel.from((TypeElement) element, processingEnv);
+            if (model == null) {
                 continue;
             }
-            LibraryModel model = LibraryModel.from((TypeElement) element, processingEnv);
-            if (model != null) {
-                TypeElement typeElement = (TypeElement) element;
-                try {
-                    implGenerator.generate(model, typeElement);
-                    providerWriter.generate(model, typeElement);
-                    generatedProviderNames.add(model.qualifiedName() + "$Provider");
-                } catch (Exception e) {
-                    processingEnv.getMessager()
-                        .printMessage(Kind.ERROR, "Failed to generate class for " + model.qualifiedName() + ": " + e.getMessage(), element);
-                }
+            try {
+                implGenerator.generate(model, (TypeElement) element);
+                providerWriter.generate(model, (TypeElement) element);
+                generatedProviderNames.add(model.providerQualifiedName());
+            } catch (Exception e) {
+                processingEnv.getMessager()
+                    .printMessage(Kind.ERROR, "Failed to generate class for " + model.qualifiedName() + ": " + e.getMessage(), element);
             }
         }
         return true;

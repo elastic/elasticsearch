@@ -13,7 +13,9 @@ import org.elasticsearch.foreign.processor.model.LibraryModel;
 import org.elasticsearch.foreign.processor.model.MethodModel;
 import org.elasticsearch.foreign.processor.model.NativeType;
 
+import java.lang.classfile.ClassBuilder;
 import java.lang.classfile.ClassFile;
+import java.lang.classfile.CodeBuilder;
 import java.lang.constant.ClassDesc;
 import java.lang.constant.MethodTypeDesc;
 import java.lang.reflect.AccessFlag;
@@ -26,6 +28,7 @@ import javax.lang.model.element.TypeElement;
 import static org.elasticsearch.foreign.processor.ClassWriterUtil.CD_MemoryLayout;
 import static org.elasticsearch.foreign.processor.ClassWriterUtil.CD_MemoryLayoutArray;
 import static org.elasticsearch.foreign.processor.ClassWriterUtil.CD_MemorySegment;
+import static org.elasticsearch.foreign.processor.ClassWriterUtil.CD_MemorySegmentUtil;
 import static org.elasticsearch.foreign.processor.ClassWriterUtil.CD_Object;
 import static org.elasticsearch.foreign.processor.ClassWriterUtil.CD_String;
 import static org.elasticsearch.foreign.processor.ClassWriterUtil.CD_long;
@@ -59,6 +62,28 @@ class ImplClassWriter {
     private static final ClassDesc CD_LinkerHelper = ClassDesc.of("org.elasticsearch.foreign.LinkerHelper");
     private static final ClassDesc CD_LinkerHelperUtil = ClassDesc.of("org.elasticsearch.foreign.LinkerHelperUtil");
     private static final ClassDesc CD_LoaderHelper = ClassDesc.of("org.elasticsearch.foreign.LoaderHelper");
+
+    private static final MethodTypeDesc MTD_FunctionDescriptor_ofVoid = MethodTypeDesc.of(CD_FunctionDescriptor, CD_MemoryLayoutArray);
+    private static final MethodTypeDesc MTD_FunctionDescriptor_of = MethodTypeDesc.of(
+        CD_FunctionDescriptor,
+        CD_MemoryLayout,
+        CD_MemoryLayoutArray
+    );
+    private static final MethodTypeDesc MTD_downcallHandle = MethodTypeDesc.of(
+        CD_MethodHandle,
+        CD_String,
+        CD_FunctionDescriptor,
+        CD_LinkerOptionArray
+    );
+    private static final MethodTypeDesc MTD_adaptCritical = MethodTypeDesc.of(
+        CD_MethodHandle,
+        CD_Lookup,
+        CD_MethodHandle,
+        CD_Class,
+        CD_String
+    );
+    private static final MethodTypeDesc MTD_MemorySegmentUtil_getString = MethodTypeDesc.of(CD_String, CD_MemorySegment, CD_long);
+
     private final Filer filer;
     private final int classFileVersion;
 
@@ -67,16 +92,10 @@ class ImplClassWriter {
         this.classFileVersion = classFileVersion;
     }
 
-    /**
-     * Generates and writes the {@code $Impl} class for the given library model.
-     */
+    /** Generates and writes the {@code $Impl} class for the given library model. */
     void generate(LibraryModel model, TypeElement sourceElement) throws Exception {
-        String generatedName = model.packageName().isEmpty()
-            ? model.simpleName() + "$Impl"
-            : model.packageName() + "." + model.simpleName() + "$Impl";
-        ClassDesc generatedDesc = ClassDesc.of(generatedName);
+        ClassDesc generatedDesc = ClassDesc.of(model.implQualifiedName());
         ClassDesc interfaceDesc = ClassDesc.of(model.qualifiedName());
-
         List<MethodModel> nativeMethods = model.methods();
 
         byte[] classBytes = ClassFile.of().build(generatedDesc, cb -> {
@@ -88,13 +107,13 @@ class ImplClassWriter {
             // MethodHandle fields: one per @Function method
             for (var nm : nativeMethods) {
                 cb.withField(
-                    nm.methodName() + "$mh",
+                    nm.methodHandleFieldName(),
                     CD_MethodHandle,
                     fb -> fb.withFlags(AccessFlag.PRIVATE, AccessFlag.STATIC, AccessFlag.FINAL)
                 );
             }
 
-            // <clinit>: initialize all static fields
+            // <clinit>: load the library and initialize each MethodHandle field
             cb.withMethodBody("<clinit>", MethodTypeDesc.of(CD_void), ClassFile.ACC_STATIC, clinit -> {
                 if (model.libraryName().isEmpty() == false) {
                     emitLoadLibrary(clinit, model.libraryName());
@@ -118,7 +137,7 @@ class ImplClassWriter {
             }
         });
 
-        try (var os = filer.createClassFile(generatedName, sourceElement).openOutputStream()) {
+        try (var os = filer.createClassFile(model.implQualifiedName(), sourceElement).openOutputStream()) {
             os.write(classBytes);
         }
     }
@@ -127,84 +146,63 @@ class ImplClassWriter {
     // <clinit> helpers
     // -------------------------------------------------------------------------
 
-    private static void emitLoadLibrary(java.lang.classfile.CodeBuilder cb, String libName) {
+    private static void emitLoadLibrary(CodeBuilder cb, String libName) {
         cb.ldc(libName);
         cb.invokestatic(CD_LoaderHelper, "loadLibrary", MethodTypeDesc.of(CD_void, CD_String));
     }
 
     /**
-     * Resolves the native symbol and links it to a MethodHandle stored in {@code <name>$mh}.
-     * This handle is what the generated method implementation calls at runtime.
+     * Resolves the native symbol and stores the resulting {@code MethodHandle} in the static
+     * {@code <name>$mh} field. This handle is what the generated method body calls at runtime.
      */
-    private static void emitMhFieldInit(java.lang.classfile.CodeBuilder cb, ClassDesc generatedDesc, MethodModel nm) {
-        String fieldName = nm.methodName() + "$mh";
+    private static void emitMhFieldInit(CodeBuilder cb, ClassDesc generatedDesc, MethodModel nm) {
         boolean hasFallbackAdapter = nm.fallbackAdapterClassName() != null;
 
         // For @Critical methods with a fallback adapter we need to call
-        // LinkerHelperUtil.adaptCritical(lookup, rawHandle, adapterClass, methodName)
-        // where lookup is this generated class's own Lookup (so the adapter does not need to be in an exported
-        // package). Stack-prep the leading lookup arg here, then build the raw handle on top.
+        // LinkerHelperUtil.adaptCritical(lookup, rawHandle, adapterClass, methodName). Stack-prep
+        // the leading lookup arg here, then build the raw handle on top.
         if (hasFallbackAdapter) {
             cb.invokestatic(CD_MethodHandles, "lookup", MethodTypeDesc.of(CD_Lookup));
         }
 
         cb.ldc(nm.cSymbol());
-        emitFunctionDescriptor(cb, nm.returnType(), nativeParamTypes(nm));
+        emitFunctionDescriptor(cb, nm.returnType(), nm.paramTypes());
         emitLinkerOptions(cb, nm);
-        emitDowncallHandleCall(cb, nm);
+        cb.invokestatic(CD_LinkerHelper, "downcallHandle", MTD_downcallHandle);
 
         if (hasFallbackAdapter) {
             cb.ldc(ClassDesc.of(nm.fallbackAdapterClassName()));
             cb.ldc(nm.methodName());
-            cb.invokestatic(
-                CD_LinkerHelperUtil,
-                "adaptCritical",
-                MethodTypeDesc.of(CD_MethodHandle, CD_Lookup, CD_MethodHandle, CD_Class, CD_String)
-            );
+            cb.invokestatic(CD_LinkerHelperUtil, "adaptCritical", MTD_adaptCritical);
         }
 
-        cb.putstatic(generatedDesc, fieldName, CD_MethodHandle);
+        cb.putstatic(generatedDesc, nm.methodHandleFieldName(), CD_MethodHandle);
     }
 
-    private static void emitFunctionDescriptor(
-        java.lang.classfile.CodeBuilder cb,
-        MethodModel.ReturnType returnType,
-        List<NativeType> paramTypes
-    ) {
-        int paramCount = paramTypes.size();
-
-        if (returnType.type() == NativeType.VOID) {
-            cb.loadConstant(paramCount);
-            cb.anewarray(CD_MemoryLayout);
-            for (int i = 0; i < paramCount; i++) {
-                cb.dup();
-                cb.loadConstant(i);
-                emitValueLayout(cb, paramTypes.get(i));
-                cb.aastore();
-            }
-            // FunctionDescriptor is an interface; isInterface=true
-            cb.invokestatic(CD_FunctionDescriptor, "ofVoid", MethodTypeDesc.of(CD_FunctionDescriptor, CD_MemoryLayoutArray), true);
+    private static void emitFunctionDescriptor(CodeBuilder cb, NativeType returnType, List<NativeType> paramTypes) {
+        // FunctionDescriptor is an interface, so invokestatic uses isInterface=true.
+        if (returnType == NativeType.VOID) {
+            emitParamLayoutArray(cb, paramTypes);
+            cb.invokestatic(CD_FunctionDescriptor, "ofVoid", MTD_FunctionDescriptor_ofVoid, true);
         } else {
-            emitValueLayout(cb, nativeLayoutType(returnType.type()));
-            cb.loadConstant(paramCount);
-            cb.anewarray(CD_MemoryLayout);
-            for (int i = 0; i < paramCount; i++) {
-                cb.dup();
-                cb.loadConstant(i);
-                emitValueLayout(cb, paramTypes.get(i));
-                cb.aastore();
-            }
-            // FunctionDescriptor is an interface; isInterface=true
-            cb.invokestatic(
-                CD_FunctionDescriptor,
-                "of",
-                MethodTypeDesc.of(CD_FunctionDescriptor, CD_MemoryLayout, CD_MemoryLayoutArray),
-                true
-            );
+            emitValueLayout(cb, returnType.layoutType());
+            emitParamLayoutArray(cb, paramTypes);
+            cb.invokestatic(CD_FunctionDescriptor, "of", MTD_FunctionDescriptor_of, true);
         }
     }
 
-    private static void emitLinkerOptions(java.lang.classfile.CodeBuilder cb, MethodModel nm) {
+    private static void emitParamLayoutArray(CodeBuilder cb, List<NativeType> paramTypes) {
+        cb.loadConstant(paramTypes.size());
+        cb.anewarray(CD_MemoryLayout);
+        for (int i = 0; i < paramTypes.size(); i++) {
+            cb.dup();
+            cb.loadConstant(i);
+            emitValueLayout(cb, paramTypes.get(i).layoutType());
+            cb.aastore();
+        }
+    }
+
+    private static void emitLinkerOptions(CodeBuilder cb, MethodModel nm) {
         if (nm.isCritical()) {
             cb.invokestatic(CD_LinkerHelperUtil, "critical", MethodTypeDesc.of(CD_LinkerOptionArray));
         } else {
@@ -213,24 +211,17 @@ class ImplClassWriter {
         }
     }
 
-    private static void emitDowncallHandleCall(java.lang.classfile.CodeBuilder cb, MethodModel nm) {
-        MethodTypeDesc downcallDesc = MethodTypeDesc.of(CD_MethodHandle, CD_String, CD_FunctionDescriptor, CD_LinkerOptionArray);
-        cb.invokestatic(CD_LinkerHelper, "downcallHandle", downcallDesc);
-    }
-
     // -------------------------------------------------------------------------
     // Method body generation
     // -------------------------------------------------------------------------
 
-    private static void emitNativeFunctionMethod(java.lang.classfile.ClassBuilder cb, ClassDesc generatedDesc, MethodModel nm) {
-        MethodTypeDesc javaDesc = buildJavaMethodDesc(nm);
-        cb.withMethodBody(nm.methodName(), javaDesc, ClassFile.ACC_PUBLIC, code -> {
+    private static void emitNativeFunctionMethod(ClassBuilder cb, ClassDesc generatedDesc, MethodModel nm) {
+        cb.withMethodBody(nm.methodName(), buildJavaMethodDesc(nm), ClassFile.ACC_PUBLIC, code -> {
             code.trying(tryBlock -> {
                 emitInvokeExact(tryBlock, generatedDesc, nm);
                 emitTypedReturn(tryBlock, nm.returnType());
             }, catchBuilder -> catchBuilder.catchingAll(catchBlock -> {
-                // throw new AssertionError(t)
-                // Stack: [t]
+                // throw new AssertionError(t) — stack on entry: [t]
                 catchBlock.new_(CD_AssertionError);
                 catchBlock.dup_x1();
                 catchBlock.swap();
@@ -241,30 +232,26 @@ class ImplClassWriter {
     }
 
     /**
-     * Invokes the native function through its downcall MethodHandle, marshaling each parameter to its
-     * FFM-compatible type.
+     * Invokes the native function through its downcall MethodHandle. Each parameter is marshaled
+     * to its FFM-compatible form before the call.
      */
-    private static void emitInvokeExact(java.lang.classfile.CodeBuilder cb, ClassDesc generatedDesc, MethodModel nm) {
-        // Load the MethodHandle
-        cb.getstatic(generatedDesc, nm.methodName() + "$mh", CD_MethodHandle);
+    private static void emitInvokeExact(CodeBuilder cb, ClassDesc generatedDesc, MethodModel nm) {
+        cb.getstatic(generatedDesc, nm.methodHandleFieldName(), CD_MethodHandle);
 
-        // Load each parameter
         int slot = 1; // slot 0 = this
-        for (var param : nm.paramTypes()) {
-            slot += emitLoadParam(cb, param, slot);
+        for (var paramType : nm.paramTypes()) {
+            slot += emitLoadParam(cb, paramType, slot);
         }
 
-        // Call invokeExact with the exact native descriptor
-        MethodTypeDesc invokeExactDesc = buildInvokeExactDesc(nm);
-        cb.invokevirtual(CD_MethodHandle, "invokeExact", invokeExactDesc);
+        cb.invokevirtual(CD_MethodHandle, "invokeExact", buildInvokeExactDesc(nm));
     }
 
     /**
-     * Marshals a single parameter to its FFM-compatible form for the native call.
-     * Returns the number of local variable slots consumed (2 for {@code long}/{@code double}, 1 for others).
+     * Loads a single parameter onto the stack. Returns the number of local-variable slots consumed
+     * (2 for {@code long}/{@code double}, 1 for everything else).
      */
-    private static int emitLoadParam(java.lang.classfile.CodeBuilder cb, MethodModel.ParamInfo param, int slot) {
-        switch (param.type()) {
+    private static int emitLoadParam(CodeBuilder cb, NativeType paramType, int slot) {
+        switch (paramType) {
             case INT, SHORT, BYTE, BOOLEAN -> {
                 cb.iload(slot);
                 return 1;
@@ -285,44 +272,46 @@ class ImplClassWriter {
                 cb.aload(slot);
                 return 1;
             }
-            default -> throw new AssertionError("Unhandled param type: " + param.type());
+            default -> throw new AssertionError("Unhandled param type: " + paramType);
         }
     }
 
-    private static void emitTypedReturn(java.lang.classfile.CodeBuilder cb, MethodModel.ReturnType returnType) {
-        if (returnType.type() == NativeType.VOID) {
-            cb.return_();
-            return;
-        }
-        switch (returnType.type()) {
+    private static void emitTypedReturn(CodeBuilder cb, NativeType returnType) {
+        switch (returnType) {
+            case VOID -> cb.return_();
             case INT, SHORT, BYTE, BOOLEAN -> cb.ireturn();
             case LONG -> cb.lreturn();
             case FLOAT -> cb.freturn();
             case DOUBLE -> cb.dreturn();
             case ADDRESS -> cb.areturn();
-            case STRING -> {
-                // invokeExact returned a MemorySegment. If its address is 0 (null pointer), return null.
-                // Otherwise call .reinterpret(Long.MAX_VALUE).getString(0).
-                // Stack: [segment]
-                var notNull = cb.newLabel();
-                cb.dup();
-                cb.invokeinterface(CD_MemorySegment, "address", MethodTypeDesc.of(CD_long));
-                cb.lconst_0();
-                cb.lcmp();
-                cb.ifne(notNull);
-                // null pointer path: pop segment, return null
-                cb.pop();
-                cb.aconst_null();
-                cb.areturn();
-                cb.labelBinding(notNull);
-                cb.ldc(Long.MAX_VALUE);
-                cb.invokeinterface(CD_MemorySegment, "reinterpret", MethodTypeDesc.of(CD_MemorySegment, CD_long));
-                cb.ldc(0L);
-                cb.invokeinterface(CD_MemorySegment, "getString", MethodTypeDesc.of(CD_String, CD_long));
-                cb.areturn();
-            }
-            case VOID -> throw new AssertionError("void handled above");
+            case STRING -> emitStringReturn(cb);
         }
+    }
+
+    /**
+     * Marshals a {@code MemorySegment} returned by the native call into a Java {@code String},
+     * returning {@code null} for a null pointer. Stack on entry: {@code [segment]}.
+     */
+    private static void emitStringReturn(CodeBuilder cb) {
+        var notNull = cb.newLabel();
+        cb.dup();
+        cb.invokeinterface(CD_MemorySegment, "address", MethodTypeDesc.of(CD_long));
+        cb.lconst_0();
+        cb.lcmp();
+        cb.ifne(notNull);
+        // null pointer path: pop segment, return null
+        cb.pop();
+        cb.aconst_null();
+        cb.areturn();
+        cb.labelBinding(notNull);
+        // Otherwise reinterpret the segment to a known size and read it as a UTF-8 string. We route
+        // the read through MemorySegmentUtil so the mrjar shim picks the right API for the runtime
+        // JDK (MemorySegment.getString in JDK 22+, getUtf8String in JDK 21).
+        cb.ldc(Long.MAX_VALUE);
+        cb.invokeinterface(CD_MemorySegment, "reinterpret", MethodTypeDesc.of(CD_MemorySegment, CD_long));
+        cb.ldc(0L);
+        cb.invokestatic(CD_MemorySegmentUtil, "getString", MTD_MemorySegmentUtil_getString);
+        cb.areturn();
     }
 
     // -------------------------------------------------------------------------
@@ -331,79 +320,39 @@ class ImplClassWriter {
 
     /** Builds the Java-facing method descriptor, using Java types for all parameters and the return type. */
     private static MethodTypeDesc buildJavaMethodDesc(MethodModel nm) {
-        ClassDesc returnDesc = javaClassDesc(nm.returnType());
         List<ClassDesc> paramDescs = new ArrayList<>();
-        for (var p : nm.paramTypes()) {
-            paramDescs.add(javaParamClassDesc(p));
+        for (var paramType : nm.paramTypes()) {
+            paramDescs.add(javaClassDesc(paramType));
         }
-        return MethodTypeDesc.of(returnDesc, paramDescs);
+        return MethodTypeDesc.of(javaClassDesc(nm.returnType()), paramDescs);
     }
 
     /**
-     * Builds the native-side descriptor used when calling through the downcall MethodHandle. String
-     * returns become MemorySegment (marshaling happens after the call).
+     * Builds the native-side descriptor for the downcall {@code MethodHandle.invokeExact} call.
+     * {@code STRING} maps to {@code MemorySegment} on the wire — the Java side marshals afterwards.
      */
     private static MethodTypeDesc buildInvokeExactDesc(MethodModel nm) {
         List<ClassDesc> paramDescs = new ArrayList<>();
-        for (var p : nm.paramTypes()) {
-            paramDescs.add(nativeClassDesc(p.type()));
+        for (var paramType : nm.paramTypes()) {
+            paramDescs.add(nativeClassDesc(paramType));
         }
-        ClassDesc returnDesc;
-        if (nm.returnType().type() == NativeType.VOID) {
-            returnDesc = CD_void;
-        } else if (nm.returnType().type() == NativeType.STRING) {
-            returnDesc = CD_MemorySegment;
-        } else {
-            returnDesc = nativeClassDesc(nm.returnType().type());
-        }
-        return MethodTypeDesc.of(returnDesc, paramDescs);
+        return MethodTypeDesc.of(nativeClassDesc(nm.returnType()), paramDescs);
     }
 
-    private static ClassDesc javaClassDesc(MethodModel.ReturnType returnType) {
-        if (returnType.type() == NativeType.VOID) {
-            return CD_void;
-        }
-        return switch (returnType.type()) {
+    private static ClassDesc javaClassDesc(NativeType type) {
+        return switch (type) {
+            case VOID -> CD_void;
             case ADDRESS -> CD_MemorySegment;
             case STRING -> CD_String;
-            case VOID -> throw new AssertionError("void handled above");
-            default -> primitiveClassDesc(returnType.type());
-        };
-    }
-
-    private static ClassDesc javaParamClassDesc(MethodModel.ParamInfo param) {
-        return switch (param.type()) {
-            case ADDRESS -> CD_MemorySegment;
-            case VOID -> throw new AssertionError("void cannot be a parameter type");
-            default -> primitiveClassDesc(param.type());
+            default -> primitiveClassDesc(type);
         };
     }
 
     private static ClassDesc nativeClassDesc(NativeType type) {
         return switch (type) {
+            case VOID -> CD_void;
             case ADDRESS, STRING -> CD_MemorySegment;
-            case VOID -> throw new AssertionError("void is not a native type");
             default -> primitiveClassDesc(type);
         };
-    }
-
-    /** STRING and ADDRESS both occupy an address-sized slot in the native layout. */
-    private static NativeType nativeLayoutType(NativeType type) {
-        return switch (type) {
-            case STRING -> NativeType.ADDRESS;
-            case VOID -> throw new AssertionError("void has no native layout");
-            default -> type;
-        };
-    }
-
-    /**
-     * Returns the parameter types to include in the native FunctionDescriptor.
-     */
-    private static List<NativeType> nativeParamTypes(MethodModel nm) {
-        List<NativeType> result = new ArrayList<>();
-        for (var param : nm.paramTypes()) {
-            result.add(param.type());
-        }
-        return result;
     }
 }

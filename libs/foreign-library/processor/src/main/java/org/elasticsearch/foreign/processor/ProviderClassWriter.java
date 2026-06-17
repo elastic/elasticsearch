@@ -50,11 +50,9 @@ class ProviderClassWriter {
      * Generates and writes the {@code $Provider} class for the given library model.
      */
     void generate(LibraryModel model, TypeElement sourceElement) throws Exception {
-        String prefix = model.packageName().isEmpty() ? model.simpleName() : model.packageName() + "." + model.simpleName();
-        ClassDesc implDesc = ClassDesc.of(prefix + "$Impl");
+        ClassDesc implDesc = ClassDesc.of(model.implQualifiedName());
         ClassDesc interfaceDesc = ClassDesc.of(model.qualifiedName());
-
-        String providerName = prefix + "$Provider";
+        String providerName = model.providerQualifiedName();
         ClassDesc providerDesc = ClassDesc.of(providerName);
 
         byte[] classBytes = ClassFile.of().build(providerDesc, cb -> {

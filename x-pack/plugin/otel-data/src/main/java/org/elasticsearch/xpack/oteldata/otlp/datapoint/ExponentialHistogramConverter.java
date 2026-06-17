@@ -122,7 +122,7 @@ public class ExponentialHistogramConverter {
 
         int size = dataPoint.getBucketCountsCount();
 
-        if (size > 0) {
+        if (size > 0 && dataPoint.getExplicitBoundsCount() > 0) {
             bucketsScratch.clear();
 
             boolean minHandled = false;

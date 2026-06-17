@@ -28,11 +28,19 @@ public abstract class InferenceObjectRamBytesUsedTest<T extends Accountable> ext
 
     public abstract List<T> objectsToEstimateWithLargerInput();
 
+    public boolean hasGrowingInputs() {
+        return true;
+    }
+
     public void testRamBytesUsed_IsPositive() {
         assertThat(objectToEstimate().ramBytesUsed(), greaterThan(0L));
     }
 
     public void testRamBytesUsed_GrowsWithLargerInputs() {
+        assumeTrue(
+            "testRamBytesUsed_GrowsWithLargerInputs() is skipped for objects, which only have constant-size fields",
+            hasGrowingInputs()
+        );
         for (T obj : objectsToEstimateWithLargerInput()) {
             assertThat(obj.ramBytesUsed(), greaterThan(objectToEstimate().ramBytesUsed()));
         }

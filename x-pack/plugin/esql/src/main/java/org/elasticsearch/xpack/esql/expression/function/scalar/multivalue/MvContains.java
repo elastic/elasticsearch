@@ -321,7 +321,12 @@ public class MvContains extends BinaryScalarFunction implements EvaluatorMapper,
         // TODO: Add Lucene pushdown for spatial types too
         // TODO: When the right argument is NULL, we always return true. We should fold early in this case.
         DataType dataType = right().dataType();
-        if (DataType.isSpatial(dataType) || dataType == DataType.NULL) {
+        if (dataType.isNumeric() == false
+            && DataType.isString(dataType) == false
+            && dataType.isDate() == false
+            && dataType != DataType.VERSION
+            && dataType != DataType.IP
+            && dataType != DataType.BOOLEAN) {
             return Translatable.NO;
         }
 

@@ -2163,4 +2163,67 @@ public class NdJsonPageIteratorTests extends ESTestCase {
             Matchers.equalTo((long) rows)
         );
     }
+
+    /**
+     * Regression for https://github.com/elastic/esql-planning/issues/894: on the byte-array fast path the
+     * cap is now enforced by {@link NdJsonRecordCappingInputStream} during the single {@code readAllBytes}
+     * pull instead of by a separate pre-scan. Under {@link ErrorPolicy#STRICT} an oversized record must
+     * still surface a {@code max_record_size [N]} error rather than parse silently.
+     */
+    public void testByteArrayFastPathStrictModeEnforcesMaxRecordBytes() {
+        int maxRecordBytes = 16;
+        StringBuilder ndjson = new StringBuilder().append("{\"id\":1}\n");
+        ndjson.append("{\"id\":2,\"text\":\"").append("x".repeat(maxRecordBytes)).append("\"}\n");
+        byte[] data = ndjson.toString().getBytes(StandardCharsets.UTF_8);
+
+        var reader = new NdJsonFormatReader(null, blockFactory);
+        var object = new BytesStorageObject("file:///cap.ndjson", data);
+        FormatReadContext context = FormatReadContext.builder()
+            .batchSize(10)
+            .errorPolicy(ErrorPolicy.STRICT)
+            .maxRecordBytes(maxRecordBytes)
+            .build();
+
+        IOException ex = expectThrows(IOException.class, () -> {
+            try (var iterator = reader.read(object, context)) {
+                while (iterator.hasNext()) {
+                    iterator.next().releaseBlocks();
+                }
+            }
+        });
+        Throwable rootCause = ex;
+        while (rootCause.getCause() != null && rootCause.getCause() != rootCause) {
+            rootCause = rootCause.getCause();
+        }
+        assertThat(rootCause.getMessage(), Matchers.containsString("max_record_size [" + maxRecordBytes + "]"));
+    }
+
+    /**
+     * Companion lenient-mode contract: oversized records on the byte-array fast path must be dropped (not
+     * surfaced) so the user-visible {@code max_record_size} contract from PR #150240 is preserved. The pre-read
+     * filter pass (replacing the legacy {@code enforceMaxRecordBytes}) walks the buffered segment once and
+     * skips lines whose terminator-inclusive byte count exceeds the cap, leaving the surrounding rows intact.
+     */
+    public void testByteArrayFastPathLenientModeDropsOversizedRecord() throws IOException {
+        int maxRecordBytes = 16;
+        StringBuilder ndjson = new StringBuilder().append("{\"id\":1}\n");
+        ndjson.append("{\"id\":2,\"text\":\"").append("x".repeat(maxRecordBytes)).append("\"}\n");
+        ndjson.append("{\"id\":3}\n");
+        byte[] data = ndjson.toString().getBytes(StandardCharsets.UTF_8);
+
+        var reader = new NdJsonFormatReader(null, blockFactory);
+        var object = new BytesStorageObject("file:///cap-lenient.ndjson", data);
+        ErrorPolicy lenient = new ErrorPolicy(ErrorPolicy.Mode.SKIP_ROW, Long.MAX_VALUE, 1.0, false);
+        FormatReadContext context = FormatReadContext.builder().batchSize(10).errorPolicy(lenient).maxRecordBytes(maxRecordBytes).build();
+
+        long total = 0;
+        try (var iterator = reader.read(object, context)) {
+            while (iterator.hasNext()) {
+                var page = iterator.next();
+                total += page.getPositionCount();
+                page.releaseBlocks();
+            }
+        }
+        assertThat("lenient must drop the oversized record and keep the surrounding rows", total, Matchers.equalTo(2L));
+    }
 }

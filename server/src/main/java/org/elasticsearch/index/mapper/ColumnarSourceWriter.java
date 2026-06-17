@@ -11,11 +11,13 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.ByteVectorValues;
+import org.apache.lucene.index.DocValuesSkipIndexType;
 import org.apache.lucene.index.DocValuesSkipper;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.index.FloatVectorValues;
+import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafMetaData;
 import org.apache.lucene.index.LeafReader;
@@ -25,9 +27,12 @@ import org.apache.lucene.index.PointValues;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
+import org.apache.lucene.index.StoredFieldVisitor;
 import org.apache.lucene.index.StoredFields;
 import org.apache.lucene.index.TermVectors;
 import org.apache.lucene.index.Terms;
+import org.apache.lucene.index.VectorEncoding;
+import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.search.AcceptDocs;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.KnnCollector;
@@ -38,8 +43,11 @@ import org.elasticsearch.search.lookup.SourceFilter;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 final class ColumnarSourceWriter {
@@ -70,19 +78,24 @@ final class ColumnarSourceWriter {
             ReusableColumnarStoredLeafReader reader = new ReusableColumnarStoredLeafReader();
             LeafReaderContext leafCtx = reader.getContext();
             SourceLoader.Leaf leaf = sourceLoader.leaf(reader, DOC_IDS);
-            perThread = new ColumnarPerThread(reader, leafCtx, fieldLoader, leaf);
+            perThread = new ColumnarPerThread(sourceLoader, reader, leafCtx, fieldLoader, leaf);
             cachedColumnarPerThread.set(perThread);
         }
 
         perThread.reader().repopulate(context.doc());
         perThread.loader().reset();
+        final SourceLoader.Synthetic sourceLoader = perThread.sourceLoader;
         final SourceLoader.Leaf leaf = perThread.leaf();
         final LeafReaderContext leafCtx = perThread.leafCtx();
-        var storedFieldLoader = StoredFieldLoader.empty().getLoader(leafCtx, DOC_IDS);
+
+        // TODO: in columnar there shouldn't exist any store fields and so we can use StoredFieldLoader.empty() here.
+        var storedFieldLoader = StoredFieldLoader.create(false, sourceLoader.requiredStoredFields()).getLoader(leafCtx, DOC_IDS);
+        storedFieldLoader.advanceTo(DOC_ID);
         leaf.write(storedFieldLoader, DOC_ID, builder);
     }
 
     private record ColumnarPerThread(
+        SourceLoader.Synthetic sourceLoader,
         ReusableColumnarStoredLeafReader reader,
         LeafReaderContext leafCtx,
         SourceLoader.SyntheticFieldLoader loader,
@@ -103,22 +116,43 @@ final class ColumnarSourceWriter {
         };
 
         // -------------------------------------------------------------------------
-        // Slot maps — lazily populated during the one-time leaf() build,
-        // which initialize entries in these maps via initialization of synthetic source loaders,
-        // which triggers adding empty entry to these maps.
+        // Slot maps — lazily populated during the one-time leaf() build
         // -------------------------------------------------------------------------
 
+        /** Plain numeric slots (excludes {@code .counts} companions). */
         private final Map<String, NumericSlot> numericSlots = new HashMap<>();
+        /** Counts companion slots, keyed by the full {@code "field.counts"} name. */
         private final Map<String, CountsCompanionSlot> countsSlots = new HashMap<>();
         private final Map<String, BinarySlot> binarySlots = new HashMap<>();
+        /** SORTED-type slots created via {@link #getSortedDocValues}. */
         private final Map<String, SortedSlot> sortedSlots = new HashMap<>();
+        /**
+         * SORTED_SET-type slots created via {@link #getSortedSetDocValues}.
+         * SORTED-type fields in the document are also reflected here when they were first accessed
+         * through {@link #getSortedSetDocValues} (e.g. via {@link org.apache.lucene.index.DocValues#getSortedSet}).
+         */
         private final Map<String, SortedSetSlot> sortedSetSlots = new HashMap<>();
         private final Map<String, SortedNumericSlot> sortedNumericSlots = new HashMap<>();
+
+        // -------------------------------------------------------------------------
+        // Stored fields for the current document
+        // -------------------------------------------------------------------------
+
+        private final List<IndexableField> storedFields = new ArrayList<>();
 
         // -------------------------------------------------------------------------
         // Document repopulation
         // -------------------------------------------------------------------------
 
+        /**
+         * Swaps in the contents of {@code doc}: clears all slots populated during the previous call,
+         * then fills slots for each field present in {@code doc}. Slots registered in the slot map but
+         * absent from {@code doc} remain cleared (i.e., {@code advanceExact(0)} returns {@code false}
+         * for the duration of this document).
+         *
+         * <p>This method must be called <em>after</em> the one-time {@link SourceLoader.Synthetic#leaf}
+         * build so that the slot map is fully initialized.
+         */
         void repopulate(LuceneDocument doc) {
             // Clear all registered slots from the previous document.
             for (NumericSlot slot : numericSlots.values()) {
@@ -139,6 +173,7 @@ final class ColumnarSourceWriter {
             for (SortedNumericSlot slot : sortedNumericSlots.values()) {
                 slot.count = 0;
             }
+            storedFields.clear();
 
             // Fill slots from this document's fields.
             for (IndexableField field : doc.getFields()) {
@@ -196,6 +231,13 @@ final class ColumnarSourceWriter {
                     default -> {
                     } // NONE: no doc values to fill
                 }
+
+                // TODO: look into removing, with columnar source we shouldn't have any stored fields:
+                // this is actually only needed for randomized block loader tests which tests columnar source with binary doc values
+                // disabled:
+                if (field.fieldType().stored()) {
+                    storedFields.add(field);
+                }
             }
         }
 
@@ -236,6 +278,67 @@ final class ColumnarSourceWriter {
         }
 
         // -------------------------------------------------------------------------
+        // Stored fields
+        // -------------------------------------------------------------------------
+
+        // TODO: look into removing this, columnar source shouldn't use any stored fields.
+        @Override
+        public StoredFields storedFields() throws IOException {
+            return new StoredFields() {
+                @Override
+                public void document(int docID, StoredFieldVisitor visitor) throws IOException {
+                    for (IndexableField field : storedFields) {
+                        FieldInfo fieldInfo = fieldInfo(field.name());
+                        if (visitor.needsField(fieldInfo) != StoredFieldVisitor.Status.YES) {
+                            continue;
+                        }
+                        if (field.numericValue() != null) {
+                            Number v = field.numericValue();
+                            if (v instanceof Integer) {
+                                visitor.intField(fieldInfo, v.intValue());
+                            } else if (v instanceof Long) {
+                                visitor.longField(fieldInfo, v.longValue());
+                            } else if (v instanceof Float) {
+                                visitor.floatField(fieldInfo, v.floatValue());
+                            } else if (v instanceof Double) {
+                                visitor.doubleField(fieldInfo, v.doubleValue());
+                            }
+                        } else if (field.stringValue() != null) {
+                            visitor.stringField(fieldInfo, field.stringValue());
+                        } else if (field.binaryValue() != null) {
+                            byte[] data = new byte[field.binaryValue().length];
+                            System.arraycopy(field.binaryValue().bytes, field.binaryValue().offset, data, 0, data.length);
+                            visitor.binaryField(fieldInfo, data);
+                        }
+                    }
+                }
+            };
+        }
+
+        private static FieldInfo fieldInfo(String name) {
+            return new FieldInfo(
+                name,
+                0,
+                false,
+                false,
+                false,
+                IndexOptions.NONE,
+                DocValuesType.NONE,
+                DocValuesSkipIndexType.NONE,
+                -1,
+                Collections.emptyMap(),
+                0,
+                0,
+                0,
+                0,
+                VectorEncoding.FLOAT32,
+                VectorSimilarityFunction.EUCLIDEAN,
+                false,
+                false
+            );
+        }
+
+        // -------------------------------------------------------------------------
         // Minimal required overrides
         // -------------------------------------------------------------------------
 
@@ -257,11 +360,6 @@ final class ColumnarSourceWriter {
         // -------------------------------------------------------------------------
         // Unsupported operations
         // -------------------------------------------------------------------------
-
-        @Override
-        public StoredFields storedFields() throws IOException {
-            throw new UnsupportedOperationException();
-        }
 
         @Override
         public CacheHelper getCoreCacheHelper() {

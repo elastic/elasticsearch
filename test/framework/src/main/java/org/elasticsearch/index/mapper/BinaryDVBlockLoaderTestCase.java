@@ -59,11 +59,6 @@ public abstract class BinaryDVBlockLoaderTestCase extends BlockLoaderTestCase {
         for (Object[] parentArg : parentArgs) {
             for (boolean useBinaryDocValues : new boolean[] { false, true }) {
                 BlockLoaderTestCase.Params parentParams = (BlockLoaderTestCase.Params) parentArg[0];
-                // columnar_stored always uses binary doc values (columnar index modes set
-                // USE_TIME_SERIES_DOC_VALUES_FORMAT_SETTING to true), so binaryDocValues=false is not a valid combination.
-                if (useBinaryDocValues == false && parentParams.isColumnarStored()) {
-                    continue;
-                }
                 args.add(
                     new Object[] {
                         new Params(parentParams.indexMode(), parentParams.sourceMode(), parentParams.preference(), useBinaryDocValues) }

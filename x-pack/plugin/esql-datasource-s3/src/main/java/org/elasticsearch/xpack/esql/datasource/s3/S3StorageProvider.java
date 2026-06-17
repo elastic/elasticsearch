@@ -88,6 +88,7 @@ public class S3StorageProvider implements StorageProvider {
     // Owned only on the keyless workload-identity path; null otherwise. Closed by close().
     private final StsAsyncClient stsAsyncClient;
 
+    @SuppressWarnings("this-escape")
     public S3StorageProvider(S3Configuration config) {
         this.config = config;
         final IdentityProvider<? extends AwsCredentialsIdentity> credentials;

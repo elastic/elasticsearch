@@ -351,32 +351,32 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
     }
 
     public void testFork() throws Exception {
-        runTestsNullifyOnly("""
+        runTests("""
             FROM employees
             | FORK (WHERE does_not_exist::LONG > 0)
                    (WHERE emp_no > 0)
-            """, STAGES);
+            """);
     }
 
     public void testForkWithEval() throws Exception {
-        runTestsNullifyOnly("""
+        runTests("""
             FROM employees
             | FORK (EVAL x = does_not_exist::DOUBLE + 1)
                    (EVAL y = emp_no + 1)
-            """, STAGES);
+            """);
     }
 
     public void testForkWithStats() throws Exception {
-        runTestsNullifyOnly("""
+        runTests("""
             FROM employees
             | FORK (STATS c = COUNT(*) BY does_not_exist)
                    (STATS d = AVG(salary::DOUBLE))
             | SORT does_not_exist
-            """, STAGES);
+            """);
     }
 
     public void testForkBranchesWithDifferentSchemas() throws Exception {
-        runTestsNullifyOnly("""
+        runTests("""
             FROM employees
             | WHERE first_name == "Chris" AND does_not_exist1::LONG > 5
             | EVAL does_not_exist2 IS NULL
@@ -385,17 +385,17 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
                    (DISSECT first_name "%{d} %{e} %{f}"
                     | STATS x = MIN(d::DOUBLE), y = MAX(e::DOUBLE) WHERE d::DOUBLE > 1000 + does_not_exist5::DOUBLE
                     | EVAL xyz = "abc")
-            """, STAGES);
+            """);
     }
 
     public void testForkBranchesAfterStats2ndBranch() throws Exception {
-        runTestsNullifyOnly("""
+        runTests("""
             FROM employees
             | WHERE does_not_exist1 IS NULL
             | FORK (STATS c = COUNT(*))
                    (STATS d = AVG(salary) BY does_not_exist2)
             | SORT does_not_exist2
-            """, STAGES);
+            """);
     }
 
     public void testFuse() throws Exception {
@@ -812,13 +812,13 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
     }
 
     public void testForkBranchesAfterStats1stBranch() throws Exception {
-        runTestsNullifyOnly("""
+        runTests("""
             FROM employees
             | WHERE does_not_exist1 IS NULL
             | FORK (STATS c = COUNT(*) BY does_not_exist2)
                    (STATS d = AVG(salary))
             | SORT does_not_exist2
-            """, STAGES);
+            """);
     }
 
     /**

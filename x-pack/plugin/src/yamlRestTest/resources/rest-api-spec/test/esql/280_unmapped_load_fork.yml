@@ -6,8 +6,8 @@ setup:
         - method: POST
           path: /_query
           parameters: [ ]
-          capabilities: [ optional_fields_v5, optional_fields_fix_unmapped_load_multi_index_pattern ]
-      reason: 'requires SET unmapped_fields="load" and the bug fix for querying multiple indices'
+          capabilities: [ optional_fields_v5, optional_fields_fix_unmapped_load_multi_index_pattern, optional_fields_load_with_fork ]
+      reason: 'requires SET unmapped_fields="load" support for FORK across single and multiple index patterns'
   #
   # The table below represents the field mappings for the three indices created in this test.
   #
@@ -18,6 +18,9 @@ setup:
   # | tau        | date    | date_nanos | -       |
   # | beta       | -       | double     | -       |
   # | a.b.c.d    | -       | -          | boolean |
+  #
+  # lambda is mapped as keyword in index1/index2 and unmapped in index3; under unmapped_fields="load"
+  # it is loaded from _source where unmapped, so it can be referenced inside FORK branches in every case.
   #
   - do:
       indices.create:
@@ -66,71 +69,65 @@ setup:
 ---
 two-branches-one-index:
   - do:
-      catch: bad_request
       esql.query:
         body:
-          query: 'SET unmapped_fields="load"; FROM index1 | FORK (WHERE NOT BYTE_LENGTH(lambda) < 11) (WHERE true)'
-  - match: { status: 400 }
-  - match: { error.type: verification_exception }
-  - contains: { error.reason: 'Found 1 problem' }
-  - contains: { error.reason: 'line 1:43: FORK is not supported with unmapped_fields="load"' }
+          query: 'SET unmapped_fields="load"; FROM index1 | FORK (WHERE NOT BYTE_LENGTH(lambda) < 11) (WHERE true) | KEEP lambda, _fork'
+  - match: { columns.0.name: lambda }
+  - match: { columns.0.type: keyword }
+  - match: { columns.1.name: _fork }
+  - length: { values: 0 }
 
 ---
 one-branch-one-index:
   - do:
-      catch: bad_request
       esql.query:
         body:
-          query: 'SET unmapped_fields="load"; FROM index2 | FORK (WHERE NOT BYTE_LENGTH(lambda) < 11)'
-  - match: { status: 400 }
-  - match: { error.type: verification_exception }
-  - contains: { error.reason: 'Found 1 problem' }
-  - contains: { error.reason: 'line 1:43: FORK is not supported with unmapped_fields="load"' }
+          query: 'SET unmapped_fields="load"; FROM index2 | FORK (WHERE NOT BYTE_LENGTH(lambda) < 11) | KEEP lambda, _fork'
+  - match: { columns.0.name: lambda }
+  - match: { columns.0.type: keyword }
+  - match: { columns.1.name: _fork }
+  - length: { values: 0 }
 
 ---
 two-branches-one-index-wildcard:
   - do:
-      catch: bad_request
       esql.query:
         body:
-          query: 'SET unmapped_fields="load"; FROM index3* | FORK (WHERE NOT BYTE_LENGTH(lambda) < 11) (WHERE true)'
-  - match: { status: 400 }
-  - match: { error.type: verification_exception }
-  - contains: { error.reason: 'Found 1 problem' }
-  - contains: { error.reason: 'line 1:44: FORK is not supported with unmapped_fields="load"' }
+          query: 'SET unmapped_fields="load"; FROM index3* | FORK (WHERE NOT BYTE_LENGTH(lambda) < 11) (WHERE true) | KEEP lambda, _fork'
+  - match: { columns.0.name: lambda }
+  - match: { columns.0.type: keyword }
+  - match: { columns.1.name: _fork }
+  - length: { values: 0 }
 
 ---
 one-branch-multi-index:
   - do:
-      catch: bad_request
       esql.query:
         body:
-          query: 'SET unmapped_fields="load"; FROM index1,index2 | FORK (WHERE NOT BYTE_LENGTH(lambda) < 11)'
-  - match: { status: 400 }
-  - match: { error.type: verification_exception }
-  - contains: { error.reason: 'Found 1 problem' }
-  - contains: { error.reason: 'line 1:50: FORK is not supported with unmapped_fields="load"' }
+          query: 'SET unmapped_fields="load"; FROM index1,index2 | FORK (WHERE NOT BYTE_LENGTH(lambda) < 11) | KEEP lambda, _fork'
+  - match: { columns.0.name: lambda }
+  - match: { columns.0.type: keyword }
+  - match: { columns.1.name: _fork }
+  - length: { values: 0 }
 
 ---
 two-branches-multi-index:
   - do:
-      catch: bad_request
       esql.query:
         body:
-          query: 'SET unmapped_fields="load"; FROM index1,index2 | FORK (WHERE NOT BYTE_LENGTH(lambda) < 11) (WHERE true)'
-  - match: { status: 400 }
-  - match: { error.type: verification_exception }
-  - contains: { error.reason: 'Found 1 problem' }
-  - contains: { error.reason: 'line 1:50: FORK is not supported with unmapped_fields="load"' }
+          query: 'SET unmapped_fields="load"; FROM index1,index2 | FORK (WHERE NOT BYTE_LENGTH(lambda) < 11) (WHERE true) | KEEP lambda, _fork'
+  - match: { columns.0.name: lambda }
+  - match: { columns.0.type: keyword }
+  - match: { columns.1.name: _fork }
+  - length: { values: 0 }
 
 ---
 two-branches-multi-index-wildcard:
   - do:
-      catch: bad_request
       esql.query:
         body:
-          query: 'SET unmapped_fields="load"; FROM ind* | FORK (WHERE NOT BYTE_LENGTH(lambda) < 11) (WHERE true)'
-  - match: { status: 400 }
-  - match: { error.type: verification_exception }
-  - contains: { error.reason: 'Found 1 problem' }
-  - contains: { error.reason: 'line 1:41: FORK is not supported with unmapped_fields="load"' }
+          query: 'SET unmapped_fields="load"; FROM ind* | FORK (WHERE NOT BYTE_LENGTH(lambda) < 11) (WHERE true) | KEEP lambda, _fork'
+  - match: { columns.0.name: lambda }
+  - match: { columns.0.type: keyword }
+  - match: { columns.1.name: _fork }
+  - length: { values: 0 }

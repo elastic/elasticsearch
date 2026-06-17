@@ -2990,6 +2990,15 @@ public class EsqlCapabilities {
         OPTIONAL_FIELDS_LOAD_WITH_LOOKUP_JOIN,
 
         /**
+         * Support for {@code unmapped_fields="load"} mode with {@code FORK}.
+         * Previously the combination was rejected at query validation time. Since FORK branches all read from
+         * the same source index, an unmapped field referenced in one branch is loaded from {@code _source} in
+         * every branch so it is available in the merged FORK output.
+         * see <a href="https://github.com/elastic/elasticsearch/issues/142033">Issue #142033</a>
+         */
+        OPTIONAL_FIELDS_LOAD_WITH_FORK,
+
+        /**
          * Support for the {@code ==} operator on the root of a {@code flattened} field in ES|QL.
          */
         FN_EQUALS_FLATTENED(Build.current().isSnapshot()),

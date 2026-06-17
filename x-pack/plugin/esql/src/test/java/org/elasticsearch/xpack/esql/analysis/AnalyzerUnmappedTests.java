@@ -382,39 +382,24 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
             """), containsString("3:13: [rate(network.total_cost)] " + UnresolvedTimestamp.UNRESOLVED_SUFFIX));
     }
 
-    public void testLoadModeDisallowsFork() {
-        test().statementError(
-            setUnmappedLoad("FROM test | FORK (WHERE emp_no > 1) (WHERE emp_no < 100)"),
-            containsString("line 1:41: FORK is not supported with unmapped_fields=\"load\"")
-        );
+    public void testLoadModeAllowsFork() {
+        test().statement(setUnmappedLoad("FROM test | FORK (WHERE emp_no > 1) (WHERE emp_no < 100)"));
     }
 
-    public void testLoadModeDisallowsForkWithStats() {
-        test().statementError(
-            setUnmappedLoad("FROM test | FORK (STATS c = COUNT(*)) (STATS d = AVG(salary))"),
-            containsString("line 1:41: FORK is not supported with unmapped_fields=\"load\"")
-        );
+    public void testLoadModeAllowsForkWithStats() {
+        test().statement(setUnmappedLoad("FROM test | FORK (STATS c = COUNT(*)) (STATS d = AVG(salary))"));
     }
 
-    public void testLoadModeDisallowsForkWithMultipleBranches() {
-        test().statementError(
-            setUnmappedLoad("FROM test | FORK (WHERE emp_no > 1) (WHERE emp_no < 100) (WHERE salary > 50000)"),
-            containsString("line 1:41: FORK is not supported with unmapped_fields=\"load\"")
-        );
+    public void testLoadModeAllowsForkWithMultipleBranches() {
+        test().statement(setUnmappedLoad("FROM test | FORK (WHERE emp_no > 1) (WHERE emp_no < 100) (WHERE salary > 50000)"));
     }
 
-    public void testLoadModeDisallowsForkAfterLinearPipeline() {
-        test().statementError(
-            setUnmappedLoad("FROM test | WHERE emp_no > 1 | FORK (WHERE salary > 50000) (WHERE salary < 30000)"),
-            containsString("line 1:60: FORK is not supported with unmapped_fields=\"load\"")
-        );
+    public void testLoadModeAllowsForkAfterLinearPipeline() {
+        test().statement(setUnmappedLoad("FROM test | WHERE emp_no > 1 | FORK (WHERE salary > 50000) (WHERE salary < 30000)"));
     }
 
-    public void testLoadModeDisallowsForkWithUnmappedFieldInBranch() {
-        test().statementError(
-            setUnmappedLoad("FROM test | FORK (KEEP emp_no, does_not_exist) (WHERE salary > 50000)"),
-            containsString("line 1:41: FORK is not supported with unmapped_fields=\"load\"")
-        );
+    public void testLoadModeAllowsForkWithUnmappedFieldInBranch() {
+        test().statement(setUnmappedLoad("FROM test | FORK (KEEP emp_no, does_not_exist) (WHERE salary > 50000)"));
     }
 
     public void testNullifyLookupJoinExpressionWithNullifiedFields() {
@@ -481,13 +466,13 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
             """));
     }
 
-    public void testLoadForkWithLookupJoin_ForkErrors() {
-        test().addLanguagesLookup().statementError(setUnmappedLoad("""
+    public void testLoadForkWithLookupJoin_Works() {
+        test().addLanguagesLookup().statement(setUnmappedLoad("""
             FROM test
             | EVAL language_code = languages
             | LOOKUP JOIN languages_lookup ON language_code
             | FORK (WHERE emp_no > 1) (WHERE emp_no < 100)
-            """), allOf(containsString("Found 1 problem"), containsString("FORK is not supported with unmapped_fields=\"load\"")));
+            """));
     }
 
     public void testLoadMode_AllowsSingleSubqueryInFrom() {
@@ -580,12 +565,11 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
         );
     }
 
-    public void testLoadModeDisallowsSingleSubqueryPlusFork() {
+    public void testLoadModeAllowsSingleSubqueryPlusFork() {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
-        test().statementError(
-            setUnmappedLoad("FROM (FROM test) | FORK (WHERE emp_no > 1) (WHERE emp_no < 100)"),
-            containsString("line 1:48: FORK is not supported with unmapped_fields=\"load\"")
-        );
+        // A single subquery without a main index is merged into the main query during analysis, so there is no
+        // Subquery node and the only previous blocker (FORK + load) is now allowed.
+        test().statement(setUnmappedLoad("FROM (FROM test) | FORK (WHERE emp_no > 1) (WHERE emp_no < 100)"));
     }
 
     public void testLoadModeDisallowsMultipleSubqueriesPlusFork() {
@@ -593,8 +577,7 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
         test().statementError(
             setUnmappedLoad("FROM (FROM test),(FROM test) | FORK (WHERE emp_no > 1) (WHERE emp_no < 100)"),
             allOf(
-                containsString("Found 7 problems"),
-                containsString("line 1:60: FORK is not supported with unmapped_fields=\"load\""),
+                containsString("Found 6 problems"),
                 containsString("line 1:34: Subqueries and views are not supported with unmapped_fields=\"load\""),
                 containsString("line 1:46: Subqueries and views are not supported with unmapped_fields=\"load\""),
                 containsString("line 1:34: Subqueries and views are not supported with unmapped_fields=\"load\""),
@@ -615,8 +598,7 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
             .statementError(
                 query,
                 allOf(
-                    containsString("Found 5 problems"),
-                    containsString("line 2:3: FORK is not supported with unmapped_fields=\"load\""),
+                    containsString("Found 4 problems"),
                     // error below appears twice
                     containsString("line 1:40: Subqueries and views are not supported with unmapped_fields=\"load\""),
                     // error below appears twice
@@ -1072,8 +1054,7 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
                 | FORK (eval x = resource.attributes.host.name) (eval y = attributes.xxx) (eval z = field.bbb)
                 """,
             allOf(
-                containsString("Found 5 problems"),
-                containsString("line 3:3: FORK is not supported with unmapped_fields=\"load\""),
+                containsString("Found 4 problems"),
                 // this error appears 3 times thanks to the FORK branching out
                 containsString(
                     "line 2:14: Loading subfield [field.aaa] when parent [field] is of flattened field type is not supported with "

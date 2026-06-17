@@ -685,6 +685,42 @@ public class IncrementalBulkIT extends ESIntegTestCase {
 
             primaryTransportService.clearAllRules();
             handler2.close();
+
+            // Test 3 In event of severed HTTP connection, REST handler may premature terminate handler.
+            childTaskBanned.set(false);
+            IndexRequest beforeTerminationRequest = indexRequest(index).id("before-termination");
+            IndexRequest duringTerminationRequest = indexRequest(index).id("during-termination");
+            IncrementalBulkService.Handler handler3 = incrementalBulkService.newBulkRequest();
+
+            refCounted.incRef();
+            handler3.addItems(List.of(beforeTerminationRequest), refCounted::decRef, () -> {
+                primaryTransportService.addRequestHandlingBehavior(
+                    TaskCancellationService.BAN_PARENT_ACTION_NAME,
+                    (transportRequestHandler, request, channel, task) -> {
+                        childTaskBanned.set(true);
+                        transportRequestHandler.messageReceived(request, channel, task);
+                    }
+                );
+
+                primaryTransportService.addRequestHandlingBehavior(
+                    TransportShardBulkAction.ACTION_NAME + "[p]",
+                    (transportRequestHandler, request, channel, task) -> {
+                        assertBusy(
+                            () -> assertThat(taskManager.getCancellableTask(task.getParentTaskId().getId()).isCancelled(), is(true))
+                        );
+                        transportRequestHandler.messageReceived(request, channel, task);
+                    }
+                );
+
+                refCounted.incRef();
+                handler3.addItems(List.of(duringTerminationRequest), refCounted::decRef, () -> {});
+
+                // Close handler prematurely.
+                handler3.close();
+            });
+            assertBusy(() -> assertThat(childTaskBanned.get(), is(true)));
+            assertBusy(() -> assertThat(taskManager.getCancellableTasks().isEmpty(), is(true)));
+            primaryTransportService.clearAllRules();
         }
     }
 

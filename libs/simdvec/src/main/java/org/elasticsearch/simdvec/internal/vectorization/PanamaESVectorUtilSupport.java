@@ -1619,24 +1619,24 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
             Vector<Short> iv2 = bv2.convertShape(B2S, SHORT_SPECIES_128, 0);
             Vector<Short> iv3 = bv3.convertShape(B2S, SHORT_SPECIES_128, 0);
 
+            // interleave the ops to minimize the registers needed
             Vector<Short> qq = qv16.mul(qv16);
-            Vector<Short> d0 = qv16.mul(iv0);
-            Vector<Short> d1 = qv16.mul(iv1);
-            Vector<Short> d2 = qv16.mul(iv2);
-            Vector<Short> d3 = qv16.mul(iv3);
-            Vector<Short> n0 = iv0.mul(iv0);
-            Vector<Short> n1 = iv1.mul(iv1);
-            Vector<Short> n2 = iv2.mul(iv2);
-            Vector<Short> n3 = iv3.mul(iv3);
-
             qNorm = qNorm.add(qq.convertShape(S2I, INT_SPECIES_128, 0)).add(qq.convertShape(S2I, INT_SPECIES_128, 1));
+            Vector<Short> d0 = qv16.mul(iv0);
             dot0 = dot0.add(d0.convertShape(S2I, INT_SPECIES_128, 0)).add(d0.convertShape(S2I, INT_SPECIES_128, 1));
+            Vector<Short> d1 = qv16.mul(iv1);
             dot1 = dot1.add(d1.convertShape(S2I, INT_SPECIES_128, 0)).add(d1.convertShape(S2I, INT_SPECIES_128, 1));
+            Vector<Short> d2 = qv16.mul(iv2);
             dot2 = dot2.add(d2.convertShape(S2I, INT_SPECIES_128, 0)).add(d2.convertShape(S2I, INT_SPECIES_128, 1));
+            Vector<Short> d3 = qv16.mul(iv3);
             dot3 = dot3.add(d3.convertShape(S2I, INT_SPECIES_128, 0)).add(d3.convertShape(S2I, INT_SPECIES_128, 1));
+            Vector<Short> n0 = iv0.mul(iv0);
             vNorm0 = vNorm0.add(n0.convertShape(S2I, INT_SPECIES_128, 0)).add(n0.convertShape(S2I, INT_SPECIES_128, 1));
+            Vector<Short> n1 = iv1.mul(iv1);
             vNorm1 = vNorm1.add(n1.convertShape(S2I, INT_SPECIES_128, 0)).add(n1.convertShape(S2I, INT_SPECIES_128, 1));
+            Vector<Short> n2 = iv2.mul(iv2);
             vNorm2 = vNorm2.add(n2.convertShape(S2I, INT_SPECIES_128, 0)).add(n2.convertShape(S2I, INT_SPECIES_128, 1));
+            Vector<Short> n3 = iv3.mul(iv3);
             vNorm3 = vNorm3.add(n3.convertShape(S2I, INT_SPECIES_128, 0)).add(n3.convertShape(S2I, INT_SPECIES_128, 1));
         }
 
@@ -1816,19 +1816,23 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
 
             // have to keep within 128-bits, so can't go straight to ints
             // instead have to do it by parts
+            // interleave the ops to minimize the registers needed
             Vector<Integer> d0_lo = diff0.convertShape(S2I, INT_SPECIES_128, 0);
+            sv0 = sv0.add(d0_lo.mul(d0_lo));
             Vector<Integer> d0_hi = diff0.convertShape(S2I, INT_SPECIES_128, 1);
+            sv0 = sv0.add(d0_hi.mul(d0_hi));
             Vector<Integer> d1_lo = diff1.convertShape(S2I, INT_SPECIES_128, 0);
+            sv1 = sv1.add(d1_lo.mul(d1_lo));
             Vector<Integer> d1_hi = diff1.convertShape(S2I, INT_SPECIES_128, 1);
+            sv1 = sv1.add(d1_hi.mul(d1_hi));
             Vector<Integer> d2_lo = diff2.convertShape(S2I, INT_SPECIES_128, 0);
+            sv2 = sv2.add(d2_lo.mul(d2_lo));
             Vector<Integer> d2_hi = diff2.convertShape(S2I, INT_SPECIES_128, 1);
+            sv2 = sv2.add(d2_hi.mul(d2_hi));
             Vector<Integer> d3_lo = diff3.convertShape(S2I, INT_SPECIES_128, 0);
+            sv3 = sv3.add(d3_lo.mul(d3_lo));
             Vector<Integer> d3_hi = diff3.convertShape(S2I, INT_SPECIES_128, 1);
-
-            sv0 = sv0.add(d0_lo.mul(d0_lo)).add(d0_hi.mul(d0_hi));
-            sv1 = sv1.add(d1_lo.mul(d1_lo)).add(d1_hi.mul(d1_hi));
-            sv2 = sv2.add(d2_lo.mul(d2_lo)).add(d2_hi.mul(d2_hi));
-            sv3 = sv3.add(d3_lo.mul(d3_lo)).add(d3_hi.mul(d3_hi));
+            sv3 = sv3.add(d3_hi.mul(d3_hi));
         }
 
         result[0] = sv0.reduceLanes(ADD);

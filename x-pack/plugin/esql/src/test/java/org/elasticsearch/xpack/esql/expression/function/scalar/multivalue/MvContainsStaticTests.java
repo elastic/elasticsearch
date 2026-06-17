@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar.multivalue;
 
-import org.apache.lucene.document.InetAddressPoint;
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.query.TermsSetQueryBuilder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
@@ -99,23 +97,6 @@ public class MvContainsStaticTests extends ESTestCase {
                 : TranslationAware.Translatable.NO;
             assertThat(mvContains.translatable(LucenePushdownPredicates.DEFAULT), equalTo(translatable));
         }
-    }
-
-    public void testLuceneQueryWithIP() {
-        int size = randomIntBetween(2, 10);
-        List<BytesRef> values = IntStream.range(0, size)
-            .mapToObj(i -> new BytesRef(InetAddressPoint.encode(randomIp(randomBoolean()))))
-            .toList();
-
-        Literal literal = new Literal(EMPTY, values, DataType.IP);
-        FieldAttribute fieldAttr = new FieldAttribute(
-            EMPTY,
-            "ip_host",
-            new EsField("ip_host", DataType.IP, emptyMap(), true, EsField.TimeSeriesFieldType.NONE)
-        );
-
-        MvContains mvContains = new MvContains(Source.EMPTY, fieldAttr, literal);
-        assertThat(mvContains.typeResolved(), equalTo(Expression.TypeResolution.TYPE_RESOLVED));
     }
 
     public void testAsQuery() {

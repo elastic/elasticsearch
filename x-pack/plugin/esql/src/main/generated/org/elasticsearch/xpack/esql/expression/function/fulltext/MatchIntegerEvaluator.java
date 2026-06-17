@@ -4,14 +4,13 @@
 // 2.0.
 package org.elasticsearch.xpack.esql.expression.function.fulltext;
 
-import java.io.IOException;
+import java.lang.Integer;
 import java.lang.Override;
 import java.lang.String;
-import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
-import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
@@ -23,33 +22,30 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
  * {@link ExpressionEvaluator} implementation for {@link Match}.
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
-public final class MatchTextEvaluator implements ExpressionEvaluator {
-  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(MatchTextEvaluator.class);
+public final class MatchIntegerEvaluator implements ExpressionEvaluator {
+  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(MatchIntegerEvaluator.class);
 
   private final Source source;
 
   private final ExpressionEvaluator fieldBlock;
 
-  private final String queryString;
-
-  private final Analyzer analyzer;
+  private final Integer query;
 
   private final DriverContext driverContext;
 
   private Warnings warnings;
 
-  public MatchTextEvaluator(Source source, ExpressionEvaluator fieldBlock, String queryString,
-      Analyzer analyzer, DriverContext driverContext) {
+  public MatchIntegerEvaluator(Source source, ExpressionEvaluator fieldBlock, Integer query,
+      DriverContext driverContext) {
     this.source = source;
     this.fieldBlock = fieldBlock;
-    this.queryString = queryString;
-    this.analyzer = analyzer;
+    this.query = query;
     this.driverContext = driverContext;
   }
 
   @Override
   public Block eval(Page page) {
-    try (BytesRefBlock fieldBlockBlock = (BytesRefBlock) fieldBlock.eval(page)) {
+    try (IntBlock fieldBlockBlock = (IntBlock) fieldBlock.eval(page)) {
       return eval(page.getPositionCount(), fieldBlockBlock);
     }
   }
@@ -61,15 +57,10 @@ public final class MatchTextEvaluator implements ExpressionEvaluator {
     return baseRamBytesUsed;
   }
 
-  public BooleanBlock eval(int positionCount, BytesRefBlock fieldBlockBlock) {
+  public BooleanBlock eval(int positionCount, IntBlock fieldBlockBlock) {
     try(BooleanBlock.Builder result = driverContext.blockFactory().newBooleanBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        try {
-          result.appendBoolean(Match.processText(p, fieldBlockBlock, this.queryString, this.analyzer));
-        } catch (IOException e) {
-          warnings().registerException(e);
-          result.appendNull();
-        }
+        result.appendBoolean(Match.processInteger(p, fieldBlockBlock, this.query));
       }
       return result.build();
     }
@@ -77,7 +68,7 @@ public final class MatchTextEvaluator implements ExpressionEvaluator {
 
   @Override
   public String toString() {
-    return "MatchTextEvaluator[" + "fieldBlock=" + fieldBlock + ", queryString=" + queryString + ", analyzer=" + analyzer + "]";
+    return "MatchIntegerEvaluator[" + "fieldBlock=" + fieldBlock + ", query=" + query + "]";
   }
 
   @Override
@@ -97,26 +88,22 @@ public final class MatchTextEvaluator implements ExpressionEvaluator {
 
     private final ExpressionEvaluator.Factory fieldBlock;
 
-    private final String queryString;
+    private final Integer query;
 
-    private final Analyzer analyzer;
-
-    public Factory(Source source, ExpressionEvaluator.Factory fieldBlock, String queryString,
-        Analyzer analyzer) {
+    public Factory(Source source, ExpressionEvaluator.Factory fieldBlock, Integer query) {
       this.source = source;
       this.fieldBlock = fieldBlock;
-      this.queryString = queryString;
-      this.analyzer = analyzer;
+      this.query = query;
     }
 
     @Override
-    public MatchTextEvaluator get(DriverContext context) {
-      return new MatchTextEvaluator(source, fieldBlock.get(context), queryString, analyzer, context);
+    public MatchIntegerEvaluator get(DriverContext context) {
+      return new MatchIntegerEvaluator(source, fieldBlock.get(context), query, context);
     }
 
     @Override
     public String toString() {
-      return "MatchTextEvaluator[" + "fieldBlock=" + fieldBlock + ", queryString=" + queryString + ", analyzer=" + analyzer + "]";
+      return "MatchIntegerEvaluator[" + "fieldBlock=" + fieldBlock + ", query=" + query + "]";
     }
   }
 }

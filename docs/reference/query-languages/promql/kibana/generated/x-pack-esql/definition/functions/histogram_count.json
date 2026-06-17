@@ -1,6 +1,6 @@
 {
   "comment" : "PromQL function definition for Kibana. See https://prometheus.io/docs/prometheus/latest/querying/functions/",
-  "type" : "value_transformation",
+  "type" : "histogram",
   "name" : "histogram_count",
   "description" : "Returns the count of observations stored in a native histogram.",
   "signatures" : [

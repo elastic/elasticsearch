@@ -57,7 +57,7 @@ public class ExtractHistogramComponent extends EsqlScalarFunction {
     );
 
     public static final PromqlFunctionDefinition PROMQL_HISTOGRAM_COUNT = PromqlFunctionDefinition.def()
-        .unaryValueTransformation(
+        .histogramUnary(
             (source, field) -> ExtractHistogramComponent.create(source, field, ExponentialHistogramBlock.Component.COUNT)
         )
         .description("Returns the count of observations stored in a native histogram.")
@@ -65,7 +65,7 @@ public class ExtractHistogramComponent extends EsqlScalarFunction {
         .name("histogram_count");
 
     public static final PromqlFunctionDefinition PROMQL_HISTOGRAM_SUM = PromqlFunctionDefinition.def()
-        .unaryValueTransformation(
+        .histogramUnary(
             (source, field) -> ExtractHistogramComponent.create(source, field, ExponentialHistogramBlock.Component.SUM)
         )
         .description("Returns the sum of observations stored in a native histogram.")
@@ -73,7 +73,7 @@ public class ExtractHistogramComponent extends EsqlScalarFunction {
         .name("histogram_sum");
 
     public static final PromqlFunctionDefinition PROMQL_HISTOGRAM_AVG = PromqlFunctionDefinition.def()
-        .unaryValueTransformation(
+        .histogramUnary(
             (source, field) -> new Div(
                 source,
                 ExtractHistogramComponent.create(source, field, ExponentialHistogramBlock.Component.SUM),

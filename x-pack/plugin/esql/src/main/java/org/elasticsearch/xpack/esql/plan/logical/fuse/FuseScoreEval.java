@@ -27,7 +27,7 @@ import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.util.Holder;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Values;
 import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -40,6 +40,8 @@ import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+
+import static org.elasticsearch.xpack.esql.planner.PlannerUtils.hasLimitedInput;
 
 public class FuseScoreEval extends UnaryPlan
     implements
@@ -133,7 +135,7 @@ public class FuseScoreEval extends UnaryPlan
     @Override
     public void postAnalysisVerification(Failures failures) {
         validateInput(failures);
-        validatePipelineBreakerBeforeFuse(failures);
+        validateLimitBeforeFuse(failures);
         if (options == null) {
             return;
         }
@@ -151,7 +153,7 @@ public class FuseScoreEval extends UnaryPlan
         Expression aggFilter = new Literal(source(), true, DataType.BOOLEAN);
 
         for (Attribute attr : child().output()) {
-            var valuesAgg = new Values(source(), attr, aggFilter);
+            var valuesAgg = new Values(source(), attr, aggFilter, AggregateFunction.NO_WINDOW);
 
             if (valuesAgg.resolved() == false) {
                 failures.add(
@@ -164,20 +166,8 @@ public class FuseScoreEval extends UnaryPlan
         }
     }
 
-    private void validatePipelineBreakerBeforeFuse(Failures failures) {
-        var myself = this;
-        Holder<Boolean> hasLimitedInput = new Holder<>(false);
-        this.forEachUp(LogicalPlan.class, plan -> {
-            if (plan == myself) {
-                return;
-            }
-
-            if (plan instanceof PipelineBreaker) {
-                hasLimitedInput.set(true);
-            }
-        });
-
-        if (hasLimitedInput.get() == false) {
+    private void validateLimitBeforeFuse(Failures failures) {
+        if (false == hasLimitedInput(this)) {
             failures.add(new Failure(this, "FUSE can only be used on a limited number of rows. Consider adding a LIMIT before FUSE."));
         }
     }

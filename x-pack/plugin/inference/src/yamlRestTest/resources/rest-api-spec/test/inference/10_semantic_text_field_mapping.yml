@@ -600,7 +600,6 @@ setup:
                     type: int8_hnsw
                     m: 20
                     ef_construction: 100
-                    confidence_interval: 1.0
 
   - do:
       indices.get_mapping:
@@ -609,7 +608,6 @@ setup:
   - match: { "test-index-options.mappings.properties.semantic_field.index_options.dense_vector.type": "int8_hnsw" }
   - match: { "test-index-options.mappings.properties.semantic_field.index_options.dense_vector.m": 20 }
   - match: { "test-index-options.mappings.properties.semantic_field.index_options.dense_vector.ef_construction": 100 }
-  - match: { "test-index-options.mappings.properties.semantic_field.index_options.dense_vector.confidence_interval": 1.0 }
 
   - do:
       index:
@@ -641,7 +639,6 @@ setup:
   - match: { "test-index-options.mappings.properties.semantic_field.index_options.dense_vector.type": int8_hnsw }
   - match: { "test-index-options.mappings.properties.semantic_field.index_options.dense_vector.m": 20 }
   - match: { "test-index-options.mappings.properties.semantic_field.index_options.dense_vector.ef_construction": 100 }
-  - match: { "test-index-options.mappings.properties.semantic_field.index_options.dense_vector.confidence_interval": 1.0 }
 
 ---
 "Specifying incompatible dense vector index options will fail":
@@ -712,13 +709,13 @@ setup:
                     type: int8_hnsw
 
 ---
-"Index option type is required":
+"Index option type is required when specifying more than element_type":
   - requires:
-      cluster_features: "semantic_text.index_options"
-      reason: Index options introduced in 8.19.0
+      cluster_features: [ "semantic_text.index_options", "semantic_text.element_type_in_index_options" ]
+      reason: Element type support in dense vector index options
 
   - do:
-      catch: /Required type/
+      catch: bad_request
       indices.create:
         index: test-invalid-index-options-dense
         body:
@@ -735,6 +732,64 @@ setup:
                 index_options:
                   dense_vector:
                     foo: bar
+
+  - match: { error.caused_by.type: illegal_argument_exception }
+  - match: { error.caused_by.reason: "[type] is required when specifying more params than [element_type]" }
+
+---
+"Index option element_type or type is required":
+  - requires:
+      cluster_features: [ "semantic_text.index_options", "semantic_text.element_type_in_index_options" ]
+      reason: Element type support in dense vector index options
+
+  - do:
+      catch: bad_request
+      indices.create:
+        index: test-invalid-index-options-dense
+        body:
+          settings:
+            index:
+              mapping:
+                semantic_text:
+                  use_legacy_format: false
+          mappings:
+            properties:
+              semantic_field:
+                type: semantic_text
+                inference_id: dense-inference-id
+                index_options:
+                  dense_vector: {}
+
+  - match: { error.caused_by.type: illegal_argument_exception }
+  - match: { error.caused_by.reason: "Must specify at least [element_type] or [type]" }
+
+---
+"Invalid element type":
+  - requires:
+      cluster_features: [ "semantic_text.index_options", "semantic_text.element_type_in_index_options" ]
+      reason: Element type support in dense vector index options
+
+  - do:
+      catch: bad_request
+      indices.create:
+        index: test-invalid-element-type
+        body:
+          settings:
+            index:
+              mapping:
+                semantic_text:
+                  use_legacy_format: false
+          mappings:
+            properties:
+              semantic_field:
+                type: semantic_text
+                inference_id: dense-inference-id
+                index_options:
+                  dense_vector:
+                    element_type: foo
+
+  - match: { error.caused_by.type: illegal_argument_exception }
+  - match: { error.caused_by.reason: "/Invalid.element_type.\\[foo\\]/" }
 
 ---
 "Specifying index options requires model information":
@@ -811,7 +866,6 @@ setup:
                     type: int8_hnsw
                     m: 16
                     ef_construction: 100
-                    confidence_interval: 1.0
 
   - do:
       indices.get_mapping:
@@ -820,7 +874,6 @@ setup:
   - match: { "test-index-options.mappings.properties.semantic_field.index_options.dense_vector.type": "int8_hnsw" }
   - match: { "test-index-options.mappings.properties.semantic_field.index_options.dense_vector.m": 16 }
   - match: { "test-index-options.mappings.properties.semantic_field.index_options.dense_vector.ef_construction": 100 }
-  - match: { "test-index-options.mappings.properties.semantic_field.index_options.dense_vector.confidence_interval": 1.0 }
 
   - do:
       indices.put_mapping:
@@ -835,7 +888,6 @@ setup:
                   type: int8_hnsw
                   m: 20
                   ef_construction: 90
-                  confidence_interval: 1.0
 
   - do:
       indices.get_mapping:
@@ -844,7 +896,6 @@ setup:
   - match: { "test-index-options.mappings.properties.semantic_field.index_options.dense_vector.type": "int8_hnsw" }
   - match: { "test-index-options.mappings.properties.semantic_field.index_options.dense_vector.m": 20 }
   - match: { "test-index-options.mappings.properties.semantic_field.index_options.dense_vector.ef_construction": 90 }
-  - match: { "test-index-options.mappings.properties.semantic_field.index_options.dense_vector.confidence_interval": 1.0 }
 
   - do:
       catch: /Cannot update parameter \[index_options\]/
@@ -861,93 +912,15 @@ setup:
 
   - match: { status: 400 }
 
-
 ---
-"Displaying default index_options with and without include_defaults":
+"Cannot update element type in index options":
   - requires:
-      cluster_features: "semantic_text.index_options_with_defaults"
-      reason: Index options defaults support introduced in 9.2.0
+      cluster_features: [ "semantic_text.index_options", "semantic_text.element_type_in_index_options" ]
+      reason: Element type support in dense vector index options
 
-  # Semantic text defaults to BBQ HNSW starting in 8.19.0/9.1.0
   - do:
       indices.create:
-        index: test-index-options-dense
-        body:
-          settings:
-            index:
-              mapping:
-                semantic_text:
-                  use_legacy_format: false
-          mappings:
-            properties:
-              semantic_field:
-                type: semantic_text
-                inference_id: dense-inference-id-compatible-with-bbq
-
-  - do:
-      indices.get_mapping:
-        index: test-index-options-dense
-
-  - not_exists: test-index-options-dense.mappings.properties.semantic_field.index_options
-
-  - do:
-      indices.get_field_mapping:
-        index: test-index-options-dense
-        fields: semantic_field
-        include_defaults: true
-
-  - match: { "test-index-options-dense.mappings.semantic_field.mapping.semantic_field.index_options.dense_vector.type": "bbq_hnsw" }
-  - match: { "test-index-options-dense.mappings.semantic_field.mapping.semantic_field.index_options.dense_vector.m": 16 }
-  - match: { "test-index-options-dense.mappings.semantic_field.mapping.semantic_field.index_options.dense_vector.ef_construction": 100 }
-  - match: { "test-index-options-dense.mappings.semantic_field.mapping.semantic_field.index_options.dense_vector.rescore_vector.oversample": 3 }
-
-  # Validate that actually specifying the same values as our defaults will still serialize the user provided index_options
-  - do:
-      indices.create:
-        index: test-index-options-dense2
-        body:
-          settings:
-            index:
-              mapping:
-                semantic_text:
-                  use_legacy_format: false
-          mappings:
-            properties:
-              semantic_field:
-                type: semantic_text
-                inference_id: dense-inference-id-compatible-with-bbq
-                index_options:
-                  dense_vector:
-                    type: bbq_hnsw
-                    m: 16
-                    ef_construction: 100
-                    rescore_vector:
-                      oversample: 3
-
-  - do:
-      indices.get_mapping:
-        index: test-index-options-dense2
-
-  - match: { "test-index-options-dense2.mappings.properties.semantic_field.index_options.dense_vector.type": "bbq_hnsw" }
-  - match: { "test-index-options-dense2.mappings.properties.semantic_field.index_options.dense_vector.m": 16 }
-  - match: { "test-index-options-dense2.mappings.properties.semantic_field.index_options.dense_vector.ef_construction": 100 }
-  - match: { "test-index-options-dense2.mappings.properties.semantic_field.index_options.dense_vector.rescore_vector.oversample": 3 }
-
-  - do:
-      indices.get_field_mapping:
-        index: test-index-options-dense2
-        fields: semantic_field
-        include_defaults: true
-
-  - match: { "test-index-options-dense2.mappings.semantic_field.mapping.semantic_field.index_options.dense_vector.type": "bbq_hnsw" }
-  - match: { "test-index-options-dense2.mappings.semantic_field.mapping.semantic_field.index_options.dense_vector.m": 16 }
-  - match: { "test-index-options-dense2.mappings.semantic_field.mapping.semantic_field.index_options.dense_vector.ef_construction": 100 }
-  - match: { "test-index-options-dense2.mappings.semantic_field.mapping.semantic_field.index_options.dense_vector.rescore_vector.oversample": 3 }
-
-  # Indices not compatible with BBQ for whatever reason will fall back to whatever `dense_vector` defaults are.
-  - do:
-      indices.create:
-        index: test-index-options-dense-no-bbq
+        index: test-index-options
         body:
           settings:
             index:
@@ -959,50 +932,46 @@ setup:
               semantic_field:
                 type: semantic_text
                 inference_id: dense-inference-id
+                index_options:
+                  dense_vector:
+                    element_type: float
 
   - do:
       indices.get_mapping:
-        index: test-index-options-dense-no-bbq
+        index: test-index-options
 
-  - not_exists: test-index-options-dense-no-bbq.mappings.properties.semantic_field.index_options
+  - match: { "test-index-options.mappings.properties.semantic_field.index_options.dense_vector.element_type": float }
 
+  # Explicitly update element type to bfloat16
   - do:
-      indices.get_field_mapping:
-        index: test-index-options-dense-no-bbq
-        fields: semantic_field
-        include_defaults: true
-
-  - not_exists: test-index-options-dense-no-bbq.mappings.properties.semantic_field.index_options
-
-  # Sparse embeddings models do not have index options for semantic_text in 8.19/9.1.
-  - do:
-      indices.create:
-        index: test-index-options-sparse
+      catch: bad_request
+      indices.put_mapping:
+        index: test-index-options
         body:
-          settings:
-            index:
-              mapping:
-                semantic_text:
-                  use_legacy_format: false
-          mappings:
-            properties:
-              semantic_field:
-                type: semantic_text
-                inference_id: sparse-inference-id
+          properties:
+            semantic_field:
+              type: semantic_text
+              inference_id: dense-inference-id
+              index_options:
+                dense_vector:
+                  element_type: bfloat16
 
+  - match: { error.type: "illegal_argument_exception" }
+  - match: { error.reason: "/Cannot.update.parameter.\\[element_type\\].from.\\[float\\].to.\\[bfloat16\\]/" }
+
+  # Implicitly update element type to by excluding it and relying on default behavior
   - do:
-      indices.get_mapping:
-        index: test-index-options-sparse
+      catch: bad_request
+      indices.put_mapping:
+        index: test-index-options
+        body:
+          properties:
+            semantic_field:
+              type: semantic_text
+              inference_id: dense-inference-id
 
-  - not_exists: test-index-options-sparse.mappings.properties.semantic_field.index_options
-
-  - do:
-      indices.get_field_mapping:
-        index: test-index-options-sparse
-        fields: semantic_field
-        include_defaults: true
-
-  - not_exists: test-index-options-sparse.mappings.properties.semantic_field.index_options
+  - match: { error.type: "illegal_argument_exception" }
+  - match: { error.reason: "/Cannot.update.parameter.\\[element_type\\].from.\\[float\\].to.\\[bfloat16\\]/" }
 
 ---
 "Users can set sparse vector index options and index documents using those options":
@@ -1479,3 +1448,422 @@ setup:
   - match: { "test-index-options-sparse2.mappings.semantic_field.mapping.semantic_field.index_options.sparse_vector.prune": true }
   - match: { "test-index-options-sparse2.mappings.semantic_field.mapping.semantic_field.index_options.sparse_vector.pruning_config.tokens_freq_ratio_threshold": 5.0 }
   - match: { "test-index-options-sparse2.mappings.semantic_field.mapping.semantic_field.index_options.sparse_vector.pruning_config.tokens_weight_threshold": 0.4 }
+
+---
+"Updating inference_id to different task type should succeed given no model settings":
+  - requires:
+      cluster_features: "semantic_text.updatable_inference_id"
+      reason: inference_id became updatable in 9.3.0
+
+  - do:
+      indices.get_mapping:
+        index: test-index
+  - match: { "test-index.mappings.properties.sparse_field.type": semantic_text }
+  - match: { "test-index.mappings.properties.sparse_field.inference_id": sparse-inference-id }
+  - not_exists: test-index.mappings.properties.sparse_field.model_settings
+
+  - do:
+      indices.put_mapping:
+        index: test-index
+        body:
+          properties:
+            sparse_field:
+              type: semantic_text
+              inference_id: dense-inference-id
+
+  - do:
+      indices.get_mapping:
+        index: test-index
+  - match: { "test-index.mappings.properties.sparse_field.type": semantic_text }
+  - match: { "test-index.mappings.properties.sparse_field.inference_id": dense-inference-id }
+  - not_exists: test-index.mappings.properties.sparse_field.model_settings
+
+  # We index a doc to check inference fields are as expected
+  - do:
+      index:
+        index: test-index
+        id: doc_1
+        body:
+          sparse_field: "One day they started playing the piano."
+        refresh: true
+
+  - do:
+      search:
+        index: test-index
+        body:
+          query:
+            semantic:
+              field: "sparse_field"
+              query: "piano"
+          _source:
+            exclude_vectors: false
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._source._inference_fields.sparse_field.inference.inference_id: dense-inference-id }
+  - match: { hits.hits.0._source._inference_fields.sparse_field.inference.model_settings.service: text_embedding_test_service }
+  - exists: hits.hits.0._source._inference_fields.sparse_field.inference.chunks.sparse_field.0.embeddings
+
+---
+"Updating inference_id to non existing endpoint should succeed given no model settings":
+  - requires:
+      cluster_features: "semantic_text.updatable_inference_id"
+      reason: inference_id became updatable in 9.3.0
+
+  - do:
+      indices.get_mapping:
+        index: test-index
+  - match: { "test-index.mappings.properties.sparse_field.type": semantic_text }
+  - match: { "test-index.mappings.properties.sparse_field.inference_id": sparse-inference-id }
+  - not_exists: test-index.mappings.properties.sparse_field.model_settings
+
+  - do:
+      indices.put_mapping:
+        index: test-index
+        body:
+          properties:
+            sparse_field:
+              type: semantic_text
+              inference_id: non-existing-inference-id
+
+  - do:
+      indices.get_mapping:
+        index: test-index
+  - match: { "test-index.mappings.properties.sparse_field.type": semantic_text }
+  - match: { "test-index.mappings.properties.sparse_field.inference_id": non-existing-inference-id }
+  - not_exists: test-index.mappings.properties.sparse_field.model_settings
+
+---
+"Updating inference_id to non existing endpoint should fail given model settings":
+  - requires:
+      cluster_features: "semantic_text.updatable_inference_id"
+      reason: inference_id became updatable in 9.3.0
+
+  # We index a doc to explicitly set model settings
+  - do:
+      index:
+        index: test-index
+        id: doc_1
+        body:
+          sparse_field: "This is a story about a cat and a dog."
+        refresh: true
+
+  - do:
+      indices.get_mapping:
+        index: test-index
+  - match: { "test-index.mappings.properties.sparse_field.type": semantic_text }
+  - match: { "test-index.mappings.properties.sparse_field.inference_id": sparse-inference-id }
+  - match: { "test-index.mappings.properties.sparse_field.model_settings.service": test_service }
+
+  - do:
+      catch: missing
+      indices.put_mapping:
+        index: test-index
+        body:
+          properties:
+            sparse_field:
+              type: semantic_text
+              inference_id: non-existing-inference-id
+  - match: { error.reason: "non-existing-inference-id does not exist in this cluster."}
+
+---
+"Updating inference_id to different task type should fail given model settings":
+  - requires:
+      cluster_features: "semantic_text.updatable_inference_id"
+      reason: inference_id became updatable in 9.3.0
+
+  # We index a doc to explicitly set model settings
+  - do:
+      index:
+        index: test-index
+        id: doc_1
+        body:
+          sparse_field: "This is a story about a cat and a dog."
+        refresh: true
+
+  - do:
+      indices.get_mapping:
+        index: test-index
+  - match: { "test-index.mappings.properties.sparse_field.type": semantic_text }
+  - match: { "test-index.mappings.properties.sparse_field.inference_id": sparse-inference-id }
+  - match: { "test-index.mappings.properties.sparse_field.model_settings.service": test_service }
+
+  - do:
+      catch: bad_request
+      indices.put_mapping:
+        index: test-index
+        body:
+          properties:
+            sparse_field:
+              type: semantic_text
+              inference_id: dense-inference-id
+  - match: { error.reason: "/Cannot.update.\\[semantic_text\\].field.\\[sparse_field\\].*because.inference.endpoint.\\[sparse-inference-id\\].*is.not.compatible.with.new.inference.endpoint.\\[dense-inference-id\\]/" }
+
+---
+"Updating inference_id given dense endpoints with different dimensions should fail":
+  - requires:
+      cluster_features: "semantic_text.updatable_inference_id"
+      reason: inference_id became updatable in 9.3.0
+
+  # We index a doc to explicitly set model settings
+  - do:
+      index:
+        index: test-index
+        id: doc_1
+        body:
+          dense_field: "This is a story about a cat and a dog."
+        refresh: true
+
+  - do:
+      indices.get_mapping:
+        index: test-index
+  - match: { "test-index.mappings.properties.dense_field.type": semantic_text }
+  - match: { "test-index.mappings.properties.dense_field.inference_id": dense-inference-id }
+  - match: { "test-index.mappings.properties.dense_field.model_settings.service": text_embedding_test_service }
+
+  - do:
+      inference.put:
+        task_type: text_embedding
+        inference_id: dense-inference-id-2
+        body: >
+          {
+            "service": "text_embedding_test_service",
+            "service_settings": {
+              "model": "my_model",
+              "dimensions": 8,
+              "similarity": "cosine",
+              "api_key": "abc64"
+            },
+            "task_settings": {
+            }
+          }
+
+  - do:
+      catch: bad_request
+      indices.put_mapping:
+        index: test-index
+        body:
+          properties:
+            dense_field:
+              type: semantic_text
+              inference_id: dense-inference-id-2
+  - match: { error.reason: "/Cannot.update.\\[semantic_text\\].field.\\[dense_field\\].*because.inference.endpoint.\\[dense-inference-id\\].*is.not.compatible.with.new.inference.endpoint.\\[dense-inference-id-2\\]/" }
+
+---
+"Updating inference_id given dense endpoints with different similarity should fail":
+  - requires:
+      cluster_features: "semantic_text.updatable_inference_id"
+      reason: inference_id became updatable in 9.3.0
+
+  # We index a doc to explicitly set model settings
+  - do:
+      index:
+        index: test-index
+        id: doc_1
+        body:
+          dense_field: "This is a story about a cat and a dog."
+        refresh: true
+
+  - do:
+      indices.get_mapping:
+        index: test-index
+  - match: { "test-index.mappings.properties.dense_field.type": semantic_text }
+  - match: { "test-index.mappings.properties.dense_field.inference_id": dense-inference-id }
+  - match: { "test-index.mappings.properties.dense_field.model_settings.service": text_embedding_test_service }
+
+  - do:
+      inference.put:
+        task_type: text_embedding
+        inference_id: dense-inference-id-2
+        body: >
+          {
+            "service": "text_embedding_test_service",
+            "service_settings": {
+              "model": "my_model",
+              "dimensions": 4,
+              "similarity": "l2_norm",
+              "api_key": "abc64"
+            },
+            "task_settings": {
+            }
+          }
+
+  - do:
+      catch: bad_request
+      indices.put_mapping:
+        index: test-index
+        body:
+          properties:
+            dense_field:
+              type: semantic_text
+              inference_id: dense-inference-id-2
+  - match: { error.reason: "/Cannot.update.\\[semantic_text\\].field.\\[dense_field\\].*because.inference.endpoint.\\[dense-inference-id\\].*is.not.compatible.with.new.inference.endpoint.\\[dense-inference-id-2\\]/" }
+
+---
+"Updating inference_id given dense endpoints with different element_type should fail":
+  - requires:
+      cluster_features: "semantic_text.updatable_inference_id"
+      reason: inference_id became updatable in 9.3.0
+
+  # We index a doc to explicitly set model settings
+  - do:
+      index:
+        index: test-index
+        id: doc_1
+        body:
+          dense_field: "This is a story about a cat and a dog."
+        refresh: true
+
+  - do:
+      indices.get_mapping:
+        index: test-index
+  - match: { "test-index.mappings.properties.dense_field.type": semantic_text }
+  - match: { "test-index.mappings.properties.dense_field.inference_id": dense-inference-id }
+  - match: { "test-index.mappings.properties.dense_field.model_settings.service": text_embedding_test_service }
+
+  - do:
+      inference.put:
+        task_type: text_embedding
+        inference_id: dense-inference-id-2
+        body: >
+          {
+            "service": "text_embedding_test_service",
+            "service_settings": {
+              "model": "my_model",
+              "dimensions": 4,
+              "similarity": "cosine",
+              "element_type": "byte",
+              "api_key": "abc64"
+            },
+            "task_settings": {
+            }
+          }
+
+  - do:
+      catch: bad_request
+      indices.put_mapping:
+        index: test-index
+        body:
+          properties:
+            dense_field:
+              type: semantic_text
+              inference_id: dense-inference-id-2
+  - match: { error.reason: "/Cannot.update.\\[semantic_text\\].field.\\[dense_field\\].*because.inference.endpoint.\\[dense-inference-id\\].*is.not.compatible.with.new.inference.endpoint.\\[dense-inference-id-2\\]/" }
+
+---
+"Updating inference_id to compatible endpoint should succeed given model settings":
+  - requires:
+      cluster_features: "semantic_text.updatable_inference_id"
+      reason: inference_id became updatable in 9.3.0
+
+  # We index a doc to explicitly set model settings
+  - do:
+      index:
+        index: test-index
+        id: doc_1
+        body:
+          sparse_field: "This is a story about a cat and a dog."
+        refresh: true
+
+  - do:
+      indices.get_mapping:
+        index: test-index
+  - match: { "test-index.mappings.properties.sparse_field.type": semantic_text }
+  - match: { "test-index.mappings.properties.sparse_field.inference_id": sparse-inference-id }
+  - match: { "test-index.mappings.properties.sparse_field.model_settings.service": test_service }
+
+  - do:
+      inference.put:
+        task_type: sparse_embedding
+        inference_id: sparse-inference-id-2
+        body: >
+          {
+            "service": "alternate_sparse_embedding_test_service",
+            "service_settings": {
+              "model": "my_model",
+              "api_key": "abc64"
+            },
+            "task_settings": {
+            }
+          }
+
+  - do:
+      indices.put_mapping:
+        index: test-index
+        body:
+          properties:
+            sparse_field:
+              type: semantic_text
+              inference_id: sparse-inference-id-2
+
+  - do:
+      indices.get_mapping:
+        index: test-index
+  - match: { "test-index.mappings.properties.sparse_field.type": semantic_text }
+  - match: { "test-index.mappings.properties.sparse_field.inference_id": sparse-inference-id-2 }
+  - match: { "test-index.mappings.properties.sparse_field.model_settings.service": alternate_sparse_embedding_test_service }
+
+  - do:
+      search:
+        index: test-index
+        body:
+          query:
+            semantic:
+              field: "sparse_field"
+              query: "piano"
+          _source:
+            exclude_vectors: false
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._source._inference_fields.sparse_field.inference.inference_id: sparse-inference-id-2 }
+  - match: { hits.hits.0._source._inference_fields.sparse_field.inference.model_settings.service: alternate_sparse_embedding_test_service }
+  - exists: hits.hits.0._source._inference_fields.sparse_field.inference.chunks.sparse_field.0.embeddings
+
+  # We index another doc to later check inference fields new updated endpoint
+  - do:
+      index:
+        index: test-index
+        id: doc_2
+        body:
+          sparse_field: "One day they started playing the piano."
+        refresh: true
+
+  - do:
+      search:
+        index: test-index
+        body:
+          query:
+            semantic:
+              field: "sparse_field"
+              query: "piano"
+          _source:
+            exclude_vectors: false
+  - match: { hits.total.value: 2 }
+  - match: { hits.hits.0._source._inference_fields.sparse_field.inference.inference_id: sparse-inference-id-2 }
+  - match: { hits.hits.0._source._inference_fields.sparse_field.inference.model_settings.service: alternate_sparse_embedding_test_service }
+  - exists: hits.hits.0._source._inference_fields.sparse_field.inference.chunks.sparse_field.0.embeddings
+  - match: { hits.hits.1._source._inference_fields.sparse_field.inference.inference_id: sparse-inference-id-2 }
+  - match: { hits.hits.1._source._inference_fields.sparse_field.inference.model_settings.service: alternate_sparse_embedding_test_service }
+  - exists: hits.hits.1._source._inference_fields.sparse_field.inference.chunks.sparse_field.0.embeddings
+
+---
+"Setting use_legacy_format to true is not allowed for new indices":
+  - requires:
+      cluster_features: "semantic_text.prevent_legacy_format_new_indices"
+      reason: legacy format is forbidden for new indices
+
+  - do:
+      catch: bad_request
+      indices.create:
+        index: test-legacy-format-index
+        body:
+          settings:
+            index:
+              mapping:
+                semantic_text:
+                  use_legacy_format: true
+          mappings:
+            properties:
+              sparse_field:
+                type: semantic_text
+                inference_id: sparse-inference-id
+
+  - match: { error.type: illegal_argument_exception }
+  - match: { error.reason: "/.*use_legacy_format.*legacy.semantic.text.format.is.not.supported.for.new.indices.*/" }

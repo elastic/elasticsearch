@@ -10,7 +10,6 @@
 package org.elasticsearch.index.mapper.extras;
 
 import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.analysis.AnalyzerWrapper;
 import org.apache.lucene.analysis.CachingTokenFilter;
 import org.apache.lucene.analysis.TokenFilter;
 import org.apache.lucene.analysis.TokenStream;
@@ -39,10 +38,12 @@ import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.analysis.AnalyzerScope;
+import org.elasticsearch.index.analysis.ElasticsearchAnalyzerWrapper;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MapperParsingException;
@@ -94,7 +95,9 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
         public static final int MAX_SHINGLE_SIZE = 3;
     }
 
-    public static final TypeParser PARSER = new TypeParser((n, c) -> new Builder(n, c.indexVersionCreated(), c.getIndexAnalyzers()));
+    public static final TypeParser PARSER = new TypeParser(
+        (n, c) -> new Builder(n, c.indexVersionCreated(), c.getIndexAnalyzers(), c.getIndexSettings().isIndexDisabledByDefault())
+    );
 
     private static Builder builder(FieldMapper in) {
         return ((SearchAsYouTypeFieldMapper) in).builder;
@@ -102,7 +105,7 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
 
     public static class Builder extends FieldMapper.Builder {
 
-        private final Parameter<Boolean> index = Parameter.indexParam(m -> builder(m).index.get(), true);
+        private final Parameter<Boolean> index;
         private final Parameter<Boolean> store = Parameter.storeParam(m -> builder(m).store.get(), false);
 
         // This is only here because for some reason the initial impl of this always serialized
@@ -145,7 +148,9 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
 
         private final IndexVersion indexCreatedVersion;
 
-        public Builder(String name, IndexVersion indexCreatedVersion, IndexAnalyzers indexAnalyzers) {
+        private final boolean indexDisabledByDefault;
+
+        public Builder(String name, IndexVersion indexCreatedVersion, IndexAnalyzers indexAnalyzers, boolean indexDisabledByDefault) {
             super(name);
             this.indexCreatedVersion = indexCreatedVersion;
             this.analyzers = new TextParams.Analyzers(
@@ -154,6 +159,8 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
                 m -> builder(m).analyzers.positionIncrementGap.getValue(),
                 indexCreatedVersion
             );
+            index = Parameter.indexParam(m -> builder(m).index.get(), indexDisabledByDefault == false);
+            this.indexDisabledByDefault = indexDisabledByDefault;
         }
 
         @Override
@@ -171,6 +178,11 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
                 norms,
                 termVectors,
                 meta };
+        }
+
+        @Override
+        public String contentType() {
+            return CONTENT_TYPE;
         }
 
         @Override
@@ -306,9 +318,8 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
         ) {
             super(
                 name,
-                fieldType.indexOptions() != IndexOptions.NONE,
+                IndexType.terms(fieldType.indexOptions() != IndexOptions.NONE, false),
                 fieldType.stored(),
-                false,
                 new TextSearchInfo(fieldType, similarity, searchAnalyzer, searchQuoteAnalyzer),
                 meta
             );
@@ -433,7 +444,7 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
         final String parentField;
 
         PrefixFieldType(String parentField, TextSearchInfo textSearchInfo, int minChars, int maxChars) {
-            super(parentField + PREFIX_FIELD_SUFFIX, true, false, false, textSearchInfo, Collections.emptyMap());
+            super(parentField + PREFIX_FIELD_SUFFIX, IndexType.terms(true, false), false, textSearchInfo, Collections.emptyMap());
             this.minChars = minChars;
             this.maxChars = maxChars;
             this.parentField = parentField;
@@ -574,7 +585,7 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
         PrefixFieldType prefixFieldType;
 
         ShingleFieldType(String name, int shingleSize, TextSearchInfo textSearchInfo) {
-            super(name, true, false, false, textSearchInfo, Collections.emptyMap());
+            super(name, IndexType.terms(true, false), false, textSearchInfo, Collections.emptyMap());
             this.shingleSize = shingleSize;
         }
 
@@ -720,7 +731,9 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
     }
 
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(leafName(), builder.indexCreatedVersion, builder.analyzers.indexAnalyzers).init(this);
+        return new Builder(leafName(), builder.indexCreatedVersion, builder.analyzers.indexAnalyzers, builder.indexDisabledByDefault).init(
+            this
+        );
     }
 
     public static String getShingleFieldName(String parentField, int shingleSize) {
@@ -766,15 +779,14 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
      * ngrams token filter, it also adds a {@link TrailingShingleTokenFilter} to add extra position increments at the end of the stream
      * to induce the shingle token filter to create tokens at the end of the stream smaller than the shingle size
      */
-    static class SearchAsYouTypeAnalyzer extends AnalyzerWrapper {
+    static class SearchAsYouTypeAnalyzer extends ElasticsearchAnalyzerWrapper {
 
         private final Analyzer delegate;
         private final int shingleSize;
         private final boolean indexPrefixes;
 
         private SearchAsYouTypeAnalyzer(Analyzer delegate, int shingleSize, boolean indexPrefixes) {
-
-            super(delegate.getReuseStrategy());
+            super(delegate);
             this.delegate = Objects.requireNonNull(delegate);
             this.shingleSize = shingleSize;
             this.indexPrefixes = indexPrefixes;

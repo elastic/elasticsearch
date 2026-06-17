@@ -22,7 +22,7 @@ public class SearchContextMissingException extends ElasticsearchException {
     private final ShardSearchContextId contextId;
 
     public SearchContextMissingException(ShardSearchContextId contextId) {
-        super("No search context found for id [" + contextId.getId() + "]");
+        super("No search context found for id [" + contextId + "]");
         this.contextId = contextId;
     }
 

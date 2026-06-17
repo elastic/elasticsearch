@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.core.esql.action;
 
 import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.query.QueryBuilder;
 
 import java.io.IOException;
@@ -21,6 +22,7 @@ public abstract class EsqlQueryRequest extends LegacyActionRequest {
         super(in);
     }
 
+    @Nullable
     public abstract String query();
 
     public abstract QueryBuilder filter();

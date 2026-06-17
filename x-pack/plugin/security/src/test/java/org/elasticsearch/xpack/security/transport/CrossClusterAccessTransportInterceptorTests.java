@@ -27,6 +27,7 @@ import org.elasticsearch.common.ssl.SslTrustConfig;
 import org.elasticsearch.common.ssl.SslVerificationMode;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.license.MockLicenseState;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -201,6 +202,9 @@ public class CrossClusterAccessTransportInterceptorTests extends AbstractServerT
     ) throws IOException {
         authentication.writeToContext(threadContext);
         final String expectedRequestId = AuditUtil.getOrGenerateRequestId(threadContext);
+        if (randomBoolean()) {
+            threadContext.putHeader(Task.X_ELASTIC_PROJECT_ID_HTTP_HEADER, randomProjectIdOrDefault().id());
+        }
         final String remoteClusterAlias = randomAlphaOfLengthBetween(5, 10);
         final String encodedApiKey = randomAlphaOfLengthBetween(10, 42);
         final String remoteClusterCredential = ApiKeyService.withApiKeyPrefix(encodedApiKey);
@@ -255,6 +259,7 @@ public class CrossClusterAccessTransportInterceptorTests extends AbstractServerT
                 }
                 assertThat(securityContext.getAuthentication(), nullValue());
                 assertThat(AuditUtil.extractRequestId(securityContext.getThreadContext()), equalTo(expectedRequestId));
+                assertThat(threadContext.getHeader(Task.X_ELASTIC_PROJECT_ID_HTTP_HEADER), nullValue());
                 sentAction.set(action);
                 sentCredential.set(securityContext.getThreadContext().getHeader(CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER_KEY));
                 try {

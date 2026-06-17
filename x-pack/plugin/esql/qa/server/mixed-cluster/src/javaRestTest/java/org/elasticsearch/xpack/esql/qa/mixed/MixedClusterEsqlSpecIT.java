@@ -7,16 +7,19 @@
 
 package org.elasticsearch.xpack.esql.qa.mixed;
 
+import org.apache.http.HttpHost;
 import org.elasticsearch.Version;
+import org.elasticsearch.client.RestClient;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
-import org.elasticsearch.test.rest.TestFeatureService;
 import org.elasticsearch.xpack.esql.CsvSpecReader.CsvTestCase;
+import org.elasticsearch.xpack.esql.CsvTestUtils;
 import org.elasticsearch.xpack.esql.qa.rest.EsqlSpecTestCase;
 import org.junit.AfterClass;
-import org.junit.Before;
 import org.junit.ClassRule;
 
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.List;
 
 import static org.elasticsearch.xpack.esql.CsvTestUtils.isEnabled;
@@ -24,8 +27,15 @@ import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.JOIN_LOOK
 import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.hasCapabilities;
 
 public class MixedClusterEsqlSpecIT extends EsqlSpecTestCase {
+    private static final Path CSV_DATA_PATH = CsvTestUtils.createCsvDataDirectory();
+
     @ClassRule
-    public static ElasticsearchCluster cluster = Clusters.mixedVersionCluster();
+    public static ElasticsearchCluster cluster = Clusters.mixedVersionCluster(CSV_DATA_PATH);
+
+    @Override
+    protected Path getCsvDataPath() {
+        return CSV_DATA_PATH;
+    }
 
     @Override
     protected String getTestRestCluster() {
@@ -37,20 +47,7 @@ public class MixedClusterEsqlSpecIT extends EsqlSpecTestCase {
             ? System.getProperty("tests.old_cluster_version").replace("-SNAPSHOT", "")
             : null
     );
-
-    private static TestFeatureService oldClusterTestFeatureService = null;
-
-    @Before
-    public void extractOldClusterFeatures() {
-        if (oldClusterTestFeatureService == null) {
-            oldClusterTestFeatureService = testFeatureService;
-        }
-    }
-
-    @AfterClass
-    public static void cleanUp() {
-        oldClusterTestFeatureService = null;
-    }
+    private static RestClient oldNodeClient = null;
 
     public MixedClusterEsqlSpecIT(
         String fileName,
@@ -63,10 +60,33 @@ public class MixedClusterEsqlSpecIT extends EsqlSpecTestCase {
         super(fileName, groupName, testName, lineNumber, testCase, instructions);
     }
 
+    @AfterClass
+    public static void cleanUp() throws IOException {
+        IOUtils.close(oldNodeClient);
+        oldNodeClient = null;
+    }
+
     @Override
     protected void shouldSkipTest(String testName) throws IOException {
         super.shouldSkipTest(testName);
+        CsvTestUtils.assumeTrueLogging(
+            "Old mixed-cluster node does not support required capabilities for " + testName,
+            testCase.requiredCapabilities.isEmpty() || hasCapabilities(oldNodeClient(), testCase.requiredCapabilities)
+        );
+        // The request is sent to a random node, so at this stage it's
+        // undetermined which node is the coordinator or data node.
+        CsvTestUtils.assumeTrueLogging(
+            "Mixed-cluster tests don't support remote cluster capability requirements",
+            testCase.missingCapabilitiesRemoteCluster.isEmpty()
+        );
         assumeTrue("Test " + testName + " is skipped on " + bwcVersion, isEnabled(testName, instructions, bwcVersion));
+    }
+
+    private RestClient oldNodeClient() throws IOException {
+        if (oldNodeClient == null) {
+            oldNodeClient = buildClient(restAdminSettings(), new HttpHost[] { HttpHost.create("http://" + cluster.getHttpAddress(0)) });
+        }
+        return oldNodeClient;
     }
 
     @Override
@@ -75,7 +95,12 @@ public class MixedClusterEsqlSpecIT extends EsqlSpecTestCase {
     }
 
     @Override
-    protected boolean supportsInferenceTestService() {
+    protected boolean supportsSemanticTextInference() {
+        return false;
+    }
+
+    @Override
+    protected boolean supportsInferenceTestServiceOnLocalCluster() {
         return false;
     }
 

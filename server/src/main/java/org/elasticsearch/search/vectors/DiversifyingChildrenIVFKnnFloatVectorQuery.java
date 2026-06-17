@@ -12,6 +12,7 @@ package org.elasticsearch.search.vectors;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.BitSetProducer;
+import org.elasticsearch.index.codec.vectors.diskbbq.IvfQueryConfigResolver;
 
 import java.util.Objects;
 
@@ -37,9 +38,10 @@ public class DiversifyingChildrenIVFKnnFloatVectorQuery extends IVFKnnFloatVecto
         int numCands,
         Query childFilter,
         BitSetProducer parentsFilter,
-        float visitRatio
+        float visitRatio,
+        IvfQueryConfigResolver queryConfigResolver
     ) {
-        super(field, query, k, numCands, childFilter, visitRatio);
+        super(field, query, k, numCands, childFilter, visitRatio, queryConfigResolver);
         this.parentsFilter = parentsFilter;
     }
 

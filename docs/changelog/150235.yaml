@@ -1,0 +1,5 @@
+area: PromQL
+issues: []
+pr: 150235
+summary: Implement GET /_prometheus/api/v1/status/buildinfo
+type: enhancement

@@ -11,8 +11,11 @@ package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -20,6 +23,7 @@ import org.elasticsearch.xcontent.XContentFactory;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -243,7 +247,7 @@ public class RootObjectMapperTests extends MapperServiceTestCase {
             DoubleScriptFieldType field = (DoubleScriptFieldType) mapperService.fieldType("field");
             assertEquals(NumberFieldMapper.NumberType.DOUBLE.typeName(), field.typeName());
             LongScriptFieldType field2Updated = (LongScriptFieldType) mapperService.fieldType("field2");
-            assertSame(field2, field2Updated);
+            assertEquals(field2.typeName(), field2Updated.typeName());
         }
         {
             String mapping = Strings.toString(mapping(builder -> builder.startObject("concrete").field("type", "keyword").endObject()));
@@ -251,7 +255,7 @@ public class RootObjectMapperTests extends MapperServiceTestCase {
             DoubleScriptFieldType field = (DoubleScriptFieldType) mapperService.fieldType("field");
             assertEquals(NumberFieldMapper.NumberType.DOUBLE.typeName(), field.typeName());
             LongScriptFieldType field2Updated = (LongScriptFieldType) mapperService.fieldType("field2");
-            assertSame(field2, field2Updated);
+            assertEquals(field2.typeName(), field2Updated.typeName());
             MappedFieldType concrete = mapperService.fieldType("concrete");
             assertThat(concrete, instanceOf(KeywordFieldMapper.KeywordFieldType.class));
         }
@@ -496,10 +500,7 @@ public class RootObjectMapperTests extends MapperServiceTestCase {
                 }
             }""";
 
-        final String[] validSubojectsValues = ObjectMapper.SUB_OBJECTS_AUTO_FEATURE_FLAG
-            ? new String[] { "false", "true", "auto" }
-            : new String[] { "false", "true" };
-
+        final String[] validSubojectsValues = new String[] { "false", "true" };
         {
             String json = withSubobjects.replace("<SUBOBJECTS_SETTING>", "false").replace("<FIELD_NAME>", "_project");
             Exception e = expectThrows(IllegalArgumentException.class, () -> createMapperServiceWithNamespaceValidator(json, validator));
@@ -647,6 +648,61 @@ public class RootObjectMapperTests extends MapperServiceTestCase {
                     throw new IllegalArgumentException(errorMessage);
                 }
             }
+        }
+    }
+
+    public void testStrictColumnarModesAutoFlattenSubobjects() throws Exception {
+        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        for (IndexMode indexMode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
+            Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), indexMode.getName()).build();
+            MapperService mapperService = createMapperService(settings, mapping(b -> {
+                b.startObject("metrics");
+                {
+                    b.startObject("properties");
+                    {
+                        b.startObject("time").field("type", "long").endObject();
+                        b.startObject("count").field("type", "long").endObject();
+                    }
+                    b.endObject();
+                }
+                b.endObject();
+            }));
+            assertNotNull(mapperService.fieldType("metrics.time"));
+            assertNotNull(mapperService.fieldType("metrics.count"));
+            assertNull(mapperService.mappingLookup().objectMappers().get("metrics"));
+        }
+    }
+
+    public void testStrictColumnarModesDefaultToSubobjectsFalse() throws Exception {
+        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        for (IndexMode indexMode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
+            Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), indexMode.getName()).build();
+            MapperService mapperService = createMapperService(settings, mapping(b -> {}));
+            assertEquals(ObjectMapper.Subobjects.DISABLED, mapperService.documentMapper().mapping().getRoot().subobjects());
+        }
+    }
+
+    public void testStrictColumnarModesRejectSubobjectsParam() {
+        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        for (IndexMode indexMode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
+            Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), indexMode.getName()).build();
+            MapperParsingException e = expectThrows(
+                MapperParsingException.class,
+                () -> createMapperService(settings, topMapping(b -> b.field("subobjects", true)))
+            );
+            assertThat(e.getMessage(), containsString("subobjects params are not supported in columnar mode"));
+        }
+    }
+
+    public void testStrictColumnarModesRejectRuntimeDynamic() {
+        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        for (IndexMode indexMode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
+            Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), indexMode.getName()).build();
+            MapperParsingException e = expectThrows(
+                MapperParsingException.class,
+                () -> createMapperService(settings, topMapping(b -> b.field("dynamic", "runtime")))
+            );
+            assertThat(e.getMessage(), containsString("dynamic [runtime] is not supported in strict columnar mode"));
         }
     }
 }

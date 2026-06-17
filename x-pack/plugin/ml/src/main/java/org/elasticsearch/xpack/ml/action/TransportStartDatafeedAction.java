@@ -41,6 +41,7 @@ import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksExecutor;
 import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -61,6 +62,7 @@ import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.core.security.cloud.CloudCredentialsExtension;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedNodeSelector;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedRunner;
@@ -106,6 +108,7 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
     private final NamedXContentRegistry xContentRegistry;
     private final boolean remoteClusterClient;
     private final ProjectResolver projectResolver;
+    private final CrossProjectModeDecider crossProjectModeDecider;
 
     @Inject
     public TransportStartDatafeedAction(
@@ -142,6 +145,7 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
         this.xContentRegistry = xContentRegistry;
         this.remoteClusterClient = DiscoveryNode.isRemoteClusterClient(settings);
         this.projectResolver = projectResolver;
+        this.crossProjectModeDecider = new CrossProjectModeDecider(settings);
     }
 
     static void validate(
@@ -242,41 +246,65 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
                     return;
                 }
 
-                final RemoteClusterLicenseChecker remoteClusterLicenseChecker = new RemoteClusterLicenseChecker(
-                    client,
-                    MachineLearningField.ML_API_FEATURE
+                // Apply CPS mode to detect if we're using cross-project search
+                DatafeedConfig effectiveDatafeed = DatafeedConfig.withCrossProjectModeIfEnabled(
+                    datafeedConfigHolder.get(),
+                    crossProjectModeDecider
                 );
-                remoteClusterLicenseChecker.checkRemoteClusterLicenses(
-                    RemoteClusterLicenseChecker.remoteClusterAliases(
-                        transportService.getRemoteClusterService().getRegisteredRemoteClusterNames(),
-                        params.getDatafeedIndices()
-                    ),
-                    ActionListener.wrap(response -> {
-                        if (response.isSuccess() == false) {
-                            responseHeaderPreservingListener.onFailure(createUnlicensedError(params.getDatafeedId(), response));
-                        } else {
-                            final RemoteClusterService remoteClusterService = transportService.getRemoteClusterService();
-                            List<String> remoteAliases = RemoteClusterLicenseChecker.remoteClusterAliases(
-                                remoteClusterService.getRegisteredRemoteClusterNames(),
-                                remoteIndices
-                            );
-                            checkRemoteConfigVersions(
-                                datafeedConfigHolder.get(),
-                                remoteAliases,
-                                (cn) -> remoteClusterService.getConnection(cn).getTransportVersion()
-                            );
-                            createDataExtractor(task, job, datafeedConfigHolder.get(), params, waitForTaskListener);
-                        }
-                    },
-                        e -> responseHeaderPreservingListener.onFailure(
-                            createUnknownLicenseError(
-                                params.getDatafeedId(),
-                                RemoteClusterLicenseChecker.remoteIndices(params.getDatafeedIndices()),
-                                e
+                boolean isCpsMode = effectiveDatafeed.getIndicesOptions().resolveCrossProjectIndexExpression();
+
+                if (isCpsMode) {
+                    // Skip license check for CPS - all projects share the same highest license
+                    // Still do version check
+                    final RemoteClusterService remoteClusterService = transportService.getRemoteClusterService();
+                    List<String> remoteAliases = RemoteClusterLicenseChecker.remoteClusterAliases(
+                        remoteClusterService.getRegisteredRemoteClusterNames(),
+                        remoteIndices
+                    );
+                    checkRemoteConfigVersions(
+                        effectiveDatafeed,
+                        remoteAliases,
+                        (cn) -> remoteClusterService.getConnection(cn).getTransportVersion()
+                    );
+                    createDataExtractor(task, job, effectiveDatafeed, params, waitForTaskListener);
+                } else {
+                    // Traditional remote cluster search - check licenses
+                    final RemoteClusterLicenseChecker remoteClusterLicenseChecker = new RemoteClusterLicenseChecker(
+                        client,
+                        MachineLearningField.ML_API_FEATURE
+                    );
+                    remoteClusterLicenseChecker.checkRemoteClusterLicenses(
+                        RemoteClusterLicenseChecker.remoteClusterAliases(
+                            transportService.getRemoteClusterService().getRegisteredRemoteClusterNames(),
+                            params.getDatafeedIndices()
+                        ),
+                        ActionListener.wrap(response -> {
+                            if (response.isSuccess() == false) {
+                                responseHeaderPreservingListener.onFailure(createUnlicensedError(params.getDatafeedId(), response));
+                            } else {
+                                final RemoteClusterService remoteClusterService = transportService.getRemoteClusterService();
+                                List<String> remoteAliases = RemoteClusterLicenseChecker.remoteClusterAliases(
+                                    remoteClusterService.getRegisteredRemoteClusterNames(),
+                                    remoteIndices
+                                );
+                                checkRemoteConfigVersions(
+                                    datafeedConfigHolder.get(),
+                                    remoteAliases,
+                                    (cn) -> remoteClusterService.getConnection(cn).getTransportVersion()
+                                );
+                                createDataExtractor(task, job, datafeedConfigHolder.get(), params, waitForTaskListener);
+                            }
+                        },
+                            e -> responseHeaderPreservingListener.onFailure(
+                                createUnknownLicenseError(
+                                    params.getDatafeedId(),
+                                    RemoteClusterLicenseChecker.remoteIndices(params.getDatafeedIndices()),
+                                    e
+                                )
                             )
                         )
-                    )
-                );
+                    );
+                }
             } else {
                 createDataExtractor(task, job, datafeedConfigHolder.get(), params, waitForTaskListener);
             }
@@ -315,7 +343,7 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
         final TransportVersion minVersion = minVersionAndReason.get().v1();
 
         List<String> clustersTooOld = remoteClusters.stream()
-            .filter(cn -> transportVersionSupplier.apply(cn).before(minVersion))
+            .filter(cn -> transportVersionSupplier.apply(cn).supports(minVersion) == false)
             .collect(Collectors.toList());
         if (clustersTooOld.isEmpty()) {
             return;
@@ -339,9 +367,14 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
         StartDatafeedAction.DatafeedParams params,
         ActionListener<PersistentTasksCustomMetadata.PersistentTask<StartDatafeedAction.DatafeedParams>> listener
     ) {
+        // Apply cross-project search mode to IndicesOptions before creating the factory
+        DatafeedConfig effectiveDatafeed = DatafeedConfig.withCrossProjectModeIfEnabled(datafeed, crossProjectModeDecider);
+
         DataExtractorFactory.create(
             new ParentTaskAssigningClient(client, clusterService.localNode(), task),
-            datafeed,
+            CloudCredentialsExtension.getInstance().credentialManager(),
+            effectiveDatafeed,
+            null,
             job,
             xContentRegistry,
             // Fake DatafeedTimingStatsReporter that does not have access to results index
@@ -524,6 +557,11 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
         }
 
         @Override
+        public boolean automaticReassignmentOnShutdown() {
+            return false;
+        }
+
+        @Override
         protected void nodeOperation(
             final AllocatedPersistentTask allocatedPersistentTask,
             final StartDatafeedAction.DatafeedParams params,
@@ -654,14 +692,37 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
             return false;
         }
 
+        /**
+         * Marks this datafeed task as stopped and asks the {@link DatafeedRunner} to shut down the in-memory datafeed,
+         * using default rules for whether the job is auto-closed when the datafeed has an {@code end_time} (lookback-only).
+         *
+         * @param reason  short label for logs and audits explaining why the datafeed is stopping
+         * @param timeout maximum time to wait when acquiring the datafeed job lock before proceeding with shutdown
+         */
         public void stop(String reason, TimeValue timeout) {
+            stop(reason, timeout, null);
+        }
+
+        /**
+         * Marks this datafeed task as stopped and asks the {@link DatafeedRunner} to shut down the in-memory datafeed,
+         * optionally overriding whether the anomaly detection job is auto-closed after the stop.
+         *
+         * @param reason               short label for logs and audits explaining why the datafeed is stopping
+         * @param timeout              maximum time to wait when acquiring the datafeed job lock before proceeding with
+         *                             shutdown
+         * @param autoCloseJobOverride when non-null, whether to auto-close the job after the datafeed stops; when
+         *                             {@code null}, default lookback-only auto-close behavior applies (see {@link #isLookbackOnly()}).
+         *                             Non-null values are forwarded to {@link DatafeedRunner}{@code .stopDatafeed(DatafeedTask,
+         *                             String, TimeValue, Boolean)}.
+         */
+        public void stop(String reason, TimeValue timeout, Boolean autoCloseJobOverride) {
             synchronized (this) {
                 stoppedOrIsolated = StoppedOrIsolated.STOPPED;
                 if (datafeedRunner == null) {
                     return;
                 }
             }
-            datafeedRunner.stopDatafeed(this, reason, timeout);
+            datafeedRunner.stopDatafeed(this, reason, timeout, autoCloseJobOverride);
         }
 
         public synchronized StoppedOrIsolated getStoppedOrIsolated() {
@@ -711,7 +772,8 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
             return new GetDatafeedRunningStateAction.Response.RunningState(
                 endTime == null,
                 datafeedRunner.finishedLookBack(this),
-                datafeedRunner.getSearchInterval(this)
+                datafeedRunner.getSearchInterval(this),
+                datafeedRunner.getCrossClusterStats(this)
             );
         }
     }

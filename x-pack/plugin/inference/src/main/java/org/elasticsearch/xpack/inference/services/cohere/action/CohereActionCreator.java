@@ -17,7 +17,7 @@ import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingsInput;
 import org.elasticsearch.xpack.inference.external.http.sender.GenericRequestManager;
 import org.elasticsearch.xpack.inference.external.http.sender.QueryAndDocsInputs;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
-import org.elasticsearch.xpack.inference.external.request.Request;
+import org.elasticsearch.xpack.inference.external.request.OutboundRequest;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.cohere.CohereResponseHandler;
 import org.elasticsearch.xpack.inference.services.cohere.completion.CohereCompletionModel;
@@ -73,16 +73,16 @@ public class CohereActionCreator implements CohereActionVisitor {
 
     @Override
     public ExecutableAction create(CohereEmbeddingsModel model, Map<String, Object> taskSettings) {
-        var overriddenModel = CohereEmbeddingsModel.of(model, taskSettings);
+        var overriddenModel = CohereEmbeddingsModel.createWithOverriddenTaskSettings(model, taskSettings);
 
-        Function<EmbeddingsInput, Request> requestCreator = inferenceInputs -> {
+        Function<EmbeddingsInput, OutboundRequest> requestCreator = inferenceInputs -> {
             var requestInputType = InputType.isSpecified(inferenceInputs.getInputType())
                 ? inferenceInputs.getInputType()
                 : overriddenModel.getTaskSettings().getInputType();
 
-            return switch (overriddenModel.getServiceSettings().getCommonSettings().apiVersion()) {
-                case V1 -> new CohereV1EmbeddingsRequest(inferenceInputs.getInputs(), requestInputType, overriddenModel);
-                case V2 -> new CohereV2EmbeddingsRequest(inferenceInputs.getInputs(), requestInputType, overriddenModel);
+            return switch (overriddenModel.getServiceSettings().commonSettings().apiVersion()) {
+                case V1 -> new CohereV1EmbeddingsRequest(inferenceInputs.getTextInputs(), requestInputType, overriddenModel);
+                case V2 -> new CohereV2EmbeddingsRequest(inferenceInputs.getTextInputs(), requestInputType, overriddenModel);
             };
         };
 
@@ -99,20 +99,20 @@ public class CohereActionCreator implements CohereActionVisitor {
 
     @Override
     public ExecutableAction create(CohereRerankModel model, Map<String, Object> taskSettings) {
-        var overriddenModel = CohereRerankModel.of(model, taskSettings);
+        var overriddenModel = CohereRerankModel.createWithOverriddenTaskSettings(model, taskSettings);
 
-        Function<QueryAndDocsInputs, Request> requestCreator = inferenceInputs -> switch (overriddenModel.getServiceSettings()
+        Function<QueryAndDocsInputs, OutboundRequest> requestCreator = inferenceInputs -> switch (overriddenModel.getServiceSettings()
             .apiVersion()) {
             case V1 -> new CohereV1RerankRequest(
-                inferenceInputs.getQuery(),
-                inferenceInputs.getChunks(),
+                inferenceInputs.getQueryAsString(),
+                inferenceInputs.getDocsAsStrings(),
                 inferenceInputs.getReturnDocuments(),
                 inferenceInputs.getTopN(),
                 overriddenModel
             );
             case V2 -> new CohereV2RerankRequest(
-                inferenceInputs.getQuery(),
-                inferenceInputs.getChunks(),
+                inferenceInputs.getQueryAsString(),
+                inferenceInputs.getDocsAsStrings(),
                 inferenceInputs.getReturnDocuments(),
                 inferenceInputs.getTopN(),
                 overriddenModel
@@ -135,7 +135,8 @@ public class CohereActionCreator implements CohereActionVisitor {
     public ExecutableAction create(CohereCompletionModel model, Map<String, Object> taskSettings) {
         // no overridden model as task settings are always empty for cohere completion model
 
-        Function<ChatCompletionInput, Request> requestCreator = completionInput -> switch (model.getServiceSettings().apiVersion()) {
+        Function<ChatCompletionInput, OutboundRequest> requestCreator = completionInput -> switch (model.getServiceSettings()
+            .apiVersion()) {
             case V1 -> new CohereV1CompletionRequest(completionInput.getInputs(), model, completionInput.stream());
             case V2 -> new CohereV2CompletionRequest(completionInput.getInputs(), model, completionInput.stream());
         };

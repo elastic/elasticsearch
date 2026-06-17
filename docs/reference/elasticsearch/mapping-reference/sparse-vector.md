@@ -62,6 +62,8 @@ See [semantic search with ELSER](docs-content://solutions/search/semantic-search
 
 The following parameters are accepted by `sparse_vector` fields:
 
+$$$sparse-vector-index-options$$$
+
 index_options {applies_to}`stack: ga 9.1`
 :   (Optional, object) You can set index options for your  `sparse_vector` field to determine if you should prune tokens, and the parameter configurations for the token pruning. If pruning options are not set in your [`sparse_vector` query](/reference/query-languages/query-dsl/query-dsl-sparse-vector-query.md), Elasticsearch will use the default options configured for the field, if any.
 
@@ -114,6 +116,7 @@ POST my-index-2/_search
   "fields": ["my_vector"]
 }
 ```
+% TEST[skip:no index setup]
 
 - The `_source.exclude_vectors` flag to re-enable vector inclusion in `_source` responses:
 
@@ -125,6 +128,11 @@ POST my-index-2/_search
   }
 }
 ```
+% TEST[skip:no index setup]
+
+:::{tip}
+For more context about the decision to exclude vectors from `_source` by default, read the [blog post](https://www.elastic.co/search-labs/blog/elasticsearch-exclude-vectors-from-source).
+:::
 
 ### Storage behavior and `_source`
 
@@ -261,10 +269,11 @@ POST /my-index/_update/1
   }
 }
 ```
+% TEST[continued]
 
 Observe that tokens are merged, not replaced:
 
-```json
+```js
 {
   "my_vector": {
     "token_a": 0.5,
@@ -273,6 +282,7 @@ Observe that tokens are merged, not replaced:
   }
 }
 ```
+% NOTCONSOLE
 
 ### Replacing the entire `sparse_vector` field
 
@@ -292,6 +302,7 @@ POST /my-index/_update/1
   }
 }
 ```
+% TEST[continued]
 
 :::{note}
 This same merging behavior also applies to [`rank_features` fields](/reference/elasticsearch/mapping-reference/rank-features.md), because they are also object-like structures.

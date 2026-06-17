@@ -9,13 +9,14 @@ package org.elasticsearch.xpack.inference.services.custom.response;
 
 import org.apache.http.HttpResponse;
 import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.inference.InferenceString;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.WeightedToken;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.inference.results.ChatCompletionResults;
+import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.inference.results.RankedDocsResults;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
-import org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResults;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.http.sender.ChatCompletionInput;
 import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingsInput;
@@ -62,7 +63,7 @@ public class CustomResponseEntityTests extends ESTestCase {
 
         var model = CustomModelTests.getTestModel(
             TaskType.TEXT_EMBEDDING,
-            new TextEmbeddingResponseParser("$.result.embeddings[*].embedding", CustomServiceEmbeddingType.FLOAT)
+            new DenseEmbeddingResponseParser("$.result.embeddings[*].embedding", CustomServiceEmbeddingType.FLOAT)
         );
         var request = new CustomRequest(
             EmbeddingParameters.of(new EmbeddingsInput(List.of("abc"), null), model.getServiceSettings().getInputTypeTranslator()),
@@ -73,10 +74,10 @@ public class CustomResponseEntityTests extends ESTestCase {
             new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
         );
 
-        assertThat(results, instanceOf(TextEmbeddingFloatResults.class));
+        assertThat(results, instanceOf(DenseEmbeddingFloatResults.class));
         assertThat(
-            ((TextEmbeddingFloatResults) results).embeddings(),
-            is(List.of(new TextEmbeddingFloatResults.Embedding(new float[] { -0.02868066355586052f, 0.022033605724573135f })))
+            ((DenseEmbeddingFloatResults) results).embeddings(),
+            is(List.of(new DenseEmbeddingFloatResults.Embedding(new float[] { -0.02868066355586052f, 0.022033605724573135f })))
         );
     }
 
@@ -167,7 +168,12 @@ public class CustomResponseEntityTests extends ESTestCase {
             TaskType.RERANK,
             new RerankResponseParser("$.result.scores[*].score", "$.result.scores[*].index", null)
         );
-        var request = new CustomRequest(RerankParameters.of(new QueryAndDocsInputs("query", List.of("doc1", "doc2"))), model);
+        var request = new CustomRequest(
+            RerankParameters.of(
+                new QueryAndDocsInputs(InferenceString.ofText("query"), InferenceString.fromStringList(List.of("doc1", "doc2")))
+            ),
+            model
+        );
 
         InferenceServiceResults results = CustomResponseEntity.fromResponse(
             request,

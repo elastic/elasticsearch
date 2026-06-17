@@ -10,11 +10,14 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.Field;
+import org.apache.lucene.document.LongField;
+import org.apache.lucene.document.SortedDocValuesField;
+import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.index.mapper.MapperService.MergeReason;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.plugins.internal.XContentMeteringParserDecorator;
 import org.elasticsearch.xcontent.XContentType;
 
@@ -37,9 +40,8 @@ public class ParsedDocument {
 
     private final long normalizedSize;
 
-    private BytesReference source;
-    private XContentType xContentType;
-    private Mapping dynamicMappingsUpdate;
+    private final SourceToParse.Source source;
+    private CompressedXContent dynamicMappingsUpdate;
 
     /**
      * Create a no-op tombstone document
@@ -70,15 +72,62 @@ public class ParsedDocument {
     /**
      * Create a delete tombstone document, which will be used in soft-update methods.
      * The returned document consists only _uid, _seqno, _term and _version fields; other metadata fields are excluded.
-     * @param id    the id of the deleted document
+     * @param id                the id of the deleted document
      */
+    // used by tests
     public static ParsedDocument deleteTombstone(SeqNoFieldMapper.SeqNoIndexOptions seqNoIndexOptions, String id) {
+        return deleteTombstone(seqNoIndexOptions, false /* ignored */, false, false, id, null /* ignored */);
+    }
+
+    /**
+     * Create a delete tombstone document, which will be used in soft-update methods.
+     * The returned document consists only _uid, _seqno, _term and _version fields; other metadata fields are excluded.
+     * @param useSyntheticId    whether the id is synthetic or not
+     * @param id                the id of the deleted document
+     */
+    public static ParsedDocument deleteTombstone(
+        SeqNoFieldMapper.SeqNoIndexOptions seqNoIndexOptions,
+        boolean useDocValuesSkipper,
+        boolean useSyntheticId,
+        boolean useColumnarId,
+        String id,
+        BytesRef uid
+    ) {
         LuceneDocument document = new LuceneDocument();
         SeqNoFieldMapper.SequenceIDFields seqIdFields = SeqNoFieldMapper.SequenceIDFields.tombstone(seqNoIndexOptions);
         seqIdFields.addFields(document);
         Field versionField = VersionFieldMapper.versionField();
         document.add(versionField);
-        document.add(IdFieldMapper.standardIdField(id));
+        if (useSyntheticId) {
+            // Use a synthetic _id field which is not indexed nor stored
+            document.add(IdFieldMapper.syntheticIdField(uid));
+
+            // Add doc values fields that are used to synthesize the synthetic _id.
+            // Note: It is not strictly required for tombstones documents but we decided to add them so that iterating and seeking synthetic
+            // _id terms over tombstones also work as if a regular _id field was present.
+            var timeSeriesId = TsidExtractingIdFieldMapper.extractTimeSeriesIdFromSyntheticId(uid);
+            var timestamp = TsidExtractingIdFieldMapper.extractTimestampFromSyntheticId(uid);
+            int routingHash = TsidExtractingIdFieldMapper.extractRoutingHashFromSyntheticId(uid);
+
+            if (useDocValuesSkipper) {
+                document.add(SortedDocValuesField.indexedField(TimeSeriesIdFieldMapper.NAME, timeSeriesId));
+                document.add(SortedNumericDocValuesField.indexedField(DataStreamTimestampFieldMapper.DEFAULT_PATH, timestamp));
+            } else {
+                document.add(new SortedDocValuesField(TimeSeriesIdFieldMapper.NAME, timeSeriesId));
+                document.add(new LongField(DataStreamTimestampFieldMapper.DEFAULT_PATH, timestamp, Field.Store.NO));
+            }
+            var field = new SortedDocValuesField(
+                TimeSeriesRoutingHashFieldMapper.NAME,
+                Uid.encodeId(TimeSeriesRoutingHashFieldMapper.encode(routingHash))
+            );
+            document.add(field);
+
+        } else if (useColumnarId) {
+            document.add(ProvidedIdFieldMapper.columnarIdField(id));
+        } else {
+            // Use standard _id field (indexed and stored, some indices also trim the stored field at some point)
+            document.add(IdFieldMapper.standardIdField(id));
+        }
         return new ParsedDocument(
             versionField,
             seqIdFields,
@@ -98,9 +147,8 @@ public class ParsedDocument {
         String id,
         String routing,
         List<LuceneDocument> documents,
-        BytesReference source,
-        XContentType xContentType,
-        Mapping dynamicMappingsUpdate,
+        SourceToParse.Source source,
+        CompressedXContent dynamicMappingsUpdate,
         long normalizedSize
     ) {
         this.version = version;
@@ -110,8 +158,30 @@ public class ParsedDocument {
         this.documents = documents;
         this.source = source;
         this.dynamicMappingsUpdate = dynamicMappingsUpdate;
-        this.xContentType = xContentType;
         this.normalizedSize = normalizedSize;
+    }
+
+    public ParsedDocument(
+        Field version,
+        SeqNoFieldMapper.SequenceIDFields seqID,
+        String id,
+        String routing,
+        List<LuceneDocument> documents,
+        BytesReference source,
+        XContentType xContentType,
+        CompressedXContent dynamicMappingsUpdate,
+        long normalizedSize
+    ) {
+        this(
+            version,
+            seqID,
+            id,
+            routing,
+            documents,
+            SourceToParse.Source.fromBytes(source, xContentType),
+            dynamicMappingsUpdate,
+            normalizedSize
+        );
     }
 
     public String id() {
@@ -142,32 +212,25 @@ public class ParsedDocument {
         return this.documents;
     }
 
-    public BytesReference source() {
+    public SourceToParse.Source source() {
         return this.source;
     }
 
     public XContentType getXContentType() {
-        return this.xContentType;
-    }
-
-    public void setSource(BytesReference source, XContentType xContentType) {
-        this.source = source;
-        this.xContentType = xContentType;
+        return this.source.xContentType();
     }
 
     /**
      * Return dynamic updates to mappings or {@code null} if there were no
      * updates to the mappings.
      */
-    public Mapping dynamicMappingsUpdate() {
+    public CompressedXContent dynamicMappingsUpdate() {
         return dynamicMappingsUpdate;
     }
 
-    public void addDynamicMappingsUpdate(Mapping update) {
+    public void addDynamicMappingsUpdate(CompressedXContent update) {
         if (dynamicMappingsUpdate == null) {
             dynamicMappingsUpdate = update;
-        } else {
-            dynamicMappingsUpdate = dynamicMappingsUpdate.merge(update, MergeReason.MAPPING_AUTO_UPDATE, Long.MAX_VALUE);
         }
     }
 

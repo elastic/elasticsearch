@@ -7,6 +7,9 @@
 
 package org.elasticsearch.xpack.logsdb;
 
+import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.rest.ESRestTestCase;
@@ -18,17 +21,26 @@ import java.util.Map;
 
 public class LogsdbWithBasicRestIT extends ESRestTestCase {
 
+    private static final String USER = "test_admin";
+    private static final String PASS = "x-pack-test-password";
+
     @ClassRule
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .distribution(DistributionType.DEFAULT)
         .systemProperty("es.mapping.synthetic_source_fallback_to_stored_source.cutoff_date_restricted_override", "2027-12-31T23:59")
-        .setting("xpack.security.enabled", "false")
+        .setting("xpack.security.autoconfiguration.enabled", "false")
+        .user(USER, PASS)
         .setting("cluster.logsdb.enabled", "true")
         .build();
 
     @Override
     protected String getTestRestCluster() {
         return cluster.getHttpAddresses();
+    }
+
+    protected Settings restClientSettings() {
+        String token = basicAuthHeaderValue(USER, new SecureString(PASS.toCharArray()));
+        return Settings.builder().put(super.restClientSettings()).put(ThreadContext.PREFIX + ".Authorization", token).build();
     }
 
     public void testCustomCutoffDateUsage() throws IOException {

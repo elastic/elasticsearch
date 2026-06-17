@@ -37,16 +37,10 @@ public final class MinIpGroupingAggregatorFunction implements GroupingAggregator
 
   private final DriverContext driverContext;
 
-  public MinIpGroupingAggregatorFunction(List<Integer> channels,
-      MinIpAggregator.GroupingState state, DriverContext driverContext) {
+  MinIpGroupingAggregatorFunction(List<Integer> channels, DriverContext driverContext) {
     this.channels = channels;
-    this.state = state;
+    this.state = MinIpAggregator.initGrouping(driverContext.bigArrays());
     this.driverContext = driverContext;
-  }
-
-  public static MinIpGroupingAggregatorFunction create(List<Integer> channels,
-      DriverContext driverContext) {
-    return new MinIpGroupingAggregatorFunction(channels, MinIpAggregator.initGrouping(driverContext.bigArrays()), driverContext);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -62,6 +56,15 @@ public final class MinIpGroupingAggregatorFunction implements GroupingAggregator
   public GroupingAggregatorFunction.AddInput prepareProcessRawInputPage(SeenGroupIds seenGroupIds,
       Page page) {
     BytesRefBlock valueBlock = page.getBlock(channels.get(0));
+    if (valueBlock.areAllValuesNull()) {
+      /*
+       * All values are null so we can skip processing this block. But we
+       * still need to track that some groups may not have been seen
+       * so that they are initialized to null when we read their values.
+       */
+      state.enableGroupIdTracking(seenGroupIds);
+      return null;
+    }
     BytesRefVector valueVector = valueBlock.asVector();
     if (valueVector == null) {
       maybeEnableGroupIdTracking(seenGroupIds, valueBlock);
@@ -151,20 +154,37 @@ public final class MinIpGroupingAggregatorFunction implements GroupingAggregator
 
   @Override
   public void addIntermediateInput(int positionOffset, IntArrayBlock groups, Page page) {
-    state.enableGroupIdTracking(new SeenGroupIds.Empty());
     assert channels.size() == intermediateBlockCount();
     Block maxUncast = page.getBlock(channels.get(0));
     if (maxUncast.areAllValuesNull()) {
+      /*
+       * All values are null so we can skip processing this block.
+       * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
+       *       being fast without this. Likely the branch predictor is kicking
+       *       in there. But we do this anyway, just so we don't have to trust
+       *       it. It's magic. Glorious magic. But it's deep magic. And we won't
+       *       always have long sequences of ConstantNullBlock. And this code
+       *       shows readers we've thought about this.
+       */
       return;
     }
     BytesRefVector max = ((BytesRefBlock) maxUncast).asVector();
     Block seenUncast = page.getBlock(channels.get(1));
     if (seenUncast.areAllValuesNull()) {
+      /*
+       * All values are null so we can skip processing this block.
+       * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
+       *       being fast without this. Likely the branch predictor is kicking
+       *       in there. But we do this anyway, just so we don't have to trust
+       *       it. It's magic. Glorious magic. But it's deep magic. And we won't
+       *       always have long sequences of ConstantNullBlock. And this code
+       *       shows readers we've thought about this.
+       */
       return;
     }
     BooleanVector seen = ((BooleanBlock) seenUncast).asVector();
     assert max.getPositionCount() == seen.getPositionCount();
-    BytesRef scratch = new BytesRef();
+    BytesRef maxScratch = new BytesRef();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       if (groups.isNull(groupPosition)) {
         continue;
@@ -174,7 +194,7 @@ public final class MinIpGroupingAggregatorFunction implements GroupingAggregator
       for (int g = groupStart; g < groupEnd; g++) {
         int groupId = groups.getInt(g);
         int valuesPosition = groupPosition + positionOffset;
-        MinIpAggregator.combineIntermediate(state, groupId, max.getBytesRef(valuesPosition, scratch), seen.getBoolean(valuesPosition));
+        MinIpAggregator.combineIntermediate(state, groupId, max.getBytesRef(valuesPosition, maxScratch), seen.getBoolean(valuesPosition));
       }
     }
   }
@@ -223,20 +243,37 @@ public final class MinIpGroupingAggregatorFunction implements GroupingAggregator
 
   @Override
   public void addIntermediateInput(int positionOffset, IntBigArrayBlock groups, Page page) {
-    state.enableGroupIdTracking(new SeenGroupIds.Empty());
     assert channels.size() == intermediateBlockCount();
     Block maxUncast = page.getBlock(channels.get(0));
     if (maxUncast.areAllValuesNull()) {
+      /*
+       * All values are null so we can skip processing this block.
+       * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
+       *       being fast without this. Likely the branch predictor is kicking
+       *       in there. But we do this anyway, just so we don't have to trust
+       *       it. It's magic. Glorious magic. But it's deep magic. And we won't
+       *       always have long sequences of ConstantNullBlock. And this code
+       *       shows readers we've thought about this.
+       */
       return;
     }
     BytesRefVector max = ((BytesRefBlock) maxUncast).asVector();
     Block seenUncast = page.getBlock(channels.get(1));
     if (seenUncast.areAllValuesNull()) {
+      /*
+       * All values are null so we can skip processing this block.
+       * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
+       *       being fast without this. Likely the branch predictor is kicking
+       *       in there. But we do this anyway, just so we don't have to trust
+       *       it. It's magic. Glorious magic. But it's deep magic. And we won't
+       *       always have long sequences of ConstantNullBlock. And this code
+       *       shows readers we've thought about this.
+       */
       return;
     }
     BooleanVector seen = ((BooleanBlock) seenUncast).asVector();
     assert max.getPositionCount() == seen.getPositionCount();
-    BytesRef scratch = new BytesRef();
+    BytesRef maxScratch = new BytesRef();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       if (groups.isNull(groupPosition)) {
         continue;
@@ -246,7 +283,7 @@ public final class MinIpGroupingAggregatorFunction implements GroupingAggregator
       for (int g = groupStart; g < groupEnd; g++) {
         int groupId = groups.getInt(g);
         int valuesPosition = groupPosition + positionOffset;
-        MinIpAggregator.combineIntermediate(state, groupId, max.getBytesRef(valuesPosition, scratch), seen.getBoolean(valuesPosition));
+        MinIpAggregator.combineIntermediate(state, groupId, max.getBytesRef(valuesPosition, maxScratch), seen.getBoolean(valuesPosition));
       }
     }
   }
@@ -280,29 +317,61 @@ public final class MinIpGroupingAggregatorFunction implements GroupingAggregator
 
   @Override
   public void addIntermediateInput(int positionOffset, IntVector groups, Page page) {
-    state.enableGroupIdTracking(new SeenGroupIds.Empty());
     assert channels.size() == intermediateBlockCount();
     Block maxUncast = page.getBlock(channels.get(0));
     if (maxUncast.areAllValuesNull()) {
+      /*
+       * All values are null so we can skip processing this block.
+       * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
+       *       being fast without this. Likely the branch predictor is kicking
+       *       in there. But we do this anyway, just so we don't have to trust
+       *       it. It's magic. Glorious magic. But it's deep magic. And we won't
+       *       always have long sequences of ConstantNullBlock. And this code
+       *       shows readers we've thought about this.
+       */
       return;
     }
     BytesRefVector max = ((BytesRefBlock) maxUncast).asVector();
     Block seenUncast = page.getBlock(channels.get(1));
     if (seenUncast.areAllValuesNull()) {
+      /*
+       * All values are null so we can skip processing this block.
+       * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
+       *       being fast without this. Likely the branch predictor is kicking
+       *       in there. But we do this anyway, just so we don't have to trust
+       *       it. It's magic. Glorious magic. But it's deep magic. And we won't
+       *       always have long sequences of ConstantNullBlock. And this code
+       *       shows readers we've thought about this.
+       */
       return;
     }
     BooleanVector seen = ((BooleanBlock) seenUncast).asVector();
     assert max.getPositionCount() == seen.getPositionCount();
-    BytesRef scratch = new BytesRef();
+    BytesRef maxScratch = new BytesRef();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       int groupId = groups.getInt(groupPosition);
       int valuesPosition = groupPosition + positionOffset;
-      MinIpAggregator.combineIntermediate(state, groupId, max.getBytesRef(valuesPosition, scratch), seen.getBoolean(valuesPosition));
+      MinIpAggregator.combineIntermediate(state, groupId, max.getBytesRef(valuesPosition, maxScratch), seen.getBoolean(valuesPosition));
     }
+  }
+
+  @Override
+  public GroupingAggregatorFunction.AddInput prepareProcessIntermediateInputPage(
+      SeenGroupIds seenGroupIds, Page page) {
+    BooleanVector seen = ((BooleanBlock) page.getBlock(channels.get(1))).asVector();
+    if (seen == null || seen.isConstant() == false || seen.getBoolean(0) == false) {
+      state.enableGroupIdTracking(seenGroupIds);
+    }
+    return new GroupingAggregatorFunction.IntermediateAddInput(this, seenGroupIds, page);
   }
 
   private void maybeEnableGroupIdTracking(SeenGroupIds seenGroupIds, BytesRefBlock valueBlock) {
     if (valueBlock.mayHaveNulls()) {
+      /*
+       * Some values in the block are null so some group ids may not
+       * be seen. We need to track which ones so we can initialize
+       * them to null when we read their values.
+       */
       state.enableGroupIdTracking(seenGroupIds);
     }
   }
@@ -313,14 +382,24 @@ public final class MinIpGroupingAggregatorFunction implements GroupingAggregator
   }
 
   @Override
-  public void evaluateIntermediate(Block[] blocks, int offset, IntVector selected) {
-    state.toIntermediate(blocks, offset, selected, driverContext);
+  public GroupingAggregatorFunction.PreparedForEvaluation prepareEvaluateIntermediate(
+      IntVector selected, GroupingAggregatorEvaluationContext ctx) {
+    return this::evaluateIntermediate;
+  }
+
+  private void evaluateIntermediate(Block[] blocks, int offset, IntVector selectedInPage) {
+    state.toIntermediate(blocks, offset, selectedInPage, driverContext);
   }
 
   @Override
-  public void evaluateFinal(Block[] blocks, int offset, IntVector selected,
+  public GroupingAggregatorFunction.PreparedForEvaluation prepareEvaluateFinal(IntVector selected,
       GroupingAggregatorEvaluationContext ctx) {
-    blocks[offset] = MinIpAggregator.evaluateFinal(state, selected, ctx);
+    return (blocks, offset, selectedInPage) -> evaluateFinal(blocks, offset, selectedInPage, ctx);
+  }
+
+  private void evaluateFinal(Block[] blocks, int offset, IntVector selectedInPage,
+      GroupingAggregatorEvaluationContext ctx) {
+    blocks[offset] = MinIpAggregator.evaluateFinal(state, selectedInPage, ctx);
   }
 
   @Override

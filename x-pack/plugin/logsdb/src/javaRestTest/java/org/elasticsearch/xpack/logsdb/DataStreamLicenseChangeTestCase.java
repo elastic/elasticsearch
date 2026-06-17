@@ -8,26 +8,53 @@
 package org.elasticsearch.xpack.logsdb;
 
 import org.elasticsearch.client.Request;
+import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.junit.ClassRule;
 
 import java.io.IOException;
+import java.util.List;
 
 public abstract class DataStreamLicenseChangeTestCase extends LogsIndexModeRestTestIT {
+
+    private static final String USER = "test_admin";
+    private static final String PASS = "x-pack-test-password";
+
     @ClassRule
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .distribution(DistributionType.DEFAULT)
         .module("data-streams")
         .module("x-pack-stack")
         .setting("cluster.logsdb.enabled", "true")
-        .setting("xpack.security.enabled", "false")
+        .setting("xpack.security.autoconfiguration.enabled", "false")
+        .user(USER, PASS)
         .setting("xpack.license.self_generated.type", "basic")
         .build();
 
     @Override
     protected String getTestRestCluster() {
         return cluster.getHttpAddresses();
+    }
+
+    protected Settings restClientSettings() {
+        String token = basicAuthHeaderValue(USER, new SecureString(PASS.toCharArray()));
+        return Settings.builder().put(super.restClientSettings()).put(ThreadContext.PREFIX + ".Authorization", token).build();
+    }
+
+    /**
+     * Returns true if the cluster under test supports the {@code columnar} index mode,
+     * detected via the {@code _capabilities} API (capability {@code columnar_index_modes}
+     * on {@code PUT /{index}}).
+     */
+    protected static boolean isColumnarIndexModeSupported() {
+        try {
+            return clusterHasCapability("PUT", "/{index}", List.of(), List.of("columnar_index_modes")).orElse(false);
+        } catch (IOException e) {
+            return false;
+        }
     }
 
     protected static void startBasic() throws IOException {

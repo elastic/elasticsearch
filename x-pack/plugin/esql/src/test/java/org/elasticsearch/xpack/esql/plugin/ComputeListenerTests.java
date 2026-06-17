@@ -17,6 +17,7 @@ import org.elasticsearch.compute.operator.DriverCompletionInfo;
 import org.elasticsearch.compute.operator.DriverProfile;
 import org.elasticsearch.compute.operator.DriverSleeps;
 import org.elasticsearch.compute.operator.PlanProfile;
+import org.elasticsearch.compute.operator.PlanTimeProfile;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.ESTestCase;
@@ -63,6 +64,10 @@ public class ComputeListenerTests extends ESTestCase {
         return new DriverCompletionInfo(
             randomNonNegativeLong(),
             randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
             randomList(
                 0,
                 2,
@@ -82,9 +87,21 @@ public class ComputeListenerTests extends ESTestCase {
             randomList(
                 0,
                 2,
-                () -> new PlanProfile(randomIdentifier(), randomIdentifier(), randomIdentifier(), randomAlphaOfLengthBetween(1, 1024))
-            )
+                () -> new PlanProfile(
+                    randomIdentifier(),
+                    randomIdentifier(),
+                    randomIdentifier(),
+                    randomAlphaOfLengthBetween(1, 1024),
+                    randomBoolean() ? null : randomAlphaOfLengthBetween(1, 1024),
+                    randomPlanTimeProfile()
+                )
+            ),
+            java.util.Map.of()
         );
+    }
+
+    private PlanTimeProfile randomPlanTimeProfile() {
+        return randomBoolean() ? null : new PlanTimeProfile(randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong());
     }
 
     public void testEmpty() {

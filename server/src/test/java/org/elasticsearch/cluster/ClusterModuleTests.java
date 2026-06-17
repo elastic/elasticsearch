@@ -23,6 +23,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.ConcurrentRebalanceA
 import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.FilterAllocationDecider;
+import org.elasticsearch.cluster.routing.allocation.decider.IndexBalanceAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.IndexVersionAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.NodeReplacementAllocationDecider;
@@ -111,7 +112,7 @@ public class ClusterModuleTests extends ModuleTestCase {
         }
 
         @Override
-        public ShardAllocationDecision decideShardAllocation(ShardRouting shard, RoutingAllocation allocation) {
+        public ShardAllocationDecision explainShardAllocation(ShardRouting shard, RoutingAllocation allocation) {
             throw new UnsupportedOperationException("explain API not supported on FakeShardsAllocator");
         }
     }
@@ -214,7 +215,7 @@ public class ClusterModuleTests extends ModuleTestCase {
         Settings settings = Settings.builder().put(ClusterModule.SHARDS_ALLOCATOR_TYPE_SETTING.getKey(), "custom").build();
         ClusterModule module = newClusterModuleWithShardsAllocator(settings, "custom", FakeShardsAllocator::new);
         assertEquals(FakeShardsAllocator.class, module.shardsAllocator.getClass());
-        assertCriticalWarnings(
+        assertWarnings(
             "[cluster.routing.allocation.type] setting was deprecated in Elasticsearch and will be removed in a future release. "
                 + "See the breaking changes documentation for the next major version."
         );
@@ -246,7 +247,7 @@ public class ClusterModuleTests extends ModuleTestCase {
             )
         );
         assertEquals("Unknown ShardsAllocator [dne]", e.getMessage());
-        assertCriticalWarnings(
+        assertWarnings(
             "[cluster.routing.allocation.type] setting was deprecated in Elasticsearch and will be removed in a future release. "
                 + "See the breaking changes documentation for the next major version."
         );
@@ -255,7 +256,7 @@ public class ClusterModuleTests extends ModuleTestCase {
     public void testShardsAllocatorFactoryNull() {
         Settings settings = Settings.builder().put(ClusterModule.SHARDS_ALLOCATOR_TYPE_SETTING.getKey(), "bad").build();
         expectThrows(NullPointerException.class, () -> newClusterModuleWithShardsAllocator(settings, "bad", () -> null));
-        assertCriticalWarnings(
+        assertWarnings(
             "[cluster.routing.allocation.type] setting was deprecated in Elasticsearch and will be removed in a future release. "
                 + "See the breaking changes documentation for the next major version."
         );
@@ -286,7 +287,8 @@ public class ClusterModuleTests extends ModuleTestCase {
             DiskThresholdDecider.class,
             ThrottlingAllocationDecider.class,
             ShardsLimitAllocationDecider.class,
-            AwarenessAllocationDecider.class
+            AwarenessAllocationDecider.class,
+            IndexBalanceAllocationDecider.class
         );
         Collection<AllocationDecider> deciders = ClusterModule.createAllocationDeciders(
             Settings.EMPTY,

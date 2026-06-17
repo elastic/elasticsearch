@@ -56,6 +56,7 @@ import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
+import java.util.function.Predicate;
 
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_MAX_HEADER_SIZE;
@@ -139,7 +140,7 @@ public class TaskManager implements ClusterStateApplier {
         long maxSize = maxHeaderSize.getBytes();
         ThreadContext threadContext = threadPool.getThreadContext();
 
-        assert threadContext.hasTraceContext() == false : "Expected threadContext to have no traceContext fields";
+        assert threadContext.hasApmTraceContext() == false : "Expected threadContext to have no APM trace context";
 
         for (String key : taskHeaders) {
             String httpHeader = threadContext.getHeader(key);
@@ -181,7 +182,7 @@ public class TaskManager implements ClusterStateApplier {
      * For REST actions this will be the case, otherwise {@link Tracer#startTrace} can be used.
      */
     void maybeStartTrace(ThreadContext threadContext, Task task) {
-        if (threadContext.hasParentTraceContext() == false) {
+        if (threadContext.hasParentApmTraceContext() == false) {
             return;
         }
         TaskId parentTask = task.getParentTaskId();
@@ -189,12 +190,6 @@ public class TaskManager implements ClusterStateApplier {
             ? Map.of(Tracer.AttributeKeys.TASK_ID, task.getId(), Tracer.AttributeKeys.PARENT_TASK_ID, parentTask.toString())
             : Map.of(Tracer.AttributeKeys.TASK_ID, task.getId());
         tracer.startTrace(threadContext, task, task.getAction(), attributes);
-    }
-
-    void maybeStopTrace(ThreadContext threadContext, Task task) {
-        if (threadContext.hasTraceContext()) {
-            tracer.stopTrace(task);
-        }
     }
 
     public <Request extends ActionRequest, Response extends ActionResponse> Task registerAndExecute(
@@ -358,7 +353,7 @@ public class TaskManager implements ClusterStateApplier {
                 return removedTask;
             }
         } finally {
-            maybeStopTrace(threadPool.getThreadContext(), task);
+            tracer.stopTrace(task); // stop trace if started / known by tracer
             for (RemovedTaskListener listener : removedTaskListeners) {
                 listener.onRemoved(task);
             }
@@ -421,7 +416,7 @@ public class TaskManager implements ClusterStateApplier {
             listener.onFailure(ex);
             return;
         }
-        taskResultsService.storeResult(taskResult, new ActionListener<Void>() {
+        storeTaskResult(task, taskResult, new ActionListener<Void>() {
             @Override
             public void onResponse(Void aVoid) {
                 listener.onFailure(error);
@@ -455,7 +450,7 @@ public class TaskManager implements ClusterStateApplier {
             return;
         }
 
-        taskResultsService.storeResult(taskResult, new ActionListener<Void>() {
+        storeTaskResult(task, taskResult, new ActionListener<Void>() {
             @Override
             public void onResponse(Void aVoid) {
                 listener.onResponse(response);
@@ -467,6 +462,14 @@ public class TaskManager implements ClusterStateApplier {
                 listener.onFailure(e);
             }
         });
+    }
+
+    private void storeTaskResult(Task task, TaskResult taskResult, ActionListener<Void> listener) {
+        if (task.useCreateSemanticsForResultStorage()) {
+            taskResultsService.storeResultIfAbsent(taskResult, listener);
+        } else {
+            taskResultsService.storeResult(taskResult, listener);
+        }
     }
 
     /**
@@ -512,6 +515,47 @@ public class TaskManager implements ClusterStateApplier {
             return holder.getTask();
         } else {
             return null;
+        }
+    }
+
+    /**
+     * Information about a cancellable task.
+     *
+     * @param task the cancellable task
+     * @param elapsedNanos how long the task has been running in nanoseconds
+     * @param hasOutstandingChildren true if this task has child tasks that haven't completed yet
+     */
+    public record CancellableTaskInfo(CancellableTask task, long elapsedNanos, boolean hasOutstandingChildren) {}
+
+    /**
+     * Iterates over cancellable tasks that have been running longer than the specified threshold.
+     * This method avoids allocating collections by iterating directly over the internal concurrent map.
+     * <p>
+     * The predicate receives information about each task including whether it has outstanding child tasks,
+     * allowing the caller to implement task-type-specific logic without TaskManager needing to know
+     * about specific task types. Return {@code false} from the predicate to stop iteration early.
+     *
+     * @param minElapsedNanos minimum elapsed time in nanoseconds; tasks running shorter are skipped
+     * @param processor callback for each task exceeding the threshold; return false to stop iteration
+     */
+    public void forEachCancellableTask(long minElapsedNanos, Predicate<CancellableTaskInfo> processor) {
+        if (minElapsedNanos <= 0) {
+            return;
+        }
+
+        final long now = threadPool.relativeTimeInNanos();
+
+        for (CancellableTaskHolder holder : cancellableTasks.values()) {
+            CancellableTask task = holder.getTask();
+            long elapsed = now - task.getStartTimeNanos();
+
+            if (elapsed >= minElapsedNanos) {
+                Map<Transport.Connection, Integer> children = holder.childTasksPerConnection;
+                boolean hasOutstandingChildren = children != null && children.isEmpty() == false;
+                if (processor.test(new CancellableTaskInfo(task, elapsed, hasOutstandingChildren)) == false) {
+                    return;
+                }
+            }
         }
     }
 
@@ -615,7 +659,9 @@ public class TaskManager implements ClusterStateApplier {
         private final CancellableTask task;
         private boolean finished = false;
         private List<Runnable> cancellationListeners = null;
-        private Map<Transport.Connection, Integer> childTasksPerConnection = null;
+        // volatile for safe unsynchronized reads in forEachCancellableTask
+        // writes are synchronized already so the volatile modified costs nothing on the write path
+        private volatile Map<Transport.Connection, Integer> childTasksPerConnection = null;
         private String banChildrenReason;
         private List<Runnable> childTaskCompletedListeners = null;
 

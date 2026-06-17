@@ -1,0 +1,21 @@
+{
+  "project.get_many_routing": {
+    "documentation": {
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch#TODO",
+      "description": "Get named project routing expressions"
+    },
+    "stability": "experimental",
+    "visibility": "public",
+    "headers": {
+      "accept": ["application/json"]
+    },
+    "url": {
+      "paths": [
+        {
+          "path": "/_project_routing",
+          "methods": ["GET"]
+        }
+      ]
+    }
+  }
+}

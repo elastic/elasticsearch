@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.core.security.action;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -58,11 +57,7 @@ public class Grant implements Writeable {
         this.password = in.readOptionalSecureString();
         this.accessToken = in.readOptionalSecureString();
         this.runAsUsername = in.readOptionalString();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
-            this.clientAuthentication = in.readOptionalWriteable(ClientAuthentication::new);
-        } else {
-            this.clientAuthentication = null;
-        }
+        this.clientAuthentication = in.readOptionalWriteable(ClientAuthentication::new);
     }
 
     public void writeTo(StreamOutput out) throws IOException {
@@ -71,9 +66,7 @@ public class Grant implements Writeable {
         out.writeOptionalSecureString(password);
         out.writeOptionalSecureString(accessToken);
         out.writeOptionalString(runAsUsername);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
-            out.writeOptionalWriteable(clientAuthentication);
-        }
+        out.writeOptionalWriteable(clientAuthentication);
     }
 
     public String getType() {

@@ -13,6 +13,7 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.core.KeywordAnalyzer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
+import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.tests.analysis.CannedTokenStream;
 import org.apache.lucene.tests.analysis.MockTokenizer;
 import org.apache.lucene.tests.analysis.Token;
@@ -72,10 +73,15 @@ public class TokenCountFieldMapperTests extends MapperTestCase {
         checker.registerConflictCheck("doc_values", b -> b.field("doc_values", false));
         checker.registerConflictCheck("null_value", b -> b.field("null_value", 1));
         checker.registerConflictCheck("enable_position_increments", b -> b.field("enable_position_increments", false));
-        checker.registerUpdateCheck(this::minimalMapping, b -> b.field("type", "token_count").field("analyzer", "standard"), m -> {
-            TokenCountFieldMapper tcfm = (TokenCountFieldMapper) m;
-            assertThat(tcfm.analyzer(), equalTo("standard"));
-        });
+        checker.registerUpdateCheck(
+            "analyzer",
+            this::minimalMapping,
+            b -> b.field("type", "token_count").field("analyzer", "standard"),
+            m -> {
+                TokenCountFieldMapper tcfm = (TokenCountFieldMapper) m;
+                assertThat(tcfm.analyzer(), equalTo("standard"));
+            }
+        );
     }
 
     @Override
@@ -108,6 +114,16 @@ public class TokenCountFieldMapperTests extends MapperTestCase {
     public void testCountPositionsWithoutIncrements() throws IOException {
         Analyzer analyzer = createMockAnalyzer();
         assertThat(TokenCountFieldMapper.countPositions(analyzer, "", "", false), equalTo(2));
+    }
+
+    @Override
+    protected boolean supportsMultiValueParameter() {
+        return true;
+    }
+
+    @Override
+    protected DocValuesType expectedSingleValuedDocValuesType() {
+        return DocValuesType.NUMERIC;
     }
 
     private Analyzer createMockAnalyzer() {
@@ -168,7 +184,7 @@ public class TokenCountFieldMapperTests extends MapperTestCase {
         }));
     }
 
-    private static SourceToParse createDocument(String fieldValue) throws Exception {
+    private SourceToParse createDocument(String fieldValue) throws Exception {
         return source(b -> b.field("test", fieldValue));
     }
 
@@ -263,5 +279,15 @@ public class TokenCountFieldMapperTests extends MapperTestCase {
             b.field("doc_values", false);
         }));
         assertAggregatableConsistency(mapperService.fieldType("field"));
+    }
+
+    @Override
+    protected List<SortShortcutSupport> getSortShortcutSupport() {
+        return List.of(new SortShortcutSupport(this::minimalMapping, this::writeField, true));
+    }
+
+    @Override
+    protected boolean supportsDocValuesSkippers() {
+        return false;
     }
 }

@@ -28,7 +28,12 @@ import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+
 import static org.elasticsearch.test.MockLog.assertThatLogger;
+import static org.elasticsearch.test.MockLog.awaitLogger;
 import static org.elasticsearch.transport.RemoteClusterSettings.ProxyConnectionStrategySettings.PROXY_ADDRESS;
 import static org.elasticsearch.transport.RemoteClusterSettings.REMOTE_CONNECTION_MODE;
 import static org.elasticsearch.transport.RemoteClusterSettings.SniffConnectionStrategySettings.REMOTE_CLUSTER_SEEDS;
@@ -37,7 +42,17 @@ import static org.elasticsearch.transport.RemoteConnectionStrategy.buildConnecti
 import static org.mockito.Mockito.mock;
 
 public class RemoteConnectionStrategyTests extends ESTestCase {
-
+    private static final String clusterAlias = "cluster-alias";
+    private static final Map<RemoteConnectionStrategy.ConnectionStrategy, LinkedProjectConfig> cfgMap = Map.of(
+        RemoteConnectionStrategy.ConnectionStrategy.PROXY,
+        new LinkedProjectConfig.ProxyLinkedProjectConfigBuilder(ProjectId.DEFAULT, ProjectId.DEFAULT, clusterAlias).proxyAddress(
+            "localhost:8080"
+        ).build(),
+        RemoteConnectionStrategy.ConnectionStrategy.SNIFF,
+        new LinkedProjectConfig.SniffLinkedProjectConfigBuilder(ProjectId.DEFAULT, ProjectId.DEFAULT, clusterAlias).seedNodes(
+            List.of("localhost:8080")
+        ).build()
+    );
     private static final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
 
     public void testStrategyChangeMeansThatStrategyMustBeRebuilt() {
@@ -138,13 +153,9 @@ public class RemoteConnectionStrategyTests extends ESTestCase {
     }
 
     public void testCorrectChannelNumber() {
-        String clusterAlias = "cluster-alias";
-
         for (RemoteConnectionStrategy.ConnectionStrategy strategy : RemoteConnectionStrategy.ConnectionStrategy.values()) {
-            String settingKey = REMOTE_CONNECTION_MODE.getConcreteSettingForNamespace(clusterAlias).getKey();
-            Settings proxySettings = Settings.builder().put(settingKey, strategy.name()).build();
             ConnectionProfile proxyProfile = buildConnectionProfile(
-                toConfig(clusterAlias, proxySettings),
+                cfgMap.get(strategy),
                 randomBoolean() ? RemoteClusterPortSettings.REMOTE_CLUSTER_PROFILE : TransportSettings.DEFAULT_PROFILE
             );
             assertEquals(
@@ -156,14 +167,10 @@ public class RemoteConnectionStrategyTests extends ESTestCase {
     }
 
     public void testTransportProfile() {
-        String clusterAlias = "cluster-alias";
 
         // New rcs connection with credentials
         for (RemoteConnectionStrategy.ConnectionStrategy strategy : RemoteConnectionStrategy.ConnectionStrategy.values()) {
-            ConnectionProfile profile = buildConnectionProfile(
-                toConfig(clusterAlias, Settings.EMPTY),
-                RemoteClusterPortSettings.REMOTE_CLUSTER_PROFILE
-            );
+            ConnectionProfile profile = buildConnectionProfile(cfgMap.get(strategy), RemoteClusterPortSettings.REMOTE_CLUSTER_PROFILE);
             assertEquals(
                 "Incorrect transport profile for " + strategy.name(),
                 RemoteClusterPortSettings.REMOTE_CLUSTER_PROFILE,
@@ -173,7 +180,7 @@ public class RemoteConnectionStrategyTests extends ESTestCase {
 
         // Legacy ones without credentials
         for (RemoteConnectionStrategy.ConnectionStrategy strategy : RemoteConnectionStrategy.ConnectionStrategy.values()) {
-            ConnectionProfile profile = buildConnectionProfile(toConfig(clusterAlias, Settings.EMPTY), TransportSettings.DEFAULT_PROFILE);
+            ConnectionProfile profile = buildConnectionProfile(cfgMap.get(strategy), TransportSettings.DEFAULT_PROFILE);
             assertEquals(
                 "Incorrect transport profile for " + strategy.name(),
                 TransportSettings.DEFAULT_PROFILE,
@@ -194,7 +201,7 @@ public class RemoteConnectionStrategyTests extends ESTestCase {
         value = "org.elasticsearch.transport.RemoteConnectionStrategyTests.FakeConnectionStrategy:DEBUG",
         reason = "logging verification"
     )
-    public void testConnectionAttemptLogging() {
+    public void testConnectionAttemptMetricsAndLogging() {
         final var originProjectId = randomUniqueProjectId();
         final var linkedProjectId = randomUniqueProjectId();
         final var alias = randomAlphanumericOfLength(10);
@@ -209,7 +216,7 @@ public class RemoteConnectionStrategyTests extends ESTestCase {
             )
         ) {
             for (boolean shouldConnectFail : new boolean[] { true, false }) {
-                for (boolean isIntialConnectAttempt : new boolean[] { true, false }) {
+                for (boolean isInitialConnectAttempt : new boolean[] { true, false }) {
                     final var strategy = new FakeConnectionStrategy(
                         originProjectId,
                         linkedProjectId,
@@ -217,7 +224,7 @@ public class RemoteConnectionStrategyTests extends ESTestCase {
                         transportService,
                         connectionManager
                     );
-                    if (isIntialConnectAttempt == false) {
+                    if (isInitialConnectAttempt == false) {
                         waitForConnect(strategy);
                     }
                     strategy.setShouldConnectFail(shouldConnectFail);
@@ -228,7 +235,7 @@ public class RemoteConnectionStrategyTests extends ESTestCase {
                         shouldConnectFail ? "failed to connect" : "successfully connected",
                         linkedProjectId,
                         alias,
-                        isIntialConnectAttempt ? "the initial connection" : "a reconnection"
+                        isInitialConnectAttempt ? "the initial connection" : "a reconnection"
                     );
                     assertThatLogger(() -> {
                         if (shouldConnectFail) {
@@ -243,7 +250,7 @@ public class RemoteConnectionStrategyTests extends ESTestCase {
                                 + expectedLogLevel
                                 + " after a "
                                 + (shouldConnectFail ? "failed" : "successful")
-                                + (isIntialConnectAttempt ? " initial connection attempt" : " reconnection attempt"),
+                                + (isInitialConnectAttempt ? " initial connection attempt" : " reconnection attempt"),
                             strategy.getClass().getCanonicalName(),
                             expectedLogLevel,
                             expectedLogMessage
@@ -251,6 +258,37 @@ public class RemoteConnectionStrategyTests extends ESTestCase {
                     );
                 }
             }
+
+            // Now verify connection errors when closing (node shutting down) are logged at debug and not warn.
+            final var strategy = new FakeConnectionStrategy(originProjectId, linkedProjectId, alias, transportService, connectionManager);
+            waitForConnect(strategy);
+            strategy.setShouldConnectFail(true);
+            strategy.setWaitInConnect(true);
+            final var expectedLogLevel = Level.DEBUG;
+            final var expectedLogMessage = Strings.format(
+                "Origin project [%s] failed to connect to linked project [%s] with alias [%s] on a reconnection attempt",
+                originProjectId,
+                linkedProjectId,
+                alias
+            );
+            awaitLogger(() -> assertThrows(RuntimeException.class, () -> {
+                PlainActionFuture<Void> connectFuture = new PlainActionFuture<>();
+                // Initiate the connection, this will block the connecting thread.
+                strategy.connect(connectFuture);
+                // Close the strategy and manager (similar to RemoteClusterConnection.close()), then let the connection attempt complete.
+                strategy.close();
+                connectionManager.close();
+                strategy.releaseWaitingConnect();
+                connectFuture.actionGet();
+            }),
+                strategy.getClass(),
+                new MockLog.SeenEventExpectation(
+                    "connection strategy should log at " + expectedLogLevel + " after a failed reconnection attempt",
+                    strategy.getClass().getCanonicalName(),
+                    expectedLogLevel,
+                    expectedLogMessage
+                )
+            );
         }
     }
 
@@ -285,6 +323,8 @@ public class RemoteConnectionStrategyTests extends ESTestCase {
 
         private final ConnectionStrategy strategy;
         private boolean shouldConnectFail;
+        private boolean waitInConnect;
+        private final CountDownLatch waitLatch;
 
         FakeConnectionStrategy(
             ProjectId originProjectId,
@@ -322,16 +362,28 @@ public class RemoteConnectionStrategyTests extends ESTestCase {
         ) {
             super(switch (strategy) {
                 case PROXY -> new LinkedProjectConfig.ProxyLinkedProjectConfigBuilder(originProjectId, linkedProjectId, clusterAlias)
+                    .proxyAddress("localhost:8080")
                     .build();
                 case SNIFF -> new LinkedProjectConfig.SniffLinkedProjectConfigBuilder(originProjectId, linkedProjectId, clusterAlias)
+                    .seedNodes(List.of("localhost:8080"))
                     .build();
             }, transportService, connectionManager);
             this.strategy = strategy;
             this.shouldConnectFail = false;
+            this.waitInConnect = false;
+            this.waitLatch = new CountDownLatch(1);
         }
 
         void setShouldConnectFail(boolean shouldConnectFail) {
             this.shouldConnectFail = shouldConnectFail;
+        }
+
+        void setWaitInConnect(boolean waitInConnect) {
+            this.waitInConnect = waitInConnect;
+        }
+
+        void releaseWaitingConnect() {
+            this.waitLatch.countDown();
         }
 
         @Override
@@ -351,6 +403,9 @@ public class RemoteConnectionStrategyTests extends ESTestCase {
 
         @Override
         protected void connectImpl(ActionListener<Void> listener) {
+            if (waitInConnect) {
+                safeAwait(waitLatch);
+            }
             if (shouldConnectFail) {
                 listener.onFailure(new RuntimeException("simulated failure"));
             } else {

@@ -196,6 +196,14 @@ emp_no:integer | last_name:keyword | f_l:keyword
 10010 | Piveteau  | eau
 ;
 
+aggregate length
+FROM employees
+| STATS SUM(LENGTH(last_name));
+
+SUM(LENGTH(last_name)):long
+720
+;
+
 substring nested negative start
 from employees | where emp_no <= 10010 | eval f_l = substring(substring(last_name, -3),-1) | keep emp_no, last_name, f_l;
 ignoreOrder:true
@@ -470,6 +478,7 @@ hello | true
 ;
 
 containsWarnings
+skip_flattened_rewrite: field_extract_multivalue_null
 required_capability: fn_contains
 
 from hosts | where host=="epsilon" | eval l1 = contains(host_group, "ate"), l2 = contains(description, "ate") | keep l1, l2;
@@ -485,6 +494,7 @@ null       | false
 
 // Note: no matches in MV returned
 in
+skip_flattened_rewrite: field_extract_multivalue_null
 
 from employees | where job_positions in ("Internship", first_name) | keep emp_no, job_positions;
 ignoreOrder:true
@@ -664,6 +674,34 @@ min(salary):integer | max(salary):integer | job_positions:keyword
 25324               | 58715               | Head Human Resources
 ;
 
+groupByMvMin
+  FROM employees
+| STATS MIN(salary), MAX(salary) BY job_positions=MV_MIN(job_positions)
+| SORT job_positions
+| LIMIT 5;
+
+MIN(salary):integer | MAX(salary):integer | job_positions:keyword
+25976               | 74970               | Accountant
+28941               | 69904               | Architect
+29175               | 50249               | Business Analyst
+25945               | 74999               | Data Scientist
+25324               | 50064               | Head Human Resources
+;
+
+groupByMvMax
+  FROM employees
+| STATS MIN(salary), MAX(salary) BY job_positions=MV_MAX(job_positions)
+| SORT job_positions
+| LIMIT 5;
+
+MIN(salary):integer | MAX(salary):integer | job_positions:keyword
+47411               | 47411               | Accountant
+28941               | 28941               | Architect
+39110               | 48942               | Head Human Resources
+26436               | 50128               | Internship
+25976               | 64675               | Junior Developer
+;
+
 convertFromString
 from employees | sort emp_no | eval positions = to_string(job_positions) | keep emp_no, positions, job_positions | limit 5;
 
@@ -676,6 +714,7 @@ emp_no:integer |positions:keyword                                               
 ;
 
 lessThanMultivalue
+skip_flattened_rewrite: field_extract_multivalue_null
 
 from employees | where job_positions < "C" | keep emp_no, job_positions | sort emp_no;
 warningRegex:evaluation of \[job_positions < \\\"C\\\"\] failed, treating result as null. Only first 20 failures recorded.
@@ -688,6 +727,7 @@ emp_no:integer |job_positions:keyword
 ;
 
 greaterThanMultivalue
+skip_flattened_rewrite: field_extract_multivalue_null
 
 from employees | where job_positions > "C" | keep emp_no, job_positions | sort emp_no | limit 6;
 warningRegex:evaluation of \[job_positions > \\\"C\\\"\] failed, treating result as null. Only first 20 failures recorded.
@@ -704,6 +744,7 @@ emp_no:integer |job_positions:keyword
 ;
 
 equalToMultivalue
+skip_flattened_rewrite: field_extract_multivalue_null
 
 from employees | where job_positions == "Accountant" | keep emp_no, job_positions | sort emp_no;
 warningRegex:evaluation of \[job_positions == \\\"Accountant\\\"\] failed, treating result as null. Only first 20 failures recorded.
@@ -715,6 +756,7 @@ emp_no:integer |job_positions:keyword
 ;
 
 equalToOrEqualToMultivalue
+skip_flattened_rewrite: field_extract_multivalue_null
 
 from employees | where job_positions == "Accountant" or job_positions == "Tech Lead" | keep emp_no, job_positions | sort emp_no;
 warningRegex:evaluation of \[job_positions\] failed, treating result as null. Only first 20 failures recorded.
@@ -727,6 +769,7 @@ emp_no:integer |job_positions:keyword
 ;
 
 inMultivalue
+skip_flattened_rewrite: field_extract_multivalue_null
 
 from employees | where job_positions in ("Accountant", "Tech Lead") | keep emp_no, job_positions | sort emp_no;
 warningRegex:evaluation of \[job_positions in \(\\\"Accountant\\\", \\"Tech Lead\\\"\)\] failed, treating result as null. Only first 20 failures recorded.
@@ -739,6 +782,7 @@ emp_no:integer |job_positions:keyword
 ;
 
 notLessThanMultivalue
+skip_flattened_rewrite: field_extract_multivalue_null
 
 from employees | where not(job_positions < "C") | keep emp_no, job_positions | sort emp_no | limit 6;
 warningRegex:evaluation of \[.*job_positions < \\\"C\\\".*\] failed, treating result as null. Only first 20 failures recorded.
@@ -755,6 +799,7 @@ emp_no:integer |job_positions:keyword
 ;
 
 notGreaterThanMultivalue
+skip_flattened_rewrite: field_extract_multivalue_null
 
 from employees | where not(job_positions > "C") | keep emp_no, job_positions | sort emp_no | limit 6;
 warningRegex:evaluation of \[.*job_positions > \\\"C\\\".*\] failed, treating result as null. Only first 20 failures recorded.
@@ -767,6 +812,7 @@ emp_no:integer |job_positions:keyword
 ;
 
 notEqualToMultivalue
+skip_flattened_rewrite: field_extract_multivalue_null
 
 from employees | where not(job_positions == "Accountant") | keep emp_no, job_positions | sort emp_no | limit 6;
 warningRegex:evaluation of \[.*job_positions == \\\"Accountant\\\".*\] failed, treating result as null. Only first 20 failures recorded.
@@ -891,6 +937,48 @@ ROW a=[10, 9, 8]
 // end::mv_concat-to_string-result[]
 ;
 
+mvConcatFromEmployees
+request_stored: skip
+FROM employees
+| WHERE emp_no < 10010
+| EVAL joined = MV_CONCAT(job_positions, ", ")
+| KEEP emp_no, joined
+| SORT emp_no DESC
+;
+
+emp_no:integer | joined:keyword
+10009          | "Internship, Senior Python Developer"
+10008          | "Internship, Junior Developer, Purchase Manager, Senior Python Developer"
+10007          | null
+10006          | "Principal Support Engineer, Senior Team Lead, Tech Lead"
+10005          | null
+10004          | "Head Human Resources, Reporting Analyst, Support Engineer, Tech Lead"
+10003          | null
+10002          | "Senior Team Lead"
+10001          | "Accountant, Senior Python Developer"
+;
+
+mvConcatFieldDelimiter
+request_stored: skip
+FROM employees
+| WHERE emp_no < 10010
+| EVAL joined = MV_CONCAT(job_positions, last_name)
+| KEEP emp_no, joined
+| SORT emp_no DESC
+;
+
+emp_no:integer | joined:keyword
+10009          | "InternshipPeacSenior Python Developer"
+10008          | "InternshipKalloufiJunior DeveloperKalloufiPurchase ManagerKalloufiSenior Python Developer"
+10007          | null
+10006          | "Principal Support EngineerPreusigSenior Team LeadPreusigTech Lead"
+10005          | null
+10004          | "Head Human ResourcesKoblickReporting AnalystKoblickSupport EngineerKoblickTech Lead"
+10003          | null
+10002          | "Senior Team Lead"
+10001          | "AccountantFacelloSenior Python Developer"
+;
+
 mvSort
 required_capability: mv_sort
 
@@ -930,6 +1018,7 @@ a:keyword            | a1:keyword
 
 mvSliceEmp
 required_capability: mv_sort
+request_stored: skip
 
 from employees
 | eval a1 = mv_slice(salary_change.keyword, 0, 1)
@@ -963,6 +1052,7 @@ a:keyword | b:keyword | c:keyword
 
 mvZipEmp
 required_capability: mv_sort
+request_stored: skip
 
 from employees
 | eval full_name = mv_zip(first_name, last_name, " "), full_name_2 = mv_zip(last_name, first_name), jobs = mv_zip(job_positions, salary_change.keyword, "#")
@@ -1024,6 +1114,7 @@ beta             | Kubernetes cluster       | [beta k8s server, beta k8s server2
 ;
 
 lengthOfText
+skip_flattened_rewrite: field_extract_multivalue_null
 
 from hosts | where host=="epsilon" | eval l1 = length(host_group), l2 = length(description) | keep l1, l2;
 ignoreOrder:true
@@ -1036,7 +1127,26 @@ null                   | 19
 17                     | null
 ;
 
+lengthOfMvPushed
+skip_flattened_rewrite: field_extract_multivalue_null
+FROM employees
+| EVAL jpl = LENGTH(job_positions)
+| WHERE emp_no <= 10002 AND (jpl IS NULL OR jpl == 16)
+| SORT emp_no ASC
+| KEEP jpl
+| LIMIT 2
+;
+# Needs a warningRegex because the warning is slightly different if pushed vs not.
+warningRegex:Line 2:14:.+evaluation of \[LENGTH\(job_positions\)\].+Only first 20 failures recorded.
+warningRegex:Line 2:14: java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+jpl:integer
+null
+16
+;
+
 startsWithText
+skip_flattened_rewrite: field_extract_multivalue_null
 
 from hosts | where host=="epsilon" | eval l1 = starts_with(host_group, host), l2 = starts_with(description, host) | keep l1, l2;
 ignoreOrder:true
@@ -1091,6 +1201,7 @@ epsilon gw instance
 ;
 
 substringOfText
+skip_flattened_rewrite: field_extract_multivalue_null
 
 from hosts | where host=="epsilon" | eval l1 = substring(host_group, 0, 5), l2 = substring(description, 0, 5) | keep l1, l2;
 ignoreOrder:true
@@ -1104,6 +1215,7 @@ Gatew                  | null
 ;
 
 concatOfText
+skip_flattened_rewrite: field_extract_multivalue_null
 
 from hosts | where host == "epsilon" | eval l1 = concat(host, "/", host_group), l2 = concat(host_group, "/", description) | sort l1 |  keep l1, l2;
 warning:Line 1:86: evaluation of [concat(host_group, \"/\", description)] failed, treating result as null. Only first 20 failures recorded.
@@ -1205,6 +1317,7 @@ null            |null
 ;
 
 replaceWarnings
+skip_flattened_rewrite: field_extract_multivalue_null
 required_capability: functions_source_serialization_warnings
 
 FROM employees
@@ -1503,6 +1616,198 @@ from airports* metadata _index
 abbrev:keyword | name:text         | scalerank:integer | _index:keyword
 GTF            | Great Falls Int'l | 8                 | airports      
 LUH            | Sahnewal          | 9                 | airports
+;
+
+startsWithOnIndexWithMinusWhere
+required_capability: fix_starts_with_ends_with_pushdown_on_index
+
+FROM k8s-downsampled METADATA _index
+| WHERE STARTS_WITH(_index, "k8s-")
+| STATS c = COUNT(*);
+
+c:long
+27
+;
+
+startsWithOnIndexWithMinusEval
+required_capability: fix_starts_with_ends_with_pushdown_on_index
+
+FROM k8s-downsampled METADATA _index
+| EVAL is_there = STARTS_WITH(_index, "k8s-")
+| KEEP is_there
+| LIMIT 1;
+
+is_there:boolean
+true
+;
+
+endsWithOnIndexWithMinusWhere
+required_capability: fix_starts_with_ends_with_pushdown_on_index
+
+FROM k8s-downsampled METADATA _index
+| WHERE ENDS_WITH(_index, "-downsampled")
+| STATS c = COUNT(*);
+
+c:long
+27
+;
+
+endsWithOnIndexWithMinusEval
+required_capability: fix_starts_with_ends_with_pushdown_on_index
+
+FROM k8s-downsampled METADATA _index
+| EVAL is_there = ENDS_WITH(_index, "-downsampled")
+| KEEP is_there
+| LIMIT 1;
+
+is_there:boolean
+true
+;
+
+likeOnIndexWithMinusWhere
+required_capability: fix_starts_with_ends_with_pushdown_on_index
+
+FROM k8s-downsampled METADATA _index
+| WHERE _index LIKE "k8s-*"
+| STATS c = COUNT(*);
+
+c:long
+27
+;
+
+likeOnIndexWithMinusEval
+required_capability: fix_starts_with_ends_with_pushdown_on_index
+
+FROM k8s-downsampled METADATA _index
+| EVAL is_there = _index LIKE "k8s-*"
+| KEEP is_there
+| LIMIT 1;
+
+is_there:boolean
+true
+;
+
+// https://github.com/elastic/elasticsearch/issues/146364
+likeSingleCharOnIndexWithMinusWhere
+required_capability: fix_starts_with_ends_with_pushdown_on_index
+required_capability: fix_index_like_question_mark_wildcard
+
+FROM k8s-downsampled METADATA _index
+| WHERE _index LIKE "k8s?downsampled"
+| STATS c = COUNT(*);
+
+c:long
+27
+;
+
+likeSingleCharOnIndexWithMinusEval
+required_capability: fix_starts_with_ends_with_pushdown_on_index
+
+FROM k8s-downsampled METADATA _index
+| EVAL is_there = _index LIKE "k8s?downsampled"
+| KEEP is_there
+| LIMIT 1;
+
+is_there:boolean
+true
+;
+
+likeListOnIndexWithMinusWhere
+required_capability: fix_starts_with_ends_with_pushdown_on_index
+required_capability: like_with_list_of_patterns
+
+FROM k8s-downsampled METADATA _index
+| WHERE _index LIKE ("k8s-*", "no_match*")
+| STATS c = COUNT(*);
+
+c:long
+27
+;
+
+likeListOnIndexWithMinusEval
+required_capability: fix_starts_with_ends_with_pushdown_on_index
+required_capability: like_with_list_of_patterns
+
+FROM k8s-downsampled METADATA _index
+| EVAL is_there = _index LIKE ("k8s-*", "no_match*")
+| KEEP is_there
+| LIMIT 1;
+
+is_there:boolean
+true
+;
+
+likeSingleCharListOnIndexWithMinusWhere
+required_capability: fix_starts_with_ends_with_pushdown_on_index
+required_capability: like_with_list_of_patterns
+
+FROM k8s-downsampled METADATA _index
+| WHERE _index LIKE ("k8s?downsampled", "no_match")
+| STATS c = COUNT(*);
+
+c:long
+27
+;
+
+likeSingleCharListOnIndexWithMinusEval
+required_capability: fix_starts_with_ends_with_pushdown_on_index
+required_capability: like_with_list_of_patterns
+
+FROM k8s-downsampled METADATA _index
+| EVAL is_there = _index LIKE ("k8s?downsampled", "no_match")
+| KEEP is_there
+| LIMIT 1;
+
+is_there:boolean
+true
+;
+
+rlikeOnIndexWithMinusWhere
+required_capability: fix_starts_with_ends_with_pushdown_on_index
+
+FROM k8s-downsampled METADATA _index
+| WHERE _index RLIKE "k8s-.*"
+| STATS c = COUNT(*);
+
+c:long
+27
+;
+
+rlikeOnIndexWithMinusEval
+required_capability: fix_starts_with_ends_with_pushdown_on_index
+
+FROM k8s-downsampled METADATA _index
+| EVAL is_there = _index RLIKE "k8s-.*"
+| KEEP is_there
+| LIMIT 1;
+
+is_there:boolean
+true
+;
+
+rlikeListOnIndexWithMinusWhere
+required_capability: fix_starts_with_ends_with_pushdown_on_index
+required_capability: rlike_with_list_of_patterns
+
+FROM k8s-downsampled METADATA _index
+| WHERE _index RLIKE ("k8s-.*", "no_match.*")
+| STATS c = COUNT(*);
+
+c:long
+27
+;
+
+rlikeListOnIndexWithMinusEval
+required_capability: fix_starts_with_ends_with_pushdown_on_index
+required_capability: rlike_with_list_of_patterns
+
+FROM k8s-downsampled METADATA _index
+| EVAL is_there = _index RLIKE ("k8s-.*", "no_match.*")
+| KEEP is_there
+| LIMIT 1;
+
+is_there:boolean
+true
 ;
 
 toLowerRow#[skip:-8.12.99]
@@ -1817,6 +2122,7 @@ áéíóúàèìòùâêîôû😊👍🏽🎉💖कंठाी
 ;
 
 reverseMultiValue
+skip_flattened_rewrite: field_extract_multivalue_null
 required_capability: fn_reverse
 FROM employees | SORT emp_no | EVAL jobs_reversed = REVERSE(job_positions) | KEEP job*, emp_no | LIMIT 5;
 
@@ -2041,6 +2347,7 @@ min(f_l):integer | max(f_l):integer | job_positions:keyword
 ;
 
 locateWarnings#[skip:-8.13.99,reason:new string function added in 8.14]
+skip_flattened_rewrite: field_extract_multivalue_null
 
 from hosts | where host=="epsilon" | eval l1 = locate(host_group, "ate"), l2 = locate(description, "ate") | keep l1, l2;
 ignoreOrder:true
@@ -2309,6 +2616,7 @@ cheese | ""
 ;
 
 repeatNegative
+skip_flattened_rewrite: field_extract_multivalue_null
 required_capability: repeat 
 
 from employees | sort emp_no | limit 1 | eval repeated = repeat(first_name, emp_no - 10002) | keep first_name, repeated;
@@ -2430,6 +2738,7 @@ null
 ;
 
 spaceNegative
+skip_flattened_rewrite: field_extract_multivalue_null
 required_capability: space
 FROM employees | SORT emp_no | LIMIT 1 | EVAL s = SPACE(-LENGTH(first_name)) | KEEP s;
 
@@ -2490,6 +2799,20 @@ ROW message = "foo * bar"
 message:keyword
 foo * bar
 // end::likeEscapingTripleQuotes-result[]
+;
+
+
+likeEscapingBackslashWindowsPath
+// tag::likeEscapingBackslashWindowsPath[]
+ROW path = """C:\Windows\System32\foo.txt"""
+| WHERE path LIKE """C:\\Windows*"""
+// end::likeEscapingBackslashWindowsPath[]
+;
+
+// tag::likeEscapingBackslashWindowsPath-result[]
+path:keyword
+C:\Windows\System32\foo.txt
+// end::likeEscapingBackslashWindowsPath-result[]
 ;
 
 
@@ -2582,6 +2905,81 @@ warning:Line 2:9: java.lang.IllegalArgumentException: single-value function enco
 2023-10-23T13:55:01.544Z|Connected to 10.1.0.1
 ;
 
+mvStringEqualsMultiValueConstant
+required_capability: fix_mv_constant_equals_field
+FROM mv_text
+| WHERE message == ["Connected to 10.1.0.1", "Banana"]
+| KEEP @timestamp, message
+;
+warning:Line 2:9: evaluation of [message == [\"Connected to 10.1.0.1\", \"Banana\"]] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:9: java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+    @timestamp:date     | message:text
+;
+
+mvStringNotEqualsMultiValueConstant
+required_capability: fix_mv_constant_comparison_field
+FROM mv_text
+| WHERE message != ["Connected to 10.1.0.1", "Banana"]
+| KEEP @timestamp, message
+;
+warning:Line 2:9: evaluation of [message != [\"Connected to 10.1.0.1\", \"Banana\"]] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:9: java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+    @timestamp:date     | message:text
+;
+
+mvString_IN_MultiValueConstant
+required_capability: fix_mv_constant_equals_field
+FROM mv_text
+| WHERE message IN (["Connected to 10.1.0.1", "Banana"])
+| KEEP @timestamp, message
+;
+warning:Line 2:9: evaluation of [message IN ([\"Connected to 10.1.0.1\", \"Banana\"])] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:9: java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+    @timestamp:date     | message:text
+;
+
+mvKeyword_IN_MultiValueConstant
+skip_flattened_rewrite: field_extract_multivalue_null
+required_capability: fix_mv_constant_equals_field
+FROM employees
+| WHERE job_positions IN (["Tech Lead" , "Data Scientist", "Senior Team Lead"])
+| KEEP emp_no, job_positions
+;
+warning:Line 2:9: evaluation of [job_positions IN ([\"Tech Lead\" , \"Data Scientist\", \"Senior Team Lead\"])] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:9: java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+    emp_no:integer     | job_positions:keyword
+;
+
+mvKeywordEqualsMultiValueConstant
+skip_flattened_rewrite: field_extract_multivalue_null
+required_capability: fix_mv_constant_equals_field
+FROM employees
+| WHERE job_positions == ["Tech Lead" , "Data Scientist", "Senior Team Lead"]
+| KEEP emp_no, job_positions
+;
+warning:Line 2:9: evaluation of [job_positions == [\"Tech Lead\" , \"Data Scientist\", \"Senior Team Lead\"]] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:9: java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+    emp_no:integer     | job_positions:keyword
+;
+
+mvKeywordNotEqualsMultiValueConstant
+skip_flattened_rewrite: field_extract_multivalue_null
+required_capability: fix_mv_constant_comparison_field
+FROM employees
+| WHERE job_positions != ["Tech Lead" , "Data Scientist", "Senior Team Lead"]
+| KEEP emp_no, job_positions
+;
+warning:Line 2:9: evaluation of [job_positions != [\"Tech Lead\" , \"Data Scientist\", \"Senior Team Lead\"]] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:9: java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+    emp_no:integer     | job_positions:keyword
+;
+
 url_encode sample for docs
 required_capability: url_encode
 
@@ -2617,6 +3015,22 @@ ROW u = ["hello elastic!", "a+b-c%d", "", ".-_~", "!#$&'()*+,/:;=?@[]", "🔥�
 
 u:keyword
 ["hello+elastic%21", "a%2Bb-c%25d", "", ".-_~", "%21%23%24%26%27%28%29%2A%2B%2C%2F%3A%3B%3D%3F%40%5B%5D", "%F0%9F%94%A5%F0%9F%92%A7"]
+;
+
+url_encode tests with text field table reads
+required_capability: url_encode
+
+FROM books
+| EVAL author_encoded = URL_ENCODE(author),
+        title_encoded = URL_ENCODE(title)
+| KEEP book_no, author_encoded, title_encoded
+| SORT book_no
+| WHERE book_no IN ("1211", "1463")
+;
+
+book_no:keyword | author_encoded:keyword | title_encoded:keyword
+1211            | Fyodor+Dostoevsky      | The+brothers+Karamazov
+1463            | J.+R.+R.+Tolkien       | Realms+of+Tolkien%3A+Images+of+Middle-earth
 ;
 
 url_decode sample for docs
@@ -2730,6 +3144,19 @@ ROW a = "+!\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcd
 
 a:keyword                                                                                                                                                   | b:keyword | c:keyword
 "%2B%21%22%23%24%25%26%27%28%29%2A%2B%2C-.%2F0123456789%3A%3B%3C%3D%3E%3F%40ABCDEFGHIJKLMNOPQRSTUVWXYZ%5B%5C%5D%5E_%60abcdefghijklmnopqrstuvwxyz%7B%7C%7D~" | ".-_~"    |❗🐶🐱
+;
+
+url_encode_component tests with keyword field table reads
+required_capability: url_encode_component
+
+FROM sample_data
+| WHERE message == "Connected to 10.1.0.1"
+| EVAL encoded = URL_ENCODE_COMPONENT(message)
+| KEEP encoded
+;
+
+encoded:keyword
+Connected%20to%2010.1.0.1
 ;
 
 url_encode_component tests with table reads

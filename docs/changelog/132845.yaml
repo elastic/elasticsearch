@@ -1,5 +1,0 @@
-pr: 132845
-summary: Expose existing DLS cache x-pack usage statistics
-area: Authorization
-type: enhancement
-issues: []

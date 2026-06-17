@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.oteldata.otlp.datapoint;
 
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.oteldata.otlp.docbuilder.MappingHints;
 
@@ -29,35 +30,43 @@ public class DataPointNumberTests extends ESTestCase {
             createDoubleDataPoint(nowUnixNanos),
             createGaugeMetric("system.cpu.usage", "", List.of())
         );
-        assertThat(doubleGauge.getDynamicTemplate(MappingHints.empty()), equalTo("gauge_double"));
+        assertThat(doubleGauge.getDynamicTemplate(MappingHints.DEFAULT_TDIGEST), equalTo("gauge_double"));
         DataPoint.Number longGauge = new DataPoint.Number(
             createLongDataPoint(nowUnixNanos),
             createGaugeMetric("system.cpu.usage", "", List.of())
         );
-        assertThat(longGauge.getDynamicTemplate(MappingHints.empty()), equalTo("gauge_long"));
+        assertThat(longGauge.getDynamicTemplate(MappingHints.DEFAULT_TDIGEST), equalTo("gauge_long"));
     }
 
-    public void testCounterTemporality() {
+    public void testCumulativeCounter() {
         DataPoint.Number doubleCumulative = new DataPoint.Number(
             createDoubleDataPoint(nowUnixNanos),
             createSumMetric("http.requests.count", "", List.of(), true, AGGREGATION_TEMPORALITY_CUMULATIVE)
         );
-        assertThat(doubleCumulative.getDynamicTemplate(MappingHints.empty()), equalTo("counter_double"));
+        assertThat(doubleCumulative.getDynamicTemplate(MappingHints.DEFAULT_TDIGEST), equalTo("counter_double"));
         DataPoint.Number longCumulative = new DataPoint.Number(
             createLongDataPoint(nowUnixNanos),
             createSumMetric("http.requests.count", "", List.of(), true, AGGREGATION_TEMPORALITY_CUMULATIVE)
         );
-        assertThat(longCumulative.getDynamicTemplate(MappingHints.empty()), equalTo("counter_long"));
+        assertThat(longCumulative.getDynamicTemplate(MappingHints.DEFAULT_TDIGEST), equalTo("counter_long"));
+    }
+
+    public void testDeltaCounter() {
         DataPoint.Number doubleDelta = new DataPoint.Number(
             createDoubleDataPoint(nowUnixNanos),
             createSumMetric("http.requests.count", "", List.of(), true, AGGREGATION_TEMPORALITY_DELTA)
         );
-        assertThat(doubleDelta.getDynamicTemplate(MappingHints.empty()), equalTo("gauge_double"));
         DataPoint.Number longDelta = new DataPoint.Number(
             createLongDataPoint(nowUnixNanos),
             createSumMetric("http.requests.count", "", List.of(), true, AGGREGATION_TEMPORALITY_DELTA)
         );
-        assertThat(longDelta.getDynamicTemplate(MappingHints.empty()), equalTo("gauge_long"));
+        if (IndexSettings.TIME_SERIES_TEMPORALITY_FEATURE_FLAG.isEnabled()) {
+            assertThat(doubleDelta.getDynamicTemplate(MappingHints.DEFAULT_TDIGEST), equalTo("counter_double"));
+            assertThat(longDelta.getDynamicTemplate(MappingHints.DEFAULT_TDIGEST), equalTo("counter_long"));
+        } else {
+            assertThat(doubleDelta.getDynamicTemplate(MappingHints.DEFAULT_TDIGEST), equalTo("gauge_double"));
+            assertThat(longDelta.getDynamicTemplate(MappingHints.DEFAULT_TDIGEST), equalTo("gauge_long"));
+        }
     }
 
     public void testCounterNonMonotonic() {
@@ -65,12 +74,12 @@ public class DataPointNumberTests extends ESTestCase {
             createDoubleDataPoint(nowUnixNanos),
             createSumMetric("http.requests.count", "", List.of(), false, AGGREGATION_TEMPORALITY_CUMULATIVE)
         );
-        assertThat(doubleNonMonotonic.getDynamicTemplate(MappingHints.empty()), equalTo("gauge_double"));
+        assertThat(doubleNonMonotonic.getDynamicTemplate(MappingHints.DEFAULT_TDIGEST), equalTo("gauge_double"));
         DataPoint.Number longNonMonotonic = new DataPoint.Number(
             createLongDataPoint(nowUnixNanos),
             createSumMetric("http.requests.count", "", List.of(), false, AGGREGATION_TEMPORALITY_DELTA)
         );
-        assertThat(longNonMonotonic.getDynamicTemplate(MappingHints.empty()), equalTo("gauge_long"));
+        assertThat(longNonMonotonic.getDynamicTemplate(MappingHints.DEFAULT_TDIGEST), equalTo("gauge_long"));
     }
 
 }

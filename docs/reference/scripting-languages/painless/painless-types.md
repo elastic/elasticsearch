@@ -1,6 +1,9 @@
 ---
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/painless/current/painless-types.html
+applies_to:
+  stack: ga
+  serverless: ga
 products:
   - id: painless
 ---
@@ -9,7 +12,7 @@ products:
 
 A type is a classification of data used to define the properties of a value. These properties specify what data a value represents and the rules for how a value is evaluated during an [operation](/reference/scripting-languages/painless/painless-operators.md). Each type belongs to one of the following categories: [primitive](#primitive-types), [reference](#reference-types), or [dynamic](#dynamic-types).
 
-## Primitive Types [primitive-types]
+## Primitive types [primitive-types]
 
 A primitive type represents basic data built natively into the JVM and is allocated to non-heap memory. Declare a primitive type [variable](/reference/scripting-languages/painless/painless-variables.md) or access a primitive type member field (from a reference type instance), and assign it a primitive type value for evaluation during later operations. The default value for a newly-declared primitive type variable is listed as part of the definitions below. A primitive type value is copied during an assignment or as an argument for a method/function call.
 
@@ -49,7 +52,7 @@ The following primitive types are available. The corresponding reference type is
 
 **Examples**
 
-* Primitive types used in declaration, declaration and assignment.
+* Primitive types used in declaration, declaration and assignment
 
     ```painless
     int i = 1;        <1>
@@ -61,7 +64,7 @@ The following primitive types are available. The corresponding reference type is
     2. declare `double d`; store default `double 0.0` to `d`
     3. declare `boolean b`; store `boolean true` to `b`
 
-* Method call on a primitive type using the corresponding reference type.
+* Method call on a primitive type using the corresponding reference type
 
     ```painless
     int i = 1;    <1>
@@ -73,7 +76,68 @@ The following primitive types are available. The corresponding reference type is
 
 
 
-## Reference Types [reference-types]
+## Character type usage [character-type-usage]
+
+The `char` type is a 16-bit, unsigned, Unicode character with a range of [`0`,`65535`] and a default value of `0` or `\u0000`.
+
+Character values cannot be declared without an explicit cast from a string.
+
+```
+// This will cause an error
+ char x = "a"; 
+
+// Must always cast 
+char x = (char) "a";
+```
+
+### String to character casting
+
+Use the cast operator to convert a [string-type](/reference/scripting-languages/painless/painless-types.md#string-type) value into a `char`\-type value.
+
+**Errors**
+
+* If the `String` type value isn’t one character in length.  
+* If the `String` type value is `null`.
+
+**Examples**
+
+* Casting string literals into `char` type values
+
+    ```
+    char c = (char)"C"; // declare char c; explicit cast String "C" to char C → char C; store char C to c
+    c = (char)'c';      // explicit cast String 'c' to char c → char c; store char c to c
+    ```
+
+* Casting a `String` reference into a `char` type value
+
+    ```
+    String s = "s";   // declare String s; store String "s" to s
+    char c = (char)s; // declare char c; load from s → String "s"; explicit cast String "s" to char s → char s; store char s to c
+    ```
+
+* Working with character positions in strings
+
+    ```
+    String word = "Hello";
+    char first = (char) word.charAt(0); // 'H'
+    char third = (char) word.charAt(2); // 'l'
+    ```
+
+
+### Character to string casting
+
+Use the cast operator to convert a `char` type value into a [`String` type](/reference/scripting-languages/painless/painless-types.md#string-type) value.   
+
+**Examples**
+
+* Casting a `char` to a `String`
+
+    ```
+    char c = 65;          // declare char c; store char 65 to c
+    String s = (String)c; // declare String s; load from c → char A; explicit cast char A to String 'A' → String 'A'; store String 'A' to s
+    ```
+
+## Reference types [reference-types]
 
 A reference type is a named construct (object), potentially representing multiple pieces of data (member fields) and logic to manipulate that data (member methods), defined as part of the application programming interface (API) for scripts.
 
@@ -104,7 +168,7 @@ A reference type object follows a basic inheritance model. Consider types A and 
 
 **Examples**
 
-* Reference types evaluated in several different operations.
+* Reference types evaluated in several different operations
 
     ```painless
     List l = new ArrayList(); <1>
@@ -132,7 +196,7 @@ A reference type object follows a basic inheritance model. Consider types A and 
     4. load from `l1` → `List reference`; implicit cast `int 2` to `def` → `def` call `add` on `List reference` with arguments (`def`)
     5. declare `int i`; load from `l0` → `List reference`; call `get` on `List reference` with arguments (`int 0`) → `def @0`; implicit cast `def @0` to `int 1` → `int 1`; load from `l1` → `List reference`; call `get` on `List reference` with arguments (`int 1`) → `def @1`; implicit cast `def @1` to `int 2` → `int 2`; add `int 1` and `int 2` → `int 3`; store `int 3` to `i`;
 
-* Using the static members of a reference type.
+* Using the static members of a reference type
 
     ```painless
     int i = Integer.MAX_VALUE;       <1>
@@ -144,7 +208,7 @@ A reference type object follows a basic inheritance model. Consider types A and 
 
 
 
-## Dynamic Types [dynamic-types]
+## Dynamic types [dynamic-types]
 
 A dynamic type value can represent the value of any primitive type or reference type using a single type name `def`. A `def` type value mimics the behavior of whatever value it represents at run-time and will always represent the child-most descendant type value of any type value when evaluated during operations.
 
@@ -158,7 +222,7 @@ Using the `def` type can have a slight impact on performance. Use only primitive
 
 **Examples**
 
-* General uses of the `def` type.
+* General uses of the `def` type
 
     ```painless
     def dp = 1;               <1>
@@ -184,13 +248,13 @@ Using the `def` type can have a slight impact on performance. Use only primitive
 
 
 
-## String Type [string-type]
+## String type [string-type]
 
 The `String` type is a specialized reference type that does not require explicit allocation. Use a [string literal](/reference/scripting-languages/painless/painless-literals.md#string-literals) to directly evaluate a `String` type value. While not required, the [new instance operator](/reference/scripting-languages/painless/painless-operators-reference.md#new-instance-operator) can allocate `String` type instances.
 
 **Examples**
 
-* General use of the `String` type.
+* General use of the `String` type
 
     ```painless
     String r = "some text";             <1>
@@ -206,13 +270,13 @@ The `String` type is a specialized reference type that does not require explicit
 
 
 
-## void Type [void-type]
+## Void type [void-type]
 
 The `void` type represents the concept of a lack of type. Use the `void` type to indicate a function returns no value.
 
 **Examples**
 
-* Use of the `void` type in a function.
+* Use of the `void` type in a function
 
     ```painless
     void addToList(List l, def d) {
@@ -222,7 +286,7 @@ The `void` type represents the concept of a lack of type. Use the `void` type to
 
 
 
-## Array Type [array-type]
+## Array type [array-type]
 
 An array type is a specialized reference type where an array type instance contains a series of values allocated to the heap. Each value in an array type instance is defined as an element. All elements in an array type instance are of the same type (element type) specified as part of declaration. Each element is assigned an index within the range `[0, length)` where length is the total number of elements allocated for an array type instance.
 
@@ -234,7 +298,7 @@ When an array type instance is allocated with multiple dimensions using the rang
 
 **Examples**
 
-* General use of single-dimensional arrays.
+* General use of single-dimensional arrays
 
     ```painless
     int[] x;                   <1>
@@ -250,7 +314,7 @@ When an array type instance is allocated with multiple dimensions using the rang
     4. load from `y` → `1-d float array reference`; store `float 1.0` to `index [9]` of `1-d float array reference`
     5. load from `y` → `1-d float array reference @0`; load from `index [9]` of `1-d float array reference @0` → `float 1.0`; load from `z` → `def`; implicit cast `def` to `1-d float array reference @1` → `1-d float array reference @1`; store `float 1.0` to `index [0]` of `1-d float array reference @1`
 
-* General use of a multi-dimensional array.
+* General use of a multi-dimensional array
 
     ```painless
     int[][][] ia3 = new int[2][3][4]; <1>

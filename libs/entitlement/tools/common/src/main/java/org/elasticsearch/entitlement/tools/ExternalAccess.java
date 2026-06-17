@@ -24,12 +24,7 @@ public enum ExternalAccess {
         return externalAccesses.stream().map(Enum::toString).collect(Collectors.joining(DELIMITER));
     }
 
-    public static EnumSet<ExternalAccess> fromPermissions(
-        boolean packageExported,
-        boolean publicClass,
-        boolean publicMethod,
-        boolean protectedMethod
-    ) {
+    public static EnumSet<ExternalAccess> fromPermissions(boolean publicAccessible, boolean publicMethod, boolean protectedMethod) {
         if (publicMethod && protectedMethod) {
             throw new IllegalArgumentException();
         }
@@ -41,7 +36,7 @@ public enum ExternalAccess {
             externalAccesses.add(ExternalAccess.PROTECTED_METHOD);
         }
 
-        if (packageExported && publicClass) {
+        if (publicAccessible) {
             externalAccesses.add(ExternalAccess.PUBLIC_CLASS);
         }
         return externalAccesses;

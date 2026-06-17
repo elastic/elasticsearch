@@ -88,6 +88,16 @@ public interface DocWriteRequest<T> extends IndicesRequest, Accountable, Releasa
     String routing();
 
     /**
+     * Marks whether the request routing value originated from the {@code _slice} REST parameter.
+     */
+    T setRoutingFromSlice(boolean routingFromSlice);
+
+    /**
+     * Returns whether the request routing value originated from the {@code _slice} REST parameter.
+     */
+    boolean isRoutingFromSlice();
+
+    /**
      * Get the document version for this request
      * @return the document version
      */
@@ -175,6 +185,11 @@ public interface DocWriteRequest<T> extends IndicesRequest, Accountable, Releasa
      * Pick the appropriate shard id to receive this request.
      */
     int route(IndexRouting indexRouting);
+
+    /**
+     * Pick the appropriate target shard id this request should be routed to during resharding.
+     */
+    int rerouteAtSourceDuringResharding(IndexRouting indexRouting);
 
     /**
      * Resolves the write index that should receive this request

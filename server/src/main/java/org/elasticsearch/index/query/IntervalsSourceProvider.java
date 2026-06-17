@@ -15,7 +15,6 @@ import org.apache.lucene.queries.intervals.Intervals;
 import org.apache.lucene.queries.intervals.IntervalsSource;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -27,6 +26,7 @@ import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.TextFamilyFieldType;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -829,7 +829,7 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
 
         @Override
         public TransportVersion getMinimalSupportedVersion() {
-            return TransportVersions.V_8_16_0;
+            return TransportVersion.minimumCompatible();
         }
 
         @Override
@@ -1131,7 +1131,7 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
 
         @Override
         public TransportVersion getMinimalSupportedVersion() {
-            return TransportVersions.V_8_16_0;
+            return TransportVersion.minimumCompatible();
         }
 
         @Override
@@ -1276,6 +1276,7 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
             throws IOException {
             if (script != null) {
                 IntervalFilterScript ifs = context.compile(script, IntervalFilterScript.CONTEXT).newInstance();
+                ifs._setCancellationCheck((context.searcher() instanceof ContextIndexSearcher cis) ? cis::checkCancelled : null);
                 return new ScriptFilterSource(input, script.getIdOrCode(), ifs);
             }
             IntervalsSource filterSource = filter.getSource(context, fieldType);

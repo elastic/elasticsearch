@@ -124,7 +124,8 @@ public class ListPluginsCommandTests extends CommandTestCase {
                 "Native Controller: false",
                 "Licensed: false",
                 "Extended Plugins: []",
-                " * Classname: org.fake"
+                " * Classname: org.fake",
+                "Deployment Target: ALL"
             ),
             terminal.getOutput()
         );
@@ -146,7 +147,8 @@ public class ListPluginsCommandTests extends CommandTestCase {
                 "Native Controller: true",
                 "Licensed: false",
                 "Extended Plugins: []",
-                " * Classname: org.fake"
+                " * Classname: org.fake",
+                "Deployment Target: ALL"
             ),
             terminal.getOutput()
         );
@@ -170,6 +172,7 @@ public class ListPluginsCommandTests extends CommandTestCase {
                 "Licensed: false",
                 "Extended Plugins: []",
                 " * Classname: org.fake",
+                "Deployment Target: ALL",
                 "fake_plugin2",
                 "- Plugin information:",
                 "Name: fake_plugin2",
@@ -180,7 +183,8 @@ public class ListPluginsCommandTests extends CommandTestCase {
                 "Native Controller: false",
                 "Licensed: false",
                 "Extended Plugins: []",
-                " * Classname: org.fake2"
+                " * Classname: org.fake2",
+                "Deployment Target: ALL"
             ),
             terminal.getOutput()
         );

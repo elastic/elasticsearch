@@ -8,7 +8,6 @@
 package org.elasticsearch.compute.operator;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -24,7 +23,6 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.Objects;
-import java.util.stream.IntStream;
 
 /**
  * Maps a single {@link Page} into zero or more resulting pages.
@@ -139,6 +137,11 @@ public abstract class AbstractPageMappingToIteratorOperator implements Operator 
     @Override
     public final boolean isFinished() {
         return finished && (next == null || next.hasNext() == false);
+    }
+
+    @Override
+    public boolean canProduceMoreDataWithoutExtraInput() {
+        return next != null && next.hasNext();
     }
 
     @Override
@@ -307,7 +310,7 @@ public abstract class AbstractPageMappingToIteratorOperator implements Operator 
 
         @Override
         public TransportVersion getMinimalSupportedVersion() {
-            return TransportVersions.V_8_15_0;
+            return TransportVersion.minimumCompatible();
         }
     }
 
@@ -355,10 +358,8 @@ public abstract class AbstractPageMappingToIteratorOperator implements Operator 
             Block[] newBlocks = new Block[page.getBlockCount() + read.length];
             System.arraycopy(read, 0, newBlocks, page.getBlockCount(), read.length);
             try {
-                // TODO a way to filter with a range please.
-                int[] positions = IntStream.range(start, positionOffset).toArray();
                 for (int b = 0; b < page.getBlockCount(); b++) {
-                    newBlocks[b] = page.getBlock(b).filter(positions);
+                    newBlocks[b] = page.getBlock(b).slice(start, positionOffset);
                 }
                 Page result = new Page(newBlocks);
                 Arrays.fill(newBlocks, null);

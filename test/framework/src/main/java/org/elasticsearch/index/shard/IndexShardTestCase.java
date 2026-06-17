@@ -41,6 +41,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.CloseUtils;
+import org.elasticsearch.index.EngineTestUtils;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
@@ -74,6 +75,7 @@ import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.indices.recovery.AsyncRecoveryTarget;
 import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
 import org.elasticsearch.indices.recovery.RecoveryFailedException;
+import org.elasticsearch.indices.recovery.RecoveryListener;
 import org.elasticsearch.indices.recovery.RecoveryResponse;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.indices.recovery.RecoverySourceHandler;
@@ -83,11 +85,11 @@ import org.elasticsearch.indices.recovery.StartRecoveryRequest;
 import org.elasticsearch.indices.recovery.plan.PeerOnlyRecoveryPlannerService;
 import org.elasticsearch.indices.recovery.plan.RecoveryPlannerService;
 import org.elasticsearch.repositories.IndexId;
+import org.elasticsearch.repositories.LocalPrimarySnapshotShardContext;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.ShardGeneration;
 import org.elasticsearch.repositories.ShardSnapshotResult;
 import org.elasticsearch.repositories.SnapshotIndexCommit;
-import org.elasticsearch.repositories.SnapshotShardContext;
 import org.elasticsearch.repositories.blobstore.ESBlobStoreRepositoryIntegTestCase;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.test.DummyShardLock;
@@ -126,8 +128,7 @@ import static org.mockito.Mockito.doAnswer;
  */
 public abstract class IndexShardTestCase extends ESTestCase {
 
-    public static final IndexEventListener EMPTY_EVENT_LISTENER = new IndexEventListener() {
-    };
+    public static final IndexEventListener EMPTY_EVENT_LISTENER = new IndexEventListener() {};
 
     public static final GlobalCheckpointSyncer NOOP_GCP_SYNCER = shardId -> {};
 
@@ -139,19 +140,22 @@ public abstract class IndexShardTestCase extends ESTestCase {
         }
     };
 
-    protected static final PeerRecoveryTargetService.RecoveryListener recoveryListener = new PeerRecoveryTargetService.RecoveryListener() {
+    protected static final RecoveryListener recoveryListener = new RecoveryListener() {
         @Override
         public void onRecoveryDone(
             RecoveryState state,
             ShardLongFieldRange timestampMillisFieldRange,
             ShardLongFieldRange eventIngestedMillisFieldRange
-        ) {
-
-        }
+        ) {}
 
         @Override
         public void onRecoveryFailure(RecoveryFailedException e, boolean sendShardFailure) {
             throw new AssertionError(e);
+        }
+
+        @Override
+        public void onRecoveryAborted() {
+            // Abortion is a normal reaction to changes in allocation or node shutdown. Don't fail here.
         }
     };
 
@@ -637,7 +641,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
             );
             mapperService.merge(indexMetadata, MapperService.MergeReason.MAPPING_RECOVERY);
             SimilarityService similarityService = new SimilarityService(indexSettings, null, Collections.emptyMap());
-            final Engine.Warmer warmer = createTestWarmer(indexSettings);
+            final Engine.Warmer warmer = createTestWarmer(indexSettings, mapperService);
             ClusterSettings clusterSettings = new ClusterSettings(nodeSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
             CircuitBreakerService breakerService = new HierarchyCircuitBreakerService(
                 CircuitBreakerMetrics.NOOP,
@@ -668,6 +672,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
                 breakerService,
                 IndexModule.DEFAULT_SNAPSHOT_COMMIT_SUPPLIER,
                 relativeTimeSupplier,
+                null,
                 null,
                 MapperMetrics.NOOP,
                 new IndexingStatsSettings(ClusterSettings.createBuiltInClusterSettings()),
@@ -1092,20 +1097,24 @@ public abstract class IndexShardTestCase extends ESTestCase {
         return safeAwait(listener);
     }
 
-    public static Set<String> getShardDocUIDs(final IndexShard shard) throws IOException {
+    protected Set<String> getShardDocIDs(final IndexShard shard) throws IOException {
         return getDocIdAndSeqNos(shard).stream().map(DocIdSeqNoAndSource::id).collect(Collectors.toSet());
     }
 
-    public static List<DocIdSeqNoAndSource> getDocIdAndSeqNos(final IndexShard shard) throws IOException {
-        return EngineTestCase.getDocIds(shard.getEngine(), true);
+    protected List<DocIdSeqNoAndSource> getDocIdAndSeqNos(final IndexShard shard) throws IOException {
+        return getDocIdAndSeqNos(shard, true);
     }
 
-    protected void assertDocCount(IndexShard shard, int docDount) throws IOException {
-        assertThat(getShardDocUIDs(shard), hasSize(docDount));
+    protected List<DocIdSeqNoAndSource> getDocIdAndSeqNos(final IndexShard shard, final boolean refresh) throws IOException {
+        return shard.withEngineException(engine -> EngineTestUtils.getDocIds(engine, refresh, false));
+    }
+
+    protected void assertDocCount(IndexShard shard, int docCount) throws IOException {
+        assertThat(getShardDocIDs(shard), hasSize(docCount));
     }
 
     protected void assertDocs(IndexShard shard, String... ids) throws IOException {
-        final Set<String> shardDocUIDs = getShardDocUIDs(shard);
+        final Set<String> shardDocUIDs = getShardDocIDs(shard);
         assertThat(shardDocUIDs, contains(ids));
         assertThat(shardDocUIDs, hasSize(ids.length));
     }
@@ -1276,13 +1285,14 @@ public abstract class IndexShardTestCase extends ESTestCase {
         final IndexShardSnapshotStatus snapshotStatus = IndexShardSnapshotStatus.newInitializing(
             ESBlobStoreRepositoryIntegTestCase.getRepositoryData(repository)
                 .shardGenerations()
-                .getShardGen(indexId, shard.shardId().getId())
+                .getShardGen(indexId, shard.shardId().getId()),
+            randomLongBetween(1, Long.MAX_VALUE)
         );
         final PlainActionFuture<ShardSnapshotResult> future = new PlainActionFuture<>();
         final ShardGeneration shardGen;
         try (Engine.IndexCommitRef indexCommitRef = shard.acquireLastIndexCommit(true)) {
             repository.snapshotShard(
-                new SnapshotShardContext(
+                new LocalPrimarySnapshotShardContext(
                     shard.store(),
                     shard.mapperService(),
                     snapshot.getSnapshotId(),
@@ -1320,12 +1330,12 @@ public abstract class IndexShardTestCase extends ESTestCase {
         return indexShard.getReplicationTracker();
     }
 
-    public static Engine.Warmer createTestWarmer(IndexSettings indexSettings) {
+    public static Engine.Warmer createTestWarmer(IndexSettings indexSettings, MapperService mapperService) {
         return reader -> {
             // This isn't a warmer but sometimes verify the content in the reader
             if (randomBoolean()) {
                 try {
-                    EngineTestCase.assertAtMostOneLuceneDocumentPerSequenceNumber(indexSettings, reader);
+                    EngineTestCase.assertAtMostOneLuceneDocumentPerSequenceNumber(indexSettings, mapperService, reader);
                 } catch (IOException e) {
                     throw new AssertionError(e);
                 }

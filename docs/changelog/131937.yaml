@@ -1,5 +1,0 @@
-pr: 131937
-summary: Fix race condition in `RemoteClusterService.collectNodes()`
-area: Distributed
-type: bug
-issues: []

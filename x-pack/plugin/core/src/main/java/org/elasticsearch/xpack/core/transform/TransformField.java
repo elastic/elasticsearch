@@ -52,6 +52,7 @@ public final class TransformField {
     public static final ParseField SYNC = new ParseField("sync");
     public static final ParseField TIME = new ParseField("time");
     public static final ParseField DELAY = new ParseField("delay");
+    public static final ParseField DEFER = new ParseField("defer");
     // TODO: Rename to "defer_data_validation" or similar to emphasize that not all validation is deferred
     public static final ParseField DEFER_VALIDATION = new ParseField("defer_validation");
     public static final ParseField DRY_RUN = new ParseField("dry_run");
@@ -60,6 +61,7 @@ public final class TransformField {
 
     public static final ParseField ALLOW_NO_MATCH = new ParseField("allow_no_match");
     public static final ParseField CHECK_FOR_DANGLING_TASKS = new ParseField("check_dangling_tasks");
+    public static final ParseField PREVIEW_AS_INDEX_REQUEST = new ParseField("as_index_request");
     /**
      * Fields for checkpointing
      */
@@ -102,6 +104,8 @@ public final class TransformField {
 
     // internal document id
     public static final String DOCUMENT_ID_FIELD = "_id";
+    // internal document source
+    public static final String DOCUMENT_SOURCE_FIELD = "_source";
 
     public static final PersistentTasksCustomMetadata.Assignment AWAITING_UPGRADE = new PersistentTasksCustomMetadata.Assignment(
         null,

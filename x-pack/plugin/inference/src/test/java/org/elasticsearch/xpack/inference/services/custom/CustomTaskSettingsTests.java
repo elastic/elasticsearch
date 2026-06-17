@@ -70,7 +70,7 @@ public class CustomTaskSettingsTests extends AbstractBWCWireSerializationTestCas
             exception.getMessage(),
             is(
                 "Validation Failed: 1: Map field [parameters] has an entry that is not valid, [key => {another_key=value}]. "
-                    + "Value type of [{another_key=value}] is not one of [Boolean, Double, Float, Integer, String].;"
+                    + "Value type of [Map] is not one of [Boolean, Double, Float, Integer, String].;"
             )
         );
     }
@@ -136,7 +136,11 @@ public class CustomTaskSettingsTests extends AbstractBWCWireSerializationTestCas
 
     @Override
     protected CustomTaskSettings mutateInstance(CustomTaskSettings instance) throws IOException {
-        return randomValueOtherThan(instance, CustomTaskSettingsTests::createRandom);
+        Map<String, Object> parameters = randomValueOtherThan(
+            instance.getParameters(),
+            () -> randomMap(0, 5, () -> tuple(randomAlphaOfLength(5), randomAlphaOfLength(5)))
+        );
+        return new CustomTaskSettings(parameters);
     }
 
     public static Map<String, Object> getTaskSettingsMap(@Nullable Map<String, Object> parameters) {

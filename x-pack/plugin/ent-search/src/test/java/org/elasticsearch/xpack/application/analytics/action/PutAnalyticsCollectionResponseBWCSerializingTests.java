@@ -36,7 +36,13 @@ public class PutAnalyticsCollectionResponseBWCSerializingTests extends AbstractB
 
     @Override
     protected PutAnalyticsCollectionAction.Response mutateInstance(PutAnalyticsCollectionAction.Response instance) throws IOException {
-        return randomValueOtherThan(instance, this::createTestInstance);
+        boolean isAcknowledged = instance.isAcknowledged();
+        String instanceName = instance.getName();
+        switch (between(0, 1)) {
+            case 0 -> isAcknowledged = isAcknowledged == false;
+            case 1 -> instanceName = randomValueOtherThan(instanceName, () -> randomIdentifier());
+        }
+        return new PutAnalyticsCollectionAction.Response(isAcknowledged, instanceName);
     }
 
     @Override

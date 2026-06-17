@@ -39,6 +39,7 @@ Here is an `append` processor definition that adds the string `"production"` as 
   }
 }
 ```
+% NOTCONSOLE
 
 ### Example using `allow_duplicates` and `ignore_empty_values` [append-processor-example-using-allow-duplicates-and-ignore-empty-values]
 
@@ -58,3 +59,4 @@ By using `allow_duplicates` and `ignore_empty_values`, it is possible to only ap
   }
 }
 ```
+% NOTCONSOLE

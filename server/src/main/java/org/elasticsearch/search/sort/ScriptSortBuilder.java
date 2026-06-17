@@ -11,6 +11,7 @@ package org.elasticsearch.search.sort;
 
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.DoubleValues;
 import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.util.BytesRef;
@@ -25,7 +26,6 @@ import org.elasticsearch.index.fielddata.AbstractBinaryDocValues;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
-import org.elasticsearch.index.fielddata.NumericDoubleValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparatorSource;
@@ -42,6 +42,7 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.script.StringSortScript;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
+import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser.ValueType;
@@ -241,6 +242,11 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
     }
 
     @Override
+    public String name() {
+        return NAME;
+    }
+
+    @Override
     public BucketedSort buildBucketedSort(SearchExecutionContext context, BigArrays bigArrays, int bucketSize, BucketedSort.ExtraData extra)
         throws IOException {
         return fieldComparatorSource(context).newBucketedSort(bigArrays, order, DocValueFormat.RAW, bucketSize, extra);
@@ -262,18 +268,24 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
         }
 
         SearchLookup searchLookup = context.lookup();
+        final Runnable cancellationCheck = (context.searcher() instanceof ContextIndexSearcher cis) ? cis::checkCancelled : null;
         switch (type) {
             case STRING -> {
                 final StringSortScript.Factory factory = context.compile(script, StringSortScript.CONTEXT);
                 final StringSortScript.LeafFactory searchScript = factory.newFactory(script.getParams());
                 return new BytesRefFieldComparatorSource(null, null, valueMode, nested) {
-                    final Map<Object, StringSortScript> leafScripts = ConcurrentCollections.newConcurrentMap();
+                    final Map<Object, StringSortScript> leafScripts = searchScript.needs_score()
+                        ? ConcurrentCollections.newConcurrentMap()
+                        : null;
 
                     @Override
                     protected SortedBinaryDocValues getValues(LeafReaderContext context) throws IOException {
                         // we may see the same leaf context multiple times, and each time we need to refresh the doc values doc reader
                         StringSortScript leafScript = searchScript.newInstance(new DocValuesDocReader(searchLookup, context));
-                        leafScripts.put(context.id(), leafScript);
+                        leafScript._setCancellationCheck(cancellationCheck);
+                        if (searchScript.needs_score()) {
+                            leafScripts.put(context.id(), leafScript);
+                        }
                         final BinaryDocValues values = new AbstractBinaryDocValues() {
                             final BytesRefBuilder spare = new BytesRefBuilder();
 
@@ -294,7 +306,9 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
 
                     @Override
                     protected void setScorer(LeafReaderContext context, Scorable scorer) {
-                        leafScripts.get(context.id()).setScorer(scorer);
+                        if (searchScript.needs_score()) {
+                            leafScripts.get(context.id()).setScorer(scorer);
+                        }
                     }
 
                     @Override
@@ -319,14 +333,19 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
                 // searchLookup is unnecessary here, as it's just used for expressions
                 final NumberSortScript.LeafFactory numberSortScriptFactory = numberSortFactory.newFactory(script.getParams(), searchLookup);
                 return new DoubleValuesComparatorSource(null, Double.MAX_VALUE, valueMode, nested) {
-                    final Map<Object, NumberSortScript> leafScripts = ConcurrentCollections.newConcurrentMap();
+                    final Map<Object, NumberSortScript> leafScripts = numberSortScriptFactory.needs_score()
+                        ? ConcurrentCollections.newConcurrentMap()
+                        : null;
 
                     @Override
                     protected SortedNumericDoubleValues getValues(LeafReaderContext context) throws IOException {
                         // we may see the same leaf context multiple times, and each time we need to refresh the doc values doc reader
                         NumberSortScript leafScript = numberSortScriptFactory.newInstance(new DocValuesDocReader(searchLookup, context));
-                        leafScripts.put(context.id(), leafScript);
-                        final NumericDoubleValues values = new NumericDoubleValues() {
+                        leafScript._setCancellationCheck(cancellationCheck);
+                        if (numberSortScriptFactory.needs_score()) {
+                            leafScripts.put(context.id(), leafScript);
+                        }
+                        final DoubleValues values = new DoubleValues() {
                             @Override
                             public boolean advanceExact(int doc) {
                                 leafScript.setDocument(doc);
@@ -343,7 +362,9 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
 
                     @Override
                     protected void setScorer(LeafReaderContext context, Scorable scorer) {
-                        leafScripts.get(context.id()).setScorer(scorer);
+                        if (numberSortScriptFactory.needs_score()) {
+                            leafScripts.get(context.id()).setScorer(scorer);
+                        }
                     }
                 };
             }
@@ -357,7 +378,10 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
                     protected SortedBinaryDocValues getValues(LeafReaderContext context) throws IOException {
                         // we may see the same leaf context multiple times, and each time we need to refresh the doc values doc reader
                         BytesRefSortScript leafScript = searchScript.newInstance(new DocValuesDocReader(searchLookup, context));
-                        leafScripts.put(context.id(), leafScript);
+                        leafScript._setCancellationCheck(cancellationCheck);
+                        if (searchScript.needs_score()) {
+                            leafScripts.put(context.id(), leafScript);
+                        }
                         final BinaryDocValues values = new AbstractBinaryDocValues() {
 
                             @Override
@@ -387,7 +411,9 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
 
                     @Override
                     protected void setScorer(LeafReaderContext context, Scorable scorer) {
-                        leafScripts.get(context.id()).setScorer(scorer);
+                        if (searchScript.needs_score()) {
+                            leafScripts.get(context.id()).setScorer(scorer);
+                        }
                     }
 
                     @Override

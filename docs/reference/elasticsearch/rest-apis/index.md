@@ -5,9 +5,10 @@ mapped_pages:
 applies_to:
   stack: ga
   serverless: ga
+navigation_title: REST APIs
 ---
 
-# REST APIs
+# Elasticsearch REST APIs
 
 Elasticsearch exposes REST APIs that are used by the UI components and can be called directly to configure and access Elasticsearch features.
 
@@ -301,7 +302,7 @@ The index lifecycle management APIs enable you to set up policies to automatical
 
 ### [Inference](https://www.elastic.co/docs/api/doc/elasticsearch/v9/group/endpoint-inference)
 
-The inference APIs enable you to create inference endpoints and integrate with machine learning models of different services - such as Amazon Bedrock, Anthropic, Azure AI Studio, Cohere, Google AI, Mistral, OpenAI, or HuggingFace.
+The inference APIs enable you to create inference endpoints and integrate with machine learning models of different services - such as Amazon Bedrock, Anthropic, Azure AI Studio, Cohere, Google AI, Groq, Mistral, OpenAI, or HuggingFace.
 
 | API | Description |
 | --- | ----------- |
@@ -374,7 +375,7 @@ The machine learning APIs enable you to retrieve information related to the {{st
 
 ### [Machine learning anomaly detection](https://www.elastic.co/docs/api/doc/elasticsearch/v9/group/endpoint-ml-anomaly)
 
-The machine learning anomaly detection APIs enbale you to perform anomaly detection activities.
+The machine learning anomaly detection APIs enable you to perform anomaly detection activities.
 
 
 | API | Description |
@@ -392,8 +393,8 @@ The machine learning anomaly detection APIs enbale you to perform anomaly detect
 | [Create a calendar](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-ml-put-calendar) | Create a calendar. |
 | [Delete a calendar](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-ml-delete-calendar) | Delete a calendar. |
 | [Delete events from a calendar](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-ml-delete-calendar) | Delete events from a calendar. |
-| [Add anomaly detection job to calendar](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-ml-put-calendar-job) | Add an anomoly detection job to a calendar. |
-| [Delete anomaly detection jobs from calendar](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-ml-delete-calendar-job) | Deletes anomoly detection jobs from a calendar. |
+| [Add anomaly detection job to calendar](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-ml-put-calendar-job) | Add an anomaly detection job to a calendar. |
+| [Delete anomaly detection jobs from calendar](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-ml-delete-calendar-job) | Deletes anomaly detection jobs from a calendar. |
 | [Get datafeeds configuration info](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-ml-get-datafeeds) | Get configuration information for a datafeed. |
 | [Create datafeed](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-ml-put-datafeed) | Creates a datafeed. |
 | [Delete a datafeed](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-ml-delete-datafeed) | Deletes a datafeed. |
@@ -406,7 +407,7 @@ The machine learning anomaly detection APIs enbale you to perform anomaly detect
 
 ### [Machine learning data frame analytics](https://www.elastic.co/docs/api/doc/elasticsearch/v9/group/endpoint-ml-data-frame)
 
-The machine learning data frame analytics APIs enbale you to perform data frame analytics activities.
+The machine learning data frame analytics APIs enable you to perform data frame analytics activities.
 
 | API | Description |
 | --- | ----------- |
@@ -452,7 +453,7 @@ Query rules enable you to configure per-query rules that are applied at query ti
 
 ### [Rollup](https://www.elastic.co/docs/api/doc/elasticsearch/v9/group/endpoint-rollup)
 
-The rollup APIs enable you to create, manage, and retrieve infromation about rollup jobs.
+The rollup APIs enable you to create, manage, and retrieve information about rollup jobs.
 
 | API | Description |
 | --- | ----------- |
@@ -474,7 +475,7 @@ Use the script support APIs to get a list of supported script contexts and langu
 | [Add or update stored script](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-put-script) | Adds or updates a stored script. |
 | [Get stored script](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-get-script) | Retrieves a stored script. |
 | [Delete stored script](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-delete-script) | Deletes a stored script. |
-| [Execute Painless script]https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-scripts-painless-execute) | Executes a script using the Painless language. |
+| [Execute Painless script](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-scripts-painless-execute) | Executes a script using the Painless language. |
 | [Get script contexts](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-get-script-context) | Returns available script execution contexts. |
 | [Get script languages](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-get-script-languages) | Returns available scripting languages. |
 
@@ -495,7 +496,7 @@ The search APIs enable you to search and aggregate data stored in {{es}} indices
 
 ### [Search application](https://www.elastic.co/docs/api/doc/elasticsearch/v9/group/endpoint-search_application)
 
-The search applcation APIs enable you to manage tasks and resources related to Search Applications.
+The search application APIs enable you to manage tasks and resources related to Search Applications.
 
 | API | Description |
 | --- | ----------- |

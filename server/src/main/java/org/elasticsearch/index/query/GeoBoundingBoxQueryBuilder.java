@@ -22,6 +22,7 @@ import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.geo.SpatialStrategy;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.geometry.utils.Geohash;
 import org.elasticsearch.index.mapper.GeoShapeQueryable;
@@ -40,7 +41,7 @@ import java.util.Objects;
  * This query can only operate on fields of type geo_point that have latitude and longitude
  * enabled.
  * */
-public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBoundingBoxQueryBuilder> {
+public class GeoBoundingBoxQueryBuilder extends LeafQueryBuilder<GeoBoundingBoxQueryBuilder> {
     public static final String NAME = "geo_bounding_box";
 
     /**
@@ -237,7 +238,7 @@ public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBounding
         MappedFieldType fieldType = context.getFieldType(fieldName);
         if (fieldType == null) {
             if (ignoreUnmapped) {
-                return new MatchNoDocsQuery();
+                return Queries.NO_DOCS_INSTANCE;
             } else {
                 throw new QueryShardException(context, "failed to find geo field [" + fieldName + "]");
             }

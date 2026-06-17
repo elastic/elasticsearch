@@ -17,6 +17,7 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionType;
@@ -25,7 +26,10 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.MapperService;
@@ -37,6 +41,7 @@ import org.elasticsearch.inference.WeightedToken;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.vectors.SparseVectorQueryWrapper;
 import org.elasticsearch.test.AbstractQueryTestCase;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xpack.core.XPackClientPlugin;
 import org.elasticsearch.xpack.core.ml.action.CoordinatedInferenceAction;
@@ -51,6 +56,7 @@ import java.util.Collection;
 import java.util.List;
 
 import static org.elasticsearch.xpack.core.ml.search.SparseVectorQueryBuilder.QUERY_VECTOR_FIELD;
+import static org.elasticsearch.xpack.core.ml.search.SparseVectorQueryBuilder.SPARSE_VECTOR_FIELD_PRUNING_OPTIONS;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.hasSize;
@@ -66,26 +72,26 @@ public class SparseVectorQueryBuilderTests extends AbstractQueryTestCase<SparseV
         TokenPruningConfig tokenPruningConfig = randomBoolean()
             ? new TokenPruningConfig(randomIntBetween(1, 100), randomFloat(), randomBoolean())
             : null;
-        return createTestQueryBuilder(tokenPruningConfig);
+        return createTestQueryBuilder(false, tokenPruningConfig);
     }
 
-    private SparseVectorQueryBuilder createTestQueryBuilder(TokenPruningConfig tokenPruningConfig) {
+    private SparseVectorQueryBuilder createTestQueryBuilder(boolean forceQueryVector, @Nullable TokenPruningConfig tokenPruningConfig) {
         SparseVectorQueryBuilder builder;
-        if (randomBoolean()) {
+        if (forceQueryVector || randomBoolean()) {
             builder = new SparseVectorQueryBuilder(
                 SPARSE_VECTOR_FIELD,
+                WEIGHTED_TOKENS,
                 null,
-                randomAlphaOfLength(10),
-                randomAlphaOfLengthBetween(10, 25),
+                null,
                 tokenPruningConfig != null,
                 tokenPruningConfig
             );
         } else {
             builder = new SparseVectorQueryBuilder(
                 SPARSE_VECTOR_FIELD,
-                WEIGHTED_TOKENS,
                 null,
-                null,
+                randomAlphaOfLength(10),
+                randomAlphaOfLengthBetween(10, 25),
                 tokenPruningConfig != null,
                 tokenPruningConfig
             );
@@ -111,7 +117,7 @@ public class SparseVectorQueryBuilderTests extends AbstractQueryTestCase<SparseV
         // index versions after its reintroduction.
         final IndexVersion indexVersionCreated = randomBoolean()
             ? IndexVersion.current()
-            : IndexVersionUtils.randomVersionBetween(random(), IndexVersions.NEW_SPARSE_VECTOR, IndexVersion.current());
+            : IndexVersionUtils.randomVersionBetween(IndexVersions.NEW_SPARSE_VECTOR, IndexVersion.current());
         return Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, indexVersionCreated).build();
     }
 
@@ -204,7 +210,7 @@ public class SparseVectorQueryBuilderTests extends AbstractQueryTestCase<SparseV
             iw.addDocument(document);
             try (IndexReader reader = iw.getReader()) {
                 SearchExecutionContext context = createSearchExecutionContext(newSearcher(reader));
-                SparseVectorQueryBuilder queryBuilder = createTestQueryBuilder();
+                SparseVectorQueryBuilder queryBuilder = createTestQueryBuilder(true, null);
                 queryBuilder.toQuery(context);
             }
         }
@@ -335,10 +341,29 @@ public class SparseVectorQueryBuilderTests extends AbstractQueryTestCase<SparseV
 
         TokenPruningConfig TokenPruningConfig = randomBoolean() ? new TokenPruningConfig(2, 0.3f, false) : null;
 
-        SparseVectorQueryBuilder queryBuilder = createTestQueryBuilder(TokenPruningConfig);
+        SparseVectorQueryBuilder queryBuilder = createTestQueryBuilder(false, TokenPruningConfig);
         QueryBuilder rewrittenQueryBuilder = rewriteAndFetch(queryBuilder, searchExecutionContext);
         assertTrue(rewrittenQueryBuilder instanceof SparseVectorQueryBuilder);
         assertEquals(queryBuilder.shouldPruneTokens(), ((SparseVectorQueryBuilder) rewrittenQueryBuilder).shouldPruneTokens());
         assertNotNull(((SparseVectorQueryBuilder) rewrittenQueryBuilder).getQueryVectors());
+    }
+
+    public void testNullShouldPruneTokensSerializesToOlderTransportVersion() throws IOException {
+        // Older nodes carry shouldPruneTokens as a primitive boolean. Sending a query with a null shouldPruneTokens to such a node must not
+        // NPE during auto-unboxing: it should be coerced to the default (false).
+        SparseVectorQueryBuilder queryBuilder = new SparseVectorQueryBuilder(SPARSE_VECTOR_FIELD, WEIGHTED_TOKENS, null, null, null, null);
+
+        TransportVersion olderVersion = TransportVersionUtils.randomVersionNotSupporting(
+            TransportVersion.fromName(SPARSE_VECTOR_FIELD_PRUNING_OPTIONS)
+        );
+
+        BytesStreamOutput out = new BytesStreamOutput();
+        out.setTransportVersion(olderVersion);
+        queryBuilder.writeTo(out);
+
+        StreamInput in = out.bytes().streamInput();
+        in.setTransportVersion(olderVersion);
+        SparseVectorQueryBuilder roundTripped = new SparseVectorQueryBuilder(in);
+        assertEquals(Boolean.FALSE, roundTripped.shouldPruneTokens());
     }
 }

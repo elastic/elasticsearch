@@ -56,7 +56,6 @@ import java.util.function.Function;
 
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.transport.RemoteClusterPortSettings.REMOTE_CLUSTER_SERVER_ENABLED;
-import static org.elasticsearch.transport.RemoteClusterPortSettings.TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY;
 
 public class CrossClusterAccessTransportInterceptor implements RemoteClusterTransportInterceptor {
 
@@ -196,16 +195,6 @@ public class CrossClusterAccessTransportInterceptor implements RemoteClusterTran
                 }
                 final String remoteClusterAlias = remoteClusterCredentials.clusterAlias();
 
-                if (connection.getTransportVersion().before(TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY)) {
-                    throw illegalArgumentExceptionWithDebugLog(
-                        "Settings for remote cluster ["
-                            + remoteClusterAlias
-                            + "] indicate cross cluster access headers should be sent but target cluster version ["
-                            + connection.getTransportVersion().toReleaseVersion()
-                            + "] does not support receiving them"
-                    );
-                }
-
                 logger.trace(
                     () -> format(
                         "Sending [%s] request for [%s] action to [%s] with cross cluster access headers",
@@ -325,7 +314,12 @@ public class CrossClusterAccessTransportInterceptor implements RemoteClusterTran
                     threadContext.newRestorableContext(true),
                     handler
                 );
-                try (ThreadContext.StoredContext ignored = threadContext.stashContextPreservingRequestHeaders(AuditUtil.AUDIT_REQUEST_ID)) {
+                try (
+                    ThreadContext.StoredContext ignored = threadContext.stashContextPreservingRequestHeaders(
+                        ThreadContext.HeadersFor.REMOTE_CLUSTER,
+                        AuditUtil.AUDIT_REQUEST_ID
+                    )
+                ) {
                     if (connection.getTransportVersion().supports(ADD_CROSS_CLUSTER_API_KEY_SIGNATURE)) {
                         crossClusterAccessHeaders.writeToContext(threadContext, signer);
                     } else {

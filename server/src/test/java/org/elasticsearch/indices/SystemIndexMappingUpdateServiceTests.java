@@ -287,6 +287,42 @@ public class SystemIndexMappingUpdateServiceTests extends ESTestCase {
     }
 
     /**
+     * Reproduces a bug where SystemIndexMappingUpdateService incorrectly reports UP_TO_DATE for an index whose mappings are
+     * outdated after a major-version migration (reindex).
+     */
+    public void testManagerDetectsOutdatedMappingsInReindexedIndex() {
+        final String reindexedIndexName = SYSTEM_INDEX_NAME + SystemIndices.UPGRADED_INDEX_SUFFIX;
+        final var projectId = randomProjectIdOrDefault();
+
+        // Simulate the post-migration state: the concrete index has the reindexed suffix and an
+        // outdated managed_index_mappings_version, while the original primary index name and the
+        // alias are both aliases pointing to the new concrete index.
+        IndexMetadata.Builder reindexedIndexMeta = IndexMetadata.builder(reindexedIndexName)
+            .settings(Settings.builder().put(getSettings()).put(IndexMetadata.INDEX_FORMAT_SETTING.getKey(), 6))
+            .putMapping(Strings.toString(getMappings("1.0.0", 4)))
+            .putAlias(AliasMetadata.builder(SYSTEM_INDEX_NAME).build())
+            .putAlias(AliasMetadata.builder(DESCRIPTOR.getAliasName()).build());
+
+        final Metadata metadata = Metadata.builder()
+            .generateClusterUuidIfNeeded()
+            .put(ProjectMetadata.builder(projectId).put(reindexedIndexMeta))
+            .build();
+        final DiscoveryNode node = DiscoveryNodeUtils.builder("1").roles(new HashSet<>(DiscoveryNodeRole.roles())).build();
+        final DiscoveryNodes nodes = DiscoveryNodes.builder().add(node).masterNodeId(node.getId()).localNodeId(node.getId()).build();
+        final ClusterState clusterState = ClusterState.builder(CLUSTER_NAME)
+            .nodes(nodes)
+            .metadata(metadata)
+            .routingTable(GlobalRoutingTableTestHelper.buildRoutingTable(metadata, RoutingTable.Builder::addAsNew))
+            .build();
+        ProjectState projectState = clusterState.projectState(projectId);
+
+        assertThat(
+            SystemIndexMappingUpdateService.getUpgradeStatus(projectState, DESCRIPTOR),
+            equalTo(UpgradeStatus.NEEDS_MAPPINGS_UPDATE)
+        );
+    }
+
+    /**
      * Check that this
      */
     public void testCanHandleIntegerMetaVersion() {

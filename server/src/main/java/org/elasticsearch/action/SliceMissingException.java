@@ -1,0 +1,54 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
+ */
+
+package org.elasticsearch.action;
+
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.rest.RestStatus;
+
+import java.io.IOException;
+import java.util.Objects;
+
+/**
+ * Exception raised when a required slice-style routing parameter is missing.
+ */
+public final class SliceMissingException extends ElasticsearchException {
+
+    private final String id;
+
+    public SliceMissingException(String index, String id) {
+        super("_slice is required for [" + index + "]/[" + id + "]");
+        Objects.requireNonNull(index, "index must not be null");
+        Objects.requireNonNull(id, "id must not be null");
+        setIndex(index);
+        this.id = id;
+    }
+
+    public SliceMissingException(StreamInput in) throws IOException {
+        super(in);
+        id = in.readString();
+    }
+
+    public String getId() {
+        return id;
+    }
+
+    @Override
+    public RestStatus status() {
+        return RestStatus.BAD_REQUEST;
+    }
+
+    @Override
+    protected void writeTo(StreamOutput out, Writer<Throwable> nestedExceptionsWriter) throws IOException {
+        super.writeTo(out, nestedExceptionsWriter);
+        out.writeString(id);
+    }
+}

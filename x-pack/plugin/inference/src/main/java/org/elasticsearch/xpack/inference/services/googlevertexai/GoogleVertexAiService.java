@@ -9,47 +9,43 @@ package org.elasticsearch.xpack.inference.services.googlevertexai;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.util.LazyInitializable;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.ChunkedInference;
-import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
 import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
-import org.elasticsearch.inference.ModelConfigurations;
-import org.elasticsearch.inference.ModelSecrets;
+import org.elasticsearch.inference.RerankRequest;
 import org.elasticsearch.inference.RerankingInferenceService;
 import org.elasticsearch.inference.SettingsConfiguration;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
-import org.elasticsearch.xpack.inference.chunking.ChunkingSettingsBuilder;
-import org.elasticsearch.xpack.inference.chunking.EmbeddingRequestChunker;
+import org.elasticsearch.xpack.core.inference.chunking.EmbeddingRequestChunker;
 import org.elasticsearch.xpack.inference.external.action.SenderExecutableAction;
-import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
 import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingsInput;
 import org.elasticsearch.xpack.inference.external.http.sender.GenericRequestManager;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
-import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
+import org.elasticsearch.xpack.inference.services.ModelCreator;
 import org.elasticsearch.xpack.inference.services.SenderService;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
-import org.elasticsearch.xpack.inference.services.anthropic.AnthropicChatCompletionResponseHandler;
 import org.elasticsearch.xpack.inference.services.googlevertexai.action.GoogleVertexAiActionCreator;
 import org.elasticsearch.xpack.inference.services.googlevertexai.completion.GoogleVertexAiChatCompletionModel;
+import org.elasticsearch.xpack.inference.services.googlevertexai.completion.GoogleVertexAiChatCompletionModelCreator;
 import org.elasticsearch.xpack.inference.services.googlevertexai.embeddings.GoogleVertexAiEmbeddingsModel;
+import org.elasticsearch.xpack.inference.services.googlevertexai.embeddings.GoogleVertexAiEmbeddingsModelCreator;
 import org.elasticsearch.xpack.inference.services.googlevertexai.embeddings.GoogleVertexAiEmbeddingsServiceSettings;
 import org.elasticsearch.xpack.inference.services.googlevertexai.request.completion.GoogleVertexAiUnifiedChatCompletionRequest;
 import org.elasticsearch.xpack.inference.services.googlevertexai.rerank.GoogleVertexAiRerankModel;
+import org.elasticsearch.xpack.inference.services.googlevertexai.rerank.GoogleVertexAiRerankModelCreator;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
 import java.util.EnumSet;
@@ -59,24 +55,20 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.xpack.inference.external.action.ActionUtils.constructFailedToSendRequestMessage;
+import static org.elasticsearch.xpack.inference.external.http.sender.QueryAndDocsInputs.fromRerankRequest;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MODEL_ID;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInvalidModelException;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInvalidTaskTypeException;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMap;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrDefaultEmpty;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrThrowIfNull;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwIfNotEmptyMap;
 import static org.elasticsearch.xpack.inference.services.googlevertexai.GoogleVertexAiServiceFields.EMBEDDING_MAX_BATCH_SIZE;
 import static org.elasticsearch.xpack.inference.services.googlevertexai.GoogleVertexAiServiceFields.LOCATION;
 import static org.elasticsearch.xpack.inference.services.googlevertexai.GoogleVertexAiServiceFields.PROJECT_ID;
 import static org.elasticsearch.xpack.inference.services.googlevertexai.action.GoogleVertexAiActionCreator.COMPLETION_ERROR_PREFIX;
 
-public class GoogleVertexAiService extends SenderService implements RerankingInferenceService {
+public class GoogleVertexAiService extends SenderService<GoogleVertexAiModel> implements RerankingInferenceService {
 
     public static final String NAME = "googlevertexai";
 
     private static final String SERVICE_NAME = "Google Vertex AI";
-    private static final EnumSet<TaskType> supportedTaskTypes = EnumSet.of(
+    private static final EnumSet<TaskType> SUPPORTED_TASK_TYPES = EnumSet.of(
         TaskType.TEXT_EMBEDDING,
         TaskType.RERANK,
         TaskType.CHAT_COMPLETION,
@@ -91,13 +83,17 @@ public class GoogleVertexAiService extends SenderService implements RerankingInf
         InputType.INTERNAL_INGEST,
         InputType.INTERNAL_SEARCH
     );
-
-    public static final ResponseHandler GOOGLE_VERTEX_AI_CHAT_COMPLETION_HANDLER = new GoogleVertexAiUnifiedChatCompletionResponseHandler(
-        "Google Vertex AI chat completion"
-    );
-
-    public static final ResponseHandler GOOGLE_MODEL_GARDEN_ANTHROPIC_CHAT_COMPLETION_HANDLER = new AnthropicChatCompletionResponseHandler(
-        "Google Model Garden Anthropic chat completion"
+    private static final GoogleVertexAiChatCompletionModelCreator CHAT_COMPLETION_MODEL_CREATOR =
+        new GoogleVertexAiChatCompletionModelCreator();
+    private static final Map<TaskType, ModelCreator<? extends GoogleVertexAiModel>> MODEL_CREATORS = Map.of(
+        TaskType.TEXT_EMBEDDING,
+        new GoogleVertexAiEmbeddingsModelCreator(),
+        TaskType.COMPLETION,
+        CHAT_COMPLETION_MODEL_CREATOR,
+        TaskType.CHAT_COMPLETION,
+        CHAT_COMPLETION_MODEL_CREATOR,
+        TaskType.RERANK,
+        new GoogleVertexAiRerankModelCreator()
     );
 
     @Override
@@ -114,89 +110,12 @@ public class GoogleVertexAiService extends SenderService implements RerankingInf
     }
 
     public GoogleVertexAiService(HttpRequestSender.Factory factory, ServiceComponents serviceComponents, ClusterService clusterService) {
-        super(factory, serviceComponents, clusterService);
+        super(factory, serviceComponents, clusterService, MODEL_CREATORS);
     }
 
     @Override
     public String name() {
         return NAME;
-    }
-
-    @Override
-    public void parseRequestConfig(
-        String inferenceEntityId,
-        TaskType taskType,
-        Map<String, Object> config,
-        ActionListener<Model> parseModelListener
-    ) {
-        try {
-            Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
-            Map<String, Object> taskSettingsMap = removeFromMapOrDefaultEmpty(config, ModelConfigurations.TASK_SETTINGS);
-
-            ChunkingSettings chunkingSettings = null;
-            if (TaskType.TEXT_EMBEDDING.equals(taskType)) {
-                chunkingSettings = ChunkingSettingsBuilder.fromMap(
-                    removeFromMapOrDefaultEmpty(config, ModelConfigurations.CHUNKING_SETTINGS)
-                );
-            }
-
-            GoogleVertexAiModel model = createModel(
-                inferenceEntityId,
-                taskType,
-                serviceSettingsMap,
-                taskSettingsMap,
-                chunkingSettings,
-                serviceSettingsMap,
-                ConfigurationParseContext.REQUEST
-            );
-
-            throwIfNotEmptyMap(config, NAME);
-            throwIfNotEmptyMap(serviceSettingsMap, NAME);
-            throwIfNotEmptyMap(taskSettingsMap, NAME);
-
-            parseModelListener.onResponse(model);
-        } catch (Exception e) {
-            parseModelListener.onFailure(e);
-        }
-    }
-
-    @Override
-    public Model parsePersistedConfigWithSecrets(
-        String inferenceEntityId,
-        TaskType taskType,
-        Map<String, Object> config,
-        Map<String, Object> secrets
-    ) {
-        Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
-        Map<String, Object> taskSettingsMap = removeFromMapOrDefaultEmpty(config, ModelConfigurations.TASK_SETTINGS);
-        Map<String, Object> secretSettingsMap = removeFromMapOrDefaultEmpty(secrets, ModelSecrets.SECRET_SETTINGS);
-
-        ChunkingSettings chunkingSettings = null;
-        if (TaskType.TEXT_EMBEDDING.equals(taskType)) {
-            chunkingSettings = ChunkingSettingsBuilder.fromMap(removeFromMap(config, ModelConfigurations.CHUNKING_SETTINGS));
-        }
-
-        return createModelFromPersistent(
-            inferenceEntityId,
-            taskType,
-            serviceSettingsMap,
-            taskSettingsMap,
-            chunkingSettings,
-            secretSettingsMap
-        );
-    }
-
-    @Override
-    public Model parsePersistedConfig(String inferenceEntityId, TaskType taskType, Map<String, Object> config) {
-        Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
-        Map<String, Object> taskSettingsMap = removeFromMapOrDefaultEmpty(config, ModelConfigurations.TASK_SETTINGS);
-
-        ChunkingSettings chunkingSettings = null;
-        if (TaskType.TEXT_EMBEDDING.equals(taskType)) {
-            chunkingSettings = ChunkingSettingsBuilder.fromMap(removeFromMap(config, ModelConfigurations.CHUNKING_SETTINGS));
-        }
-
-        return createModelFromPersistent(inferenceEntityId, taskType, serviceSettingsMap, taskSettingsMap, chunkingSettings, null);
     }
 
     @Override
@@ -206,12 +125,12 @@ public class GoogleVertexAiService extends SenderService implements RerankingInf
 
     @Override
     public EnumSet<TaskType> supportedTaskTypes() {
-        return supportedTaskTypes;
+        return SUPPORTED_TASK_TYPES;
     }
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_8_15_0;
+        return TransportVersion.minimumCompatible();
     }
 
     @Override
@@ -265,31 +184,31 @@ public class GoogleVertexAiService extends SenderService implements RerankingInf
         }
     }
 
+    /**
+     * Helper method to create a GenericRequestManager with a specified response handler.
+     * @param model The GoogleVertexAiChatCompletionModel to be used for requests.
+     * @return A GenericRequestManager configured with the provided response handler.
+     */
     private GenericRequestManager<UnifiedChatInput> createRequestManager(GoogleVertexAiChatCompletionModel model) {
-        switch (model.getServiceSettings().provider()) {
-            case ANTHROPIC -> {
-                return createRequestManagerWithHandler(model, GOOGLE_MODEL_GARDEN_ANTHROPIC_CHAT_COMPLETION_HANDLER);
-            }
-            case GOOGLE -> {
-                return createRequestManagerWithHandler(model, GOOGLE_VERTEX_AI_CHAT_COMPLETION_HANDLER);
-            }
-            case null, default -> throw new ElasticsearchException(
-                "Unsupported Google Model Garden provider: " + model.getServiceSettings().provider()
-            );
-        }
-    }
-
-    private GenericRequestManager<UnifiedChatInput> createRequestManagerWithHandler(
-        GoogleVertexAiChatCompletionModel model,
-        ResponseHandler responseHandler
-    ) {
         return new GenericRequestManager<>(
             getServiceComponents().threadPool(),
             model,
-            responseHandler,
+            model.getServiceSettings().provider().getChatCompletionResponseHandler(),
             unifiedChatInput -> new GoogleVertexAiUnifiedChatCompletionRequest(unifiedChatInput, model),
             UnifiedChatInput.class
         );
+    }
+
+    @Override
+    protected void doRerankInfer(Model model, RerankRequest request, TimeValue timeout, ActionListener<InferenceServiceResults> listener) {
+        if (!(model instanceof GoogleVertexAiRerankModel googleVertexAiRerankModel)) {
+            listener.onFailure(createInvalidModelException(model));
+            return;
+        }
+        var actionCreator = new GoogleVertexAiActionCreator(getSender(), getServiceComponents());
+
+        var action = googleVertexAiRerankModel.accept(actionCreator, request.taskSettings());
+        action.execute(fromRerankRequest(request), timeout, listener);
     }
 
     @Override
@@ -302,11 +221,13 @@ public class GoogleVertexAiService extends SenderService implements RerankingInf
         ActionListener<List<ChunkedInference>> listener
     ) {
         GoogleVertexAiModel googleVertexAiModel = (GoogleVertexAiModel) model;
+        GoogleVertexAiEmbeddingsServiceSettings serviceSettings = (GoogleVertexAiEmbeddingsServiceSettings) googleVertexAiModel
+            .getServiceSettings();
         var actionCreator = new GoogleVertexAiActionCreator(getSender(), getServiceComponents());
 
         List<EmbeddingRequestChunker.BatchRequestAndListener> batchedRequests = new EmbeddingRequestChunker<>(
             inputs,
-            EMBEDDING_MAX_BATCH_SIZE,
+            serviceSettings.maxBatchSize() == null ? EMBEDDING_MAX_BATCH_SIZE : serviceSettings.maxBatchSize(),
             googleVertexAiModel.getConfigurations().getChunkingSettings()
         ).batchRequestsWithListeners(listener);
 
@@ -328,6 +249,7 @@ public class GoogleVertexAiService extends SenderService implements RerankingInf
                 serviceSettings.dimensionsSetByUser(),
                 serviceSettings.maxInputTokens(),
                 embeddingSize,
+                serviceSettings.maxBatchSize(),
                 serviceSettings.similarity(),
                 serviceSettings.rateLimitSettings()
             );
@@ -336,69 +258,6 @@ public class GoogleVertexAiService extends SenderService implements RerankingInf
         } else {
             throw ServiceUtils.invalidModelTypeForUpdateModelWithEmbeddingDetails(model.getClass());
         }
-    }
-
-    private static GoogleVertexAiModel createModelFromPersistent(
-        String inferenceEntityId,
-        TaskType taskType,
-        Map<String, Object> serviceSettings,
-        Map<String, Object> taskSettings,
-        ChunkingSettings chunkingSettings,
-        Map<String, Object> secretSettings
-    ) {
-        return createModel(
-            inferenceEntityId,
-            taskType,
-            serviceSettings,
-            taskSettings,
-            chunkingSettings,
-            secretSettings,
-            ConfigurationParseContext.PERSISTENT
-        );
-    }
-
-    private static GoogleVertexAiModel createModel(
-        String inferenceEntityId,
-        TaskType taskType,
-        Map<String, Object> serviceSettings,
-        Map<String, Object> taskSettings,
-        ChunkingSettings chunkingSettings,
-        @Nullable Map<String, Object> secretSettings,
-        ConfigurationParseContext context
-    ) {
-        return switch (taskType) {
-            case TEXT_EMBEDDING -> new GoogleVertexAiEmbeddingsModel(
-                inferenceEntityId,
-                taskType,
-                NAME,
-                serviceSettings,
-                taskSettings,
-                chunkingSettings,
-                secretSettings,
-                context
-            );
-            case RERANK -> new GoogleVertexAiRerankModel(
-                inferenceEntityId,
-                taskType,
-                NAME,
-                serviceSettings,
-                taskSettings,
-                secretSettings,
-                context
-            );
-
-            case CHAT_COMPLETION, COMPLETION -> new GoogleVertexAiChatCompletionModel(
-                inferenceEntityId,
-                taskType,
-                NAME,
-                serviceSettings,
-                taskSettings,
-                secretSettings,
-                context
-            );
-
-            default -> throw createInvalidTaskTypeException(inferenceEntityId, NAME, taskType, context);
-        };
     }
 
     @Override
@@ -417,10 +276,10 @@ public class GoogleVertexAiService extends SenderService implements RerankingInf
 
     public static class Configuration {
         public static InferenceServiceConfiguration get() {
-            return configuration.getOrCompute();
+            return CONFIGURATION.getOrCompute();
         }
 
-        private static final LazyInitializable<InferenceServiceConfiguration, RuntimeException> configuration = new LazyInitializable<>(
+        private static final LazyInitializable<InferenceServiceConfiguration, RuntimeException> CONFIGURATION = new LazyInitializable<>(
             () -> {
                 var configurationMap = new HashMap<String, SettingsConfiguration>();
 
@@ -428,7 +287,7 @@ public class GoogleVertexAiService extends SenderService implements RerankingInf
                 // For rerank it is optional, for text_embedding it is required
                 configurationMap.put(
                     MODEL_ID,
-                    new SettingsConfiguration.Builder(supportedTaskTypes).setDescription("ID of the LLM you're using.")
+                    new SettingsConfiguration.Builder(SUPPORTED_TASK_TYPES).setDescription("ID of the LLM you're using.")
                         .setLabel("Model ID")
                         .setRequired(true)
                         .setSensitive(false)
@@ -440,12 +299,12 @@ public class GoogleVertexAiService extends SenderService implements RerankingInf
                 configurationMap.put(
                     LOCATION,
                     new SettingsConfiguration.Builder(EnumSet.of(TaskType.TEXT_EMBEDDING, TaskType.CHAT_COMPLETION, TaskType.COMPLETION))
-                        .setDescription(
-                            "Please provide the GCP region where the Vertex AI API(s) is enabled. "
-                                + "For more information, refer to the {geminiVertexAIDocs}."
-                        )
+                        .setDescription("""
+                            Please provide the GCP region where the Vertex AI API(s) is enabled. \
+                            Omit this field to target the Vertex AI global endpoint. \
+                            For more information, refer to the {geminiVertexAIDocs}.""")
                         .setLabel("GCP Region")
-                        .setRequired(true)
+                        .setRequired(false)
                         .setSensitive(false)
                         .setUpdatable(false)
                         .setType(SettingsConfigurationFieldType.STRING)
@@ -454,10 +313,9 @@ public class GoogleVertexAiService extends SenderService implements RerankingInf
 
                 configurationMap.put(
                     PROJECT_ID,
-                    new SettingsConfiguration.Builder(supportedTaskTypes).setDescription(
-                        "The GCP Project ID which has Vertex AI API(s) enabled. For more information "
-                            + "on the URL, refer to the {geminiVertexAIDocs}."
-                    )
+                    new SettingsConfiguration.Builder(SUPPORTED_TASK_TYPES).setDescription("""
+                        The GCP Project ID which has Vertex AI API(s) enabled. For more information on the URL, \
+                        refer to the {geminiVertexAIDocs}.""")
                         .setLabel("GCP Project")
                         .setRequired(true)
                         .setSensitive(false)
@@ -467,11 +325,11 @@ public class GoogleVertexAiService extends SenderService implements RerankingInf
                 );
 
                 configurationMap.putAll(GoogleVertexAiSecretSettings.Configuration.get());
-                configurationMap.putAll(RateLimitSettings.toSettingsConfiguration(supportedTaskTypes));
+                configurationMap.putAll(RateLimitSettings.toSettingsConfiguration(SUPPORTED_TASK_TYPES));
 
                 return new InferenceServiceConfiguration.Builder().setService(NAME)
                     .setName(SERVICE_NAME)
-                    .setTaskTypes(supportedTaskTypes)
+                    .setTaskTypes(SUPPORTED_TASK_TYPES)
                     .setConfigurations(configurationMap)
                     .build();
             }

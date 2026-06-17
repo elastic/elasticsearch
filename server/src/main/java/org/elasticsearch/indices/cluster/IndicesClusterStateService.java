@@ -39,6 +39,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -76,6 +77,8 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.recovery.PeerRecoverySourceService;
 import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
 import org.elasticsearch.indices.recovery.RecoveryFailedException;
+import org.elasticsearch.indices.recovery.RecoveryListener;
+import org.elasticsearch.indices.recovery.RecoveryMetricsCollector;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.monitor.jvm.HotThreads;
@@ -88,7 +91,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -139,9 +141,12 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
     private final ShardStateAction shardStateAction;
 
     private final Settings settings;
-    // a list of shards that failed during recovery
-    // we keep track of these shards in order to prevent repeated recovery of these shards on each cluster state update
-    final ConcurrentMap<ShardId, ShardRouting> failedShardsCache = ConcurrentCollections.newConcurrentMap();
+
+    record FailedShardCacheEntry(ShardRouting routing, long primaryTerm) {}
+
+    // A list of shards that failed during recovery.
+    // We keep track of these shards in order to prevent repeated recovery of these shards on each cluster state update.
+    final ConcurrentMap<ShardId, FailedShardCacheEntry> failedShardsCache = ConcurrentCollections.newConcurrentMap();
     private final Map<ShardId, PendingShardCreation> pendingShardCreations = new HashMap<>();
     private final RepositoriesService repositoriesService;
 
@@ -170,7 +175,8 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         final SnapshotShardsService snapshotShardsService,
         final PrimaryReplicaSyncer primaryReplicaSyncer,
         final RetentionLeaseSyncer retentionLeaseSyncer,
-        final NodeClient client
+        final NodeClient client,
+        final RecoveryMetricsCollector recoveryMetricsCollector
     ) {
         this(
             settings,
@@ -185,7 +191,8 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             snapshotShardsService,
             primaryReplicaSyncer,
             retentionLeaseSyncer,
-            client
+            client,
+            recoveryMetricsCollector
         );
     }
 
@@ -203,10 +210,17 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         final SnapshotShardsService snapshotShardsService,
         final PrimaryReplicaSyncer primaryReplicaSyncer,
         final RetentionLeaseSyncer retentionLeaseSyncer,
-        final NodeClient client
+        final NodeClient client,
+        final RecoveryMetricsCollector recoveryMetricsCollector
     ) {
         this.settings = settings;
-        this.buildInIndexListener = Arrays.asList(peerRecoverySourceService, recoveryTargetService, searchService, snapshotShardsService);
+        this.buildInIndexListener = Arrays.asList(
+            peerRecoverySourceService,
+            recoveryTargetService,
+            searchService,
+            snapshotShardsService,
+            recoveryMetricsCollector
+        );
         this.indicesService = indicesService;
         this.clusterService = clusterService;
         this.threadPool = threadPool;
@@ -376,13 +390,21 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         DiscoveryNode masterNode = state.nodes().getMasterNode();
 
         // remove items from cache which are not in our routing table anymore and resend failures that have not executed on master yet
-        for (Iterator<Map.Entry<ShardId, ShardRouting>> iterator = failedShardsCache.entrySet().iterator(); iterator.hasNext();) {
-            ShardRouting failedShardRouting = iterator.next().getValue();
-            ShardRouting matchedRouting = localRoutingNode.getByShardId(failedShardRouting.shardId());
-            if (matchedRouting == null || matchedRouting.isSameAllocation(failedShardRouting) == false) {
+        for (final var iterator = failedShardsCache.entrySet().iterator(); iterator.hasNext();) {
+            final var cacheEntry = iterator.next();
+            final var routing = cacheEntry.getValue().routing();
+            final var matchedRouting = localRoutingNode.getByShardId(routing.shardId());
+            if (matchedRouting == null || matchedRouting.isSameAllocation(routing) == false) {
+                // Shard is no longer assigned to this node, or was re-allocated with a different allocation id.
                 iterator.remove();
             } else {
-                if (masterNode != null) { // TODO: can we remove this? Is resending shard failures the responsibility of shardStateAction?
+                final long cachedTerm = cacheEntry.getValue().primaryTerm();
+                final Optional<IndexMetadata> indexMetadata = state.metadata().findIndex(routing.index());
+                if (indexMetadata.isEmpty() || indexMetadata.get().primaryTerm(routing.id()) > cachedTerm) {
+                    // Index was deleted, or the master already processed the failure and bumped the primary term.
+                    // Either way, the cache entry is stale and can be discarded.
+                    iterator.remove();
+                } else if (masterNode != null) { // TODO: remove this? Is resending shard failures the responsibility of shardStateAction?
                     String message = "master " + masterNode + " has not removed previously failed shard. resending shard failure";
                     logger.trace("[{}] re-sending failed shard [{}], reason [{}]", matchedRouting.shardId(), matchedRouting, message);
                     shardStateAction.localShardFailed(matchedRouting, message, null, ActionListener.noop(), state);
@@ -528,8 +550,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 assert indexMetadata != null || event.isNewCluster()
                     : "index "
                         + index
-                        + " does not exist in the cluster state, it should either "
-                        + "have been deleted or the cluster must be new";
+                        + " does not exist in the cluster state, it should either have been deleted or the cluster must be new";
                 reason = indexMetadata != null && indexMetadata.getState() == IndexMetadata.State.CLOSE ? CLOSED : NO_LONGER_ASSIGNED;
             }
 
@@ -539,8 +560,8 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             } else {
                 // remove shards based on routing nodes (no deletion of data)
                 for (Shard shard : indexService) {
-                    ShardRouting currentRoutingEntry = shard.routingEntry();
-                    ShardId shardId = currentRoutingEntry.shardId();
+                    ShardRouting currentShardRouting = shard.routingEntry();
+                    ShardId shardId = currentShardRouting.shardId();
                     ShardRouting newShardRouting = localRoutingNode.getByShardId(shardId);
                     if (newShardRouting == null) {
                         // we can just remove the shard without cleaning it locally, since we will clean it in IndicesStore
@@ -552,39 +573,93 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                             shardCloseExecutor,
                             getShardsClosedListener()
                         );
-                    } else if (newShardRouting.isSameAllocation(currentRoutingEntry) == false) {
+                        continue;
+                    }
+
+                    assert indexMetadata != null : "null index metadata but non-null new shard routing " + newShardRouting;
+                    final long newTerm = indexMetadata.primaryTerm(shardId.id());
+                    final long existingTerm = existingMetadata.primaryTerm(shardId.id());
+
+                    if (newShardRouting.isSameAllocation(currentShardRouting) == false) {
                         logger.debug(
                             "{} removing shard (stale allocation id, stale {}, new {})",
                             shardId,
-                            currentRoutingEntry,
+                            currentShardRouting,
                             newShardRouting
                         );
                         indexService.removeShard(
                             shardId.id(),
-                            "removing shard (stale copy)",
+                            "removing shard (stale allocation id)",
                             shardCloseExecutor,
                             getShardsClosedListener()
                         );
-                    } else if (newShardRouting.initializing() && currentRoutingEntry.active()) {
-                        // this can happen if the node was isolated/gc-ed, rejoins the cluster and a new shard with the same allocation id
-                        // is assigned to it. Batch cluster state processing or if shard fetching completes before the node gets a new
-                        // cluster state may result in a new shard being initialized while having the same allocation id as the currently
-                        // started shard.
-                        logger.debug("{} removing shard (not active, current {}, new {})", shardId, currentRoutingEntry, newShardRouting);
+                        continue;
+                    }
+
+                    if (newShardRouting.initializing() && currentShardRouting.active()) {
+                        // This can happen if the node was isolated/gc-ed, rejoins the cluster and a new shard with the same allocation id
+                        // is assigned to it.
+                        // Batch cluster state processing or a shard fetching completion before the node gets a new cluster state may result
+                        // in a new shard being initialized while having the same allocation id as the currently started shard.
+                        logger.debug(
+                            "{} removing shard (stale active shard, current {}, new {})",
+                            shardId,
+                            currentShardRouting,
+                            newShardRouting
+                        );
                         indexService.removeShard(
                             shardId.id(),
-                            "removing shard (stale copy)",
+                            "removing shard (stale active shard)",
                             shardCloseExecutor,
                             getShardsClosedListener()
                         );
-                    } else if (newShardRouting.primary() && currentRoutingEntry.primary() == false && newShardRouting.initializing()) {
-                        assert currentRoutingEntry.initializing() : currentRoutingEntry; // see above if clause
-                        // this can happen when cluster state batching batches activation of the shard, closing an index, reopening it
-                        // and assigning an initializing primary to this node
-                        logger.debug("{} removing shard (not active, current {}, new {})", shardId, currentRoutingEntry, newShardRouting);
+                        continue;
+                    }
+
+                    if (newShardRouting.initializing() && newShardRouting.primary() && currentShardRouting.primary() == false) {
+                        assert currentShardRouting.initializing() : currentShardRouting; // see above if clause
+                        assert newTerm > existingTerm
+                            : Strings.format(
+                                "replica-to-primary promotion must bump primary term: newTerm {}, existingTerm: {}, "
+                                    + "newRouting {}, currentRouting {}",
+                                newTerm,
+                                existingTerm,
+                                newShardRouting,
+                                currentShardRouting
+                            );
+                        // During a replica promotion, batch cluster state processing could cause the cluster state changed event
+                        // to go straight from initializing (term1) -> initializing (term2). The stale shard should be cleaned up.
+                        logger.debug(
+                            "{} removing shard (primary promotion, current {}, new {})",
+                            shardId,
+                            currentShardRouting,
+                            newShardRouting
+                        );
                         indexService.removeShard(
                             shardId.id(),
-                            "removing shard (stale copy)",
+                            "removing shard (primary promotion)",
+                            shardCloseExecutor,
+                            getShardsClosedListener()
+                        );
+                        continue;
+                    }
+
+                    if (newShardRouting.initializing() && currentShardRouting.initializing() && newTerm > existingTerm) {
+                        // This can happen if a primary shard failed recovery and is re-assigned with the same allocation id but a
+                        // bumped primary term.
+                        // Batch cluster state processing could cause the cluster state changed event to go straight from
+                        // initializing (term1) -> initializing (term2). The stale shard should be cleaned up.
+                        assert newShardRouting.primary()
+                            : "new shard routing has same allocation id with higher new term but is not primary: " + newShardRouting;
+                        logger.debug(
+                            "{} removing shard (primary term bumped, current {}, new {})",
+                            shardId,
+                            currentShardRouting,
+                            newShardRouting
+                        );
+                        indexService.removeShard(
+                            shardId.id(),
+                            "removing shard (primary term bumped)",
                             shardCloseExecutor,
                             getShardsClosedListener()
                         );
@@ -758,7 +833,14 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 primaryTerm,
                 0,
                 0L,
-                new RunOnce(() -> HotThreads.logLocalCurrentThreads(logger, Level.WARN, shardId + ": acquire shard lock for create")),
+                new RunOnce(
+                    () -> HotThreads.logLocalCurrentThreads(
+                        logger,
+                        Level.WARN,
+                        shardId + ": acquire shard lock for create",
+                        ReferenceDocs.SHARD_LOCK_TROUBLESHOOTING
+                    )
+                ),
                 ActionListener.runBefore(new ActionListener<>() {
                     @Override
                     public void onResponse(Boolean success) {
@@ -820,7 +902,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 originalState.metadata().projectFor(shardRouting.index()).id(),
                 shardRouting,
                 recoveryTargetService,
-                new RecoveryListener(shardRouting, primaryTerm),
+                new ShardRecoveryListener(shardRouting, primaryTerm),
                 repositoriesService,
                 failedShardHandler,
                 this::updateGlobalCheckpointForShard,
@@ -1046,6 +1128,18 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             return null;
         }
 
+        if (sourceShardRouting.relocatingNodeId() != null) {
+            DiscoveryNode sourceNode = nodes.get(sourceShardRouting.relocatingNodeId());
+            if (sourceNode == null) {
+                logger.trace(
+                    "can't find relocation reshard split source node for shard {} because it is assigned to an unknown node [{}].",
+                    sourceShardRouting.shardId(),
+                    sourceShardRouting.relocatingNodeId()
+                );
+                return null;
+            }
+            return sourceNode;
+        }
         DiscoveryNode sourceNode = nodes.get(sourceShardRouting.currentNodeId());
         if (sourceNode == null) {
             assert false : "Source node for reshard does not exist: " + sourceShardRouting.currentNodeId();
@@ -1060,7 +1154,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
 
     private record PendingShardCreation(String clusterStateUUID, long startTimeMillis) {}
 
-    private class RecoveryListener implements PeerRecoveryTargetService.RecoveryListener {
+    private class ShardRecoveryListener implements RecoveryListener {
 
         /**
          * ShardRouting with which the shard was created
@@ -1072,7 +1166,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
          */
         private final long primaryTerm;
 
-        private RecoveryListener(final ShardRouting shardRouting, final long primaryTerm) {
+        private ShardRecoveryListener(final ShardRouting shardRouting, final long primaryTerm) {
             this.shardRouting = shardRouting;
             this.primaryTerm = primaryTerm;
         }
@@ -1096,6 +1190,13 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         @Override
         public void onRecoveryFailure(RecoveryFailedException e, boolean sendShardFailure) {
             handleRecoveryFailure(shardRouting, sendShardFailure, e);
+        }
+
+        @Override
+        public void onRecoveryAborted() {
+            // We don't need to notify master of anything here because recovery abortion is a
+            // symptom of a shard that is closing and this is communicated to master through other
+            // means (or the master already knows because the master initiated it, e.g. by moving the shard)
         }
     }
 
@@ -1158,21 +1259,20 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
     }
 
     private void sendFailShard(ShardRouting shardRouting, String message, @Nullable Exception failure, ClusterState state) {
+        final ShardId shardId = shardRouting.shardId();
         try {
-            logger.warn(() -> format("%s marking and sending shard failed due to [%s]", shardRouting.shardId(), message), failure);
-            failedShardsCache.put(shardRouting.shardId(), shardRouting);
+            final Optional<IndexMetadata> indexMetadata = state.metadata().findIndex(shardRouting.index());
+            if (indexMetadata.isEmpty()) {
+                logger.debug(() -> format("Not marking shard %s failed (reason: [%s]): index no longer exists", shardId, message));
+                return;
+            }
+            logger.warn(() -> format("Marking and sending shard failed %s due to [%s]", shardId, message), failure);
+            final long primaryTerm = indexMetadata.get().primaryTerm(shardRouting.id());
+            failedShardsCache.put(shardRouting.shardId(), new FailedShardCacheEntry(shardRouting, primaryTerm));
             shardStateAction.localShardFailed(shardRouting, message, failure, ActionListener.noop(), state);
         } catch (Exception inner) {
             if (failure != null) inner.addSuppressed(failure);
-            logger.warn(
-                () -> format(
-                    "[%s][%s] failed to mark shard as failed (because of [%s])",
-                    shardRouting.getIndexName(),
-                    shardRouting.getId(),
-                    message
-                ),
-                inner
-            );
+            logger.warn(() -> format("%s failed to mark shard as failed (because of [%s])", shardId, message), inner);
         }
     }
 
@@ -1384,7 +1484,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             ProjectId projectId,
             ShardRouting shardRouting,
             PeerRecoveryTargetService recoveryTargetService,
-            PeerRecoveryTargetService.RecoveryListener recoveryListener,
+            RecoveryListener recoveryListener,
             RepositoriesService repositoriesService,
             Consumer<IndexShard.ShardFailure> onShardFailure,
             GlobalCheckpointSyncer globalCheckpointSyncer,

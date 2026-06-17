@@ -31,6 +31,9 @@ unstripped-binary-or-object [usr/share/elasticsearch/jdk/*]
 # the system java version that lintian assumes is far behind what elasticsearch uses
 unknown-java-class-version
 
+# grpc-context is a metadata-only jar (module-info only, no application classes)
+codeless-jar [usr/share/elasticsearch/modules/esql-datasource-grpc/grpc-context-*.jar]
+
 # There's no `License` field in Debian control files, but earlier versions
 # of `lintian` were more permissive. Override this warning so that we can
 # run `lintian` on different releases of Debian. The format of this override

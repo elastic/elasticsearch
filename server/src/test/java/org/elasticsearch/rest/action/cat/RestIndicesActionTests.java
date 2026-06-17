@@ -107,6 +107,10 @@ public class RestIndicesActionTests extends ESTestCase {
                             }
                             break;
                         case RED:
+                            IntStream.range(0, numberOfShards)
+                                .mapToObj(n -> new ShardId(index, n))
+                                .map(shardId -> TestShardRouting.newShardRouting(shardId, null, true, ShardRoutingState.UNASSIGNED))
+                                .forEach(indexRoutingTable::addShard);
                             break;
                     }
                     routingTable.add(indexRoutingTable);
@@ -151,7 +155,8 @@ public class RestIndicesActionTests extends ESTestCase {
             IndexStats indexStats = indicesStats.get(indexName);
             IndexMetadata indexMetadata = project.index(indexName);
 
-            if (indexHealth != null) {
+            IndexRoutingTable indexRoutingTable = clusterState.routingTable(project.id()).index(indexName);
+            if (indexRoutingTable != null) {
                 assertThat(row.get(0).value, equalTo(indexHealth.getStatus().toString().toLowerCase(Locale.ROOT)));
             } else if (indexStats != null) {
                 assertThat(row.get(0).value, equalTo("red*"));

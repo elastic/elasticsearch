@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.rank;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.InferenceFieldMetadata;
-import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
@@ -34,8 +33,10 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
+import static org.elasticsearch.cluster.metadata.IndexMetadata.getMatchingInferenceFields;
 import static org.elasticsearch.index.IndexSettings.DEFAULT_FIELD_SETTING;
 
 /**
@@ -275,27 +276,10 @@ public class MultiFieldsInnerRetrieverUtils {
             fieldsAndWeightsToQuery = defaultFieldsAndWeightsForIndex(indexMetadata, weightValidator);
         }
 
-        Map<String, Float> inferenceFields = new HashMap<>();
         Map<String, InferenceFieldMetadata> indexInferenceFields = indexMetadata.getInferenceFields();
-        for (Map.Entry<String, Float> entry : fieldsAndWeightsToQuery.entrySet()) {
-            String field = entry.getKey();
-            Float weight = entry.getValue();
-
-            if (Regex.isMatchAllPattern(field)) {
-                indexInferenceFields.keySet().forEach(f -> addToInferenceFieldsMap(inferenceFields, f, weight));
-            } else if (Regex.isSimpleMatchPattern(field)) {
-                indexInferenceFields.keySet()
-                    .stream()
-                    .filter(f -> Regex.simpleMatch(field, f))
-                    .forEach(f -> addToInferenceFieldsMap(inferenceFields, f, weight));
-            } else {
-                // No wildcards in field name
-                if (indexInferenceFields.containsKey(field)) {
-                    addToInferenceFieldsMap(inferenceFields, field, weight);
-                }
-            }
-        }
-        return inferenceFields;
+        return getMatchingInferenceFields(indexInferenceFields, fieldsAndWeightsToQuery, true).entrySet()
+            .stream()
+            .collect(Collectors.toMap(e -> e.getKey().getName(), Map.Entry::getValue));
     }
 
     private static Map<String, Float> nonInferenceFieldsAndWeightsForIndex(
@@ -364,9 +348,5 @@ public class MultiFieldsInnerRetrieverUtils {
         BoolQueryBuilder boolQueryBuilder = new BoolQueryBuilder();
         lexicalQueryBuilders.forEach(boolQueryBuilder::should);
         return new StandardRetrieverBuilder(boolQueryBuilder);
-    }
-
-    private static void addToInferenceFieldsMap(Map<String, Float> inferenceFields, String field, Float weight) {
-        inferenceFields.compute(field, (k, v) -> v == null ? weight : v * weight);
     }
 }

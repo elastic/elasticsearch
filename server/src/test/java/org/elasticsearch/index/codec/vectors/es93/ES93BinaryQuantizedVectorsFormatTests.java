@@ -22,7 +22,6 @@ package org.elasticsearch.index.codec.vectors.es93;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 
 import org.apache.lucene.codecs.Codec;
-import org.apache.lucene.codecs.FilterCodec;
 import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.codecs.KnnVectorsReader;
 import org.apache.lucene.codecs.perfield.PerFieldKnnVectorsFormat;
@@ -40,22 +39,20 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.KnnFloatVectorQuery;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
-import org.apache.lucene.search.TopDocs;
-import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.search.join.CheckJoinIndex;
 import org.apache.lucene.search.join.DiversifyingChildrenFloatKnnVectorQuery;
 import org.apache.lucene.search.join.QueryBitSetProducer;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.MMapDirectory;
-import org.apache.lucene.tests.index.BaseKnnVectorsFormatTestCase;
 import org.apache.lucene.tests.store.MockDirectoryWrapper;
 import org.apache.lucene.tests.util.TestUtil;
 import org.elasticsearch.common.logging.LogConfigurator;
+import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.index.codec.vectors.BaseFlatQuantizedKnnVectorsFormatTestCase;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -65,21 +62,30 @@ import java.util.Locale;
 
 import static java.lang.String.format;
 import static org.apache.lucene.index.VectorSimilarityFunction.DOT_PRODUCT;
-import static org.hamcrest.Matchers.either;
-import static org.hamcrest.Matchers.startsWith;
+import static org.hamcrest.Matchers.aMapWithSize;
+import static org.hamcrest.Matchers.emptyArray;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasEntry;
+import static org.hamcrest.Matchers.hasToString;
+import static org.hamcrest.Matchers.oneOf;
 
-public class ES93BinaryQuantizedVectorsFormatTests extends BaseKnnVectorsFormatTestCase {
+public class ES93BinaryQuantizedVectorsFormatTests extends BaseFlatQuantizedKnnVectorsFormatTestCase {
 
     static {
-        LogConfigurator.loadLog4jPlugins();
         LogConfigurator.configureESLogging(); // native access requires logging to be initialized
+    }
+
+    @Override
+    protected boolean supportsFloatVectorFallback() {
+        return false;
     }
 
     private KnnVectorsFormat format;
 
     @Override
     public void setUp() throws Exception {
-        format = new ES93BinaryQuantizedVectorsFormat(random().nextBoolean());
+        format = new ES93BinaryQuantizedVectorsFormat(DenseVectorFieldMapper.ElementType.FLOAT, random().nextBoolean());
         super.setUp();
     }
 
@@ -125,7 +131,7 @@ public class ES93BinaryQuantizedVectorsFormatTests extends BaseKnnVectorsFormatT
         VectorSimilarityFunction similarityFunction = VectorSimilarityFunction.EUCLIDEAN;
         try (Directory d = newDirectory()) {
             IndexWriterConfig iwc = newIndexWriterConfig().setCodec(getCodec());
-            iwc.setMergePolicy(new SoftDeletesRetentionMergePolicy("soft_delete", MatchAllDocsQuery::new, iwc.getMergePolicy()));
+            iwc.setMergePolicy(new SoftDeletesRetentionMergePolicy("soft_delete", () -> Queries.ALL_DOCS_INSTANCE, iwc.getMergePolicy()));
             try (IndexWriter w = new IndexWriter(d, iwc)) {
                 List<Document> toAdd = new ArrayList<>();
                 for (int j = 1; j <= 5; j++) {
@@ -145,67 +151,33 @@ public class ES93BinaryQuantizedVectorsFormatTests extends BaseKnnVectorsFormatT
                     IndexSearcher searcher = new IndexSearcher(reader);
                     BitSetProducer parentFilter = parentFilter(searcher.getIndexReader());
                     Query query = new DiversifyingChildrenFloatKnnVectorQuery(fieldName, vector, null, 1, parentFilter);
-                    assertTrue(searcher.search(query, 1).scoreDocs.length == 0);
+                    assertThat(searcher.search(query, 1).scoreDocs, emptyArray());
                 }
             }
 
-        }
-    }
-
-    public void testSearch() throws Exception {
-        String fieldName = "field";
-        int numVectors = random().nextInt(99, 500);
-        int dims = random().nextInt(4, 65);
-        float[] vector = randomVector(dims);
-        VectorSimilarityFunction similarityFunction = randomSimilarity();
-        KnnFloatVectorField knnField = new KnnFloatVectorField(fieldName, vector, similarityFunction);
-        IndexWriterConfig iwc = newIndexWriterConfig();
-        try (Directory dir = newDirectory()) {
-            try (IndexWriter w = new IndexWriter(dir, iwc)) {
-                for (int i = 0; i < numVectors; i++) {
-                    Document doc = new Document();
-                    knnField.setVectorValue(randomVector(dims));
-                    doc.add(knnField);
-                    w.addDocument(doc);
-                }
-                w.commit();
-
-                try (IndexReader reader = DirectoryReader.open(w)) {
-                    IndexSearcher searcher = new IndexSearcher(reader);
-                    final int k = random().nextInt(5, 50);
-                    float[] queryVector = randomVector(dims);
-                    Query q = new KnnFloatVectorQuery(fieldName, queryVector, k);
-                    TopDocs collectedDocs = searcher.search(q, k);
-                    assertEquals(k, collectedDocs.totalHits.value());
-                    assertEquals(TotalHits.Relation.EQUAL_TO, collectedDocs.totalHits.relation());
-                }
-            }
         }
     }
 
     public void testToString() {
-        FilterCodec customCodec = new FilterCodec("foo", Codec.getDefault()) {
-            @Override
-            public KnnVectorsFormat knnVectorsFormat() {
-                return new ES93BinaryQuantizedVectorsFormat();
-            }
-        };
-        String expectedPattern = "ES93BinaryQuantizedVectorsFormat(name=ES93BinaryQuantizedVectorsFormat,"
-            + " writeFlatVectorFormat=Lucene99FlatVectorsFormat(name=Lucene99FlatVectorsFormat,"
-            + " flatVectorScorer=%s())";
-        var defaultScorer = format(Locale.ROOT, expectedPattern, "DefaultFlatVectorScorer");
-        var memSegScorer = format(Locale.ROOT, expectedPattern, "Lucene99MemorySegmentFlatVectorsScorer");
-        assertThat(customCodec.knnVectorsFormat().toString(), either(startsWith(defaultScorer)).or(startsWith(memSegScorer)));
-    }
+        String expected = "ES93BinaryQuantizedVectorsFormat(name=ES93BinaryQuantizedVectorsFormat, rawVectorFormat=%s, scorer=%s)";
+        expected = format(
+            Locale.ROOT,
+            expected,
+            "ES93GenericFlatVectorsFormat(name=ES93GenericFlatVectorsFormat, format=%s)",
+            "ES818BinaryFlatVectorsScorer(nonQuantizedDelegate=ES93GenericFlatVectorScorer(delegate={}))"
+        );
+        expected = format(
+            Locale.ROOT,
+            expected,
+            "Lucene99FlatVectorsFormat(name=Lucene99FlatVectorsFormat, flatVectorScorer=ES93GenericFlatVectorScorer(delegate={}))"
+        );
 
-    @Override
-    public void testRandomWithUpdatesAndGraph() {
-        // graph not supported
-    }
+        String defaultScorer = expected.replaceAll("\\{}", "ESDefaultFlatVectorScorer(delegate=DefaultFlatVectorScorer())");
+        String memSegScorer = expected.replaceAll("\\{}", "ESDefaultFlatVectorScorer(delegate=Lucene99MemorySegmentFlatVectorsScorer())");
+        String nativeScorer = expected.replaceAll("\\{}", "PanamaFlatVectorScorer()");
 
-    @Override
-    public void testSearchWithVisitedLimit() {
-        // visited limit is not respected, as it is brute force search
+        KnnVectorsFormat format = new ES93BinaryQuantizedVectorsFormat(DenseVectorFieldMapper.ElementType.FLOAT, false);
+        assertThat(format, hasToString(oneOf(defaultScorer, memSegScorer, nativeScorer)));
     }
 
     public void testSimpleOffHeapSize() throws IOException {
@@ -236,10 +208,13 @@ public class ES93BinaryQuantizedVectorsFormatTests extends BaseKnnVectorsFormatT
                     }
                     var fieldInfo = r.getFieldInfos().fieldInfo("f");
                     var offHeap = knnVectorsReader.getOffHeapByteSize(fieldInfo);
-                    assertEquals(expectVecOffHeap ? 2 : 1, offHeap.size());
-                    assertTrue(offHeap.get("veb") > 0L);
                     if (expectVecOffHeap) {
-                        assertEquals(vector.length * Float.BYTES, (long) offHeap.get("vec"));
+                        assertThat(offHeap, aMapWithSize(2));
+                        assertThat(offHeap, hasEntry(equalTo("veb"), greaterThan(0L)));
+                        assertThat(offHeap, hasEntry("vec", (long) vector.length * Float.BYTES));
+                    } else {
+                        assertThat(offHeap, aMapWithSize(1));
+                        assertThat(offHeap, hasEntry(equalTo("veb"), greaterThan(0L)));
                     }
                 }
             }

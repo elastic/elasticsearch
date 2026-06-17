@@ -1,0 +1,5 @@
+area: Security
+issues: []
+pr: 147765
+summary: Fix ordering race in `RoleReferenceIntersection`
+type: bug

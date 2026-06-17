@@ -16,22 +16,22 @@ import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
- * {@link EvalOperator.ExpressionEvaluator} implementation for {@link MonthName}.
+ * {@link ExpressionEvaluator} implementation for {@link MonthName}.
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
-public final class MonthNameMillisEvaluator implements EvalOperator.ExpressionEvaluator {
+public final class MonthNameMillisEvaluator implements ExpressionEvaluator {
   private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(MonthNameMillisEvaluator.class);
 
   private final Source source;
 
-  private final EvalOperator.ExpressionEvaluator val;
+  private final ExpressionEvaluator val;
 
   private final ZoneId zoneId;
 
@@ -41,8 +41,8 @@ public final class MonthNameMillisEvaluator implements EvalOperator.ExpressionEv
 
   private Warnings warnings;
 
-  public MonthNameMillisEvaluator(Source source, EvalOperator.ExpressionEvaluator val,
-      ZoneId zoneId, Locale locale, DriverContext driverContext) {
+  public MonthNameMillisEvaluator(Source source, ExpressionEvaluator val, ZoneId zoneId,
+      Locale locale, DriverContext driverContext) {
     this.source = source;
     this.val = val;
     this.zoneId = zoneId;
@@ -111,27 +111,21 @@ public final class MonthNameMillisEvaluator implements EvalOperator.ExpressionEv
 
   private Warnings warnings() {
     if (warnings == null) {
-      this.warnings = Warnings.createWarnings(
-              driverContext.warningsMode(),
-              source.source().getLineNumber(),
-              source.source().getColumnNumber(),
-              source.text()
-          );
+      this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
     }
     return warnings;
   }
 
-  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+  static class Factory implements ExpressionEvaluator.Factory {
     private final Source source;
 
-    private final EvalOperator.ExpressionEvaluator.Factory val;
+    private final ExpressionEvaluator.Factory val;
 
     private final ZoneId zoneId;
 
     private final Locale locale;
 
-    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory val, ZoneId zoneId,
-        Locale locale) {
+    public Factory(Source source, ExpressionEvaluator.Factory val, ZoneId zoneId, Locale locale) {
       this.source = source;
       this.val = val;
       this.zoneId = zoneId;

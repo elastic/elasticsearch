@@ -8,6 +8,9 @@
 package org.elasticsearch.xpack.transform.transforms;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xpack.core.security.cloud.PersistedCloudCredential;
 import org.elasticsearch.xpack.core.transform.transforms.AuthorizationState;
 import org.elasticsearch.xpack.core.transform.transforms.TransformTaskState;
 import org.elasticsearch.xpack.transform.Transform;
@@ -48,6 +51,9 @@ public class TransformContext {
     private volatile boolean shouldRecreateDestinationIndex = false;
     private volatile AuthorizationState authState;
     private volatile int pageSize = 0;
+    // Atomic so the indexer's onStart credential-swap (replacePersistedCredential) cannot tear
+    // against a concurrent reader using getPersistedCloudCredential to wrap an outbound client.
+    private final AtomicReference<PersistedCloudCredential> persistedCloudCredential = new AtomicReference<>();
 
     /**
      * If the destination index is blocked (e.g. during a reindex), the Transform will fail to write to it.
@@ -62,18 +68,31 @@ public class TransformContext {
     private final AtomicLong currentCheckpoint;
 
     private final Instant from;
+    private final ProjectId projectId;
 
     public TransformContext(TransformTaskState taskState, String stateReason, long currentCheckpoint, Listener taskListener) {
         this(taskState, stateReason, currentCheckpoint, null, taskListener);
     }
 
     public TransformContext(TransformTaskState taskState, String stateReason, long currentCheckpoint, Instant from, Listener taskListener) {
+        this(taskState, stateReason, currentCheckpoint, from, taskListener, ProjectId.DEFAULT);
+    }
+
+    public TransformContext(
+        TransformTaskState taskState,
+        String stateReason,
+        long currentCheckpoint,
+        Instant from,
+        Listener taskListener,
+        ProjectId projectId
+    ) {
         this.taskState = new AtomicReference<>(taskState);
         this.stateReason = new AtomicReference<>(stateReason);
         this.currentCheckpoint = new AtomicLong(currentCheckpoint);
         this.from = from;
         this.taskListener = taskListener;
         this.failureCount = new AtomicInteger(0);
+        this.projectId = projectId;
     }
 
     TransformTaskState getTaskState() {
@@ -122,6 +141,10 @@ public class TransformContext {
 
     Instant from() {
         return from;
+    }
+
+    ProjectId projectId() {
+        return projectId;
     }
 
     long incrementAndGetCheckpoint() {
@@ -273,7 +296,40 @@ public class TransformContext {
         return getFailureCount() == 0 && getStatePersistenceFailureCount() == 0 && getStartUpFailureCount() == 0;
     }
 
+    @Nullable
+    PersistedCloudCredential getPersistedCloudCredential() {
+        return persistedCloudCredential.get();
+    }
+
+    void setPersistedCloudCredential(@Nullable PersistedCloudCredential persistedCloudCredential) {
+        this.persistedCloudCredential.set(persistedCloudCredential);
+    }
+
+    /**
+     * Atomically replaces the held active credential with {@code next} and returns the
+     * previously-held credential for the caller to revoke + close. Returns {@code null} if there
+     * was no prior credential.
+     */
+    @Nullable
+    PersistedCloudCredential replacePersistedCredential(@Nullable PersistedCloudCredential next) {
+        return persistedCloudCredential.getAndSet(next);
+    }
+
+    /**
+     * Releases the held active cloud credential. Idempotent. Does NOT revoke with UIAM — shutdown
+     * may be transient (node restart) and the credential may still be valid; revocation happens
+     * at delete time and after a successful rotation swap (see
+     * {@code ClientTransformIndexer.doMaybeRefreshCloudToken}).
+     */
+    void close() {
+        PersistedCloudCredential prevActive = replacePersistedCredential(null);
+        if (prevActive != null) {
+            prevActive.close();
+        }
+    }
+
     void shutdown() {
+        close();
         taskListener.shutdown();
     }
 

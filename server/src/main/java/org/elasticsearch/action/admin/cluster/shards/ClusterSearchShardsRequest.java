@@ -11,6 +11,7 @@ package org.elasticsearch.action.admin.cluster.shards;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.action.ResolvedIndexExpressions;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeReadRequest;
 import org.elasticsearch.common.Strings;
@@ -18,6 +19,8 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.SliceIndexing;
+import org.elasticsearch.search.crossproject.TargetProjects;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -31,7 +34,14 @@ public final class ClusterSearchShardsRequest extends MasterNodeReadRequest<Clus
     private String routing;
     @Nullable
     private String preference;
+    @Nullable
+    private String searchSlice;
+    private boolean routingFromSlice;
     private IndicesOptions indicesOptions = IndicesOptions.lenientExpandOpen();
+
+    private ResolvedIndexExpressions resolvedIndexExpressions;
+    @Nullable
+    private transient TargetProjects resolvedTargetProjects;
 
     public ClusterSearchShardsRequest(TimeValue masterNodeTimeout, String... indices) {
         super(masterNodeTimeout);
@@ -42,6 +52,13 @@ public final class ClusterSearchShardsRequest extends MasterNodeReadRequest<Clus
         super(in);
         indices = in.readStringArray();
         routing = in.readOptionalString();
+        if (in.getTransportVersion().supports(SliceIndexing.CLUSTER_SEARCH_SHARDS_SLICE_ROUTING_STATE_VERSION)) {
+            searchSlice = in.readOptionalString();
+            routingFromSlice = in.readBoolean();
+        } else {
+            searchSlice = null;
+            routingFromSlice = false;
+        }
         preference = in.readOptionalString();
         indicesOptions = IndicesOptions.readIndicesOptions(in);
     }
@@ -51,6 +68,10 @@ public final class ClusterSearchShardsRequest extends MasterNodeReadRequest<Clus
         super.writeTo(out);
         out.writeStringArray(indices);
         out.writeOptionalString(routing);
+        if (out.getTransportVersion().supports(SliceIndexing.CLUSTER_SEARCH_SHARDS_SLICE_ROUTING_STATE_VERSION)) {
+            out.writeOptionalString(searchSlice);
+            out.writeBoolean(routingFromSlice);
+        }
         out.writeOptionalString(preference);
         indicesOptions.writeIndicesOptions(out);
     }
@@ -119,6 +140,29 @@ public final class ClusterSearchShardsRequest extends MasterNodeReadRequest<Clus
         return this;
     }
 
+    @Nullable
+    public String searchSlice() {
+        return searchSlice;
+    }
+
+    public ClusterSearchShardsRequest searchSlice(@Nullable String searchSlice) {
+        this.searchSlice = searchSlice;
+        if (searchSlice == null) {
+            if (routingFromSlice) {
+                this.routing = null;
+            }
+            this.routingFromSlice = false;
+        } else {
+            this.routingFromSlice = true;
+            this.routing = SliceIndexing.SLICE_ALL.equals(searchSlice) ? null : searchSlice;
+        }
+        return this;
+    }
+
+    public boolean isRoutingFromSlice() {
+        return routingFromSlice;
+    }
+
     /**
      * Sets the preference to execute the search. Defaults to randomize across shards. Can be set to
      * {@code _local} to prefer local shards or a custom value, which guarantees that the same order
@@ -131,5 +175,26 @@ public final class ClusterSearchShardsRequest extends MasterNodeReadRequest<Clus
 
     public String preference() {
         return this.preference;
+    }
+
+    @Override
+    public void setResolvedIndexExpressions(ResolvedIndexExpressions expressions) {
+        this.resolvedIndexExpressions = expressions;
+    }
+
+    @Override
+    public ResolvedIndexExpressions getResolvedIndexExpressions() {
+        return resolvedIndexExpressions;
+    }
+
+    @Override
+    public void setResolvedTargetProjects(TargetProjects targetProjects) {
+        this.resolvedTargetProjects = targetProjects;
+    }
+
+    @Override
+    @Nullable
+    public TargetProjects getResolvedTargetProjects() {
+        return resolvedTargetProjects;
     }
 }

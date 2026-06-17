@@ -1,5 +1,0 @@
-pr: 134374
-summary: Add file extension metadata to cache miss counter from `SharedBlobCacheService`
-area: Search
-type: enhancement
-issues: []

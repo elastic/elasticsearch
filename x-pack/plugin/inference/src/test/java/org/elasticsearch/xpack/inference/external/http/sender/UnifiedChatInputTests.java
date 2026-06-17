@@ -8,6 +8,8 @@
 package org.elasticsearch.xpack.inference.external.http.sender;
 
 import org.elasticsearch.inference.UnifiedCompletionRequest;
+import org.elasticsearch.inference.completion.ContentString;
+import org.elasticsearch.inference.completion.Message;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
 
@@ -24,8 +26,8 @@ public class UnifiedChatInputTests extends ESTestCase {
             Matchers.is(
                 UnifiedCompletionRequest.of(
                     List.of(
-                        new UnifiedCompletionRequest.Message(new UnifiedCompletionRequest.ContentString("hello"), "a role", null, null),
-                        new UnifiedCompletionRequest.Message(new UnifiedCompletionRequest.ContentString("awesome"), "a role", null, null)
+                        new Message(new ContentString("hello"), "a role", null, null),
+                        new Message(new ContentString("awesome"), "a role", null, null)
                     )
                 )
             )

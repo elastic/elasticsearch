@@ -18,6 +18,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.cluster.project.TestProjectResolvers;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -52,7 +53,6 @@ import static java.util.Collections.emptyMap;
 import static java.util.Collections.singleton;
 import static java.util.Collections.singletonMap;
 import static java.util.stream.Collectors.toList;
-import static org.elasticsearch.common.lucene.search.Queries.newMatchAllQuery;
 
 public class MissingAggregatorTests extends AggregatorTestCase {
 
@@ -70,7 +70,7 @@ public class MissingAggregatorTests extends AggregatorTestCase {
 
         final MissingAggregationBuilder builder = new MissingAggregationBuilder("_name").field(fieldType.name());
 
-        testCase(newMatchAllQuery(), builder, writer -> {
+        testCase(Queries.ALL_DOCS_INSTANCE, builder, writer -> {
             for (int i = 0; i < numDocs; i++) {
                 writer.addDocument(singleton(new SortedNumericDocValuesField(fieldType.name(), randomLong())));
             }
@@ -88,7 +88,7 @@ public class MissingAggregatorTests extends AggregatorTestCase {
 
         final MissingAggregationBuilder builder = new MissingAggregationBuilder("_name").field(aggFieldType.name());
 
-        testCase(newMatchAllQuery(), builder, writer -> {
+        testCase(Queries.ALL_DOCS_INSTANCE, builder, writer -> {
             for (int i = 0; i < numDocs; i++) {
                 writer.addDocument(singleton(new SortedNumericDocValuesField(anotherFieldType.name(), randomLong())));
             }
@@ -117,7 +117,7 @@ public class MissingAggregatorTests extends AggregatorTestCase {
         }
         final int finalDocsMissingAggField = docsMissingAggField;
 
-        testCase(newMatchAllQuery(), builder, writer -> writer.addDocuments(docs), internalMissing -> {
+        testCase(Queries.ALL_DOCS_INSTANCE, builder, writer -> writer.addDocuments(docs), internalMissing -> {
             assertEquals(finalDocsMissingAggField, internalMissing.getDocCount());
             assertTrue(AggregationInspectionHelper.hasValue(internalMissing));
         }, List.of(aggFieldType, anotherFieldType));
@@ -147,7 +147,7 @@ public class MissingAggregatorTests extends AggregatorTestCase {
         }
         final int finalDocsMissingAggField = docsMissingAggField;
 
-        testCase(newMatchAllQuery(), builder, writer -> writer.addDocuments(docs), internalMissing -> {
+        testCase(Queries.ALL_DOCS_INSTANCE, builder, writer -> writer.addDocuments(docs), internalMissing -> {
             assertEquals(finalDocsMissingAggField, internalMissing.getDocCount());
             assertTrue(AggregationInspectionHelper.hasValue(internalMissing));
         }, List.of(aggFieldType, anotherFieldType));
@@ -159,7 +159,7 @@ public class MissingAggregatorTests extends AggregatorTestCase {
 
         final MissingAggregationBuilder builder = new MissingAggregationBuilder("_name").field("unknown_field");
 
-        testCase(newMatchAllQuery(), builder, writer -> {
+        testCase(Queries.ALL_DOCS_INSTANCE, builder, writer -> {
             for (int i = 0; i < numDocs; i++) {
                 writer.addDocument(singleton(new SortedNumericDocValuesField(aggFieldType.name(), randomLong())));
             }
@@ -175,7 +175,7 @@ public class MissingAggregatorTests extends AggregatorTestCase {
 
         final MissingAggregationBuilder builder = new MissingAggregationBuilder("_name").field("unknown_field").missing(randomLong());
 
-        testCase(newMatchAllQuery(), builder, writer -> {
+        testCase(Queries.ALL_DOCS_INSTANCE, builder, writer -> {
             for (int i = 0; i < numDocs; i++) {
                 writer.addDocument(singleton(new SortedNumericDocValuesField(aggFieldType.name(), randomLong())));
             }
@@ -193,7 +193,7 @@ public class MissingAggregatorTests extends AggregatorTestCase {
 
         final MissingAggregationBuilder builder = new MissingAggregationBuilder("_name").field(aggFieldType.name()).missing(randomLong());
 
-        testCase(newMatchAllQuery(), builder, writer -> {
+        testCase(Queries.ALL_DOCS_INSTANCE, builder, writer -> {
             for (int i = 0; i < numDocs; i++) {
                 writer.addDocument(singleton(new SortedNumericDocValuesField(anotherFieldType.name(), randomLong())));
             }
@@ -228,7 +228,7 @@ public class MissingAggregatorTests extends AggregatorTestCase {
         }
         final int finalDocsMissingAggField = docsMissingAggField;
 
-        testCase(newMatchAllQuery(), builder, writer -> writer.addDocuments(docs), internalMissing -> {
+        testCase(Queries.ALL_DOCS_INSTANCE, builder, writer -> writer.addDocuments(docs), internalMissing -> {
             assertEquals(finalDocsMissingAggField, internalMissing.getDocCount());
             assertTrue(AggregationInspectionHelper.hasValue(internalMissing));
         }, List.of(aggFieldType, anotherFieldType));
@@ -261,7 +261,7 @@ public class MissingAggregatorTests extends AggregatorTestCase {
         }
         final int finalDocsMissingField = docsMissingAggField;
 
-        testCase(newMatchAllQuery(), builder, writer -> writer.addDocuments(docs), internalMissing -> {
+        testCase(Queries.ALL_DOCS_INSTANCE, builder, writer -> writer.addDocuments(docs), internalMissing -> {
             assertEquals(finalDocsMissingField, internalMissing.getDocCount());
             assertTrue(AggregationInspectionHelper.hasValue(internalMissing));
         }, List.of(aggFieldType, anotherFieldType));
@@ -303,7 +303,7 @@ public class MissingAggregatorTests extends AggregatorTestCase {
         }
         final int finalDocsBelowThreshold = docsBelowThreshold;
 
-        testCase(newMatchAllQuery(), builder, writer -> writer.addDocuments(docs), internalMissing -> {
+        testCase(Queries.ALL_DOCS_INSTANCE, builder, writer -> writer.addDocuments(docs), internalMissing -> {
             assertEquals(finalDocsBelowThreshold, internalMissing.getDocCount());
             assertTrue(AggregationInspectionHelper.hasValue(internalMissing));
         }, singleton(aggFieldType));

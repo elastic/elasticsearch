@@ -9,12 +9,26 @@
 
 package org.elasticsearch.transport;
 
+import org.elasticsearch.cluster.metadata.ProjectId;
+
 import java.util.Collection;
+import java.util.Optional;
 
 /**
  * Service for registering {@link LinkedProjectConfigListener}s to be notified of changes to linked project configurations.
  */
 public interface LinkedProjectConfigService {
+
+    /**
+     * Interface for providing a {@link LinkedProjectConfigService} instance via SPI.
+     */
+    interface Provider {
+        /**
+         * @return An {@link Optional} populated with a {@link LinkedProjectConfigService} instance, or {@link Optional#empty()} if it is
+         * not possible to create an instance in the current runtime environment.
+         */
+        Optional<LinkedProjectConfigService> create();
+    }
 
     /**
      * Listener interface for receiving updates about linked project configurations.
@@ -27,6 +41,15 @@ public interface LinkedProjectConfigService {
          * @param config The updated {@link LinkedProjectConfig}.
          */
         void updateLinkedProject(LinkedProjectConfig config);
+
+        /**
+         * Called when a previously linked project has been unlinked.
+         *
+         * @param originProjectId The {@link ProjectId} for the origin project.
+         * @param linkedProjectId The {@link ProjectId} for the linked project.
+         * @param linkedProjectAlias The linked project alias.
+         */
+        void remove(ProjectId originProjectId, ProjectId linkedProjectId, String linkedProjectAlias);
     }
 
     /**

@@ -21,6 +21,7 @@ import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.geo.SpatialStrategy;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.geometry.Circle;
 import org.elasticsearch.index.mapper.GeoShapeQueryable;
@@ -37,7 +38,7 @@ import java.util.Objects;
  * Filter results of a query to include only those within a specific distance to some
  * geo point.
  */
-public class GeoDistanceQueryBuilder extends AbstractQueryBuilder<GeoDistanceQueryBuilder> {
+public class GeoDistanceQueryBuilder extends LeafQueryBuilder<GeoDistanceQueryBuilder> {
     public static final String NAME = "geo_distance";
 
     /** Default for distance unit computation. */
@@ -202,7 +203,7 @@ public class GeoDistanceQueryBuilder extends AbstractQueryBuilder<GeoDistanceQue
         MappedFieldType fieldType = context.getFieldType(fieldName);
         if (fieldType == null) {
             if (ignoreUnmapped) {
-                return new MatchNoDocsQuery();
+                return Queries.NO_DOCS_INSTANCE;
             } else {
                 throw new QueryShardException(context, "failed to find geo field [" + fieldName + "]");
             }

@@ -62,7 +62,9 @@ public class RestGetUserPrivilegesAction extends SecurityBaseRestHandler {
             return restChannel -> { throw new ElasticsearchSecurityException("there is no authenticated user"); };
         }
         final String username = user.principal();
-        final GetUserPrivilegesRequestBuilder requestBuilder = new GetUserPrivilegesRequestBuilder(client).username(username);
+        final GetUserPrivilegesRequestBuilder requestBuilder = new GetUserPrivilegesRequestBuilder(client).username(username)
+            // We don't support unwrapping API key roles from the Rest API
+            .unwrapLimitedRole(null);
         return channel -> requestBuilder.execute(new RestListener(channel));
     }
 

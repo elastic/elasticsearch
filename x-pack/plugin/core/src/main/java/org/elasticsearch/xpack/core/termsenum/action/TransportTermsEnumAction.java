@@ -26,6 +26,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.project.ProjectResolver;
+import org.elasticsearch.cluster.routing.SearchShardRouting;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -208,7 +209,7 @@ public class TransportTermsEnumAction extends HandledTransportAction<TermsEnumRe
 
             String[] singleIndex = { indexName };
 
-            List<ShardIterator> shards = clusterService.operationRouting().searchShards(project, singleIndex, null, null);
+            List<SearchShardRouting> shards = clusterService.operationRouting().searchShards(project, singleIndex, null, null);
 
             for (ShardIterator copiesOfShard : shards) {
                 ShardRouting selectedCopyOfShard = null;
@@ -433,7 +434,7 @@ public class TransportTermsEnumAction extends HandledTransportAction<TermsEnumRe
 
             if (indexAccessControl != null
                 && indexAccessControl.getDocumentPermissions().hasDocumentLevelPermissions()
-                && DOCUMENT_LEVEL_SECURITY_FEATURE.checkWithoutTracking(frozenLicenseState)) {
+                && (indexAccessControl.isDlsFlsImplicit() || DOCUMENT_LEVEL_SECURITY_FEATURE.checkWithoutTracking(frozenLicenseState))) {
                 // Check to see if any of the roles defined for the current user rewrite to match_all
 
                 SecurityContext securityContext = new SecurityContext(clusterService.getSettings(), threadContext);
@@ -444,7 +445,9 @@ public class TransportTermsEnumAction extends HandledTransportAction<TermsEnumRe
                     null,
                     request::nodeStartedTimeMillis,
                     null,
-                    Collections.emptyMap()
+                    Collections.emptyMap(),
+                    null,
+                    null
                 );
 
                 // Current user has potentially many roles and therefore potentially many queries

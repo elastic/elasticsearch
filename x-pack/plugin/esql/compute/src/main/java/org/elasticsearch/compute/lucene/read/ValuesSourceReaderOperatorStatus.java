@@ -27,27 +27,35 @@ public class ValuesSourceReaderOperatorStatus extends AbstractPageMappingToItera
         "values_source_reader",
         ValuesSourceReaderOperatorStatus::readFrom
     );
+    private static final TransportVersion CONVERTERS_USED = TransportVersion.fromName("esql_vsr_converters_used");
 
     private static final TransportVersion ESQL_DOCUMENTS_FOUND_AND_VALUES_LOADED = TransportVersion.fromName(
         "esql_documents_found_and_values_loaded"
     );
     private static final TransportVersion ESQL_SPLIT_ON_BIG_VALUES = TransportVersion.fromName("esql_split_on_big_values");
+    private static final TransportVersion ESQL_LUCENE_OPERATOR_BYTES_READ = TransportVersion.fromName("esql_lucene_operator_bytes_read");
 
     private final Map<String, Integer> readersBuilt;
+    private final Map<String, Integer> convertersUsed;
     private final long valuesLoaded;
+    private final long bytesRead;
 
     public ValuesSourceReaderOperatorStatus(
         Map<String, Integer> readersBuilt,
+        Map<String, Integer> convertersUsed,
         long processNanos,
         int pagesReceived,
         int pagesEmitted,
         long rowsReceived,
         long rowsEmitted,
-        long valuesLoaded
+        long valuesLoaded,
+        long bytesRead
     ) {
         super(processNanos, pagesReceived, pagesEmitted, rowsReceived, rowsEmitted);
         this.readersBuilt = readersBuilt;
+        this.convertersUsed = convertersUsed;
         this.valuesLoaded = valuesLoaded;
+        this.bytesRead = bytesRead;
     }
 
     static ValuesSourceReaderOperatorStatus readFrom(StreamInput in) throws IOException {
@@ -72,15 +80,21 @@ public class ValuesSourceReaderOperatorStatus extends AbstractPageMappingToItera
             rowsEmitted = status.rowsEmitted();
         }
         Map<String, Integer> readersBuilt = in.readOrderedMap(StreamInput::readString, StreamInput::readVInt);
+        Map<String, Integer> convertersUsed = in.getTransportVersion().supports(CONVERTERS_USED)
+            ? in.readOrderedMap(StreamInput::readString, StreamInput::readVInt)
+            : Map.of();
         long valuesLoaded = supportsValuesLoaded(in.getTransportVersion()) ? in.readVLong() : 0;
+        long bytesRead = supportsBytesRead(in.getTransportVersion()) ? in.readVLong() : 0;
         return new ValuesSourceReaderOperatorStatus(
             readersBuilt,
+            convertersUsed,
             processNanos,
             pagesReceived,
             pagesEmitted,
             rowsReceived,
             rowsEmitted,
-            valuesLoaded
+            valuesLoaded,
+            bytesRead
         );
     }
 
@@ -96,9 +110,19 @@ public class ValuesSourceReaderOperatorStatus extends AbstractPageMappingToItera
             new AbstractPageMappingOperator.Status(processNanos(), pagesEmitted(), rowsReceived(), rowsEmitted()).writeTo(out);
         }
         out.writeMap(readersBuilt, StreamOutput::writeVInt);
+        if (out.getTransportVersion().supports(CONVERTERS_USED)) {
+            out.writeMap(convertersUsed, StreamOutput::writeVInt);
+        }
         if (supportsValuesLoaded(out.getTransportVersion())) {
             out.writeVLong(valuesLoaded);
         }
+        if (supportsBytesRead(out.getTransportVersion())) {
+            out.writeVLong(bytesRead);
+        }
+    }
+
+    private static boolean supportsBytesRead(TransportVersion version) {
+        return version.supports(ESQL_LUCENE_OPERATOR_BYTES_READ);
     }
 
     private static boolean supportsSplitOnBigValues(TransportVersion version) {
@@ -118,9 +142,18 @@ public class ValuesSourceReaderOperatorStatus extends AbstractPageMappingToItera
         return readersBuilt;
     }
 
+    public Map<String, Integer> convertersUsed() {
+        return convertersUsed;
+    }
+
     @Override
     public long valuesLoaded() {
         return valuesLoaded;
+    }
+
+    @Override
+    public long bytesRead() {
+        return bytesRead;
     }
 
     @Override
@@ -131,7 +164,15 @@ public class ValuesSourceReaderOperatorStatus extends AbstractPageMappingToItera
             builder.field(e.getKey(), e.getValue());
         }
         builder.endObject();
+        if (convertersUsed.isEmpty() == false) {
+            builder.startObject("converters_used");
+            for (Map.Entry<String, Integer> e : convertersUsed.entrySet()) {
+                builder.field(e.getKey(), e.getValue());
+            }
+            builder.endObject();
+        }
         builder.field("values_loaded", valuesLoaded);
+        builder.field("bytes_read", bytesRead);
         innerToXContent(builder);
         return builder.endObject();
     }
@@ -140,12 +181,15 @@ public class ValuesSourceReaderOperatorStatus extends AbstractPageMappingToItera
     public boolean equals(Object o) {
         if (super.equals(o) == false) return false;
         ValuesSourceReaderOperatorStatus status = (ValuesSourceReaderOperatorStatus) o;
-        return readersBuilt.equals(status.readersBuilt) && valuesLoaded == status.valuesLoaded;
+        return readersBuilt.equals(status.readersBuilt)
+            && convertersUsed.equals(status.convertersUsed)
+            && valuesLoaded == status.valuesLoaded
+            && bytesRead == status.bytesRead;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), readersBuilt, valuesLoaded);
+        return Objects.hash(super.hashCode(), readersBuilt, valuesLoaded, bytesRead);
     }
 
     @Override

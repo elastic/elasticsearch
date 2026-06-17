@@ -10,10 +10,12 @@
 package org.elasticsearch.index.engine;
 
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.eirf.EirfBatch;
 import org.elasticsearch.index.seqno.LocalCheckpointTracker;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 import java.util.function.BiFunction;
 
@@ -49,6 +51,24 @@ class InternalTestEngine extends InternalEngine {
             });
         }
         return super.index(index);
+    }
+
+    @Override
+    public List<IndexResult> indexBatch(List<Index> operations, EirfBatch batch) throws IOException {
+        for (Index index : operations) {
+            if (index.seqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO) {
+                idToMaxSeqNo.compute(index.id(), (id, existing) -> {
+                    if (existing == null) {
+                        return index.seqNo();
+                    } else {
+                        long maxSeqNo = Math.max(index.seqNo(), existing);
+                        advanceMaxSeqNoOfUpdatesOrDeletes(maxSeqNo);
+                        return maxSeqNo;
+                    }
+                });
+            }
+        }
+        return super.indexBatch(operations, batch);
     }
 
     @Override

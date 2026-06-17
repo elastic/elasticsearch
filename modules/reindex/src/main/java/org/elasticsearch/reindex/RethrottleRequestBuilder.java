@@ -30,4 +30,12 @@ public class RethrottleRequestBuilder extends TasksRequestBuilder<RethrottleRequ
         request.setRequestsPerSecond(requestsPerSecond);
         return this;
     }
+
+    /**
+     * Whether to follow the relocation chain when the target task has already relocated to another node.
+     */
+    public RethrottleRequestBuilder setFollowRelocations(boolean followRelocations) {
+        request.setFollowRelocations(followRelocations);
+        return this;
+    }
 }

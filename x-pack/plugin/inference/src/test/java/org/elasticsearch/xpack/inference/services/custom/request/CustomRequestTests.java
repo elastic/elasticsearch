@@ -13,6 +13,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.inference.InferenceString;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
@@ -20,6 +21,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingsInput;
 import org.elasticsearch.xpack.inference.external.http.sender.QueryAndDocsInputs;
+import org.elasticsearch.xpack.inference.external.request.RequestTests;
 import org.elasticsearch.xpack.inference.services.custom.CustomModelTests;
 import org.elasticsearch.xpack.inference.services.custom.CustomSecretSettings;
 import org.elasticsearch.xpack.inference.services.custom.CustomServiceEmbeddingType;
@@ -27,8 +29,8 @@ import org.elasticsearch.xpack.inference.services.custom.CustomServiceSettings;
 import org.elasticsearch.xpack.inference.services.custom.CustomTaskSettings;
 import org.elasticsearch.xpack.inference.services.custom.InputTypeTranslator;
 import org.elasticsearch.xpack.inference.services.custom.QueryParameters;
+import org.elasticsearch.xpack.inference.services.custom.response.DenseEmbeddingResponseParser;
 import org.elasticsearch.xpack.inference.services.custom.response.RerankResponseParser;
-import org.elasticsearch.xpack.inference.services.custom.response.TextEmbeddingResponseParser;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
 import java.io.IOException;
@@ -62,7 +64,7 @@ public class CustomRequestTests extends ESTestCase {
             headers,
             new QueryParameters(List.of(new QueryParameters.Parameter("key", "value"), new QueryParameters.Parameter("key", "value2"))),
             requestContentString,
-            new TextEmbeddingResponseParser("$.result.embeddings", CustomServiceEmbeddingType.FLOAT),
+            new DenseEmbeddingResponseParser("$.result.embeddings", CustomServiceEmbeddingType.FLOAT),
             new RateLimitSettings(10_000),
             null,
             new InputTypeTranslator(Map.of(InputType.INGEST, "value"), "default")
@@ -80,7 +82,7 @@ public class CustomRequestTests extends ESTestCase {
             EmbeddingParameters.of(new EmbeddingsInput(List.of("abc", "123"), null), model.getServiceSettings().getInputTypeTranslator()),
             model
         );
-        var httpRequest = request.createHttpRequest();
+        var httpRequest = RequestTests.getHttpRequestSync(request);
         assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
 
         var httpPost = (HttpPost) httpRequest.httpRequestBase();
@@ -122,7 +124,7 @@ public class CustomRequestTests extends ESTestCase {
                 )
             ),
             requestContentString,
-            new TextEmbeddingResponseParser("$.result.embeddings", CustomServiceEmbeddingType.FLOAT),
+            new DenseEmbeddingResponseParser("$.result.embeddings", CustomServiceEmbeddingType.FLOAT),
             new RateLimitSettings(10_000),
             null,
             new InputTypeTranslator(Map.of(InputType.INGEST, "value"), "default")
@@ -143,7 +145,7 @@ public class CustomRequestTests extends ESTestCase {
             ),
             model
         );
-        var httpRequest = request.createHttpRequest();
+        var httpRequest = RequestTests.getHttpRequestSync(request);
         assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
 
         var httpPost = (HttpPost) httpRequest.httpRequestBase();
@@ -180,7 +182,7 @@ public class CustomRequestTests extends ESTestCase {
             headers,
             new QueryParameters(List.of(new QueryParameters.Parameter("key", "value"), new QueryParameters.Parameter("key", "value2"))),
             requestContentString,
-            new TextEmbeddingResponseParser("$.result.embeddings", CustomServiceEmbeddingType.FLOAT),
+            new DenseEmbeddingResponseParser("$.result.embeddings", CustomServiceEmbeddingType.FLOAT),
             new RateLimitSettings(10_000)
         );
 
@@ -199,7 +201,7 @@ public class CustomRequestTests extends ESTestCase {
             ),
             model
         );
-        var httpRequest = request.createHttpRequest();
+        var httpRequest = RequestTests.getHttpRequestSync(request);
         assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
 
         var httpPost = (HttpPost) httpRequest.httpRequestBase();
@@ -245,8 +247,13 @@ public class CustomRequestTests extends ESTestCase {
             new CustomSecretSettings(Map.of("api_key", new SecureString("my-secret-key".toCharArray())))
         );
 
-        var request = new CustomRequest(RerankParameters.of(new QueryAndDocsInputs("query string", List.of("abc", "123"))), model);
-        var httpRequest = request.createHttpRequest();
+        var request = new CustomRequest(
+            RerankParameters.of(
+                new QueryAndDocsInputs(InferenceString.ofText("query string"), InferenceString.fromStringList(List.of("abc", "123")))
+            ),
+            model
+        );
+        var httpRequest = RequestTests.getHttpRequestSync(request);
         assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
 
         var httpPost = (HttpPost) httpRequest.httpRequestBase();
@@ -291,10 +298,18 @@ public class CustomRequestTests extends ESTestCase {
         );
 
         var request = new CustomRequest(
-            RerankParameters.of(new QueryAndDocsInputs("query string", List.of("abc", "123"), false, 2, false)),
+            RerankParameters.of(
+                new QueryAndDocsInputs(
+                    InferenceString.ofText("query string"),
+                    InferenceString.fromStringList(List.of("abc", "123")),
+                    false,
+                    2,
+                    false
+                )
+            ),
             model
         );
-        var httpRequest = request.createHttpRequest();
+        var httpRequest = RequestTests.getHttpRequestSync(request);
         assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
 
         var httpPost = (HttpPost) httpRequest.httpRequestBase();
@@ -337,8 +352,13 @@ public class CustomRequestTests extends ESTestCase {
             new CustomSecretSettings(Map.of("api_key", new SecureString("my-secret-key".toCharArray())))
         );
 
-        var request = new CustomRequest(RerankParameters.of(new QueryAndDocsInputs("query string", List.of("abc", "123"))), model);
-        var exception = expectThrows(IllegalStateException.class, request::createHttpRequest);
+        var request = new CustomRequest(
+            RerankParameters.of(
+                new QueryAndDocsInputs(InferenceString.ofText("query string"), InferenceString.fromStringList(List.of("abc", "123")))
+            ),
+            model
+        );
+        var exception = expectThrows(IllegalStateException.class, () -> RequestTests.getHttpRequestSync(request));
         assertThat(
             exception.getMessage(),
             is(
@@ -376,7 +396,12 @@ public class CustomRequestTests extends ESTestCase {
 
         var exception = expectThrows(
             IllegalStateException.class,
-            () -> new CustomRequest(RerankParameters.of(new QueryAndDocsInputs("query string", List.of("abc", "123"))), model)
+            () -> new CustomRequest(
+                RerankParameters.of(
+                    new QueryAndDocsInputs(InferenceString.ofText("query string"), InferenceString.fromStringList(List.of("abc", "123")))
+                ),
+                model
+            )
         );
         assertThat(exception.getMessage(), startsWith("Failed to build URI, error: Illegal character in path"));
     }

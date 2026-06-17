@@ -73,6 +73,7 @@ import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -876,6 +877,162 @@ public class IndexTemplateRegistryTests extends ESTestCase {
             .blocks(new ClusterBlocks.Builder().build())
             .nodes(nodes)
             .build();
+    }
+
+    public void testRejectsTemplateWithFleetManagedPriorityAndManagedType() throws Exception {
+        // Create a registry that returns a template with the reserved Fleet priority and a managed data stream type
+        List<String> conflictingPatterns = List.of(
+            "logs-*",
+            "logs-foo*",
+            "metrics-*",
+            "metrics-foo-*",
+            "traces-*",
+            "traces-foo-*",
+            "synthetics-*",
+            "synthetics-foo-*",
+            "profiling-*",
+            "profiling-foo-*"
+        );
+        for (String indexPattern : conflictingPatterns) {
+            long fleetPriority = randomFrom(150L, 200L);
+            IndexTemplateRegistry registryWithReservedPriority = new IndexTemplateRegistry(
+                Settings.EMPTY,
+                clusterService,
+                threadPool,
+                client,
+                NamedXContentRegistry.EMPTY
+            ) {
+                @Override
+                protected Map<String, ComposableIndexTemplate> getComposableTemplateConfigs() {
+                    return Map.of(
+                        "test-template",
+                        ComposableIndexTemplate.builder()
+                            .indexPatterns(List.of("this-is-fine", indexPattern))
+                            .priority(fleetPriority)
+                            .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
+                            .build()
+                    );
+                }
+
+                @Override
+                protected String getOrigin() {
+                    return "test";
+                }
+            };
+
+            IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                "Expected index pattern [" + indexPattern + "] to be rejected",
+                registryWithReservedPriority::initialize
+            );
+            assertThat(e.getMessage(), startsWith("Composable index template [test-template] with index patterns "));
+            assertThat(e.getMessage(), containsString("and priority [" + fleetPriority + "]"));
+            assertThat(e.getMessage(), containsString("would conflict with the managed index pattern ["));
+        }
+    }
+
+    public void testAllowsFleetManagedPriorityForNonReservedPattern() {
+        long fleetPriority = randomFrom(150L, 200L);
+        // A composable template with a Fleet-managed priority should be allowed
+        // as long as its index patterns don't overlap with Fleet-managed type patterns
+        IndexTemplateRegistry registryWithNonReservedPattern = new IndexTemplateRegistry(
+            Settings.EMPTY,
+            clusterService,
+            threadPool,
+            client,
+            NamedXContentRegistry.EMPTY
+        ) {
+            @Override
+            protected Map<String, ComposableIndexTemplate> getComposableTemplateConfigs() {
+                return Map.of(
+                    "test-template",
+                    ComposableIndexTemplate.builder()
+                        .indexPatterns(List.of("my-custom-*"))
+                        .priority(fleetPriority)
+                        .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
+                        .build()
+                );
+            }
+
+            @Override
+            protected String getOrigin() {
+                return "test";
+            }
+        };
+
+        // Should not throw because the pattern does not overlap with Fleet-managed type patterns
+        registryWithNonReservedPattern.initialize();
+    }
+
+    public void testRejectsStreamsManagedPatternRegardlessOfPriority() {
+        for (String indexPattern : List.of("logs", "logs.foo", "logs.ecs", "logs.otel")) {
+            long priority = randomLongBetween(0, 1000);
+            IndexTemplateRegistry registryWithStreamsManagedPattern = new IndexTemplateRegistry(
+                Settings.EMPTY,
+                clusterService,
+                threadPool,
+                client,
+                NamedXContentRegistry.EMPTY
+            ) {
+                @Override
+                protected Map<String, ComposableIndexTemplate> getComposableTemplateConfigs() {
+                    return Map.of(
+                        "test-template",
+                        ComposableIndexTemplate.builder()
+                            .indexPatterns(List.of(indexPattern))
+                            .priority(priority)
+                            .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
+                            .build()
+                    );
+                }
+
+                @Override
+                protected String getOrigin() {
+                    return "test";
+                }
+            };
+
+            IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                "Expected streams-managed index pattern [" + indexPattern + "] to be rejected at non-Fleet priority",
+                registryWithStreamsManagedPattern::initialize
+            );
+            assertThat(e.getMessage(), startsWith("Composable index template [test-template] with index patterns "));
+            assertThat(e.getMessage(), containsString("and priority [" + priority + "]"));
+            assertThat(e.getMessage(), containsString("would conflict with the managed index pattern ["));
+        }
+    }
+
+    public void testAllowsNonFleetPriorityWithManagedTypePattern() {
+        // A composable template with a non-Fleet priority should be allowed
+        // even if its index patterns overlap with Fleet-managed type patterns
+        IndexTemplateRegistry registryWithDifferentPriority = new IndexTemplateRegistry(
+            Settings.EMPTY,
+            clusterService,
+            threadPool,
+            client,
+            NamedXContentRegistry.EMPTY
+        ) {
+            @Override
+            protected Map<String, ComposableIndexTemplate> getComposableTemplateConfigs() {
+                return Map.of(
+                    "test-template",
+                    ComposableIndexTemplate.builder()
+                        .indexPatterns(List.of("logs-test-*"))
+                        .priority(100L)
+                        .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
+                        .build()
+                );
+            }
+
+            @Override
+            protected String getOrigin() {
+                return "test";
+            }
+        };
+
+        // Should not throw because priority 100 is not a Fleet-reserved priority
+        registryWithDifferentPriority.initialize();
     }
 
     // ------------- functionality unit test --------

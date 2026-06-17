@@ -106,6 +106,25 @@ public abstract class AbstractBlockBuilder implements Block.Builder {
     }
 
     /**
+     * Registers {@code numValuesAppended} new single-valued positions in bulk.
+     * All values must already have been written to the values array and
+     * {@code valueCount} must already reflect them.
+     */
+    protected final void updatePositions(int numValuesAppended) {
+        if (positionEntryIsOpen) {
+            return;
+        }
+        if (firstValueIndexes != null) {
+            ensureFirstValueIndexesCapacity(positionCount + numValuesAppended);
+            int firstValue = valueCount - numValuesAppended;
+            for (int i = 0; i < numValuesAppended; i++) {
+                firstValueIndexes[positionCount + i] = firstValue + i;
+            }
+        }
+        positionCount += numValuesAppended;
+    }
+
+    /**
      * Called during implementations of {@link Block.Builder#build} as a first step
      * to check if the block is still open and to finish the last position.
      */
@@ -142,14 +161,22 @@ public abstract class AbstractBlockBuilder implements Block.Builder {
     protected abstract int elementSize();
 
     protected final void ensureCapacity() {
+        ensureCapacity(1);
+    }
+
+    /**
+     * Ensures the values array has room for at least {@code additionalValueCount} more values.
+     */
+    protected final void ensureCapacity(int additionalValueCount) {
         int valuesLength = valuesLength();
-        if (valueCount < valuesLength) {
+        int requiredSize = valueCount + additionalValueCount;
+        if (requiredSize <= valuesLength) {
             return;
         }
-        int newSize = ArrayUtil.oversize(valueCount, elementSize());
-        adjustBreaker(newSize * elementSize());
+        int newSize = ArrayUtil.oversize(requiredSize, elementSize());
+        adjustBreaker((long) newSize * elementSize());
         growValuesArray(newSize);
-        adjustBreaker(-valuesLength * elementSize());
+        adjustBreaker(-(long) valuesLength * elementSize());
     }
 
     @Override
@@ -172,15 +199,19 @@ public abstract class AbstractBlockBuilder implements Block.Builder {
         assert estimatedBytes >= 0;
     }
 
-    private void setFirstValue(int position, int value) {
-        if (position >= firstValueIndexes.length) {
-            final int currentSize = firstValueIndexes.length;
-            // We grow the `firstValueIndexes` at the same rate as the `values` array, but independently.
-            final int newLength = ArrayUtil.oversize(position + 1, Integer.BYTES);
-            adjustBreaker((long) newLength * Integer.BYTES);
-            firstValueIndexes = ArrayUtil.growExact(firstValueIndexes, newLength);
-            adjustBreaker(-(long) currentSize * Integer.BYTES);
+    private void ensureFirstValueIndexesCapacity(int minSize) {
+        if (minSize <= firstValueIndexes.length) {
+            return;
         }
+        final int currentSize = firstValueIndexes.length;
+        final int newLength = ArrayUtil.oversize(minSize, Integer.BYTES);
+        adjustBreaker((long) newLength * Integer.BYTES);
+        firstValueIndexes = ArrayUtil.growExact(firstValueIndexes, newLength);
+        adjustBreaker(-(long) currentSize * Integer.BYTES);
+    }
+
+    private void setFirstValue(int position, int value) {
+        ensureFirstValueIndexesCapacity(position + 1);
         firstValueIndexes[position] = value;
     }
 

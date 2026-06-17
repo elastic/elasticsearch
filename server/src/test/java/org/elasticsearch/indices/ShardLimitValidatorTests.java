@@ -13,6 +13,8 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -52,6 +54,7 @@ public class ShardLimitValidatorTests extends ESTestCase {
     private void testOverShardLimit(LimitGroup group, int nodesInCluster) {
         final ShardCounts counts = computeShardCounts(group, nodesInCluster);
         ClusterState state = createClusterForShardLimitTest(
+            randomProjectIdOrDefault(),
             nodesInCluster,
             counts.getFirstIndexShards(),
             counts.getFirstIndexReplicas(),
@@ -103,6 +106,7 @@ public class ShardLimitValidatorTests extends ESTestCase {
         // Calculate the counts for a cluster with maximum of 60% of occupancy
         ShardCounts counts = computeShardCounts(group, (int) (nodesInCluster * 0.6));
         ClusterState state = createClusterForShardLimitTest(
+            randomProjectIdOrDefault(),
             nodesInCluster,
             counts.getFirstIndexShards(),
             counts.getFirstIndexReplicas(),
@@ -249,7 +253,7 @@ public class ShardLimitValidatorTests extends ESTestCase {
             case NORMAL, FROZEN -> {
                 int existingShards = counts.getFirstIndexShards() * (1 + counts.getFirstIndexReplicas());
                 int availableRoom = maxShardsInCluster - existingShards;
-                int replicas = randomIntBetween(0, 3);
+                int replicas = randomIntBetween(0, Math.min(3, availableRoom - 1));
                 int shards = randomIntBetween(1, Math.max(availableRoom / (replicas + 1), 1));
                 yield new UnderLimitShardCounts(shards, replicas, shards * (replicas + 1));
             }
@@ -263,7 +267,7 @@ public class ShardLimitValidatorTests extends ESTestCase {
             case SEARCH -> {
                 int existingShards = counts.getFirstIndexShards() * counts.getFirstIndexReplicas();
                 int availableRoom = maxShardsInCluster - existingShards;
-                int replicas = randomIntBetween(1, nodesInCluster);
+                int replicas = randomIntBetween(1, Math.max(Math.min(nodesInCluster, availableRoom), 1));
                 int shards = randomIntBetween(1, Math.max(availableRoom / replicas, 1));
                 yield new UnderLimitShardCounts(shards, replicas, shards * replicas);
             }
@@ -284,7 +288,8 @@ public class ShardLimitValidatorTests extends ESTestCase {
         return state;
     }
 
-    public static ClusterState createClusterForShardLimitTest(
+    private static ClusterState createClusterForShardLimitTest(
+        final ProjectId projectId,
         int nodesInCluster,
         int shardsInIndex,
         int replicas,
@@ -302,7 +307,7 @@ public class ShardLimitValidatorTests extends ESTestCase {
             .creationDate(randomLong())
             .numberOfShards(shardsInIndex)
             .numberOfReplicas(replicas);
-        Metadata.Builder metadata = Metadata.builder().put(indexMetadata);
+        Metadata.Builder metadata = Metadata.builder().put(ProjectMetadata.builder(projectId).put(indexMetadata));
         Settings.Builder clusterSettings = Settings.builder()
             .put(ShardLimitValidator.SETTING_CLUSTER_MAX_SHARDS_PER_NODE_FROZEN.getKey(), maxShardsPerNode)
             .put(ShardLimitValidator.SETTING_CLUSTER_MAX_SHARDS_PER_NODE.getKey(), maxShardsPerNode);

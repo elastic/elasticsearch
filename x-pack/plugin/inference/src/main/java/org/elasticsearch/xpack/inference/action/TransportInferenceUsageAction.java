@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.metadata.InferenceFieldMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.injection.guice.Inject;
@@ -36,7 +37,6 @@ import org.elasticsearch.xpack.core.inference.usage.SemanticTextStats;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 
 import java.util.ArrayList;
-import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -49,6 +49,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
+import static org.elasticsearch.xpack.inference.InferenceFeatures.EMBEDDING_TASK_TYPE;
 
 public class TransportInferenceUsageAction extends XPackUsageFeatureTransportAction {
 
@@ -57,11 +58,7 @@ public class TransportInferenceUsageAction extends XPackUsageFeatureTransportAct
     // Some of the default models have optimized variants for linux that will have the following suffix.
     private static final String MODEL_ID_LINUX_SUFFIX = "_linux-x86_64";
 
-    private static final EnumSet<TaskType> TASK_TYPES_WITH_SEMANTIC_TEXT_SUPPORT = EnumSet.of(
-        TaskType.TEXT_EMBEDDING,
-        TaskType.SPARSE_EMBEDDING
-    );
-
+    private final FeatureService featureService;
     private final ModelRegistry modelRegistry;
     private final Client client;
 
@@ -72,11 +69,13 @@ public class TransportInferenceUsageAction extends XPackUsageFeatureTransportAct
         ThreadPool threadPool,
         ActionFilters actionFilters,
         ModelRegistry modelRegistry,
-        Client client
+        Client client,
+        FeatureService featureService
     ) {
         super(XPackUsageFeatureAction.INFERENCE.name(), transportService, clusterService, threadPool, actionFilters);
         this.modelRegistry = modelRegistry;
         this.client = new OriginSettingClient(client, ML_ORIGIN);
+        this.featureService = featureService;
     }
 
     @Override
@@ -102,7 +101,7 @@ public class TransportInferenceUsageAction extends XPackUsageFeatureTransportAct
             mapInferenceFieldsByIndexServiceAndTask(indicesMetadata, endpoints);
         Map<String, ModelStats> endpointStats = new TreeMap<>();
         addStatsByServiceAndTask(inferenceFieldsByIndexServiceAndTask, endpoints, endpointStats);
-        addStatsForDefaultModelsCompatibleWithSemanticText(inferenceFieldsByIndexServiceAndTask, endpoints, endpointStats);
+        addStatsForDefaultModels(inferenceFieldsByIndexServiceAndTask, endpoints, endpointStats);
         return new InferenceFeatureSetUsage(endpointStats.values());
     }
 
@@ -143,7 +142,7 @@ public class TransportInferenceUsageAction extends XPackUsageFeatureTransportAct
      * In addition, adds aggregate usage stats per task type across all services.
      * Those aggregate stats have "_all" as the service name.
      */
-    private static void addStatsByServiceAndTask(
+    private void addStatsByServiceAndTask(
         Map<ServiceAndTaskType, Map<String, List<InferenceFieldMetadata>>> inferenceFieldsByIndexServiceAndTask,
         List<ModelConfigurations> endpoints,
         Map<String, ModelStats> endpointStats
@@ -174,40 +173,31 @@ public class TransportInferenceUsageAction extends XPackUsageFeatureTransportAct
     }
 
     private static ModelStats createEmptyStats(String service, TaskType taskType) {
-        return new ModelStats(
-            service,
-            taskType,
-            0,
-            TASK_TYPES_WITH_SEMANTIC_TEXT_SUPPORT.contains(taskType) ? new SemanticTextStats() : null
-        );
+        return new ModelStats(service, taskType, 0, new SemanticTextStats());
     }
 
-    private static void addTopLevelStatsByTask(
+    private void addTopLevelStatsByTask(
         Map<ServiceAndTaskType, Map<String, List<InferenceFieldMetadata>>> inferenceFieldsByIndexServiceAndTask,
         Map<String, ModelStats> endpointStats
     ) {
         for (TaskType taskType : TaskType.values()) {
-            if (taskType == TaskType.ANY) {
+            if (taskType == TaskType.ANY
+                || (taskType == TaskType.EMBEDDING
+                    && featureService.clusterHasFeature(clusterService.state(), EMBEDDING_TASK_TYPE) == false)) {
                 continue;
             }
-            ModelStats allStatsForTaskType = endpointStats.computeIfAbsent(
+            var allStatsForTaskType = endpointStats.computeIfAbsent(
                 new ServiceAndTaskType(Metadata.ALL, taskType).toString(),
                 key -> createEmptyStats(Metadata.ALL, taskType)
             );
-            if (TASK_TYPES_WITH_SEMANTIC_TEXT_SUPPORT.contains(taskType)) {
-                Map<String, List<InferenceFieldMetadata>> inferenceFieldsByIndex = inferenceFieldsByIndexServiceAndTask.entrySet()
-                    .stream()
-                    .filter(e -> e.getKey().taskType == taskType)
-                    .flatMap(m -> m.getValue().entrySet().stream())
-                    .collect(
-                        Collectors.toMap(
-                            Map.Entry::getKey,
-                            Map.Entry::getValue,
-                            (l1, l2) -> Stream.concat(l1.stream(), l2.stream()).toList()
-                        )
-                    );
-                addSemanticTextStats(inferenceFieldsByIndex, allStatsForTaskType);
-            }
+            var inferenceFieldsByIndex = inferenceFieldsByIndexServiceAndTask.entrySet()
+                .stream()
+                .filter(e -> e.getKey().taskType == taskType)
+                .flatMap(m -> m.getValue().entrySet().stream())
+                .collect(
+                    Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue, (l1, l2) -> Stream.concat(l1.stream(), l2.stream()).toList())
+                );
+            addSemanticTextStats(inferenceFieldsByIndex, allStatsForTaskType);
         }
     }
 
@@ -222,12 +212,11 @@ public class TransportInferenceUsageAction extends XPackUsageFeatureTransportAct
     }
 
     /**
-     * Adds stats for default models that are compatible with semantic_text.
-     * In particular, default models are considered models that are associated with default inference
+     * Adds stats for default models. In particular, default models are considered models that are associated with default inference
      * endpoints as per the {@code ModelRegistry}. The service name for default model stats is "_{service}_{modelId}".
      * Each of those stats contains usage for all endpoints that use that model, including non-default endpoints.
      */
-    private void addStatsForDefaultModelsCompatibleWithSemanticText(
+    private void addStatsForDefaultModels(
         Map<ServiceAndTaskType, Map<String, List<InferenceFieldMetadata>>> inferenceFieldsByIndexServiceAndTask,
         List<ModelConfigurations> endpoints,
         Map<String, ModelStats> endpointStats
@@ -235,8 +224,7 @@ public class TransportInferenceUsageAction extends XPackUsageFeatureTransportAct
         Map<String, String> endpointIdToModelId = endpoints.stream()
             .filter(endpoint -> endpoint.getServiceSettings().modelId() != null)
             .collect(Collectors.toMap(ModelConfigurations::getInferenceEntityId, e -> stripLinuxSuffix(e.getServiceSettings().modelId())));
-        Map<DefaultModelStatsKey, Long> defaultModelsToEndpointCount =
-            createStatsKeysWithEndpointCountsForDefaultModelsCompatibleWithSemanticText(endpoints);
+        Map<DefaultModelStatsKey, Long> defaultModelsToEndpointCount = createStatsKeysWithEndpointCountsForDefaultModels(endpoints);
         for (Map.Entry<DefaultModelStatsKey, Long> defaultModelStatsKeyToEndpointCount : defaultModelsToEndpointCount.entrySet()) {
             DefaultModelStatsKey statKey = defaultModelStatsKeyToEndpointCount.getKey();
             Map<String, List<InferenceFieldMetadata>> fieldsByIndex = inferenceFieldsByIndexServiceAndTask.getOrDefault(
@@ -257,15 +245,12 @@ public class TransportInferenceUsageAction extends XPackUsageFeatureTransportAct
         }
     }
 
-    private Map<DefaultModelStatsKey, Long> createStatsKeysWithEndpointCountsForDefaultModelsCompatibleWithSemanticText(
-        List<ModelConfigurations> endpoints
-    ) {
+    private Map<DefaultModelStatsKey, Long> createStatsKeysWithEndpointCountsForDefaultModels(List<ModelConfigurations> endpoints) {
         // We consider models to be default if they are associated with a default inference endpoint.
         // Note that endpoints could have a null model id, in which case we don't consider them default as this
         // may only happen for external services.
-        Set<String> modelIds = endpoints.stream()
-            .filter(endpoint -> TASK_TYPES_WITH_SEMANTIC_TEXT_SUPPORT.contains(endpoint.getTaskType()))
-            .filter(endpoint -> modelRegistry.containsDefaultConfigId(endpoint.getInferenceEntityId()))
+        var modelIds = endpoints.stream()
+            .filter(endpoint -> modelRegistry.containsPreconfiguredInferenceEndpointId(endpoint.getInferenceEntityId()))
             .filter(endpoint -> endpoint.getServiceSettings().modelId() != null)
             .map(endpoint -> stripLinuxSuffix(endpoint.getServiceSettings().modelId()))
             .collect(Collectors.toSet());

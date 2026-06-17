@@ -8,9 +8,11 @@
 package org.elasticsearch.xpack.inference.services.cohere.embeddings;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.test.ESTestCase;
+
+import java.util.EnumSet;
 
 import static org.hamcrest.Matchers.is;
 
@@ -21,48 +23,6 @@ public class CohereEmbeddingTypeTests extends ESTestCase {
     );
     private static final TransportVersion COHERE_BIT_EMBEDDING_TYPE_SUPPORT_ADDED_PATCH = COHERE_BIT_EMBEDDING_TYPE_SUPPORT_ADDED
         .nextPatchVersion();
-
-    public void testTranslateToVersion_ReturnsInt8_WhenVersionIsBeforeByteEnumAddition_WhenSpecifyingByte() {
-        assertThat(
-            CohereEmbeddingType.translateToVersion(CohereEmbeddingType.BYTE, new TransportVersion(8_613_00_0)),
-            is(CohereEmbeddingType.INT8)
-        );
-    }
-
-    public void testTranslateToVersion_ReturnsInt8_WhenVersionIsBeforeByteEnumAddition_WhenSpecifyingInt8() {
-        assertThat(
-            CohereEmbeddingType.translateToVersion(CohereEmbeddingType.INT8, new TransportVersion(8_613_00_0)),
-            is(CohereEmbeddingType.INT8)
-        );
-    }
-
-    public void testTranslateToVersion_ReturnsFloat_WhenVersionIsBeforeByteEnumAddition_WhenSpecifyingFloat() {
-        assertThat(
-            CohereEmbeddingType.translateToVersion(CohereEmbeddingType.FLOAT, new TransportVersion(8_613_00_0)),
-            is(CohereEmbeddingType.FLOAT)
-        );
-    }
-
-    public void testTranslateToVersion_ReturnsByte_WhenVersionOnByteEnumAddition_WhenSpecifyingByte() {
-        assertThat(
-            CohereEmbeddingType.translateToVersion(CohereEmbeddingType.BYTE, TransportVersions.V_8_14_0),
-            is(CohereEmbeddingType.BYTE)
-        );
-    }
-
-    public void testTranslateToVersion_ReturnsFloat_WhenVersionOnByteEnumAddition_WhenSpecifyingFloat() {
-        assertThat(
-            CohereEmbeddingType.translateToVersion(CohereEmbeddingType.FLOAT, TransportVersions.V_8_14_0),
-            is(CohereEmbeddingType.FLOAT)
-        );
-    }
-
-    public void testTranslateToVersion_ReturnsInt8_WhenVersionIsBeforeBitEnumAdditionPatch_WhenSpecifyingBit() {
-        assertThat(
-            CohereEmbeddingType.translateToVersion(CohereEmbeddingType.BIT, new TransportVersion(8_840_0_00)),
-            is(CohereEmbeddingType.INT8)
-        );
-    }
 
     public void testTranslateToVersion_ReturnsInt8_WhenVersionIsBeforeBitEnumAddition_WhenSpecifyingBit() {
         assertThat(
@@ -92,15 +52,26 @@ public class CohereEmbeddingTypeTests extends ESTestCase {
         );
     }
 
-    public void testFromElementType_CovertsFloatToCohereEmbeddingTypeFloat() {
-        assertThat(CohereEmbeddingType.fromElementType(DenseVectorFieldMapper.ElementType.FLOAT), is(CohereEmbeddingType.FLOAT));
+    public void testFromCohereOrElementType_GivenCohereEmbeddingType() {
+        for (var cohereEmbeddingType : CohereEmbeddingType.values()) {
+            var embeddingType = CohereEmbeddingType.fromCohereOrElementType(cohereEmbeddingType.toString());
+            assertThat(embeddingType, is(cohereEmbeddingType));
+        }
     }
 
-    public void testFromElementType_CovertsByteToCohereEmbeddingTypeByte() {
-        assertThat(CohereEmbeddingType.fromElementType(DenseVectorFieldMapper.ElementType.BYTE), is(CohereEmbeddingType.BYTE));
+    public void testFromCohereOrElementType_GivenSupportedElementType() {
+        for (var elementType : CohereEmbeddingType.SUPPORTED_ELEMENT_TYPES) {
+            var embeddingType = CohereEmbeddingType.fromCohereOrElementType(elementType.toString());
+            assertThat(embeddingType.toElementType(), is(elementType));
+        }
     }
 
-    public void testFromElementType_ConvertsBitToCohereEmbeddingTypeBinary() {
-        assertThat(CohereEmbeddingType.fromElementType(DenseVectorFieldMapper.ElementType.BIT), is(CohereEmbeddingType.BIT));
+    public void testFromCohereOrElementType_GivenUnsupportedElementType() {
+        for (var elementType : Sets.difference(
+            EnumSet.allOf(DenseVectorFieldMapper.ElementType.class),
+            CohereEmbeddingType.SUPPORTED_ELEMENT_TYPES
+        )) {
+            expectThrows(IllegalArgumentException.class, () -> CohereEmbeddingType.fromCohereOrElementType(elementType.toString()));
+        }
     }
 }

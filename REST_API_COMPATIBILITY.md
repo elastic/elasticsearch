@@ -39,7 +39,7 @@ The headers mirrors the 4 supported media types for both the `Accept` and `Conte
 "application/vnd.elasticsearch+cbor;compatible-with=7"
 ```
 
-The version request is found in compatible-with=7. When sent to a version 7 server will do nothing special. When sent to a version 8 server will apply compatiblity if needed. When sent to a version 9 server will fail since compatibility is only supported across 1 major version.
+The version request is found in compatible-with=7. When sent to a version 7 server will do nothing special. When sent to a version 8 server will apply compatibility if needed. When sent to a version 9 server will fail since compatibility is only supported across 1 major version.
 
 A consumer/client may not mix "compatible-with" versions between headers. Attempts to mix and match compatible versions between `Accept` and `Content-Type` headers will result in an error.  A consumer/client may mix the media type (i.e. send `yaml` and get back `json`).
 

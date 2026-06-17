@@ -244,14 +244,45 @@ public final class IngestDocument {
      */
     public byte[] getFieldValueAsBytes(String path, boolean ignoreMissing) {
         Object object = getFieldValue(path, Object.class, ignoreMissing);
-        if (object == null) {
+        return getFieldValueAsBytes(path, object);
+    }
+
+    /**
+     * Returns the value contained in the field value as a byte array.
+     * If the field value is a string, a base64 decode operation will happen.
+     * If the field value is a byte array, it is just returned
+     * @param path The path within the document in dot-notation. Only used for the error if the field value is not of the expected type.
+     * @return the byte array of the field value
+     * @throws IllegalArgumentException if the field value is not of the expected type.
+     */
+    public byte[] getFieldValueAsBytes(String path, Object fieldValue) {
+        if (fieldValue == null) {
             return null;
-        } else if (object instanceof byte[] bytes) {
+        } else if (fieldValue instanceof byte[] bytes) {
             return bytes;
-        } else if (object instanceof String string) {
+        } else if (fieldValue instanceof String string) {
             return Base64.getDecoder().decode(string);
         } else {
-            throw new IllegalArgumentException(Errors.notStringOrByteArray(path, object));
+            throw new IllegalArgumentException(Errors.notStringOrByteArray(path, fieldValue));
+        }
+    }
+
+    /**
+     * Returns the raw in-memory size in bytes of a value that {@link #getFieldValueAsBytes(String, Object)} accepts, before any decoding.
+     * @param path The path within the document in dot-notation. Only used for the error if the field value is not of the expected type.
+     * @param fieldValue the resolved field value
+     * @return size in bytes, an integer (because the underlying format can be a byte array or a string)
+     * @throws IllegalArgumentException if the field value is not of the expected type.
+     */
+    public int getFieldValueRawBytesLength(String path, Object fieldValue) {
+        if (fieldValue == null) {
+            return 0;
+        } else if (fieldValue instanceof byte[] bytes) {
+            return bytes.length;
+        } else if (fieldValue instanceof String string) {
+            return string.length(); // one base64 character is assumed to be one byte
+        } else {
+            throw new IllegalArgumentException(Errors.notStringOrByteArray(path, fieldValue));
         }
     }
 
@@ -879,7 +910,9 @@ public final class IngestDocument {
                 if (object == NOT_FOUND) {
                     List<Object> list = new ArrayList<>();
                     appendValues(list, value, allowDuplicates, ignoreEmptyValues);
-                    map.put(leafKey, list);
+                    if (list.isEmpty() == false) {
+                        map.put(leafKey, list);
+                    }
                 } else {
                     Object list = appendValues(object, value, allowDuplicates, ignoreEmptyValues);
                     if (list != object) {
@@ -897,7 +930,9 @@ public final class IngestDocument {
                 if (object == NOT_FOUND) {
                     List<Object> list = new ArrayList<>();
                     appendValues(list, value, allowDuplicates, ignoreEmptyValues);
-                    map.put(leafKey, list);
+                    if (list.isEmpty() == false) {
+                        map.put(leafKey, list);
+                    }
                 } else {
                     Object list = appendValues(object, value, allowDuplicates, ignoreEmptyValues);
                     if (list != object) {
@@ -949,49 +984,24 @@ public final class IngestDocument {
             list = new ArrayList<>();
             list.add(maybeList);
         }
-        if (allowDuplicates) {
-            innerAppendValues(list, value, ignoreEmptyValues);
-            return list;
-        } else {
-            // if no values were appended due to duplication, return the original object so the ingest document remains unmodified
-            return innerAppendValuesWithoutDuplicates(list, value, ignoreEmptyValues) ? list : maybeList;
-        }
-    }
 
-    // helper method for use in appendValues above, please do not call this directly except from that method
-    private static void innerAppendValues(List<Object> list, Object value, boolean ignoreEmptyValues) {
-        if (value instanceof List<?> l) {
-            if (ignoreEmptyValues) {
-                l.forEach((v) -> {
-                    if (valueNotEmpty(v)) {
-                        list.add(v);
-                    }
-                });
-            } else {
-                list.addAll(l);
-            }
-        } else if (ignoreEmptyValues == false || valueNotEmpty(value)) {
-            list.add(value);
-        }
-    }
-
-    // helper method for use in appendValues above, please do not call this directly except from that method
-    private static boolean innerAppendValuesWithoutDuplicates(List<Object> list, Object value, boolean ignoreEmptyValues) {
         boolean valuesWereAppended = false;
         if (value instanceof List<?> valueList) {
             for (Object val : valueList) {
-                if (list.contains(val) == false && (ignoreEmptyValues == false || valueNotEmpty(val))) {
+                if ((allowDuplicates || list.contains(val) == false) && (ignoreEmptyValues == false || valueNotEmpty(val))) {
                     list.add(val);
                     valuesWereAppended = true;
                 }
             }
         } else {
-            if (list.contains(value) == false && (ignoreEmptyValues == false || valueNotEmpty(value))) {
+            if ((allowDuplicates || list.contains(value) == false) && (ignoreEmptyValues == false || valueNotEmpty(value))) {
                 list.add(value);
                 valuesWereAppended = true;
             }
         }
-        return valuesWereAppended;
+
+        // if no values were appended due to duplication/empties, return the original object so the ingest document remains unmodified
+        return valuesWereAppended ? list : maybeList;
     }
 
     private static boolean valueNotEmpty(Object value) {
@@ -1304,7 +1314,7 @@ public final class IngestDocument {
     }
 
     // Unconditionally deprecate the _type field once V7 BWC support is removed
-    @UpdateForV10(owner = UpdateForV10.Owner.DATA_MANAGEMENT)
+    @UpdateForV10(owner = UpdateForV10.Owner.DISTRIBUTED)
     public enum Metadata {
         INDEX(IndexFieldMapper.NAME),
         TYPE("_type"),

@@ -47,4 +47,8 @@ The following are the *expert-level* settings available for configuring an inter
 `health.periodic_logger.poll_interval`
 :   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting), [time unit value](/reference/elasticsearch/rest-apis/api-conventions.md#time-units)) How often {{es}} logs the health status of the cluster and of each health indicator as observed by the Health API. Defaults to `60s` (60 seconds).
 
+`health.shard_capacity.unhealthy_threshold.yellow` {applies_to}`stack: ga 9.3`
+:   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) The minimum number of additional shards the cluster must still be able to allocate (on data or frozen nodes) for shard capacity health to remain `GREEN`. If fewer are available, health becomes `YELLOW`. Must be greater than `health.shard_capacity.unhealthy_threshold.red`. Defaults to `10`.
 
+`health.shard_capacity.unhealthy_threshold.red` {applies_to}`stack: ga 9.3`
+:   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) The minimum number of additional shards the cluster must still be able to allocate (on data or frozen nodes) below which shard capacity health becomes `RED`. Must be less than `health.shard_capacity.unhealthy_threshold.yellow`. Defaults to `5`.

@@ -25,6 +25,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -163,11 +164,16 @@ public abstract class TransportVersionResourcesService implements BuildService<T
             definition.ids().stream().map(Object::toString).collect(Collectors.joining(",")) + "\n",
             StandardCharsets.UTF_8
         );
+        gitCommand("add", path.toString());
+        changedResources.set(null);
     }
 
     void deleteReferableDefinition(String name) throws IOException {
         Path path = transportResourcesDir.resolve(getDefinitionRelativePath(name, true));
-        Files.deleteIfExists(path);
+        if (Files.deleteIfExists(path)) {
+            gitCommand("rm", "--ignore-unmatch", path.toString());
+            changedResources.set(null);
+        }
     }
 
     /** Return all unreferable definitions, mapped by their name. */
@@ -240,14 +246,13 @@ public abstract class TransportVersionResourcesService implements BuildService<T
     }
 
     /** Write the given upper bound to a file in the transport resources */
-    void writeUpperBound(TransportVersionUpperBound upperBound, boolean stageInGit) throws IOException {
+    void writeUpperBound(TransportVersionUpperBound upperBound) throws IOException {
         Path path = transportResourcesDir.resolve(getUpperBoundRelativePath(upperBound.name()));
         logger.debug("Writing upper bound [" + upperBound + "] to [" + path + "]");
         Files.writeString(path, upperBound.definitionName() + "," + upperBound.definitionId().complete() + "\n", StandardCharsets.UTF_8);
 
-        if (stageInGit) {
-            gitCommand("add", path.toString());
-        }
+        gitCommand("add", path.toString());
+        changedResources.set(null);
     }
 
     /** Return the path within the repository of the given latest */
@@ -259,14 +264,41 @@ public abstract class TransportVersionResourcesService implements BuildService<T
         return UPPER_BOUNDS_DIR.resolve(name + ".csv");
     }
 
+    boolean hasCherryPickConflicts() {
+        if (refExists("CHERRY_PICK_HEAD") == false) {
+            return false;
+        }
+        return gitCommand("diff", "--name-only", "--diff-filter=U", transportResourcesDir.toString()).strip().isEmpty() == false;
+    }
+
+    void checkoutOriginalChange() {
+        gitCommand("checkout", "--theirs", transportResourcesDir.toString());
+        gitCommand("add", transportResourcesDir.toString());
+        changedResources.set(null);
+    }
+
+    boolean checkIfDefinitelyOnReleaseBranch(Collection<TransportVersionUpperBound> upperBounds, String currentUpperBoundName) {
+        // only want to look at definitions <= the current upper bound.
+        // TODO: we should filter all of the upper bounds/definitions that are validated by this, not just in this method
+        TransportVersionUpperBound currentUpperBound = upperBounds.stream()
+            .filter(u -> u.name().equals(currentUpperBoundName))
+            .findFirst()
+            .orElse(null);
+        if (currentUpperBound == null) {
+            // since there is no current upper bound, we don't know if we are on a release branch
+            return false;
+        }
+        return upperBounds.stream().anyMatch(u -> u.definitionId().complete() > currentUpperBound.definitionId().complete());
+    }
+
     private String getBaseRefName() {
         if (baseRefName.get() == null) {
             synchronized (baseRefName) {
                 String refName;
-                // the existence of the MERGE_HEAD ref means we are in the middle of a merge, and should use that as our base
-                String gitDir = gitCommand("rev-parse", "--git-dir").strip();
-                if (Files.exists(Path.of(gitDir).resolve("MERGE_HEAD"))) {
+                if (refExists("MERGE_HEAD")) {
                     refName = gitCommand("rev-parse", "--verify", "MERGE_HEAD").strip();
+                } else if (refExists("CHERRY_PICK_HEAD")) {
+                    refName = gitCommand("rev-parse", "--verify", "CHERRY_PICK_HEAD").strip();
                 } else {
                     String upstreamRef = findUpstreamRef();
                     refName = gitCommand("merge-base", upstreamRef, "HEAD").strip();
@@ -284,6 +316,16 @@ public abstract class TransportVersionResourcesService implements BuildService<T
             logger.warn("No remotes found. Using 'main' branch as upstream ref for transport version resources");
             return "main";
         }
+        // default the branch name to look at to that which a PR in CI is targeting
+        String branchName = System.getenv("BUILDKITE_PULL_REQUEST_BASE_BRANCH");
+        if (branchName == null || branchName.strip().isEmpty()) {
+            // fallback to the local branch being tested in CI
+            branchName = System.getenv("BUILDKITE_BRANCH");
+            if (branchName == null || branchName.strip().isEmpty()) {
+                // fallback to main if we aren't in CI
+                branchName = "main";
+            }
+        }
         List<String> remoteNames = List.of(remotesOutput.split("\n"));
         if (remoteNames.contains(UPSTREAM_REMOTE_NAME) == false) {
             // our special remote doesn't exist yet, so create it
@@ -299,14 +341,14 @@ public abstract class TransportVersionResourcesService implements BuildService<T
                 gitCommand("remote", "add", UPSTREAM_REMOTE_NAME, upstreamUrl);
             } else {
                 logger.warn("No elastic github remotes found to copy. Using 'main' branch as upstream ref for transport version resources");
-                return "main";
+                return branchName;
             }
         }
 
         // make sure the remote main ref is up to date
-        gitCommand("fetch", UPSTREAM_REMOTE_NAME, "main");
+        gitCommand("fetch", UPSTREAM_REMOTE_NAME, branchName);
 
-        return UPSTREAM_REMOTE_NAME + "/main";
+        return UPSTREAM_REMOTE_NAME + "/" + branchName;
     }
 
     // Return the transport version resources paths that exist in upstream
@@ -369,6 +411,12 @@ public abstract class TransportVersionResourcesService implements BuildService<T
 
         String content = gitCommand("show", getBaseRefName() + ":./" + pathString).strip();
         return parser.apply(resourcePath, content);
+    }
+
+    private boolean refExists(String refName) {
+        // the existence of the MERGE_HEAD/CHERRY_PICK_HEAD ref means we are in the middle of a merge/cherry-pick
+        String gitDir = gitCommand("rev-parse", "--git-dir").strip();
+        return Files.exists(Path.of(gitDir).resolve(refName));
     }
 
     private static Map<String, TransportVersionDefinition> readDefinitions(Path dir, boolean isReferable) throws IOException {

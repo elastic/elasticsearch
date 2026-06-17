@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 146801
+summary: Enable ES|QL EMBEDDING function for calculating dense vector embeddings on multimodal input
+type: feature

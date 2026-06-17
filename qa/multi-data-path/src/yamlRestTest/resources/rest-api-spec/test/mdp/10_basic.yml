@@ -2,7 +2,7 @@
 "Index using shared data path":
 
   - requires:
-      test_runner_features: ["warnings"]
+      test_runner_features: ["warnings", "allowed_warnings"]
 
   - do:
       warnings:
@@ -29,3 +29,9 @@
         op_type:  index
 
   - match:   { result: updated }
+
+  - do:
+      allowed_warnings:
+        - "[index.data_path] setting was deprecated in Elasticsearch and will be removed in a future release. See the deprecation documentation for the next major version."
+      indices.delete:
+        index: test_index

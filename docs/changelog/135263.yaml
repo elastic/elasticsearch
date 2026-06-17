@@ -1,5 +1,0 @@
-pr: 135263
-summary: Optimize `dotCount` in expanding dot parser
-area: "Mapping"
-type: enhancement
-issues: []

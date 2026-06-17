@@ -91,7 +91,7 @@ public class ScriptScoreQueryTests extends ESTestCase {
             return 1.0;
         });
 
-        ScriptScoreQuery query = createScriptScoreQuery(Queries.newMatchAllQuery(), script, factory);
+        ScriptScoreQuery query = createScriptScoreQuery(Queries.ALL_DOCS_INSTANCE, script, factory);
         Weight weight = query.createWeight(searcher, ScoreMode.COMPLETE, 1.0f);
         Explanation explanation = weight.explain(leafReaderContext, 0);
         assertNotNull(explanation);
@@ -103,7 +103,7 @@ public class ScriptScoreQueryTests extends ESTestCase {
         Script script = new Script("script without setting explanation");
         ScoreScript.LeafFactory factory = newFactory(script, true, false, explanation -> 1.5);
 
-        ScriptScoreQuery query = createScriptScoreQuery(Queries.newMatchAllQuery(), script, factory);
+        ScriptScoreQuery query = createScriptScoreQuery(Queries.ALL_DOCS_INSTANCE, script, factory);
         Weight weight = query.createWeight(searcher, ScoreMode.COMPLETE, 1.0f);
         Explanation explanation = weight.explain(leafReaderContext, 0);
         assertNotNull(explanation);
@@ -119,7 +119,7 @@ public class ScriptScoreQueryTests extends ESTestCase {
         Script script = new Script("script without setting explanation and no score");
         ScoreScript.LeafFactory factory = newFactory(script, false, false, explanation -> 2.0);
 
-        ScriptScoreQuery query = createScriptScoreQuery(Queries.newMatchAllQuery(), script, factory);
+        ScriptScoreQuery query = createScriptScoreQuery(Queries.ALL_DOCS_INSTANCE, script, factory);
         Weight weight = query.createWeight(searcher, ScoreMode.COMPLETE, 1.0f);
         Explanation explanation = weight.explain(leafReaderContext, 0);
         assertNotNull(explanation);
@@ -133,7 +133,7 @@ public class ScriptScoreQueryTests extends ESTestCase {
     public void testScriptScoreErrorOnNegativeScore() {
         Script script = new Script("script that returns a negative score");
         ScoreScript.LeafFactory factory = newFactory(script, false, false, explanation -> -1000.0);
-        ScriptScoreQuery query = createScriptScoreQuery(Queries.newMatchAllQuery(), script, factory);
+        ScriptScoreQuery query = createScriptScoreQuery(Queries.ALL_DOCS_INSTANCE, script, factory);
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> searcher.search(query, 1));
         assertTrue(e.getMessage().contains("Must be a non-negative score!"));

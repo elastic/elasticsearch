@@ -140,7 +140,7 @@ public class NormalizeForStreamProcessor extends AbstractProcessor {
                 }
             }
         } catch (Exception e) {
-            log.warn("Failed to parse structured message, keeping it as a string in 'body.text' field: {}", e.getMessage());
+            log.debug("Failed to parse structured message, keeping it as a string in 'body.text' field", e);
         }
 
         Map<String, Object> newAttributes = new HashMap<>();

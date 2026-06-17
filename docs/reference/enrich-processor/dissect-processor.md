@@ -43,6 +43,7 @@ and result in a document with the following fields:
   }
 }
 ```
+% NOTCONSOLE
 
 A dissect pattern is defined by the parts of the string that will be discarded. In the previous example, the first part to be discarded is a single space. Dissect finds this space, then assigns the value of `clientip` everything up until that space. Next, dissect matches the `[` and then `]` and then assigns `@timestamp` to everything in-between `[` and `]`. Paying special attention to the parts of the string to discard will help build successful dissect patterns.
 
@@ -72,6 +73,7 @@ $$$dissect-options$$$
    }
 }
 ```
+% NOTCONSOLE
 
 ## Dissect key modifiers [dissect-key-modifiers]
 

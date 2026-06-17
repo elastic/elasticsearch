@@ -17,40 +17,46 @@ import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.FieldDoc;
+import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchType;
-import org.elasticsearch.cluster.routing.IndexRouting;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.IndexVersions;
+import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.IndexOrdinalsFieldData;
+import org.elasticsearch.index.fielddata.fieldcomparator.LongValuesComparatorSource;
 import org.elasticsearch.index.mapper.IdLoader;
-import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.Mapper;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.NestedLookup;
+import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.index.query.TermQueryBuilder;
+import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.index.search.NestedHelper;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.store.Store;
+import org.elasticsearch.index.store.StoreMetrics;
 import org.elasticsearch.search.aggregations.SearchContextAggregations;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -85,14 +91,15 @@ import org.elasticsearch.tasks.CancellableTask;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
-import java.util.TreeSet;
+import java.util.Objects;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.function.LongSupplier;
+import java.util.function.Supplier;
 import java.util.function.ToLongFunction;
 
 import static org.elasticsearch.search.SearchService.DEFAULT_SIZE;
@@ -107,6 +114,8 @@ final class DefaultSearchContext extends SearchContext {
     private final IndexShard indexShard;
     private final IndexService indexService;
     private final ContextIndexSearcher searcher;
+    @Nullable
+    private StoreMetricsAwareExecutor metricsAwareExecutor;
     private final long memoryAccountingBufferSize;
     private DfsSearchResult dfsResult;
     private QuerySearchResult queryResult;
@@ -174,7 +183,9 @@ final class DefaultSearchContext extends SearchContext {
         SearchService.ResultsType resultsType,
         boolean enableQueryPhaseParallelCollection,
         int minimumDocsPerSlice,
-        long memoryAccountingBufferSize
+        long memoryAccountingBufferSize,
+        @Nullable CircuitBreaker circuitBreaker,
+        @Nullable Supplier<StoreMetrics> currentThreadStoreMetrics
     ) throws IOException {
         this.readerContext = readerContext;
         this.request = request;
@@ -195,7 +206,8 @@ final class DefaultSearchContext extends SearchContext {
                 enableQueryPhaseParallelCollection,
                 field -> getFieldCardinality(field, readerContext.indexService(), engineSearcher.getDirectoryReader())
             );
-            if (executor == null || maximumNumberOfSlices <= 1) {
+            boolean searcherRequiresExecutor = executor != null && maximumNumberOfSlices > 1;
+            if (searcherRequiresExecutor == false) {
                 this.searcher = new ContextIndexSearcher(
                     engineSearcher.getIndexReader(),
                     engineSearcher.getSimilarity(),
@@ -204,6 +216,12 @@ final class DefaultSearchContext extends SearchContext {
                     lowLevelCancellation
                 );
             } else {
+                boolean trackExecutorBytesRead = Store.DIRECTORY_METRICS_FEATURE_FLAG.isEnabled();
+                if (trackExecutorBytesRead) {
+                    this.metricsAwareExecutor = new StoreMetricsAwareExecutor(executor, currentThreadStoreMetrics);
+                    executor = this.metricsAwareExecutor;
+                }
+
                 this.searcher = new ContextIndexSearcher(
                     engineSearcher.getIndexReader(),
                     engineSearcher.getSimilarity(),
@@ -218,15 +236,21 @@ final class DefaultSearchContext extends SearchContext {
             closeFuture.addListener(ActionListener.releasing(Releasables.wrap(engineSearcher, searcher)));
             this.relativeTimeSupplier = relativeTimeSupplier;
             this.timeout = timeout;
-            searchExecutionContext = indexService.newSearchExecutionContext(
+            SearchExecutionContext baseContext = indexService.newSearchExecutionContext(
                 request.shardId().id(),
                 request.shardRequestIndex(),
                 searcher,
                 request::nowInMillis,
                 shardTarget.getClusterAlias(),
                 request.getRuntimeMappings(),
-                request.source() == null ? null : request.source().size()
+                request.source() == null ? null : request.source().size(),
+                indexShard.shardSearchStats()
             );
+            searchExecutionContext = circuitBreaker != null ? new SearchExecutionContext(baseContext, circuitBreaker) : baseContext;
+            if (searchExecutionContext != null) {
+                final String requestSliceRouting = request.sliceRouting();
+                searchExecutionContext.setSliceRouting(SliceIndexing.SLICE_ALL.equals(requestSliceRouting) ? null : requestSliceRouting);
+            }
             queryBoost = request.indexBoost();
             this.lowLevelCancellation = lowLevelCancellation;
             success = true;
@@ -237,6 +261,11 @@ final class DefaultSearchContext extends SearchContext {
         }
     }
 
+    @Override
+    public long getWorkerThreadsBytesRead() {
+        return metricsAwareExecutor == null ? 0L : metricsAwareExecutor.workerBytesRead();
+    }
+
     static long getFieldCardinality(String field, IndexService indexService, DirectoryReader directoryReader) {
         MappedFieldType mappedFieldType = indexService.mapperService().fieldType(field);
         if (mappedFieldType == null) {
@@ -244,7 +273,10 @@ final class DefaultSearchContext extends SearchContext {
         }
         IndexFieldData<?> indexFieldData;
         try {
-            indexFieldData = indexService.loadFielddata(mappedFieldType, FieldDataContext.noRuntimeFields("field cardinality"));
+            indexFieldData = indexService.loadFielddata(
+                mappedFieldType,
+                FieldDataContext.noRuntimeFields(indexService.index().getName(), "field cardinality")
+            );
         } catch (Exception e) {
             // loading fielddata for runtime fields will fail, that's ok
             return -1;
@@ -470,6 +502,10 @@ final class DefaultSearchContext extends SearchContext {
                 filters.add(slicedQuery);
             }
         }
+        final Query sliceRoutingFilter = buildSliceRoutingFilter(searchExecutionContext.getSliceRouting());
+        if (sliceRoutingFilter != null) {
+            filters.add(sliceRoutingFilter);
+        }
 
         if (filters.isEmpty()) {
             return query;
@@ -480,6 +516,28 @@ final class DefaultSearchContext extends SearchContext {
                 builder.add(filter, Occur.FILTER);
             }
             return builder.build();
+        }
+    }
+
+    @Nullable
+    private Query buildSliceRoutingFilter(@Nullable String sliceRouting) {
+        if (sliceRouting == null) {
+            return null;
+        }
+        final List<String> sliceTerms = Arrays.stream(Strings.splitStringByCommaToArray(sliceRouting))
+            .map(String::trim)
+            .filter(value -> value.isEmpty() == false)
+            .toList();
+        if (sliceTerms.isEmpty()) {
+            return new MatchNoDocsQuery("empty [_slice] routing");
+        }
+        final QueryBuilder sliceFilterQuery = sliceTerms.size() == 1
+            ? new TermQueryBuilder(RoutingFieldMapper.NAME, sliceTerms.get(0))
+            : new TermsQueryBuilder(RoutingFieldMapper.NAME, sliceTerms);
+        try {
+            return sliceFilterQuery.toQuery(searchExecutionContext);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
         }
     }
 
@@ -777,6 +835,33 @@ final class DefaultSearchContext extends SearchContext {
     }
 
     @Override
+    public Query rewrittenQuery() {
+        Query query = super.rewrittenQuery();
+        maybeMarkAsMatchTail();
+        return query;
+    }
+
+    private void maybeMarkAsMatchTail() {
+        if (rewriteQuery instanceof MatchAllDocsQuery == false || this.searchAfter() != null || this.size == 0) {
+            return;
+        }
+        if (indexService.getIndexSettings().getIndexSortConfig().containsDescendingTimestampSort() == false) {
+            return;
+        }
+        SortAndFormats sort = sort();
+        if (sort == null) {
+            return;
+        }
+        SortField primarySort = sort.sort.getSort()[0];
+        if (primarySort.getReverse() || Objects.equals(primarySort.getField(), "@timestamp") == false) {
+            return;
+        }
+        if (primarySort.getComparatorSource() instanceof LongValuesComparatorSource source) {
+            source.setMatchTailQuery();
+        }
+    }
+
+    @Override
     public int from() {
         return from;
     }
@@ -950,30 +1035,7 @@ final class DefaultSearchContext extends SearchContext {
 
     @Override
     public IdLoader newIdLoader() {
-        if (indexService.getIndexSettings().getMode() == IndexMode.TIME_SERIES) {
-            IndexRouting.ExtractFromSource.ForRoutingPath indexRouting = null;
-            List<String> routingPaths = null;
-            if (indexService.getIndexSettings().getIndexVersionCreated().before(IndexVersions.TIME_SERIES_ROUTING_HASH_IN_ID)) {
-                indexRouting = (IndexRouting.ExtractFromSource.ForRoutingPath) indexService.getIndexSettings().getIndexRouting();
-                routingPaths = indexService.getMetadata().getRoutingPaths();
-                for (String routingField : routingPaths) {
-                    if (routingField.contains("*")) {
-                        // In case the routing fields include path matches, find any matches and add them as distinct fields
-                        // to the routing path.
-                        Set<String> matchingRoutingPaths = new TreeSet<>(routingPaths);
-                        for (Mapper mapper : indexService.mapperService().mappingLookup().fieldMappers()) {
-                            if (mapper instanceof KeywordFieldMapper && indexRouting.matchesField(mapper.fullPath())) {
-                                matchingRoutingPaths.add(mapper.fullPath());
-                            }
-                        }
-                        routingPaths = new ArrayList<>(matchingRoutingPaths);
-                        break;
-                    }
-                }
-            }
-            return IdLoader.createTsIdLoader(indexRouting, routingPaths);
-        } else {
-            return IdLoader.fromLeafStoredFieldLoader();
-        }
+        MapperService mapperService = indexService.mapperService();
+        return IdLoader.create(mapperService.getIndexSettings(), mapperService.mappingLookup());
     }
 }

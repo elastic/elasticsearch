@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.scalar.internal.PackDimension;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.plan.GeneratingPlan;
 
@@ -36,7 +37,14 @@ import static org.elasticsearch.xpack.esql.common.Failure.fail;
 import static org.elasticsearch.xpack.esql.core.expression.Expressions.asAttributes;
 import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputAttributes;
 
-public class Eval extends UnaryPlan implements GeneratingPlan<Eval>, PostAnalysisVerificationAware, TelemetryAware, SortAgnostic {
+public class Eval extends UnaryPlan
+    implements
+        GeneratingPlan<Eval>,
+        PostAnalysisVerificationAware,
+        TelemetryAware,
+        Streaming,
+        SortAgnostic,
+        SortPreserving {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(LogicalPlan.class, "Eval", Eval::new);
 
     private final List<Alias> fields;
@@ -167,7 +175,7 @@ public class Eval extends UnaryPlan implements GeneratingPlan<Eval>, PostAnalysi
         fields.forEach(field -> {
             // check supported types
             DataType dataType = field.dataType();
-            if (DataType.isRepresentable(dataType) == false) {
+            if (DataType.isRepresentable(dataType) == false && (Alias.unwrap(field) instanceof PackDimension == false)) {
                 failures.add(
                     fail(
                         field,

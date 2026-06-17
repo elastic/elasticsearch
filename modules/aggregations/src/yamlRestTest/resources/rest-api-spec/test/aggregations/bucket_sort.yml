@@ -534,6 +534,63 @@ invalid path fails:
                       - garbage
 
 ---
+missing bucket key at runtime applies gap_policy=skip:
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_search
+          capabilities: [ bucket_sort_null_handles_missing_bucket ]
+      test_runner_features: [capabilities]
+      reason: "previously NPE'd; now treated as a missing value subject to gap_policy"
+  - do:
+      search:
+        body:
+          aggs:
+            timestamp:
+              date_histogram:
+                field: "@timestamp"
+                fixed_interval: 1h
+              aggs:
+                inner_terms:
+                  terms:
+                    field: g
+                sort:
+                  bucket_sort:
+                    sort:
+                      - "inner_terms['nonexistent']._count": desc
+
+  - length: { aggregations.timestamp.buckets: 0 }
+
+---
+missing bucket key at runtime applies gap_policy=insert_zeros:
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_search
+          capabilities: [ bucket_sort_null_handles_missing_bucket ]
+      test_runner_features: [capabilities]
+      reason: "previously NPE'd; now treated as a missing value subject to gap_policy"
+  - do:
+      search:
+        body:
+          aggs:
+            timestamp:
+              date_histogram:
+                field: "@timestamp"
+                fixed_interval: 1h
+              aggs:
+                inner_terms:
+                  terms:
+                    field: g
+                sort:
+                  bucket_sort:
+                    gap_policy: insert_zeros
+                    sort:
+                      - "inner_terms['nonexistent']._count": desc
+
+  - length: { aggregations.timestamp.buckets: 3 }
+
+---
 top level fails:
   - do:
       catch: /bucket_sort aggregation \[bad\] must be declared inside of another aggregation/
@@ -552,3 +609,30 @@ top level fails:
               bucket_sort:
                 sort:
                   - timestamp>v
+
+---
+invalid parent aggregation:
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_search
+          capabilities: [ pipeline_aggs_parent_multi_bucket_error ]
+      test_runner_features: [capabilities]
+      reason: "changed error 500 to 400"
+  - do:
+      catch: /Expected a multi bucket aggregation but got \[InternalFilter\] for aggregation \[d\]/
+      search:
+        body:
+          aggs:
+            a:
+              filter:
+                term:
+                  a: 1
+              aggs:
+                b:
+                  sum:
+                    field: b
+                d:
+                  bucket_sort:
+                    sort:
+                      - b: asc

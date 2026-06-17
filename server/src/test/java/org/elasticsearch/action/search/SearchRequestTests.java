@@ -10,13 +10,13 @@
 package org.elasticsearch.action.search;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.util.ArrayUtils;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.TermQueryBuilder;
@@ -62,6 +62,7 @@ public class SearchRequestTests extends AbstractSearchTestCase {
             new TaskId("node", 1),
             request,
             request.indices(),
+            request.indicesOptions(),
             randomAlphaOfLengthBetween(5, 10),
             randomNonNegativeLong(),
             randomBoolean()
@@ -72,23 +73,42 @@ public class SearchRequestTests extends AbstractSearchTestCase {
         final TaskId taskId = new TaskId("n", 1);
         expectThrows(
             NullPointerException.class,
-            () -> SearchRequest.subSearchRequest(taskId, null, Strings.EMPTY_ARRAY, "", 0, randomBoolean())
+            () -> SearchRequest.subSearchRequest(
+                taskId,
+                null,
+                Strings.EMPTY_ARRAY,
+                SearchRequest.DEFAULT_INDICES_OPTIONS,
+                "",
+                0,
+                randomBoolean()
+            )
         );
         SearchRequest request = new SearchRequest();
-        expectThrows(NullPointerException.class, () -> SearchRequest.subSearchRequest(taskId, request, null, "", 0, randomBoolean()));
         expectThrows(
             NullPointerException.class,
-            () -> SearchRequest.subSearchRequest(taskId, request, new String[] { null }, "", 0, randomBoolean())
+            () -> SearchRequest.subSearchRequest(taskId, request, null, request.indicesOptions(), "", 0, randomBoolean())
         );
         expectThrows(
             NullPointerException.class,
-            () -> SearchRequest.subSearchRequest(taskId, request, Strings.EMPTY_ARRAY, null, 0, randomBoolean())
+            () -> SearchRequest.subSearchRequest(taskId, request, new String[] { null }, request.indicesOptions(), "", 0, randomBoolean())
+        );
+        expectThrows(
+            NullPointerException.class,
+            () -> SearchRequest.subSearchRequest(taskId, request, Strings.EMPTY_ARRAY, request.indicesOptions(), null, 0, randomBoolean())
         );
         expectThrows(
             IllegalArgumentException.class,
-            () -> SearchRequest.subSearchRequest(taskId, request, Strings.EMPTY_ARRAY, "", -1, randomBoolean())
+            () -> SearchRequest.subSearchRequest(taskId, request, Strings.EMPTY_ARRAY, request.indicesOptions(), "", -1, randomBoolean())
         );
-        SearchRequest searchRequest = SearchRequest.subSearchRequest(taskId, request, Strings.EMPTY_ARRAY, "", 0, randomBoolean());
+        SearchRequest searchRequest = SearchRequest.subSearchRequest(
+            taskId,
+            request,
+            Strings.EMPTY_ARRAY,
+            request.indicesOptions(),
+            "",
+            0,
+            randomBoolean()
+        );
         assertNull(searchRequest.validate());
     }
 
@@ -106,15 +126,7 @@ public class SearchRequestTests extends AbstractSearchTestCase {
 
     public void testRandomVersionSerialization() throws IOException {
         SearchRequest searchRequest = createSearchRequest();
-        TransportVersion version = TransportVersionUtils.randomVersion(random());
-        if (version.before(TransportVersions.V_8_8_0) && searchRequest.source() != null) {
-            // Versions before 8.8 don't support rank
-            searchRequest.source().rankBuilder(null);
-        }
-        if (version.before(TransportVersions.V_8_9_X) && searchRequest.source() != null) {
-            // Versions before 8_500_999 don't support queries
-            searchRequest.source().subSearches(new ArrayList<>());
-        }
+        TransportVersion version = TransportVersionUtils.randomVersion();
         SearchRequest deserializedRequest = copyWriteable(searchRequest, namedWriteableRegistry, SearchRequest::new, version);
         assertEquals(searchRequest.isCcsMinimizeRoundtrips(), deserializedRequest.isCcsMinimizeRoundtrips());
         assertEquals(searchRequest.getLocalClusterAlias(), deserializedRequest.getLocalClusterAlias());
@@ -215,12 +227,7 @@ public class SearchRequestTests extends AbstractSearchTestCase {
             searchRequest.allowPartialSearchResults(true);
             searchRequest.scroll(null);
             ActionRequestValidationException validationErrors = searchRequest.validate();
-            assertNotNull(validationErrors);
-            assertEquals(1, validationErrors.validationErrors().size());
-            assertEquals(
-                "cannot specify [test_compound_retriever_builder] and [allow_partial_search_results]",
-                validationErrors.validationErrors().get(0)
-            );
+            assertNull(validationErrors);
         }
         {
             // scroll and compound retriever
@@ -524,6 +531,14 @@ public class SearchRequestTests extends AbstractSearchTestCase {
             assertEquals(1, validationErrors.validationErrors().size());
             assertEquals("[routing] cannot be used with point in time", validationErrors.validationErrors().get(0));
         }
+        if (SliceIndexing.SLICE_FEATURE_FLAG.isEnabled()) {
+            SearchRequest searchRequest = new SearchRequest().searchSlice("slice-1")
+                .source(new SearchSourceBuilder().pointInTimeBuilder(new PointInTimeBuilder(BytesArray.EMPTY)));
+            ActionRequestValidationException validationErrors = searchRequest.validate();
+            assertNotNull(validationErrors);
+            assertEquals(1, validationErrors.validationErrors().size());
+            assertEquals("[_slice] cannot be used with point in time", validationErrors.validationErrors().get(0));
+        }
         {
             SearchRequest searchRequest = new SearchRequest().preference("pref1")
                 .source(new SearchSourceBuilder().pointInTimeBuilder(new PointInTimeBuilder(BytesArray.EMPTY)));
@@ -532,6 +547,33 @@ public class SearchRequestTests extends AbstractSearchTestCase {
             assertEquals(1, validationErrors.validationErrors().size());
             assertEquals("[preference] cannot be used with point in time", validationErrors.validationErrors().get(0));
         }
+    }
+
+    public void testSearchSliceDerivesRoutingAndProvenance() {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        SearchRequest request = new SearchRequest();
+        request.routing("manual");
+        request.searchSlice("s1,s2");
+        assertEquals("s1,s2", request.searchSlice());
+        assertEquals("s1,s2", request.routing());
+        assertTrue(request.isRoutingFromSlice());
+
+        request.searchSlice(SliceIndexing.SLICE_ALL);
+        assertEquals(SliceIndexing.SLICE_ALL, request.searchSlice());
+        assertNull(request.routing());
+        assertTrue(request.isRoutingFromSlice());
+    }
+
+    public void testClearingSearchSliceClearsDerivedRouting() {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        SearchRequest request = new SearchRequest().searchSlice("s1");
+        request.searchSlice(null);
+        assertNull(request.searchSlice());
+        assertFalse(request.isRoutingFromSlice());
+        assertNull(request.routing());
+
+        request.routing("manual");
+        assertEquals("manual", request.routing());
     }
 
     public void testCopyConstructor() throws IOException {
@@ -602,5 +644,16 @@ public class SearchRequestTests extends AbstractSearchTestCase {
 
     private String toDescription(SearchRequest request) {
         return request.createTask(0, "test", TransportSearchAction.TYPE.name(), TaskId.EMPTY_TASK_ID, emptyMap()).getDescription();
+    }
+
+    public void testClearProjectRoutingAllowsValidationWithPointInTime() {
+        SearchRequest request = new SearchRequest();
+        request.source(new SearchSourceBuilder());
+        request.source().pointInTimeBuilder(new PointInTimeBuilder(new BytesArray("pit-id")));
+        request.setProjectRouting("_origin");
+        assertNotNull(request.validate());
+
+        request.clearProjectRouting();
+        assertNull(request.validate());
     }
 }

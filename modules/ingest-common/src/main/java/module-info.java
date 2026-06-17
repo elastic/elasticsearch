@@ -14,8 +14,9 @@ module org.elasticsearch.ingest.common {
     requires org.elasticsearch.painless.spi;
     requires org.elasticsearch.server;
     requires org.elasticsearch.xcontent;
+    requires org.elasticsearch.web;
+    requires org.elasticsearch.useragent.api;
 
-    requires org.apache.httpcomponents.httpclient;
     requires org.apache.logging.log4j;
     requires org.apache.lucene.analysis.common;
     requires org.jruby.joni;

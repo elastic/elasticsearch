@@ -7,8 +7,13 @@ navigation_title: "Query log"
 
 # {{esql}} Query log [esql-query-log]
 
+:::{note}
+:applies_to: {"stack": "preview 9.4", "serverless": "unavailable"}
 
-The {{esql}} query log allows to log {{esql}} queries based on their execution time.
+{{es}} [query logging](docs-content://deploy-manage/monitor/logging-configuration/query-logs.md) supersedes this feature. Query logging provides a unified way to log all query types, including {{esql}}, with richer field coverage and a managed data stream for indexing and analysis. We recommend migrating to query logging. The `esql.querylog` settings described on this page continue to work but are no longer the recommended approach.
+:::
+
+The {{esql}} query log allows you to log {{esql}} queries based on their execution time.
 
 You can use these logs to investigate, analyze or troubleshoot your cluster’s historical {{esql}} performance.
 
@@ -47,6 +52,7 @@ The following is an example of a successful query event in the query log:
     "elasticsearch.cluster.name": "runTask"
 }
 ```
+% NOTCONSOLE
 
 The following is an example of a failing query event in the query log:
 
@@ -75,7 +81,7 @@ The following is an example of a failing query event in the query log:
     "elasticsearch.cluster.name": "runTask"
 }
 ```
-
+% NOTCONSOLE
 
 ## Enable query logging [enable-query-log]
 

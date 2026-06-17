@@ -13,7 +13,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
-import org.elasticsearch.xpack.core.ml.inference.results.MlTextEmbeddingResultsTests;
+import org.elasticsearch.xpack.core.ml.inference.results.MlDenseEmbeddingResultsTests;
 import org.junit.Before;
 
 import java.util.List;
@@ -49,10 +49,10 @@ public class InferTrainedModelDeploymentResponseTests extends AbstractBWCWireSer
     protected InferTrainedModelDeploymentAction.Response createTestInstance() {
         return new InferTrainedModelDeploymentAction.Response(
             List.of(
-                MlTextEmbeddingResultsTests.createRandomResults(),
-                MlTextEmbeddingResultsTests.createRandomResults(),
-                MlTextEmbeddingResultsTests.createRandomResults(),
-                MlTextEmbeddingResultsTests.createRandomResults()
+                MlDenseEmbeddingResultsTests.createRandomResults(),
+                MlDenseEmbeddingResultsTests.createRandomResults(),
+                MlDenseEmbeddingResultsTests.createRandomResults(),
+                MlDenseEmbeddingResultsTests.createRandomResults()
             )
         );
     }

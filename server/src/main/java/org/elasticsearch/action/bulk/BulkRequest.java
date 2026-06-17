@@ -12,7 +12,6 @@ package org.elasticsearch.action.bulk;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.CompositeIndicesRequest;
@@ -107,11 +106,7 @@ public class BulkRequest extends LegacyActionRequest
         for (DocWriteRequest<?> request : requests) {
             indices.add(Objects.requireNonNull(request.index(), "request index must not be null"));
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
-            incrementalState = new BulkRequest.IncrementalState(in);
-        } else {
-            incrementalState = BulkRequest.IncrementalState.EMPTY;
-        }
+        incrementalState = new BulkRequest.IncrementalState(in);
         includeSourceOnError = in.readBoolean();
         if (in.getTransportVersion().supports(STREAMS_ENDPOINT_PARAM_RESTRICTIONS)) {
             paramsUsed = in.readCollectionAsImmutableSet(StreamInput::readString);
@@ -143,16 +138,12 @@ public class BulkRequest extends LegacyActionRequest
      * @return the current bulk request
      */
     public BulkRequest add(DocWriteRequest<?> request) {
-        if (request instanceof IndexRequest indexRequest) {
-            add(indexRequest);
-        } else if (request instanceof DeleteRequest deleteRequest) {
-            add(deleteRequest);
-        } else if (request instanceof UpdateRequest updateRequest) {
-            add(updateRequest);
-        } else {
-            throw new IllegalArgumentException("No support for request [" + request + "]");
+        switch (request) {
+            case IndexRequest indexRequest -> add(indexRequest);
+            case DeleteRequest deleteRequest -> add(deleteRequest);
+            case UpdateRequest updateRequest -> add(updateRequest);
+            case null, default -> throw new IllegalArgumentException("No support for request [" + request + "]");
         }
-        indices.add(request.index());
         return this;
     }
 
@@ -287,6 +278,36 @@ public class BulkRequest extends LegacyActionRequest
         XContentType xContentType,
         RestApiVersion restApiVersion
     ) throws IOException {
+        return add(
+            data,
+            defaultIndex,
+            defaultRouting,
+            false,
+            defaultFetchSourceContext,
+            defaultPipeline,
+            defaultRequireAlias,
+            defaultRequireDataStream,
+            defaultListExecutedPipelines,
+            allowExplicitIndex,
+            xContentType,
+            restApiVersion
+        );
+    }
+
+    public BulkRequest add(
+        BytesReference data,
+        @Nullable String defaultIndex,
+        @Nullable String defaultRouting,
+        boolean defaultRoutingFromSlice,
+        @Nullable FetchSourceContext defaultFetchSourceContext,
+        @Nullable String defaultPipeline,
+        @Nullable Boolean defaultRequireAlias,
+        @Nullable Boolean defaultRequireDataStream,
+        @Nullable Boolean defaultListExecutedPipelines,
+        boolean allowExplicitIndex,
+        XContentType xContentType,
+        RestApiVersion restApiVersion
+    ) throws IOException {
         String routing = valueOrDefault(defaultRouting, globalRouting);
         String pipeline = valueOrDefault(defaultPipeline, globalPipeline);
         Boolean requireAlias = valueOrDefault(defaultRequireAlias, globalRequireAlias);
@@ -295,6 +316,7 @@ public class BulkRequest extends LegacyActionRequest
             data,
             defaultIndex,
             routing,
+            defaultRoutingFromSlice,
             defaultFetchSourceContext,
             pipeline,
             requireAlias,
@@ -476,9 +498,7 @@ public class BulkRequest extends LegacyActionRequest
         out.writeCollection(requests, DocWriteRequest::writeDocumentRequest);
         refreshPolicy.writeTo(out);
         out.writeTimeValue(timeout);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
-            incrementalState.writeTo(out);
-        }
+        incrementalState.writeTo(out);
         out.writeBoolean(includeSourceOnError);
         if (out.getTransportVersion().supports(STREAMS_ENDPOINT_PARAM_RESTRICTIONS)) {
             out.writeCollection(paramsUsed, StreamOutput::writeString);
@@ -510,7 +530,11 @@ public class BulkRequest extends LegacyActionRequest
 
     @Override
     public long ramBytesUsed() {
-        return SHALLOW_SIZE + requests.stream().mapToLong(Accountable::ramBytesUsed).sum();
+        long ramBytesUsed = SHALLOW_SIZE;
+        for (final var request : requests) {
+            ramBytesUsed += request.ramBytesUsed();
+        }
+        return ramBytesUsed;
     }
 
     public Set<String> getIndices() {

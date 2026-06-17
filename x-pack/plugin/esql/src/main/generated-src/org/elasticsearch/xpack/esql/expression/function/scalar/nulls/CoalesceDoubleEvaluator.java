@@ -12,9 +12,8 @@ import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
-import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -25,11 +24,11 @@ import java.util.stream.IntStream;
 // end generated imports
 
 /**
- * {@link EvalOperator.ExpressionEvaluator} implementation for {@link Coalesce}.
+ * {@link ExpressionEvaluator} implementation for {@link Coalesce}.
  * This class is generated. Edit {@code X-CoalesceEvaluator.java.st} instead.
  */
-abstract sealed class CoalesceDoubleEvaluator implements EvalOperator.ExpressionEvaluator permits
-    CoalesceDoubleEvaluator.CoalesceDoubleEagerEvaluator, //
+abstract sealed class CoalesceDoubleEvaluator implements ExpressionEvaluator permits // checkstyle hack
+    CoalesceDoubleEvaluator.CoalesceDoubleEagerEvaluator, // checkstyle hack
     CoalesceDoubleEvaluator.CoalesceDoubleLazyEvaluator {
 
     private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(CoalesceDoubleEvaluator.class);
@@ -40,7 +39,11 @@ abstract sealed class CoalesceDoubleEvaluator implements EvalOperator.Expression
             return new ExpressionEvaluator.Factory() {
                 @Override
                 public ExpressionEvaluator get(DriverContext context) {
-                    return new CoalesceDoubleEagerEvaluator(context, childEvaluators.stream().map(x -> x.get(context)).toList());
+                    return new CoalesceDoubleEagerEvaluator(
+                        // comment to make spotless happy about line breaks
+                        context,
+                        childEvaluators.stream().map(x -> x.get(context)).toList()
+                    );
                 }
 
                 @Override
@@ -52,7 +55,11 @@ abstract sealed class CoalesceDoubleEvaluator implements EvalOperator.Expression
         return new ExpressionEvaluator.Factory() {
             @Override
             public ExpressionEvaluator get(DriverContext context) {
-                return new CoalesceDoubleLazyEvaluator(context, childEvaluators.stream().map(x -> x.get(context)).toList());
+                return new CoalesceDoubleLazyEvaluator(
+                    // comment to make spotless happy about line breaks
+                    context,
+                    childEvaluators.stream().map(x -> x.get(context)).toList()
+                );
             }
 
             @Override
@@ -63,9 +70,9 @@ abstract sealed class CoalesceDoubleEvaluator implements EvalOperator.Expression
     }
 
     protected final DriverContext driverContext;
-    protected final List<EvalOperator.ExpressionEvaluator> evaluators;
+    protected final List<ExpressionEvaluator> evaluators;
 
-    protected CoalesceDoubleEvaluator(DriverContext driverContext, List<EvalOperator.ExpressionEvaluator> evaluators) {
+    protected CoalesceDoubleEvaluator(DriverContext driverContext, List<ExpressionEvaluator> evaluators) {
         this.driverContext = driverContext;
         this.evaluators = evaluators;
     }
@@ -80,8 +87,8 @@ abstract sealed class CoalesceDoubleEvaluator implements EvalOperator.Expression
      * {@link #perPosition} evaluation.
      * <p>
      * Entire Block evaluation is the "normal" way to run the compute engine,
-     * just calling {@link EvalOperator.ExpressionEvaluator#eval}. It's much faster so we try
-     * that first. For each evaluator, we {@linkplain EvalOperator.ExpressionEvaluator#eval} and:
+     * just calling {@link ExpressionEvaluator#eval}. It's much faster so we try
+     * that first. For each evaluator, we {@linkplain ExpressionEvaluator#eval} and:
      * </p>
      * <ul>
      *     <li>If the {@linkplain Block} doesn't have any nulls we return it. COALESCE done.</li>
@@ -157,7 +164,7 @@ abstract sealed class CoalesceDoubleEvaluator implements EvalOperator.Expression
      * in a lazy environment.
      */
     static final class CoalesceDoubleEagerEvaluator extends CoalesceDoubleEvaluator {
-        CoalesceDoubleEagerEvaluator(DriverContext driverContext, List<EvalOperator.ExpressionEvaluator> evaluators) {
+        CoalesceDoubleEagerEvaluator(DriverContext driverContext, List<ExpressionEvaluator> evaluators) {
             super(driverContext, evaluators);
         }
 
@@ -170,7 +177,10 @@ abstract sealed class CoalesceDoubleEvaluator implements EvalOperator.Expression
                 for (int f = 1; f < flatten.length; f++) {
                     flatten[f] = (DoubleBlock) evaluators.get(firstToEvaluate + f - 1).eval(page);
                 }
-                try (DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
+                try (
+                    DoubleBlock.Builder result = driverContext.blockFactory() //
+                        .newDoubleBlockBuilder(positionCount)
+                ) {
                     position: for (int p = 0; p < positionCount; p++) {
                         for (DoubleBlock f : flatten) {
                             if (false == f.isNull(p)) {
@@ -200,14 +210,17 @@ abstract sealed class CoalesceDoubleEvaluator implements EvalOperator.Expression
      * </ul>
      */
     static final class CoalesceDoubleLazyEvaluator extends CoalesceDoubleEvaluator {
-        CoalesceDoubleLazyEvaluator(DriverContext driverContext, List<EvalOperator.ExpressionEvaluator> evaluators) {
+        CoalesceDoubleLazyEvaluator(DriverContext driverContext, List<ExpressionEvaluator> evaluators) {
             super(driverContext, evaluators);
         }
 
         @Override
         protected DoubleBlock perPosition(Page page, DoubleBlock lastFullBlock, int firstToEvaluate) {
             int positionCount = page.getPositionCount();
-            try (DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
+            try (
+                DoubleBlock.Builder result = driverContext.blockFactory() //
+                    .newDoubleBlockBuilder(positionCount)
+            ) {
                 position: for (int p = 0; p < positionCount; p++) {
                     if (lastFullBlock.isNull(p) == false) {
                         result.copyFrom(lastFullBlock, p, p + 1);
@@ -216,7 +229,9 @@ abstract sealed class CoalesceDoubleEvaluator implements EvalOperator.Expression
                     int[] positions = new int[] { p };
                     Page limited = new Page(
                         1,
-                        IntStream.range(0, page.getBlockCount()).mapToObj(b -> page.getBlock(b).filter(positions)).toArray(Block[]::new)
+                        IntStream.range(0, page.getBlockCount())
+                            .mapToObj(b -> page.getBlock(b).filter(false, positions))
+                            .toArray(Block[]::new)
                     );
                     try (Releasable ignored = limited::releaseBlocks) {
                         for (int e = firstToEvaluate; e < evaluators.size(); e++) {

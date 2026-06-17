@@ -11,16 +11,17 @@ import org.apache.http.HttpHeaders;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.inference.InputTypeTests;
 import org.elasticsearch.xpack.inference.common.TruncatorTests;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
@@ -40,7 +41,8 @@ import java.io.IOException;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResultsTests.buildExpectationFloat;
+import static org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResultsTests.buildExpectationFloat;
+import static org.elasticsearch.xpack.inference.Utils.encodeFloatsAsOpenAiBase64;
 import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityExecutors;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
 import static org.elasticsearch.xpack.inference.external.action.ActionUtils.constructFailedToSendRequestMessage;
@@ -86,19 +88,16 @@ public class OpenAiEmbeddingsActionTests extends ESTestCase {
         );
 
         try (var sender = senderFactory.createSender()) {
-            sender.startSynchronously();
-
-            String responseJson = """
+            // Wire-shape parity with production: response embedding is a
+            // base64-encoded little-endian float32 string, not a JSON array.
+            String responseJson = Strings.format("""
                 {
                   "object": "list",
                   "data": [
                       {
                           "object": "embedding",
                           "index": 0,
-                          "embedding": [
-                              0.0123,
-                              -0.0123
-                          ]
+                          "embedding": "%s"
                       }
                   ],
                   "model": "text-embedding-ada-002-v2",
@@ -107,17 +106,13 @@ public class OpenAiEmbeddingsActionTests extends ESTestCase {
                       "total_tokens": 8
                   }
                 }
-                """;
+                """, encodeFloatsAsOpenAiBase64(0.0123F, -0.0123F));
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
             var action = createAction(getUrl(webServer), "org", "secret", "model", "user", sender);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(
-                new EmbeddingsInput(List.of("abc"), InputTypeTests.randomWithNull()),
-                InferenceAction.Request.DEFAULT_TIMEOUT,
-                listener
-            );
+            action.execute(new EmbeddingsInput(List.of("abc"), InputTypeTests.randomWithNull()), null, listener);
 
             var result = listener.actionGet(TIMEOUT);
 
@@ -129,10 +124,11 @@ public class OpenAiEmbeddingsActionTests extends ESTestCase {
             assertThat(webServer.requests().get(0).getHeader(ORGANIZATION_HEADER), equalTo("org"));
 
             var requestMap = entityAsMap(webServer.requests().get(0).getBody());
-            assertThat(requestMap.size(), is(3));
+            assertThat(requestMap.size(), is(4));
             assertThat(requestMap.get("input"), is(List.of("abc")));
             assertThat(requestMap.get("model"), is("model"));
             assertThat(requestMap.get("user"), is("user"));
+            assertThat(requestMap.get("encoding_format"), is("base64"));
         }
     }
 
@@ -153,11 +149,7 @@ public class OpenAiEmbeddingsActionTests extends ESTestCase {
         var action = createAction(getUrl(webServer), "org", "secret", "model", "user", sender);
 
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-        action.execute(
-            new EmbeddingsInput(List.of("abc"), InputTypeTests.randomWithNull()),
-            InferenceAction.Request.DEFAULT_TIMEOUT,
-            listener
-        );
+        action.execute(new EmbeddingsInput(List.of("abc"), InputTypeTests.randomWithNull()), null, listener);
 
         var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
 
@@ -177,11 +169,7 @@ public class OpenAiEmbeddingsActionTests extends ESTestCase {
         var action = createAction(getUrl(webServer), "org", "secret", "model", "user", sender);
 
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-        action.execute(
-            new EmbeddingsInput(List.of("abc"), InputTypeTests.randomWithNull()),
-            InferenceAction.Request.DEFAULT_TIMEOUT,
-            listener
-        );
+        action.execute(new EmbeddingsInput(List.of("abc"), InputTypeTests.randomWithNull()), null, listener);
 
         var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
 
@@ -201,11 +189,7 @@ public class OpenAiEmbeddingsActionTests extends ESTestCase {
         var action = createAction(null, "org", "secret", "model", "user", sender);
 
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-        action.execute(
-            new EmbeddingsInput(List.of("abc"), InputTypeTests.randomWithNull()),
-            InferenceAction.Request.DEFAULT_TIMEOUT,
-            listener
-        );
+        action.execute(new EmbeddingsInput(List.of("abc"), InputTypeTests.randomWithNull()), null, listener);
 
         var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
 
@@ -219,11 +203,7 @@ public class OpenAiEmbeddingsActionTests extends ESTestCase {
         var action = createAction(getUrl(webServer), "org", "secret", "model", "user", sender);
 
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-        action.execute(
-            new EmbeddingsInput(List.of("abc"), InputTypeTests.randomWithNull()),
-            InferenceAction.Request.DEFAULT_TIMEOUT,
-            listener
-        );
+        action.execute(new EmbeddingsInput(List.of("abc"), InputTypeTests.randomWithNull()), null, listener);
 
         var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
 
@@ -237,11 +217,7 @@ public class OpenAiEmbeddingsActionTests extends ESTestCase {
         var action = createAction(null, "org", "secret", "model", "user", sender);
 
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-        action.execute(
-            new EmbeddingsInput(List.of("abc"), InputTypeTests.randomWithNull()),
-            InferenceAction.Request.DEFAULT_TIMEOUT,
-            listener
-        );
+        action.execute(new EmbeddingsInput(List.of("abc"), InputTypeTests.randomWithNull()), null, listener);
 
         var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
 
@@ -249,7 +225,7 @@ public class OpenAiEmbeddingsActionTests extends ESTestCase {
     }
 
     private ExecutableAction createAction(String url, String org, String apiKey, String modelName, @Nullable String user, Sender sender) {
-        var model = createModel(url, org, apiKey, modelName, user);
+        var model = createModel(url, org, apiKey, modelName, user, TaskType.TEXT_EMBEDDING);
         var manager = new TruncatingRequestManager(
             threadPool,
             model,

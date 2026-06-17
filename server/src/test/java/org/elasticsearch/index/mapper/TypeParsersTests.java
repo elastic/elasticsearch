@@ -86,8 +86,8 @@ public class TypeParsersTests extends ESTestCase {
         // For indices created in 8.0 or later, we should throw an error.
         Map<String, Object> fieldNodeCopy = XContentHelper.convertToMap(BytesReference.bytes(mapping), true, mapping.contentType()).v2();
 
-        IndexVersion version = IndexVersionUtils.randomVersionBetween(random(), IndexVersions.V_8_0_0, IndexVersion.current());
-        TransportVersion transportVersion = TransportVersionUtils.randomCompatibleVersion(random());
+        IndexVersion version = IndexVersionUtils.randomVersionBetween(IndexVersions.V_8_0_0, IndexVersion.current());
+        TransportVersion transportVersion = TransportVersionUtils.randomCompatibleVersion();
         MappingParserContext context = new MappingParserContext(
             null,
             type -> typeParser,
@@ -98,7 +98,6 @@ public class TypeParsersTests extends ESTestCase {
             ScriptCompiler.NONE,
             mapperService.getIndexAnalyzers(),
             mapperService.getIndexSettings(),
-            ProvidedIdFieldMapper.NO_FIELD_DATA,
             query -> {
                 throw new UnsupportedOperationException();
             },

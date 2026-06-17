@@ -8,6 +8,9 @@
  */
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.document.BinaryDocValuesField;
+import org.apache.lucene.document.Document;
+import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.DocValuesSkipIndexType;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.FieldInfo;
@@ -16,6 +19,10 @@ import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.index.RandomIndexWriter;
+import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.lookup.FieldLookup;
@@ -24,6 +31,7 @@ import org.elasticsearch.search.lookup.LeafStoredFieldsLookup;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
@@ -63,6 +71,7 @@ public abstract class FieldTypeTestCase extends ESTestCase {
     public static List<?> fetchSourceValue(MappedFieldType fieldType, Object sourceValue, String format) throws IOException {
         String field = fieldType.name();
         SearchExecutionContext searchExecutionContext = mock(SearchExecutionContext.class);
+        when(searchExecutionContext.getIndexSettings()).thenReturn(IndexSettingsModule.newIndexSettings("test", Settings.EMPTY));
         when(searchExecutionContext.isSourceEnabled()).thenReturn(true);
         when(searchExecutionContext.sourcePath(field)).thenReturn(Set.of(field));
 
@@ -74,6 +83,7 @@ public abstract class FieldTypeTestCase extends ESTestCase {
     public static List<?> fetchSourceValues(MappedFieldType fieldType, Object... values) throws IOException {
         String field = fieldType.name();
         SearchExecutionContext searchExecutionContext = mock(SearchExecutionContext.class);
+        when(searchExecutionContext.getIndexSettings()).thenReturn(IndexSettingsModule.newIndexSettings("test", Settings.EMPTY));
         when(searchExecutionContext.isSourceEnabled()).thenReturn(true);
         when(searchExecutionContext.sourcePath(field)).thenReturn(Set.of(field));
 
@@ -129,6 +139,52 @@ public abstract class FieldTypeTestCase extends ESTestCase {
                 return null;
             }
         };
+    }
+
+    /**
+     * Indexes four document shapes (foo×2, bar×1, empty-string×1) per iteration using
+     * {@link BinaryDocValuesField} and verifies that {@link MappedFieldType#termQuery} returns
+     * the correct hit counts. Use this for field types whose {@code termQuery} falls back to binary
+     * doc values (e.g. high-cardinality keyword or text fields).
+     */
+    protected void assertTermQueryWithBinaryDocValues(MappedFieldType ft) throws IOException {
+        try (Directory dir = newDirectory()) {
+            int indexIters = randomIntBetween(1, 10);
+            try (RandomIndexWriter writer = new RandomIndexWriter(random(), dir)) {
+                for (int i = 0; i < indexIters; i++) {
+                    Document doc = new Document();
+                    doc.add(new BinaryDocValuesField(ft.name(), new BytesRef("foo")));
+                    writer.addDocument(doc);
+
+                    doc = new Document();
+                    doc.add(new BinaryDocValuesField(ft.name(), new BytesRef("bar")));
+                    writer.addDocument(doc);
+
+                    doc = new Document();
+                    doc.add(new BinaryDocValuesField(ft.name(), new BytesRef("foo")));
+                    writer.addDocument(doc);
+
+                    doc = new Document();
+                    doc.add(new BinaryDocValuesField(ft.name(), new BytesRef("")));
+                    writer.addDocument(doc);
+                }
+            }
+            try (DirectoryReader reader = DirectoryReader.open(dir)) {
+                var searcher = newSearcher(reader);
+
+                var topDocs = searcher.search(ft.termQuery("foo", MOCK_CONTEXT), 10);
+                assertEquals(2 * indexIters, topDocs.totalHits.value());
+
+                topDocs = searcher.search(ft.termQuery("bar", MOCK_CONTEXT), 10);
+                assertEquals(indexIters, topDocs.totalHits.value());
+
+                topDocs = searcher.search(ft.termQuery("", MOCK_CONTEXT), 10);
+                assertEquals(indexIters, topDocs.totalHits.value());
+
+                topDocs = searcher.search(ft.termQuery("baz", MOCK_CONTEXT), 10);
+                assertEquals(0, topDocs.totalHits.value());
+            }
+        }
     }
 
     public FieldInfo getFieldInfoWithName(String name) {

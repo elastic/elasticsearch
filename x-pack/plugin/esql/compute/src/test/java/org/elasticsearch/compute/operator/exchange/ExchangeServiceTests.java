@@ -159,7 +159,7 @@ public class ExchangeServiceTests extends ESTestCase {
         assertBusy(() -> assertTrue(sink2.waitForWriting().listener().isDone()));
         sink2.finish();
         assertTrue(sink2.isFinished());
-        assertTrue(source.isFinished());
+        assertBusy(() -> assertTrue(source.isFinished()));
         source.finish();
         ESTestCase.terminate(threadPool);
         for (Page page : pages) {
@@ -413,7 +413,9 @@ public class ExchangeServiceTests extends ESTestCase {
                 AtomicBoolean sinkFailed = new AtomicBoolean();
                 ActionListener<Void> oneSinkListener = refs.acquire();
                 exchangeSourceHandler.addRemoteSink((allSourcesFinished, listener) -> {
-                    if (fetched.incrementAndGet() > failAfter) {
+                    // Don't simulate failure when allSourcesFinished - the exchange source might have
+                    // already completed, and the failure can be ignored in the completion listener
+                    if (fetched.incrementAndGet() > failAfter && allSourcesFinished == false) {
                         sinkHandler.fetchPageAsync(true, listener.delegateFailure((l, r) -> {
                             failedRequests.incrementAndGet();
                             sinkFailed.set(true);
@@ -727,14 +729,13 @@ public class ExchangeServiceTests extends ESTestCase {
 
     private DriverContext driverContext() {
         BlockFactory blockFactory = blockFactory();
-        return new DriverContext(blockFactory.bigArrays(), blockFactory);
+        return new DriverContext(blockFactory.bigArrays(), blockFactory, null);
     }
 
     private BlockFactory blockFactory() {
         MockBigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofGb(1));
-        CircuitBreaker breaker = bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
-        breakers.add(breaker);
-        MockBlockFactory factory = new MockBlockFactory(breaker, bigArrays);
+        breakers.add(bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST));
+        MockBlockFactory factory = new MockBlockFactory(BlockFactory.builder(bigArrays));
         blockFactories.add(factory);
         return factory;
     }

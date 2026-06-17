@@ -25,16 +25,22 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexSortConfig;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
+import org.elasticsearch.index.fielddata.plain.BytesBinaryIndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
+import org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.StringFieldType;
 import org.elasticsearch.index.mapper.TextParams;
@@ -55,38 +61,56 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
 
     public static final String CONTENT_TYPE = "icu_collation_keyword";
 
+    private static DocValuesParameter.Values defaultDocValuesParameters(IndexMode indexMode) {
+        if (DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled() == false) {
+            return new DocValuesParameter.Values(true, DocValuesParameter.Values.Cardinality.LOW, true);
+        }
+
+        if (indexMode.isStrictColumnar()) {
+            return new DocValuesParameter.Values(true, DocValuesParameter.Values.Cardinality.HIGH, true);
+        }
+
+        return new DocValuesParameter.Values(true, DocValuesParameter.Values.Cardinality.LOW, true);
+    }
+
     public static final class CollationFieldType extends StringFieldType {
         private final Collator collator;
         private final String nullValue;
         private final int ignoreAbove;
+        private final boolean usesBinaryDocValues;
 
         public CollationFieldType(
             String name,
-            boolean isSearchable,
+            IndexType indexType,
             boolean isStored,
-            boolean hasDocValues,
             Collator collator,
             String nullValue,
             int ignoreAbove,
-            Map<String, String> meta
+            Map<String, String> meta,
+            boolean usesBinaryDocValues
         ) {
-            super(name, isSearchable, isStored, hasDocValues, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
+            super(name, indexType, isStored, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
             this.collator = collator;
             this.nullValue = nullValue;
             this.ignoreAbove = ignoreAbove;
+            this.usesBinaryDocValues = usesBinaryDocValues;
         }
 
         public CollationFieldType(String name, boolean searchable, Collator collator) {
-            this(name, searchable, false, true, collator, null, Integer.MAX_VALUE, Collections.emptyMap());
+            this(name, IndexType.terms(searchable, true), false, collator, null, Integer.MAX_VALUE, Collections.emptyMap(), false);
         }
 
         public CollationFieldType(String name, Collator collator) {
-            this(name, true, false, true, collator, null, Integer.MAX_VALUE, Collections.emptyMap());
+            this(name, IndexType.terms(true, true), false, collator, null, Integer.MAX_VALUE, Collections.emptyMap(), false);
         }
 
         @Override
         public String typeName() {
             return CONTENT_TYPE;
+        }
+
+        public boolean usesBinaryDocValues() {
+            return usesBinaryDocValues;
         }
 
         @Override
@@ -110,14 +134,24 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
         @Override
         public IndexFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
             failIfNoDocValues();
-            return new SortedSetOrdinalsIndexFieldData.Builder(
-                name(),
-                CoreValuesSourceType.KEYWORD,
-                (dv, n) -> new DelegateDocValuesField(
-                    new ScriptDocValues.Strings(new ScriptDocValues.StringsSupplier(FieldData.toString(dv))),
-                    n
-                )
-            );
+
+            if (usesBinaryDocValues) {
+                return new BytesBinaryIndexFieldData.Builder(
+                    name(),
+                    CoreValuesSourceType.KEYWORD,
+                    (dv, n) -> new DelegateDocValuesField(new ScriptDocValues.Strings(new ScriptDocValues.StringsSupplier(dv)), n),
+                    fieldDataContext.indexSettings().getIndexVersionCreated()
+                );
+            } else {
+                return new SortedSetOrdinalsIndexFieldData.Builder(
+                    name(),
+                    CoreValuesSourceType.KEYWORD,
+                    (dv, n) -> new DelegateDocValuesField(
+                        new ScriptDocValues.Strings(new ScriptDocValues.StringsSupplier(FieldData.toString(dv))),
+                        n
+                    )
+                );
+            }
         }
 
         @Override
@@ -221,8 +255,8 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
 
     public static class Builder extends FieldMapper.Builder {
 
-        final Parameter<Boolean> indexed = Parameter.indexParam(m -> toType(m).indexed, true);
-        final Parameter<Boolean> hasDocValues = Parameter.docValuesParam(m -> toType(m).hasDocValues, true);
+        final Parameter<Boolean> indexed;
+        final DocValuesParameter docValuesPameters;
         final Parameter<Boolean> stored = Parameter.storeParam(m -> toType(m).fieldType.stored(), false);
 
         final Parameter<String> indexOptions = TextParams.keywordIndexOptions(m -> toType(m).indexOptions);
@@ -256,8 +290,24 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
         );
         final Parameter<String> nullValue = Parameter.stringParam("null_value", false, m -> toType(m).nullValue, null).acceptsNull();
 
-        public Builder(String name) {
+        private final boolean indexDisabledByDefault;
+        private final IndexMode indexMode;
+        private final IndexSortConfig indexSortConfig;
+
+        public Builder(String name, IndexSettings indexSettings) {
+            this(name, indexSettings.getMode(), indexSettings.getIndexSortConfig(), indexSettings.isIndexDisabledByDefault());
+        }
+
+        public Builder(String name, IndexMode indexMode, IndexSortConfig indexSortConfig, boolean indexDisabledByDefault) {
             super(name);
+            indexed = Parameter.indexParam(m -> toType(m).indexed, indexDisabledByDefault == false);
+            this.indexDisabledByDefault = indexDisabledByDefault;
+            this.indexMode = indexMode;
+            this.indexSortConfig = indexSortConfig;
+            this.docValuesPameters = DocValuesParameter.ofWithCardinality(
+                defaultDocValuesParameters(indexMode),
+                m -> toType(m).docValuesParams()
+            );
         }
 
         Builder nullValue(String nullValue) {
@@ -274,7 +324,7 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
         protected Parameter<?>[] getParameters() {
             return new Parameter<?>[] {
                 indexed,
-                hasDocValues,
+                docValuesPameters,
                 stored,
                 indexOptions,
                 hasNorms,
@@ -322,24 +372,43 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
         }
 
         @Override
+        public String contentType() {
+            return CONTENT_TYPE;
+        }
+
+        private static boolean usesBinaryDocValues(DocValuesParameter.Values docValuesParams) {
+            return docValuesParams.enabled() && docValuesParams.cardinality() == DocValuesParameter.Values.Cardinality.HIGH;
+        }
+
+        @Override
         public ICUCollationKeywordFieldMapper build(MapperBuilderContext context) {
+            enforceIndexSortDocValuesCompatibility(context.buildFullName(leafName()), indexSortConfig, docValuesPameters);
             final CollatorParams params = collatorParams();
             final Collator collator = params.buildCollator();
+            final DocValuesParameter.Values docValuesParams = docValuesPameters.getValue();
             CollationFieldType ft = new CollationFieldType(
                 context.buildFullName(leafName()),
-                indexed.getValue(),
+                IndexType.terms(indexed.get(), docValuesParams.enabled()),
                 stored.getValue(),
-                hasDocValues.getValue(),
                 collator,
                 nullValue.getValue(),
                 ignoreAbove.getValue(),
-                meta.getValue()
+                meta.getValue(),
+                usesBinaryDocValues(docValuesParams)
             );
-            return new ICUCollationKeywordFieldMapper(leafName(), buildFieldType(), ft, builderParams(this, context), collator, this);
+            return new ICUCollationKeywordFieldMapper(
+                leafName(),
+                buildFieldType(),
+                ft,
+                builderParams(this, context),
+                collator,
+                this,
+                indexMode
+            );
         }
     }
 
-    public static final TypeParser PARSER = new TypeParser((n, c) -> new Builder(n));
+    public static final TypeParser PARSER = new TypeParser((n, c) -> new Builder(n, c.getIndexSettings()));
 
     private static class CollatorParams {
         private String rules;
@@ -458,8 +527,11 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
     private final String nullValue;
     private final FieldType fieldType;
     private final boolean indexed;
-    private final boolean hasDocValues;
     private final String indexOptions;
+    private final DocValuesParameter.Values docValuesParams;
+    private final boolean indexDisabledByDefault;
+    private final IndexMode indexMode;
+    private final IndexSortConfig indexSortConfig;
 
     protected ICUCollationKeywordFieldMapper(
         String simpleName,
@@ -467,7 +539,8 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
         MappedFieldType mappedFieldType,
         BuilderParams builderParams,
         Collator collator,
-        Builder builder
+        Builder builder,
+        IndexMode indexMode
     ) {
         super(simpleName, mappedFieldType, builderParams);
         assert collator.isFrozen();
@@ -477,8 +550,15 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
         this.collator = collator;
         this.nullValue = builder.nullValue.getValue();
         this.indexed = builder.indexed.getValue();
-        this.hasDocValues = builder.hasDocValues.getValue();
         this.indexOptions = builder.indexOptions.getValue();
+        this.docValuesParams = builder.docValuesPameters.getValue();
+        this.indexDisabledByDefault = builder.indexDisabledByDefault;
+        this.indexMode = indexMode;
+        this.indexSortConfig = builder.indexSortConfig;
+    }
+
+    public DocValuesParameter.Values docValuesParams() {
+        return docValuesParams;
     }
 
     @Override
@@ -498,7 +578,7 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(leafName()).init(this);
+        return new Builder(leafName(), indexMode, indexSortConfig, indexDisabledByDefault).init(this);
     }
 
     @Override
@@ -528,8 +608,12 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
             context.doc().add(field);
         }
 
-        if (hasDocValues) {
-            context.doc().add(new SortedSetDocValuesField(fieldType().name(), binaryValue));
+        if (docValuesParams.enabled()) {
+            if (fieldType().usesBinaryDocValues()) {
+                MultiValuedBinaryDocValuesField.SeparateCount.addToBinaryFieldInDoc(context.doc(), fieldType().name(), binaryValue);
+            } else {
+                context.doc().add(new SortedSetDocValuesField(fieldType().name(), binaryValue));
+            }
         } else if (fieldType.indexOptions() != IndexOptions.NONE || fieldType.stored()) {
             context.addToFieldNames(fieldType().name());
         }

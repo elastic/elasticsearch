@@ -11,6 +11,8 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.xpack.esql.datasources.datasource.TestEncryptionServicePlugin;
+import org.elasticsearch.xpack.esql.plan.logical.fuse.Fuse;
 import org.junit.Before;
 
 import java.util.Collection;
@@ -23,7 +25,7 @@ import static org.hamcrest.Matchers.equalTo;
 public class FuseIT extends AbstractEsqlIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return List.of(EsqlPluginWithEnterpriseOrTrialLicense.class);
+        return List.of(EsqlPluginWithEnterpriseOrTrialLicense.class, TestEncryptionServicePlugin.class);
     }
 
     @Before
@@ -36,8 +38,8 @@ public class FuseIT extends AbstractEsqlIntegTestCase {
             FROM test METADATA _score, _id, _index
             | WHERE id > 2
             | FORK
-               ( WHERE content:"fox" | SORT _score, _id DESC )
-               ( WHERE content:"dog" | SORT _score, _id DESC )
+               ( WHERE content:"fox" | SORT _score, _id DESC | LIMIT 10)
+               ( WHERE content:"dog" | SORT _score, _id DESC | LIMIT 10)
             | FUSE
             | SORT _score DESC, _id, _index
             | EVAL _fork = mv_sort(_fork)
@@ -62,8 +64,8 @@ public class FuseIT extends AbstractEsqlIntegTestCase {
             FROM test METADATA _score, _id, _index
             | WHERE id > 2
             | FORK
-               ( WHERE content:"fox" | SORT _score, _id DESC )
-               ( WHERE content:"dog" | SORT _score, _id DESC )
+               ( WHERE content:"fox" | SORT _score, _id DESC | LIMIT 10)
+               ( WHERE content:"dog" | SORT _score, _id DESC | LIMIT 10)
             | FUSE RRF WITH {"weights": { "fork1": 0.4, "fork2": 0.6}}
             | SORT _score DESC, _id, _index
             | EVAL _fork = mv_sort(_fork)
@@ -88,8 +90,8 @@ public class FuseIT extends AbstractEsqlIntegTestCase {
             FROM test METADATA _score, _id, _index
             | WHERE id > 2
             | FORK
-               ( WHERE content:"fox" | SORT _score, _id DESC )
-               ( WHERE content:"dog" | SORT _score, _id DESC )
+               ( WHERE content:"fox" | SORT _score, _id DESC | LIMIT 10)
+               ( WHERE content:"dog" | SORT _score, _id DESC | LIMIT 10)
             | FUSE RRF WITH {"weights": { "fork1": 0.4, "fork2": 0.6}, "rank_constant": 55 }
             | SORT _score DESC, _id, _index
             | EVAL _fork = mv_sort(_fork)
@@ -114,8 +116,8 @@ public class FuseIT extends AbstractEsqlIntegTestCase {
             FROM test METADATA _score, _id, _index
             | WHERE id > 2
             | FORK
-               ( WHERE content:"fox" | SORT _score, _id DESC )
-               ( WHERE content:"dog" | SORT _score, _id DESC )
+               ( WHERE content:"fox" | SORT _score, _id DESC | LIMIT 10)
+               ( WHERE content:"dog" | SORT _score, _id DESC | LIMIT 10)
             | FUSE linear
             | SORT _score DESC
             | EVAL _fork = mv_sort(_fork)
@@ -142,8 +144,8 @@ public class FuseIT extends AbstractEsqlIntegTestCase {
             FROM test METADATA _score, _id, _index
             | WHERE id > 2
             | FORK
-               ( WHERE content:"fox" | SORT _score, _id DESC )
-               ( WHERE content:"dog" | SORT _score, _id DESC )
+               ( WHERE content:"fox" | SORT _score, _id DESC | LIMIT 10)
+               ( WHERE content:"dog" | SORT _score, _id DESC | LIMIT 10)
             | FUSE LINEAR WITH {"weights": { "fork1": 0.4, "fork2": 0.6}, "normalizer": "l2_norm"}
             | SORT _score DESC
             | EVAL _fork = mv_sort(_fork)
@@ -160,6 +162,30 @@ public class FuseIT extends AbstractEsqlIntegTestCase {
                 List.of(4, "The dog is brown but this document is very very long", 0.293, "fork2")
             );
             assertValues(resp.values(), expectedValues);
+        }
+    }
+
+    public void testFuseWithSingleFork() {
+        for (Fuse.FuseType type : Fuse.FuseType.values()) {
+            var query = """
+                FROM test METADATA _score, _id, _index
+                | WHERE id > 2
+                | FORK
+                   ( WHERE content:"fox" | SORT _score, _id DESC | LIMIT 10)
+                | FUSE
+                """ + type.name() + """
+                | SORT _score DESC, _id, _index
+                | EVAL _fork = mv_sort(_fork)
+                | EVAL _score = round(_score, 4)
+                | KEEP id, content, _fork
+                """;
+            try (var resp = run(query)) {
+                assertColumnNames(resp.columns(), List.of("id", "content", "_fork"));
+                assertColumnTypes(resp.columns(), List.of("integer", "keyword", "keyword"));
+                assertThat(getValuesList(resp.values()).size(), equalTo(1));
+                Iterable<Iterable<Object>> expectedValues = List.of(List.of(6, "The quick brown fox jumps over the lazy dog", "fork1"));
+                assertValues(resp.values(), expectedValues);
+            }
         }
     }
 

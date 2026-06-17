@@ -11,7 +11,6 @@ package org.elasticsearch.common.io.stream;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -53,8 +52,6 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
-import static java.time.Instant.ofEpochSecond;
-import static java.time.ZonedDateTime.ofInstant;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasToString;
@@ -390,6 +387,37 @@ public abstract class AbstractStreamTests extends ESTestCase {
         );
     }
 
+    static String randomString() {
+        return randomUnicodeOfLength(randomFrom(0, 1, 2, 127, 128, 129, 255, 256, 257, between(0, 1 << 16)));
+    }
+
+    public void testString() throws IOException {
+        final var s = randomString();
+        assertSerialization(
+            streamOutput -> streamOutput.writeString(s),
+            si -> assertEquals(s, si.readString()),
+            TransportVersionUtils.randomVersion()
+        );
+    }
+
+    public void testOptionalString() throws IOException {
+        final var s = randomBoolean() ? null : randomString();
+        assertSerialization(
+            streamOutput -> streamOutput.writeOptionalString(s),
+            si -> assertEquals(s, si.readOptionalString()),
+            TransportVersionUtils.randomVersion()
+        );
+    }
+
+    public void testGenericString() throws IOException {
+        final var s = randomString();
+        assertSerialization(
+            streamOutput -> streamOutput.writeGenericValue(s),
+            si -> assertEquals(s, si.readGenericValue()),
+            TransportVersionUtils.randomVersion()
+        );
+    }
+
     public void testStringCollection() throws IOException {
         runWriteReadCollectionTest(
             () -> randomUnicodeOfLength(16),
@@ -634,8 +662,7 @@ public abstract class AbstractStreamTests extends ESTestCase {
         final int length = randomIntBetween(1, 1024);
         StreamInput delegate = getStreamInput(BytesReference.fromByteBuffer(ByteBuffer.wrap(new byte[length])));
 
-        FilterStreamInput filterInputStream = new FilterStreamInput(delegate) {
-        };
+        FilterStreamInput filterInputStream = new FilterStreamInput(delegate) {};
         assertEquals(filterInputStream.available(), length);
 
         // read some bytes
@@ -766,36 +793,6 @@ public abstract class AbstractStreamTests extends ESTestCase {
 
             assertEquals(-1, input.read());
             assertEquals(-1, input.read(new byte[2], 0, 2));
-        }
-    }
-
-    public void testZonedDateTimeSerialization() throws IOException {
-        checkZonedDateTimeSerialization(TransportVersions.V_8_16_0);
-    }
-
-    public void testZonedDateTimeMillisBwcSerialization() throws IOException {
-        checkZonedDateTimeSerialization(TransportVersionUtils.getPreviousVersion(TransportVersions.V_8_16_0));
-    }
-
-    public void checkZonedDateTimeSerialization(TransportVersion tv) throws IOException {
-        assertGenericRoundtrip(ofInstant(Instant.EPOCH, randomZone()), tv);
-        assertGenericRoundtrip(ofInstant(ofEpochSecond(1), randomZone()), tv);
-        // just want to test a large number that will use 5+ bytes
-        long maxEpochSecond = Integer.MAX_VALUE;
-        long minEpochSecond = Integer.MIN_VALUE;
-        assertGenericRoundtrip(ofInstant(ofEpochSecond(maxEpochSecond), randomZone()), tv);
-        assertGenericRoundtrip(ofInstant(ofEpochSecond(randomLongBetween(minEpochSecond, maxEpochSecond)), randomZone()), tv);
-        assertGenericRoundtrip(ofInstant(ofEpochSecond(randomLongBetween(minEpochSecond, maxEpochSecond), 1_000_000), randomZone()), tv);
-        assertGenericRoundtrip(ofInstant(ofEpochSecond(randomLongBetween(minEpochSecond, maxEpochSecond), 999_000_000), randomZone()), tv);
-        if (tv.onOrAfter(TransportVersions.V_8_16_0)) {
-            assertGenericRoundtrip(
-                ofInstant(ofEpochSecond(randomLongBetween(minEpochSecond, maxEpochSecond), 999_999_999), randomZone()),
-                tv
-            );
-            assertGenericRoundtrip(
-                ofInstant(ofEpochSecond(randomLongBetween(minEpochSecond, maxEpochSecond), randomIntBetween(0, 999_999_999)), randomZone()),
-                tv
-            );
         }
     }
 

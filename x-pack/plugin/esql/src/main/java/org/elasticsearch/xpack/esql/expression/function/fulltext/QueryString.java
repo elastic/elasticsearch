@@ -20,9 +20,11 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.Foldables;
+import org.elasticsearch.xpack.esql.expression.function.ConfigurationFunction;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.MapParam;
 import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
@@ -31,8 +33,10 @@ import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
 import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
+import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.io.IOException;
+import java.time.ZoneOffset;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -75,7 +79,7 @@ import static org.elasticsearch.xpack.esql.expression.Foldables.resolveTypeQuery
 /**
  * Full text function that performs a {@link QueryStringQuery} .
  */
-public class QueryString extends FullTextFunction implements OptionalArgument {
+public class QueryString extends FullTextFunction implements OptionalArgument, ConfigurationFunction {
 
     public static final Map<String, DataType> ALLOWED_OPTIONS = Map.ofEntries(
         entry(BOOST_FIELD.getPreferredName(), FLOAT),
@@ -105,14 +109,28 @@ public class QueryString extends FullTextFunction implements OptionalArgument {
         "QStr",
         QueryString::readFrom
     );
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(QueryString.class)
+        .binaryConfig(QueryString::new)
+        .name("qstr");
+
+    private final Configuration configuration;
+
+    // Options for QueryString. They don't need to be serialized as the data nodes will retrieve them from the query builder.
+    private final transient Expression options;
 
     @FunctionInfo(
         returnType = "boolean",
         appliesTo = {
             @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.0.0"),
             @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA, version = "9.1.0") },
+        briefSummary = "Performs a query string query and returns true if it matches the row.",
         description = "Performs a <<query-dsl-query-string-query,query string query>>. "
             + "Returns true if the provided query string matches the row.",
+        detailedDescription = """
+            :::{tip}
+            Learn more about using [ES|QL for search use cases](docs-content://solutions/search/esql-for-search.md).
+            :::
+            """,
         examples = {
             @Example(file = "qstr-function", tag = "qstr-with-field"),
             @Example(file = "qstr-function", tag = "qstr-with-options", applies_to = "stack: ga 9.1.0") }
@@ -264,16 +282,15 @@ public class QueryString extends FullTextFunction implements OptionalArgument {
             description = "(Optional) Additional options for Query String as <<esql-function-named-params,function named parameters>>."
                 + " See <<query-dsl-query-string-query,query string query>> for more information.",
             optional = true
-        ) Expression options
+        ) Expression options,
+        Configuration configuration
     ) {
-        this(source, queryString, options, null);
+        this(source, queryString, options, null, configuration);
     }
 
-    // Options for QueryString. They don't need to be serialized as the data nodes will retrieve them from the query builder.
-    private final transient Expression options;
-
-    public QueryString(Source source, Expression queryString, Expression options, QueryBuilder queryBuilder) {
+    public QueryString(Source source, Expression queryString, Expression options, QueryBuilder queryBuilder, Configuration configuration) {
         super(source, queryString, options == null ? List.of(queryString) : List.of(queryString, options), queryBuilder);
+        this.configuration = configuration;
         this.options = options;
     }
 
@@ -281,7 +298,7 @@ public class QueryString extends FullTextFunction implements OptionalArgument {
         Source source = Source.readFrom((PlanStreamInput) in);
         Expression query = in.readNamedWriteable(Expression.class);
         QueryBuilder queryBuilder = in.readOptionalNamedWriteable(QueryBuilder.class);
-        return new QueryString(source, query, null, queryBuilder);
+        return new QueryString(source, query, null, queryBuilder, ((PlanStreamInput) in).configuration());
     }
 
     @Override
@@ -322,13 +339,16 @@ public class QueryString extends FullTextFunction implements OptionalArgument {
     }
 
     private Map<String, Object> queryStringOptions() throws InvalidArgumentException {
-        if (options() == null) {
+        if (options() == null && configuration.zoneId().equals(ZoneOffset.UTC)) {
             return null;
         }
 
-        Map<String, Object> matchOptions = new HashMap<>();
-        Options.populateMap((MapExpression) options(), matchOptions, source(), SECOND, ALLOWED_OPTIONS);
-        return matchOptions;
+        Map<String, Object> queryStringOptions = new HashMap<>();
+        if (options() != null) {
+            Options.populateMap((MapExpression) options(), queryStringOptions, source(), SECOND, ALLOWED_OPTIONS);
+        }
+        queryStringOptions.putIfAbsent(TIME_ZONE_FIELD.getPreferredName(), configuration.zoneId().getId());
+        return queryStringOptions;
     }
 
     @Override
@@ -338,12 +358,18 @@ public class QueryString extends FullTextFunction implements OptionalArgument {
 
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
-        return new QueryString(source(), newChildren.getFirst(), newChildren.size() == 1 ? null : newChildren.get(1), queryBuilder());
+        return new QueryString(
+            source(),
+            newChildren.getFirst(),
+            newChildren.size() == 1 ? null : newChildren.get(1),
+            queryBuilder(),
+            configuration
+        );
     }
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, QueryString::new, query(), options(), queryBuilder());
+        return NodeInfo.create(this, QueryString::new, query(), options(), queryBuilder(), configuration);
     }
 
     @Override
@@ -353,7 +379,7 @@ public class QueryString extends FullTextFunction implements OptionalArgument {
 
     @Override
     public Expression replaceQueryBuilder(QueryBuilder queryBuilder) {
-        return new QueryString(source(), query(), options(), queryBuilder);
+        return new QueryString(source(), query(), options(), queryBuilder, configuration);
     }
 
     @Override
@@ -362,11 +388,13 @@ public class QueryString extends FullTextFunction implements OptionalArgument {
         // ignore options when comparing.
         if (o == null || getClass() != o.getClass()) return false;
         var qstr = (QueryString) o;
-        return Objects.equals(query(), qstr.query()) && Objects.equals(queryBuilder(), qstr.queryBuilder());
+        return Objects.equals(query(), qstr.query())
+            && Objects.equals(queryBuilder(), qstr.queryBuilder())
+            && Objects.equals(configuration, qstr.configuration);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(query(), queryBuilder());
+        return Objects.hash(query(), queryBuilder(), configuration);
     }
 }

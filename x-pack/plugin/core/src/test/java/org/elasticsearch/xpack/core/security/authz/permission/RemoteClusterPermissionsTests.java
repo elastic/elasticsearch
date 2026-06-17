@@ -31,6 +31,9 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.xpack.core.security.authc.Authentication.VERSION_CROSS_CLUSTER_ACCESS;
+import static org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissions.MANAGE_ROLES_PRIVILEGE;
+import static org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissions.ROLE_MONITOR_STATS;
 import static org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissions.ROLE_REMOTE_CLUSTER_PRIVS;
 import static org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissions.lastTransportVersionPermission;
 import static org.hamcrest.Matchers.containsString;
@@ -167,14 +170,15 @@ public class RemoteClusterPermissionsTests extends AbstractXContentSerializingTe
     }
 
     public void testPermissionsPerVersion() {
-        testPermissionPerVersion("monitor_enrich", ROLE_REMOTE_CLUSTER_PRIVS);
+        testPermissionPerVersion("monitor_enrich", VERSION_CROSS_CLUSTER_ACCESS, ROLE_REMOTE_CLUSTER_PRIVS);
+        testPermissionPerVersion("monitor_stats", MANAGE_ROLES_PRIVILEGE, ROLE_MONITOR_STATS);
     }
 
-    private void testPermissionPerVersion(String permission, TransportVersion version) {
+    private void testPermissionPerVersion(String permission, TransportVersion beforeVersion, TransportVersion version) {
         // test permission before, after and on the version
         String[] privileges = randomBoolean() ? new String[] { permission } : new String[] { permission, "foo", "bar" };
         String[] before = new RemoteClusterPermissions().addGroup(new RemoteClusterPermissionGroup(privileges, new String[] { "*" }))
-            .collapseAndRemoveUnsupportedPrivileges("*", TransportVersionUtils.getPreviousVersion(version));
+            .collapseAndRemoveUnsupportedPrivileges("*", beforeVersion);
         // empty set since permissions is not allowed in the before version
         assertThat(Set.of(before), equalTo(Collections.emptySet()));
         String[] on = new RemoteClusterPermissions().addGroup(new RemoteClusterPermissionGroup(privileges, new String[] { "*" }))
@@ -215,6 +219,7 @@ public class RemoteClusterPermissionsTests extends AbstractXContentSerializingTe
         remoteClusterPermissions.addGroup(group);
         // this privilege is allowed by versions, so nothing should be removed
         assertEquals(remoteClusterPermissions, remoteClusterPermissions.removeUnsupportedPrivileges(ROLE_REMOTE_CLUSTER_PRIVS));
+        assertEquals(remoteClusterPermissions, remoteClusterPermissions.removeUnsupportedPrivileges(ROLE_MONITOR_STATS));
 
         remoteClusterPermissions = new RemoteClusterPermissions();
         if (randomBoolean()) {
@@ -227,6 +232,7 @@ public class RemoteClusterPermissionsTests extends AbstractXContentSerializingTe
         // this single newer privilege is not allowed in the older version, so it should result in an object with no groups
         assertNotEquals(remoteClusterPermissions, remoteClusterPermissions.removeUnsupportedPrivileges(ROLE_REMOTE_CLUSTER_PRIVS));
         assertFalse(remoteClusterPermissions.removeUnsupportedPrivileges(ROLE_REMOTE_CLUSTER_PRIVS).hasAnyPrivileges());
+        assertEquals(remoteClusterPermissions, remoteClusterPermissions.removeUnsupportedPrivileges(ROLE_MONITOR_STATS));
 
         int groupCount = randomIntBetween(1, 5);
         remoteClusterPermissions = new RemoteClusterPermissions();
@@ -240,6 +246,8 @@ public class RemoteClusterPermissionsTests extends AbstractXContentSerializingTe
             expected.addGroup(new RemoteClusterPermissionGroup(new String[] { "monitor_enrich" }, new String[] { "*" }));
         }
         assertEquals(expected, remoteClusterPermissions.removeUnsupportedPrivileges(ROLE_REMOTE_CLUSTER_PRIVS));
+        // both privileges allowed in the newer version, so it should not change the permission
+        assertEquals(remoteClusterPermissions, remoteClusterPermissions.removeUnsupportedPrivileges(ROLE_MONITOR_STATS));
     }
 
     public void testShortCircuitRemoveUnsupportedPrivileges() {
@@ -259,6 +267,10 @@ public class RemoteClusterPermissionsTests extends AbstractXContentSerializingTe
             String[] privileges = generateRandomStringArray(5, 5, false, false);
             groupPrivileges.add(privileges);
             String[] clusters = generateRandomStringArray(5, 5, false, false);
+            String clusterPrefix = "g" + i + "_";
+            for (int j = 0; j < clusters.length; j++) {
+                clusters[j] = clusterPrefix + clusters[j];
+            }
             if (fuzzyCluster) {
                 for (int j = 0; j < clusters.length; j++) {
                     if (randomBoolean()) {

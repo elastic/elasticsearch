@@ -1,6 +1,0 @@
-pr: 135966
-summary: Ensure queued `AbstractRunnables` are notified when executor stops
-area: Machine Learning
-type: bug
-issues:
- - 134651

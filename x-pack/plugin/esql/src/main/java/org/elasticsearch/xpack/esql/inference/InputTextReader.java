@@ -26,6 +26,16 @@ public class InputTextReader implements Releasable {
     }
 
     /**
+     * Checks if the value at the given position is null.
+     *
+     * @param pos the position index in the block
+     * @return true if the position contains a null value, false otherwise
+     */
+    public boolean isNull(int pos) {
+        return textBlock.isNull(pos);
+    }
+
+    /**
      * Reads the text string at the given position.
      * Multiple values at the position are concatenated with newlines.
      *
@@ -44,7 +54,7 @@ public class InputTextReader implements Releasable {
      * @return the text string at the position, or null if the position contains a null value
      */
     public String readText(int pos, int limit) {
-        if (textBlock.isNull(pos)) {
+        if (isNull(pos)) {
             return null;
         }
 
@@ -71,6 +81,6 @@ public class InputTextReader implements Releasable {
     @Override
     public void close() {
         textBlock.allowPassingToDifferentDriver();
-        Releasables.close(textBlock);
+        Releasables.closeExpectNoException(textBlock);
     }
 }

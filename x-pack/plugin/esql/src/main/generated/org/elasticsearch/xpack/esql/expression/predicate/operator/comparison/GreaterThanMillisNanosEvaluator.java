@@ -14,31 +14,31 @@ import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
- * {@link EvalOperator.ExpressionEvaluator} implementation for {@link GreaterThan}.
+ * {@link ExpressionEvaluator} implementation for {@link GreaterThan}.
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
-public final class GreaterThanMillisNanosEvaluator implements EvalOperator.ExpressionEvaluator {
+public final class GreaterThanMillisNanosEvaluator implements ExpressionEvaluator {
   private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(GreaterThanMillisNanosEvaluator.class);
 
   private final Source source;
 
-  private final EvalOperator.ExpressionEvaluator lhs;
+  private final ExpressionEvaluator lhs;
 
-  private final EvalOperator.ExpressionEvaluator rhs;
+  private final ExpressionEvaluator rhs;
 
   private final DriverContext driverContext;
 
   private Warnings warnings;
 
-  public GreaterThanMillisNanosEvaluator(Source source, EvalOperator.ExpressionEvaluator lhs,
-      EvalOperator.ExpressionEvaluator rhs, DriverContext driverContext) {
+  public GreaterThanMillisNanosEvaluator(Source source, ExpressionEvaluator lhs,
+      ExpressionEvaluator rhs, DriverContext driverContext) {
     this.source = source;
     this.lhs = lhs;
     this.rhs = rhs;
@@ -126,25 +126,20 @@ public final class GreaterThanMillisNanosEvaluator implements EvalOperator.Expre
 
   private Warnings warnings() {
     if (warnings == null) {
-      this.warnings = Warnings.createWarnings(
-              driverContext.warningsMode(),
-              source.source().getLineNumber(),
-              source.source().getColumnNumber(),
-              source.text()
-          );
+      this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
     }
     return warnings;
   }
 
-  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+  static class Factory implements ExpressionEvaluator.Factory {
     private final Source source;
 
-    private final EvalOperator.ExpressionEvaluator.Factory lhs;
+    private final ExpressionEvaluator.Factory lhs;
 
-    private final EvalOperator.ExpressionEvaluator.Factory rhs;
+    private final ExpressionEvaluator.Factory rhs;
 
-    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory lhs,
-        EvalOperator.ExpressionEvaluator.Factory rhs) {
+    public Factory(Source source, ExpressionEvaluator.Factory lhs,
+        ExpressionEvaluator.Factory rhs) {
       this.source = source;
       this.lhs = lhs;
       this.rhs = rhs;

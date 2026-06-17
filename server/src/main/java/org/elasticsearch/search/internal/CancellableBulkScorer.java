@@ -15,6 +15,7 @@ import org.apache.lucene.util.Bits;
 
 import java.io.IOException;
 import java.util.Objects;
+import java.util.concurrent.TimeUnit;
 
 /**
  * A {@link BulkScorer} wrapper that runs a {@link Runnable} on a regular basis
@@ -26,8 +27,10 @@ public final class CancellableBulkScorer extends BulkScorer {
     // slow down boolean queries
     private static final int INITIAL_INTERVAL = 1 << 12;
 
-    // No point in having intervals that are larger than 1M
-    private static final int MAX_INTERVAL = 1 << 20;
+    private static final int MAX_INTERVAL = 1 << 14;
+
+    // Threshold for adaptive interval growth, only increase the interval if the previous batch completed faster than this.
+    private static final long INTERVAL_GROWTH_THRESHOLD_NANOS = TimeUnit.SECONDS.toNanos(1);
 
     private final BulkScorer scorer;
     private final Runnable checkCancelled;
@@ -40,11 +43,19 @@ public final class CancellableBulkScorer extends BulkScorer {
     @Override
     public int score(LeafCollector collector, Bits acceptDocs, int min, int max) throws IOException {
         int interval = INITIAL_INTERVAL;
+        long lastCheckTime = System.nanoTime();
+
         while (min < max) {
             checkCancelled.run();
+            lastCheckTime = System.nanoTime();
+
             final int newMax = (int) Math.min((long) min + interval, max);
             min = scorer.score(collector, acceptDocs, min, newMax);
-            interval = Math.min(interval << 1, MAX_INTERVAL);
+
+            long elapsed = System.nanoTime() - lastCheckTime;
+            if (elapsed < INTERVAL_GROWTH_THRESHOLD_NANOS) {
+                interval = Math.min(interval << 1, MAX_INTERVAL);
+            }
         }
         checkCancelled.run();
         return min;
@@ -55,4 +66,8 @@ public final class CancellableBulkScorer extends BulkScorer {
         return scorer.cost();
     }
 
+    // exposed for testing
+    static int getMaxInterval() {
+        return MAX_INTERVAL;
+    }
 }

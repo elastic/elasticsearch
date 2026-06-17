@@ -18,6 +18,7 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.geometry.utils.Geohash;
 import org.elasticsearch.h3.H3;
@@ -26,6 +27,7 @@ import org.elasticsearch.index.mapper.GeoPointScriptFieldType;
 import org.elasticsearch.index.mapper.GeoShapeQueryable;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
+import org.elasticsearch.index.query.LeafQueryBuilder;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
@@ -47,7 +49,7 @@ import java.util.Objects;
  * only for GeoPoint.
  *
  */
-public class GeoGridQueryBuilder extends AbstractQueryBuilder<GeoGridQueryBuilder> {
+public class GeoGridQueryBuilder extends LeafQueryBuilder<GeoGridQueryBuilder> {
     public static final String NAME = "geo_grid";
 
     /**
@@ -289,7 +291,7 @@ public class GeoGridQueryBuilder extends AbstractQueryBuilder<GeoGridQueryBuilde
         MappedFieldType fieldType = context.getFieldType(fieldName);
         if (fieldType == null) {
             if (ignoreUnmapped) {
-                return new MatchNoDocsQuery();
+                return Queries.NO_DOCS_INSTANCE;
             } else {
                 throw new QueryShardException(context, "failed to find geo field [" + fieldName + "]");
             }

@@ -12,6 +12,9 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.inference.services.validation.DenseEmbeddingModelValidator;
+
+import java.util.Map;
 
 /**
  * Contains any model-specific settings that are stored in SageMakerServiceSettings.
@@ -72,10 +75,22 @@ public interface SageMakerStoredServiceSchema extends ServiceSettings {
 
     /**
      * If this Schema supports Text Embeddings, then we need to implement this.
-     * {@link org.elasticsearch.xpack.inference.services.validation.TextEmbeddingModelValidator} will set the dimensions if the user
+     * {@link DenseEmbeddingModelValidator} will set the dimensions if the user
      * does not do it, so we need to store the dimensions and flip the {@link #dimensionsSetByUser()} boolean.
      */
     default SageMakerStoredServiceSchema updateModelWithEmbeddingDetails(Integer dimensions) {
+        return this;
+    }
+
+    /**
+     * Updates the service settings with the provided map. Currently, no {@link SageMakerStoredServiceSchema} implementations have
+     * any mutable settings, so this will return current service settings by default,
+     * but this is here to allow for future mutability if needed.
+     * @param serviceSettings a <b>modifiable</b> map with the new service settings
+     * @return the updated service settings
+     */
+    @Override
+    default SageMakerStoredServiceSchema updateServiceSettings(Map<String, Object> serviceSettings) {
         return this;
     }
 }

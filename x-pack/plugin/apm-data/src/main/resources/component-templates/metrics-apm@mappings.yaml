@@ -11,3 +11,11 @@ template:
       processor.event:
         type: constant_keyword
         value: metric
+      otel.sdk.exporter.span.exported:
+        type: long
+      otel.sdk.exporter.span.inflight:
+        type: long
+      otel.sdk.processor.span.processed:
+        type: long
+      otel.sdk.exporter.operation.duration:
+        type: histogram

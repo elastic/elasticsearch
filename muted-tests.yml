@@ -629,3 +629,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.commits.StatelessFileDeletionIT
   method: testCommitsOfScrollAreDeletedAfterIndexIsClosedAndOpened
   issue: https://github.com/elastic/elasticsearch/issues/151558
+- class: org.elasticsearch.benchmark.vector.ESVectorUtilByteOperationBenchmarkTests
+  method: testPanamaMatchesScalar {p0=L2_NORMALIZE p1=1}
+  issue: https://github.com/elastic/elasticsearch/issues/151569

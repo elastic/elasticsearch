@@ -2222,7 +2222,7 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
     }
 
     public void testPassthroughRootFieldWins() throws IOException {
-        // root "status" is long; passthrough sub-field "status" is keyword -- types differ so we can
+        // root "status" is long; passthrough sub-field "status" is keyword — types differ so we can
         // confirm the root concrete field wins rather than the passthrough alias
         MapperService mapperService = createMapperService(mapping(b -> {
             b.startObject("status").field("type", "long").endObject();
@@ -2341,7 +2341,7 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
      * values from a previous segment.
      */
     public void testDocValuesLoaderResetsBinaryDocValuesAcrossLeafReaders() throws IOException {
-        // given: two documents -- one with a flattened field, one without -- in separate segments
+        // given: two documents — one with a flattened field, one without — in separate segments
         Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB.name()).build();
         DocumentMapper mapper = createMapperService(
             IndexVersions.STORE_IGNORED_FLATTENED_FIELDS_IN_BINARY_DOC_VALUES,

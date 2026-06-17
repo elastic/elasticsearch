@@ -1803,7 +1803,6 @@ content:date_nanos
 [1990-09-23T00:00:00.000Z, 2026-09-12T00:00:00.000Z]
 ;
 
-
 matchOnRuntimeUnsignedLong
 
 required_capability: match_operator_colon
@@ -1830,15 +1829,15 @@ required_capability: match_runtime_search
 
 pragma: runtime_lexical_search=true
 
-ROW a = [100, 200, 300, 400]::unsigned_long
+ROW a = ["100", "200", "300", "400", "18446744073709551615"]::unsigned_long
 | MV_EXPAND a
-| WHERE a:100 OR a:200
+| WHERE a:100 OR a:"18446744073709551615"
 | SORT a
 ;
 
 a:unsigned_long
 100
-200
+18446744073709551615
 ;
 
 matchOnUnsignedLongWithRowAndNullValues

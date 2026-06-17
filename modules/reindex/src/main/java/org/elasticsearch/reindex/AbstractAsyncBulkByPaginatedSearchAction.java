@@ -129,10 +129,10 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
      * The current scroll response being processed. Set atomically so that either {@link #prepareBulkRequest} or
      * {@link #finishHim(Exception, List, List, boolean)} can claim exclusive ownership of the remaining hits and release them exactly once.
      */
-    private final AtomicReference<PaginatedSearchConsumableHitsResponse> currentScrollResponse = new AtomicReference<>();
+    private final AtomicReference<PaginatedSearchConsumableHitsResponse> currentPaginatedSearchResponse = new AtomicReference<>();
     /**
      * Set to {@code true} at the start of {@link #finishHim(Exception, List, List, boolean)} so {@link #prepareBulkRequest} can still
-     * release unconsumed hits when {@link #currentScrollResponse} is temporarily {@code null} after prepare's CAS (before the ref is
+     * release unconsumed hits when {@link #currentPaginatedSearchResponse} is temporarily {@code null} after prepare's CAS (before the ref is
      * restored when {@code maxDocs} leaves a partial batch).
      */
     private final AtomicBoolean requestFinishing = new AtomicBoolean(false);
@@ -529,7 +529,7 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
      * @param asyncResponse the response to process from {@link PaginatedHitSource}
      */
     void onScrollResponse(long lastBatchStartTimeNS, int lastBatchSizeToUse, PaginatedSearchConsumableHitsResponse asyncResponse) {
-        currentScrollResponse.set(asyncResponse);
+        currentPaginatedSearchResponse.set(asyncResponse);
         PaginatedHitSource.Response response = asyncResponse.response();
         logger.debug("[{}]: got scroll response with [{}] hits", task.getId(), asyncResponse.remainingHits());
         if (task.isCancelled()) {
@@ -580,7 +580,7 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
         logger.debug("[{}]: preparing bulk request", task.getId());
         // Atomically claim ownership of the response. If finishHim already claimed it (CAS returns false),
         // the hits have already been released — nothing to do here.
-        if (currentScrollResponse.compareAndSet(asyncResponse, null) == false) {
+        if (currentPaginatedSearchResponse.compareAndSet(asyncResponse, null) == false) {
             return;
         }
         if (requestFinishing.get()) {
@@ -614,7 +614,7 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
         // If there are unconsumed hits (e.g. maxDocs truncated the batch), restore the reference so finishHim can release them
         // if the operation ends before the next prepareBulkRequest runs (e.g. bulk failure, maxDocs reached in onBulkResponse).
         if (asyncResponse.hasRemainingHits()) {
-            currentScrollResponse.set(asyncResponse);
+            currentPaginatedSearchResponse.set(asyncResponse);
         }
 
         if (requestFinishing.get()) {
@@ -964,7 +964,7 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
         // Atomically claim the current response. If prepareBulkRequest already claimed it (null), this is a no-op.
         // If we win the CAS, we release any hits that were not yet consumed (i.e. from consumedOffset to end).
         // This covers: prepareBulkRequest hasn't run yet (consumedOffset == 0) and the maxDocs partial-batch case.
-        PaginatedSearchConsumableHitsResponse toRelease = currentScrollResponse.getAndSet(null);
+        PaginatedSearchConsumableHitsResponse toRelease = currentPaginatedSearchResponse.getAndSet(null);
         if (toRelease != null) {
             toRelease.releaseRemainingHits();
         }
@@ -1017,11 +1017,11 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
     }
 
     /**
-     * Seeds {@link #currentScrollResponse} for tests that need a specific scroll ref before {@link #prepareBulkRequest} (e.g. partial-batch
-     * / terminal-finish scenarios). Exists entirely for testing.
+     * Seeds {@link #currentPaginatedSearchResponse} for tests that need a specific paginated search ref before
+     * {@link #prepareBulkRequest} (e.g. partial-batch / terminal-finish scenarios). Exists entirely for testing.
      */
-    void setCurrentPaginatedSearchResponseForTests(PaginatedSearchConsumableHitsResponse response) {
-        currentScrollResponse.set(response);
+    void setCurrentPaginatedSearchResponse(PaginatedSearchConsumableHitsResponse response) {
+        currentPaginatedSearchResponse.set(response);
     }
 
     private static void releaseHits(List<? extends PaginatedHitSource.Hit> hits) {
@@ -1031,7 +1031,7 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
     }
 
     private boolean tryReleaseCurrentResponse(PaginatedSearchConsumableHitsResponse expected) {
-        if (currentScrollResponse.compareAndSet(expected, null)) {
+        if (currentPaginatedSearchResponse.compareAndSet(expected, null)) {
             expected.releaseRemainingHits();
             return true;
         }
@@ -1333,7 +1333,7 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
          * are read while another thread updates this field. {@link #consumeHits} uses a non-atomic
          * read-then-add on this value; {@code volatile} does not make that sequence atomic—callers rely
          * on at most one thread executing {@code consumeHits} per response, coordinated by
-         * {@link AbstractAsyncBulkByPaginatedSearchAction#currentScrollResponse} CAS, not on this field alone.
+         * {@link AbstractAsyncBulkByPaginatedSearchAction#currentPaginatedSearchResponse} CAS, not on this field alone.
          */
         private volatile int consumedOffset = 0;
         private final Releasable releaseRemainingHitsOnce;

@@ -1379,7 +1379,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
             }
         };
         action.setScroll(scrollId());
-        action.setCurrentPaginatedSearchResponseForTests(consumable);
+        action.setCurrentPaginatedSearchResponse(consumable);
 
         Future<?> prepareFuture = threadPool.generic().submit(() -> action.prepareBulkRequest(System.nanoTime(), consumable));
         assertTrue(firstConsumeReturnedFromSuper.await(30, TimeUnit.SECONDS));
@@ -1429,7 +1429,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
      * {@link AbstractAsyncBulkByPaginatedSearchAction.PaginatedSearchConsumableHitsResponse} must lose
      * the {@code compareAndSet(asyncResponse, null)} race and return without consuming or releasing again.
      */
-    public void testPrepareBulkRequestNoOpsWhenFinishHimAlreadyClaimedScrollResponse() {
+    public void testPrepareBulkRequestNoOpsWhenFinishHimAlreadyClaimedPaginatedSearchResponse() {
         configurePitOrScroll(false);
         CountingHit h0 = new CountingHit("0");
         CountingHit h1 = new CountingHit("1");
@@ -1458,7 +1458,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
             });
         DummyAsyncBulkByScrollAction action = new DummyAsyncBulkByScrollAction();
         action.setScroll(scrollId());
-        action.setCurrentPaginatedSearchResponseForTests(consumable);
+        action.setCurrentPaginatedSearchResponse(consumable);
 
         action.finishHim(null);
         assertThat(listener.isDone(), equalTo(true));

@@ -652,10 +652,7 @@ public abstract class EngineTestCase extends ESTestCase {
         return internalEngine.getLocalCheckpointTracker().generateSeqNo();
     }
 
-    public static InternalEngine createInternalEngine(
-        @Nullable final IndexWriterFactory indexWriterFactory,
-        final EngineConfig config
-    ) {
+    public static InternalEngine createInternalEngine(@Nullable final IndexWriterFactory indexWriterFactory, final EngineConfig config) {
         return createInternalEngine(indexWriterFactory, null, null, config);
     }
 
@@ -675,10 +672,8 @@ public abstract class EngineTestCase extends ESTestCase {
                 }
 
                 @Override
-                protected long doGenerateSeqNoForOperation(final Operation operation) {
-                    return seqNoForOperation != null
-                        ? seqNoForOperation.applyAsLong(this, operation)
-                        : super.doGenerateSeqNoForOperation(operation);
+                protected long doGenerateSeqNo() {
+                    return seqNoForOperation != null ? seqNoForOperation.applyAsLong(this, null) : super.doGenerateSeqNo();
                 }
             };
         } else {
@@ -691,10 +686,8 @@ public abstract class EngineTestCase extends ESTestCase {
                 }
 
                 @Override
-                protected long doGenerateSeqNoForOperation(final Operation operation) {
-                    return seqNoForOperation != null
-                        ? seqNoForOperation.applyAsLong(this, operation)
-                        : super.doGenerateSeqNoForOperation(operation);
+                protected long doGenerateSeqNo() {
+                    return seqNoForOperation != null ? seqNoForOperation.applyAsLong(this, null) : super.doGenerateSeqNo();
                 }
             };
         }

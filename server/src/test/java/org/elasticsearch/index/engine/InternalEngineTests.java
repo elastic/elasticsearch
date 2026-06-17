@@ -5342,7 +5342,7 @@ public class InternalEngineTests extends EngineTestCase {
                 .build();
             noOpEngine = new InternalEngine(noopEngineConfig, IndexWriter.MAX_DOCS, supplier) {
                 @Override
-                protected long doGenerateSeqNoForOperation(Operation operation) {
+                protected long doGenerateSeqNo() {
                     throw new UnsupportedOperationException();
                 }
             };

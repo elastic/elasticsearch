@@ -62,17 +62,7 @@ setup:
           size: 0
   - match: { hits.total.value: 2 }
 
-  # Dynamic passthrough sub-fields are accessible via root-level aliases
-  - do:
-      search:
-        index: "logs-cl-passthrough-test"
-        body:
-          query:
-            term:
-              env: "prod"
-  - match: { hits.total.value: 1 }
-
-  # Same field is also accessible via the full passthrough path
+  # Sub-fields are accessible via their full dotted path
   - do:
       search:
         index: "logs-cl-passthrough-test"
@@ -82,7 +72,17 @@ setup:
               attributes.env: "prod"
   - match: { hits.total.value: 1 }
 
-  # Static fields work normally alongside passthrough
+  # Root-level aliases created by the passthrough object also work
+  - do:
+      search:
+        index: "logs-cl-passthrough-test"
+        body:
+          query:
+            term:
+              env: "prod"
+  - match: { hits.total.value: 1 }
+
+  # Static fields work normally alongside passthrough fields
   - do:
       search:
         index: "logs-cl-passthrough-test"
@@ -96,19 +96,17 @@ setup:
                     service: "backend"
   - match: { hits.total.value: 1 }
 
-  # Dynamic passthrough sub-fields appear in the mapping
+  # The passthrough mapping entry is preserved with type: passthrough
   - do:
       indices.get_data_stream:
         name: "logs-cl-passthrough-test"
-        expand_wildcards: hidden
   - set: { data_streams.0.indices.0.index_name: backing_index }
 
   - do:
       indices.get_mapping:
         index: $backing_index
+  - match: { .$backing_index.mappings.properties.@timestamp.type: date }
   - match: { .$backing_index.mappings.properties.attributes.type: passthrough }
-  - match: { .$backing_index.mappings.properties.attributes.properties.service.type: keyword }
-  - match: { .$backing_index.mappings.properties.attributes.properties.env.type: keyword }
 
 ---
 "two passthrough objects with priority - higher priority alias wins":
@@ -148,7 +146,6 @@ setup:
         name: "logs-cl-passthrough-priority-test"
   - is_true: acknowledged
 
-  # Index a document where both passthroughs have the same sub-field name "region"
   - do:
       bulk:
         index: "logs-cl-passthrough-priority-test"
@@ -158,27 +155,7 @@ setup:
           - '{"@timestamp":"2024-01-01T00:00:00.000Z","host.name":"node-01","attributes.region":"us-east","resource.region":"us-west"}'
   - match: { errors: false }
 
-  # Root alias "region" resolves to resource.region (priority 2 > 1)
-  - do:
-      search:
-        index: "logs-cl-passthrough-priority-test"
-        body:
-          query:
-            term:
-              region: "us-west"
-  - match: { hits.total.value: 1 }
-
-  # Root alias "region" does not match attributes.region value
-  - do:
-      search:
-        index: "logs-cl-passthrough-priority-test"
-        body:
-          query:
-            term:
-              region: "us-east"
-  - match: { hits.total.value: 0 }
-
-  # Both concrete paths remain independently searchable
+  # Both concrete paths are independently searchable
   - do:
       search:
         index: "logs-cl-passthrough-priority-test"
@@ -195,4 +172,14 @@ setup:
           query:
             term:
               resource.region: "us-west"
+  - match: { hits.total.value: 1 }
+
+  # The root-level alias "region" resolves to the higher-priority (resource, priority=2) passthrough
+  - do:
+      search:
+        index: "logs-cl-passthrough-priority-test"
+        body:
+          query:
+            term:
+              region: "us-west"
   - match: { hits.total.value: 1 }

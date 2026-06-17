@@ -10,12 +10,19 @@
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.common.Explicit;
+import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
+import static org.elasticsearch.index.mapper.MapperService.MergeReason.MAPPING_AUTO_UPDATE;
 import static org.elasticsearch.index.mapper.MapperService.MergeReason.MAPPING_UPDATE;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -281,5 +288,168 @@ public class PassThroughObjectMapperTests extends MapperServiceTestCase {
             e.getMessage(),
             containsString("[time_series_dimension] and [time_series_metric] cannot be set in conjunction with each other [labels.dim]")
         );
+    }
+
+    /**
+     * Passthrough objects must survive flattening in columnar/logsdb_columnar index modes so that
+     * root-level field aliases are created at query time via {@link FieldTypeLookup}.  Previously
+     * the {@code subobjects:false} flatten guard in
+     * {@link ObjectMapper.Builder#flattenBuildersIfNeeded} dissolved every
+     * {@code ObjectMapper.Builder} child — including {@code PassThroughObjectMapper.Builder} —
+     * into bare dotted leaf fields, causing the passthrough node to disappear from the mapping tree
+     * and no aliases to be registered.
+     */
+    public void testPassThroughSurvivesColumnarFlattening() throws IOException {
+        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        for (IndexMode indexMode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
+            Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), indexMode.getName()).build();
+            MapperService mapperService = createMapperService(settings, mapping(b -> {
+                b.startObject("attributes").field("type", "passthrough").field("priority", "1").field("dynamic", true);
+                {
+                    b.startObject("properties");
+                    b.startObject("env").field("type", "keyword").endObject();
+                    b.endObject();
+                }
+                b.endObject();
+            }));
+
+            // The passthrough node must still exist in the objectMappers map
+            Mapper passthrough = mapperService.mappingLookup().objectMappers().get("attributes");
+            assertNotNull("passthrough node should survive columnar flattening [" + indexMode + "]", passthrough);
+            assertThat(passthrough, instanceOf(PassThroughObjectMapper.class));
+
+            // The static sub-field is accessible via its full dotted path
+            assertNotNull("attributes.env should be a concrete field [" + indexMode + "]", mapperService.fieldType("attributes.env"));
+
+            // A root-level alias for the sub-field must be registered
+            assertNotNull("root-level alias 'env' should exist via passthrough [" + indexMode + "]", mapperService.fieldType("env"));
+        }
+    }
+
+    /**
+     * When two passthrough objects compete for the same leaf name the higher-priority passthrough
+     * wins.  This must also hold in columnar modes after the fix.
+     */
+    public void testPassThroughPriorityWinsInColumnarMode() throws IOException {
+        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        for (IndexMode indexMode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
+            Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), indexMode.getName()).build();
+            MapperService mapperService = createMapperService(settings, mapping(b -> {
+                // priority 1 — lower
+                b.startObject("attributes").field("type", "passthrough").field("priority", "1").field("dynamic", true);
+                {
+                    b.startObject("properties");
+                    b.startObject("region").field("type", "keyword").endObject();
+                    b.endObject();
+                }
+                b.endObject();
+                // priority 2 — higher; its alias for "region" should win
+                b.startObject("resource").field("type", "passthrough").field("priority", "2").field("dynamic", true);
+                {
+                    b.startObject("properties");
+                    b.startObject("region").field("type", "keyword").endObject();
+                    b.endObject();
+                }
+                b.endObject();
+            }));
+
+            // Both concrete dotted paths must be reachable
+            assertNotNull("attributes.region should be a concrete field [" + indexMode + "]", mapperService.fieldType("attributes.region"));
+            assertNotNull("resource.region should be a concrete field [" + indexMode + "]", mapperService.fieldType("resource.region"));
+
+            // The root-level alias "region" must resolve to resource.region (priority 2 wins)
+            MappedFieldType rootAlias = mapperService.fieldType("region");
+            assertNotNull("root-level alias 'region' should exist [" + indexMode + "]", rootAlias);
+            assertEquals("higher-priority passthrough should win for root alias [" + indexMode + "]", "resource.region", rootAlias.name());
+        }
+    }
+
+    /**
+     * Verifies that after a dynamic mapping update a passthrough object in columnar mode still
+     * appears with {@code "type": "passthrough"} in the serialized mapping source.
+     * This exercises the path where a document with a flat dotted field (e.g.
+     * {@code "attributes.env": "prod"}) triggers a dynamic mapping update that routes the new
+     * leaf through the passthrough builder and merges it back.
+     */
+    @SuppressWarnings("unchecked")
+    public void testPassThroughSurvivesDynamicUpdateInColumnarMode() throws IOException {
+        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        for (IndexMode indexMode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
+            Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), indexMode.getName()).build();
+            // Start with the passthrough having NO properties (simulates the template before any document)
+            MapperService mapperService = createMapperService(settings, mapping(b -> {
+                b.startObject("attributes").field("type", "passthrough").field("priority", 1).field("dynamic", true).endObject();
+            }));
+
+            // Simulate the dynamic mapping update that arrives after indexing {"attributes.env": "prod"}
+            String dynamicUpdate = """
+                {"_doc":{"properties":{"attributes":{"type":"passthrough","priority":1,"dynamic":"true",
+                "properties":{"env":{"type":"keyword"},"service":{"type":"keyword"}}}}}}
+                """;
+            mapperService.merge("_doc", new CompressedXContent(dynamicUpdate), MAPPING_AUTO_UPDATE);
+
+            // The passthrough node must still survive after the dynamic update
+            Mapper passthrough = mapperService.mappingLookup().objectMappers().get("attributes");
+            assertNotNull("passthrough node should survive dynamic update [" + indexMode + "]", passthrough);
+            assertThat(passthrough, instanceOf(PassThroughObjectMapper.class));
+
+            // Root-level aliases must work (aliases created by the passthrough)
+            assertNotNull("env alias should exist after dynamic update [" + indexMode + "]", mapperService.fieldType("env"));
+            assertNotNull("service alias should exist after dynamic update [" + indexMode + "]", mapperService.fieldType("service"));
+
+            // The serialized mapping source must contain "type": "passthrough" for attributes
+            CompressedXContent mappingSource = mapperService.documentMapper().mappingSource();
+            Map<String, Object> sourceMap = XContentHelper.convertToMap(mappingSource.compressedReference(), true, XContentType.JSON).v2();
+            // sourceMap is {"_doc": {"properties": {"attributes": {...}}}}
+            // strip top-level type wrapper if present
+            if (sourceMap.size() == 1 && sourceMap.containsKey("_doc")) {
+                sourceMap = (Map<String, Object>) sourceMap.get("_doc");
+            }
+            Map<String, Object> properties = (Map<String, Object>) sourceMap.get("properties");
+            assertNotNull("properties must exist in mapping source [" + indexMode + "]", properties);
+            Map<String, Object> attributesNode = (Map<String, Object>) properties.get("attributes");
+            assertNotNull("attributes must be in properties [" + indexMode + "]", attributesNode);
+            assertEquals(
+                "attributes.type must be 'passthrough' in serialized mapping [" + indexMode + "]",
+                "passthrough",
+                attributesNode.get("type")
+            );
+        }
+    }
+
+    /**
+     * A passthrough whose name contains a dot (e.g. {@code "resource.attributes"}) must still
+     * produce short-name aliases in columnar/logsdb_columnar mode.  For example, a field stored
+     * as {@code "resource.attributes.env"} at root level must be reachable via the alias {@code "env"}.
+     * This exercises the multi-segment prefix case in the prefix-based alias resolution path of
+     * {@link FieldTypeLookup}.
+     */
+    public void testPassThroughWithDottedPrefixInColumnarMode() throws IOException {
+        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        for (IndexMode indexMode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
+            Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), indexMode.getName()).build();
+            MapperService mapperService = createMapperService(settings, mapping(b -> {
+                // Dotted passthrough name — valid in subobjects:false mode
+                b.startObject("resource.attributes").field("type", "passthrough").field("priority", "1").field("dynamic", true);
+                {
+                    b.startObject("properties");
+                    b.startObject("env").field("type", "keyword").endObject();
+                    b.endObject();
+                }
+                b.endObject();
+            }));
+
+            // The concrete dotted path must be reachable
+            assertNotNull(
+                "resource.attributes.env should be a concrete field [" + indexMode + "]",
+                mapperService.fieldType("resource.attributes.env")
+            );
+
+            // The root-level alias "env" must resolve via the dotted passthrough prefix
+            assertNotNull(
+                "root alias 'env' should exist via dotted passthrough [" + indexMode + "]",
+                mapperService.fieldType("env")
+            );
+        }
     }
 }

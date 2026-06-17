@@ -46,7 +46,7 @@ final class FieldTypeLookup {
     private final int maxParentPathDots;
 
     FieldTypeLookup(Collection<FieldMapper> fieldMappers, Collection<FieldAliasMapper> fieldAliasMappers) {
-        this(fieldMappers, fieldAliasMappers, List.of(), List.of());
+        this(fieldMappers, fieldAliasMappers, List.of(), List.of(), false);
     }
 
     FieldTypeLookup(
@@ -55,12 +55,37 @@ final class FieldTypeLookup {
         Collection<PassThroughFieldSource> passThroughSources,
         Collection<RuntimeField> runtimeFields
     ) {
+        this(fieldMappers, fieldAliasMappers, passThroughSources, runtimeFields, false);
+    }
+
+    FieldTypeLookup(
+        Collection<FieldMapper> fieldMappers,
+        Collection<FieldAliasMapper> fieldAliasMappers,
+        Collection<PassThroughFieldSource> passThroughSources,
+        Collection<RuntimeField> runtimeFields,
+        boolean rootSubobjectsDisabled
+    ) {
 
         final Map<String, MappedFieldType> fullNameToFieldType = new HashMap<>();
         final Map<String, String> fullSubfieldNameToParentPath = new HashMap<>();
         final Map<String, DynamicFieldType> dynamicFieldTypes = new HashMap<>();
         final Map<String, Set<String>> fieldToCopiedFields = new HashMap<>();
         final Set<String> copiedFields = new HashSet<>();
+
+        // When the root has subobjects disabled, PassThrough nodes are stored as empty metadata
+        // stubs with their leaf fields flattened to root level. Build prefix→priority so that
+        // during the field mapper scan we can register short-name aliases for those flat fields.
+        Map<String, Integer> ptPrefixPriorities = new HashMap<>();
+        if (rootSubobjectsDisabled) {
+            for (PassThroughFieldSource source : passThroughSources) {
+                if (source.passThroughSubFields().isEmpty()) {
+                    ptPrefixPriorities.put(source.fullPath(), source.priority());
+                }
+            }
+        }
+        Map<String, Integer> ptAliasPriorities = new HashMap<>();
+        Map<String, MappedFieldType> ptAliasTypes = new HashMap<>();
+
         for (FieldMapper fieldMapper : fieldMappers) {
             String fieldName = fieldMapper.fullPath();
             MappedFieldType fieldType = fieldMapper.fieldType();
@@ -79,6 +104,20 @@ final class FieldTypeLookup {
                     fieldToCopiedFields.put(targetField, fieldCopiedFields);
                 }
                 fieldToCopiedFields.get(targetField).add(fieldName);
+            }
+            if (ptPrefixPriorities.isEmpty() == false) {
+                for (Map.Entry<String, Integer> ptEntry : ptPrefixPriorities.entrySet()) {
+                    String ptPrefix = ptEntry.getKey() + ".";
+                    if (fieldName.startsWith(ptPrefix)) {
+                        String alias = fieldName.substring(ptPrefix.length());
+                        int priority = ptEntry.getValue();
+                        Integer existing = ptAliasPriorities.get(alias);
+                        if (existing == null || priority > existing) {
+                            ptAliasPriorities.put(alias, priority);
+                            ptAliasTypes.put(alias, fieldType);
+                        }
+                    }
+                }
             }
         }
 
@@ -112,6 +151,17 @@ final class FieldTypeLookup {
             fullNameToFieldType.put(name, fieldType);
             if (fieldType instanceof DynamicFieldType) {
                 dynamicFieldTypes.put(name, (DynamicFieldType) fieldType);
+            }
+        }
+
+        for (Map.Entry<String, MappedFieldType> entry : ptAliasTypes.entrySet()) {
+            String alias = entry.getKey();
+            if (fullNameToFieldType.containsKey(alias) == false) {
+                MappedFieldType fieldType = entry.getValue();
+                fullNameToFieldType.put(alias, fieldType);
+                if (fieldType instanceof DynamicFieldType dft) {
+                    dynamicFieldTypes.put(alias, dft);
+                }
             }
         }
 

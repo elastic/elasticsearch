@@ -170,8 +170,7 @@ public class ObjectMapper extends Mapper {
          * @param context        the DocumentParserContext in which the mapper has been built
          */
         public final void addDynamic(String name, String prefix, Mapper.Builder mapperBuilder, DocumentParserContext context) {
-            // If the mapper to add has no dots, or the current object mapper has subobjects set to false,
-            // we just add it as it is for sure a leaf mapper
+            // If the mapper to add has no dots it is for sure a leaf mapper, add it directly.
             if (name.contains(".") == false || subobjects.value() == Subobjects.DISABLED) {
                 add(mapperBuilder);
             } else {
@@ -350,15 +349,46 @@ public class ObjectMapper extends Mapper {
             MapperMergeContext dedupContext = MapperMergeContext.from(builderContext, Long.MAX_VALUE);
             Map<String, Mapper.Builder> map = new HashMap<>();
             for (Mapper.Builder builder : builders) {
-                if (subobjects.value() == Subobjects.DISABLED && builder instanceof ObjectMapper.Builder objectMapperBuilder) {
+                if (subobjects.value() == Subobjects.DISABLED
+                    && builder instanceof ObjectMapper.Builder objectMapperBuilder
+                    && objectMapperBuilder instanceof PassThroughObjectMapper.Builder == false) {
                     objectMapperBuilder.asFlattenedFieldBuilders(builderContext, map, new ContentPath());
-                } else {
-                    Mapper.Builder existing = map.get(builder.leafName());
-                    if (existing != null) {
-                        builder = existing.mergeWith(builder, dedupContext);
+                } else if (subobjects.value() == Subobjects.DISABLED
+                    && builder instanceof PassThroughObjectMapper.Builder passThroughBuilder) {
+                        // Keep a metadata-only stub at the passthrough's short name for alias resolution;
+                        // flatten its child fields to root level with dotted names.
+                        PassThroughObjectMapper.Builder stub = passThroughBuilder.toMetadataStub();
+                        Mapper.Builder existing = map.get(stub.leafName());
+                        if (existing instanceof PassThroughObjectMapper.Builder existingStub) {
+                            stub = (PassThroughObjectMapper.Builder) existingStub.mergeWith(stub, dedupContext);
+                        }
+                        map.put(stub.leafName(), stub);
+                        String prefix = passThroughBuilder.leafName();
+                        for (Mapper.Builder childBuilder : passThroughBuilder.mappersBuilders) {
+                            if (childBuilder instanceof FieldMapper.Builder fieldMapperBuilder) {
+                                String dottedName = prefix + "." + fieldMapperBuilder.leafName();
+                                fieldMapperBuilder.setLeafName(dottedName);
+                                Mapper.Builder existingChild = map.get(dottedName);
+                                if (existingChild != null) {
+                                    Mapper.Builder merged = existingChild.mergeWith(fieldMapperBuilder, dedupContext);
+                                    map.put(dottedName, merged);
+                                } else {
+                                    map.put(dottedName, fieldMapperBuilder);
+                                }
+                            } else if (childBuilder instanceof ObjectMapper.Builder childObjectBuilder) {
+                                ContentPath ptPath = new ContentPath();
+                                ptPath.add(prefix);
+                                childObjectBuilder.asFlattenedFieldBuilders(builderContext, map, ptPath);
+                                ptPath.remove();
+                            }
+                        }
+                    } else {
+                        Mapper.Builder existing = map.get(builder.leafName());
+                        if (existing != null) {
+                            builder = existing.mergeWith(builder, dedupContext);
+                        }
+                        map.put(builder.leafName(), builder);
                     }
-                    map.put(builder.leafName(), builder);
-                }
             }
             return map;
         }
@@ -377,7 +407,24 @@ public class ObjectMapper extends Mapper {
             ensureBuilderFlattenable(parentContext, fullName);
             path.add(leafName());
             for (Mapper.Builder childBuilder : mappersBuilders) {
-                if (childBuilder instanceof ObjectMapper.Builder objectMapperBuilder) {
+                if (childBuilder instanceof PassThroughObjectMapper.Builder passThroughBuilder) {
+                    // Keep a metadata stub at the full dotted path; flatten leaf fields.
+                    String shortName = passThroughBuilder.leafName();
+                    String dottedName = path.pathAsText(shortName);
+                    PassThroughObjectMapper.Builder stub = passThroughBuilder.toMetadataStub();
+                    stub.setLeafName(dottedName);
+                    result.put(dottedName, stub);
+                    path.add(shortName);
+                    for (Mapper.Builder ptChild : passThroughBuilder.mappersBuilders) {
+                        if (ptChild instanceof FieldMapper.Builder fieldMapperBuilder) {
+                            fieldMapperBuilder.setLeafName(path.pathAsText(fieldMapperBuilder.leafName()));
+                            result.put(fieldMapperBuilder.leafName(), fieldMapperBuilder);
+                        } else if (ptChild instanceof ObjectMapper.Builder ptChildObj) {
+                            ptChildObj.asFlattenedFieldBuilders(parentContext, result, path);
+                        }
+                    }
+                    path.remove();
+                } else if (childBuilder instanceof ObjectMapper.Builder objectMapperBuilder) {
                     objectMapperBuilder.asFlattenedFieldBuilders(parentContext, result, path);
                 } else if (childBuilder instanceof FieldMapper.Builder fieldMapperBuilder) {
                     fieldMapperBuilder.setLeafName(path.pathAsText(fieldMapperBuilder.leafName()));
@@ -751,8 +798,9 @@ public class ObjectMapper extends Mapper {
             Arrays.sort(names);
             sortedFieldNames = names;
         }
-        assert subobjects.value() != Subobjects.DISABLED || this.mappers.values().stream().noneMatch(m -> m instanceof ObjectMapper)
-            : "When subobjects is false, mappers must not contain an ObjectMapper";
+        assert subobjects.value() != Subobjects.DISABLED
+            || this.mappers.values().stream().noneMatch(m -> m instanceof ObjectMapper && m instanceof PassThroughObjectMapper == false)
+            : "When subobjects is false, mappers must not contain an ObjectMapper (except PassThroughObjectMapper)";
     }
 
     /**

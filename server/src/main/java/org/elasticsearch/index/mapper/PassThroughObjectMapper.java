@@ -117,6 +117,22 @@ public final class PassThroughObjectMapper extends ObjectMapper implements PassT
                 priority
             );
         }
+
+        /**
+         * Returns a new builder with the same metadata settings (priority, dynamic, enabled, etc.)
+         * but no child mappers. Used when the parent has subobjects disabled: the stub is kept as a
+         * marker for prefix-based alias resolution while the actual leaf fields are flattened to the
+         * parent level with dotted names.
+         */
+        PassThroughObjectMapper.Builder toMetadataStub() {
+            PassThroughObjectMapper.Builder stub = new PassThroughObjectMapper.Builder(leafName());
+            stub.enabled = this.enabled;
+            stub.dynamic = this.dynamic;
+            stub.sourceKeepMode = this.sourceKeepMode;
+            stub.timeSeriesDimensionSubFields = this.timeSeriesDimensionSubFields;
+            stub.priority = this.priority;
+            return stub;
+        }
     }
 
     // If set, its subfields are marked as time-series dimensions (for the types supporting this).

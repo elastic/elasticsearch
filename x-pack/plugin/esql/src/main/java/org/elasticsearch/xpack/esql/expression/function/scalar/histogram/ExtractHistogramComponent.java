@@ -57,17 +57,13 @@ public class ExtractHistogramComponent extends EsqlScalarFunction {
     );
 
     public static final PromqlFunctionDefinition PROMQL_HISTOGRAM_COUNT = PromqlFunctionDefinition.def()
-        .histogramUnary(
-            (source, field) -> ExtractHistogramComponent.create(source, field, ExponentialHistogramBlock.Component.COUNT)
-        )
+        .histogramUnary((source, field) -> ExtractHistogramComponent.create(source, field, ExponentialHistogramBlock.Component.COUNT))
         .description("Returns the count of observations stored in a native histogram.")
         .example("histogram_count(increase(http_request_duration_seconds[5m]))")
         .name("histogram_count");
 
     public static final PromqlFunctionDefinition PROMQL_HISTOGRAM_SUM = PromqlFunctionDefinition.def()
-        .histogramUnary(
-            (source, field) -> ExtractHistogramComponent.create(source, field, ExponentialHistogramBlock.Component.SUM)
-        )
+        .histogramUnary((source, field) -> ExtractHistogramComponent.create(source, field, ExponentialHistogramBlock.Component.SUM))
         .description("Returns the sum of observations stored in a native histogram.")
         .example("histogram_sum(increase(http_request_duration_seconds[5m]))")
         .name("histogram_sum");

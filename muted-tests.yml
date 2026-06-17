@@ -458,9 +458,6 @@ tests:
 - class: org.elasticsearch.xpack.remotecluster.CrossClusterEsqlRCS1EnrichUnavailableRemotesIT
   method: testEsqlEnrichWithSkipUnavailable
   issue: https://github.com/elastic/elasticsearch/issues/150686
-- class: org.elasticsearch.xpack.stateless.shutdown.SigtermAzureRestartIT
-  method: testRestart
-  issue: https://github.com/elastic/elasticsearch/issues/150691
 - class: org.elasticsearch.indices.memory.breaker.HierarchyCircuitBreakerTelemetryIT
   method: testCircuitBreakerTripCountMetric
   issue: https://github.com/elastic/elasticsearch/issues/150700

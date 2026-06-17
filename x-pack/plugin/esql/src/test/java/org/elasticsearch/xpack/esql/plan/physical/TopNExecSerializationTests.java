@@ -25,7 +25,14 @@ public class TopNExecSerializationTests extends AbstractPhysicalPlanSerializatio
         List<Order> order = randomList(1, 10, OrderSerializationTests::randomOrder);
         Expression limit = new Literal(randomSource(), randomNonNegativeInt(), DataType.INTEGER);
         Integer estimatedRowSize = randomEstimatedRowSize();
-        return new TopNExec(source, child, order, limit, estimatedRowSize);
+        var result = new TopNExec(source, child, order, limit, estimatedRowSize);
+        if (randomBoolean()) {
+            result = result.withSortedInput();
+        }
+        if (randomBoolean()) {
+            result = result.withUnboundedSort();
+        }
+        return result;
     }
 
     @Override
@@ -40,8 +47,9 @@ public class TopNExecSerializationTests extends AbstractPhysicalPlanSerializatio
         Expression limit = instance.limit();
         Integer estimatedRowSize = instance.estimatedRowSize();
         InputOrdering inputOrdering = instance.inputOrdering();
+        boolean unboundedSort = instance.unboundedSort();
 
-        switch (between(0, 4)) {
+        switch (between(0, 5)) {
             case 0 -> child = randomValueOtherThan(child, () -> randomChild(0));
             case 1 -> order = randomValueOtherThan(order, () -> randomList(1, 10, OrderSerializationTests::randomOrder));
             case 2 -> limit = randomValueOtherThan(limit, () -> new Literal(randomSource(), randomNonNegativeInt(), DataType.INTEGER));
@@ -50,10 +58,12 @@ public class TopNExecSerializationTests extends AbstractPhysicalPlanSerializatio
                 AbstractPhysicalPlanSerializationTests::randomEstimatedRowSize
             );
             case 4 -> inputOrdering = (inputOrdering == InputOrdering.SORTED ? InputOrdering.NOT_SORTED : InputOrdering.SORTED);
+            case 5 -> unboundedSort = unboundedSort == false;
             default -> throw new UnsupportedOperationException();
         }
         var result = new TopNExec(instance.source(), child, order, limit, estimatedRowSize);
-        return inputOrdering == InputOrdering.SORTED ? result.withSortedInput() : result.withNonSortedInput();
+        result = inputOrdering == InputOrdering.SORTED ? result.withSortedInput() : result.withNonSortedInput();
+        return unboundedSort ? result.withUnboundedSort() : result;
     }
 
     @Override

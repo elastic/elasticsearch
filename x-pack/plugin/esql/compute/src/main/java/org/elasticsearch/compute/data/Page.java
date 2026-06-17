@@ -46,6 +46,16 @@ public final class Page implements Writeable, Releasable {
     private final BatchMetadata batchMetadata;
 
     /**
+     * Source node identity for sorted K-way merge on the coordinator. Carried by pages created
+     * via {@link #taggedWith(int)}; never serialized over the wire.
+     * <ul>
+     *   <li>{@code -1} — unset (normal page not involved in sorted merge)</li>
+     *   <li>{@code >= 1} — tagged data page from remote sink with that ID</li>
+     * </ul>
+     */
+    private final int sourceId;
+
+    /**
      * True if we've called {@link #releaseBlocks()} which causes us to remove the
      * circuit breaker for the {@link Block}s. The {@link Page} reference should be
      * removed shortly after this and reading {@linkplain Block}s after release
@@ -83,10 +93,15 @@ public final class Page implements Writeable, Releasable {
     }
 
     private Page(boolean copyBlocks, int positionCount, Block[] blocks, @Nullable BatchMetadata batchMetadata) {
+        this(copyBlocks, positionCount, blocks, batchMetadata, -1);
+    }
+
+    private Page(boolean copyBlocks, int positionCount, Block[] blocks, @Nullable BatchMetadata batchMetadata, int sourceId) {
         Objects.requireNonNull(blocks, "blocks is null");
         this.positionCount = positionCount;
         this.blocks = copyBlocks ? blocks.clone() : blocks;
         this.batchMetadata = batchMetadata;
+        this.sourceId = sourceId;
         for (Block b : blocks) {
             assert b.getPositionCount() == positionCount : "expected positionCount=" + positionCount + " but was " + b;
             if (b.isReleased()) {
@@ -108,6 +123,7 @@ public final class Page implements Writeable, Releasable {
         }
         this.positionCount = prev.positionCount;
         this.batchMetadata = prev.batchMetadata;
+        this.sourceId = -1;
 
         this.blocks = Arrays.copyOf(prev.blocks, prev.blocks.length + toAdd.length);
         System.arraycopy(toAdd, 0, this.blocks, prev.blocks.length, toAdd.length);
@@ -133,6 +149,7 @@ public final class Page implements Writeable, Releasable {
         this.blocks = blocks;
         // Read optional batch metadata at the end (added in BATCH_METADATA_VERSION)
         this.batchMetadata = in.getTransportVersion().supports(BATCH_METADATA_VERSION) ? in.readOptional(BatchMetadata::readFrom) : null;
+        this.sourceId = -1;
     }
 
     @Override
@@ -264,6 +281,33 @@ public final class Page implements Writeable, Releasable {
             block.incRef();
         }
         return new Page(false, positionCount, blocks.clone(), metadata);
+    }
+
+    /**
+     * Returns the source node identifier carried by this page for sorted K-way merge on the
+     * coordinator. Returns {@code -1} when not set (normal page). Values {@code >= 1} indicate the
+     * sink ID that produced the page. Never serialized.
+     *
+     * @see #taggedWith(int)
+     */
+    public int sourceId() {
+        return sourceId;
+    }
+
+    /**
+     * Returns a new {@link Page} that is a shallow copy of this page with the given source (sink)
+     * ID set. Each block's reference count is incremented; the caller is responsible for releasing
+     * the original page after this call. The returned page is immutable after construction — no
+     * mutation of the source ID is possible.
+     *
+     * @param id the sink ID to tag; must be {@code >= 1}
+     */
+    public Page taggedWith(int id) {
+        assert id >= 1 : "sourceId must be >= 1, got " + id;
+        for (Block block : blocks) {
+            block.incRef();
+        }
+        return new Page(false, positionCount, blocks.clone(), batchMetadata, id);
     }
 
     /**

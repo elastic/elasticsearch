@@ -534,7 +534,8 @@ public class ComputeService {
             configuration,
             foldContext,
             mainExchangeSource::createExchangeSource,
-            null
+            null,
+            mainExchangeSource
         );
 
         Runnable cancelQueryOnFailure = cancelQueryOnFailure(rootTask);
@@ -763,7 +764,8 @@ public class ComputeService {
                 configuration,
                 foldContext,
                 null,
-                exchangeSinkSupplier
+                exchangeSinkSupplier,
+                null
             );
             updateShardCountForCoordinatorOnlyQuery(execInfo);
             try (
@@ -881,7 +883,8 @@ public class ComputeService {
                             configuration,
                             foldContext,
                             exchangeSource::createExchangeSource,
-                            exchangeSinkSupplier
+                            exchangeSinkSupplier,
+                            exchangeSource
                         ),
                         coordinatorPlan,
                         plannerSettings.get(),
@@ -1025,7 +1028,8 @@ public class ComputeService {
                     configuration,
                     foldContext,
                     exchangeSource::createExchangeSource,
-                    exchangeSinkSupplier
+                    exchangeSinkSupplier,
+                    exchangeSource
                 ),
                 coordinatorPlan,
                 plannerSettings.get(),
@@ -1172,6 +1176,7 @@ public class ComputeService {
                 context.configuration(),
                 context.exchangeSourceSupplier(),
                 context.exchangeSinkSupplier(),
+                context.exchangeSourceHandler(),
                 enrichLookupService,
                 lookupFromIndexService,
                 inferenceService,
@@ -1376,8 +1381,29 @@ public class ComputeService {
                     originalPlan
                 )
                     // Fallback to the behavior listed below, i.e., a regular top n reduction without loading new fields.
-                    .orElseGet(() -> runNodeLevelReduction ? placePlanBetweenExchanges.apply(topN.plan()) : passThroughReduction);
-            case PlannerUtils.TopNReduction topN when runNodeLevelReduction -> placePlanBetweenExchanges.apply(topN.plan());
+                    .orElseGet(() -> {
+                        if (runNodeLevelReduction == false) {
+                            return passThroughReduction;
+                        }
+                        PhysicalPlan topNPlan = topN.plan();
+                        // For unbounded streaming sort (from MarkUnboundedSort), the sort was
+                        // pushed to data nodes; mark as SORTED so SortedMergeSourceOperator is used instead
+                        // of TopNOperator which pre-allocates MAX_VALUE rows and would OOM.
+                        if (topNPlan instanceof TopNExec te && te.unboundedSort()) {
+                            topNPlan = te.withSortedInput();
+                        }
+                        return placePlanBetweenExchanges.apply(topNPlan);
+                    });
+            case PlannerUtils.TopNReduction topN when runNodeLevelReduction -> {
+                PhysicalPlan topNPlan = topN.plan();
+                // For unbounded streaming sort the plan was inserted by MarkUnboundedSort.
+                // Mark the reduction TopNExec as SORTED so that data nodes use SortedMergeSourceOperator
+                // (per-shard K-way merge) instead of TopNOperator which pre-allocates MAX_VALUE rows.
+                if (topNPlan instanceof TopNExec te && te.unboundedSort()) {
+                    topNPlan = te.withSortedInput();
+                }
+                yield placePlanBetweenExchanges.apply(topNPlan);
+            }
             // Not a TopN - must be an agg or a limit
             case PlannerUtils.ReducedPlan rp when runNodeLevelReduction -> placePlanBetweenExchanges.apply(rp.plan());
             default -> passThroughReduction;

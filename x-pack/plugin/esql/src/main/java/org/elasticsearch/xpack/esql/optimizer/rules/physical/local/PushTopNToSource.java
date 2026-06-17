@@ -225,7 +225,16 @@ public class PushTopNToSource extends PhysicalOptimizerRules.ParameterizedOptimi
     }
 
     private static boolean canPushLimit(TopNExec topn, PlannerSettings plannerSettings) {
-        return Foldables.limitValue(topn.limit(), topn.sourceText()) <= plannerSettings.luceneTopNLimit();
+        int limit = Foldables.limitValue(topn.limit(), topn.sourceText());
+        if (limit <= plannerSettings.luceneTopNLimit()) {
+            return true;
+        }
+        // Unbounded streaming sort: push only when the unboundedSort flag is set and there are no
+        // score sorts (score sorts require TopScoreDocCollectorManager, not the search-after operator).
+        // Existing bounded SORT … | LIMIT N queries with limit > luceneTopNLimit intentionally keep
+        // their old plan (LuceneSourceOperator + TopNOperator). Extending this to large bounded limits
+        // is a follow-up; for now streaming is gated strictly on the unboundedSort flag.
+        return topn.unboundedSort() && topn.order().stream().noneMatch(o -> MetadataAttribute.isScoreAttribute(o.child()));
     }
 
     private static List<EsQueryExec.Sort> buildFieldSorts(List<Order> orders) {

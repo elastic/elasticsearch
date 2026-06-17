@@ -28,6 +28,7 @@ import org.elasticsearch.compute.lucene.IndexedByShardId;
 import org.elasticsearch.compute.lucene.query.DataPartitioning;
 import org.elasticsearch.compute.lucene.query.LuceneCountOperator;
 import org.elasticsearch.compute.lucene.query.LuceneOperator;
+import org.elasticsearch.compute.lucene.query.LuceneSearchAfterSortedSourceOperator;
 import org.elasticsearch.compute.lucene.query.LuceneSliceQueue;
 import org.elasticsearch.compute.lucene.query.LuceneSourceOperator;
 import org.elasticsearch.compute.lucene.query.LuceneTopNSourceOperator;
@@ -465,27 +466,44 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
                 sortBuilders.add(sort.sortBuilder());
                 estimatedPerRowSortSize += EstimatesRowSize.estimateSize(sort.resulType());
             }
-            /*
-             * In the worst case Lucene's TopN keeps each value in memory twice. Once
-             * for the actual sort and once for the top doc. In the best case they share
-             * references to the same underlying data, but we're being a bit paranoid here.
-             */
-            estimatedPerRowSortSize *= 2;
-            // LuceneTopNSourceOperator does not support QueryAndTags, if there are multiple queries or if the single query has tags,
-            // UnsupportedOperationException will be thrown by esQueryExec.query()
-            luceneFactory = new LuceneTopNSourceOperator.Factory(
-                shardContexts,
-                querySupplier(esQueryExec.query()),
-                context.queryPragmas().dataPartitioning(plannerSettings.defaultDataPartitioning()),
-                topNAutoStrategy(),
-                taskConcurrency,
-                context.pageSize(esQueryExec, rowEstimatedSize),
-                limit,
-                sortBuilders,
-                estimatedPerRowSortSize,
-                scoring,
-                directoryBytesRead
-            );
+            boolean hasScoreSort = sorts.stream().anyMatch(s -> s instanceof EsQueryExec.ScoreSort);
+            if (hasScoreSort || (limit != NO_LIMIT && limit <= plannerSettings.luceneTopNLimit())) {
+                /*
+                 * Small limit or score sort: use the TopFieldCollector/TopScoreDoc-based operator, which
+                 * supports Lucene early termination and score computation.
+                 * In the worst case Lucene's TopN keeps each value in memory twice. Once
+                 * for the actual sort and once for the top doc. In the best case they share
+                 * references to the same underlying data, but we're being a bit paranoid here.
+                 * LuceneTopNSourceOperator does not support QueryAndTags, if there are multiple queries or if the single query has tags,
+                 * UnsupportedOperationException will be thrown by esQueryExec.query()
+                 */
+                estimatedPerRowSortSize *= 2;
+                luceneFactory = new LuceneTopNSourceOperator.Factory(
+                    shardContexts,
+                    querySupplier(esQueryExec.query()),
+                    context.queryPragmas().dataPartitioning(plannerSettings.defaultDataPartitioning()),
+                    topNAutoStrategy(),
+                    taskConcurrency,
+                    context.pageSize(esQueryExec, rowEstimatedSize),
+                    limit,
+                    sortBuilders,
+                    estimatedPerRowSortSize,
+                    scoring,
+                    directoryBytesRead
+                );
+            } else {
+                // Large or unbounded limit: use the search-after operator for O(maxPageSize) memory per
+                // page call, regardless of whether the index is sorted.
+                luceneFactory = new LuceneSearchAfterSortedSourceOperator.Factory(
+                    shardContexts,
+                    querySupplier(esQueryExec.queryBuilderAndTags()),
+                    taskConcurrency,
+                    context.pageSize(esQueryExec, rowEstimatedSize),
+                    limit,
+                    sortBuilders,
+                    directoryBytesRead
+                );
+            }
         } else if (esQueryExec.indexMode() == IndexMode.TIME_SERIES) {
             luceneFactory = new TimeSeriesSourceOperator.Factory(
                 shardContexts,
@@ -767,4 +785,5 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             releasable.close();
         }
     }
+
 }

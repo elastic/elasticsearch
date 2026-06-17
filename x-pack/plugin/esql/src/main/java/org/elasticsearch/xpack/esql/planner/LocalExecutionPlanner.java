@@ -64,6 +64,7 @@ import org.elasticsearch.compute.operator.TsInfoOperator;
 import org.elasticsearch.compute.operator.exchange.ExchangeSink;
 import org.elasticsearch.compute.operator.exchange.ExchangeSinkOperator.ExchangeSinkOperatorFactory;
 import org.elasticsearch.compute.operator.exchange.ExchangeSource;
+import org.elasticsearch.compute.operator.exchange.ExchangeSourceHandler;
 import org.elasticsearch.compute.operator.exchange.ExchangeSourceOperator.ExchangeSourceOperatorFactory;
 import org.elasticsearch.compute.operator.fuse.LinearConfig;
 import org.elasticsearch.compute.operator.fuse.LinearScoreEvalOperator;
@@ -72,6 +73,7 @@ import org.elasticsearch.compute.operator.fuse.RrfScoreEvalOperator;
 import org.elasticsearch.compute.operator.topn.GroupedTopNOperator;
 import org.elasticsearch.compute.operator.topn.NumericTopNOperator;
 import org.elasticsearch.compute.operator.topn.SharedNumericThreshold;
+import org.elasticsearch.compute.operator.topn.SortedMergeSourceOperator;
 import org.elasticsearch.compute.operator.topn.TopNEncoder;
 import org.elasticsearch.compute.operator.topn.TopNOperator;
 import org.elasticsearch.compute.operator.topn.TopNOperator.TopNOperatorFactory;
@@ -232,6 +234,8 @@ public class LocalExecutionPlanner {
     private final Configuration configuration;
     private final Supplier<ExchangeSource> exchangeSourceSupplier;
     private final Supplier<ExchangeSink> exchangeSinkSupplier;
+    @Nullable
+    private final ExchangeSourceHandler exchangeSourceHandler;
     private final EnrichLookupService enrichLookupService;
     private final LookupFromIndexService lookupFromIndexService;
     private final InferenceService inferenceService;
@@ -249,6 +253,7 @@ public class LocalExecutionPlanner {
         Configuration configuration,
         Supplier<ExchangeSource> exchangeSourceSupplier,
         Supplier<ExchangeSink> exchangeSinkSupplier,
+        @Nullable ExchangeSourceHandler exchangeSourceHandler,
         EnrichLookupService enrichLookupService,
         LookupFromIndexService lookupFromIndexService,
         InferenceService inferenceService,
@@ -266,6 +271,7 @@ public class LocalExecutionPlanner {
         this.configuration = configuration;
         this.exchangeSourceSupplier = exchangeSourceSupplier;
         this.exchangeSinkSupplier = exchangeSinkSupplier;
+        this.exchangeSourceHandler = exchangeSourceHandler;
         this.enrichLookupService = enrichLookupService;
         this.lookupFromIndexService = lookupFromIndexService;
         this.inferenceService = inferenceService;
@@ -703,6 +709,18 @@ public class LocalExecutionPlanner {
     }
 
     private PhysicalOperation planTopN(TopNExec topNExec, LocalExecutionPlannerContext context) {
+        // Sorted merge path: data nodes already sorted pages; the coordinator just needs to K-way
+        // merge them in order. This avoids buffering all data in TopNQueue (which would OOM for
+        // unbounded limits). Triggered when: (a) we are on the coordinator (handler != null),
+        // (b) the input is declared sorted (pushed to data nodes), and (c) unboundedSort flag is set
+        // (added by MarkUnboundedSort to mark the streaming-sort path).
+        if (exchangeSourceHandler != null
+            && topNExec.inputOrdering() == TopNOperator.InputOrdering.SORTED
+            && topNExec.unboundedSort()
+            && topNExec.child() instanceof ExchangeSourceExec exchangeSourceExec) {
+            return planSortedMerge(topNExec, exchangeSourceExec, context);
+        }
+
         final Integer rowSize = topNExec.estimatedRowSize();
         PhysicalOperation source = plan(topNExec.child(), context);
         // Specialisation: a single-key sort over an ExternalSourceExec narrowed by
@@ -731,6 +749,67 @@ public class LocalExecutionPlanner {
             ),
             source.layout
         );
+    }
+
+    /**
+     * Builds the streaming K-way merge operator for the coordinator sort-merge path. Called from
+     * {@link #planTopN} when the plan is an unbounded-sort {@code TopNExec} directly above an
+     * {@code ExchangeSourceExec}. The data nodes have already sorted their pages; the coordinator
+     * just needs to merge them in order without buffering everything first.
+     */
+    private PhysicalOperation planSortedMerge(
+        TopNExec topNExec,
+        ExchangeSourceExec exchangeSourceExec,
+        LocalExecutionPlannerContext context
+    ) {
+        // Build the layout from the exchange source output — same logic as planExchangeSource.
+        var builder = new Layout.Builder();
+        builder.append(exchangeSourceExec.output());
+        Layout layout = builder.build();
+
+        // Derive element types and sort orders via topNCommon. We use the actual estimated row size
+        // for page-size computation, falling back to 1 if not set (topNCommon asserts > 0).
+        final Integer rowSize = topNExec.estimatedRowSize();
+        final int effectiveRowSize = (rowSize != null && rowSize > 0) ? rowSize : 1;
+        PhysicalOperation dummySource = PhysicalOperation.fromSource(new ExchangeSourceOperatorFactory(exchangeSourceSupplier), layout);
+        TopNCommon common = topNCommon(
+            effectiveRowSize,
+            topNExec.order(),
+            topNExec.limit(),
+            topNExec.docValuesAttributes(),
+            dummySource,
+            context
+        );
+
+        // Find the DocBlock channel so the merge can tiebreak on (shard, segment, doc) when present.
+        // The DocVector is only available on the data-node-reduce merge (late-materialization path),
+        // not at the coordinator where DocVectors are not serializable. When absent, docChannel = -1
+        // and the merge falls back to sourceId ordering as the final tiebreaker.
+        int docChannel = -1;
+        for (int i = 0; i < common.elementTypes.length; i++) {
+            if (common.elementTypes[i] == ElementType.DOC) {
+                docChannel = i;
+                break;
+            }
+        }
+
+        // Snapshot the registered sink count at plan time. When all addRemoteSink() calls complete
+        // before the driver is created (data-node reduce path), this gives the exact count and
+        // eliminates any need for a lazy read in canStartMerge(). When sinks are registered
+        // asynchronously after the plan is dispatched (coordinator path), the count is 0 and
+        // canStartMerge() falls back to reading numRegisteredRemoteSinks() lazily.
+        int numSinks = exchangeSourceHandler.numRegisteredRemoteSinks();
+
+        int pageSize = context.pageSize(topNExec, effectiveRowSize);
+        var factory = new SortedMergeSourceOperator.Factory(
+            exchangeSourceHandler,
+            common.orders,
+            common.elementTypes,
+            pageSize,
+            docChannel,
+            numSinks
+        );
+        return PhysicalOperation.fromSource(factory, layout);
     }
 
     /**

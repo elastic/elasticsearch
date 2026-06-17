@@ -156,6 +156,9 @@ public class Mapper {
         if (unary instanceof TopN topN) {
             mappedChild = addExchangeForFragment(topN, mappedChild);
             var topNExec = new TopNExec(topN.source(), mappedChild, topN.order(), topN.limit(), null);
+            if (topN.unboundedSort()) {
+                topNExec = topNExec.withUnboundedSort();
+            }
 
             if (mappedChild instanceof ExchangeExec exchangeExec) {
                 // If the data nodes run a TopN, the TopN in the coordinator will receive already sorted data

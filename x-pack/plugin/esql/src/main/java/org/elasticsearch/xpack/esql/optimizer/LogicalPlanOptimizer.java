@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.logical.HoistOrderByBeforeIn
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.HoistRemoteEnrichLimit;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.HoistRemoteEnrichTopN;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.LiteralsOnTheRight;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.MarkUnboundedSort;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PartiallyFoldCase;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PropagateEmptyRelation;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PropagateEquals;
@@ -124,6 +125,7 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
         operators(),
         new Batch<>("Skip Compute", new SkipQueryOnLimitZero()),
         cleanup(),
+        new Batch<>("Sorted Source Pushdown", Limiter.ONCE, new MarkUnboundedSort()),
         warnings(),
         new Batch<>("Set as Optimized", Limiter.ONCE, new SetAsOptimized())
     );

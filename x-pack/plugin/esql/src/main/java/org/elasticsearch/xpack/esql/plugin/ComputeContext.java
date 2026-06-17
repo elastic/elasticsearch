@@ -10,6 +10,8 @@ package org.elasticsearch.xpack.esql.plugin;
 import org.elasticsearch.compute.lucene.IndexedByShardId;
 import org.elasticsearch.compute.operator.exchange.ExchangeSink;
 import org.elasticsearch.compute.operator.exchange.ExchangeSource;
+import org.elasticsearch.compute.operator.exchange.ExchangeSourceHandler;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.session.Configuration;
@@ -25,7 +27,8 @@ record ComputeContext(
     Configuration configuration,
     FoldContext foldCtx,
     Supplier<ExchangeSource> exchangeSourceSupplier,
-    Supplier<ExchangeSink> exchangeSinkSupplier
+    Supplier<ExchangeSink> exchangeSinkSupplier,
+    @Nullable ExchangeSourceHandler exchangeSourceHandler
 ) {
     IndexedByShardId<? extends SearchExecutionContext> searchExecutionContexts() {
         return searchContexts.map(s -> s.searchContext().getSearchExecutionContext());

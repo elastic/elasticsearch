@@ -118,7 +118,8 @@ public class LocalMapper {
         }
 
         if (unary instanceof TopN topN) {
-            return new TopNExec(topN.source(), mappedChild, topN.order(), topN.limit(), null);
+            var topNExec = new TopNExec(topN.source(), mappedChild, topN.order(), topN.limit(), null);
+            return topN.unboundedSort() ? topNExec.withUnboundedSort() : topNExec;
         }
 
         if (unary instanceof TopNBy topNBy) {

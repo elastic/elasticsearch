@@ -230,6 +230,14 @@
           kw_default: "value"
           kw_override: null
 
+  # kw_override can be null but kw_default missing
+  - do:
+      catch: /configured with \[nullability=false\] but encountered a null value/
+      index:
+        index: test_index_setting_override
+        id: "3"
+        body:
+          kw_override: null
 ---
 "index.mapping.doc_values.nullability=false mapping round-trip":
   - requires:

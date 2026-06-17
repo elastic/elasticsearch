@@ -240,17 +240,16 @@ public class DocValuesParameterTests extends MapperServiceTestCase {
     public void testFieldLevelFalseOverridesIndexSettingTrueForNullability() throws Exception {
         assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
         Settings settings = Settings.builder().put(FieldMapper.DOC_VALUES_NULLABILITY_SETTING.getKey(), true).build();
-        MapperService mapperService = createMapperService(
-            settings,
-            fieldMapping(b -> b.field("type", "keyword").startObject("doc_values").field("nullability", false).endObject())
-        );
+        MapperService mapperService = createMapperService(settings, fieldMapping(b -> {
+            b.field("type", "keyword").startObject("doc_values").field("nullability", false).endObject();
+        }));
         KeywordFieldMapper mapper = (KeywordFieldMapper) mapperService.documentMapper().mappers().getMapper("field");
         assertThat(mapper.docValuesParameters().nullability(), equalTo(false));
     }
 
     /**
-     * Index setting {@code false} causes enforcement: a document carrying a null value for a keyword field that did not override the setting
-     * is rejected with an {@link IllegalArgumentException} wrapped in {@link DocumentParsingException}.
+     * Index setting {@code false} causes enforcement: a document carrying a null value for a keyword field that did not override the
+     * setting is rejected with an {@link IllegalArgumentException} wrapped in {@link DocumentParsingException}.
      */
     public void testIndexSettingFalseEnforcesRejectionOfNullValue() throws Exception {
         assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());

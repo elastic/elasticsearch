@@ -35,6 +35,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.TreeMap;
 import java.util.function.BiConsumer;
 
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
@@ -164,18 +165,27 @@ public class RootObjectMapper extends ObjectMapper {
                         this.runtimeFields.put(runtimeField.getValue().name(), runtimeField.getValue());
                     }
                 }
+                // Transfer per-prefix dynamic settings parsed from the stored source (dynamic_by_prefix key).
+                // When re-parsing a stored flat mapping there are no ObjectMapper.Builder children for
+                // asFlattenedFieldBuilders to harvest, so processField writes directly into the incoming
+                // builder's dynamicByPrefix; we copy them here to ensure they are not lost.
+                this.dynamicByPrefix.putAll(rootMergeWith.dynamicByPrefix);
             }
         }
 
         @Override
         public RootObjectMapper build(MapperBuilderContext context) {
+            // Build child mappers first so that flattenBuildersIfNeeded has a chance to populate
+            // dynamicByPrefix before we pass it to the RootObjectMapper constructor.
+            Map<String, Mapper> mappers = buildMappers(context.createChildContext(null, dynamic));
             return new RootObjectMapper(
                 leafName(),
                 enabled,
                 subobjects,
                 sourceKeepMode,
                 dynamic,
-                buildMappers(context.createChildContext(null, dynamic)),
+                mappers,
+                Map.copyOf(dynamicByPrefix),
                 new HashMap<>(runtimeFields),
                 dynamicDateTimeFormatters,
                 dynamicTemplates,
@@ -192,6 +202,17 @@ public class RootObjectMapper extends ObjectMapper {
     private final Explicit<DynamicTemplate[]> dynamicTemplates;
     private final Map<String, RuntimeField> runtimeFields;
     private final RootObjectMapperNamespaceValidator namespaceValidator;
+    /**
+     * Per-prefix {@code dynamic} settings captured during auto-flattening in strict columnar mode.
+     * Keys are the full dotted paths of declared object mappers (e.g. {@code "attributes"},
+     * {@code "resource.sub"}); values are their explicit {@code dynamic} setting.
+     * Empty for non-strict-columnar indices.
+     */
+    private final Map<String, Dynamic> dynamicByPrefix;
+    /** Sorted array of keys from {@link #dynamicByPrefix} for efficient longest-prefix lookup. */
+    private final String[] sortedDynamicPrefixes;
+    /** Parallel array of {@link Dynamic} values corresponding to {@link #sortedDynamicPrefixes}. */
+    private final Dynamic[] dynamicsForPrefixes;
 
     RootObjectMapper(
         String name,
@@ -200,6 +221,7 @@ public class RootObjectMapper extends ObjectMapper {
         Optional<SourceKeepMode> sourceKeepMode,
         Dynamic dynamic,
         Map<String, Mapper> mappers,
+        Map<String, Dynamic> dynamicByPrefix,
         Map<String, RuntimeField> runtimeFields,
         Explicit<DateFormatter[]> dynamicDateTimeFormatters,
         Explicit<DynamicTemplate[]> dynamicTemplates,
@@ -214,6 +236,15 @@ public class RootObjectMapper extends ObjectMapper {
         this.dateDetection = dateDetection;
         this.numericDetection = numericDetection;
         this.namespaceValidator = namespaceValidator == null ? new DefaultRootObjectMapperNamespaceValidator() : namespaceValidator;
+        this.dynamicByPrefix = dynamicByPrefix;
+        String[] prefixes = dynamicByPrefix.keySet().toArray(String[]::new);
+        Arrays.sort(prefixes);
+        this.sortedDynamicPrefixes = prefixes;
+        Dynamic[] dynamics = new Dynamic[prefixes.length];
+        for (int i = 0; i < prefixes.length; i++) {
+            dynamics[i] = dynamicByPrefix.get(prefixes[i]);
+        }
+        this.dynamicsForPrefixes = dynamics;
     }
 
     @Override
@@ -234,6 +265,7 @@ public class RootObjectMapper extends ObjectMapper {
             sourceKeepMode,
             dynamic,
             Map.of(),
+            dynamicByPrefix,
             Map.of(),
             dynamicDateTimeFormatters,
             dynamicTemplates,
@@ -279,6 +311,50 @@ public class RootObjectMapper extends ObjectMapper {
         return runtimeFields.get(name);
     }
 
+    /**
+     * Resolves the effective {@code dynamic} value for an unmapped field at {@code fullPath} in strict columnar mode.
+     * Uses a longest-prefix match against the per-object {@code dynamic} settings captured during auto-flattening.
+     * If no prefix matches, returns {@code fallback} (the root-level dynamic).
+     *
+     * <p>For example, if the mapping declared {@code attributes} with {@code dynamic:false} and
+     * {@code resource} with {@code dynamic:strict}, then:
+     * <ul>
+     *   <li>{@code "attributes.foo"} → {@link Dynamic#FALSE}</li>
+     *   <li>{@code "resource.bar"} → {@link Dynamic#STRICT}</li>
+     *   <li>{@code "other.baz"} → {@code fallback}</li>
+     * </ul>
+     *
+     * @param fullPath the full dotted path of the field being resolved (e.g. {@code "attributes.foo"})
+     * @param fallback the dynamic value to return when no prefix matches (typically the root dynamic)
+     * @return the resolved dynamic value
+     */
+    public Dynamic resolveDynamic(String fullPath, Dynamic fallback) {
+        if (sortedDynamicPrefixes.length == 0) {
+            return fallback;
+        }
+        int idx = Arrays.binarySearch(sortedDynamicPrefixes, fullPath);
+        if (idx >= 0) {
+            // Exact match: fullPath is itself a registered prefix.
+            return dynamicsForPrefixes[idx];
+        }
+        // Walk backwards from the insertion point to find the longest stored prefix whose
+        // dotted extension matches fullPath (e.g. "attributes" matches "attributes.foo").
+        // Because prefixes are sorted lexicographically, the longest matching prefix is the
+        // first one encountered when scanning backwards from the insertion point.
+        int insertionPoint = ~idx;
+        for (int i = insertionPoint - 1; i >= 0; i--) {
+            if (fullPath.startsWith(sortedDynamicPrefixes[i] + ".")) {
+                return dynamicsForPrefixes[i];
+            }
+        }
+        return fallback;
+    }
+
+    // package-private accessor used in tests
+    Map<String, Dynamic> getDynamicByPrefix() {
+        return dynamicByPrefix;
+    }
+
     @Override
     protected void doXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
         final boolean includeDefaults = params.paramAsBoolean("include_defaults", false);
@@ -316,6 +392,16 @@ public class RootObjectMapper extends ObjectMapper {
                 .toList();
             for (RuntimeField fieldType : sortedRuntimeFields) {
                 fieldType.toXContent(builder, params);
+            }
+            builder.endObject();
+        }
+
+        if (dynamicByPrefix.isEmpty() == false) {
+            // Keys are sorted for deterministic serialization: the mapping source is byte-compared
+            // across nodes, so output order must be stable.
+            builder.startObject("dynamic_by_prefix");
+            for (Map.Entry<String, Dynamic> entry : new TreeMap<>(dynamicByPrefix).entrySet()) {
+                builder.field(entry.getKey(), entry.getValue().name().toLowerCase(Locale.ROOT));
             }
             builder.endObject();
         }
@@ -519,8 +605,33 @@ public class RootObjectMapper extends ObjectMapper {
             } else {
                 throw new ElasticsearchParseException("runtime must be a map type");
             }
+        } else if (fieldName.equals("dynamic_by_prefix")) {
+            if ((fieldNode instanceof Map) == false) {
+                throw new MapperParsingException("[dynamic_by_prefix] must be an object");
+            }
+            for (Map.Entry<String, Object> entry : ((Map<String, Object>) fieldNode).entrySet()) {
+                builder.dynamicByPrefix.put(entry.getKey(), parsePrefixDynamic(entry.getValue()));
+            }
+            return true;
         }
         return false;
+    }
+
+    /**
+     * Parses a {@code dynamic} value for use in {@code dynamic_by_prefix}.
+     * Accepts {@code true}, {@code false}, and {@code strict} (case-insensitive).
+     * {@code runtime} is explicitly rejected because it is not supported in strict columnar mode.
+     */
+    private static Dynamic parsePrefixDynamic(Object value) {
+        String str = value.toString();
+        if (str.equalsIgnoreCase("runtime")) {
+            throw new MapperParsingException("[dynamic_by_prefix] does not support [runtime]");
+        }
+        try {
+            return Dynamic.valueOf(str.toUpperCase(Locale.ROOT));
+        } catch (IllegalArgumentException e) {
+            throw new MapperParsingException("unknown [dynamic_by_prefix] value: [" + str + "]");
+        }
     }
 
     @Override

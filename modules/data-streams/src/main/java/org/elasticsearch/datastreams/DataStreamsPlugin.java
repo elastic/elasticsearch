@@ -149,9 +149,23 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin, Extensibl
     private final SetOnce<DataStreamLifecycleHealthInfoPublisher> dataStreamLifecycleErrorsPublisher = new SetOnce<>();
     private final SetOnce<DataStreamLifecycleHealthIndicatorService> dataStreamLifecycleHealthIndicatorService = new SetOnce<>();
     private final Settings settings;
+    private DownsamplingOperations downsamplingOperations = DownsamplingOperations.noop();
 
     public DataStreamsPlugin(Settings settings) {
         this.settings = settings;
+    }
+
+    @Override
+    public void loadExtensions(ExtensionLoader loader) {
+        List<DownsamplingOperations> extensions = loader.loadExtensions(DownsamplingOperations.class);
+        if (extensions.size() > 1) {
+            throw new IllegalStateException(
+                "Expected at most one DownsamplingOperations implementation, found: " + extensions.stream().map(Object::getClass).toList()
+            );
+        }
+        if (extensions.isEmpty() == false) {
+            downsamplingOperations = extensions.get(0);
+        }
     }
 
     protected Clock getClock() {

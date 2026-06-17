@@ -1881,7 +1881,7 @@ public class NdJsonPageIteratorTests extends ESTestCase {
     }
 
     /**
-     * Per-query override via {@code WITH (segment_size = ...)}; mirrors the existing
+     * Per-query override via {@code WITH {"segment_size": ...}}; mirrors the existing
      * {@code schema_sample_size} pattern. Withconfig returns a new reader; the original is left
      * unchanged so other concurrent queries keep their own values.
      */

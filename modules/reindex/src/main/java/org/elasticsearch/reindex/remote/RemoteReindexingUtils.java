@@ -215,6 +215,12 @@ public class RemoteReindexingUtils {
         CircuitBreaker breaker,
         long memoryAccountingThresholdBytes
     ) {
+        // Account the raw HTTP response buffer against the REQUEST breaker for the buffer's
+        // lifetime (allocation in onEntityEnclosed → release in releaseResources). This is
+        // independent of the per-hit RemoteParseContext accounting that runs during parsing.
+        request.setOptions(
+            request.getOptions().toBuilder().setHttpAsyncResponseConsumerFactory(new BreakerAwareConsumerFactory(breaker)).build()
+        );
         // Preserve the thread context so headers survive after the call
         Supplier<ThreadContext.StoredContext> contextSupplier = threadPool.getThreadContext().newRestorableContext(true);
         try {
@@ -307,6 +313,11 @@ public class RemoteReindexingUtils {
                                 listener.onRejection(e);
                                 return;
                             }
+                        } else if (e.getCause() instanceof CircuitBreakingException cbe) {
+                            // BreakerAwareHeapBufferedAsyncResponseConsumer wraps CircuitBreakingException
+                            // in an IOException so that Apache HC can route it here via onFailure.
+                            listener.onFailure(cbe);
+                            return;
                         } else if (e instanceof ContentTooLongException) {
                             e = new IllegalArgumentException(
                                 "Remote responded with a chunk that was too large. Use a smaller batch size.",

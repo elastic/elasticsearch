@@ -1,0 +1,5 @@
+area: Reindex
+issues: []
+pr: 150000
+summary: Account Apache HC response buffer bytes against the REQUEST circuit breaker in reindex-from-remote
+type: bug

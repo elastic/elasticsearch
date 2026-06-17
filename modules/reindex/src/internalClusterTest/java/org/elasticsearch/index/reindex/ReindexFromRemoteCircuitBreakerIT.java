@@ -68,10 +68,13 @@ public class ReindexFromRemoteCircuitBreakerIT extends ESSingleNodeTestCase {
         return Settings.builder()
             .put(super.nodeSettings())
             .put(TransportReindexAction.REMOTE_CLUSTER_WHITELIST.getKey(), "*:*")
-            // Sized above the version-lookup (~600 B) and open-PIT (~700 B) responses — both are
-            // immediately released — but below the first remote search response (≈ 100 KiB for
-            // 5 × 20 KiB random-alpha docs after JSON encoding) so the breaker trips when the
-            // RemoteParseContext flushes its accumulated bytes at the end of parsing.
+            // Sized above the version-lookup (~600 B) and open-PIT (~700 B) responses so those
+            // non-chunked requests pass their buffer-level reservations, but below the total
+            // per-hit bytes for this test (~5 × 20 KiB = 100 KiB) so RemoteParseContext trips on
+            // the final flushRemaining call with the reindex_remote_response label.
+            // ES search responses use chunked transfer encoding (no Content-Length), so the
+            // buffer-level accounting in BreakerAwareHeapBufferedAsyncResponseConsumer is skipped
+            // for them; the parse-context accounting is the relevant guard here.
             .put(HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), "5kb")
             .build();
     }
@@ -81,8 +84,9 @@ public class ReindexFromRemoteCircuitBreakerIT extends ESSingleNodeTestCase {
 
         // Single node: shard and coordinator are co-located, so the search response travels via
         // DirectResponseChannel (in-memory, no RecyclerBytesStreamOutput serialization). The 5 KiB
-        // REQUEST limit is therefore not tripped by shard serialization, only by our remote-response
-        // accounting in RemoteParseContext.
+        // REQUEST limit is not tripped by shard serialization. ES search responses use chunked
+        // transfer encoding so the buffer-level reservation is skipped; only the per-hit
+        // RemoteParseContext accounting (reindex_remote_response label) trips the breaker.
         assertAcked(
             indicesAdmin().prepareCreate("source").setSettings(Settings.builder().put("number_of_shards", 1).put("number_of_replicas", 0))
         );

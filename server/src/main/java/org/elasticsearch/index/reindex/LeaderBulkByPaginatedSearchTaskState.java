@@ -136,7 +136,8 @@ public class LeaderBulkByPaginatedSearchTaskState {
     public void onSliceFailure(ActionListener<BulkByPaginatedSearchResponse> listener, int sliceId, Exception e) {
         results.setOnce(sliceId, new Result(sliceId, e));
         recordSliceCompletionAndRespondIfAllDone(listener);
-        // TODO cancel when a slice fails?
+        // TODO - https://github.com/elastic/elasticsearch/issues/150877
+        // Cancel when a slice fails?
     }
 
     public void setNodeToRelocateToSupplier(Supplier<Optional<String>> nodeToRelocateToSupplier) {

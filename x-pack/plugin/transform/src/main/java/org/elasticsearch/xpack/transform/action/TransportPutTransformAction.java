@@ -122,7 +122,7 @@ public class TransportPutTransformAction extends AcknowledgedTransportMasterNode
             TransformNodes.completeWithNoTransformNodeException(listener);
             return;
         }
-        TransformNodes.warnIfNoTransformNodes(clusterState);
+        TransformNodes.warnIfNoTransformNodes(projectResolver.getProjectMetadata(clusterState), clusterState.getNodes());
 
         if (TransformMetadata.isUpgradeMode(projectResolver.getProjectMetadata(clusterState))) {
             listener.onFailure(

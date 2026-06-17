@@ -42,7 +42,6 @@ import java.nio.file.Path;
 import java.util.List;
 import java.util.Set;
 import java.util.regex.Pattern;
-import java.util.stream.Stream;
 
 import static java.util.stream.Collectors.toSet;
 import static org.elasticsearch.xpack.esql.CsvSpecReader.specParser;
@@ -70,6 +69,7 @@ import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.UNMAPPED_
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.VIEWS_WITH_BRANCHING;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.VIEWS_WITH_NO_BRANCHING;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITHOUT_VIEW;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITH_VIEW;
 import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.doesntHaveCapabilities;
 import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.hasCapabilities;
 import static org.mockito.ArgumentMatchers.any;
@@ -307,17 +307,6 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
         .collect(toSet());
 
     /**
-     * Index names that are loaded into <em>both</em> the local and remote clusters: enrich source
-     * indices and lookup indices. When these appear as a {@code FROM} source — in either the main
-     * query or inside a {@code WHERE x IN (FROM ...)} subquery body — they must be rewritten as
-     * remote-only ({@code *:idx}) to avoid double-counting rows.
-     */
-    public static final Set<String> BOTH_CLUSTER_INDICES = Stream.concat(
-        ENRICH_POLICIES.values().stream().map(CsvTestsDataLoader.EnrichConfig::index),
-        LOOKUP_INDICES.stream()
-    ).collect(toSet());
-
-    /**
      * Creates a new mock client that dispatches every request to both the local and remote clusters, excluding _bulk, _query,
      *  and _inference requests :
      * - '_bulk' requests are randomly sent to either the local or remote cluster to populate data. Some spec tests, such as AVG,
@@ -393,6 +382,7 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
             dataLocation = randomFrom(DataLocation.values());
         }
         if (testCase.requiredCapabilities.contains(WHERE_IN_SUBQUERY_WITHOUT_VIEW.capabilityName())
+            || testCase.requiredCapabilities.contains(WHERE_IN_SUBQUERY_WITH_VIEW.capabilityName())
             || testCase.requiredCapabilities.contains(SUBQUERY_IN_FROM_COMMAND.capabilityName())) {
             return convertSubqueryToRemoteIndices(testCase);
         }
@@ -480,14 +470,12 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
     }
 
     /**
-     * Convert index patterns and subqueries in FROM commands to use remote indices for a given test case,
-     * including {@code WHERE x IN (FROM ...)} and {@code WHERE x NOT IN (FROM ...)} subquery bodies.
-     * Enrich-source and lookup indices (which are loaded into both clusters) are rewritten as
-     * remote-only ({@code *:idx}); all other indices are rewritten as {@code *:idx,idx}.
+     * Convert index patterns and subqueries in FROM and WHERE IN subqueries to use remote
+     * indices for a given test case.
      */
     private static CsvSpecReader.CsvTestCase convertSubqueryToRemoteIndices(CsvSpecReader.CsvTestCase testCase) {
         String query = testCase.query;
-        testCase.query = EsqlTestUtils.convertSubqueryToRemoteIndices(query, BOTH_CLUSTER_INDICES);
+        testCase.query = EsqlTestUtils.convertSubqueryToRemoteIndices(query);
         return testCase;
     }
 }

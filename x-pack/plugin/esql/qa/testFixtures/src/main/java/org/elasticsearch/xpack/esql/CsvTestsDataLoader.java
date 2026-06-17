@@ -801,16 +801,29 @@ public class CsvTestsDataLoader {
         // Use the _capabilities endpoint so we check ALL nodes, not just the coordinator.
         // Views CRUD operations are master-node transport actions; if any node (e.g. an older data
         // node acting as master) doesn't know the action, it will crash with an AssertionError.
-        Request request = new Request("GET", "_capabilities");
-        request.addParameter("method", "POST");
-        request.addParameter("path", "/_query");
-        request.addParameter("capabilities", "views_crud_as_index_actions");
+        Request capRequest = new Request("GET", "_capabilities");
+        capRequest.addParameter("method", "POST");
+        capRequest.addParameter("path", "/_query");
+        capRequest.addParameter("capabilities", "views_crud_as_index_actions");
         try {
-            Response response = client.performRequest(request);
+            Response response = client.performRequest(capRequest);
             try (var content = response.getEntity().getContent()) {
                 Map<String, Object> map = XContentHelper.convertToMap(XContentType.JSON.xContent(), content, false);
-                return Boolean.TRUE.equals(map.get("supported"));
+                if (!Boolean.TRUE.equals(map.get("supported"))) {
+                    return false;
+                }
             }
+        } catch (ResponseException e) {
+            return false;
+        }
+        // The _capabilities check above confirms all nodes know the view transport actions (safe for
+        // BWC mixed-cluster tests). Now verify the view CRUD REST endpoints are actually reachable:
+        // in serverless mode, RestPutViewAction has no @ServerlessScope annotation, so those routes
+        // return 410 Gone — but _capabilities does not check the serverless scope and would still
+        // report "supported: true". A direct GET confirms real accessibility.
+        try {
+            client.performRequest(new Request("GET", "/_query/view"));
+            return true;
         } catch (ResponseException e) {
             return false;
         }

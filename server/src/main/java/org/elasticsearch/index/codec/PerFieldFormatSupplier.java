@@ -87,6 +87,7 @@ public class PerFieldFormatSupplier {
     private final ES94BloomFilterDocValuesFormat idBloomFilterDocValuesFormat;
     private final DocValuesFormat tsdbDocValuesFormat;
 
+    @SuppressWarnings("this-escape")
     public PerFieldFormatSupplier(MapperService mapperService, BigArrays bigArrays, @Nullable ThreadPool threadPool) {
         this.mapperService = mapperService;
         this.bloomFilterPostingsFormat = new ES87BloomFilterPostingsFormat(bigArrays, this::internalGetPostingsFormatForField);

@@ -3033,6 +3033,11 @@ public class EsqlCapabilities {
         DEDUP_COMMAND(Build.current().isSnapshot()),
 
         /**
+         * Support for VALUES with date_range type.
+         */
+        VALUES_DATE_RANGE(DATE_RANGE_FIELD_TYPE_V6.isEnabled()),
+
+        /**
          * Support for COALESCE with date_range type.
          */
         COALESCE_DATE_RANGE(DATE_RANGE_FIELD_TYPE_V6.isEnabled()),
@@ -3054,6 +3059,11 @@ public class EsqlCapabilities {
         FIX_TOPN_LONG_RANGE_ENCODING(DATE_RANGE_FIELD_TYPE_V6.isEnabled()),
 
         /**
+         * Support for MV_FIRST and MV_LAST with date_range type.
+         */
+        MV_FIRST_LAST_DATE_RANGE(DATE_RANGE_FIELD_TYPE_V6.isEnabled()),
+
+        /**
          * Support for ESQL parameters in PromQL label matchers:
          * <a href="https://github.com/elastic/elasticsearch/issues/148620">#148620</a>
          */
@@ -3066,6 +3076,13 @@ public class EsqlCapabilities {
          * https://github.com/elastic/elasticsearch/issues/149792
          */
         FIX_PROMQL_SCALAR_FLOAT_DIV,
+
+        /**
+         * Fix for PromQL constant scalar expressions (e.g. {@code 3.14}, {@code pi()}) that were previously
+         * evaluated through the full PromqlCommand pipeline and produced no results when the index was empty.
+         * They are now folded at planning time and emitted as a {@code ROW} without touching the index.
+         */
+        FIX_PROMQL_SCALAR_CONSTANT_RESULTS,
 
         /**
          * PromQL {@code quantile} and {@code quantile_over_time} take the quantile φ in the range [0, 1], but the

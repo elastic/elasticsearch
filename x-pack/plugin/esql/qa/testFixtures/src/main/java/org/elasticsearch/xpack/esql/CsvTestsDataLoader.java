@@ -822,14 +822,14 @@ public class CsvTestsDataLoader {
     }
 
     private static boolean clusterHasViewSupport(RestClient client) throws IOException {
-        // Use the /_capabilities endpoint to check ALL nodes for PUT view support.
-        // A simple GET /_query/view can hit any single node — in a mixed cluster during an upgrade,
-        // GET might succeed on a new node (which has @ServerlessScope) while PUT then fails with
-        // 410 on an old node (which doesn't). The /_capabilities TransportNodesAction queries every
-        // node and returns supported=true only when all of them agree.
+        // Use the /_capabilities endpoint to check ALL nodes for view support.
+        // A direct GET /_query/view can hit any single node — in a mixed cluster during an upgrade,
+        // it might succeed on a new node (which has @ServerlessScope) while a subsequent PUT then
+        // fails with 410 on an old node (which doesn't). The /_capabilities TransportNodesAction
+        // queries every node and returns supported=true only when all of them agree.
         Request capRequest = new Request("GET", "/_capabilities");
-        capRequest.addParameter("method", "PUT");
-        capRequest.addParameter("path", "/_query/view/test");
+        capRequest.addParameter("method", "GET");
+        capRequest.addParameter("path", "/_query/view");
         try {
             Response capResponse = client.performRequest(capRequest);
             ObjectMapper mapper = new ObjectMapper();

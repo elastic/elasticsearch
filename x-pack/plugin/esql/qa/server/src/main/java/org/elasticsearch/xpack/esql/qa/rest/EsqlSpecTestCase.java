@@ -635,7 +635,20 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
 
     protected boolean supportsViews() {
         if (supportsViews == null) {
-            supportsViews = hasCapabilities(adminClient(), List.of("views_with_no_branching", "views_crud_as_index_actions"));
+            if (hasCapabilities(adminClient(), List.of("views_with_no_branching", "views_crud_as_index_actions")) == false) {
+                supportsViews = false;
+            } else {
+                // The ESQL capabilities above are declared even on nodes that don't expose the view CRUD REST API
+                // in serverless mode (old nodes that predate the @ServerlessScope annotation on RestPutViewAction).
+                // In a mixed cluster during upgrade, we must also verify that ALL nodes actually serve the PUT endpoint.
+                // clusterHasCapability uses /_capabilities which fans out to every node and returns supported=true only
+                // when all agree, so this guards against hitting an old node with 410 during view loading.
+                try {
+                    supportsViews = clusterHasCapability(adminClient(), "GET", "/_query/view", List.of(), List.of()).orElse(false);
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                }
+            }
         }
         return supportsViews;
     }

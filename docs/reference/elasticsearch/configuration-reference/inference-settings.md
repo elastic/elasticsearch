@@ -14,7 +14,7 @@ $$$inference-settings-description$$$
 You do not need to configure any settings to use the {{infer}} APIs. Each setting has a default.
 
 
-### Inference API logging settings [xpack-inference-logging]
+## {{infer-cap}} logging settings [xpack-inference-logging]
 
 When certain failures occur, a log message is emitted. In the case of a reoccurring failure the logging throttler restricts repeated messages from being logged.
 
@@ -66,4 +66,40 @@ For certain third-party service integrations, when the service returns an error 
 `xpack.inference.truncator.reduction_percentage`
 :   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) Specifies the percentage to reduce the input text by if the 3rd party service responds with an error indicating it is too long. Defaults to 50 percent (`0.5`).
 
+## {{infer-cap}} API Cache settings [xpack-inference-cache-settings]
 
+### Inference endpoint cache settings [xpack-inference-endpoint-cache-settings]
+
+The inference endpoint cache stores assembled inference endpoint configurations for reuse across requests. Entries are invalidated cluster-wide whenever an endpoint is updated or deleted.
+
+`xpack.inference.endpoint.cache.enabled`
+:   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) Specifies whether the inference endpoint cache is enabled. Defaults to `true`.
+
+`xpack.inference.endpoint.cache.weight`
+:   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) Specifies the maximum number of inference endpoints to store in the cache. Defaults to `25`.
+
+`xpack.inference.endpoint.cache.expiry_time`
+:   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) Specifies the maximum duration an inference endpoint is kept in the cache after it was last written. Must be between one minute (`1m`) and one hour (`1h`). Defaults to 15 minutes (`15m`).
+
+### OAuth2 token cache settings [xpack-inference-oauth2-token-cache-settings]
+
+The OAuth2 token cache stores bearer tokens on each node for reuse across requests to third-party services that require OAuth2 authentication. Tokens are kept in heap memory only and are never persisted.
+
+`xpack.inference.oauth2.token_cache.enabled`
+:   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) Specifies whether the OAuth2 token cache is enabled. Defaults to `true`.
+
+`xpack.inference.oauth2.token_cache.weight`
+:   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) Specifies the maximum number of OAuth2 tokens to store in the cache. Defaults to `25`.
+
+`xpack.inference.oauth2.token_cache.expiry_time`
+:   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) Specifies the maximum duration an OAuth2 token is kept in the cache after it was last written. Must be between one minute (`1m`) and 24 hours (`24h`). Defaults to one hour (`1h`). A token can expire separately based on the exiry time set by the upstream server. In that situation, the token is automatically refereshed and will overwrite the entry in the cache if it already existed.
+
+### CCM cache settings [xpack-inference-ccm-cache-settings]
+
+The CCM (Cloud Connected Mode) cache stores whether CCM is enabled for the Elastic Inference Service for this cluster and the associated key. CCM is only applicable for on-prem clusters.
+
+`xpack.inference.ccm.cache.weight`
+:   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) Specifies the maximum number of entries to store in the CCM cache. Defaults to `1`. Only one key is required to connect a cluster to Elastic Inference Service through Cloud Connect. Increasing this setting will not have any affect.
+
+`xpack.inference.ccm.cache.expiry_time`
+:   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) Specifies the maximum duration an entry is kept in the cache after it was last written. Must be between one minute (`1m`) and one hour (`1h`). Defaults to 15 minutes (`15m`).

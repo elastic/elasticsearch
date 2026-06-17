@@ -316,7 +316,6 @@ public class EsqlFunctionRegistryTests extends ESTestCase {
                 .item("org.elasticsearch.xpack.esql.expression.function.grouping.BucketErrorTests is missing")
                 .item("org.elasticsearch.xpack.esql.expression.function.grouping.TBucketErrorTests is missing")
                 .item("org.elasticsearch.xpack.esql.expression.function.grouping.TimeSeriesWithoutErrorTests is missing")
-                .item("org.elasticsearch.xpack.esql.expression.function.grouping.TimeSeriesWithoutTests is missing")
                 .item("org.elasticsearch.xpack.esql.expression.function.scalar.ClampErrorTests is missing")
                 .item("org.elasticsearch.xpack.esql.expression.function.scalar.ClampTests is missing")
                 .item("org.elasticsearch.xpack.esql.expression.function.scalar.conditional.ClampMaxErrorTests is missing")

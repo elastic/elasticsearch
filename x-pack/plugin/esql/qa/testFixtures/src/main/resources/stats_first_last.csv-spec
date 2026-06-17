@@ -678,3 +678,32 @@ first_td:tdigest                                                                
 "{""min"": 0.1, ""max"": 0.5, ""sum"": 16.4, ""centroids"":[0.1,0.2,0.3,0.4,0.5], ""counts"":[3,7,23,12,6]}"      | 1      | hand-rolled
 "{""min"": 0.1, ""max"": 0.5, ""sum"": 16.4, ""centroids"":[0.1,0.2,0.3,0.4,0.5], ""counts"":[3,7,23,12,6]}"      | 2      | multi-row-td
 ;
+
+# ----------------------------------------------------------------------------------------------------------------------
+
+Test first aggregation on flattened type
+required_capability: flattened_datatype
+required_capability: fuse_passthrough_with_first
+
+FROM flattened_many
+| STATS first_flat = FIRST(flat_a, id)
+;
+
+first_flat:flattened
+"{""k"":""v1""}"
+;
+
+# ----------------------------------------------------------------------------------------------------------------------
+
+Test first aggregation on flattened type (NULL sort)
+required_capability: flattened_datatype
+required_capability: fuse_passthrough_with_first
+
+FROM flattened_many
+| WHERE id == 1
+| STATS first_flat = FIRST(flat_a, NULL)
+;
+
+first_flat:flattened
+"{""k"":""v1""}"
+;

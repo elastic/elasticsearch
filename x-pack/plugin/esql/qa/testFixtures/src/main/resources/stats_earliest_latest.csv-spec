@@ -421,3 +421,18 @@ FROM tdigest_standard_index
 first_td:tdigest
 "{""centroids"":[], ""counts"":[]}"
 ;
+
+# ----------------------------------------------------------------------------------------------------------------------
+
+Test earliest aggregation on flattened type
+required_capability: earliest_latest_aggs
+required_capability: flattened_datatype
+required_capability: fuse_passthrough_with_first
+
+FROM flattened_otel_logs
+| STATS earliest_attrs = EARLIEST(resource.attributes)
+;
+
+earliest_attrs:flattened
+"{""host.name"":""equal-host""}"
+;

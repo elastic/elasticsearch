@@ -9,10 +9,13 @@ package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.cluster.metadata.View;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
+import org.elasticsearch.xpack.esql.view.DeleteViewAction;
+import org.elasticsearch.xpack.esql.view.PutViewAction;
 import org.junit.Before;
 
 import java.util.List;
@@ -22,7 +25,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 
 /**
- * Integration tests for WHERE ... IN (subquery) and WHERE ... NOT IN (subquery).
+ * Integration tests for WHERE IN (subquery) and WHERE NOT IN (subquery).
  */
 @TestLogging(value = "org.elasticsearch.xpack.esql:TRACE", reason = "debug")
 public class InSubqueryIT extends AbstractEsqlIntegTestCase {
@@ -727,6 +730,41 @@ public class InSubqueryIT extends AbstractEsqlIntegTestCase {
         }
     }
 
+    // ---- views referenced from inside an IN subquery ----
+
+    public void testInSubqueryReferencingSimpleView() {
+        assumeTrue("Requires views in cluster state", EsqlCapabilities.Cap.VIEWS_IN_CLUSTER_STATE.isEnabled());
+        assumeTrue("Requires IN subquery view support", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITH_VIEW.isEnabled());
+
+        try {
+            installView("red_ids", "FROM test | WHERE color == \"red\" | KEEP id");
+
+            try (var resp = run("FROM test | WHERE id IN (FROM red_ids) | SORT id | KEEP id, color")) {
+                assertColumnNames(resp.columns(), List.of("id", "color"));
+                assertValues(resp.values(), List.of(List.of(1, "red"), List.of(3, "red"), List.of(5, "red")));
+            }
+        } finally {
+            deleteViews("red_ids");
+        }
+    }
+
+    public void testViewReferencedFromInSubquery() {
+        assumeTrue("Requires views in cluster state", EsqlCapabilities.Cap.VIEWS_IN_CLUSTER_STATE.isEnabled());
+        assumeTrue("Requires IN subquery view support", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITH_VIEW.isEnabled());
+        try {
+            installView("in_layer_1", "FROM test | WHERE id IN (FROM test | WHERE color == \"red\" | KEEP id) | KEEP id");
+            installView("in_layer_2", "FROM test | WHERE id IN (FROM in_layer_1 | KEEP id) | KEEP id");
+            installView("in_layer_3", "FROM test | WHERE id IN (FROM in_layer_2 | KEEP id) | KEEP id, color");
+
+            try (var resp = run("FROM test | WHERE id IN (FROM in_layer_3 | WHERE id > 1 | KEEP id) | SORT id | KEEP id, color")) {
+                assertColumnNames(resp.columns(), List.of("id", "color"));
+                assertValues(resp.values(), List.of(List.of(3, "red"), List.of(5, "red")));
+            }
+        } finally {
+            deleteViews("in_layer_1", "in_layer_2", "in_layer_3");
+        }
+    }
+
     private void indexMultiValuedColorRow() {
         client().prepareBulk()
             .add(new IndexRequest("test").id("7").source("id", 7, "color", List.of("red", "green")))
@@ -784,5 +822,29 @@ public class InSubqueryIT extends AbstractEsqlIntegTestCase {
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
             .get();
         ensureYellow("ids");
+    }
+
+    public static void installView(String name, String query) {
+        assertAcked(
+            client().execute(
+                PutViewAction.INSTANCE,
+                new PutViewAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, new View(name, query))
+            )
+        );
+    }
+
+    public static void deleteViews(String... names) {
+        for (String name : names) {
+            try {
+                assertAcked(
+                    client().execute(
+                        DeleteViewAction.INSTANCE,
+                        new DeleteViewAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, new String[] { name })
+                    )
+                );
+            } catch (RuntimeException e) {
+                // View may be absent if the test body failed before creating it.
+            }
+        }
     }
 }

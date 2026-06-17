@@ -242,7 +242,7 @@ The `DISSECT` command does not support reference keys.
 
 ## Grok limitations [esql-limitations-grok]
 
-The `GROK` command does not support configuring [custom patterns](/reference/enrich-processor/grok-processor.md#custom-patterns), or [multiple patterns](/reference/enrich-processor/grok-processor.md#trace-match). The `GROK` command is not subject to [Grok watchdog settings](/reference/enrich-processor/grok-processor.md#grok-watchdog).
+The `GROK` command does not support configuring [custom patterns](/reference/ingest-processor/grok-processor.md#custom-patterns), or [multiple patterns](/reference/ingest-processor/grok-processor.md#trace-match). The `GROK` command is not subject to [Grok watchdog settings](/reference/ingest-processor/grok-processor.md#grok-watchdog).
 
 
 ## Multivalue limitations [esql-limitations-mv]

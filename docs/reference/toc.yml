@@ -2,6 +2,7 @@ toc:
   - file: index.md
   - toc: elasticsearch
   - toc: community-contributed
+  - toc: ingest-processor
   - toc: enrich-processor
   - toc: search-connectors
   - toc: elasticsearch-plugins

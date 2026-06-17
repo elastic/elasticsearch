@@ -14,21 +14,15 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.blobcache.shared.SharedBytes;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
-import org.elasticsearch.xpack.stateless.AbstractStatelessPluginIntegTestCase;
 import org.elasticsearch.xpack.stateless.TestUtils;
 import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
-import org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectory;
 import org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectoryMetrics;
 import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
 import org.junit.Before;
@@ -45,9 +39,7 @@ import static org.elasticsearch.blobcache.shared.SharedBlobCacheService.SHARED_C
 import static org.elasticsearch.blobcache.shared.SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING;
 import static org.elasticsearch.blobcache.shared.SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.stateless.cache.StatelessOnlinePrewarmingService.STATELESS_ONLINE_PREWARMING_ENABLED;
-import static org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectoryTestUtils.getCacheService;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -55,7 +47,7 @@ import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 
-public class CacheMissWaitTimeHeaderIT extends AbstractStatelessPluginIntegTestCase {
+public class CacheMissWaitTimeHeaderIT extends AbstractBlobCacheMetricsIntegTestCase {
 
     private static final String SEARCH_METRICS_HEADER = "X-Elasticsearch-Search-Metrics";
 
@@ -129,7 +121,7 @@ public class CacheMissWaitTimeHeaderIT extends AbstractStatelessPluginIntegTestC
         CountDownLatch latch = new CountDownLatch(1);
 
         final Client client = client();
-        client.search(searchRequest, new LatchedActionListener<>(ActionListener.assertOnce(ActionListener.wrap(searchResponse -> {
+        client.search(searchRequest, new LatchedActionListener<>(ActionListener.assertOnce(ActionListener.wrap(ignored -> {
             headers.set(parseMetricsHeaders(client));
         }, failure::set)), latch));
         assertTrue("search did not complete in time", latch.await(30, TimeUnit.SECONDS));
@@ -165,35 +157,4 @@ public class CacheMissWaitTimeHeaderIT extends AbstractStatelessPluginIntegTestC
         return Tuple.tuple(key, value);
     }
 
-    private void clearShardCache(IndexShard indexShard) {
-        BlobStoreCacheDirectory blobStoreCacheDirectory = BlobStoreCacheDirectory.unwrapDirectory(indexShard.store().directory());
-        getCacheService(blobStoreCacheDirectory).forceEvict(key -> true);
-    }
-
-    private String createIndexWithNoReplicas(String namePrefix) {
-        final String indexName = namePrefix + "-" + randomIdentifier();
-        assertAcked(
-            prepareCreate(
-                indexName,
-                Settings.builder()
-                    .put(MaxRetryAllocationDecider.SETTING_ALLOCATION_MAX_RETRY.getKey(), 1)
-                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                    .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1)
-            )
-        );
-        return indexName;
-    }
-
-    private void populateIndex(String indexName) {
-        final int iters = randomIntBetween(2, 3);
-        int docsCounter = 0;
-        for (int i = 0; i < iters; i++) {
-            int numDocs = randomIntBetween(100, 1_000);
-            indexDocs(indexName, numDocs);
-            refresh(indexName);
-            docsCounter += numDocs;
-        }
-        logger.info("--> Wrote {} documents in {} segments to index {}", docsCounter, iters, indexName);
-    }
 }

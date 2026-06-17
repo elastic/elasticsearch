@@ -3129,11 +3129,11 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                         new Count(aggFunc.source(), field, aggFunc.filter(), aggFunc.window())
                     );
                 }
-                if (aggFunc instanceof AvgOverTime) {
+                if (aggFunc instanceof AvgOverTime avgOT) {
                     return new Div(
                         aggFunc.source(),
-                        new SumOverTime(aggFunc.source(), field, aggFunc.filter(), aggFunc.window()),
-                        new CountOverTime(aggFunc.source(), field, aggFunc.filter(), aggFunc.window())
+                        new SumOverTime(aggFunc.source(), field, aggFunc.filter(), aggFunc.window(), avgOT.timestamp()),
+                        new CountOverTime(aggFunc.source(), field, aggFunc.filter(), aggFunc.window(), avgOT.timestamp())
                     );
                 }
 
@@ -3157,8 +3157,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 if (aggFunc instanceof Count) {
                     return new Sum(aggFunc.source(), children.getFirst());
                 }
-                if (aggFunc instanceof CountOverTime) {
-                    return new SumOverTime(aggFunc.source(), children.getFirst(), aggFunc.filter(), aggFunc.window());
+                if (aggFunc instanceof CountOverTime cot) {
+                    return new SumOverTime(aggFunc.source(), children.getFirst(), aggFunc.filter(), aggFunc.window(), cot.timestamp());
                 }
                 return aggFunc.replaceChildren(children);
             }

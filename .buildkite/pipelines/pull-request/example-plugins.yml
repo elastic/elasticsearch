@@ -9,7 +9,7 @@ config:
 steps:
   - label: example-plugins
     command: |-
-      ./.ci/scripts/example-plugins.sh -Dorg.gradle.jvmargs=-Xmx8g -Dtests.jvm.argline=-XX:-UseContainerSupport build --include-build $$WORKSPACE
+      ./.ci/scripts/example-plugins.sh -Dorg.gradle.jvmargs="-Xmx8g -XX:-UseContainerSupport" build --include-build $$WORKSPACE
     timeout_in_minutes: 300
     agents:
       provider: gcp

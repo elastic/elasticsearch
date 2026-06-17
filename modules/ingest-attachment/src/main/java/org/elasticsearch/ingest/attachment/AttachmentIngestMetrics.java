@@ -15,14 +15,20 @@ import org.elasticsearch.telemetry.metric.MeterRegistry;
 
 /**
  * Telemetry for the ingest attachment processor.
+ * <p>
+ * Attachment sizes are recorded on double histograms in fractional mebibytes rather than as raw byte counts.
+ * The APM Java agent applies default OpenTelemetry histogram bucket boundaries whose largest finite value is 131072.
+ * If sizes were in bytes, values above 128 KiB collapsed into that overflow bucket. Recording mebibytes instead reuses
+ * those same default boundaries (see
+ * <a href="https://github.com/elastic/apm/blob/main/specs/agents/metrics-otel.md">APM OpenTelemetry metrics</a>)
+ * over a much wider attachment size range: from 0.00390625 MiB (4 KiB) up to 131072 MiB (128 GiB).
  */
 public final class AttachmentIngestMetrics {
 
     /**
      * Raw size of the attachment source field (before base64 decode) observed before the max-field size check runs.
      */
-    public static final String RAW_FIELD_SIZE_IN_MEGABYTES_RECEIVED =
-        "es.ingest.attachment.raw_field_size_in_megabytes.received.histogram";
+    public static final String RAW_FIELD_SIZE_IN_MEGABYTES_RECEIVED = "es.ingest.attachment.raw_field_size_in_megabytes.received.histogram";
 
     /**
      * Raw size of the attachment source field (before base64 decode) for attachments that were processed.

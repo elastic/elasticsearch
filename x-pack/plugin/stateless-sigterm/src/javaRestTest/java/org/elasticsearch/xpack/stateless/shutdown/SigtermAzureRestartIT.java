@@ -80,6 +80,10 @@ public class SigtermAzureRestartIT extends ESRestTestCase {
         }
 
         cluster.restartNodeInPlace(nodeIndex, false);
+        // the restarted node will use a different port, but clients are not updated accordingly
+        // dead hosts are removed internally, but another process picking up the old port can lead to random failures.
+        closeClients();
+        initClient();
 
         assertBusy(() -> {
             try {

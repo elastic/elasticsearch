@@ -86,7 +86,7 @@ public final class EirfRowXContentParser extends AbstractXContentParser {
         int leafCount = schema.leafCount();
 
         @SuppressWarnings("unchecked")
-        List<Integer>[] nonLeafChildren = new List[nonLeafCount];
+        List<Integer>[] nonLeafChildren = (List<Integer>[]) new List<?>[nonLeafCount];
         for (int i = 1; i < nonLeafCount; i++) {
             int parent = schema.getNonLeafParent(i);
             if (nonLeafChildren[parent] == null) {
@@ -96,7 +96,7 @@ public final class EirfRowXContentParser extends AbstractXContentParser {
         }
 
         @SuppressWarnings("unchecked")
-        List<Integer>[] leafChildren = new List[nonLeafCount];
+        List<Integer>[] leafChildren = (List<Integer>[]) new List<?>[nonLeafCount];
         for (int leafIdx = 0; leafIdx < leafCount; leafIdx++) {
             int parent = schema.getLeafParent(leafIdx);
             if (leafChildren[parent] == null) {

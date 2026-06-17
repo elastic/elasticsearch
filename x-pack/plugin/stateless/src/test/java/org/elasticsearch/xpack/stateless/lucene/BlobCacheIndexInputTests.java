@@ -1447,6 +1447,7 @@ public class BlobCacheIndexInputTests extends ESIndexInputTestCase {
 
     @SuppressWarnings({ "unchecked", "rawtypes" })
     public void testAsyncPrefetchOnCacheMiss() throws IOException {
+        assumeTrue("object store prefetch feature is disabled", CacheFileReader.OBJECT_STORE_PREFETCH_FEATURE_FLAG.isEnabled());
         final SharedBlobCacheService.CacheFile cacheFile = mock(SharedBlobCacheService.CacheFile.class);
         when(cacheFile.copy()).thenReturn(cacheFile);
         when(cacheFile.tryPrefetch(anyLong(), anyLong())).thenReturn(false);
@@ -1501,6 +1502,7 @@ public class BlobCacheIndexInputTests extends ESIndexInputTestCase {
 
     @SuppressWarnings({ "unchecked", "rawtypes" })
     public void testAsyncPrefetchSuccessIsRecorded() throws IOException {
+        assumeTrue("object store prefetch feature is disabled", CacheFileReader.OBJECT_STORE_PREFETCH_FEATURE_FLAG.isEnabled());
         final SharedBlobCacheService.CacheFile cacheFile = mock(SharedBlobCacheService.CacheFile.class);
         when(cacheFile.copy()).thenReturn(cacheFile);
         when(cacheFile.tryPrefetch(anyLong(), anyLong())).thenReturn(false);
@@ -1550,6 +1552,7 @@ public class BlobCacheIndexInputTests extends ESIndexInputTestCase {
 
     @SuppressWarnings({ "unchecked", "rawtypes" })
     public void testAsyncPrefetchFailureIsRecorded() throws IOException {
+        assumeTrue("object store prefetch feature is disabled", CacheFileReader.OBJECT_STORE_PREFETCH_FEATURE_FLAG.isEnabled());
         final SharedBlobCacheService.CacheFile cacheFile = mock(SharedBlobCacheService.CacheFile.class);
         when(cacheFile.copy()).thenReturn(cacheFile);
         when(cacheFile.tryPrefetch(anyLong(), anyLong())).thenReturn(false);
@@ -1600,6 +1603,7 @@ public class BlobCacheIndexInputTests extends ESIndexInputTestCase {
 
     @SuppressWarnings({ "unchecked", "rawtypes" })
     public void testAsyncPrefetchNotCalledOnCacheHit() throws IOException {
+        assumeTrue("object store prefetch feature is disabled", CacheFileReader.OBJECT_STORE_PREFETCH_FEATURE_FLAG.isEnabled());
         final SharedBlobCacheService.CacheFile cacheFile = mock(SharedBlobCacheService.CacheFile.class);
         when(cacheFile.copy()).thenReturn(cacheFile);
         when(cacheFile.tryPrefetch(anyLong(), anyLong())).thenReturn(true);

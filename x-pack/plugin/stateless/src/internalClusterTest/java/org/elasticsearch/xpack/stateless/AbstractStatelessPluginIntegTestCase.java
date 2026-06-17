@@ -171,11 +171,10 @@ public abstract class AbstractStatelessPluginIntegTestCase extends ESIntegTestCa
     }
 
     @After
-    public void tearDown() throws Exception {
+    public void waitForMerges() throws Exception {
         // This works for stateless as we build a new cluster for each TEST. However, if we move to SUITE this might need to be in
         // AfterClass depending on the test's needs.
         waitForMergesToFinish();
-        super.tearDown();
     }
 
     private static void waitForMergesToFinish() throws Exception {

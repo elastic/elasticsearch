@@ -37,6 +37,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.core.util.DateUtils;
+import org.elasticsearch.xpack.esql.datasources.ExternalFailures;
 import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
 import org.elasticsearch.xpack.esql.datasources.TextAggregatePushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.cache.ColumnStatsAccumulator;
@@ -46,6 +47,7 @@ import org.elasticsearch.xpack.esql.datasources.cache.ExternalStatsCapture;
 import org.elasticsearch.xpack.esql.datasources.cache.SchemaCacheKey;
 import org.elasticsearch.xpack.esql.datasources.cache.TextFormatStats;
 import org.elasticsearch.xpack.esql.datasources.spi.AggregatePushdownSupport;
+import org.elasticsearch.xpack.esql.datasources.spi.BufferingPageIterator;
 import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
@@ -775,25 +777,36 @@ public class CsvFormatReader implements SegmentableFormatReader {
         }
     }
 
-    private Iterator<List<?>> newCsvIterator(Reader reader) throws IOException {
-        return newCsvIterator(
-            new CsvLogicalRecordReader(
-                reader,
-                options.quoteChar(),
-                options.delimiter(),
-                SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
-                options.encoding()
-            )
-        );
+    /**
+     * Per-record iterator used for schema reading, sampling, and bootstrap paths where each record is
+     * materialized into a {@link String} before Jackson parses it. Cost is bounded by
+     * {@link #schemaSampleSize} on inference paths; the bulk read loop swaps over to
+     * {@link #newJacksonBulkIterator} after schema resolution so the per-row hot path stays on
+     * Jackson's direct bulk char-buffer tokenization.
+     */
+    private Iterator<List<?>> newCsvIterator(CsvLogicalRecordReader recordReader) throws IOException {
+        return new CsvRecordIterator(recordReader, newCsvSchema());
     }
 
-    private Iterator<List<?>> newCsvIterator(CsvLogicalRecordReader recordReader) throws IOException {
-        CsvSchema csvSchema = CsvSchema.emptySchema()
+    /**
+     * Bulk-path iterator: hands the raw {@link Reader} straight to Jackson's {@link CsvParser} so the
+     * per-row hot loop tokenizes characters in Jackson's internal char buffer instead of re-materializing
+     * each logical record into a {@link StringBuilder} for a follow-up Jackson parse. The byte-level
+     * {@code max_record_size} cap is enforced upstream by {@link CsvRecordCappingInputStream}, so this
+     * path no longer needs the per-char accounting that {@link CsvLogicalRecordReader#readRecord} added.
+     * Used after schema resolution / sampling, where every subsequent record flows through this iterator.
+     */
+    @SuppressWarnings({ "rawtypes", "unchecked" })
+    private Iterator<List<?>> newJacksonBulkIterator(Reader reader) throws IOException {
+        return (Iterator) sharedCsvMapper.readerFor(List.class).with(newCsvSchema()).readValues(reader);
+    }
+
+    private CsvSchema newCsvSchema() {
+        return CsvSchema.emptySchema()
             .withColumnSeparator(options.delimiter())
             .withQuoteChar(options.quoteChar())
             .withEscapeChar(options.escapeChar())
             .withNullValue(options.nullValue());
-        return new CsvRecordIterator(recordReader, csvSchema);
     }
 
     /**
@@ -989,7 +1002,15 @@ public class CsvFormatReader implements SegmentableFormatReader {
         // length() throws UnsupportedOperationException. The byte count flows through {@link
         // ExternalStats} as sizeInBytes when the file lacks a publishable length.
         CountingInputStream stream = new CountingInputStream(rawStream);
-        BufferedReader reader = new BufferedReader(new InputStreamReader(stream, options.encoding()), READER_BUFFER_SIZE);
+        // Scope the byte-level cap wrap to the Jackson bulk path. Bracket-aware parsing relies on
+        // CsvLogicalRecordReader.addBytes for a recoverable per-record cap; wrapping the underlying
+        // stream would let the cap fire mid-{@link BufferedReader#fill}, leaving the reader at an
+        // undefined offset and turning a per-row recovery into a stream-fatal abort. When bracket
+        // mode is enabled the data path goes through CsvLogicalRecordReader and never reaches the
+        // Jackson bulk iterator, so the wrap brings no defense-in-depth there either.
+        boolean useBracketAware = options.multiValueSyntax() == CsvFormatOptions.MultiValueSyntax.BRACKETS && options.delimiter() == ',';
+        InputStream capped = useBracketAware ? stream : new CsvRecordCappingInputStream(stream, context.maxRecordBytes());
+        BufferedReader reader = new BufferedReader(new InputStreamReader(capped, options.encoding()), READER_BUFFER_SIZE);
         CsvLogicalRecordReader recordReader = new CsvLogicalRecordReader(
             reader,
             options.quoteChar(),
@@ -1041,7 +1062,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 recordReader.readRecord(
                     options.multiValueSyntax() == CsvFormatOptions.MultiValueSyntax.BRACKETS && options.delimiter() == ','
                 );
-            } catch (CsvLogicalRecordReader.CsvRecordTooLargeException e) {
+            } catch (CsvRecordTooLargeException e) {
                 if (effective.isStrict()) {
                     throw e;
                 }
@@ -1491,7 +1512,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 eof = next == null;
                 return eof == false;
             } catch (IOException e) {
-                throw new RuntimeException(e);
+                throw ExternalFailures.surface(e, "Failed to read CSV record");
             }
         }
 
@@ -1535,7 +1556,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
         }
     }
 
-    private class CsvBatchIterator implements CloseableIterator<Page> {
+    private class CsvBatchIterator extends BufferingPageIterator {
         private final BufferedReader reader;
         private final CsvLogicalRecordReader recordReader;
         private final InputStream stream;
@@ -1567,7 +1588,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
         private Iterator<List<?>> csvIterator;
         private List<String[]> prefetchedRows;
         private long prefetchedRowsBytes;
-        private Page nextPage;
+        // Inner close flag: gates hasNext() short-circuit after close and the one-shot teardown below. The base
+        // BufferingPageIterator separately gates close()/closeInternal() re-entry; this one also stops iteration.
         private boolean closed = false;
         private long errorCount = 0;
         /**
@@ -1661,7 +1683,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 }
                 return true;
             } catch (IOException e) {
-                throw new RuntimeException("Failed to read CSV batch", e);
+                throw ExternalFailures.surface(e, "Failed to read CSV batch");
             } finally {
                 long deltaTotal = totalRowCount - startTotal;
                 long deltaErrors = errorCount - startError;
@@ -1696,7 +1718,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
         }
 
         @Override
-        public void close() throws IOException {
+        protected void closeInternal() throws IOException {
             if (closed == false) {
                 closed = true;
                 if (prefetchedRowsBytes > 0) {
@@ -1810,7 +1832,10 @@ public class CsvFormatReader implements SegmentableFormatReader {
 
                 boolean useBracketAwareParsing = bracketMultiValues && options.delimiter() == ',';
                 if (useBracketAwareParsing == false && csvIterator == null) {
-                    csvIterator = newCsvIterator(recordReader);
+                    // Hot data path: Jackson reads directly from the BufferedReader and tokenizes records in its
+                    // own bulk char buffer. The per-record byte cap is enforced upstream by the wrapping
+                    // CsvRecordCappingInputStream, so we don't need CsvLogicalRecordReader's per-char loop here.
+                    csvIterator = newJacksonBulkIterator(reader);
                 }
             }
             boolean useFusedBracketPath = csvIterator == null && bracketMultiValues && options.delimiter() == ',';
@@ -1886,7 +1911,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
         private String readBracketAwareRecord() throws IOException {
             try {
                 return recordReader.readRecord(true);
-            } catch (CsvLogicalRecordReader.CsvRecordTooLargeException e) {
+            } catch (CsvRecordTooLargeException e) {
                 totalRowCount++;
                 onRowError(e.getMessage(), e, EMPTY_ROW, true);
                 return "";
@@ -1928,6 +1953,10 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 blockFactory.breaker(),
                 errorPolicy
             );
+            // Drop the per-record sampling iterator so the bulk Jackson path can pick up where the
+            // sample left off. Without this reset, inferred-schema reads stay on the slow per-record
+            // CsvLogicalRecordReader path for the remainder of the file.
+            csvIterator = null;
             if (sample.rows().isEmpty()) {
                 blockFactory.breaker().addWithoutBreaking(-sample.reservedBytes());
                 return null;
@@ -1946,6 +1975,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 blockFactory.breaker(),
                 errorPolicy
             );
+            csvIterator = null;
             if (sample.rows().isEmpty()) {
                 blockFactory.breaker().addWithoutBreaking(-sample.reservedBytes());
                 return null;

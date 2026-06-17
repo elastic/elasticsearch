@@ -124,15 +124,7 @@ public final class MultiTypeEsField extends UnionTypeEsField {
     }
 
     public @Nullable Expression getConversionExpressionForIndex(String indexName) {
-        Expression expression = indexToConversionExpressions.get(indexName);
-        if (expression != null) {
-            return expression;
-        }
-        int separator = indexName.indexOf(':');
-        if (separator < 0 || separator == indexName.length() - 1) {
-            return null;
-        }
-        return indexToConversionExpressions.get(indexName.substring(separator + 1));
+        return indexToConversionExpressions.get(indexName);
     }
 
     @Override

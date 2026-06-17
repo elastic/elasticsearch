@@ -58,6 +58,7 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 public class BytesReadHeaderIT extends ESIntegTestCase {
 
@@ -460,7 +461,7 @@ public class BytesReadHeaderIT extends ESIntegTestCase {
         assertThat(secondPageBytesRead, greaterThan(0L));
     }
 
-    public void testMultiSearchSetsBytesReadHeader() throws InterruptedException {
+    public void testMultiSearchDoesNotSetBytesReadHeader() throws InterruptedException {
         int numDocs = atLeast(100);
         final String firstIndex = setupIndex(1, numDocs);
         final String secondIndex = setupIndex(1, numDocs);
@@ -488,14 +489,7 @@ public class BytesReadHeaderIT extends ESIntegTestCase {
         }), latch));
         assertTrue("multi search did not complete in time", latch.await(30, TimeUnit.SECONDS));
 
-        assertThat("multi search should emit the metrics header", headerValues.get(), notNullValue());
-        long total = 0;
-        for (String value : headerValues.get()) {
-            Tuple<String, Long> tuple = parseHeader(value);
-            assertThat(tuple.v1(), equalTo("store_bytes_read"));
-            total += tuple.v2();
-        }
-        assertThat(total, greaterThan(0L));
+        assertThat("_msearch must not surface the per-sub-search metrics header", headerValues.get(), nullValue());
     }
 
     private String setupIndex(int primaryShards, int documents) {

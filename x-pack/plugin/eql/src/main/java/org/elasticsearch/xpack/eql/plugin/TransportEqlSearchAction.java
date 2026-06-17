@@ -24,10 +24,12 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.ActionLoggingFieldsProvider;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.store.Store;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.search.fetch.subphase.FieldAndFormat;
 import org.elasticsearch.tasks.Task;
@@ -74,6 +76,7 @@ public final class TransportEqlSearchAction extends HandledTransportAction<EqlSe
         AsyncTaskManagementService.AsyncOperation<EqlSearchRequest, EqlSearchResponse, EqlSearchTask> {
 
     private static final Logger log = LogManager.getLogger(TransportEqlSearchAction.class);
+    private static final String HEADER_SUPPRESS_SEARCH_METRICS = "_suppress_search_metrics_header";
     private final SecurityContext securityContext;
     private final ClusterService clusterService;
     private final PlanExecutor planExecutor;
@@ -222,6 +225,14 @@ public final class TransportEqlSearchAction extends HandledTransportAction<EqlSe
         ClusterService clusterService,
         ActionListener<EqlSearchResponse> operationListener
     ) {
+        // Opt out of the per-search metrics response header so we don't end up with a header per sub-search.
+        if (Store.DIRECTORY_METRICS_FEATURE_FLAG.isEnabled()) {
+            final ThreadContext threadContext = transportService.getThreadPool().getThreadContext();
+            if (threadContext.getHeader(HEADER_SUPPRESS_SEARCH_METRICS) == null) {
+                threadContext.putHeader(HEADER_SUPPRESS_SEARCH_METRICS, Boolean.TRUE.toString());
+            }
+        }
+
         String nodeId = clusterService.localNode().getId();
         String clusterName = clusterName(clusterService);
         // TODO: these should be sent by the client

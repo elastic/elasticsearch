@@ -25,6 +25,8 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.index.store.Store;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -41,6 +43,7 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
     public static final String NAME = "indices:data/read/msearch";
     public static final ActionType<MultiSearchResponse> TYPE = new ActionType<>(NAME);
     private static final Logger logger = LogManager.getLogger(TransportMultiSearchAction.class);
+    private static final String HEADER_SUPPRESS_SEARCH_METRICS = "_suppress_search_metrics_header";
     private final int allocatedProcessors;
     private final ClusterService clusterService;
     private final LongSupplier relativeTimeProvider;
@@ -84,6 +87,14 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
     @Override
     protected void doExecute(Task task, MultiSearchRequest request, ActionListener<MultiSearchResponse> listener) {
         final long relativeStartTime = relativeTimeProvider.getAsLong();
+
+        // Opt out of the per-search metrics response header so we don't end up with a header per sub-search.
+        if (Store.DIRECTORY_METRICS_FEATURE_FLAG.isEnabled()) {
+            final ThreadContext threadContext = client.threadPool().getThreadContext();
+            if (threadContext.getHeader(HEADER_SUPPRESS_SEARCH_METRICS) == null) {
+                threadContext.putHeader(HEADER_SUPPRESS_SEARCH_METRICS, Boolean.TRUE.toString());
+            }
+        }
 
         ClusterState clusterState = clusterService.state();
         clusterState.blocks().globalBlockedRaiseException(projectResolver.getProjectId(), ClusterBlockLevel.READ);

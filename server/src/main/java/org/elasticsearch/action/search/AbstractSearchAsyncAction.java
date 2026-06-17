@@ -77,6 +77,7 @@ import static org.elasticsearch.core.Strings.format;
  */
 abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> extends SearchPhase {
     public static final String RESPONSE_HEADER_SEARCH_METRICS = "X-Elasticsearch-Search-Metrics";
+    private static final String HEADER_SUPPRESS_SEARCH_METRICS = "_suppress_search_metrics_header";
 
     protected static final float DEFAULT_INDEX_BOOST = 1.0f;
 
@@ -652,11 +653,11 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     }
 
     public static void createResponseHeaderFromDirectoryMetrics(ThreadContext threadContext, DirectoryMetrics directoryMetrics) {
-        if (directoryMetrics.isEmpty() == false) {
-            for (Map.Entry<String, String> entry : directoryMetrics.entries().entrySet()) {
-                String value = entry.getKey() + "=" + entry.getValue();
-                threadContext.addResponseHeader(AbstractSearchAsyncAction.RESPONSE_HEADER_SEARCH_METRICS, value);
-            }
+        if (directoryMetrics.isEmpty() || threadContext.getHeader(HEADER_SUPPRESS_SEARCH_METRICS) != null) {
+            return;
+        }
+        for (Map.Entry<String, String> entry : directoryMetrics.entries().entrySet()) {
+            threadContext.addResponseHeader(RESPONSE_HEADER_SEARCH_METRICS, entry.getKey() + "=" + entry.getValue());
         }
     }
 

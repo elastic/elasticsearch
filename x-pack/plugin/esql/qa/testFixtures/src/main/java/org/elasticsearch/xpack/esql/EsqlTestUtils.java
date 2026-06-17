@@ -1664,6 +1664,27 @@ public final class EsqlTestUtils {
      * Convert index patterns and subqueries in FROM commands to use remote indices.
      */
     public static String convertSubqueryToRemoteIndices(String testQuery) {
+        return convertSubqueryToRemoteIndices(testQuery, Set.of());
+    }
+
+    /**
+     * Convert index patterns and subqueries in FROM commands to use remote indices,
+     * also descending into {@code WHERE x IN (FROM ...)} and {@code WHERE x NOT IN (FROM ...)}
+     * subquery bodies found in pipeline segments after the source command.
+     *
+     * <p>{@code bothClusterIndices} is the set of index names (lower-cased, unquoted) that are
+     * loaded into <em>both</em> the local and remote clusters — typically enrich source indices
+     * and lookup indices. These must be rewritten as remote-only ({@code *:idx}) rather than
+     * both-clusters ({@code *:idx,idx}) to avoid double-counting rows. All other indices are
+     * rewritten as {@code *:idx,idx} so that data is found regardless of which cluster the
+     * random load placed it on.
+     *
+     * <p>Note: like {@link #splitIgnoringParentheses}, this method is not string-literal-aware.
+     * A literal {@code (}, {@code )}, or {@code |} inside a quoted string would be miscounted.
+     * The csv-spec test corpus contains no such literals in subquery tests, so this matches
+     * existing behaviour.
+     */
+    public static String convertSubqueryToRemoteIndices(String testQuery, Set<String> bothClusterIndices) {
         String query = testQuery;
         // find the main source command, ignoring pipes inside subqueries
         List<String> mainFromCommandAndTheRest = splitIgnoringParentheses(query, "|");
@@ -1697,6 +1718,13 @@ public final class EsqlTestUtils {
         }
         // the main from command could be a comma separated list of index patterns, and subqueries
         List<String> indexPatternsAndSubqueries = splitIgnoringParentheses(mainFrom, ",");
+        // Idempotency guard: if any plain (non-subquery) source already has been rewritten to a
+        // remote index pattern, skip conversion. This protects against double-rewriting when
+        // the same testcase instance is reused across @Repeat iterations.
+        boolean alreadyConverted = indexPatternsAndSubqueries.stream().anyMatch(s -> isSubquery(s) == false && s.contains("*:"));
+        if (alreadyConverted) {
+            return query;
+        }
         List<String> transformed = new ArrayList<>();
         for (String indexPatternOrSubquery : indexPatternsAndSubqueries) {
             // remove the FROM or TS keyword if it's there
@@ -1710,22 +1738,91 @@ public final class EsqlTestUtils {
             if (isSubquery(indexPatternOrSubquery)) {
                 // it's a subquery, we need to process it recursively
                 String subquery = indexPatternOrSubquery.strip().substring(1, indexPatternOrSubquery.length() - 1);
-                String transformedSubquery = convertSubqueryToRemoteIndices(subquery);
+                String transformedSubquery = convertSubqueryToRemoteIndices(subquery, bothClusterIndices);
                 transformed.add("(" + transformedSubquery + ")");
             } else {
-                // It's an index pattern, we need to convert it to remote index pattern.
-                String remoteIndex = unquoteAndRequoteAsRemote(indexPatternOrSubquery, false);
+                // It's an index pattern; convert it to a remote index pattern. Indices that live
+                // in both clusters (enrich sources, lookup indices) must be remote-only to avoid
+                // double-counting; all others use the both-clusters form so they are found
+                // regardless of which cluster a randomised bulk load placed them on.
+                String trimmed = indexPatternOrSubquery.strip();
+                int numQuotes = 0;
+                while (numQuotes < trimmed.length() && trimmed.charAt(numQuotes) == '"') {
+                    numQuotes++;
+                }
+                String unquotedName = unquote(trimmed, numQuotes).toLowerCase(Locale.ROOT);
+                boolean onlyRemote = bothClusterIndices.contains(unquotedName);
+                String remoteIndex = unquoteAndRequoteAsRemote(indexPatternOrSubquery, onlyRemote);
                 transformed.add(remoteIndex);
             }
         }
         // rebuild source command from transformed index patterns and subqueries, prepending any SET statements
         String transformedFrom = setStatements + sourceCommand + " " + String.join(", ", transformed) + metadata;
+        // Rewrite any WHERE x IN (FROM ...) / NOT IN (...) subqueries in the pipeline segments
+        // that follow the source command. Non-subquery parenthesised groups (value lists, function
+        // arguments, boolean groupings) are left structurally unchanged.
+        for (int i = 1; i < mainFromCommandAndTheRest.size(); i++) {
+            mainFromCommandAndTheRest.set(i, rewriteSubqueriesInExpression(mainFromCommandAndTheRest.get(i), bothClusterIndices));
+        }
         // rebuild the whole query
         mainFromCommandAndTheRest.set(0, transformedFrom);
         testQuery = String.join(" | ", mainFromCommandAndTheRest);
 
         LOGGER.trace("Transform query: \nFROM: {}\nTO:   {}", query, testQuery);
         return testQuery;
+    }
+
+    /**
+     * Rewrites any {@code (FROM ...)}, {@code (TS ...)}, or {@code (ROW ...)} subquery bodies
+     * found inside an expression segment (e.g. a {@code WHERE} or {@code EVAL} clause) by
+     * recursively descending into every top-level parenthesised group.
+     *
+     * <p>Non-subquery parenthesised content — value lists such as {@code IN ("a","b")}, function
+     * arguments such as {@code COUNT(*)}, and boolean groupings such as
+     * {@code (a AND emp_no IN (FROM ...))} — is recursed to surface any nested subquery within,
+     * but the surrounding structure is otherwise left unchanged.
+     *
+     * <p>Like {@link #splitIgnoringParentheses}, this method is not string-literal-aware.
+     */
+    private static String rewriteSubqueriesInExpression(String segment, Set<String> bothClusterIndices) {
+        StringBuilder result = new StringBuilder();
+        int i = 0;
+        while (i < segment.length()) {
+            char c = segment.charAt(i);
+            if (c == '(') {
+                // find the matching close paren by scanning forward tracking depth
+                int depth = 1;
+                int contentStart = i + 1;
+                int j = contentStart;
+                while (j < segment.length() && depth > 0) {
+                    char d = segment.charAt(j);
+                    if (d == '(') depth++;
+                    else if (d == ')') depth--;
+                    j++;
+                }
+                // segment[contentStart .. j-1] is the content inside the parens; j is past the ')'
+                String content = segment.substring(contentStart, j - 1);
+                String strippedContent = content.strip();
+                String rewrittenGroup;
+                if (startsWithCommandKeyword(strippedContent, FROM_COMMAND_PATTERN)
+                    || startsWithCommandKeyword(strippedContent, TS_COMMAND_PATTERN)
+                    || startsWithCommandKeyword(strippedContent, ROW_COMMAND_PATTERN)) {
+                    // This group is a subquery body — rewrite it recursively.
+                    // ROW bodies are returned unchanged by convertSubqueryToRemoteIndices.
+                    rewrittenGroup = "(" + convertSubqueryToRemoteIndices(strippedContent, bothClusterIndices) + ")";
+                } else {
+                    // Not a direct subquery body (value list, function args, boolean grouping, …).
+                    // Recurse into the raw content to catch any nested subquery inside it.
+                    rewrittenGroup = "(" + rewriteSubqueriesInExpression(content, bothClusterIndices) + ")";
+                }
+                result.append(rewrittenGroup);
+                i = j;
+            } else {
+                result.append(c);
+                i++;
+            }
+        }
+        return result.toString();
     }
 
     private static final Pattern FROM_COMMAND_PATTERN = commandPattern("from");

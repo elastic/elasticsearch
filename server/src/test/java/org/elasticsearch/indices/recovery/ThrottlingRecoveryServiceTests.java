@@ -579,20 +579,20 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
                 ShardLongFieldRange timestampMillisFieldRange,
                 ShardLongFieldRange eventIngestedMillisFieldRange
             ) {
-                refCounted.decRef();
                 tasksCompleted.incrementAndGet();
+                refCounted.decRef();
             }
 
             @Override
             public void onRecoveryFailure(RecoveryFailedException e, boolean sendShardFailure) {
-                refCounted.decRef();
                 tasksCompleted.incrementAndGet();
+                refCounted.decRef();
             }
 
             @Override
             public void onRecoveryAborted() {
-                refCounted.decRef();
                 tasksCompleted.incrementAndGet();
+                refCounted.decRef();
             }
         };
 

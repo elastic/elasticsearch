@@ -155,6 +155,13 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
      */
     public static final String FORCE_MERGE_COMPLETED_TIMESTAMP_METADATA_KEY = "force_merge_completed_timestamp";
     public static final String FROZEN_CANDIDATE_REPOSITORY_METADATA_KEY = "dlm_freeze_with";
+    public static final String DLM_CREATED_SETTING_KEY = IndexMetadata.INDEX_SETTING_PREFIX + "dlm.frozen.created";
+    public static final Setting<Boolean> DLM_CREATED_SETTING = Setting.boolSetting(
+        DLM_CREATED_SETTING_KEY,
+        false,
+        Setting.Property.IndexScope,
+        Setting.Property.InternalIndex
+    );
     private final Settings settings;
     private final Client client;
     private final ClusterService clusterService;
@@ -471,20 +478,18 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
             }
 
             try {
-                if (DataStreamLifecycle.DLM_SEARCHABLE_SNAPSHOTS_FEATURE_FLAG.isEnabled()) {
-                    // Collect all candidates for conversion to a frozen index.
-                    // These will be processed at the end of the loop where we mark all the indices at once.
-                    Set<Index> candidatesForFrozen = candidatesForFrozen(
-                        project,
-                        dataStream,
-                        nowSupplier,
-                        getTargetIndices(dataStream, indicesToExcludeForRemainingRun, project::index, false)
-                    );
-                    // Exclude these candidates from the rest of the run
-                    indicesToExcludeForRemainingRun.addAll(candidatesForFrozen);
-                    // Add them to the list to be marked for conversion
-                    indicesForFrozenConversion.addAll(candidatesForFrozen);
-                }
+                // Collect all candidates for conversion to a frozen index.
+                // These will be processed at the end of the loop where we mark all the indices at once.
+                Set<Index> candidatesForFrozen = candidatesForFrozen(
+                    project,
+                    dataStream,
+                    nowSupplier,
+                    getTargetIndices(dataStream, indicesToExcludeForRemainingRun, project::index, false)
+                );
+                // Exclude these candidates from the rest of the run
+                indicesToExcludeForRemainingRun.addAll(candidatesForFrozen);
+                // Add them to the list to be marked for conversion
+                indicesForFrozenConversion.addAll(candidatesForFrozen);
             } catch (Exception e) {
                 logger.warn(
                     () -> String.format(
@@ -501,18 +506,16 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
         }
 
         try {
-            if (DataStreamLifecycle.DLM_SEARCHABLE_SNAPSHOTS_FEATURE_FLAG.isEnabled()) {
-                // Only identify and mark indices if the default repository setting is set,
-                // if it's entirely unset, no work could proceed, so we should just skip
-                // the frozen step entirely.
-                if (Strings.hasText(defaultRepository)) {
-                    maybeMarkIndicesForFrozen(projectState, indicesForFrozenConversion);
-                } else if (indicesForFrozenConversion.isEmpty() == false) {
-                    logger.debug(
-                        "DLM identified {} indices as candidates to convert to frozen, but no default repository is configured",
-                        indicesForFrozenConversion.size()
-                    );
-                }
+            // Only identify and mark indices if the default repository setting is set,
+            // if it's entirely unset, no work could proceed, so we should just skip
+            // the frozen step entirely.
+            if (Strings.hasText(defaultRepository)) {
+                maybeMarkIndicesForFrozen(projectState, indicesForFrozenConversion);
+            } else if (indicesForFrozenConversion.isEmpty() == false) {
+                logger.debug(
+                    "DLM identified {} indices as candidates to convert to frozen, but no default repository is configured",
+                    indicesForFrozenConversion.size()
+                );
             }
         } catch (Exception e) {
             logger.warn("Data stream lifecycle failed to mark candidates for converting to frozen index for data stream", e);
@@ -570,6 +573,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
             }
             Optional.ofNullable(projectMetadata.index(index))
                 .filter(indexMeta -> indexMarkedForFrozen(indexMeta) == false)
+                .filter(indexMeta -> DLM_CREATED_SETTING.get(indexMeta.getSettings()) == false)
                 .ifPresent(metadata -> candidates.add(metadata.getIndex()));
         }
         return candidates;

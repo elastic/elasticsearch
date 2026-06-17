@@ -28,6 +28,8 @@ import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.byteVecto
 import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.getScorerFactoryOrDie;
 import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.luceneScoreSupplier;
 import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.luceneScorer;
+import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.panamaScoreSupplier;
+import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.panamaScorer;
 import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.supportsHeapSegments;
 import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.writeByteVectorData;
 
@@ -181,6 +183,12 @@ public class VectorScorerInt8BulkBenchmark extends VectorScorerBulkBenchmark {
                 scorer = luceneScoreSupplier(values, function.function()).scorer();
                 if (supportsHeapSegments()) {
                     queryScorer = luceneScorer(values, function.function(), ((VectorData) vectorData).queryVector);
+                }
+                break;
+            case PANAMA:
+                scorer = panamaScoreSupplier(values, function.function()).scorer();
+                if (supportsHeapSegments()) {
+                    queryScorer = panamaScorer(values, function.function(), ((VectorData) vectorData).queryVector);
                 }
                 break;
             case NATIVE:

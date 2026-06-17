@@ -83,6 +83,7 @@ FROM partial_mapping_sample_data
 ;
 
 doesNotLoadUnmappedFieldsEnrich
+skip_flattened_rewrite: enrich_output_type_mismatch
 required_capability: optional_fields_v5
 required_capability: enrich_load
 

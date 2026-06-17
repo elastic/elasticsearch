@@ -17,6 +17,7 @@ import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.analysis.common.CommonAnalysisPlugin;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.View;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -128,6 +129,7 @@ public class CsvIT extends ESTestCase {
     private static final Logger logger = LogManager.getLogger(CsvIT.class);
     private static final EsqlCapabilities ENABLED_CAPS = EsqlCapabilities.capabilities(TEST_FUNCTION_REGISTRY, false);
     private static final EsqlCapabilities ALL_CAPS = EsqlCapabilities.capabilities(TEST_FUNCTION_REGISTRY, true);
+    private static final QueryPragmas ALL_PRAGMAS = new QueryPragmas(Settings.EMPTY);
     private static final int BULK_INDEX_BATCH_SIZE = 10_000;
 
     private static InternalTestCluster cluster;
@@ -145,6 +147,11 @@ public class CsvIT extends ESTestCase {
          * has applied {@code TestDataset}-level overrides (e.g. {@code withTypeMapping}, {@code withDynamic}).
          */
         String transformMapping(CsvTestsDataLoader.TestDataset dataset, String originalMapping) throws IOException;
+
+        /**
+         * Returns the index settings to use when creating the index for {@code dataset}.
+         */
+        Settings transformSettings(CsvTestsDataLoader.TestDataset dataset, Settings settings);
 
         /**
          * Returns the document source JSON to bulk-index for {@code dataset}. Called once per CSV row.
@@ -167,12 +174,28 @@ public class CsvIT extends ESTestCase {
          * appears in the query and so re-running the spec would only re-test the unmodified behavior.
          */
         String transformQuery(String testId, CsvSpecReader.CsvTestCase testCase);
+
+        /**
+         * Transforms the expected results loaded from the csv-spec entry before they are compared
+         * against the actual query output.
+         */
+        ExpectedResults transformExpectedResults(String testId, CsvSpecReader.CsvTestCase testCase, ExpectedResults expected);
+
+        /**
+         * Called once after the index for {@code dataset} has been fully populated.
+         */
+        default void afterIndexLoaded(CsvTestsDataLoader.TestDataset dataset, Client client) throws IOException {}
     }
 
     public static final IndexLoadStrategy IDENTITY_INDEX_LOAD_STRATEGY = new IndexLoadStrategy() {
         @Override
         public String transformMapping(CsvTestsDataLoader.TestDataset dataset, String originalMapping) {
             return originalMapping;
+        }
+
+        @Override
+        public Settings transformSettings(CsvTestsDataLoader.TestDataset dataset, Settings settings) {
+            return settings;
         }
 
         @Override
@@ -183,6 +206,11 @@ public class CsvIT extends ESTestCase {
         @Override
         public String transformQuery(String testId, CsvSpecReader.CsvTestCase testCase) {
             return testCase.query;
+        }
+
+        @Override
+        public ExpectedResults transformExpectedResults(String testId, CsvSpecReader.CsvTestCase testCase, ExpectedResults expected) {
+            return expected;
         }
     };
 
@@ -307,6 +335,7 @@ public class CsvIT extends ESTestCase {
         );
         CsvTestUtils.checkTestCapabilities(ALL_CAPS, ENABLED_CAPS, testCase.requiredCapabilities);
         CsvTestUtils.checkTestCapabilities(ALL_CAPS, ENABLED_CAPS, testCase.requiredCapabilitiesLocalCluster);
+        CsvTestUtils.checkPragma(testCase.pragmas);
 
         currentGroupName = groupName;
         // verify no prior failures
@@ -335,7 +364,11 @@ public class CsvIT extends ESTestCase {
         // Using a longer timeout here as test infrastructure might populate data lazily while request is in progress.
         try (var response = listener.actionGet(5, TimeUnit.MINUTES)) {
             assertFalse("response must not be partial: " + response.getExecutionInfo(), response.isPartial());
-            ExpectedResults expected = loadCsvSpecValues(testCase.expectedResults);
+            ExpectedResults expected = indexLoadStrategy.transformExpectedResults(
+                groupName + "." + testName,
+                testCase,
+                loadCsvSpecValues(testCase.expectedResults)
+            );
             ActualResults actual = new ActualResults(
                 response.zoneId(),
                 response.columns().stream().map(ColumnInfoImpl::name).toList(),
@@ -521,14 +554,8 @@ public class CsvIT extends ESTestCase {
                 inference.maybeLoad(inferenceId, INFERENCE_CONFIGS.get(inferenceId));
             }
             String mapping = indexLoadStrategy.transformMapping(dataset, CsvTestsDataLoader.readMappingFile(dataset));
-            assertAcked(
-                cluster.client()
-                    .admin()
-                    .indices()
-                    .prepareCreate(dataset.indexName())
-                    .setMapping(mapping)
-                    .setSettings(dataset.loadSettings())
-            );
+            Settings settings = indexLoadStrategy.transformSettings(dataset, dataset.loadSettings());
+            assertAcked(cluster.client().admin().indices().prepareCreate(dataset.indexName()).setMapping(mapping).setSettings(settings));
             if (dataset.dataFileName() != null) {
                 var bulk = cluster.client().prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
                 for (var document : CsvTestsDataLoader.readCsvDocuments(dataset.streamData(), dataset.allowSubFields())) {
@@ -551,6 +578,7 @@ public class CsvIT extends ESTestCase {
                     );
                 }
             }
+            indexLoadStrategy.afterIndexLoaded(dataset, cluster.client());
         }
     };
 

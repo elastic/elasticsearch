@@ -43,7 +43,7 @@ import org.elasticsearch.index.shard.IndexShardTestCase;
 import org.elasticsearch.index.shard.PrimaryReplicaSyncer;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
-import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
+import org.elasticsearch.indices.recovery.RecoveryListener;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.indices.recovery.RecoveryTarget;
 import org.elasticsearch.xcontent.XContentType;
@@ -778,7 +778,7 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
             CountDownLatch releaseRecovery,
             IndexShard shard,
             DiscoveryNode sourceNode,
-            PeerRecoveryTargetService.RecoveryListener listener,
+            RecoveryListener listener,
             Logger logger
         ) {
             super(shard, sourceNode, 0L, null, null, listener);

@@ -50,7 +50,7 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
         .enumSetting(
             StatelessCacheEvictionPolicyType.class,
             "stateless.cache_boost_preference.eviction_policy",
-            StatelessCacheEvictionPolicyType.INDEX_AGE,
+            StatelessCacheEvictionPolicyType.PINNED_WINDOW,
             Setting.Property.NodeScope
         );
 

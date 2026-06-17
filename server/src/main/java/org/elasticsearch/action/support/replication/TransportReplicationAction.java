@@ -429,9 +429,6 @@ public abstract class TransportReplicationAction<
     }
 
     protected void handlePrimaryRequest(final ConcreteShardRequest<Request> request, final TransportChannel channel, final Task task) {
-        final ShardId shardId = request.getRequest().shardId();
-        final IndexShard indexShard = getIndexShard(shardId);
-
         Releasable releasable = checkPrimaryLimits(
             request.getRequest(),
             request.sentFromLocalReroute(),
@@ -451,6 +448,8 @@ public abstract class TransportReplicationAction<
         }
 
         try {
+            final ShardId shardId = request.getRequest().shardId();
+            final IndexShard indexShard = getIndexShard(shardId);
             // We dispatch immediately to the handler executor before acquiring a primary permit to ensure that
             // tasks that have a permit are executed immediately instead of sitting in the executor queue. This helps
             // speed up relocations. On the other hand, if the task gets blocked while acquiring a permit, but then
@@ -728,13 +727,12 @@ public abstract class TransportReplicationAction<
         final TransportChannel channel,
         final Task task
     ) {
-        final ShardId shardId = replicaRequest.getRequest().shardId();
-        final IndexShard indexShard = getIndexShard(shardId);
-
         Releasable releasable = checkReplicaLimits(replicaRequest.getRequest());
         ActionListener<ReplicaResponse> listener = ActionListener.runBefore(new ChannelActionListener<>(channel), releasable::close);
 
         try {
+            final ShardId shardId = replicaRequest.getRequest().shardId();
+            final IndexShard indexShard = getIndexShard(shardId);
             handlerExecutor(indexShard).execute(new AsyncReplicaAction(replicaRequest, listener, (ReplicationTask) task));
         } catch (Exception e) {
             listener.onFailure(e);

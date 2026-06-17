@@ -104,6 +104,8 @@ final class SearchScrollQueryThenFetchAsyncAction extends SearchScrollAsyncActio
                             new SearchActionListener<>(querySearchResult.getSearchShardTarget(), index) {
                                 @Override
                                 protected void innerOnResponse(FetchSearchResult response) {
+                                    // Scroll fetch has no SearchPhaseResults pipeline; accumulate per-shard DirectoryMetrics here directly
+                                    accumulateDirectoryMetrics(response.getDirectoryMetrics());
                                     fetchResults.setOnce(response.getShardIndex(), response);
                                     response.incRef();
                                     consumeResponse(counter, reducedQueryPhase);

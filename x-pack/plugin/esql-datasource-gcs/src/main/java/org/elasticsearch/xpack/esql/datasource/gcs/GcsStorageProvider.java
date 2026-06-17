@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.datasource.gcs;
 
 import com.google.auth.Credentials;
 import com.google.auth.oauth2.AccessToken;
+import com.google.auth.oauth2.ComputeEngineCredentials;
 import com.google.auth.oauth2.ExternalAccountCredentials;
 import com.google.auth.oauth2.GoogleCredentials;
 import com.google.auth.oauth2.IdentityPoolCredentials;
@@ -50,8 +51,11 @@ import java.util.NoSuchElementException;
  *       {@code service_account_impersonation_url}</li>
  *   <li>{@code auth=none} for anonymous access to public buckets</li>
  * </ul>
- * The node's ambient credentials (Application Default Credentials) are never used: a data source must
- * carry its own credentials, since the node may run in a different cloud than the bucket it targets.
+ * {@code auth=workload_identity} uses the GCE/GKE metadata server ({@link ComputeEngineCredentials}).
+ * File-based ADC sources ({@code GOOGLE_APPLICATION_CREDENTIALS}, the well-known gcloud credential
+ * file) are excluded because file reads are blocked by entitlements. GKE Workload Identity
+ * Federation is handled separately via {@code auth=keyless}. Requires the
+ * {@code esql.datasource.workload_identity.enabled} cluster setting.
  * <p>
  * {@link GcsStorageObject} provides optimized I/O via GCS {@link com.google.cloud.ReadChannel}:
  * <ul>
@@ -61,10 +65,11 @@ import java.util.NoSuchElementException;
  * The async path blocks a worker thread (not truly non-blocking like HTTP sendAsync or S3AsyncClient)
  * but avoids the byte[] allocation overhead of the default InputStream-based wrappers.
  */
-public final class GcsStorageProvider implements StorageProvider {
+public class GcsStorageProvider implements StorageProvider {
     private volatile Storage storage;
     private final GcsConfiguration config;
 
+    @SuppressWarnings("this-escape")
     public GcsStorageProvider(GcsConfiguration config) {
         this.config = config;
         // When explicit credentials, keyless auth, or anonymous mode are configured, build the client
@@ -101,7 +106,7 @@ public final class GcsStorageProvider implements StorageProvider {
         return storage;
     }
 
-    private static Storage buildStorageClient(GcsConfiguration config) {
+    private Storage buildStorageClient(GcsConfiguration config) {
         try {
             if (config != null && config.isAnonymous()) {
                 StorageOptions.Builder builder = StorageOptions.getUnauthenticatedInstance().toBuilder();
@@ -145,11 +150,10 @@ public final class GcsStorageProvider implements StorageProvider {
      *   <li>keyless workload-identity federation — {@link IdentityPoolCredentials}</li>
      * </ul>
      * When more than one is supplied, service account credentials take precedence, then access_token, then
-     * keyless federation. The node's ambient credential chain (Application Default Credentials) is deliberately
-     * never consulted: the node may run in a different cloud than the bucket it targets, so a data source must
-     * carry its own credentials.
+     * keyless federation. When {@code auth=workload_identity} is set,
+     * the GCE/GKE metadata server is used via ComputeEngineCredentials.
      */
-    static Credentials credentials(GcsConfiguration config) throws IOException {
+    Credentials credentials(GcsConfiguration config) throws IOException {
         if (config != null && Strings.hasText(config.serviceAccountCredentials())) {
             ServiceAccountCredentials credentials = ServiceAccountCredentials.fromStream(
                 new ByteArrayInputStream(config.serviceAccountCredentials().getBytes(StandardCharsets.UTF_8))
@@ -166,12 +170,33 @@ public final class GcsStorageProvider implements StorageProvider {
         if (config != null && config.hasKeylessAuth()) {
             return buildIdentityPoolCredentials(config);
         }
-        // No ambient fallback: the node may run in a different cloud than the bucket it targets.
+        if (config != null && config.isWorkloadIdentity()) {
+            return buildWorkloadIdentityCredentials();
+        }
         throw new IllegalArgumentException(
             "GCS data source requires credentials: provide WITH (credentials = '...'), "
                 + "WITH (access_token = '...') for short-lived OAuth credentials, "
-                + "configure keyless authentication settings, or WITH (auth = 'none') for public buckets"
+                + "configure keyless authentication settings, WITH (auth = 'none') for public buckets, "
+                + "or WITH (auth = 'workload_identity') to use Application Default Credentials (requires cluster setting)"
         );
+    }
+
+    /**
+     * Builds the credential used when {@code auth=workload_identity} is configured. Default returns
+     * {@link ComputeEngineCredentials#create()}, which contacts the GCE/GKE metadata server.
+     * <p>
+     * {@code GoogleCredentials.getApplicationDefault()} is deliberately not used: it reads
+     * {@code GOOGLE_APPLICATION_CREDENTIALS} and the well-known gcloud credential file, both
+     * blocked by the entitlement system. {@code ComputeEngineCredentials} contacts only the
+     * metadata server over the network (covered by the {@code outbound_network} entitlement).
+     * GKE Workload Identity Federation is handled separately via {@code auth=keyless}.
+     * <p>
+     * Tests may override this method (anonymous subclass) to inject a credential built with a
+     * mock {@link com.google.api.client.http.HttpTransport} — the same pattern used by
+     * {@code GoogleCloudStorageAdcTests} in {@code repository-gcs}.
+     */
+    protected Credentials buildWorkloadIdentityCredentials() {
+        return ComputeEngineCredentials.create();
     }
 
     private static GoogleCredentials buildIdentityPoolCredentials(GcsConfiguration config) throws IOException {

@@ -11,7 +11,10 @@ import io.netty.channel.ChannelOption;
 import software.amazon.awssdk.auth.credentials.AnonymousCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
+import software.amazon.awssdk.auth.credentials.AwsCredentialsProviderChain;
 import software.amazon.awssdk.auth.credentials.AwsSessionCredentials;
+import software.amazon.awssdk.auth.credentials.ContainerCredentialsProvider;
+import software.amazon.awssdk.auth.credentials.InstanceProfileCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
 import software.amazon.awssdk.awscore.retry.AwsRetryStrategy;
 import software.amazon.awssdk.core.checksums.ResponseChecksumValidation;
@@ -76,7 +79,7 @@ import java.util.NoSuchElementException;
  * jars are bundled with this plugin (classloader-isolated from the server and other plugins)
  * at {@code ${versions.netty}}, matching the pattern used by the inference plugin.
  */
-public final class S3StorageProvider implements StorageProvider {
+public class S3StorageProvider implements StorageProvider {
     private static final String DEFAULT_ROLE_SESSION_NAME = "elasticsearch-esql-datasource";
 
     private final S3Client s3Client;
@@ -85,6 +88,7 @@ public final class S3StorageProvider implements StorageProvider {
     // Owned only on the keyless workload-identity path; null otherwise. Closed by close().
     private final StsAsyncClient stsAsyncClient;
 
+    @SuppressWarnings("this-escape")
     public S3StorageProvider(S3Configuration config) {
         this.config = config;
         final IdentityProvider<? extends AwsCredentialsIdentity> credentials;
@@ -101,6 +105,8 @@ public final class S3StorageProvider implements StorageProvider {
                 sts = buildStsAsyncClient(config);
                 credentials = buildWorkloadIdentityCredentialsProvider(config, issuerClient, sts);
             } else {
+                // auth=none / auth=workload_identity (IMDS) / static creds all flow through credentialsProvider();
+                // its return type AwsCredentialsProvider is a subtype of IdentityProvider<AwsCredentialsIdentity>.
                 credentials = credentialsProvider(config);
             }
             s3 = buildS3Client(config, credentials);
@@ -208,15 +214,20 @@ public final class S3StorageProvider implements StorageProvider {
      * Builds the AWS credentials provider for the given configuration:
      * <ul>
      *   <li>{@code auth=none} — anonymous (unsigned) requests</li>
+     *   <li>{@code auth=workload_identity} — IMDS-family chain: ECS task role (container credentials)
+     *       then EC2 instance profile. Env-var and system-property providers are excluded (dev/CI
+     *       convention, not the unattended-server posture). EKS IRSA and Pod Identity
+     *       (token-file reads) are tracked as a v2 follow-up.</li>
      *   <li>access_key + secret_key + session_token — STS temporary credentials</li>
      *   <li>access_key + secret_key — static credentials</li>
      * </ul>
-     * The node's ambient credential chain is deliberately never consulted: the node may run in a
-     * different cloud than the bucket it targets, so a data source must carry its own credentials.
      */
-    static AwsCredentialsProvider credentialsProvider(S3Configuration config) {
+    AwsCredentialsProvider credentialsProvider(S3Configuration config) {
         if (config != null && config.isAnonymous()) {
             return AnonymousCredentialsProvider.create();
+        }
+        if (config != null && config.isWorkloadIdentity()) {
+            return buildWorkloadIdentityCredentialsProvider();
         }
         if (config != null && config.hasCredentials()) {
             if (Strings.hasText(config.sessionToken())) {
@@ -230,13 +241,30 @@ public final class S3StorageProvider implements StorageProvider {
             // A session token alone cannot authenticate without its access key and secret key.
             throw new IllegalArgumentException("S3 session_token requires access_key and secret_key");
         }
-        // No ambient fallback: the node may run in a different cloud than the bucket it targets.
         throw new IllegalArgumentException(
             "S3 data source requires credentials: provide WITH (access_key = '...', secret_key = '...'), "
                 + "optionally WITH (session_token = '...') for STS temporary credentials, "
-                + "configure keyless authentication settings (role_arn, jwt_audience), "
-                + "or WITH (auth = 'none') for public buckets"
+                + "WITH (auth = 'none') for public buckets, "
+                + "WITH (auth = 'workload_identity') to use the node's instance role (requires cluster setting), "
+                + "or configure keyless authentication settings (role_arn, jwt_audience)"
         );
+    }
+
+    /**
+     * Builds the credentials provider for {@code auth=workload_identity}. Default uses the
+     * IMDS-family chain (container task role then EC2 instance profile). Tests may subclass and
+     * override to inject a {@code StaticCredentialsProvider} backed by a local fixture — the same
+     * seam pattern used by {@code GcsStorageProvider#buildWorkloadIdentityCredentials()}.
+     */
+    protected AwsCredentialsProvider buildWorkloadIdentityCredentialsProvider() {
+        // IMDS-family only: ECS task role first (AWS_CONTAINER_CREDENTIALS_RELATIVE_URI),
+        // then EC2 instance profile. Env-var and system-property providers are excluded —
+        // they are a dev/CI convention and open a JVM-global-state override on servers.
+        // Profile-file loading is excluded (file read, blocked by entitlements).
+        // EKS IRSA + Pod Identity (token-file reads) are the v2 follow-up.
+        return AwsCredentialsProviderChain.builder()
+            .credentialsProviders(ContainerCredentialsProvider.create(), InstanceProfileCredentialsProvider.create())
+            .build();
     }
 
     /**

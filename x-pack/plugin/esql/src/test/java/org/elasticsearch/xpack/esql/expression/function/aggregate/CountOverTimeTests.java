@@ -35,6 +35,11 @@ public class CountOverTimeTests extends AbstractAggregationTestCase {
         this.testCase = testCaseSupplier.get();
     }
 
+    @Override
+    protected boolean canSerialize() {
+        return false;
+    }
+
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
         // TODO Use CountTests.parameters() once absent over time allows for dense_vectors

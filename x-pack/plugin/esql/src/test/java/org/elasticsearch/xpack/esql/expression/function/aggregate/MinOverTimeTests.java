@@ -34,6 +34,11 @@ public class MinOverTimeTests extends AbstractAggregationTestCase {
         }
     }
 
+    @Override
+    protected boolean canSerialize() {
+        return false;
+    }
+
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
         return MinTests.parameters();

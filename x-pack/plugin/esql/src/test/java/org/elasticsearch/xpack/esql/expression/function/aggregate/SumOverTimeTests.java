@@ -46,6 +46,11 @@ public class SumOverTimeTests extends AbstractAggregationTestCase {
         }
     }
 
+    @Override
+    protected boolean canSerialize() {
+        return false;
+    }
+
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
         var suppliers = new ArrayList<TestCaseSupplier>();

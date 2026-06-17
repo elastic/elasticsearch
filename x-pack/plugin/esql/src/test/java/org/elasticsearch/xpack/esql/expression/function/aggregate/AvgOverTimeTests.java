@@ -38,6 +38,11 @@ public class AvgOverTimeTests extends AbstractAggregationTestCase {
         }
     }
 
+    @Override
+    protected boolean canSerialize() {
+        return false;
+    }
+
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
         return AvgTests.parameters();

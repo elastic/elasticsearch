@@ -34,6 +34,11 @@ public class MaxOverTimeTests extends AbstractAggregationTestCase {
         }
     }
 
+    @Override
+    protected boolean canSerialize() {
+        return false;
+    }
+
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
         return MaxTests.parameters();

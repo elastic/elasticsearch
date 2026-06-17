@@ -1020,7 +1020,7 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
      * Seeds {@link #currentPaginatedSearchResponse} for tests that need a specific paginated search ref before
      * {@link #prepareBulkRequest} (e.g. partial-batch / terminal-finish scenarios). Exists entirely for testing.
      */
-    void setCurrentPaginatedSearchResponse(PaginatedSearchConsumableHitsResponse response) {
+    void setCurrentPaginatedSearchResponseForTests(PaginatedSearchConsumableHitsResponse response) {
         currentPaginatedSearchResponse.set(response);
     }
 

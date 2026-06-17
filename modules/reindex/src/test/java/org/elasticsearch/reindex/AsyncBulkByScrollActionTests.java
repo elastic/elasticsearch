@@ -1379,7 +1379,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
             }
         };
         action.setScroll(scrollId());
-        action.setCurrentPaginatedSearchResponse(consumable);
+        action.setCurrentPaginatedSearchResponseForTests(consumable);
 
         Future<?> prepareFuture = threadPool.generic().submit(() -> action.prepareBulkRequest(System.nanoTime(), consumable));
         assertTrue(firstConsumeReturnedFromSuper.await(30, TimeUnit.SECONDS));
@@ -1458,7 +1458,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
             });
         DummyAsyncBulkByScrollAction action = new DummyAsyncBulkByScrollAction();
         action.setScroll(scrollId());
-        action.setCurrentPaginatedSearchResponse(consumable);
+        action.setCurrentPaginatedSearchResponseForTests(consumable);
 
         action.finishHim(null);
         assertThat(listener.isDone(), equalTo(true));

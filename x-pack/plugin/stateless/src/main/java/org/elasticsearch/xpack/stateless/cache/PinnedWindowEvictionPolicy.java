@@ -17,14 +17,14 @@ import org.elasticsearch.xpack.stateless.lucene.FileCacheKey;
 import java.util.Objects;
 
 /**
- * Eviction policy that protects recently accessed cache data within a configurable pinned window.
+ * Eviction policy that does not evict data within a configurable pinned window.
  * <p>
  * TODO: Complete pinned-window eviction behavior in a follow-up PR. Until then, all regions are evictable.
  */
 public class PinnedWindowEvictionPolicy implements EvictionPolicy<FileCacheKey> {
 
     /**
-     * Configures the pinned-window duration for recently accessed cache data when cache boost preference is enabled.
+     * Configures the pinned-window duration for non-evictable data when cache boost preference is enabled.
      */
     public static final Setting<TimeValue> PINNED_WINDOW_DURATION_SETTING = Setting.timeSetting(
         "stateless.cache_boost_preference.pinned_window.duration",

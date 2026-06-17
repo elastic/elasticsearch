@@ -9,12 +9,41 @@
 
 package org.elasticsearch.indices.recovery;
 
-/// Listener for recovery scheduling changes. Invoked when a recovery starts, end, or is queued/dequeued.
-/// TODO: This and RecoveryStats should also be able to track local/snapshot recoveries
-@FunctionalInterface
+import org.elasticsearch.cluster.routing.RecoverySource;
+
+/// Listener for recovery scheduling changes. Invoked when a recovery starts, ends, or is queued/dequeued.
+///
+/// Implementations must be thread-safe, not block, and not throw exceptions.
+///
+/// Default methods cover every lifecycle transition and are no-ops by default, so implementers only override the events
+/// they care about. Implementers that only need to react to any scheduling change (without distinguishing which transition
+/// fired) can override [#onRecoverySchedulingChange] alone.
 public interface RecoverySchedulingListener {
 
-    /// Invoked after recovery scheduling changes due to recovery lifecycle events
-    /// Implementations must be thread-safe, should not block or throw any exceptions.
-    void onRecoverySchedulingChange();
+    default void onRecoverySchedulingChange() {}
+
+    /// Called when a recovery is queued on this data node.
+    default void onRecoveryQueued(RecoverySource.Type type, RecoveryDirection direction) {
+        onRecoverySchedulingChange();
+    }
+
+    /// Called when a recovery has been dispatched for execution on this data node.
+    default void onRecoveryStarted(RecoverySource.Type type, RecoveryDirection direction) {
+        onRecoverySchedulingChange();
+    }
+
+    /// Called when a queued recovery is discarded without having ever run.
+    default void onQueuedRecoveryDiscarded(RecoverySource.Type type, RecoveryDirection direction) {
+        onRecoverySchedulingChange();
+    }
+
+    /// Called when a running recovery finishes (success, failure or aborted).
+    default void onRecoveryCompleted(RecoverySource.Type type, RecoveryDirection direction) {
+        onRecoverySchedulingChange();
+    }
+
+    enum RecoveryDirection {
+        SOURCE,
+        TARGET
+    }
 }

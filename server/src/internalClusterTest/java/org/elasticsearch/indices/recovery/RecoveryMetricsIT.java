@@ -9,14 +9,21 @@
 
 package org.elasticsearch.indices.recovery;
 
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
+import org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.shard.IndexEventListener;
+import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.telemetry.Measurement;
 import org.elasticsearch.telemetry.TestTelemetryPlugin;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.MockIndexEventListener;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.TransportService;
 
@@ -29,7 +36,6 @@ import java.util.stream.IntStream;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 
@@ -40,6 +46,7 @@ public class RecoveryMetricsIT extends AbstractIndexRecoveryIntegTestCase {
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         var plugins = new ArrayList<>(super.nodePlugins());
         plugins.add(TestTelemetryPlugin.class);
+        plugins.add(MockIndexEventListener.TestPlugin.class);
         return plugins;
     }
 
@@ -73,27 +80,37 @@ public class RecoveryMetricsIT extends AbstractIndexRecoveryIntegTestCase {
         Measurement metric = totalTime.getFirst();
         assertThat("Total time value", metric.getLong(), greaterThanOrEqualTo(0L));
         assertThat("Primary attribute", metric.attributes().get("primary"), equalTo(true));
-        assertThat("Recovery type", metric.attributes().get("recovery_type"), equalTo("EMPTY_STORE"));
+        assertThat("Recovery type", metric.attributes().get("es_recovery_type"), equalTo("EMPTY_STORE"));
     }
 
     public void testRecoveryMetricsOnPeerRecovery() {
         internalCluster().startMasterOnlyNode();
         final var sourceNode = internalCluster().startDataOnlyNode();
 
-        final var indexName = randomIndexName();
-        createIndex(
-            indexName,
-            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 2).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build()
-        );
-        ensureGreen(indexName);
-        // Ensure committed segments exist, so FILE_CHUNK actions are issued
-        for (int i = 0; i < 50; i++) {
-            indexDoc(indexName, Integer.toString(i), "f", randomAlphaOfLength(10));
-            refresh(indexName);
+        // Three single-shard indices. With source max=1 and target max=2, the third index's replica will queue at
+        // target while the second queues at source, so all four peer metrics are observable.
+        final var indexOne = randomIndexName();
+        final var indexTwo = randomIndexName();
+        final var indexThree = randomIndexName();
+        for (var indexName : List.of(indexOne, indexTwo, indexThree)) {
+            createIndex(
+                indexName,
+                Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build()
+            );
+            // Ensure committed segments exist, so FILE_CHUNK actions are issued
+            for (int i = 0; i < 50; i++) {
+                indexDoc(indexName, Integer.toString(i), "f", randomAlphaOfLength(10));
+                refresh(indexName);
+            }
+            flush(indexName);
         }
-        flush(indexName);
+        ensureGreen(indexOne, indexTwo, indexThree);
 
-        final var targetNode = internalCluster().startDataOnlyNode();
+        // Target node has a max of 2 concurrent recoveries slots. Source has a limit of 1.
+        // This creates target active=2, target queued=1, source active=1, source queued=1.
+        final var targetNode = internalCluster().startDataOnlyNode(
+            Settings.builder().put(ThrottlingRecoveryService.INDICES_RECOVERY_MAX_CONCURRENT_RECOVERIES_SETTING.getKey(), 2).build()
+        );
         final var targetTelemetry = resetAndGetTelemetryPlugin(targetNode);
         final var sourceTelemetry = resetAndGetTelemetryPlugin(sourceNode);
 
@@ -113,27 +130,63 @@ public class RecoveryMetricsIT extends AbstractIndexRecoveryIntegTestCase {
         });
 
         try {
-            assertAcked(
-                indicesAdmin().prepareUpdateSettings(indexName)
-                    .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1))
+            // Raise master-side throttle so all three replica shards are initialized simultaneously
+            updateClusterSettings(
+                Settings.builder()
+                    .put(ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_RECOVERIES_SETTING.getKey(), 100)
             );
+
+            for (var indexName : List.of(indexOne, indexTwo, indexThree)) {
+                assertAcked(
+                    indicesAdmin().prepareUpdateSettings(indexName)
+                        .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1))
+                );
+            }
             safeAwait(recoveryBlocked);
 
-            List<Measurement> activePeerRecoveries = sourceTelemetry.getLongUpDownCounterMeasurement(
-                RecoveryMetricsCollector.ACTIVE_OUTGOING_PEER_RECOVERIES_METRIC
+            awaitRecoveryCountStats(
+                Map.of(
+                    sourceNode,
+                    stats -> stats.currentAsSource() == 1 && stats.currentAsSourceQueued() == 1,
+                    targetNode,
+                    stats -> stats.currentAsTarget() == 2 && stats.currentAsTargetQueued() == 1
+                )
             );
-            assertThat("Active peer recoveries measurements on source during recovery", activePeerRecoveries, hasSize(1));
-            assertThat("Active peer recoveries count on source during recovery", activePeerRecoveries.getFirst().getLong(), equalTo(1L));
-
-            awaitRecoveryCountStats(Map.of(sourceNode, stats -> stats.currentAsSourceQueued() == 1));
-            List<Measurement> queuedPeerRecoveries = sourceTelemetry.getLongUpDownCounterMeasurement(
-                RecoveryMetricsCollector.QUEUED_OUTGOING_PEER_RECOVERIES_METRIC
+            assertThat(
+                "Active peer recoveries on source during recovery",
+                sourceTelemetry.getLongUpDownCounterMeasurement(RecoveryMetricsCollector.CURRENT_PEER_RECOVERIES_AS_SOURCE)
+                    .stream()
+                    .mapToLong(Measurement::getLong)
+                    .sum(),
+                equalTo(1L)
             );
-            assertThat("Queued peer recoveries measurements on source during recovery", queuedPeerRecoveries, hasSize(1));
-            assertThat("Queued peer recoveries count on source during recovery", queuedPeerRecoveries.getFirst().getLong(), equalTo(1L));
+            assertThat(
+                "Queued peer recoveries on source during recovery",
+                sourceTelemetry.getLongUpDownCounterMeasurement(RecoveryMetricsCollector.QUEUED_PEER_RECOVERIES_AS_SOURCE)
+                    .stream()
+                    .mapToLong(Measurement::getLong)
+                    .sum(),
+                equalTo(1L)
+            );
+            assertThat(
+                "Active peer recoveries as target during recovery",
+                targetTelemetry.getLongUpDownCounterMeasurement(RecoveryMetricsCollector.CURRENT_PEER_RECOVERIES_AS_TARGET)
+                    .stream()
+                    .mapToLong(Measurement::getLong)
+                    .sum(),
+                equalTo(2L)
+            );
+            assertThat(
+                "Queued peer recoveries as target during recovery",
+                targetTelemetry.getLongUpDownCounterMeasurement(RecoveryMetricsCollector.QUEUED_PEER_RECOVERIES_AS_TARGET)
+                    .stream()
+                    .mapToLong(Measurement::getLong)
+                    .sum(),
+                equalTo(1L)
+            );
 
             continueRecovery.countDown();
-            ensureGreen(indexName);
+            ensureGreen(indexOne, indexTwo, indexThree);
 
             List<Measurement> totalTime = targetTelemetry.getLongHistogramMeasurement(
                 RecoveryMetricsCollector.RECOVERY_TOTAL_TIME_METRIC_IN_SECONDS
@@ -142,7 +195,7 @@ public class RecoveryMetricsIT extends AbstractIndexRecoveryIntegTestCase {
             Measurement metric = totalTime.getFirst();
             assertThat("Total time value", metric.getLong(), greaterThanOrEqualTo(0L));
             assertThat("Primary attribute", metric.attributes().get("primary"), equalTo(false));
-            assertThat("Recovery type", metric.attributes().get("recovery_type"), equalTo("PEER"));
+            assertThat("Recovery type", metric.attributes().get("es_recovery_type"), equalTo("PEER"));
 
             List<Measurement> indexTime = targetTelemetry.getLongHistogramMeasurement(
                 RecoveryMetricsCollector.RECOVERY_INDEX_TIME_METRIC_IN_SECONDS
@@ -156,32 +209,47 @@ public class RecoveryMetricsIT extends AbstractIndexRecoveryIntegTestCase {
             assertThat("Translog time measurements", translogTime, hasSize(greaterThanOrEqualTo(1)));
             assertThat("Translog time value", translogTime.getFirst().getLong(), greaterThanOrEqualTo(0L));
 
-            List<Measurement> outgoingPeerOnTarget = targetTelemetry.getLongUpDownCounterMeasurement(
-                RecoveryMetricsCollector.ACTIVE_OUTGOING_PEER_RECOVERIES_METRIC
+            assertThat(
+                "Active outgoing peer recoveries measurements on target",
+                targetTelemetry.getLongUpDownCounterMeasurement(RecoveryMetricsCollector.CURRENT_PEER_RECOVERIES_AS_SOURCE),
+                hasSize(0)
             );
-            assertThat("Active outgoing peer recoveries measurements on target", outgoingPeerOnTarget, hasSize(0));
-            outgoingPeerOnTarget = targetTelemetry.getLongUpDownCounterMeasurement(
-                RecoveryMetricsCollector.QUEUED_OUTGOING_PEER_RECOVERIES_METRIC
+            assertThat(
+                "Queued outgoing peer recoveries measurements on target",
+                targetTelemetry.getLongUpDownCounterMeasurement(RecoveryMetricsCollector.QUEUED_PEER_RECOVERIES_AS_SOURCE),
+                hasSize(0)
             );
-            assertThat("Queued outgoing peer recoveries measurements on target", outgoingPeerOnTarget, hasSize(0));
 
-            activePeerRecoveries = sourceTelemetry.getLongUpDownCounterMeasurement(
-                RecoveryMetricsCollector.ACTIVE_OUTGOING_PEER_RECOVERIES_METRIC
-            );
-            assertThat("Active peer recoveries measurements on source", activePeerRecoveries, hasSize(greaterThan(1)));
             assertThat(
                 "Active peer recoveries count on source after recovery",
-                activePeerRecoveries.stream().mapToLong(Measurement::getLong).sum(),
+                sourceTelemetry.getLongUpDownCounterMeasurement(RecoveryMetricsCollector.CURRENT_PEER_RECOVERIES_AS_SOURCE)
+                    .stream()
+                    .mapToLong(Measurement::getLong)
+                    .sum(),
                 equalTo(0L)
             );
-
-            queuedPeerRecoveries = sourceTelemetry.getLongUpDownCounterMeasurement(
-                RecoveryMetricsCollector.QUEUED_OUTGOING_PEER_RECOVERIES_METRIC
-            );
-            assertThat("Queued peer recoveries measurements on source", queuedPeerRecoveries, hasSize(greaterThan(1)));
             assertThat(
                 "Queued peer recoveries count on source after recovery",
-                queuedPeerRecoveries.stream().mapToLong(Measurement::getLong).sum(),
+                sourceTelemetry.getLongUpDownCounterMeasurement(RecoveryMetricsCollector.QUEUED_PEER_RECOVERIES_AS_SOURCE)
+                    .stream()
+                    .mapToLong(Measurement::getLong)
+                    .sum(),
+                equalTo(0L)
+            );
+            assertThat(
+                "Active peer recoveries as target after recovery",
+                targetTelemetry.getLongUpDownCounterMeasurement(RecoveryMetricsCollector.CURRENT_PEER_RECOVERIES_AS_TARGET)
+                    .stream()
+                    .mapToLong(Measurement::getLong)
+                    .sum(),
+                equalTo(0L)
+            );
+            assertThat(
+                "Queued peer recoveries as target after recovery",
+                targetTelemetry.getLongUpDownCounterMeasurement(RecoveryMetricsCollector.QUEUED_PEER_RECOVERIES_AS_TARGET)
+                    .stream()
+                    .mapToLong(Measurement::getLong)
+                    .sum(),
                 equalTo(0L)
             );
         } finally {
@@ -238,7 +306,7 @@ public class RecoveryMetricsIT extends AbstractIndexRecoveryIntegTestCase {
             );
             safeAwait(recoveryBlocked);
             List<Measurement> activePeerRecoveriesNode1 = node1Telemetry.getLongUpDownCounterMeasurement(
-                RecoveryMetricsCollector.ACTIVE_OUTGOING_PEER_RECOVERIES_METRIC
+                RecoveryMetricsCollector.CURRENT_PEER_RECOVERIES_AS_SOURCE
             );
             assertThat("Active peer recoveries measurements on source", activePeerRecoveriesNode1, hasSize(1));
             assertThat(
@@ -257,10 +325,10 @@ public class RecoveryMetricsIT extends AbstractIndexRecoveryIntegTestCase {
             Measurement metric = totalTime.getFirst();
             assertThat("Total time value", metric.getLong(), greaterThanOrEqualTo(0L));
             assertThat("Primary attribute", metric.attributes().get("primary"), equalTo(true));
-            assertThat("Recovery type", metric.attributes().get("recovery_type"), equalTo("PEER"));
+            assertThat("Recovery type", metric.attributes().get("es_recovery_type"), equalTo("PEER"));
 
             activePeerRecoveriesNode1 = node1Telemetry.getLongUpDownCounterMeasurement(
-                RecoveryMetricsCollector.ACTIVE_OUTGOING_PEER_RECOVERIES_METRIC
+                RecoveryMetricsCollector.CURRENT_PEER_RECOVERIES_AS_SOURCE
             );
             assertThat(
                 "Active peer recoveries measurements on source after completion",
@@ -274,17 +342,85 @@ public class RecoveryMetricsIT extends AbstractIndexRecoveryIntegTestCase {
             );
 
             List<Measurement> outgoingPeerNode2 = node2Telemetry.getLongUpDownCounterMeasurement(
-                RecoveryMetricsCollector.ACTIVE_OUTGOING_PEER_RECOVERIES_METRIC
+                RecoveryMetricsCollector.CURRENT_PEER_RECOVERIES_AS_SOURCE
             );
             assertThat("Active outgoing peer recoveries measurements on target", outgoingPeerNode2, hasSize(0));
-            outgoingPeerNode2 = node2Telemetry.getLongUpDownCounterMeasurement(
-                RecoveryMetricsCollector.QUEUED_OUTGOING_PEER_RECOVERIES_METRIC
-            );
+            outgoingPeerNode2 = node2Telemetry.getLongUpDownCounterMeasurement(RecoveryMetricsCollector.QUEUED_PEER_RECOVERIES_AS_SOURCE);
             assertThat("Queued outgoing peer recoveries measurements on target", outgoingPeerNode2, hasSize(0));
         } finally {
             node1Transport.clearAllRules();
             node2Transport.clearAllRules();
         }
+    }
+
+    public void testRecoveryMetricsOnThrottledStoreRecovery() {
+        final var node = internalCluster().startNode(
+            Settings.builder().put(ThrottlingRecoveryService.INDICES_RECOVERY_MAX_CONCURRENT_RECOVERIES_SETTING.getKey(), 1).build()
+        );
+        final var telemetry = resetAndGetTelemetryPlugin(node);
+
+        final var indexOne = randomIndexName();
+        final var indexTwo = randomIndexName();
+
+        final var firstRecoveryStarted = new CountDownLatch(1);
+        final var proceedWithFirstRecovery = new CountDownLatch(1);
+
+        final IndexEventListener indexEventListener = new IndexEventListener() {
+            @Override
+            public void beforeIndexShardRecovery(IndexShard indexShard, IndexSettings indexSettings, ActionListener<Void> listener) {
+                if (indexShard.shardId().getIndexName().equals(indexOne)) {
+                    firstRecoveryStarted.countDown();
+                    safeAwait(proceedWithFirstRecovery);
+                }
+                listener.onResponse(null);
+            }
+        };
+        internalCluster().getInstance(MockIndexEventListener.TestEventListener.class, node).setNewDelegate(indexEventListener);
+
+        // First recovery holds the only slot
+        assertAcked(prepareCreate(indexOne).setSettings(indexSettings(1, 0).build()).setWaitForActiveShards(ActiveShardCount.NONE));
+        safeAwait(firstRecoveryStarted);
+
+        // Second recovery is queued
+        assertAcked(prepareCreate(indexTwo).setSettings(indexSettings(1, 0).build()).setWaitForActiveShards(ActiveShardCount.NONE));
+        awaitRecoveryCountStats(Map.of(node, stats -> stats.currentFromStore() == 1 && stats.currentFromStoreQueued() == 1));
+
+        assertThat(
+            "Active store recoveries during recovery",
+            telemetry.getLongUpDownCounterMeasurement(RecoveryMetricsCollector.CURRENT_STORE_RECOVERIES)
+                .stream()
+                .mapToLong(Measurement::getLong)
+                .sum(),
+            equalTo(1L)
+        );
+        assertThat(
+            "Queued store recoveries during recovery",
+            telemetry.getLongUpDownCounterMeasurement(RecoveryMetricsCollector.QUEUED_STORE_RECOVERIES)
+                .stream()
+                .mapToLong(Measurement::getLong)
+                .sum(),
+            equalTo(1L)
+        );
+
+        proceedWithFirstRecovery.countDown();
+        ensureGreen(indexOne, indexTwo);
+
+        assertThat(
+            "Active store recoveries after recovery",
+            telemetry.getLongUpDownCounterMeasurement(RecoveryMetricsCollector.CURRENT_STORE_RECOVERIES)
+                .stream()
+                .mapToLong(Measurement::getLong)
+                .sum(),
+            equalTo(0L)
+        );
+        assertThat(
+            "Queued store recoveries after recovery",
+            telemetry.getLongUpDownCounterMeasurement(RecoveryMetricsCollector.QUEUED_STORE_RECOVERIES)
+                .stream()
+                .mapToLong(Measurement::getLong)
+                .sum(),
+            equalTo(0L)
+        );
     }
 
     private TestTelemetryPlugin resetAndGetTelemetryPlugin(String node) {

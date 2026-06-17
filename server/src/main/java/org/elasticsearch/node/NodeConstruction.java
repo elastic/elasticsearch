@@ -155,6 +155,7 @@ import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
 import org.elasticsearch.indices.recovery.RecoveryMetricsCollector;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.indices.recovery.SnapshotFilesProvider;
+import org.elasticsearch.indices.recovery.ThrottlingRecoveryService;
 import org.elasticsearch.indices.recovery.plan.PeerOnlyRecoveryPlannerService;
 import org.elasticsearch.indices.recovery.plan.RecoveryPlannerService;
 import org.elasticsearch.indices.recovery.plan.ShardSnapshotsService;
@@ -925,6 +926,8 @@ class NodeConstruction {
             }
         };
 
+        final ThrottlingRecoveryService throttlingRecoveryService = new ThrottlingRecoveryService(threadPool.generic(), clusterService);
+
         IndicesService indicesService = new IndicesServiceBuilder().settings(settings)
             .pluginsService(pluginsService)
             .nodeEnvironment(nodeEnvironment)
@@ -948,6 +951,7 @@ class NodeConstruction {
             .mergeMetrics(mergeMetrics)
             .searchOperationListeners(searchOperationListeners)
             .loggingFieldsProvider(loggingFieldsProvider)
+            .throttlingRecoveryService(throttlingRecoveryService)
             .build();
 
         final var parameters = new IndexSettingProvider.Parameters(clusterService, indicesService::createIndexMapperServiceForValidation);
@@ -1369,10 +1373,15 @@ class NodeConstruction {
                 recoveryPlannerService,
                 recoveryMetricsCollector
             );
+            throttlingRecoveryService.addRecoverySchedulingListener(recoveryMetricsCollector);
+            peerRecovery.addRecoverySchedulingListener(recoveryMetricsCollector);
+
+            resourcesToClose.add(throttlingRecoveryService);
             resourcesToClose.add(peerRecovery);
 
-            b.bind(PeerRecoverySourceService.class).toInstance(peerRecovery);
             b.bind(RecoveryMetricsCollector.class).toInstance(recoveryMetricsCollector);
+            b.bind(ThrottlingRecoveryService.class).toInstance(throttlingRecoveryService);
+            b.bind(PeerRecoverySourceService.class).toInstance(peerRecovery);
             b.bind(PeerRecoveryTargetService.class)
                 .toInstance(
                     new PeerRecoveryTargetService(

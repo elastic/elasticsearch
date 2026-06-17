@@ -96,40 +96,41 @@ public abstract class AbstractIndexRecoveryIntegTestCase extends ESIntegTestCase
         final AtomicBoolean success = new AtomicBoolean();
 
         final Map<String, IndicesService> indicesServices = new ConcurrentHashMap<>();
+        final Map<String, ThrottlingRecoveryService> throttlingRecoveryServices = new ConcurrentHashMap<>();
         final Map<String, PeerRecoverySourceService> peerRecoverySourceServices = new ConcurrentHashMap<>();
-        final Map<String, PeerRecoveryTargetService> peerRecoveryTargetServices = new ConcurrentHashMap<>();
         for (String nodeName : predicatePerNode.keySet()) {
             indicesServices.put(nodeName, internalCluster().getInstance(IndicesService.class, nodeName));
+            throttlingRecoveryServices.put(nodeName, internalCluster().getInstance(ThrottlingRecoveryService.class, nodeName));
             peerRecoverySourceServices.put(nodeName, internalCluster().getInstance(PeerRecoverySourceService.class, nodeName));
-            peerRecoveryTargetServices.put(nodeName, internalCluster().getInstance(PeerRecoveryTargetService.class, nodeName));
         }
 
-        final RecoverySchedulingListener listener = () -> {
-            if (success.get()) {
-                return;
-            }
-            // Check if all conditions are met
-            for (final var nodePredicate : predicatePerNode.entrySet()) {
-                final var indicesService = indicesServices.get(nodePredicate.getKey());
-
-                final var stats = new RecoveryStats();
-                for (IndexService indexService : indicesService) {
-                    for (IndexShard shard : indexService) {
-                        stats.add(shard.recoveryStats());
-                    }
-                }
-                if (nodePredicate.getValue().test(stats) == false) {
+        final RecoverySchedulingListener listener = new RecoverySchedulingListener() {
+            @Override
+            public void onRecoverySchedulingChange() {
+                if (success.get()) {
                     return;
                 }
-            }
-            conditionLatch.countDown();
-            success.set(true);
-        };
+                // Check if all conditions are met
+                for (final var nodePredicate : predicatePerNode.entrySet()) {
+                    final var indicesService = indicesServices.get(nodePredicate.getKey());
 
-        // Plug in listener on all nodes
+                    final var stats = new RecoveryStats();
+                    for (IndexService indexService : indicesService) {
+                        for (IndexShard shard : indexService) {
+                            stats.add(shard.recoveryStats());
+                        }
+                    }
+                    if (nodePredicate.getValue().test(stats) == false) {
+                        return;
+                    }
+                }
+                conditionLatch.countDown();
+                success.set(true);
+            }
+        };
         for (final var nodeName : predicatePerNode.keySet()) {
-            peerRecoverySourceServices.get(nodeName).ongoingRecoveries.addRecoverySchedulingListener(listener);
-            peerRecoveryTargetServices.get(nodeName).onGoingRecoveries.addRecoverySchedulingListener(listener);
+            throttlingRecoveryServices.get(nodeName).addRecoverySchedulingListener(listener);
+            peerRecoverySourceServices.get(nodeName).addRecoverySchedulingListener(listener);
         }
         try {
             // In case conditions were already met before we added the listener everywhere
@@ -138,8 +139,8 @@ public abstract class AbstractIndexRecoveryIntegTestCase extends ESIntegTestCase
         } finally {
             // Clean up all listeners
             for (final var nodeName : predicatePerNode.keySet()) {
-                peerRecoverySourceServices.get(nodeName).ongoingRecoveries.removeRecoverySchedulingListener(listener);
-                peerRecoveryTargetServices.get(nodeName).onGoingRecoveries.removeRecoverySchedulingListener(listener);
+                throttlingRecoveryServices.get(nodeName).removeRecoverySchedulingListener(listener);
+                peerRecoverySourceServices.get(nodeName).removeRecoverySchedulingListener(listener);
             }
         }
     }

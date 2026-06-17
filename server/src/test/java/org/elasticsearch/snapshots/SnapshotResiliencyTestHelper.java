@@ -128,6 +128,7 @@ import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
 import org.elasticsearch.indices.recovery.RecoveryMetricsCollector;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.indices.recovery.SnapshotFilesProvider;
+import org.elasticsearch.indices.recovery.ThrottlingRecoveryService;
 import org.elasticsearch.indices.recovery.plan.PeerOnlyRecoveryPlannerService;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.iplocation.api.IpLocationService;
@@ -678,6 +679,7 @@ public class SnapshotResiliencyTestHelper {
                     .metaStateService(new MetaStateService(nodeEnv, namedXContentRegistry))
                     .mapperMetrics(MapperMetrics.NOOP)
                     .mergeMetrics(MergeMetrics.NOOP)
+                    .throttlingRecoveryService(new ThrottlingRecoveryService(threadPool.generic(), clusterService))
                     .build();
 
                 this.searchService = new SearchService(

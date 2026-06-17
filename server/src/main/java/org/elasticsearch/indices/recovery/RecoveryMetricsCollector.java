@@ -12,6 +12,7 @@ package org.elasticsearch.indices.recovery;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardState;
@@ -25,7 +26,7 @@ import org.elasticsearch.telemetry.metric.MeterRegistry;
 import java.util.Map;
 
 /// Collects and emits recovery metrics.
-public class RecoveryMetricsCollector implements IndexEventListener {
+public class RecoveryMetricsCollector implements IndexEventListener, RecoverySchedulingListener {
 
     private static final Logger logger = LogManager.getLogger(RecoveryMetricsCollector.class);
 
@@ -33,8 +34,13 @@ public class RecoveryMetricsCollector implements IndexEventListener {
     public static final String RECOVERY_TOTAL_TIME_METRIC_IN_SECONDS = "es.recovery.shard.total.time";
     public static final String RECOVERY_INDEX_TIME_METRIC_IN_SECONDS = "es.recovery.shard.index.time";
     public static final String RECOVERY_TRANSLOG_TIME_METRIC_IN_SECONDS = "es.recovery.shard.translog.time";
-    public static final String ACTIVE_OUTGOING_PEER_RECOVERIES_METRIC = "es.recovery.peer.source.active.current";
-    public static final String QUEUED_OUTGOING_PEER_RECOVERIES_METRIC = "es.recovery.peer.source.queued.current";
+
+    public static final String CURRENT_PEER_RECOVERIES_AS_SOURCE = "es.recovery.peer.source.active.current";
+    public static final String QUEUED_PEER_RECOVERIES_AS_SOURCE = "es.recovery.peer.source.queued.current";
+    public static final String CURRENT_PEER_RECOVERIES_AS_TARGET = "es.recovery.peer.target.active.current";
+    public static final String QUEUED_PEER_RECOVERIES_AS_TARGET = "es.recovery.peer.target.queued.current";
+    public static final String CURRENT_STORE_RECOVERIES = "es.recovery.store.active.current";
+    public static final String QUEUED_STORE_RECOVERIES = "es.recovery.store.queued.current";
 
     public static final RecoveryMetricsCollector NOOP = new RecoveryMetricsCollector(TelemetryProvider.NOOP);
 
@@ -42,8 +48,13 @@ public class RecoveryMetricsCollector implements IndexEventListener {
     private final LongHistogram shardRecoveryTotalTimeMetric;
     private final LongHistogram shardRecoveryIndexTimeMetric;
     private final LongHistogram shardRecoveryTranslogTimeMetric;
-    private final LongUpDownCounter activeOutgoingPeerRecoveriesMetric;
-    private final LongUpDownCounter queuedOutgoingPeerRecoveriesMetric;
+
+    private final LongUpDownCounter activePeerRecoveriesAsSourceMetric;
+    private final LongUpDownCounter queuedPeerRecoveriesAsSourceMetric;
+    private final LongUpDownCounter activePeerRecoveriesAsTargetMetric;
+    private final LongUpDownCounter queuedPeerRecoveriesAsTargetMetric;
+    private final LongUpDownCounter activeStoreRecoveriesMetric;
+    private final LongUpDownCounter queuedStoreRecoveriesMetric;
 
     public RecoveryMetricsCollector(TelemetryProvider telemetryProvider) {
         final MeterRegistry meterRegistry = telemetryProvider.getMeterRegistry();
@@ -67,14 +78,34 @@ public class RecoveryMetricsCollector implements IndexEventListener {
             "Elapsed shard translog (stage) recovery time in seconds",
             "seconds"
         );
-        activeOutgoingPeerRecoveriesMetric = meterRegistry.registerLongUpDownCounter(
-            ACTIVE_OUTGOING_PEER_RECOVERIES_METRIC,
-            "Number of currently active outgoing peer recoveries from this source node",
+        activePeerRecoveriesAsSourceMetric = meterRegistry.registerLongUpDownCounter(
+            CURRENT_PEER_RECOVERIES_AS_SOURCE,
+            "Number of currently active peer recoveries for which this node is the source",
             "unit"
         );
-        queuedOutgoingPeerRecoveriesMetric = meterRegistry.registerLongUpDownCounter(
-            QUEUED_OUTGOING_PEER_RECOVERIES_METRIC,
-            "Number of outgoing peer recoveries queued on this source node awaiting available slots",
+        queuedPeerRecoveriesAsSourceMetric = meterRegistry.registerLongUpDownCounter(
+            QUEUED_PEER_RECOVERIES_AS_SOURCE,
+            "Number of currently queued peer recoveries for which this node is the source",
+            "unit"
+        );
+        activePeerRecoveriesAsTargetMetric = meterRegistry.registerLongUpDownCounter(
+            CURRENT_PEER_RECOVERIES_AS_TARGET,
+            "Number of currently active peer recoveries for which this node is the target",
+            "unit"
+        );
+        queuedPeerRecoveriesAsTargetMetric = meterRegistry.registerLongUpDownCounter(
+            QUEUED_PEER_RECOVERIES_AS_TARGET,
+            "Number of currently queued peer recoveries for which this node is the target",
+            "unit"
+        );
+        activeStoreRecoveriesMetric = meterRegistry.registerLongUpDownCounter(
+            CURRENT_STORE_RECOVERIES,
+            "Number of currently active non-peer recoveries",
+            "unit"
+        );
+        queuedStoreRecoveriesMetric = meterRegistry.registerLongUpDownCounter(
+            QUEUED_STORE_RECOVERIES,
+            "Number of currently queued non-peer recoveries",
             "unit"
         );
     }
@@ -87,7 +118,7 @@ public class RecoveryMetricsCollector implements IndexEventListener {
                 assert recoveryState != null;
                 if (recoveryState.getStage() == Stage.DONE) {
                     shardRecoveryTotalMetric.increment();
-                    final Map<String, Object> metricLabels = recoveryMetricLabels(indexShard);
+                    final Map<String, Object> metricLabels = recoveryTimeMetricLabels(indexShard);
                     shardRecoveryTotalTimeMetric.record(recoveryState.getTimer().time() / 1000, metricLabels);
                     shardRecoveryIndexTimeMetric.record(recoveryState.getIndex().time() / 1000, metricLabels);
                     shardRecoveryTranslogTimeMetric.record(recoveryState.getTranslog().time() / 1000, metricLabels);
@@ -100,32 +131,71 @@ public class RecoveryMetricsCollector implements IndexEventListener {
         }
     }
 
-    /// Increment active outgoing recovery count by one.
-    public void outgoingPeerRecoveryStarted() {
-        activeOutgoingPeerRecoveriesMetric.add(1);
-    }
-
-    /// Decrement active outgoing recovery count by one.
-    public void outgoingPeerRecoveryCompleted() {
-        activeOutgoingPeerRecoveriesMetric.add(-1);
-    }
-
-    /// Increment queued outgoing recovery count by one.
-    public void outgoingPeerRecoveryEnqueued() {
-        queuedOutgoingPeerRecoveriesMetric.add(1);
-    }
-
-    /// Decrement queued outgoing recovery count by one.
-    public void outgoingPeerRecoveryDequeued() {
-        queuedOutgoingPeerRecoveriesMetric.add(-1);
-    }
-
-    private static Map<String, Object> recoveryMetricLabels(IndexShard indexShard) {
+    private static Map<String, Object> recoveryTimeMetricLabels(IndexShard indexShard) {
         return Map.of(
             "primary",
             indexShard.routingEntry().primary(),
-            "recovery_type",
+            "es_recovery_type",
             indexShard.recoveryState().getRecoverySource().getType().name()
         );
+    }
+
+    @Override
+    public void onRecoveryQueued(RecoverySource.Type type, RecoveryDirection direction) {
+        updateQueuedRecovery(type, direction, 1);
+    }
+
+    @Override
+    public void onRecoveryStarted(RecoverySource.Type type, RecoveryDirection direction) {
+        updateQueuedRecovery(type, direction, -1);
+        updateActiveRecovery(type, direction, 1);
+    }
+
+    @Override
+    public void onQueuedRecoveryDiscarded(RecoverySource.Type type, RecoveryDirection direction) {
+        updateQueuedRecovery(type, direction, -1);
+    }
+
+    @Override
+    public void onRecoveryCompleted(RecoverySource.Type type, RecoveryDirection direction) {
+        updateActiveRecovery(type, direction, -1);
+    }
+
+    private void updateQueuedRecovery(RecoverySource.Type type, RecoveryDirection direction, int delta) {
+        switch (type) {
+            case EMPTY_STORE, EXISTING_STORE, SNAPSHOT, LOCAL_SHARDS, RESHARD_SPLIT -> {
+                queuedStoreRecoveriesMetric.add(delta, recoveryLifecycleMetricLabels(type));
+            }
+            case PEER -> {
+                if (direction == RecoveryDirection.TARGET) {
+                    queuedPeerRecoveriesAsTargetMetric.add(delta);
+                } else if (direction == RecoveryDirection.SOURCE) {
+                    queuedPeerRecoveriesAsSourceMetric.add(delta);
+                } else {
+                    assert false : "peer recovery should have a direction";
+                }
+            }
+        }
+    }
+
+    private void updateActiveRecovery(RecoverySource.Type type, RecoveryDirection direction, int delta) {
+        switch (type) {
+            case EMPTY_STORE, EXISTING_STORE, SNAPSHOT, LOCAL_SHARDS, RESHARD_SPLIT -> {
+                activeStoreRecoveriesMetric.add(delta, recoveryLifecycleMetricLabels(type));
+            }
+            case PEER -> {
+                if (direction == RecoveryDirection.TARGET) {
+                    activePeerRecoveriesAsTargetMetric.add(delta);
+                } else if (direction == RecoveryDirection.SOURCE) {
+                    activePeerRecoveriesAsSourceMetric.add(delta);
+                } else {
+                    assert false : "peer recovery should have a direction";
+                }
+            }
+        }
+    }
+
+    private static Map<String, Object> recoveryLifecycleMetricLabels(RecoverySource.Type type) {
+        return Map.of("es_recovery_type", type.name());
     }
 }

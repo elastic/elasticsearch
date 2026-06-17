@@ -36,7 +36,16 @@ public class PercentileOverTime extends TimeSeriesAggregateFunction implements S
         .ternary(PercentileOverTime::new)
         .name("percentile_over_time");
     public static final PromqlFunctionDefinition PROMQL_DEFINITION = PromqlFunctionDefinition.def()
-        .withinSeries(PromqlFunctionDefinition.QUANTILE, PercentileOverTime::new)
+        .withinSeries(
+            PromqlFunctionDefinition.QUANTILE,
+            (source, field, phi, window, timestamp) -> new PercentileOverTime(
+                source,
+                field,
+                PromqlFunctionDefinition.quantileToPercentile(source, phi),
+                window,
+                timestamp
+            )
+        )
         .description("Returns the φ-quantile (0 ≤ φ ≤ 1) of the values in the specified time range.")
         .example("quantile_over_time(0.5, http_requests_total[1h])")
         .name("quantile_over_time");

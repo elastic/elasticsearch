@@ -232,6 +232,16 @@ public final class PromqlFunctionDefinition {
     public static final PromqlParamInfo MAX_SCALAR = PromqlParamInfo.of("max", PromqlDataType.SCALAR, "Maximum value.");
 
     /**
+     * Scales a PromQL quantile φ (in the range [0, 1]) to the percentile value (in the range [0, 100]) expected by
+     * the ES|QL {@code PERCENTILE} aggregation that PromQL {@code quantile} and {@code quantile_over_time} translate
+     * into. Without this scaling, e.g. {@code quantile(1.0, x)} would collapse to the 0.01th percentile (≈ the
+     * minimum) instead of returning the maximum.
+     */
+    public static Expression quantileToPercentile(Source source, Expression phi) {
+        return new Mul(source, phi, Literal.fromDouble(source, 100.0));
+    }
+
+    /**
      * Create a builder for a {@link PromqlFunctionDefinition}.
      */
     public static Builder def() {

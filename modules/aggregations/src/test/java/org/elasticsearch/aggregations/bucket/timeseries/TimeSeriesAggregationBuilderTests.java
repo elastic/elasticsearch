@@ -30,6 +30,12 @@ public class TimeSeriesAggregationBuilderTests extends AggregationBuilderTestCas
         TimeSeriesAggregationBuilder small = new TimeSeriesAggregationBuilder(name, keyed, 100);
         TimeSeriesAggregationBuilder large = new TimeSeriesAggregationBuilder(name, keyed, 200);
         assertNotEquals(small, large);
+        assertNotEquals(small.hashCode(), large.hashCode());
+
+        // Builders that agree on every field, including size, are equal and hash consistently.
+        TimeSeriesAggregationBuilder smallCopy = new TimeSeriesAggregationBuilder(name, keyed, 100);
+        assertEquals(small, smallCopy);
+        assertEquals(small.hashCode(), smallCopy.hashCode());
     }
 
 }

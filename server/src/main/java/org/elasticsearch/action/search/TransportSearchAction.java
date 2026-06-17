@@ -703,6 +703,13 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                             searchShardsResponses.forEach(
                                 (clusterName, response) -> numSkippedShards.put(clusterName, response.getNumSkippedShards())
                             );
+                            // reconcileProjects may have excluded clusters that had no matching shards (empty groups).
+                            // Remove those clusters from numSkippedShards so that skippedByClusterAlias passed to
+                            // the search phase only covers clusters that are actually in participatingProjects.
+                            // Without this, CCSSingleCoordinatorSearchProgressListener.onListShards would encounter
+                            // cluster aliases absent from the Clusters map, causing a NullPointerException that
+                            // silently aborts the loop and leaves all clusters stuck in RUNNING state.
+                            numSkippedShards.keySet().retainAll(participatingProjects.getClusterAliases());
                             if (searchContext != null) {
                                 remoteAliasFilters = searchContext.aliasFilter();
                                 remoteShardIterators = getRemoteShardsIteratorFromPointInTime(

@@ -527,8 +527,8 @@ public class ESVectorUtilTests extends BaseVectorizationTests {
     public void testL2NormalizePrefixDefaultEqualsPanama() {
         float[] expected = { 3f, 4f, 99f, 99f };
         float[] panama = expected.clone();
-        defaultedProvider.getVectorUtilSupport().l2Normalize(expected, 2);
-        panamaProvider.getVectorUtilSupport().l2Normalize(panama, 2);
+        defaultedProvider.getVectorUtilSupport().l2Normalize(expected, 0, 2);
+        panamaProvider.getVectorUtilSupport().l2Normalize(panama, 0, 2);
         assertArrayEquals(expected, panama, 1e-5f);
         assertArrayEquals(new float[] { 0.6f, 0.8f, 99f, 99f }, expected, 1e-5f);
         float[] util = { 3f, 4f, 99f, 99f };
@@ -564,8 +564,8 @@ public class ESVectorUtilTests extends BaseVectorizationTests {
     public void testByteL2NormalizePrefixDefaultEqualsPanama() {
         byte[] expected = { 3, 4, 99 };
         byte[] panama = expected.clone();
-        defaultedProvider.getVectorUtilSupport().l2Normalize(expected, 2);
-        panamaProvider.getVectorUtilSupport().l2Normalize(panama, 2);
+        defaultedProvider.getVectorUtilSupport().l2Normalize(expected, 0, 2);
+        panamaProvider.getVectorUtilSupport().l2Normalize(panama, 0, 2);
         assertArrayEquals(expected, panama);
         assertArrayEquals(new byte[] { 0, 0, 99 }, expected);
         byte[] util = { 3, 4, 99 };
@@ -577,6 +577,31 @@ public class ESVectorUtilTests extends BaseVectorizationTests {
         byte[] v = { 0, 0, 5 };
         ESVectorUtil.l2Normalize(v, 2);
         assertArrayEquals(new byte[] { 0, 0, 5 }, v);
+    }
+
+    public void testL2NormalizeRangeDefaultEqualsPanama() {
+        int vectorSize = randomIntBetween(64, 2048);
+        int offset = randomIntBetween(0, vectorSize - 1);
+        int length = randomIntBetween(1, vectorSize - offset);
+        float[] expected = generateRandomVector(vectorSize);
+        float[] panama = expected.clone();
+        float[] util = expected.clone();
+        defaultedProvider.getVectorUtilSupport().l2Normalize(expected, offset, length);
+        panamaProvider.getVectorUtilSupport().l2Normalize(panama, offset, length);
+        ESVectorUtil.l2Normalize(util, offset, length);
+        assertArrayEquals(expected, panama, 1e-5f);
+        assertArrayEquals(expected, util, 1e-5f);
+    }
+
+    public void testByteL2NormalizeRangeDefaultEqualsPanama() {
+        int vectorSize = randomIntBetween(64, 2048);
+        int offset = randomIntBetween(0, vectorSize - 1);
+        int length = randomIntBetween(1, vectorSize - offset);
+        byte[] expected = randomByteArrayOfLength(vectorSize);
+        byte[] panama = expected.clone();
+        defaultedProvider.getVectorUtilSupport().l2Normalize(expected, offset, length);
+        panamaProvider.getVectorUtilSupport().l2Normalize(panama, offset, length);
+        assertArrayEquals(expected, panama);
     }
 
     public void testSquareDistanceBulkRange() {

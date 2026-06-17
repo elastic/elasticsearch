@@ -82,7 +82,7 @@ public class ESVectorUtilByteOperationBenchmark {
             case DOT_PRODUCT -> scalarDotProduct(a, b, 0, size);
             case L2_NORMALIZE -> {
                 System.arraycopy(normalizeSource, 0, normalizeTarget, 0, size);
-                scalarL2Normalize(normalizeTarget, size);
+                scalarL2Normalize(normalizeTarget, 0, size);
                 yield normalizeTarget[0];
             }
         };
@@ -110,9 +110,10 @@ public class ESVectorUtilByteOperationBenchmark {
         return sum;
     }
 
-    static void scalarL2Normalize(byte[] v, int length) {
+    static void scalarL2Normalize(byte[] v, int offset, int length) {
         double normSq = 0;
-        for (int j = 0; j < length; j++) {
+        int end = offset + length;
+        for (int j = offset; j < end; j++) {
             double t = v[j];
             normSq += t * t;
         }
@@ -120,7 +121,7 @@ public class ESVectorUtilByteOperationBenchmark {
             return;
         }
         double invNorm = 1.0 / Math.sqrt(normSq);
-        for (int j = 0; j < length; j++) {
+        for (int j = offset; j < end; j++) {
             v[j] = (byte) (v[j] * invNorm);
         }
     }

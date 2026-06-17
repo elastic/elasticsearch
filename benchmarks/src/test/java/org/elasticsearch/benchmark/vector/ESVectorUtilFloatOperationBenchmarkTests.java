@@ -52,7 +52,7 @@ public class ESVectorUtilFloatOperationBenchmarkTests extends ESTestCase {
             case L2_NORMALIZE -> {
                 float[] expected = bench.normalizeSource.clone();
                 float[] actual = bench.normalizeSource.clone();
-                ESVectorUtilFloatOperationBenchmark.scalarL2Normalize(expected, size);
+                ESVectorUtilFloatOperationBenchmark.scalarL2Normalize(expected, 0, size);
                 ESVectorUtil.l2Normalize(actual, size);
                 assertArrayEquals(expected, actual, 1e-5f);
             }

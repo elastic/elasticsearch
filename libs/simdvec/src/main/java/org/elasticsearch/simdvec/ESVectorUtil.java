@@ -121,16 +121,24 @@ public class ESVectorUtil {
      * this method does not throw on a zero vector.
      */
     public static void l2Normalize(float[] v, int length) {
+        l2Normalize(v, 0, length);
+    }
+
+    /**
+     * L2-normalizes {@code v[offset:offset + length)} in place. Elements outside the range are left
+     * unchanged. A zero range is a no-op.
+     */
+    public static void l2Normalize(float[] v, int offset, int length) {
         if (length <= 0) {
             return;
         }
-        Objects.checkFromIndexSize(0, length, v.length);
-        IMPL.l2Normalize(v, length);
+        Objects.checkFromIndexSize(offset, length, v.length);
+        IMPL.l2Normalize(v, offset, length);
     }
 
     /** L2-normalizes all components of {@code v} in place. */
     public static void l2Normalize(float[] v) {
-        l2Normalize(v, v.length);
+        l2Normalize(v, 0, v.length);
     }
 
     public static float squareDistance(float[] a, float[] b) {
@@ -190,16 +198,24 @@ public class ESVectorUtil {
      * is a no-op.
      */
     public static void l2Normalize(byte[] v, int length) {
+        l2Normalize(v, 0, length);
+    }
+
+    /**
+     * L2-normalizes {@code v[offset:offset + length)} in place using signed byte values as real
+     * components. Elements outside the range are left unchanged. A zero range is a no-op.
+     */
+    public static void l2Normalize(byte[] v, int offset, int length) {
         if (length <= 0) {
             return;
         }
-        Objects.checkFromIndexSize(0, length, v.length);
-        IMPL.l2Normalize(v, length);
+        Objects.checkFromIndexSize(offset, length, v.length);
+        IMPL.l2Normalize(v, offset, length);
     }
 
     /** L2-normalizes all components of {@code v} in place. */
     public static void l2Normalize(byte[] v) {
-        l2Normalize(v, v.length);
+        l2Normalize(v, 0, v.length);
     }
 
     /**

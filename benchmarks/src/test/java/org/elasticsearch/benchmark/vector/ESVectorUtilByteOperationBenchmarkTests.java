@@ -52,7 +52,7 @@ public class ESVectorUtilByteOperationBenchmarkTests extends ESTestCase {
             case L2_NORMALIZE -> {
                 byte[] expected = bench.normalizeSource.clone();
                 byte[] actual = bench.normalizeSource.clone();
-                ESVectorUtilByteOperationBenchmark.scalarL2Normalize(expected, size);
+                ESVectorUtilByteOperationBenchmark.scalarL2Normalize(expected, 0, size);
                 ESVectorUtil.l2Normalize(actual, size);
                 assertArrayEquals(expected, actual);
             }

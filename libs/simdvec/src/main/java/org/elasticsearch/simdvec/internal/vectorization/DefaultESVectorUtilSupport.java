@@ -62,7 +62,7 @@ public final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
 
     @Override
     public float dotProduct(float[] a, float[] b, int offset, int length) {
-        if (offset == 0 && length == a.length && length == b.length) {
+        if (offset == 0 && length == a.length) {
             return dotProduct(a, b);
         }
         float sum = 0f;
@@ -74,9 +74,10 @@ public final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
     }
 
     @Override
-    public void l2Normalize(float[] v, int length) {
+    public void l2Normalize(float[] v, int offset, int length) {
         double normSq = 0;
-        for (int j = 0; j < length; j++) {
+        int end = offset + length;
+        for (int j = offset; j < end; j++) {
             double t = v[j];
             normSq += t * t;
         }
@@ -84,7 +85,7 @@ public final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
             return;
         }
         double invNorm = 1.0 / Math.sqrt(normSq);
-        for (int j = 0; j < length; j++) {
+        for (int j = offset; j < end; j++) {
             v[j] = (float) (v[j] * invNorm);
         }
     }
@@ -117,7 +118,7 @@ public final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
 
     @Override
     public float dotProduct(byte[] a, byte[] b, int offset, int length) {
-        if (offset == 0 && length == a.length && length == b.length) {
+        if (offset == 0 && length == a.length) {
             return dotProduct(a, b);
         }
         int sum = 0;
@@ -128,6 +129,24 @@ public final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
         return sum;
     }
 
+    @Override
+    public void l2Normalize(byte[] v, int offset, int length) {
+        double normSq = 0;
+        int end = offset + length;
+        for (int j = offset; j < end; j++) {
+            double t = v[j];
+            normSq += t * t;
+        }
+        if (normSq == 0) {
+            return;
+        }
+        float scale = (float) (1.0 / Math.sqrt(normSq));
+        for (int j = offset; j < end; j++) {
+            v[j] = (byte) (v[j] * scale);
+        }
+    }
+
+    @Override
     public float squareDistance(byte[] a, byte[] b) {
         return VectorUtil.squareDistance(a, b);
     }
@@ -140,22 +159,6 @@ public final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
             sum += diff * diff;
         }
         return sum;
-    }
-
-    @Override
-    public void l2Normalize(byte[] v, int length) {
-        double normSq = 0;
-        for (int j = 0; j < length; j++) {
-            double t = v[j];
-            normSq += t * t;
-        }
-        if (normSq == 0) {
-            return;
-        }
-        double invNorm = 1.0 / Math.sqrt(normSq);
-        for (int j = 0; j < length; j++) {
-            v[j] = (byte) (v[j] * invNorm);
-        }
     }
 
     static float maxSimDotProductImpl(MultiFloatVectorsSource source, float[][] query, float[] scoresScratch) {

@@ -28,7 +28,7 @@ import java.util.concurrent.ExecutorService;
  * <pre>
  *   EXTERNAL "wasbs://account.blob.core.windows.net/container/path/data.parquet"
  *   EXTERNAL "wasbs://account.blob.core.windows.net/container/path/data.parquet"
- *     WITH (account="myaccount", key="...", endpoint="https://myaccount.blob.core.windows.net")
+ *     WITH {"account": "myaccount", "key": "...", "endpoint": "https://myaccount.blob.core.windows.net"}
  * </pre>
  * <p>
  * The node-level {@link Environment} needed to resolve the AKS Workload Identity token symlink

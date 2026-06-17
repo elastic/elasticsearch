@@ -512,11 +512,12 @@ public class TransportMultiSearchActionTests extends ESTestCase {
             // Exact delta: per-failure overhead + structural exception bytes + reason String.
             // reason() is ExceptionsHelper.stackTrace(cause) — the full formatted stack trace,
             // stored as a distinct String on the heap regardless of what's in the cause chain.
+            // Sized via RamUsageEstimator.sizeOf() to match the production estimator.
             // estimateExceptionBytes depends on actual stack depth at test time, so we call it
             // directly rather than hardcoding a frame count.
             long expectedDelta = TransportMultiSearchAction.PER_SHARD_FAILURE_OVERHEAD + TransportMultiSearchAction.estimateExceptionBytes(
                 cause
-            ) + 32L + failure.reason().length();
+            ) + RamUsageEstimator.sizeOf(failure.reason());
             assertThat(withBytes - withoutBytes, equalTo(expectedDelta));
         } finally {
             withFailure.decRef();

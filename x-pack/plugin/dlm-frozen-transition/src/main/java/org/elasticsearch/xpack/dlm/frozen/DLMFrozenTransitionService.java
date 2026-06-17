@@ -113,15 +113,18 @@ class DLMFrozenTransitionService extends AbstractDLMPeriodicMasterOnlyService {
                     return;
                 }
                 if (DLM_CREATED_SETTING.get(indexMetadata.getSettings())) {
-                    logger.debug("Skipping index [{}] because it was created by DLM", indexMetadata.getIndex().getName());
+                    logger.debug(
+                        "Skipping frozen transition for index [{}] because it was created by DLM",
+                        indexMetadata.getIndex().getName()
+                    );
                     continue;
                 }
                 if (indexMarkedForFrozen(indexMetadata) == false) {
                     continue;
                 }
                 if (IndexMetadata.LIFECYCLE_SKIP_SETTING.get(indexMetadata.getSettings())) {
-                    logger.debug(
-                        "Skipping index [{}] because it has [{}] set to true",
+                    logger.info(
+                        "Skipping frozen transition for index [{}] because [{}] is set to true",
                         indexMetadata.getIndex().getName(),
                         IndexMetadata.LIFECYCLE_SKIP_SETTING.getKey()
                     );

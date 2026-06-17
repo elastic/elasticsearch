@@ -32,7 +32,6 @@ import org.elasticsearch.xpack.core.ilm.AsyncWaitStep;
 import org.elasticsearch.xpack.core.ilm.ClusterStateActionStep;
 import org.elasticsearch.xpack.core.ilm.ClusterStateWaitStep;
 import org.elasticsearch.xpack.core.ilm.ErrorStep;
-import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.core.ilm.OperationMode;
 import org.elasticsearch.xpack.core.ilm.PhaseCompleteStep;
 import org.elasticsearch.xpack.core.ilm.Step;
@@ -179,7 +178,7 @@ class IndexLifecycleRunner {
     void runPeriodicStep(ProjectState state, String policy, IndexMetadata indexMetadata) {
         String index = indexMetadata.getIndex().getName();
         if (IndexMetadata.LIFECYCLE_SKIP_SETTING.get(indexMetadata.getSettings())) {
-            logger.debug("[{}] skipping policy [{}] because [{}] is true", index, policy, LifecycleSettings.LIFECYCLE_SKIP);
+            logger.debug("[{}] skipping policy [{}] because [{}] is true", index, policy, IndexMetadata.LIFECYCLE_SKIP);
             return;
         }
         LifecycleExecutionState lifecycleState = indexMetadata.getLifecycleExecutionState();
@@ -317,7 +316,7 @@ class IndexLifecycleRunner {
         }
 
         if (IndexMetadata.LIFECYCLE_SKIP_SETTING.get(indexMetadata.getSettings())) {
-            logger.info("[{}] skipping policy [{}] because [{}] is true", index, policy, LifecycleSettings.LIFECYCLE_SKIP);
+            logger.info("[{}] skipping policy [{}] because [{}] is true", index, policy, IndexMetadata.LIFECYCLE_SKIP);
             return;
         }
         LifecycleExecutionState lifecycleState = indexMetadata.getLifecycleExecutionState();
@@ -401,7 +400,7 @@ class IndexLifecycleRunner {
     void runPolicyAfterStateChange(ProjectId projectId, String policy, IndexMetadata indexMetadata) {
         String index = indexMetadata.getIndex().getName();
         if (IndexMetadata.LIFECYCLE_SKIP_SETTING.get(indexMetadata.getSettings())) {
-            logger.info("[{}] skipping policy [{}] because [{}] is true", index, policy, LifecycleSettings.LIFECYCLE_SKIP);
+            logger.info("[{}] skipping policy [{}] because [{}] is true", index, policy, IndexMetadata.LIFECYCLE_SKIP);
             return;
         }
         LifecycleExecutionState lifecycleState = indexMetadata.getLifecycleExecutionState();

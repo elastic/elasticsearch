@@ -1741,13 +1741,13 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
     /**
      * When using PIT, verifies that the action builds a {@link ClientPitPaginatedHitSource} as its paginated hit source.
      */
-    public void testBuildScrollableResultSourceReturnsPitHitSource() {
+    public void testBuildPaginatedSearchResultSourceReturnsPitHitSource() {
         configurePitOrScroll(true);
         final AtomicReference<PaginatedHitSource> capturedSource = new AtomicReference<>();
         new DummyAsyncBulkByScrollAction() {
             @Override
-            protected PaginatedHitSource buildScrollableResultSource(BackoffPolicy backoffPolicy, SearchRequest searchRequest) {
-                PaginatedHitSource result = super.buildScrollableResultSource(backoffPolicy, searchRequest);
+            protected PaginatedHitSource buildPaginatedSearchResultSource(BackoffPolicy backoffPolicy, SearchRequest searchRequest) {
+                PaginatedHitSource result = super.buildPaginatedSearchResultSource(backoffPolicy, searchRequest);
                 capturedSource.set(result);
                 return result;
             }
@@ -1758,13 +1758,13 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
     /**
      * When using scroll, verifies that the action builds a {@link ClientScrollablePaginatedHitSource} as its paginated hit source.
      */
-    public void testBuildScrollableResultSourceReturnsScrollHitSource() {
+    public void testBuildPaginatedSearchResultSourceReturnsScrollHitSource() {
         configurePitOrScroll(false);
         final AtomicReference<PaginatedHitSource> capturedSource = new AtomicReference<>();
         new DummyAsyncBulkByScrollAction() {
             @Override
-            protected PaginatedHitSource buildScrollableResultSource(BackoffPolicy backoffPolicy, SearchRequest searchRequest) {
-                PaginatedHitSource result = super.buildScrollableResultSource(backoffPolicy, searchRequest);
+            protected PaginatedHitSource buildPaginatedSearchResultSource(BackoffPolicy backoffPolicy, SearchRequest searchRequest) {
+                PaginatedHitSource result = super.buildPaginatedSearchResultSource(backoffPolicy, searchRequest);
                 capturedSource.set(result);
                 return result;
             }
@@ -1785,7 +1785,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         final AtomicBoolean cleanedUp = new AtomicBoolean();
         final DummyAsyncBulkByScrollAction action = new DummyAsyncBulkByScrollAction() {
             @Override
-            protected PaginatedHitSource buildScrollableResultSource(BackoffPolicy backoffPolicy, SearchRequest searchRequest) {
+            protected PaginatedHitSource buildPaginatedSearchResultSource(BackoffPolicy backoffPolicy, SearchRequest searchRequest) {
                 return new ClientScrollablePaginatedHitSource(
                     logger,
                     backoffPolicy,
@@ -1849,7 +1849,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         final AtomicBoolean cleanedUp = new AtomicBoolean();
         final DummyAsyncBulkByScrollAction action = new DummyAsyncBulkByScrollAction() {
             @Override
-            protected PaginatedHitSource buildScrollableResultSource(BackoffPolicy backoffPolicy, SearchRequest searchRequest) {
+            protected PaginatedHitSource buildPaginatedSearchResultSource(BackoffPolicy backoffPolicy, SearchRequest searchRequest) {
                 return new ClientPitPaginatedHitSource(
                     logger,
                     backoffPolicy,

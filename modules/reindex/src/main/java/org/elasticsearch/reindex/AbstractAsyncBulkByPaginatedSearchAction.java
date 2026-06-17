@@ -267,7 +267,7 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
         this.circuitBreaker = Objects.requireNonNull(circuitBreaker);
         this.breakerLabel = Objects.requireNonNull(breakerLabel);
         this.reindexSettings = Objects.requireNonNull(reindexSettings);
-        paginatedHitSource = buildScrollableResultSource(
+        paginatedHitSource = buildPaginatedSearchResultSource(
             backoffPolicy,
             prepareSearchRequest(
                 mainRequest,
@@ -441,7 +441,7 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
         return bulkRequest;
     }
 
-    protected PaginatedHitSource buildScrollableResultSource(BackoffPolicy backoffPolicy, SearchRequest searchRequest) {
+    protected PaginatedHitSource buildPaginatedSearchResultSource(BackoffPolicy backoffPolicy, SearchRequest searchRequest) {
         // If we're using point-in-time search, then return a ClientPitPaginatedHitSource
         if (searchRequest.source() != null && searchRequest.source().pointInTimeBuilder() != null) {
             return new ClientPitPaginatedHitSource(

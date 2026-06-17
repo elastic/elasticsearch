@@ -115,7 +115,7 @@ public class RecoveryStatsTests extends AbstractWireSerializingTestCase<Recovery
 
     public void testBwc() throws IOException {
         final TransportVersion sourceQueuedVersion = TransportVersion.fromName("recovery_source_queued_stats");
-        final TransportVersion storeAndQueuedVersion = TransportVersion.fromName("recovery_store_and_queued_stats");
+        final TransportVersion storeAndQueuedVersion = TransportVersion.fromName("recovery_store_and_target_queued_stats");
 
         // Before source_queued_stats
         var stats = new RecoveryStats();

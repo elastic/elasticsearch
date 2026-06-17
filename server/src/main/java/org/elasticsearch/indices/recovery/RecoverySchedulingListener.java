@@ -32,7 +32,7 @@ public interface RecoverySchedulingListener {
         onRecoverySchedulingChange();
     }
 
-    /// Called when a recovery has been dispatched for execution on this data node.
+    /// Called when a previously queued recovery is dequeued and dispatched for execution on this data node.
     default void onRecoveryDequeuedAndStarted(RecoverySource.Type type, RecoveryRole role) {
         onRecoverySchedulingChange();
     }

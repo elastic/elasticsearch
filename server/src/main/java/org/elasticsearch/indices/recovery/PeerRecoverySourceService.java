@@ -290,14 +290,14 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
                     handler = null;
                 }
             }
-            shard.recoveryStats().sourceRecoveryQueued();
-            if (handler != null) {
-                shard.recoveryStats().sourceRecoveryDequeuedAndStarted();
-            }
-            for (RecoverySchedulingListener schedulingListener : recoverySchedulingListeners) {
-                if (handler == null) {
+            if (handler == null) {
+                shard.recoveryStats().sourceRecoveryQueued();
+                for (RecoverySchedulingListener schedulingListener : recoverySchedulingListeners) {
                     schedulingListener.onRecoveryQueued(RecoverySource.Type.PEER, RecoveryRole.SOURCE);
-                } else {
+                }
+            } else {
+                shard.recoveryStats().sourceRecoveryStarted();
+                for (RecoverySchedulingListener schedulingListener : recoverySchedulingListeners) {
                     schedulingListener.onRecoveryStarted(RecoverySource.Type.PEER, RecoveryRole.SOURCE);
                 }
             }
@@ -394,6 +394,10 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
                 schedulingListener.onRecoveryCompleted(RecoverySource.Type.PEER, RecoveryRole.SOURCE);
             }
             if (nextHandler != null) {
+                nextRecovery.shard().recoveryStats().sourceRecoveryDequeuedAndStarted();
+                for (RecoverySchedulingListener schedulingListener : recoverySchedulingListeners) {
+                    schedulingListener.onRecoveryDequeuedAndStarted(RecoverySource.Type.PEER, RecoveryRole.SOURCE);
+                }
                 logger.trace(
                     "[{}][{}] starting queued recovery to {}",
                     nextRecovery.request().shardId().getIndex().getName(),
@@ -403,10 +407,6 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
                 nextHandler.recoverToTarget(
                     ActionListener.runAfter(nextRecovery.listener(), () -> onRecoveryComplete(nextRecovery.shard(), nextHandler))
                 );
-                nextRecovery.shard().recoveryStats().sourceRecoveryDequeuedAndStarted();
-                for (RecoverySchedulingListener schedulingListener : recoverySchedulingListeners) {
-                    schedulingListener.onRecoveryDequeuedAndStarted(RecoverySource.Type.PEER, RecoveryRole.SOURCE);
-                }
             }
         }
 

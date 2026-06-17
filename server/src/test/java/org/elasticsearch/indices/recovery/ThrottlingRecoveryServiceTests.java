@@ -17,6 +17,8 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
+import org.elasticsearch.core.AbstractRefCounted;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardLongFieldRange;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -547,6 +549,115 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
             assertThat(running.get(), equalTo(0));
             assertThat(service.currentQueueSize(), equalTo(0));
         }
+    }
+
+    /// Stress one [ThrottlingRecoveryService] from many producer threads using real threads: alternating
+    /// bursty submits (high contention on the throttle) and idle periods. Verify that all tasks finish and
+    /// that no more than `maxConcurrentRecoveries` consumer bodies overlap.
+    ///
+    /// Unlike [#testStressConcurrentEnqueueMaintainsBoundsAndCompleteness], this test uses real threads to
+    /// catch missing happens-before relationships that a deterministic scheduler cannot expose.
+    public void testStressConcurrentEnqueueWithRealThreads() {
+        final int initialMaxConcurrentRecoveries = between(1, 20);
+        final var clusterService = newClusterService(initialMaxConcurrentRecoveries);
+        final var peakLimit = new AtomicInteger(initialMaxConcurrentRecoveries);
+        final var throttlingRecoveryService = new ThrottlingRecoveryService(threadPool.generic(), clusterService);
+
+        final var running = new AtomicInteger();
+        final var peakRunning = new AtomicInteger();
+        final var tasksEnqueued = new AtomicInteger();
+        final var tasksCompleted = new AtomicInteger();
+        final var allFinished = new CountDownLatch(1);
+        final var refCounted = AbstractRefCounted.of(allFinished::countDown);
+        final int maxTaskCount = 1000;
+        final var recoveryState = fakeRecoveryState();
+
+        final var trackingListener = new RecoveryListener() {
+            @Override
+            public void onRecoveryDone(
+                RecoveryState state,
+                ShardLongFieldRange timestampMillisFieldRange,
+                ShardLongFieldRange eventIngestedMillisFieldRange
+            ) {
+                refCounted.decRef();
+                tasksCompleted.incrementAndGet();
+            }
+
+            @Override
+            public void onRecoveryFailure(RecoveryFailedException e, boolean sendShardFailure) {
+                refCounted.decRef();
+                tasksCompleted.incrementAndGet();
+            }
+
+            @Override
+            public void onRecoveryAborted() {
+                refCounted.decRef();
+                tasksCompleted.incrementAndGet();
+            }
+        };
+
+        final int producerThreads = between(3, 6);
+        runInParallel(producerThreads, index -> {
+            while (tasksEnqueued.get() < maxTaskCount) {
+                if (index == 0) {
+                    if (rarely()) {
+                        int nextLimit = between(1, 20);
+                        clusterService.getClusterSettings()
+                            .applySettings(
+                                Settings.builder().put(INDICES_RECOVERY_MAX_CONCURRENT_RECOVERIES_SETTING.getKey(), nextLimit).build()
+                            );
+                        peakLimit.accumulateAndGet(nextLimit, Integer::max);
+                    }
+                    if ((tasksEnqueued.get() * 1.0 / maxTaskCount) > 0.8 && rarely()) {
+                        throttlingRecoveryService.close();
+                    }
+                }
+                final boolean highContention = randomBoolean();
+                int incomingTasks = highContention ? between(2, 50) : 1;
+                if (highContention == false) {
+                    Thread.yield();
+                }
+                for (int i = 0; i < incomingTasks && tasksEnqueued.get() < maxTaskCount; i++) {
+                    refCounted.incRef();
+                    tasksEnqueued.incrementAndGet();
+                    throttlingRecoveryService.enqueue(trackingListener, recoveryState, schedulingListener -> {
+                        peakRunning.accumulateAndGet(running.incrementAndGet(), Integer::max);
+                        runStressInboundRecoveryTask(recoveryState, schedulingListener, running);
+                    });
+                }
+                Thread.yield();
+            }
+        });
+
+        // taskLatch starts with 1 ref, decremented here
+        refCounted.decRef();
+        safeAwait(allFinished, TimeValue.timeValueSeconds(30));
+        assertThat(tasksCompleted.get(), equalTo(tasksEnqueued.get()));
+        assertThat(peakRunning.get(), lessThanOrEqualTo(peakLimit.get()));
+        assertThat(running.get(), equalTo(0));
+    }
+
+    private static void runStressInboundRecoveryTask(
+        RecoveryState recoveryState,
+        RecoveryListener schedulingListener,
+        AtomicInteger running
+    ) {
+        threadPool.generic().execute(() -> {
+            ESTestCase.safeSleep(randomLongBetween(0, 20));
+            running.decrementAndGet();
+            if (randomBoolean()) {
+                schedulingListener.onRecoveryDone(null, ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY);
+            } else {
+                if (randomBoolean()) {
+                    schedulingListener.onRecoveryAborted();
+                } else {
+                    schedulingListener.onRecoveryFailure(
+                        new RecoveryFailedException(recoveryState, null, new RuntimeException("test recovery task injected failure")),
+                        randomBoolean()
+                    );
+                }
+            }
+        });
     }
 
     private static ClusterService newClusterService(int maxConcurrentRecoveries) {

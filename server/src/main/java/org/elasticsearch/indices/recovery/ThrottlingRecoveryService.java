@@ -107,6 +107,9 @@ public final class ThrottlingRecoveryService {
         return pendingRecoveries.size();
     }
 
+    /// Placeholder, # 151166 will merge first
+    public void close() {}
+
     private static class RecoveryTask extends AbstractRunnable {
         private final RecoveryState recoveryState;
         private final Consumer<RecoveryListener> task;

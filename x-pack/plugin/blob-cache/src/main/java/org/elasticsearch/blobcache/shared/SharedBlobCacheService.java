@@ -385,7 +385,7 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
 
     private final Runnable evictIncrementer;
 
-    private final LongSupplier relativeTimeInNanosSupplier;
+    private final LongSupplier relativeNanosProvider;
     private final ThrottledTaskRunner asyncEvictionsRunner;
 
     public SharedBlobCacheService(
@@ -469,7 +469,7 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
 
         this.blobCacheMetrics = blobCacheMetrics;
         this.evictIncrementer = blobCacheMetrics.getEvictedCountNonZeroFrequency()::increment;
-        this.relativeTimeInNanosSupplier = relativeTimeInNanosSupplier;
+        this.relativeNanosProvider = relativeTimeInNanosSupplier;
         this.asyncEvictionsRunner = new ThrottledTaskRunner(
             "shared_blob_cache_evictions",
             SHARED_CACHE_CONCURRENT_EVICTIONS_SETTING.get(settings),
@@ -1621,7 +1621,7 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
             }
             // We are interested in the total time that the system spends when fetching a result (including time spent queuing), so we start
             // our measurement here.
-            final long startTime = relativeTimeInNanosSupplier.getAsLong();
+            final long startTime = relativeNanosProvider.getAsLong();
             RangeMissingHandler writerInstrumentationDecorator = new DelegatingRangeMissingHandler(writer) {
                 @Override
                 public void fillCacheRange(
@@ -1643,7 +1643,7 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
                         length,
                         progressUpdater,
                         completionListener.map(unused -> {
-                            var elapsedTime = TimeUnit.NANOSECONDS.toMillis(relativeTimeInNanosSupplier.getAsLong() - startTime);
+                            var elapsedTime = TimeUnit.NANOSECONDS.toMillis(relativeNanosProvider.getAsLong() - startTime);
                             blobCacheMetrics.getCacheMissLoadTimes().record(elapsedTime);
                             blobCacheMetrics.getCacheMissCounter()
                                 .incrementBy(
@@ -2428,34 +2428,32 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
          */
         private SharedBytes.IO maybeEvictAndTake(final LFUCacheEntry incoming, final Runnable evictedNotification) {
             assert Thread.holdsLock(SharedBlobCacheService.this);
-            final long startNanos = relativeTimeInNanosSupplier.getAsLong();
+            final long startNanos = relativeNanosProvider.getAsLong();
             final int[] entriesScanned = new int[1];
-            BlobCacheMetrics.EvictionScanOutcome outcome = None;
             final long currentEpoch = epoch.get(); // must be captured before attempting to evict a freq 0
             SharedBytes.IO result = maybeEvictAndTakeForFrequency(incoming, evictedNotification, 0, entriesScanned);
             if (freqs[0].count < freq0DecayScheduleThreshold && freeRegions.isEmpty()) {
                 maybeScheduleDecayAndNewEpoch(currentEpoch);
             }
             if (result != null) {
-                outcome = Evicted;
-            } else {
-                for (int currentFreq = 1; currentFreq < maxFreq; currentFreq++) {
-                    // recheck this per freq in case we raced an eviction with an incref'er.
-                    SharedBytes.IO freeRegion = freeRegions.poll();
-                    if (freeRegion != null) {
-                        result = freeRegion;
-                        outcome = Free;
-                        break;
-                    }
-                    result = maybeEvictAndTakeForFrequency(incoming, evictedNotification, currentFreq, entriesScanned);
-                    if (result != null) {
-                        outcome = Evicted;
-                        break;
-                    }
+                logAndMetricEvictionScan(relativeNanosProvider.getAsLong() - startNanos, AllFrequencies, Evicted, entriesScanned[0]);
+                return result;
+            }
+            for (int currentFreq = 1; currentFreq < maxFreq; currentFreq++) {
+                // recheck this per freq in case we raced an eviction with an incref'er.
+                SharedBytes.IO freeRegion = freeRegions.poll();
+                if (freeRegion != null) {
+                    logAndMetricEvictionScan(relativeNanosProvider.getAsLong() - startNanos, AllFrequencies, Free, entriesScanned[0]);
+                    return freeRegion;
+                }
+                result = maybeEvictAndTakeForFrequency(incoming, evictedNotification, currentFreq, entriesScanned);
+                if (result != null) {
+                    logAndMetricEvictionScan(relativeNanosProvider.getAsLong() - startNanos, AllFrequencies, Evicted, entriesScanned[0]);
+                    return result;
                 }
             }
-            logAndMetricEvictionScan(relativeTimeInNanosSupplier.getAsLong() - startNanos, AllFrequencies, outcome, entriesScanned[0]);
-            return result;
+            logAndMetricEvictionScan(relativeNanosProvider.getAsLong() - startNanos, AllFrequencies, None, entriesScanned[0]);
+            return null;
         }
 
         private void logAndMetricEvictionScan(
@@ -2537,10 +2535,11 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
          * @return true if an entry was evicted, false otherwise.
          */
         private boolean maybeEvictLeastUsed(final CacheFileRegion<KeyType> incoming) {
-            final long startNanos = relativeTimeInNanosSupplier.getAsLong();
+            final long startNanos;
             int entriesScanned = 0;
             boolean found = false;
             synchronized (SharedBlobCacheService.this) {
+                startNanos = relativeNanosProvider.getAsLong();
                 for (LFUCacheEntry entry = freqs[0].head; entry != null; entry = entry.next) {
                     entriesScanned++;
                     if (evictionPolicy.canEvict(entry.chunk, incoming) == false) {
@@ -2556,7 +2555,7 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
                 }
             }
             logAndMetricEvictionScan(
-                relativeTimeInNanosSupplier.getAsLong() - startNanos,
+                relativeNanosProvider.getAsLong() - startNanos,
                 LowestFrequency,
                 found ? Evicted : None,
                 entriesScanned

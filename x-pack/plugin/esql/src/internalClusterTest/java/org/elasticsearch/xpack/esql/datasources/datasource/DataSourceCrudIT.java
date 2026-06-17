@@ -240,9 +240,9 @@ public class DataSourceCrudIT extends ESIntegTestCase {
         final CountDownLatch startGate = new CountDownLatch(1);
         final CountDownLatch doneGate = new CountDownLatch(2);
         @SuppressWarnings("unchecked")
-        final ActionFuture<AcknowledgedResponse>[] putFuture = new ActionFuture[1];
+        final ActionFuture<AcknowledgedResponse>[] putFuture = (ActionFuture<AcknowledgedResponse>[]) new ActionFuture<?>[1];
         @SuppressWarnings("unchecked")
-        final ActionFuture<AcknowledgedResponse>[] deleteFuture = new ActionFuture[1];
+        final ActionFuture<AcknowledgedResponse>[] deleteFuture = (ActionFuture<AcknowledgedResponse>[]) new ActionFuture<?>[1];
 
         Thread puter = new Thread(() -> {
             try {

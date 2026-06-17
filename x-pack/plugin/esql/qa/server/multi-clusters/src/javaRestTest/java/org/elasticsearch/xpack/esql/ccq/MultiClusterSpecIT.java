@@ -69,6 +69,7 @@ import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.UNMAPPED_
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.VIEWS_WITH_BRANCHING;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.VIEWS_WITH_NO_BRANCHING;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITHOUT_VIEW;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITH_VIEW;
 import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.doesntHaveCapabilities;
 import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.hasCapabilities;
 import static org.mockito.ArgumentMatchers.any;
@@ -386,7 +387,8 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
             dataLocation = randomFrom(DataLocation.values());
         }
         // convertToRemoteIndices does not support WHERE IN subquery yet
-        if (testCase.requiredCapabilities.contains(WHERE_IN_SUBQUERY_WITHOUT_VIEW.capabilityName())) {
+        if (testCase.requiredCapabilities.contains(WHERE_IN_SUBQUERY_WITHOUT_VIEW.capabilityName())
+            || testCase.requiredCapabilities.contains(WHERE_IN_SUBQUERY_WITH_VIEW.capabilityName())) {
             return testCase;
         }
         if (testCase.requiredCapabilities.contains(SUBQUERY_IN_FROM_COMMAND.capabilityName())) {

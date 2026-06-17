@@ -7,10 +7,10 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.physical.local;
 
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.datasources.StatValueComparator;
 import org.elasticsearch.xpack.esql.datasources.spi.SplitStats;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
@@ -515,33 +515,11 @@ final class SplitFilterClassifier {
 
     /**
      * Compares two values, returning negative, zero, or positive as with {@link Comparable#compareTo}.
-     * Returns {@link Integer#MIN_VALUE} when the values are not comparable (type mismatch or null).
-     * Uses exact long comparison for integral types to avoid double precision loss.
+     * Returns {@link StatValueComparator#INCOMPARABLE} ({@link Integer#MIN_VALUE}) when the values are
+     * not comparable (type mismatch or null). Delegates to the shared {@link StatValueComparator} so all
+     * stats-driven planner comparisons normalize boxed numeric types identically.
      */
-    @SuppressWarnings({ "rawtypes", "unchecked" })
     static int compareValues(Object a, Object b) {
-        if (a == null || b == null) {
-            return Integer.MIN_VALUE;
-        }
-        if (a instanceof BytesRef br) {
-            a = br.utf8ToString();
-        }
-        if (b instanceof BytesRef br) {
-            b = br.utf8ToString();
-        }
-        if (a instanceof Number na && b instanceof Number nb) {
-            if (isIntegral(na) && isIntegral(nb)) {
-                return Long.compare(na.longValue(), nb.longValue());
-            }
-            return Double.compare(na.doubleValue(), nb.doubleValue());
-        }
-        if (a instanceof Comparable ca && a.getClass() == b.getClass()) {
-            return ca.compareTo(b);
-        }
-        return Integer.MIN_VALUE;
-    }
-
-    private static boolean isIntegral(Number n) {
-        return n instanceof Long || n instanceof Integer || n instanceof Short || n instanceof Byte;
+        return StatValueComparator.compare(a, b);
     }
 }

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.inference;
 
+import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseListener;
 import org.elasticsearch.common.Strings;
@@ -34,8 +35,17 @@ public class DefaultEndPointsIT extends InferenceBaseRestTest {
     private TestThreadPool threadPool;
 
     @Before
-    public void createThreadPool() {
+    public void setupTest() throws Exception {
         threadPool = new TestThreadPool(DefaultEndPointsIT.class.getSimpleName());
+
+        Request loggingSettings = new Request("PUT", "_cluster/settings");
+        loggingSettings.setJsonEntity("""
+            {"persistent" : {
+                    "logger.org.elasticsearch.xpack.ml.packageloader" : "DEBUG"
+                }}""");
+        client().performRequest(loggingSettings);
+        initInferenceIndices();
+        ensureNoInitializingShards();
     }
 
     @After

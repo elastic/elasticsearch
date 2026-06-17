@@ -818,7 +818,8 @@ public class MachineLearning extends Plugin
             MAX_ML_NODE_SIZE,
             DELAYED_DATA_CHECK_FREQ,
             DUMMY_ENTITY_MEMORY,
-            DUMMY_ENTITY_PROCESSORS
+            DUMMY_ENTITY_PROCESSORS,
+            MlAnomaliesIndexUpdate.HEAL_REINDEXED_V7_ENABLED
         );
     }
 
@@ -1258,7 +1259,14 @@ public class MachineLearning extends Plugin
                     indexNameExpressionResolver,
                     client
                 ),
-                new MlAnomaliesIndexUpdate(indexNameExpressionResolver, client)
+                new MlAnomaliesIndexUpdate(
+                    clusterService,
+                    indexNameExpressionResolver,
+                    client,
+                    anomalyDetectionAuditor,
+                    systemAuditor,
+                    () -> clusterService.getClusterSettings().get(MlAnomaliesIndexUpdate.HEAL_REINDEXED_V7_ENABLED)
+                )
             )
         );
         clusterService.addListener(mlAutoUpdateService);

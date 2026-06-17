@@ -122,10 +122,6 @@ public class DLMFrozenTransitionPlugin extends Plugin {
 
     @Override
     public List<Setting<?>> getSettings() {
-        return List.of(
-            DLMFrozenTransitionService.POLL_INTERVAL_SETTING,
-            DLMFrozenCleanupService.POLL_INTERVAL_SETTING,
-            DLMConvertToFrozen.DLM_CREATED_SETTING
-        );
+        return List.of(DLMFrozenTransitionService.POLL_INTERVAL_SETTING, DLMFrozenCleanupService.POLL_INTERVAL_SETTING);
     }
 }

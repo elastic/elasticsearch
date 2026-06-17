@@ -2,23 +2,25 @@
 
 ## `ceil` [promql-fn-ceil]
 
-{applies_to}`stack: preview 9.4.0` {applies_to}`serverless: preview`
+{applies_to}`stack: preview 9.4, ga 9.5` {applies_to}`serverless: ga`
 
 Rounds the sample values of all elements up to the nearest integer.
 
-Returns `instant_vector`.
+**Return type**
 
-### Parameters
+`instant_vector`
+
+**Parameters**
 
 `v` (`instant_vector`)
 :   Instant vector input.
 
-### Example
+**Example**
 
 ```
 ceil(rate(http_requests_total[5m]))
 ```
 
-### Differences from Prometheus
+**Differences from Prometheus**
 
 Preserves the input's integer or floating-point type: whole-number inputs are returned unchanged instead of being converted to a float.

@@ -2,23 +2,25 @@
 
 ## `count` [promql-fn-count]
 
-{applies_to}`stack: preview 9.4.0` {applies_to}`serverless: preview`
+{applies_to}`stack: preview 9.4, ga 9.5` {applies_to}`serverless: ga`
 
 Counts the number of elements in the input vector.
 
-Returns `instant_vector`.
+**Return type**
 
-### Parameters
+`instant_vector`
+
+**Parameters**
 
 `v` (`instant_vector`)
 :   Instant vector input.
 
-### Example
+**Example**
 
 ```
 count(http_requests_total)
 ```
 
-### Differences from Prometheus
+**Differences from Prometheus**
 
 Returns a `long` integer count rather than a floating-point value.

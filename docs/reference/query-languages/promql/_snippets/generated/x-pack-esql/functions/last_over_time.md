@@ -2,19 +2,25 @@
 
 ## `last_over_time` [promql-fn-last_over_time]
 
-{applies_to}`stack: preview 9.4.0` {applies_to}`serverless: preview`
+{applies_to}`stack: preview 9.4, ga 9.5` {applies_to}`serverless: ga`
 
 Returns the most recent value of each time series in the specified time range.
 
-Returns `instant_vector`.
+**Return type**
 
-### Parameters
+`instant_vector`
+
+**Parameters**
 
 `v` (`range_vector`)
 :   Range vector input.
 
-### Example
+**Example**
 
 ```
 last_over_time(http_requests_total[1h])
 ```
+
+**Differences from Prometheus**
+
+Accepts additional {{es}} field types (for example `keyword`, `ip`, and `date`) and returns counter inputs unchanged rather than rejecting or converting them.

@@ -2,18 +2,20 @@
 
 ## `sum` [promql-fn-sum]
 
-{applies_to}`stack: preview 9.4.0` {applies_to}`serverless: preview`
+{applies_to}`stack: preview 9.4, ga 9.5` {applies_to}`serverless: ga`
 
 Calculates the sum of the values across the input vector.
 
-Returns `instant_vector`.
+**Return type**
 
-### Parameters
+`instant_vector`
+
+**Parameters**
 
 `v` (`instant_vector`)
 :   Instant vector input.
 
-### Example
+**Example**
 
 ```
 sum(http_requests_total)

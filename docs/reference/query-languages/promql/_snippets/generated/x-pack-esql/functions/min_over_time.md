@@ -2,18 +2,20 @@
 
 ## `min_over_time` [promql-fn-min_over_time]
 
-{applies_to}`stack: preview 9.4.0` {applies_to}`serverless: preview`
+{applies_to}`stack: preview 9.4, ga 9.5` {applies_to}`serverless: ga`
 
 Returns the minimum value of all points in the specified time range.
 
-Returns `instant_vector`.
+**Return type**
 
-### Parameters
+`instant_vector`
+
+**Parameters**
 
 `v` (`range_vector`)
 :   Range vector input.
 
-### Example
+**Example**
 
 ```
 min_over_time(http_requests_total[5m])

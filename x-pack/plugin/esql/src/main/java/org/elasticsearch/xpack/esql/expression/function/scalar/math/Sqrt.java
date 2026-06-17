@@ -37,6 +37,9 @@ public class Sqrt extends UnaryScalarFunction {
         .unaryValueTransformation(Sqrt::new)
         .description("Calculates the square root of all elements in the input vector.")
         .example("sqrt(http_requests_total)")
+        .differenceFromPrometheus(
+            "For a negative input, {{es}} returns `null` and emits a warning, rather than the `NaN` that Prometheus returns."
+        )
         .name("sqrt");
 
     @FunctionInfo(returnType = "double", briefSummary = "Returns the square root of a number.", description = """

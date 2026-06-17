@@ -2,18 +2,20 @@
 
 ## `stdvar` [promql-fn-stdvar]
 
-{applies_to}`stack: preview 9.4.0` {applies_to}`serverless: preview`
+{applies_to}`stack: preview 9.4, ga 9.5` {applies_to}`serverless: ga`
 
-Calculates the population standard variance across the input vector.
+Calculates the population variance across the input vector.
 
-Returns `instant_vector`.
+**Return type**
 
-### Parameters
+`instant_vector`
+
+**Parameters**
 
 `v` (`instant_vector`)
 :   Instant vector input.
 
-### Example
+**Example**
 
 ```
 stdvar(http_requests_total)

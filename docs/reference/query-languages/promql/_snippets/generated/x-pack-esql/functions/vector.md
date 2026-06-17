@@ -2,18 +2,20 @@
 
 ## `vector` [promql-fn-vector]
 
-{applies_to}`stack: preview 9.4.0` {applies_to}`serverless: preview`
+{applies_to}`stack: preview 9.4, ga 9.5` {applies_to}`serverless: ga`
 
 Returns the scalar as a vector with no labels.
 
-Returns `instant_vector`.
+**Return type**
 
-### Parameters
+`instant_vector`
+
+**Parameters**
 
 `s` (`scalar`)
 :   Scalar value.
 
-### Example
+**Example**
 
 ```
 vector(1)

@@ -41,6 +41,7 @@ public class Floor extends UnaryScalarFunction {
         .unaryValueTransformation(Floor::new)
         .description("Rounds the sample values of all elements down to the nearest integer.")
         .example("floor(rate(http_requests_total[5m]))")
+        .differenceFromPrometheus(PromqlFunctionDefinition.WHOLE_NUMBER_TYPE_NOTE)
         .name("floor");
 
     @FunctionInfo(

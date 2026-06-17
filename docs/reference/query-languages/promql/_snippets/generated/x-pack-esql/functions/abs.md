@@ -2,23 +2,25 @@
 
 ## `abs` [promql-fn-abs]
 
-{applies_to}`stack: preview 9.4.0` {applies_to}`serverless: preview`
+{applies_to}`stack: preview 9.4, ga 9.5` {applies_to}`serverless: ga`
 
 Returns the input vector with all sample values converted to their absolute value.
 
-Returns `instant_vector`.
+**Return type**
 
-### Parameters
+`instant_vector`
+
+**Parameters**
 
 `v` (`instant_vector`)
 :   Instant vector input.
 
-### Example
+**Example**
 
 ```
 abs(rate(http_requests_total[5m]))
 ```
 
-### Differences from Prometheus
+**Differences from Prometheus**
 
 Preserves the input's integer or floating-point type instead of always returning a float. For the minimum `integer` or `long` value, whose absolute value cannot be represented, {{es}} returns `null` and emits a warning.

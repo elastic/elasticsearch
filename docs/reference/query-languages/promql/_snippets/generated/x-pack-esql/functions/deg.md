@@ -2,19 +2,25 @@
 
 ## `deg` [promql-fn-deg]
 
-{applies_to}`stack: preview 9.4.0` {applies_to}`serverless: preview`
+{applies_to}`stack: preview 9.4, ga 9.5` {applies_to}`serverless: ga`
 
 Converts input values from radians to degrees for all elements in the input vector.
 
-Returns `instant_vector`.
+**Return type**
 
-### Parameters
+`instant_vector`
+
+**Parameters**
 
 `v` (`instant_vector`)
 :   Instant vector input.
 
-### Example
+**Example**
 
 ```
 deg(some_metric)
 ```
+
+**Differences from Prometheus**
+
+For `NaN` or infinite inputs, {{es}} returns `null` and emits a warning, instead of returning the value unchanged.

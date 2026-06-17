@@ -34,6 +34,9 @@ public class Acosh extends AbstractTrigonometricFunction {
         .unaryValueTransformation(Acosh::new)
         .description("Calculates the inverse hyperbolic cosine of all elements in the input vector.")
         .example("acosh(some_metric)")
+        .differenceFromPrometheus(
+            "For inputs below 1, {{es}} returns `null` and emits a warning, rather than the `NaN` that Prometheus returns."
+        )
         .name("acosh");
 
     private static final double LN2 = Math.log(2);

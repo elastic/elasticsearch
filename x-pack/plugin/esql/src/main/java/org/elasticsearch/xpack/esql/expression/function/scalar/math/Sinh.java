@@ -33,6 +33,7 @@ public class Sinh extends AbstractTrigonometricFunction {
         .unaryValueTransformation(Sinh::new)
         .description("Calculates the hyperbolic sine of all elements in the input vector.")
         .example("sinh(some_metric)")
+        .differenceFromPrometheus(PromqlFunctionDefinition.OVERFLOW_NOTE)
         .name("sinh");
 
     @FunctionInfo(

@@ -63,6 +63,7 @@ public class Irate extends TimeSeriesAggregateFunction
         .counterSupport(PromqlFunctionDefinition.CounterSupport.REQUIRED)
         .description("Calculates the per-second instant rate of increase based on the last two data points.")
         .example("irate(http_requests_total[5m])")
+        .differenceFromPrometheus(PromqlFunctionDefinition.RATE_FAMILY_NOTE)
         .name("irate");
 
     private static final TransportVersion IRATE_V2 = TransportVersion.fromName("esql_irate_v2");

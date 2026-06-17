@@ -2,23 +2,25 @@
 
 ## `absent_over_time` [promql-fn-absent_over_time]
 
-{applies_to}`stack: preview 9.4.0` {applies_to}`serverless: preview`
+{applies_to}`stack: preview 9.4, ga 9.5` {applies_to}`serverless: ga`
 
 Returns true if the range vector has no elements.
 
-Returns `instant_vector`.
+**Return type**
 
-### Parameters
+`instant_vector`
+
+**Parameters**
 
 `v` (`range_vector`)
 :   Range vector input.
 
-### Example
+**Example**
 
 ```
 absent_over_time(nonexistent_metric[5m])
 ```
 
-### Differences from Prometheus
+**Differences from Prometheus**
 
-Returns a `boolean` (`true` when the range vector has no samples) rather than the numeric value `1` that Prometheus returns.
+Evaluated per series and per time bucket: returns `true` (PromQL `1`) when the bucket has no samples and `false` (PromQL `0`) otherwise. This differs from Prometheus in two ways: Prometheus returns an empty result when samples exist (rather than `0`), and it reports a fully missing series by synthesizing a single `1` from the selector labels. {{es}} evaluates only series that already exist in the data, so it cannot flag a metric that is entirely absent.

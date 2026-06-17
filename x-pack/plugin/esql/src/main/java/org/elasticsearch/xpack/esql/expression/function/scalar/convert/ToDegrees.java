@@ -46,6 +46,9 @@ public class ToDegrees extends AbstractConvertFunction implements EvaluatorMappe
         .unaryValueTransformation(ToDegrees::new)
         .description("Converts input values from radians to degrees for all elements in the input vector.")
         .example("deg(some_metric)")
+        .differenceFromPrometheus(
+            "For `NaN` or infinite inputs, {{es}} returns `null` and emits a warning, instead of returning the value unchanged."
+        )
         .name("deg");
 
     private static final Map<DataType, BuildFactory> EVALUATORS = Map.ofEntries(

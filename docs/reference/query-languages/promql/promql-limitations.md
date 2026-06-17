@@ -49,7 +49,7 @@ The following constructs are not evaluated yet, so they return a client error (4
 ## Metric metadata `help` (HTTP API) [promql-limitations-metadata-help]
 
 On [`/api/v1/metadata`](promql-http-api.md#promql-http-api-metadata-endpoint), each metric includes a `help` string shaped like Prometheus `HELP` lines.
-In this preview the `help` field is always an empty string. Help text from metric definitions is not surfaced yet.
+Currently, the `help` field is always an empty string. Help text from metric definitions is not surfaced yet.
 
 ## Exemplar queries (HTTP API) [promql-limitations-exemplars]
 

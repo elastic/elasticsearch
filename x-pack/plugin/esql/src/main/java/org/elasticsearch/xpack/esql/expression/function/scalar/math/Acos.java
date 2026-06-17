@@ -33,6 +33,7 @@ public class Acos extends AbstractTrigonometricFunction {
         .unaryValueTransformation(Acos::new)
         .description("Calculates the arccosine of all elements in the input vector.")
         .example("acos(some_metric)")
+        .differenceFromPrometheus(PromqlFunctionDefinition.DOMAIN_PLUS_MINUS_ONE_NOTE)
         .name("acos");
 
     @FunctionInfo(

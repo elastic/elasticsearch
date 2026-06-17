@@ -2,23 +2,25 @@
 
 ## `sinh` [promql-fn-sinh]
 
-{applies_to}`stack: preview 9.4.0` {applies_to}`serverless: preview`
+{applies_to}`stack: preview 9.4, ga 9.5` {applies_to}`serverless: ga`
 
 Calculates the hyperbolic sine of all elements in the input vector.
 
-Returns `instant_vector`.
+**Return type**
 
-### Parameters
+`instant_vector`
+
+**Parameters**
 
 `v` (`instant_vector`)
 :   Instant vector input.
 
-### Example
+**Example**
 
 ```
 sinh(some_metric)
 ```
 
-### Differences from Prometheus
+**Differences from Prometheus**
 
 On numeric overflow for large-magnitude inputs, {{es}} returns `null` and emits a warning, rather than the `±Inf` that Prometheus returns.

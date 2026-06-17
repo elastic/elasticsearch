@@ -133,6 +133,10 @@ public class PromqlBuiltinFunctionDefinitions {
         })
         .example("round(rate(http_requests_total[5m]))")
         .description("Rounds the sample values to the nearest integer, or to the nearest multiple of the optional argument.")
+        .differenceFromPrometheus(
+            "With a `to_nearest` argument, ties round up, matching Prometheus. Called with a single argument, a `NaN` input "
+                + "returns `0` instead of `NaN`."
+        )
         .name("round");
 
     /**

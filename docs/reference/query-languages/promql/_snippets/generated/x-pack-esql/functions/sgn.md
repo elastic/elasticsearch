@@ -2,18 +2,20 @@
 
 ## `sgn` [promql-fn-sgn]
 
-{applies_to}`stack: preview 9.4.0` {applies_to}`serverless: preview`
+{applies_to}`stack: preview 9.4, ga 9.5` {applies_to}`serverless: ga`
 
 Returns the sign of the sample values: -1 for negative, 0 for zero, and 1 for positive values.
 
-Returns `instant_vector`.
+**Return type**
 
-### Parameters
+`instant_vector`
+
+**Parameters**
 
 `v` (`instant_vector`)
 :   Instant vector input.
 
-### Example
+**Example**
 
 ```
 sgn(delta(queue_depth[5m]))

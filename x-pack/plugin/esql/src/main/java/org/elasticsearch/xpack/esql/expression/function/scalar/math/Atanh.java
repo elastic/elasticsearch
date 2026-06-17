@@ -34,6 +34,10 @@ public class Atanh extends AbstractTrigonometricFunction {
         .unaryValueTransformation(Atanh::new)
         .description("Calculates the inverse hyperbolic tangent of all elements in the input vector.")
         .example("atanh(some_metric)")
+        .differenceFromPrometheus(
+            "For an input whose absolute value is 1 or greater, {{es}} returns `null` and emits a warning, rather than "
+                + "the `±Inf` or `NaN` that Prometheus returns."
+        )
         .name("atanh");
 
     @FunctionInfo(

@@ -42,6 +42,7 @@ public final class PromqlFunctionDefinition {
     private final List<PromqlParamInfo> params;
     private final List<String> examples;
     private final CounterSupport counterSupport;
+    private final String differenceFromPrometheus;
 
     @FunctionalInterface
     public interface FunctionBuilder {
@@ -143,7 +144,8 @@ public final class PromqlFunctionDefinition {
         String description,
         List<PromqlParamInfo> params,
         List<String> examples,
-        CounterSupport counterSupport
+        CounterSupport counterSupport,
+        String differenceFromPrometheus
     ) {
         Objects.requireNonNull(name, "name cannot be null");
         Objects.requireNonNull(functionType, "functionType cannot be null");
@@ -175,6 +177,8 @@ public final class PromqlFunctionDefinition {
         this.params = params;
         this.examples = examples;
         this.counterSupport = counterSupport;
+        // Optional: only set for functions whose Elasticsearch behavior diverges from the Prometheus reference.
+        this.differenceFromPrometheus = differenceFromPrometheus;
     }
 
     public String name() {
@@ -209,6 +213,14 @@ public final class PromqlFunctionDefinition {
         return counterSupport;
     }
 
+    /**
+     * The "Differences from Prometheus" note rendered in the generated function docs, or {@code null} when the
+     * function matches the Prometheus reference behavior.
+     */
+    public String differenceFromPrometheus() {
+        return differenceFromPrometheus;
+    }
+
     @Override
     public String toString() {
         return name;
@@ -230,6 +242,39 @@ public final class PromqlFunctionDefinition {
     );
     public static final PromqlParamInfo MIN_SCALAR = PromqlParamInfo.of("min", PromqlDataType.SCALAR, "Minimum value.");
     public static final PromqlParamInfo MAX_SCALAR = PromqlParamInfo.of("max", PromqlDataType.SCALAR, "Maximum value.");
+
+    /*
+     * Shared "Differences from Prometheus" notes, reused by function definitions whose Elasticsearch behavior diverges
+     * from the Prometheus reference in the same way. Function-specific notes are declared inline at each definition via
+     * {@link Builder#differenceFromPrometheus}; these presets exist only to avoid duplicating identical text across the
+     * functions that share a divergence. The notes are rendered (with `{{es}}` substitution) by the docs generator.
+     */
+    public static final String RATE_FAMILY_NOTE =
+        "Requires a counter input; non-counter inputs are automatically coerced with `to_counter`. The metric's "
+            + "configured temporality (cumulative or delta) is honored. Native histogram inputs are not supported, and "
+            + "the result is always a `double`.";
+    public static final String GAUGE_FAMILY_NOTE =
+        "This is a gauge-only function: counter inputs are automatically converted to a gauge with `to_gauge`. Native "
+            + "histogram inputs are not supported. The result is always a `double`.";
+    public static final String FIRST_LAST_NOTE =
+        "Accepts additional {{es}} field types (for example `keyword`, `ip`, and `date`) and returns counter inputs "
+            + "unchanged rather than rejecting or converting them.";
+    public static final String COUNT_NOTE = "Returns a `long` integer count rather than a floating-point value.";
+    public static final String LOG_DOMAIN_NOTE =
+        "For an input of zero or a negative number, {{es}} returns `null` and emits a warning, rather than the "
+            + "`-Inf` (for zero) or `NaN` (for negatives) that Prometheus returns.";
+    public static final String DOMAIN_PLUS_MINUS_ONE_NOTE =
+        "For inputs outside the range [-1, 1], {{es}} returns `null` and emits a warning, rather than the `NaN` that "
+            + "Prometheus returns.";
+    public static final String OVERFLOW_NOTE =
+        "On numeric overflow for large-magnitude inputs, {{es}} returns `null` and emits a warning, rather than the "
+            + "`±Inf` that Prometheus returns.";
+    public static final String WHOLE_NUMBER_TYPE_NOTE =
+        "Preserves the input's integer or floating-point type: whole-number inputs are returned unchanged instead of "
+            + "being converted to a float.";
+    public static final String QUANTILE_NOTE =
+        "Computed using the {{es}} t-digest percentile aggregation, so results are approximate and may differ slightly "
+            + "from Prometheus's exact linear interpolation, particularly for small sample sets.";
 
     /**
      * Scales a PromQL quantile φ (in the range [0, 1]) to the percentile value (in the range [0, 100]) expected by
@@ -259,6 +304,7 @@ public final class PromqlFunctionDefinition {
         private String description;
         private List<PromqlParamInfo> params;
         private CounterSupport counterSupport = CounterSupport.UNSUPPORTED;
+        private String differenceFromPrometheus;
 
         public PromqlFunctionDefinition.Builder counterSupport(CounterSupport counterSupport) {
             this.counterSupport = counterSupport;
@@ -267,6 +313,15 @@ public final class PromqlFunctionDefinition {
 
         public PromqlFunctionDefinition.Builder description(String description) {
             this.description = description;
+            return this;
+        }
+
+        /**
+         * Documents how this function's Elasticsearch behavior diverges from the Prometheus reference. Rendered as a
+         * "Differences from Prometheus" section in the generated docs. Omit for functions that match Prometheus.
+         */
+        public PromqlFunctionDefinition.Builder differenceFromPrometheus(String differenceFromPrometheus) {
+            this.differenceFromPrometheus = differenceFromPrometheus;
             return this;
         }
 
@@ -460,7 +515,17 @@ public final class PromqlFunctionDefinition {
          * Build the {@link PromqlFunctionDefinition} with the given primary name.
          */
         public PromqlFunctionDefinition name(String name) {
-            return new PromqlFunctionDefinition(name, functionType, arity, builder, description, params, examples, counterSupport);
+            return new PromqlFunctionDefinition(
+                name,
+                functionType,
+                arity,
+                builder,
+                description,
+                params,
+                examples,
+                counterSupport,
+                differenceFromPrometheus
+            );
         }
     }
 

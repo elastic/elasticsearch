@@ -47,6 +47,7 @@ public class PercentileOverTime extends TimeSeriesAggregateFunction implements S
         )
         .description("Returns the φ-quantile (0 ≤ φ ≤ 1) of the values in the specified time range.")
         .example("quantile_over_time(0.5, http_requests_total[1h])")
+        .differenceFromPrometheus(PromqlFunctionDefinition.QUANTILE_NOTE)
         .name("quantile_over_time");
 
     @FunctionInfo(

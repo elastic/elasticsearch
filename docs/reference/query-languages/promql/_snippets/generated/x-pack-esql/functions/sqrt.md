@@ -2,23 +2,25 @@
 
 ## `sqrt` [promql-fn-sqrt]
 
-{applies_to}`stack: preview 9.4.0` {applies_to}`serverless: preview`
+{applies_to}`stack: preview 9.4, ga 9.5` {applies_to}`serverless: ga`
 
 Calculates the square root of all elements in the input vector.
 
-Returns `instant_vector`.
+**Return type**
 
-### Parameters
+`instant_vector`
+
+**Parameters**
 
 `v` (`instant_vector`)
 :   Instant vector input.
 
-### Example
+**Example**
 
 ```
 sqrt(http_requests_total)
 ```
 
-### Differences from Prometheus
+**Differences from Prometheus**
 
 For a negative input, {{es}} returns `null` and emits a warning, rather than the `NaN` that Prometheus returns.

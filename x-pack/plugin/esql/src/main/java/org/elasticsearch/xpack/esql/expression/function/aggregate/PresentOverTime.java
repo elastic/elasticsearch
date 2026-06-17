@@ -49,6 +49,11 @@ public class PresentOverTime extends TimeSeriesAggregateFunction implements Aggr
         .counterSupport(PromqlFunctionDefinition.CounterSupport.SUPPORTED)
         .description("Returns true if the range vector has at least one element.")
         .example("present_over_time(http_requests_total[5m])")
+        .differenceFromPrometheus(
+            "Evaluated per series and per time bucket: returns `true` (PromQL `1`) when the bucket has at least one "
+                + "sample and `false` (PromQL `0`) otherwise. Prometheus returns `1` only for series that have samples "
+                + "and omits the rest; it never emits `0`."
+        )
         .name("present_over_time");
 
     @FunctionInfo(

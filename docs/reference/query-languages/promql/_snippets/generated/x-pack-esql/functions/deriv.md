@@ -2,23 +2,25 @@
 
 ## `deriv` [promql-fn-deriv]
 
-{applies_to}`stack: preview 9.4.0` {applies_to}`serverless: preview`
+{applies_to}`stack: preview 9.4, ga 9.5` {applies_to}`serverless: ga`
 
 Calculates the per-second derivative of the time series using simple linear regression.
 
-Returns `instant_vector`.
+**Return type**
 
-### Parameters
+`instant_vector`
+
+**Parameters**
 
 `v` (`range_vector`)
 :   Range vector input.
 
-### Example
+**Example**
 
 ```
 deriv(node_memory_free_bytes[5m])
 ```
 
-### Differences from Prometheus
+**Differences from Prometheus**
 
-This is a gauge-only function: counter inputs are automatically converted to a gauge with `to_gauge`. Native histogram inputs are not supported.
+This is a gauge-only function: counter inputs are automatically converted to a gauge with `to_gauge`. Native histogram inputs are not supported. The result is always a `double`. When fewer than two samples are available or the regression slope is undefined, the result is `null` rather than `NaN`.

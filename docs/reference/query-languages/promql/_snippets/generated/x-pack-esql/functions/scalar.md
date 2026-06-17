@@ -2,18 +2,20 @@
 
 ## `scalar` [promql-fn-scalar]
 
-{applies_to}`stack: preview 9.4.0` {applies_to}`serverless: preview`
+{applies_to}`stack: preview 9.4, ga 9.5` {applies_to}`serverless: ga`
 
 Returns the sample value of a single-element instant vector as a scalar. If the input vector does not have exactly one element, scalar returns NaN.
 
-Returns `scalar`.
+**Return type**
 
-### Parameters
+`scalar`
+
+**Parameters**
 
 `v` (`instant_vector`)
 :   Instant vector input.
 
-### Example
+**Example**
 
 ```
 scalar(sum(http_requests_total))

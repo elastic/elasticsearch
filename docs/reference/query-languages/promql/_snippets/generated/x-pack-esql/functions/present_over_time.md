@@ -2,23 +2,25 @@
 
 ## `present_over_time` [promql-fn-present_over_time]
 
-{applies_to}`stack: preview 9.4.0` {applies_to}`serverless: preview`
+{applies_to}`stack: preview 9.4, ga 9.5` {applies_to}`serverless: ga`
 
 Returns true if the range vector has at least one element.
 
-Returns `instant_vector`.
+**Return type**
 
-### Parameters
+`instant_vector`
+
+**Parameters**
 
 `v` (`range_vector`)
 :   Range vector input.
 
-### Example
+**Example**
 
 ```
 present_over_time(http_requests_total[5m])
 ```
 
-### Differences from Prometheus
+**Differences from Prometheus**
 
-Returns a `boolean` (`true` when the range vector has at least one sample) rather than the numeric value `1` that Prometheus returns.
+Evaluated per series and per time bucket: returns `true` (PromQL `1`) when the bucket has at least one sample and `false` (PromQL `0`) otherwise. Prometheus returns `1` only for series that have samples and omits the rest; it never emits `0`.

@@ -2,13 +2,15 @@
 
 ## `histogram_quantile` [promql-fn-histogram_quantile]
 
-{applies_to}`stack: preview 9.4.0` {applies_to}`serverless: preview`
+{applies_to}`stack: preview 9.4, ga 9.5` {applies_to}`serverless: ga`
 
 Returns the φ-quantile of a classic histogram represented by cumulative `le` buckets.
 
-Returns `instant_vector`.
+**Return type**
 
-### Parameters
+`instant_vector`
+
+**Parameters**
 
 `φ` (`scalar`)
 :   Quantile value (0 ≤ φ ≤ 1).
@@ -16,12 +18,12 @@ Returns `instant_vector`.
 `v` (`instant_vector`)
 :   Instant vector input.
 
-### Example
+**Example**
 
 ```
 histogram_quantile(0.9, rate(http_request_duration_seconds_bucket[5m]))
 ```
 
-### Differences from Prometheus
+**Differences from Prometheus**
 
 Only classic histograms, represented by cumulative `le` bucket series, are supported. Prometheus native histograms are not supported.

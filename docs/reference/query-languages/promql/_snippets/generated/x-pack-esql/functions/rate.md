@@ -2,23 +2,25 @@
 
 ## `rate` [promql-fn-rate]
 
-{applies_to}`stack: preview 9.4.0` {applies_to}`serverless: preview`
+{applies_to}`stack: preview 9.4, ga 9.5` {applies_to}`serverless: ga`
 
 Calculates the per-second average rate of increase of the time series in the range vector.
 
-Returns `instant_vector`.
+**Return type**
 
-### Parameters
+`instant_vector`
+
+**Parameters**
 
 `v` (`range_vector`)
 :   Range vector input.
 
-### Example
+**Example**
 
 ```
 rate(http_requests_total[5m])
 ```
 
-### Differences from Prometheus
+**Differences from Prometheus**
 
 Requires a counter input; non-counter inputs are automatically coerced with `to_counter`. The metric's configured temporality (cumulative or delta) is honored. Native histogram inputs are not supported, and the result is always a `double`.

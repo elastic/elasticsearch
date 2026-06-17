@@ -25,7 +25,10 @@ import java.util.SortedSet;
 import java.util.TreeSet;
 
 /**
- * Generates PromQL Kibana definition JSON files.
+ * Generates the PromQL reference documentation from the function registry: the Kibana definition JSON files, the
+ * per-function and per-category markdown snippets, and the "Not yet supported" list. All outputs are asserted
+ * byte-for-byte in CI, so this class is the source of truth for the committed files under
+ * {@code docs/reference/query-languages/promql/}.
  */
 public final class PromqlDocsSupport {
 
@@ -201,122 +204,11 @@ public final class PromqlDocsSupport {
         + "Do not edit it. See docs/reference/query-languages/esql/README.md for how to regenerate it.";
 
     /**
-     * Inline preview marker emitted on every function snippet. Kept consistent with the {@code promql.md} page
-     * frontmatter ({@code stack: preview 9.4.0}); update here if the PromQL function feature availability changes.
+     * Availability badge emitted on every function snippet. Must stay consistent with the {@code applies_to}
+     * frontmatter of the PromQL docs pages (for example {@code promql.md} and {@code functions.md}); update here if the
+     * PromQL function feature availability changes.
      */
-    private static final String MD_APPLIES_TO = "{applies_to}`stack: preview 9.4.0` {applies_to}`serverless: preview`";
-
-    private static final String RATE_FAMILY_NOTE =
-        "Requires a counter input; non-counter inputs are automatically coerced with `to_counter`. The metric's "
-            + "configured temporality (cumulative or delta) is honored. Native histogram inputs are not supported, and "
-            + "the result is always a `double`.";
-
-    private static final String GAUGE_FAMILY_NOTE =
-        "This is a gauge-only function: counter inputs are automatically converted to a gauge with `to_gauge`. Native "
-            + "histogram inputs are not supported.";
-
-    private static final String DOMAIN_PLUS_MINUS_ONE_NOTE =
-        "For inputs outside the range [-1, 1], {{es}} returns `null` and emits a warning, rather than the `NaN` that "
-            + "Prometheus returns.";
-
-    private static final String OVERFLOW_NOTE =
-        "On numeric overflow for large-magnitude inputs, {{es}} returns `null` and emits a warning, rather than the "
-            + "`±Inf` that Prometheus returns.";
-
-    private static final String WHOLE_NUMBER_TYPE_NOTE =
-        "Preserves the input's integer or floating-point type: whole-number inputs are returned unchanged instead of "
-            + "being converted to a float.";
-
-    private static final String QUANTILE_NOTE =
-        "Computed using the {{es}} t-digest percentile aggregation, so results are approximate and may differ slightly "
-            + "from Prometheus's exact linear interpolation, particularly for small sample sets.";
-
-    /**
-     * Per-function "Differences from Prometheus" notes, keyed by function name. Only functions whose {{es}} behavior
-     * diverges from the Prometheus reference have an entry; the note is appended to the generated snippet. Every entry
-     * is grounded in the implementation: see the cited source for each claim.
-     */
-    private static final Map<String, String> DIFFERENCES = Map.ofEntries(
-        // counterSupport=REQUIRED + InjectTemporality; no native histogram support.
-        Map.entry("rate", RATE_FAMILY_NOTE),
-        Map.entry("increase", RATE_FAMILY_NOTE),
-        Map.entry("irate", RATE_FAMILY_NOTE),
-        // counterSupport=UNSUPPORTED: counters wrapped with ToGauge in PromqlFunctionCall.
-        Map.entry("delta", GAUGE_FAMILY_NOTE),
-        Map.entry("idelta", GAUGE_FAMILY_NOTE),
-        Map.entry("deriv", GAUGE_FAMILY_NOTE),
-        // Count/CountOverTime return a long count.
-        Map.entry("count", "Returns a `long` integer count rather than a floating-point value."),
-        Map.entry("count_over_time", "Returns a `long` integer count rather than a floating-point value."),
-        // PresentOverTime/AbsentOverTime return boolean (returnType = { "boolean" }), not numeric 1.
-        Map.entry(
-            "present_over_time",
-            "Returns a `boolean` (`true` when the range vector has at least one sample) rather than the numeric value "
-                + "`1` that Prometheus returns."
-        ),
-        Map.entry(
-            "absent_over_time",
-            "Returns a `boolean` (`true` when the range vector has no samples) rather than the numeric value `1` that "
-                + "Prometheus returns."
-        ),
-        // ES|QL math evaluators return null + warning on domain errors instead of NaN/±Inf.
-        Map.entry(
-            "ln",
-            "For an input of zero or a negative number, {{es}} returns `null` and emits a warning, rather than the "
-                + "`-Inf` (for zero) or `NaN` (for negatives) that Prometheus returns."
-        ),
-        Map.entry(
-            "log2",
-            "For an input of zero or a negative number, {{es}} returns `null` and emits a warning, rather than the "
-                + "`-Inf` (for zero) or `NaN` (for negatives) that Prometheus returns."
-        ),
-        Map.entry(
-            "log10",
-            "For an input of zero or a negative number, {{es}} returns `null` and emits a warning, rather than the "
-                + "`-Inf` (for zero) or `NaN` (for negatives) that Prometheus returns."
-        ),
-        Map.entry(
-            "sqrt",
-            "For a negative input, {{es}} returns `null` and emits a warning, rather than the `NaN` that Prometheus " + "returns."
-        ),
-        Map.entry("asin", DOMAIN_PLUS_MINUS_ONE_NOTE),
-        Map.entry("acos", DOMAIN_PLUS_MINUS_ONE_NOTE),
-        Map.entry(
-            "acosh",
-            "For inputs below 1, {{es}} returns `null` and emits a warning, rather than the `NaN` that Prometheus " + "returns."
-        ),
-        Map.entry(
-            "atanh",
-            "For an input whose absolute value is 1 or greater, {{es}} returns `null` and emits a warning, rather than "
-                + "the `±Inf` or `NaN` that Prometheus returns."
-        ),
-        Map.entry("sinh", OVERFLOW_NOTE),
-        Map.entry("cosh", OVERFLOW_NOTE),
-        // abs/ceil/floor preserve integer types; abs of the minimum integer/long value overflows.
-        Map.entry(
-            "abs",
-            "Preserves the input's integer or floating-point type instead of always returning a float. For the minimum "
-                + "`integer` or `long` value, whose absolute value cannot be represented, {{es}} returns `null` and "
-                + "emits a warning."
-        ),
-        Map.entry("ceil", WHOLE_NUMBER_TYPE_NOTE),
-        Map.entry("floor", WHOLE_NUMBER_TYPE_NOTE),
-        // clamp is a surrogate for clamp_max(clamp_min(...)), so it lacks the min > max empty-vector special case.
-        Map.entry(
-            "clamp",
-            "Does not implement Prometheus's special case of returning an empty vector when `min` is greater than "
-                + "`max`; it always returns clamped values."
-        ),
-        // Percentile/PercentileOverTime use t-digest; the φ argument is scaled to the 0..100 percentile range.
-        Map.entry("quantile", QUANTILE_NOTE),
-        Map.entry("quantile_over_time", QUANTILE_NOTE),
-        // PromqlHistogramQuantile is classic-histogram only (le buckets); native histograms are not supported.
-        Map.entry(
-            "histogram_quantile",
-            "Only classic histograms, represented by cumulative `le` bucket series, are supported. Prometheus native "
-                + "histograms are not supported."
-        )
-    );
+    private static final String MD_APPLIES_TO = "{applies_to}`stack: preview 9.4, ga 9.5` {applies_to}`serverless: ga`";
 
     private PromqlDocsSupport() {}
 
@@ -367,10 +259,10 @@ public final class PromqlDocsSupport {
         blocks.add("## `" + def.name() + "` [promql-fn-" + def.name() + "]");
         blocks.add(MD_APPLIES_TO);
         blocks.add(def.description());
-        blocks.add("Returns `" + mapDataType(def.functionType().outputType()) + "`.");
+        blocks.add("**Return type**\n\n`" + mapDataType(def.functionType().outputType()) + "`");
 
         if (def.params().isEmpty() == false) {
-            StringBuilder params = new StringBuilder("### Parameters\n");
+            StringBuilder params = new StringBuilder("**Parameters**\n");
             for (var p : def.params()) {
                 params.append("\n`").append(p.name()).append("` (`").append(mapDataType(p.type())).append("`");
                 if (p.optional()) {
@@ -384,12 +276,12 @@ public final class PromqlDocsSupport {
         if (def.examples().isEmpty() == false) {
             // docs-builder has no `promql` highlighter (see elastic/docs-builder hljs.ts), so a bare fence avoids
             // "Unknown language" warnings. These examples are bare PromQL expressions, not ES|QL.
-            blocks.add("### Example\n\n```\n" + String.join("\n", def.examples()) + "\n```");
+            blocks.add("**Example**\n\n```\n" + String.join("\n", def.examples()) + "\n```");
         }
 
-        String note = DIFFERENCES.get(def.name());
+        String note = def.differenceFromPrometheus();
         if (note != null) {
-            blocks.add("### Differences from Prometheus\n\n" + note);
+            blocks.add("**Differences from Prometheus**\n\n" + note);
         }
 
         String rendered = String.join("\n\n", blocks) + "\n";

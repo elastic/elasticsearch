@@ -2,23 +2,25 @@
 
 ## `log2` [promql-fn-log2]
 
-{applies_to}`stack: preview 9.4.0` {applies_to}`serverless: preview`
+{applies_to}`stack: preview 9.4, ga 9.5` {applies_to}`serverless: ga`
 
 Calculates the binary logarithm for all elements in the input vector.
 
-Returns `instant_vector`.
+**Return type**
 
-### Parameters
+`instant_vector`
+
+**Parameters**
 
 `v` (`instant_vector`)
 :   Instant vector input.
 
-### Example
+**Example**
 
 ```
 log2(memory_usage_bytes)
 ```
 
-### Differences from Prometheus
+**Differences from Prometheus**
 
 For an input of zero or a negative number, {{es}} returns `null` and emits a warning, rather than the `-Inf` (for zero) or `NaN` (for negatives) that Prometheus returns.

@@ -2,13 +2,15 @@
 
 ## `clamp` [promql-fn-clamp]
 
-{applies_to}`stack: preview 9.4.0` {applies_to}`serverless: preview`
+{applies_to}`stack: preview 9.4, ga 9.5` {applies_to}`serverless: ga`
 
 Clamps the sample values of all elements to be within [min, max].
 
-Returns `instant_vector`.
+**Return type**
 
-### Parameters
+`instant_vector`
+
+**Parameters**
 
 `v` (`instant_vector`)
 :   Instant vector input.
@@ -19,12 +21,12 @@ Returns `instant_vector`.
 `max` (`scalar`)
 :   Maximum value.
 
-### Example
+**Example**
 
 ```
 clamp(http_requests_total, 0, 100)
 ```
 
-### Differences from Prometheus
+**Differences from Prometheus**
 
 Does not implement Prometheus's special case of returning an empty vector when `min` is greater than `max`; it always returns clamped values.

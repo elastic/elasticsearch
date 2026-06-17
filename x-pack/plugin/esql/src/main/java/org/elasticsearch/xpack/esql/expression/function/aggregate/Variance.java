@@ -41,7 +41,7 @@ public class Variance extends AggregateFunction implements ToAggregator {
         .name("variance", "std_var");
     public static final PromqlFunctionDefinition PROMQL_DEFINITION = PromqlFunctionDefinition.def()
         .acrossSeries(Variance::new)
-        .description("Calculates the population standard variance across the input vector.")
+        .description("Calculates the population variance across the input vector.")
         .example("stdvar(http_requests_total)")
         .name("stdvar");
 

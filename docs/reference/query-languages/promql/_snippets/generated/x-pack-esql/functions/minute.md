@@ -2,18 +2,20 @@
 
 ## `minute` [promql-fn-minute]
 
-{applies_to}`stack: preview 9.4.0` {applies_to}`serverless: preview`
+{applies_to}`stack: preview 9.4, ga 9.5` {applies_to}`serverless: ga`
 
 Returns the minute of the hour for each of the input timestamps (in UTC). Returned values are from 0 to 59.
 
-Returns `instant_vector`.
+**Return type**
 
-### Parameters
+`instant_vector`
+
+**Parameters**
 
 `v` (`instant_vector`, optional)
 :   Optional instant vector input. If omitted, evaluation timestamp is used.
 
-### Example
+**Example**
 
 ```
 minute()

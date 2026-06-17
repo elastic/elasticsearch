@@ -60,6 +60,7 @@ public class CountOverTime extends TimeSeriesAggregateFunction
         .withinSeriesOverTime(CountOverTime::new)
         .description("Returns the count of all values in the specified time range.")
         .example("count_over_time(http_requests_total[5m])")
+        .differenceFromPrometheus(PromqlFunctionDefinition.COUNT_NOTE)
         .name("count_over_time");
 
     @FunctionInfo(

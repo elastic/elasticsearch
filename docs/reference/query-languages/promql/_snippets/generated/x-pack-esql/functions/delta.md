@@ -2,23 +2,25 @@
 
 ## `delta` [promql-fn-delta]
 
-{applies_to}`stack: preview 9.4.0` {applies_to}`serverless: preview`
+{applies_to}`stack: preview 9.4, ga 9.5` {applies_to}`serverless: ga`
 
 Calculates the difference between the first and last value of each time series in a range vector.
 
-Returns `instant_vector`.
+**Return type**
 
-### Parameters
+`instant_vector`
+
+**Parameters**
 
 `v` (`range_vector`)
 :   Range vector input.
 
-### Example
+**Example**
 
 ```
 delta(cpu_temp_celsius[2h])
 ```
 
-### Differences from Prometheus
+**Differences from Prometheus**
 
-This is a gauge-only function: counter inputs are automatically converted to a gauge with `to_gauge`. Native histogram inputs are not supported.
+This is a gauge-only function: counter inputs are automatically converted to a gauge with `to_gauge`. Native histogram inputs are not supported. The result is always a `double`.

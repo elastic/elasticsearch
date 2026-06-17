@@ -2,13 +2,15 @@
 
 ## `round` [promql-fn-round]
 
-{applies_to}`stack: preview 9.4.0` {applies_to}`serverless: preview`
+{applies_to}`stack: preview 9.4, ga 9.5` {applies_to}`serverless: ga`
 
 Rounds the sample values to the nearest integer, or to the nearest multiple of the optional argument.
 
-Returns `instant_vector`.
+**Return type**
 
-### Parameters
+`instant_vector`
+
+**Parameters**
 
 `v` (`instant_vector`)
 :   Instant vector input.
@@ -16,8 +18,12 @@ Returns `instant_vector`.
 `to_nearest` (`scalar`, optional)
 :   Round to nearest multiple of this value.
 
-### Example
+**Example**
 
 ```
 round(rate(http_requests_total[5m]))
 ```
+
+**Differences from Prometheus**
+
+With a `to_nearest` argument, ties round up, matching Prometheus. Called with a single argument, a `NaN` input returns `0` instead of `NaN`.

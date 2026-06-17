@@ -33,6 +33,7 @@ public class Asin extends AbstractTrigonometricFunction {
         .unaryValueTransformation(Asin::new)
         .description("Calculates the arcsine of all elements in the input vector.")
         .example("asin(some_metric)")
+        .differenceFromPrometheus(PromqlFunctionDefinition.DOMAIN_PLUS_MINUS_ONE_NOTE)
         .name("asin");
 
     @FunctionInfo(

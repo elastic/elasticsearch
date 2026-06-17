@@ -2,13 +2,15 @@
 
 ## `quantile` [promql-fn-quantile]
 
-{applies_to}`stack: preview 9.4.0` {applies_to}`serverless: preview`
+{applies_to}`stack: preview 9.4, ga 9.5` {applies_to}`serverless: ga`
 
 Returns the φ-quantile (0 ≤ φ ≤ 1) of the values across the input vector.
 
-Returns `instant_vector`.
+**Return type**
 
-### Parameters
+`instant_vector`
+
+**Parameters**
 
 `φ` (`scalar`)
 :   Quantile value (0 ≤ φ ≤ 1).
@@ -16,12 +18,12 @@ Returns `instant_vector`.
 `v` (`instant_vector`)
 :   Instant vector input.
 
-### Example
+**Example**
 
 ```
 quantile(0.9, http_request_duration_seconds)
 ```
 
-### Differences from Prometheus
+**Differences from Prometheus**
 
 Computed using the {{es}} t-digest percentile aggregation, so results are approximate and may differ slightly from Prometheus's exact linear interpolation, particularly for small sample sets.

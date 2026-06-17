@@ -56,6 +56,7 @@ public class Count extends AggregateFunction implements ToAggregator, SurrogateE
         .acrossSeries(Count::new)
         .description("Counts the number of elements in the input vector.")
         .example("count(http_requests_total)")
+        .differenceFromPrometheus(PromqlFunctionDefinition.COUNT_NOTE)
         .name("count");
 
     @FunctionInfo(

@@ -2,13 +2,15 @@
 
 ## `clamp_min` [promql-fn-clamp_min]
 
-{applies_to}`stack: preview 9.4.0` {applies_to}`serverless: preview`
+{applies_to}`stack: preview 9.4, ga 9.5` {applies_to}`serverless: ga`
 
 Clamps the sample values of all elements to have a lower limit of min.
 
-Returns `instant_vector`.
+**Return type**
 
-### Parameters
+`instant_vector`
+
+**Parameters**
 
 `v` (`instant_vector`)
 :   Instant vector input.
@@ -16,7 +18,7 @@ Returns `instant_vector`.
 `min` (`scalar`)
 :   Minimum value.
 
-### Example
+**Example**
 
 ```
 clamp_min(http_requests_total, 0)

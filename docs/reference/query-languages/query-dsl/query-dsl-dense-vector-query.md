@@ -17,7 +17,7 @@ exact scores, want to combine exact vector scoring with other queries, or want t
 field that is not indexed for approximate search (`index: false`).
 
 By default, scoring uses the original, full-precision vectors, so a quantized index (`int8_*`, `int4_*`,
-`bbq_*`) still produces raw scores. See [`quantized`](#dense-vector-query-quantized) to score against the
+`bbq_*`) still produces raw scores. See [`quantized`](#dense-vector-query-params) to score against the
 quantized representation instead.
 
 ## Example request [dense-vector-query-ex-request]

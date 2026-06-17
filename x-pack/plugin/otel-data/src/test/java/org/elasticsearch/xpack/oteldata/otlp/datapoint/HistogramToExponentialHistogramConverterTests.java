@@ -339,6 +339,36 @@ public class HistogramToExponentialHistogramConverterTests extends ESTestCase {
                     null,
                     -0.42,
                     0.5
+                ) },
+            new Object[] {
+                "single count no bounds with sum",
+                (Supplier<TestCase>) () -> new TestCase(
+                    HistogramDataPoint.newBuilder().addBucketCounts(10L).setCount(10L).setSum(100.0).build(),
+                    List.of(),
+                    List.of(),
+                    null,
+                    null,
+                    null
+                ) },
+            new Object[] {
+                "single count no bounds without sum",
+                (Supplier<TestCase>) () -> new TestCase(
+                    HistogramDataPoint.newBuilder().addBucketCounts(5L).setCount(5L).build(),
+                    List.of(),
+                    List.of(),
+                    null,
+                    null,
+                    null
+                ) },
+            new Object[] {
+                "single count no bounds with zero count",
+                (Supplier<TestCase>) () -> new TestCase(
+                    HistogramDataPoint.newBuilder().addBucketCounts(0L).setCount(0L).build(),
+                    List.of(),
+                    List.of(),
+                    null,
+                    null,
+                    null
                 ) }
         );
 

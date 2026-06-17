@@ -327,9 +327,6 @@ tests:
 - class: org.elasticsearch.smoketest.SmokeTestWatcherTestSuiteIT
   method: testMonitorClusterHealth
   issue: https://github.com/elastic/elasticsearch/issues/148615
-- class: org.elasticsearch.smoketest.MlWithSecurityIT
-  method: test {yaml=ml/data_frame_analytics_crud/Test get stats given multiple analytics}
-  issue: https://github.com/elastic/elasticsearch/issues/150078
 - class: org.elasticsearch.xpack.rank.rrf.RRFRankClientYamlTestSuiteIT
   method: test {yaml=rrf/700_rrf_retriever_search_api_compatibility/nested compound retrievers with min_score correctly compute total_hits}
   issue: https://github.com/elastic/elasticsearch/issues/150086
@@ -339,9 +336,6 @@ tests:
 - class: org.elasticsearch.gradle.internal.transport.TransportVersionGenerationFuncTest
   method: name can be found from staged definition
   issue: https://github.com/elastic/elasticsearch/issues/150299
-- class: org.elasticsearch.search.vectors.AdaptiveHnswQueueSaturationCollectorTests
-  method: testEarlyExitRelation
-  issue: https://github.com/elastic/elasticsearch/issues/150470
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
   method: test
   issue: https://github.com/elastic/elasticsearch/issues/150569
@@ -354,6 +348,12 @@ tests:
 - class: org.elasticsearch.packaging.test.WindowsServiceTests
   method: test16InstallSpecialCharactersInJdkPath
   issue: https://github.com/elastic/elasticsearch/issues/151142
+- class: org.elasticsearch.xpack.esql.action.ManyShardsIT
+  method: testMultiTypes
+  issue: https://github.com/elastic/elasticsearch/issues/151475
+- class: org.elasticsearch.repositories.gcs.GoogleCloudStorageBlobContainerRetriesTests
+  method: testReadBlobWithPrematureConnectionClose
+  issue: https://github.com/elastic/elasticsearch/issues/151476
 
 # Examples:
 #

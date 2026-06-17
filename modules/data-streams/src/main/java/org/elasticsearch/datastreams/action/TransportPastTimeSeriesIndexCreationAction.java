@@ -37,7 +37,6 @@ import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.allocator.AllocationActionMultiListener;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
-import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
@@ -52,7 +51,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.time.Instant;
-import java.time.ZoneOffset;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -67,14 +65,21 @@ import static org.elasticsearch.cluster.routing.allocation.allocator.AllocationA
 
 /**
  * Internal action that creates one or more historical TSDB backing indices to cover past timestamps.
- * It submits a cluster update per data stream and creates backing indices of a specific duration and adds
- * them to the data stream. Each new backing index is clamped to avoid overlap with existing backing indices.
+ * It submits a cluster update per data stream and creates backing indices anchored to the start time of
+ * the next existing backing index, tiling backward in {@link #INDEX_DURATION}-sized slots. When the gap
+ * between two neighbouring indices is small enough (≤ {@link #GAP_FILL_THRESHOLD} × duration), a single
+ * index is created that fills the entire gap.
  */
 public class TransportPastTimeSeriesIndexCreationAction extends TransportMasterNodeAction<
     PastTimeSeriesIndexCreationAction.Request,
     PastTimeSeriesIndexCreationAction.Response> {
 
-    static final TimeValue INDEX_DURATION = new TimeValue(1, TimeUnit.DAYS);
+    static final long INDEX_DURATION = new TimeValue(1, TimeUnit.DAYS).millis();
+    /**
+     * Maximum gap between two existing backing indices, expressed as a multiple of {@link #INDEX_DURATION},
+     * that is filled by a single new index instead of tiling backward from the next index.
+     */
+    static final double GAP_FILL_THRESHOLD = 1.5;
     private static final Logger logger = LogManager.getLogger(TransportPastTimeSeriesIndexCreationAction.class);
     private final MasterServiceTaskQueue<PastTsdbIndexCreationTask> taskQueue;
     private final ProjectResolver projectResolver;
@@ -105,7 +110,13 @@ public class TransportPastTimeSeriesIndexCreationAction extends TransportMasterN
         this.taskQueue = clusterService.createTaskQueue(
             "past-tsdb-index-creation",
             AUTO_CREATE_INDEX_PRIORITY_SETTING.get(settings),
-            new PastTsdbIndexCreationExecutor(clusterService, allocationService, createDataStreamService, systemIndices, projectResolver)
+            new PastTimeSeriesIndexCreationExecutor(
+                clusterService,
+                allocationService,
+                createDataStreamService,
+                systemIndices,
+                projectResolver
+            )
         );
     }
 
@@ -179,7 +190,7 @@ public class TransportPastTimeSeriesIndexCreationAction extends TransportMasterN
         }
     }
 
-    record PastTsdbIndexCreationExecutor(
+    record PastTimeSeriesIndexCreationExecutor(
         ClusterService clusterService,
         AllocationService allocationService,
         MetadataCreateDataStreamService createDataStreamService,
@@ -286,39 +297,45 @@ public class TransportPastTimeSeriesIndexCreationAction extends TransportMasterN
             assert dataStream.isReplicated() == false
                 : "cannot create past TSDB backing index for replicated data stream [" + dataStreamName + "]";
             ClusterState updatedClusterState = clusterState;
+            // we can't create new backing indices while a snapshot is running. The snapshot contains the indices that
+            // existed when it was started but the cluster metadata of when it completes, so the data stream will be
+            // referring to indices that do not exist.
             ensureNoSnapshotInProgress(projectState, dataStreamName);
 
-            Rounding.Prepared rounding = Rounding.builder(INDEX_DURATION)
-                .timeZone(ZoneOffset.UTC)
-                .build()
-                .prepare(timestamps[0], timestamps[timestamps.length - 1]);
-
-            // Stack with top = oldest (smallest start time).
-            // Initialized by pushing existing indices in reverse so the oldest ends up on top.
+            // From the oldest to the newest
             Deque<IndexBoundaries> stack = sortAndRetrieveExistingBackingIndices(dataStream, currentProject);
-            long lastPoppedEnd = Long.MIN_VALUE;
+            IndexBoundaries previousIndex = null;
 
             for (long ts : timestamps) {
+                assert stack.isEmpty() == false : "the data stream must have at least one backing index and it should be the latest";
                 // Advance past indices whose range ends at or before ts.
                 while (stack.isEmpty() == false && stack.peek().end() <= ts) {
-                    lastPoppedEnd = stack.pop().end();
+                    previousIndex = stack.pop();
                 }
-                // Coverage check: ts falls within the current top index.
-                if (stack.isEmpty() == false && stack.peek().start() <= ts) {
+                IndexBoundaries nextIndex = stack.isEmpty() ? null : stack.peek();
+                assert nextIndex != null : "there should always be a next index, ultimately the write index";
+                if (nextIndex.start() <= ts) {
                     coveredTimestamps.add(Instant.ofEpochMilli(ts));
                     continue;
                 }
-                // ts is not covered — compute the bounds for a new backing index.
-                // Clamp start upward to avoid overlap with the preceding index (if its end bleeds into the candidate range).
-                // Clamp end downward to avoid overlap with the following index.
-                long startCandidate = rounding.round(ts);
-                long indexStart = Math.max(startCandidate, lastPoppedEnd);
-                long indexEnd = stack.isEmpty()
-                    ? startCandidate + INDEX_DURATION.getMillis()
-                    : Math.min(startCandidate + INDEX_DURATION.getMillis(), stack.peek().start());
+
+                long indexStart;
+                long indexEnd;
+                if (previousIndex != null && (nextIndex.start() - previousIndex.end()) <= (long) (INDEX_DURATION * GAP_FILL_THRESHOLD)) {
+                    indexStart = previousIndex.end();
+                    indexEnd = nextIndex.start();
+                } else {
+                    // Tile backward in duration-sized slots anchored to nextIndex.start().
+                    // k is the zero-based slot index counting back from nextIndex: slot 0 = [next-D, next), slot 1 = [next-2D, next-D), …
+                    long k = Math.floorDiv(nextIndex.start() - ts - 1, INDEX_DURATION);
+                    indexEnd = nextIndex.start() - k * INDEX_DURATION;
+                    indexStart = indexEnd - INDEX_DURATION;
+                    if (previousIndex != null) {
+                        indexStart = Math.max(indexStart, previousIndex.end());
+                    }
+                }
 
                 String pastIndexName = DataStream.getDefaultBackingIndexName(dataStreamName, dataStream.getGeneration() + 1, indexStart);
-
                 updatedClusterState = createDataStreamService.createPastBackingIndex(
                     systemIndices,
                     updatedClusterState,
@@ -330,10 +347,9 @@ public class TransportPastTimeSeriesIndexCreationAction extends TransportMasterN
                     Instant.ofEpochMilli(indexStart),
                     Instant.ofEpochMilli(indexEnd)
                 );
-
                 logger.info("created past TSDB backing index [{}] for data stream [{}]", pastIndexName, dataStreamName);
                 createdIndexNames.add(pastIndexName);
-                // The new index is older than (or equal in start to) the current stack top, so it goes on top.
+                // The new index is pushed on top; it becomes the anchor for any timestamps further in the past.
                 stack.push(new IndexBoundaries(indexStart, indexEnd));
                 coveredTimestamps.add(Instant.ofEpochMilli(ts));
             }
@@ -370,10 +386,6 @@ public class TransportPastTimeSeriesIndexCreationAction extends TransportMasterN
     }
 
     record IndexBoundaries(long start, long end) {
-
-        IndexBoundaries {
-            assert start < end : "start [" + start + "] must be < end [" + end + "]";
-        }
 
         IndexBoundaries(Instant start, Instant end) {
             this(start.toEpochMilli(), end.toEpochMilli());

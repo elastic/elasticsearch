@@ -445,7 +445,7 @@ public class RecoveryTests extends ESIndexLevelReplicationTestCase {
             allowShardFailures();
             IndexShard replica = group.addReplica();
             expectThrows(Exception.class, () -> group.recoverReplica(replica, (shard, sourceNode) -> {
-                return new RecoveryTarget(shard, sourceNode, 0L, null, null, new PeerRecoveryTargetService.RecoveryListener() {
+                return new RecoveryTarget(shard, sourceNode, 0L, null, null, new RecoveryListener() {
                     @Override
                     public void onRecoveryDone(
                         RecoveryState state,
@@ -458,6 +458,11 @@ public class RecoveryTests extends ESIndexLevelReplicationTestCase {
                     @Override
                     public void onRecoveryFailure(RecoveryFailedException e, boolean sendShardFailure) {
                         assertThat(ExceptionsHelper.unwrap(e, IOException.class).getMessage(), equalTo("simulated"));
+                    }
+
+                    @Override
+                    public void onRecoveryAborted() {
+                        throw new AssertionError("recovery must fail");
                     }
                 });
             }));

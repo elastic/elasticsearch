@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Setting;
@@ -100,7 +101,9 @@ import org.elasticsearch.xpack.inference.action.TransportUpdateInferenceModelAct
 import org.elasticsearch.xpack.inference.action.filter.ShardBulkInferenceActionFilter;
 import org.elasticsearch.xpack.inference.common.Truncator;
 import org.elasticsearch.xpack.inference.common.oauth2.ClearOAuth2TokenCacheAction;
+import org.elasticsearch.xpack.inference.common.oauth2.OAuth2ClusterSettings;
 import org.elasticsearch.xpack.inference.common.oauth2.OAuth2TokenCache;
+import org.elasticsearch.xpack.inference.common.oauth2.TokenCache;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.HttpSettings;
 import org.elasticsearch.xpack.inference.external.http.retry.RetrySettings;
@@ -271,6 +274,8 @@ public class InferencePlugin extends Plugin
     private final SetOnce<AmazonBedrockRequestSender.Factory> amazonBedrockFactory = new SetOnce<>();
     private final SetOnce<HttpRequestSender.Factory> elasticInferenceServiceFactory = new SetOnce<>();
     private final SetOnce<ServiceComponents> serviceComponents = new SetOnce<>();
+    private final SetOnce<TokenCache> oauth2TokenCache = new SetOnce<>();
+    private final SetOnce<ProjectResolver> projectResolver = new SetOnce<>();
     // This is mainly so that the rest handlers can access the ThreadPool in a way that avoids potential null pointers from it
     // not being initialized yet
     private final SetOnce<ThreadPool> threadPoolSetOnce = new SetOnce<>();
@@ -420,6 +425,21 @@ public class InferencePlugin extends Plugin
             inferenceStats
         );
 
+        // Both oauth2TokenCache and projectResolver must be set before InferenceServiceRegistry is
+        // constructed because the registry eagerly invokes all service factory lambdas (including
+        // the OpenAI one), which calls oauth2TokenCache.get() and projectResolver.get().
+        // If either is null at that point a NullPointerException results.
+        projectResolver.set(services.projectResolver());
+        var oAuth2TokenCache = new OAuth2TokenCache(
+            services.clusterService(),
+            settings,
+            services.featureService(),
+            services.projectResolver(),
+            services.client()
+        );
+        oAuth2TokenCache.init();
+        oauth2TokenCache.set(oAuth2TokenCache);
+
         // This must be done after the HttpRequestSenderFactory is created so that the services can get the
         // reference correctly
         var serviceRegistry = new InferenceServiceRegistry(inferenceServices, factoryContext);
@@ -455,14 +475,7 @@ public class InferencePlugin extends Plugin
                 services.featureService()
             )
         );
-        var oAuth2TokenCache = new OAuth2TokenCache(
-            services.clusterService(),
-            settings,
-            services.featureService(),
-            services.projectResolver(),
-            services.client()
-        );
-        oAuth2TokenCache.init();
+
         components.add(oAuth2TokenCache);
 
         components.add(new PluginComponentBinding<>(ElasticInferenceServiceSettings.class, inferenceServiceSettings));
@@ -578,7 +591,14 @@ public class InferencePlugin extends Plugin
         return List.of(
             context -> new HuggingFaceElserService(httpFactory.get(), serviceComponents.get(), context),
             context -> new HuggingFaceService(httpFactory.get(), serviceComponents.get(), context),
-            context -> new OpenAiService(httpFactory.get(), serviceComponents.get(), context),
+            // If more services end up needing the project resolver or token cache let's move them to ServiceComponents
+            context -> new OpenAiService(
+                httpFactory.get(),
+                serviceComponents.get(),
+                context,
+                oauth2TokenCache.get(),
+                projectResolver.get()
+            ),
             context -> new GroqService(httpFactory.get(), serviceComponents.get(), context),
             context -> new CohereService(httpFactory.get(), serviceComponents.get(), context),
             context -> new ContextualAiService(httpFactory.get(), serviceComponents.get(), context),
@@ -783,6 +803,7 @@ public class InferencePlugin extends Plugin
         settings.addAll(CCMSettings.getSettingsDefinitions());
         settings.addAll(CCMCache.getSettingsDefinitions());
         settings.addAll(OAuth2TokenCache.getSettingsDefinitions());
+        settings.addAll(OAuth2ClusterSettings.getSettingsDefinitions());
         return Collections.unmodifiableSet(settings);
     }
 

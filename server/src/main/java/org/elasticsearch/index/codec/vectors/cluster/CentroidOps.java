@@ -144,14 +144,20 @@ public sealed interface CentroidOps<V> permits CentroidOps.FloatOps, CentroidOps
      * Creates a scoped mutation context for SGD-based centroid updates.
      * <p>
      * For {@link FloatOps}, the context operates directly on the centroid arrays (no allocation).
-     * For {@link ByteOps}, the context maintains a float-precision shadow array internally.
-     * When the context is closed, float shadows are rounded back into the native centroids and released.
+     * For {@link ByteOps}, the context maintains a single reusable float-precision buffer that
+     * is loaded from the native centroid on first access and flushed back when switching centroids
+     * or on close.
+     * <p>
+     * Callers should access centroids in grouped order (all accesses to centroid {@code c} before
+     * moving to centroid {@code c+1}) to avoid unnecessary flush/reload cycles.
      * <p>
      * Usage:
      * <pre>{@code
      * try (var sgd = ops.newMutationContext(centroids, dim)) {
-     *     sgd.update(k, learningRate, vec);
-     * } // auto-syncs to native and releases float shadow
+     *     float[] fc = sgd.floatCentroid(k);
+     *     // mutate fc...
+     *     sgd.syncToNative(); // flush before distance computation
+     * } // auto-syncs and releases buffer
      * }</pre>
      *
      * @param centroids the centroid array to mutate
@@ -160,27 +166,38 @@ public sealed interface CentroidOps<V> permits CentroidOps.FloatOps, CentroidOps
     MutationContext<V> newMutationContext(V[] centroids, int dim);
 
     /**
-     * A scoped, autocloseable context for SGD centroid updates that maintains float-precision
-     * state and syncs back to the native centroid representation on close.
+     * A scoped, autocloseable context for SGD centroid updates that provides float-precision
+     * access to centroids and syncs back to the native representation on close.
+     * <p>
+     * The context uses a single reusable float buffer. The array returned by {@link #floatCentroid(int)}
+     * is only valid until the next call with a <em>different</em> {@code k}. Calling with the same
+     * {@code k} returns the same buffer without reloading.
      *
      * @param <V> the centroid array type
      */
     interface MutationContext<V> extends AutoCloseable {
         /**
          * Returns the float-precision view of centroid {@code k} for direct mutation.
-         * For float centroids this is the centroid itself; for byte centroids it is the float shadow.
+         * <p>
+         * For float centroids this is the centroid itself. For byte centroids, the context
+         * loads the centroid into an internal float buffer, flushing any previously loaded
+         * centroid back to its native representation first.
+         * <p>
+         * The returned array is valid until the next call to {@code floatCentroid()} with a
+         * different {@code k}, or until {@link #syncToNative()} or {@link #close()} is called.
          */
         float[] floatCentroid(int k);
 
         /**
-         * Sync the float-precision state back to native centroids.
+         * Flush any pending float-precision changes back to the native centroid representation.
+         * After this call, the next {@code floatCentroid()} will reload from the native centroid.
          * Called automatically by {@link #close()}, but may also be called explicitly
          * between SGD epochs (e.g. before distance computation on byte centroids).
          */
         void syncToNative();
 
         /**
-         * Closes this context, syncing state and releasing any allocated shadow arrays.
+         * Closes this context, flushing any pending changes and releasing the float buffer.
          */
         @Override
         void close();
@@ -411,7 +428,7 @@ public sealed interface CentroidOps<V> permits CentroidOps.FloatOps, CentroidOps
      * {@link CentroidOps} for {@code byte[]} vectors and centroids.
      * <p>
      * Centroid averaging uses {@code int[]} accumulators to avoid overflow during summation.
-     * SGD updates use float shadow arrays (see {@code BalancedASKMeansLocal}, {@code BalancedOTKMeansLocal}).
+     * SGD updates use a single reusable float buffer (see {@code BalancedASKMeansLocal}, {@code BalancedOTKMeansLocal}).
      */
     final class ByteOps implements CentroidOps<byte[]> {
 
@@ -599,36 +616,36 @@ public sealed interface CentroidOps<V> permits CentroidOps.FloatOps, CentroidOps
 
         @Override
         public MutationContext<byte[]> newMutationContext(byte[][] centroids, int dim) {
-            // Eager allocation is appropriate here: SGD updates all centroids every iteration
-            // (each vector updates its assigned centroid), so all shadows will be accessed.
-            // Lazy instantiation would add branch overhead without saving allocations.
-
-            // Allocate float shadow from current byte centroids
-            float[][] shadow = new float[centroids.length][];
-            for (int i = 0; i < centroids.length; i++) {
-                byte[] src = centroids[i];
-                float[] dst = new float[src.length];
-                for (int j = 0; j < src.length; j++) {
-                    dst[j] = src[j];
-                }
-                shadow[i] = dst;
-            }
+            // Single reusable float buffer — only one centroid is loaded at a time.
+            // Callers must access centroids in grouped order (all accesses to centroid c
+            // before moving to centroid c+1) to avoid quantization noise from premature
+            // flush/reload cycles through byte[].
+            // TODO: a pool of N float[] buffers could improve cache locality for workloads
+            // that interleave centroid accesses; evaluate if benchmarks show benefit.
+            float[] buffer = new float[dim];
             return new MutationContext<>() {
+                int currentK = -1;
+
                 @Override
                 public float[] floatCentroid(int k) {
-                    return shadow[k];
+                    if (k != currentK) {
+                        if (currentK >= 0) {
+                            flushToNative(centroids[currentK], buffer, dim);
+                        }
+                        byte[] src = centroids[k];
+                        for (int d = 0; d < dim; d++) {
+                            buffer[d] = src[d];
+                        }
+                        currentK = k;
+                    }
+                    return buffer;
                 }
 
                 @Override
                 public void syncToNative() {
-                    // Syncs all centroids unconditionally — this is correct because SGD touches
-                    // all centroids during each epoch, so all shadows are potentially dirty.
-                    for (int k = 0; k < centroids.length; k++) {
-                        byte[] byteCentroid = centroids[k];
-                        float[] floatShadow = shadow[k];
-                        for (int d = 0; d < dim; d++) {
-                            byteCentroid[d] = (byte) Math.clamp(Math.round(floatShadow[d]), -128, 127);
-                        }
+                    if (currentK >= 0) {
+                        flushToNative(centroids[currentK], buffer, dim);
+                        currentK = -1;
                     }
                 }
 
@@ -637,6 +654,12 @@ public sealed interface CentroidOps<V> permits CentroidOps.FloatOps, CentroidOps
                     syncToNative();
                 }
             };
+        }
+
+        private static void flushToNative(byte[] byteCentroid, float[] floatBuffer, int dim) {
+            for (int d = 0; d < dim; d++) {
+                byteCentroid[d] = (byte) Math.clamp(Math.round(floatBuffer[d]), -128, 127);
+            }
         }
 
     }

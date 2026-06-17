@@ -121,27 +121,57 @@ abstract class BalancedASKMeansLocal<V> extends KMeansLocal<V> {
         return argmin;
     }
 
-    /** update the centroids using stochastic gradient descent */
+    /** update the centroids using stochastic gradient descent, processing one centroid at a time */
     protected void updateCentroids(
         ClusteringVectorValues<V> vectors,
         float[] cumulativeClusterWeights,
         int[] assignments,
         V[] centroids,
-        CentroidOps.MutationContext<V> sgdContext
+        CentroidOps.MutationContext<V> sgdContext,
+        int[] sortedIndices,
+        int[] centroidOffsets
     ) throws IOException {
+        int nVectors = vectors.size();
+        int k = centroids.length;
+
+        // Counting sort: group vector indices by their centroid assignment.
+        // centroidOffsets[c] will hold the start position for centroid c's vectors.
+        Arrays.fill(centroidOffsets, 0, k + 1, 0);
+        for (int idx = 0; idx < nVectors; idx++) {
+            centroidOffsets[assignments[idx] + 1]++;
+        }
+        // Prefix sum to convert counts into offsets
+        for (int c = 1; c <= k; c++) {
+            centroidOffsets[c] += centroidOffsets[c - 1];
+        }
+        // Place vector indices into sorted order using a temporary copy of offsets
+        int[] writePos = Arrays.copyOf(centroidOffsets, k + 1);
+        for (int idx = 0; idx < nVectors; idx++) {
+            int c = assignments[idx];
+            sortedIndices[writePos[c]++] = idx;
+        }
+
         // The SGD learning rate is computed as 1 / (clusterCount + learningRateShift).
         // Using a shift so that the updates are gentle and small.
         float learningRateShift = 3.f * this.sampleSize / centroids.length;
 
-        for (int idx = 0; idx < vectors.size(); idx++) {
-            V vec = vectors.vectorValue(idx);
-            int k = assignments[idx];
-            float[] centroid = sgdContext.floatCentroid(k);
-            cumulativeClusterWeights[k]++;
-            float learningRate = 1.f / (cumulativeClusterWeights[k] + learningRateShift);
-            ops.linearCombination(learningRate, vec, 1 - learningRate, centroid);
+        // Process one centroid at a time so that MutationContext only needs a single float buffer.
+        for (int c = 0; c < k; c++) {
+            int start = centroidOffsets[c];
+            int end = centroidOffsets[c + 1];
+            if (start == end) {
+                continue; // no vectors assigned to this centroid
+            }
+            float[] centroid = sgdContext.floatCentroid(c);
+            for (int i = start; i < end; i++) {
+                V vec = vectors.vectorValue(sortedIndices[i]);
+                cumulativeClusterWeights[c]++;
+                float learningRate = 1.f / (cumulativeClusterWeights[c] + learningRateShift);
+                ops.linearCombination(learningRate, vec, 1 - learningRate, centroid);
+            }
         }
 
+        // Flush the last centroid's float buffer back to native representation
         sgdContext.syncToNative();
     }
 
@@ -194,9 +224,13 @@ abstract class BalancedASKMeansLocal<V> extends KMeansLocal<V> {
 
         OnlineQuantileEstimator medianEstimator = null; // We cannot initialize the estimator now because we need to know its range.
 
+        // Sort workspace for per-centroid SGD updates — allocated once and reused across batches.
+        int[] sortedIndices = new int[miniBatchSizeLocal];
+        int[] centroidOffsets = new int[k + 1];
+
         // Scoped float-precision mutation context for SGD updates.
-        // For float centroids this is zero-cost; for byte centroids it maintains a float shadow
-        // that is synced back to native on each call to syncToNative() and released on close().
+        // For float centroids this is zero-cost (direct array access); for byte centroids it
+        // maintains a single reusable float buffer that is loaded/flushed one centroid at a time.
         try (var sgdContext = ops.newMutationContext(centroids, vectors.dimension())) {
             int t = 0;
             for (int epoch = 0; epoch < maxIterations; epoch++) {
@@ -238,8 +272,8 @@ abstract class BalancedASKMeansLocal<V> extends KMeansLocal<V> {
                     float alpha = beta * currentMedian * k / n;
                     assignMiniBatch(distances, cumulativeClusterWeights, alpha, assigner, neighborhoods, localAssignments);
 
-                    // Update the centroids using SGD.
-                    updateCentroids(sampledVectors, cumulativeClusterWeights, localAssignments, centroids, sgdContext);
+                    // Update the centroids using SGD, processing one centroid at a time.
+                    updateCentroids(sampledVectors, cumulativeClusterWeights, localAssignments, centroids, sgdContext, sortedIndices, centroidOffsets);
                 }
                 for (int kk = 0; kk < k; kk++) {
                     cumulativeClusterWeights[kk] *= forgettingFactor;

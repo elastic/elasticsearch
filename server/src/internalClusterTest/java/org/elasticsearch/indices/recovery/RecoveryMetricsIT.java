@@ -56,6 +56,20 @@ public class RecoveryMetricsIT extends AbstractIndexRecoveryIntegTestCase {
             .put(super.nodeSettings(nodeOrdinal, otherSettings))
             .put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), EnableAllocationDecider.Rebalance.NONE)
             .put(PeerRecoverySourceService.INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING.getKey(), 1)
+            // unthrottle the allocation side on the master
+            .put(
+                ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_INITIAL_PRIMARIES_RECOVERIES_SETTING.getKey(),
+                Integer.MAX_VALUE
+            )
+            .put(ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_RECOVERIES_SETTING.getKey(), Integer.MAX_VALUE)
+            .put(
+                ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(),
+                Integer.MAX_VALUE
+            )
+            .put(
+                ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_OUTGOING_RECOVERIES_SETTING.getKey(),
+                Integer.MAX_VALUE
+            )
             .build();
     }
 
@@ -130,11 +144,6 @@ public class RecoveryMetricsIT extends AbstractIndexRecoveryIntegTestCase {
         });
 
         try {
-            // Raise master-side throttle so all three replica shards are initialized simultaneously
-            updateClusterSettings(
-                Settings.builder()
-                    .put(ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_RECOVERIES_SETTING.getKey(), 100)
-            );
 
             for (var indexName : List.of(indexOne, indexTwo, indexThree)) {
                 assertAcked(

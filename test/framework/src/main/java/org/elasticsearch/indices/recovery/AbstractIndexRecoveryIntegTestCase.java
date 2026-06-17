@@ -52,6 +52,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -143,6 +144,14 @@ public abstract class AbstractIndexRecoveryIntegTestCase extends ESIntegTestCase
                 peerRecoverySourceServices.get(nodeName).removeRecoverySchedulingListener(listener);
             }
         }
+    }
+
+    protected void awaitNoCurrentRecoveriesInStats(Collection<String> nodeNames) {
+        final Map<String, Predicate<RecoveryStats>> predicates = new HashMap<>();
+        for (final var nodeName : nodeNames) {
+            predicates.put(nodeName, RecoveryStats::noCurrentRecoveries);
+        }
+        awaitRecoveryCountStats(predicates);
     }
 
     protected void checkTransientErrorsDuringRecoveryAreRetried(String recoveryActionToBlock) throws Exception {

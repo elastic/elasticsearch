@@ -1657,13 +1657,8 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         internalCluster().startNode();
         ClusterRerouteUtils.rerouteRetryFailed(client());
         assertAcked(indicesAdmin().prepareDelete("test")); // cancel recoveries
-        awaitRecoveryCountStats(
-            clusterService().state()
-                .nodes()
-                .getDataNodes()
-                .values()
-                .stream()
-                .collect(Collectors.toMap(DiscoveryNode::getName, ignored -> RecoveryStats::noCurrentRecoveries))
+        awaitNoCurrentRecoveriesInStats(
+            clusterService().state().nodes().getDataNodes().values().stream().map(DiscoveryNode::getName).toList()
         );
     }
 

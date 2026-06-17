@@ -607,7 +607,7 @@ public abstract class EngineTestCase extends ESTestCase {
         return createEngine(null, null, null, config);
     }
 
-    protected InternalEngine createEngine(
+    private InternalEngine createEngine(
         @Nullable IndexWriterFactory indexWriterFactory,
         @Nullable BiFunction<Long, Long, LocalCheckpointTracker> localCheckpointTrackerSupplier,
         @Nullable ToLongBiFunction<Engine, Engine.Operation> seqNoForOperation,
@@ -654,6 +654,13 @@ public abstract class EngineTestCase extends ESTestCase {
     }
 
     public static InternalEngine createInternalEngine(
+        @Nullable final IndexWriterFactory indexWriterFactory,
+        final EngineConfig config
+    ) {
+        return createInternalEngine(indexWriterFactory, null, null, config);
+    }
+
+    private static InternalEngine createInternalEngine(
         @Nullable final IndexWriterFactory indexWriterFactory,
         @Nullable final BiFunction<Long, Long, LocalCheckpointTracker> localCheckpointTrackerSupplier,
         @Nullable final ToLongBiFunction<Engine, Engine.Operation> seqNoForOperation,

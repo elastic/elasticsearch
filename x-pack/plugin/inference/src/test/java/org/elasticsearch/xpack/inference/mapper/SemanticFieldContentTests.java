@@ -11,14 +11,10 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.inference.InferenceString;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xcontent.DeprecationHandler;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xcontent.support.MapXContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -34,7 +30,6 @@ public class SemanticFieldContentTests extends ESTestCase {
     public void testNullValue() {
         SemanticFieldContent content = new SemanticFieldContent(null);
         assertNull(content.getMapValue(randomIntBetween(0, 10)));
-        assertNull(content.getInferenceStringValue(randomIntBetween(0, 10)));
         assertThrows(IndexOutOfBoundsException.class, () -> content.getChunkText(0, randomIntBetween(1, 10)));
     }
 
@@ -100,17 +95,6 @@ public class SemanticFieldContentTests extends ESTestCase {
         assertThrows(IndexOutOfBoundsException.class, () -> content.getChunkText(0, 1));
     }
 
-    public void testUnparseableMapValue() {
-        Map<String, String> badMap = Map.of("foo", "bar");
-        SemanticFieldContent content = new SemanticFieldContent(List.of(badMap));
-
-        assertEquals(badMap, content.getMapValue(0));
-
-        IllegalArgumentException e = assertThrows(IllegalArgumentException.class, () -> content.getInferenceStringValue(0));
-        assertThat(e.getMessage(), containsString("Cannot parse value [{foo=bar}] to an InferenceString"));
-        assertThat(e.getCause().getMessage(), containsString("[InferenceString] unknown field [foo]"));
-    }
-
     private static void assertSemanticFieldContent(List<Object> inputs, SemanticFieldContent content) throws IOException {
         int i = 0;
         int cursor = 0;
@@ -119,34 +103,18 @@ public class SemanticFieldContentTests extends ESTestCase {
                 Map<?, ?> mapValue = content.getMapValue(i);
                 assertNotNull("expected map value at index " + i, mapValue);
 
-                InferenceString parsedMapValue = parseMapAsInferenceString(mapValue);
+                @SuppressWarnings("unchecked")
+                Map<String, Object> stringKeyedMap = (Map<String, Object>) mapValue;
+                InferenceString parsedMapValue = SemanticTextUtils.parseInferenceStringValue(stringKeyedMap);
                 assertEquals(infString, parsedMapValue);
-                assertEquals(infString, content.getInferenceStringValue(i));
             } else {
                 assertNull("expected no map value at index " + i, content.getMapValue(i));
-                assertNull("expected no inference string value at index " + i, content.getInferenceStringValue(i));
                 String expected = input.toString();
                 assertEquals(expected, content.getChunkText(cursor, cursor + expected.length()));
                 cursor += expected.length() + 1;
             }
 
             i++;
-        }
-    }
-
-    private static InferenceString parseMapAsInferenceString(Map<?, ?> mapValue) throws IOException {
-        @SuppressWarnings("unchecked")
-        Map<String, Object> stringKeyedMap = (Map<String, Object>) mapValue;
-
-        try (
-            XContentParser parser = new MapXContentParser(
-                NamedXContentRegistry.EMPTY,
-                DeprecationHandler.IGNORE_DEPRECATIONS,
-                stringKeyedMap,
-                XContentType.JSON
-            )
-        ) {
-            return InferenceString.PARSER.parse(parser, null);
         }
     }
 }

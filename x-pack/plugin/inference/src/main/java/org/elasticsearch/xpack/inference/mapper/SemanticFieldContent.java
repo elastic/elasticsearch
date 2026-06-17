@@ -8,11 +8,6 @@
 package org.elasticsearch.xpack.inference.mapper;
 
 import org.elasticsearch.inference.InferenceString;
-import org.elasticsearch.xcontent.DeprecationHandler;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
-import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xcontent.support.MapXContentParser;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -104,15 +99,6 @@ public class SemanticFieldContent {
         }
     }
 
-    public InferenceString getInferenceStringValue(int inputIndex) {
-        Map<?, ?> mapValue = getMapValue(inputIndex);
-        if (mapValue == null) {
-            return null;
-        }
-
-        return parseInferenceStringValue(mapValue);
-    }
-
     private static void parseFieldValues(List<?> fieldValues, List<String> textValues, Map<Integer, Map<?, ?>> mapValues) {
         int valueIndex = 0;
         for (Object value : fieldValues) {
@@ -123,24 +109,6 @@ public class SemanticFieldContent {
             }
 
             valueIndex++;
-        }
-    }
-
-    private static InferenceString parseInferenceStringValue(Map<?, ?> value) {
-        @SuppressWarnings("unchecked")
-        Map<String, Object> stringKeyedMap = (Map<String, Object>) value;
-
-        try (
-            XContentParser parser = new MapXContentParser(
-                NamedXContentRegistry.EMPTY,
-                DeprecationHandler.IGNORE_DEPRECATIONS,
-                stringKeyedMap,
-                XContentType.JSON
-            )
-        ) {
-            return InferenceString.PARSER.parse(parser, null);
-        } catch (Exception e) {
-            throw new IllegalArgumentException("Cannot parse value [" + value + "] to an InferenceString", e);
         }
     }
 }

@@ -449,7 +449,7 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
                 backoffPolicy,
                 threadPool,
                 worker::countSearchRetry,
-                this::onScrollResponse,
+                this::onPaginatedSearchResponse,
                 this::finishHim,
                 searchClient,
                 searchRequest,
@@ -462,7 +462,7 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
             backoffPolicy,
             threadPool,
             worker::countSearchRetry,
-            this::onScrollResponse,
+            this::onPaginatedSearchResponse,
             this::finishHim,
             searchClient,
             searchRequest,
@@ -511,15 +511,15 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
         }
     }
 
-    void onScrollResponse(PaginatedHitSource.AsyncResponse asyncResponse) {
-        onScrollResponse(new ScrollConsumableHitsResponse(asyncResponse));
+    void onPaginatedSearchResponse(PaginatedHitSource.AsyncResponse asyncResponse) {
+        onPaginatedSearchResponse(new ScrollConsumableHitsResponse(asyncResponse));
     }
 
-    void onScrollResponse(ScrollConsumableHitsResponse asyncResponse) {
+    void onPaginatedSearchResponse(ScrollConsumableHitsResponse asyncResponse) {
         // TODO - https://github.com/elastic/elasticsearch/issues/150875
         // lastBatchStartTime is essentially unused (see WorkerBulkByPaginatedSearchTaskState.throttleWaitTime).
         // Leaving it for now, since it seems like a bug?
-        onScrollResponse(System.nanoTime(), this.lastBatchSize, asyncResponse);
+        onPaginatedSearchResponse(System.nanoTime(), this.lastBatchSize, asyncResponse);
     }
 
     /**
@@ -528,7 +528,7 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
      * @param lastBatchSizeToUse the size of the last batch. Used to calculate the throttling delay.
      * @param asyncResponse the response to process from {@link PaginatedHitSource}
      */
-    void onScrollResponse(long lastBatchStartTimeNS, int lastBatchSizeToUse, ScrollConsumableHitsResponse asyncResponse) {
+    void onPaginatedSearchResponse(long lastBatchStartTimeNS, int lastBatchSizeToUse, ScrollConsumableHitsResponse asyncResponse) {
         currentScrollResponse.set(asyncResponse);
         PaginatedHitSource.Response response = asyncResponse.response();
         logger.debug("[{}]: got scroll response with [{}] hits", task.getId(), asyncResponse.remainingHits());
@@ -764,7 +764,7 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
 
         if (asyncResponse.hasRemainingHits()) {
             // NB this means the next bulk task will be traced as a child of the current one, but it should really be a sibling
-            onScrollResponse(asyncResponse);
+            onPaginatedSearchResponse(asyncResponse);
             return;
         }
         if (task.isRelocationRequested()) {

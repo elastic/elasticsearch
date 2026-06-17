@@ -28,64 +28,48 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
 @ThreadLeakFilters(filters = { OkHttpThreadsFilter.class })
-public class OtelSdkExportLogsSupplierTests extends ESTestCase {
+public class OtelSdkExportAuditLogPipelineTests extends ESTestCase {
 
-    public void testInstallWhenDisabledIsNoop() {
-        OtelSdkExportLogsSupplier supplier = new OtelSdkExportLogsSupplier(Settings.EMPTY);
-        supplier.install();
-        assertFalse("disabled supplier must not install an SDK", supplier.isInstalled());
-        supplier.close();
+    public void testDisabledPipelineDoesNotInstall() {
+        OtelSdkExportAuditLogPipeline pipeline = new OtelSdkExportAuditLogPipeline(Settings.EMPTY, createTempDir());
+        assertFalse("disabled pipeline must not install an SDK", pipeline.isInstalled());
+        pipeline.close();
     }
 
     public void testLogsEnabledWithoutEndpointIsInvalidSettings() {
-        Settings settings = Settings.builder().put(OtelSdkSettings.TELEMETRY_OTEL_LOGS_ENABLED.getKey(), true).build();
+        Settings settings = Settings.builder().put(OtelSdkSettings.TELEMETRY_LOGS_AUDIT_ENABLED.getKey(), true).build();
         ClusterSettings clusterSettings = new ClusterSettings(
             Settings.EMPTY,
-            Set.of(OtelSdkSettings.TELEMETRY_OTEL_LOGS_ENABLED, OtelSdkSettings.TELEMETRY_OTEL_LOGS_ENDPOINT)
+            Set.of(OtelSdkSettings.TELEMETRY_LOGS_AUDIT_ENABLED, OtelSdkSettings.TELEMETRY_LOGS_AUDIT_ENDPOINT)
         );
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> clusterSettings.validate(settings, true));
-        assertThat(e.getMessage(), containsString("telemetry.otel.logs.endpoint"));
+        assertThat(e.getMessage(), containsString("telemetry.logs.audit.endpoint"));
     }
 
     public void testLogsEnabledWithEmptyEndpointIsInvalidSettings() {
         Settings settings = Settings.builder()
-            .put(OtelSdkSettings.TELEMETRY_OTEL_LOGS_ENABLED.getKey(), true)
-            .put(OtelSdkSettings.TELEMETRY_OTEL_LOGS_ENDPOINT.getKey(), "")
+            .put(OtelSdkSettings.TELEMETRY_LOGS_AUDIT_ENABLED.getKey(), true)
+            .put(OtelSdkSettings.TELEMETRY_LOGS_AUDIT_ENDPOINT.getKey(), "")
             .build();
         ClusterSettings clusterSettings = new ClusterSettings(
             Settings.EMPTY,
-            Set.of(OtelSdkSettings.TELEMETRY_OTEL_LOGS_ENABLED, OtelSdkSettings.TELEMETRY_OTEL_LOGS_ENDPOINT)
+            Set.of(OtelSdkSettings.TELEMETRY_LOGS_AUDIT_ENABLED, OtelSdkSettings.TELEMETRY_LOGS_AUDIT_ENDPOINT)
         );
         expectThrows(IllegalArgumentException.class, () -> clusterSettings.validate(settings, true));
     }
 
-    public void testInstallTwiceIsIdempotent() {
-        Settings settings = Settings.builder()
-            .put(OtelSdkSettings.TELEMETRY_OTEL_LOGS_ENABLED.getKey(), true)
-            .put(OtelSdkSettings.TELEMETRY_OTEL_LOGS_ENDPOINT.getKey(), "http://127.0.0.1:9/v1/logs")
-            .build();
-        OtelSdkExportLogsSupplier supplier = new OtelSdkExportLogsSupplier(settings);
-        try {
-            supplier.install();
-            supplier.install(); // second call must be a no-op
-        } finally {
-            supplier.close();
-        }
+    public void testCloseWhenDisabledDoesNotThrow() {
+        new OtelSdkExportAuditLogPipeline(Settings.EMPTY, createTempDir()).close();
     }
 
-    public void testCloseWithoutInstallDoesNotThrow() {
-        new OtelSdkExportLogsSupplier(Settings.EMPTY).close();
-    }
-
-    public void testDoubleCloseAfterInstallDoesNotThrow() {
+    public void testDoubleCloseDoesNotThrow() {
         Settings settings = Settings.builder()
-            .put(OtelSdkSettings.TELEMETRY_OTEL_LOGS_ENABLED.getKey(), true)
-            .put(OtelSdkSettings.TELEMETRY_OTEL_LOGS_ENDPOINT.getKey(), "http://127.0.0.1:9/v1/logs")
+            .put(OtelSdkSettings.TELEMETRY_LOGS_AUDIT_ENABLED.getKey(), true)
+            .put(OtelSdkSettings.TELEMETRY_LOGS_AUDIT_ENDPOINT.getKey(), "http://127.0.0.1:9/v1/logs")
             .build();
-        OtelSdkExportLogsSupplier supplier = new OtelSdkExportLogsSupplier(settings);
-        supplier.install();
-        supplier.close();
-        supplier.close();
+        OtelSdkExportAuditLogPipeline pipeline = new OtelSdkExportAuditLogPipeline(settings, createTempDir());
+        pipeline.close();
+        pipeline.close();
     }
 
     /**

@@ -29,8 +29,8 @@ import java.util.function.Consumer;
  * Verifies that audit events emitted by {@code LoggingAuditTrail} flow out via the OTel SDK as
  * OTLP log records and arrive at {@link RecordingApmServer} over gRPC.
  *
- * <p>This is the end-to-end pipeline test for ES-14356: log4j → OpenTelemetryAppender (attached
- * programmatically by {@code OtelSdkExportLogsSupplier}) → {@code SdkLoggerProvider} →
+ * <p>Full export chain (ES-14356): log4j → OpenTelemetryAppender (attached programmatically by
+ * {@code OtelSdkExportAuditLogPipeline}) → {@code SdkLoggerProvider} →
  * {@code OtlpGrpcLogRecordExporter} → gRPC recording server.
  */
 public class OtelAuditLogsIT extends AbstractTelemetryIT {

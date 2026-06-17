@@ -22,7 +22,7 @@ import static org.elasticsearch.common.settings.Setting.Property.OperatorDynamic
 
 /**
  * Node settings for the OpenTelemetry SDK metrics ({@link OtelSdkExportMeterSupplier}), traces
- * ({@link OtelSdkExportTracerSupplier}), and logs ({@link OtelSdkExportLogsSupplier}) export paths.
+ * ({@link OtelSdkExportTracerSupplier}), and audit logs ({@link OtelSdkExportAuditLogPipeline}) export paths.
  */
 public final class OtelSdkSettings {
 
@@ -208,12 +208,43 @@ public final class OtelSdkSettings {
         key -> Setting.simpleString(key, NodeScope)
     );
 
-    /** OTLP/gRPC endpoint URL where the SDK exports audit log records. Required when {@link #TELEMETRY_OTEL_LOGS_ENABLED} is true. */
-    public static final Setting<String> TELEMETRY_OTEL_LOGS_ENDPOINT = Setting.simpleString("telemetry.otel.logs.endpoint", "", NodeScope);
+    /** OTLP/gRPC endpoint URL where the SDK exports audit log records. Required when {@link #TELEMETRY_LOGS_AUDIT_ENABLED} is true. */
+    public static final Setting<String> TELEMETRY_LOGS_AUDIT_ENDPOINT = Setting.simpleString("telemetry.logs.audit.endpoint", "", NodeScope);
 
-    /** Whether the OTel SDK audit-log export path is active. When false, {@link OtelSdkExportLogsSupplier} installs nothing. */
-    public static final Setting<Boolean> TELEMETRY_OTEL_LOGS_ENABLED = Setting.boolSetting(
-        "telemetry.otel.logs.enabled",
+    /**
+     * PEM-encoded CA certificate(s) used to verify the otel-delivery-gateway's server certificate.
+     * These CAs are merged with the JVM default trust store so that gateway chains whose root is
+     * already in the JVM store are validated correctly (the multi-parent-chain fix).
+     * Paths are relative to the Elasticsearch config directory.
+     * When empty, the JVM default CAs are used and no client certificate is sent.
+     */
+    public static final Setting<List<String>> TELEMETRY_LOGS_AUDIT_SSL_CERTIFICATE_AUTHORITIES = Setting.stringListSetting(
+        "telemetry.logs.audit.ssl.certificate_authorities",
+        NodeScope
+    );
+
+    /**
+     * Path (relative to the Elasticsearch config directory) to the PEM-encoded client certificate
+     * that Elasticsearch presents to the otel-delivery-gateway during mTLS.
+     * Must be set together with {@link #TELEMETRY_LOGS_AUDIT_SSL_KEY}.
+     */
+    public static final Setting<String> TELEMETRY_LOGS_AUDIT_SSL_CERTIFICATE = Setting.simpleString(
+        "telemetry.logs.audit.ssl.certificate",
+        "",
+        NodeScope
+    );
+
+    /**
+     * Path (relative to the Elasticsearch config directory) to the PEM-encoded private key
+     * for the client certificate ({@link #TELEMETRY_LOGS_AUDIT_SSL_CERTIFICATE}).
+     * Must be set together with {@link #TELEMETRY_LOGS_AUDIT_SSL_CERTIFICATE}.
+     * The key must be unencrypted; the elasticsearch-controller delivers plain PEM keys.
+     */
+    public static final Setting<String> TELEMETRY_LOGS_AUDIT_SSL_KEY = Setting.simpleString("telemetry.logs.audit.ssl.key", "", NodeScope);
+
+    /** Whether the OTel SDK audit-log export path is active. When false, {@link OtelSdkExportAuditLogPipeline} installs nothing. */
+    public static final Setting<Boolean> TELEMETRY_LOGS_AUDIT_ENABLED = Setting.boolSetting(
+        "telemetry.logs.audit.enabled",
         false,
         new Setting.Validator<>() {
             @Override
@@ -221,16 +252,16 @@ public final class OtelSdkSettings {
 
             @Override
             public void validate(Boolean value, Map<Setting<?>, Object> settings) {
-                if (value && ((String) settings.get(TELEMETRY_OTEL_LOGS_ENDPOINT)).isEmpty()) {
+                if (value && ((String) settings.get(TELEMETRY_LOGS_AUDIT_ENDPOINT)).isEmpty()) {
                     throw new IllegalArgumentException(
-                        TELEMETRY_OTEL_LOGS_ENDPOINT.getKey() + " must be configured when telemetry.otel.logs.enabled=true"
+                        TELEMETRY_LOGS_AUDIT_ENDPOINT.getKey() + " must be configured when telemetry.logs.audit.enabled=true"
                     );
                 }
             }
 
             @Override
             public Iterator<Setting<?>> settings() {
-                return List.<Setting<?>>of(TELEMETRY_OTEL_LOGS_ENDPOINT).iterator();
+                return List.<Setting<?>>of(TELEMETRY_LOGS_AUDIT_ENDPOINT).iterator();
             }
         },
         NodeScope

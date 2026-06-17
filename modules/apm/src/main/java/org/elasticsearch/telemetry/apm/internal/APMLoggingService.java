@@ -12,9 +12,11 @@ package org.elasticsearch.telemetry.apm.internal;
 import io.opentelemetry.sdk.common.CompletableResultCode;
 
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.telemetry.apm.internal.export.otelsdk.OtelSdkExportLogsSupplier;
+import org.elasticsearch.telemetry.apm.internal.export.otelsdk.OtelSdkExportAuditLogPipeline;
+import org.elasticsearch.watcher.ResourceWatcherService;
 
 import java.io.Closeable;
+import java.nio.file.Path;
 
 /**
  * Manages the lifecycle of the OTel SDK audit-log export path.
@@ -22,19 +24,22 @@ import java.io.Closeable;
  */
 public class APMLoggingService implements Closeable {
 
-    private final OtelSdkExportLogsSupplier supplier;
+    private final OtelSdkExportAuditLogPipeline pipeline;
 
-    public APMLoggingService(Settings settings) {
-        supplier = new OtelSdkExportLogsSupplier(settings);
-        supplier.install();
+    public APMLoggingService(Settings settings, Path configDir) {
+        pipeline = new OtelSdkExportAuditLogPipeline(settings, configDir);
+    }
+
+    public void initCertReload(ResourceWatcherService resourceWatcher) {
+        pipeline.initCertReload(resourceWatcher);
     }
 
     public CompletableResultCode forceFlush() {
-        return supplier.forceFlush();
+        return pipeline.forceFlush();
     }
 
     @Override
     public void close() {
-        supplier.close();
+        pipeline.close();
     }
 }

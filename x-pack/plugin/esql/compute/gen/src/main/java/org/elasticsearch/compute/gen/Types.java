@@ -110,6 +110,26 @@ public class Types {
         Map.entry(FLOAT_VECTOR, List.of(FLOAT_ARRAY_VECTOR, FLOAT_ARROW_BUF_VECTOR, CONSTANT_FLOAT_VECTOR))
     );
 
+    /**
+     * For each Arrow-buffer Vector subtype in {@link #VECTOR_DISPATCH_SUBTYPES}, the FFM {@code ValueLayout}
+     * field name describing how it stores each element off-heap. The bulk {@code MemorySegment} reduction
+     * reads through this layout, and the stored value widens (signed) to the aggregator's element type.
+     * <p>
+     * Narrower-than-element widths ({@code Int16}/{@code Int8} feeding an {@code int} aggregator) are included
+     * because the signed widening is value-preserving and the segment read is faster than the per-element
+     * {@code ArrowBuf.getShort}/{@code getByte}. Unsigned Arrow widths are intentionally omitted: their
+     * {@code getInt} masks the stored value, which a raw signed segment read would not reproduce, so they
+     * fall through to the per-element loop.
+     */
+    public static final Map<ClassName, String> ARROW_VECTOR_VALUE_LAYOUT = Map.ofEntries(
+        Map.entry(INT_ARROW_BUF_VECTOR, "JAVA_INT_UNALIGNED"),
+        Map.entry(INT16_ARROW_BUF_VECTOR, "JAVA_SHORT_UNALIGNED"),
+        Map.entry(INT8_ARROW_BUF_VECTOR, "JAVA_BYTE"),
+        Map.entry(LONG_ARROW_BUF_VECTOR, "JAVA_LONG_UNALIGNED"),
+        Map.entry(DOUBLE_ARROW_BUF_VECTOR, "JAVA_DOUBLE_UNALIGNED"),
+        Map.entry(FLOAT_ARROW_BUF_VECTOR, "JAVA_FLOAT_UNALIGNED")
+    );
+
     static final ClassName BOOLEAN_VECTOR_BUILDER = ClassName.get(DATA_PACKAGE, "BooleanVector", "Builder");
     static final ClassName BYTES_REF_VECTOR_BUILDER = ClassName.get(DATA_PACKAGE, "BytesRefVector", "Builder");
     static final ClassName INT_VECTOR_BUILDER = ClassName.get(DATA_PACKAGE, "IntVector", "Builder");

@@ -398,8 +398,9 @@ public class AggregatorImplementer {
     /**
      * Emits {@code addRawVector}. When the first argument's Vector type has a dispatch catalog and the
      * aggregator has the simple loop shape, emit a single folded method that dispatches inline on the
-     * concrete type (one {@code getClass()} check per block, then a monomorphic per-type body) — the
-     * same-width Arrow arm reduces the off-heap buffer via {@code MemorySegment}. This avoids a
+     * concrete type (one {@code getClass()} check per block, then a monomorphic per-type body) — every
+     * Arrow arm with a known native layout (including narrower signed widths, which widen on read)
+     * reduces the off-heap buffer via {@code MemorySegment}. This avoids a
      * dispatcher + one leaf method per subtype, which would bloat the class and destabilize the JIT's
      * inlining of the unchanged block path. {@code first}/scratch aggregators keep the plain
      * single-loop {@link #addRawVector}.
@@ -452,19 +453,6 @@ public class AggregatorImplementer {
         return TypeName.get(combine.getReturnType()).isPrimitive() && valueLayoutField(a.type()) != null;
     }
 
-    /** The fixed-width Arrow-buffer subtype storing this aggregator's element type natively, or null. */
-    private ClassName sameWidthArrowVector() {
-        if (aggParams.size() != 1) {
-            return null;
-        }
-        if (aggParams.getFirst().dataType(false) instanceof ClassName vectorType && vectorType.simpleName().endsWith("Vector")) {
-            String simpleName = vectorType.simpleName();
-            String base = simpleName.substring(0, simpleName.length() - "Vector".length());
-            return ClassName.get(vectorType.packageName() + ".arrow", base + "ArrowBufVector");
-        }
-        return null;
-    }
-
     private static String valueLayoutField(TypeName elementType) {
         if (elementType.equals(TypeName.INT)) {
             return "JAVA_INT_UNALIGNED";
@@ -490,13 +478,16 @@ public class AggregatorImplementer {
             builder.addParameter(BOOLEAN_VECTOR, "mask");
         }
         String vec = aggParams.getFirst().vectorName();
-        ClassName arrowSameWidth = bulkArrowReducible() ? sameWidthArrowVector() : null;
+        boolean bulkReducible = bulkArrowReducible();
         for (ClassName subtype : subtypes) {
             // Exact-class (==) so the cast pins the concrete final type and the body devirtualizes.
             builder.beginControlFlow("if ($L.getClass() == $T.class)", vec, subtype);
             builder.addStatement("$T specialized = ($T) $L", subtype, subtype, vec);
-            if (subtype.equals(arrowSameWidth)) {
-                emitSegmentVectorLoop(builder, masked, "specialized");
+            // Any Arrow-buffer subtype with a known native layout reduces through a MemorySegment loop,
+            // widening (signed) to the element type for narrower buffers; everything else loops per element.
+            String segmentLayout = bulkReducible ? Types.ARROW_VECTOR_VALUE_LAYOUT.get(subtype) : null;
+            if (segmentLayout != null) {
+                emitSegmentVectorLoop(builder, masked, "specialized", segmentLayout);
             } else {
                 emitPerElementVectorLoop(builder, masked, "specialized");
             }
@@ -523,10 +514,17 @@ public class AggregatorImplementer {
         builder.endControlFlow();
     }
 
-    /** Bulk MemorySegment reduction over {@code accessor}'s off-heap Arrow buffer, accumulating in a local. */
-    private void emitSegmentVectorLoop(MethodSpec.Builder builder, boolean masked, String accessor) {
+    /**
+     * Bulk MemorySegment reduction over {@code accessor}'s off-heap Arrow buffer, accumulating in a local.
+     * {@code valueLayout} is the buffer's native element layout (e.g. {@code JAVA_SHORT_UNALIGNED} for a
+     * 16-bit Arrow vector feeding an {@code int} aggregator); the read value widens (signed) to the
+     * aggregator's element type.
+     */
+    private void emitSegmentVectorLoop(MethodSpec.Builder builder, boolean masked, String accessor, String valueLayout) {
         Argument arg = aggParams.getFirst();
         TypeName returnType = TypeName.get(combine.getReturnType());
+        // JAVA_BYTE has no getAtIndex overload; for a single-byte layout the element index equals the byte offset.
+        boolean byteIndexed = valueLayout.equals("JAVA_BYTE");
         builder.addStatement("$T bulkSegment = $L.valuesSegment()", MEMORY_SEGMENT, accessor);
         builder.addStatement("int bulkCount = $L.getPositionCount()", accessor);
         builder.addStatement("$T bulkAcc = state.$TValue()", returnType, returnType);
@@ -535,11 +533,11 @@ public class AggregatorImplementer {
             builder.beginControlFlow("if (mask.getBoolean(p) == false)").addStatement("continue").endControlFlow();
         }
         builder.addStatement(
-            "$T $L = bulkSegment.getAtIndex($T.$L, p)",
+            byteIndexed ? "$T $L = bulkSegment.get($T.$L, p)" : "$T $L = bulkSegment.getAtIndex($T.$L, p)",
             arg.type(),
             arg.valueName(),
             VALUE_LAYOUT,
-            valueLayoutField(arg.type())
+            valueLayout
         );
         builder.addStatement("bulkAcc = $T.combine(bulkAcc, $L)", declarationType, arg.valueName());
         builder.endControlFlow();

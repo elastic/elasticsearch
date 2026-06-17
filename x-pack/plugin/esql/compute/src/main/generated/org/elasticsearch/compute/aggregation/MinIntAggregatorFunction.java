@@ -135,20 +135,28 @@ public final class MinIntAggregatorFunction implements AggregatorFunction {
     }
     if (vVector.getClass() == Int16ArrowBufVector.class) {
       Int16ArrowBufVector specialized = (Int16ArrowBufVector) vVector;
-      state.seen(true);
-      for (int valuesPosition = 0; valuesPosition < specialized.getPositionCount(); valuesPosition++) {
-        int vValue = specialized.getInt(valuesPosition);
-        state.intValue(MinIntAggregator.combine(state.intValue(), vValue));
+      MemorySegment bulkSegment = specialized.valuesSegment();
+      int bulkCount = specialized.getPositionCount();
+      int bulkAcc = state.intValue();
+      for (int p = 0; p < bulkCount; p++) {
+        int vValue = bulkSegment.getAtIndex(ValueLayout.JAVA_SHORT_UNALIGNED, p);
+        bulkAcc = MinIntAggregator.combine(bulkAcc, vValue);
       }
+      state.intValue(bulkAcc);
+      state.seen(true);
       return;
     }
     if (vVector.getClass() == Int8ArrowBufVector.class) {
       Int8ArrowBufVector specialized = (Int8ArrowBufVector) vVector;
-      state.seen(true);
-      for (int valuesPosition = 0; valuesPosition < specialized.getPositionCount(); valuesPosition++) {
-        int vValue = specialized.getInt(valuesPosition);
-        state.intValue(MinIntAggregator.combine(state.intValue(), vValue));
+      MemorySegment bulkSegment = specialized.valuesSegment();
+      int bulkCount = specialized.getPositionCount();
+      int bulkAcc = state.intValue();
+      for (int p = 0; p < bulkCount; p++) {
+        int vValue = bulkSegment.get(ValueLayout.JAVA_BYTE, p);
+        bulkAcc = MinIntAggregator.combine(bulkAcc, vValue);
       }
+      state.intValue(bulkAcc);
+      state.seen(true);
       return;
     }
     if (vVector.getClass() == ConstantIntVector.class) {
@@ -198,26 +206,34 @@ public final class MinIntAggregatorFunction implements AggregatorFunction {
     }
     if (vVector.getClass() == Int16ArrowBufVector.class) {
       Int16ArrowBufVector specialized = (Int16ArrowBufVector) vVector;
-      state.seen(true);
-      for (int valuesPosition = 0; valuesPosition < specialized.getPositionCount(); valuesPosition++) {
-        if (mask.getBoolean(valuesPosition) == false) {
+      MemorySegment bulkSegment = specialized.valuesSegment();
+      int bulkCount = specialized.getPositionCount();
+      int bulkAcc = state.intValue();
+      for (int p = 0; p < bulkCount; p++) {
+        if (mask.getBoolean(p) == false) {
           continue;
         }
-        int vValue = specialized.getInt(valuesPosition);
-        state.intValue(MinIntAggregator.combine(state.intValue(), vValue));
+        int vValue = bulkSegment.getAtIndex(ValueLayout.JAVA_SHORT_UNALIGNED, p);
+        bulkAcc = MinIntAggregator.combine(bulkAcc, vValue);
       }
+      state.intValue(bulkAcc);
+      state.seen(true);
       return;
     }
     if (vVector.getClass() == Int8ArrowBufVector.class) {
       Int8ArrowBufVector specialized = (Int8ArrowBufVector) vVector;
-      state.seen(true);
-      for (int valuesPosition = 0; valuesPosition < specialized.getPositionCount(); valuesPosition++) {
-        if (mask.getBoolean(valuesPosition) == false) {
+      MemorySegment bulkSegment = specialized.valuesSegment();
+      int bulkCount = specialized.getPositionCount();
+      int bulkAcc = state.intValue();
+      for (int p = 0; p < bulkCount; p++) {
+        if (mask.getBoolean(p) == false) {
           continue;
         }
-        int vValue = specialized.getInt(valuesPosition);
-        state.intValue(MinIntAggregator.combine(state.intValue(), vValue));
+        int vValue = bulkSegment.get(ValueLayout.JAVA_BYTE, p);
+        bulkAcc = MinIntAggregator.combine(bulkAcc, vValue);
       }
+      state.intValue(bulkAcc);
+      state.seen(true);
       return;
     }
     if (vVector.getClass() == ConstantIntVector.class) {

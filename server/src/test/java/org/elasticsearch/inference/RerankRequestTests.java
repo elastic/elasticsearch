@@ -45,8 +45,8 @@ public class RerankRequestTests extends AbstractBWCSerializationTestCase<RerankR
             """, INPUT_TEXT, QUERY_TEXT);
         try (var parser = createParser(JsonXContent.jsonXContent, requestJson)) {
             var request = RerankRequest.PARSER.apply(parser, null);
-            assertThat(request.inputs(), is(List.of(new InferenceString(DataType.TEXT, INPUT_TEXT))));
-            assertThat(request.query(), is(new InferenceString(DataType.TEXT, QUERY_TEXT)));
+            assertThat(request.inputs(), is(List.of(InferenceString.ofText(INPUT_TEXT))));
+            assertThat(request.query(), is(InferenceString.ofText(QUERY_TEXT)));
             assertThat(request.topN(), is(nullValue()));
             assertThat(request.returnDocuments(), is(nullValue()));
             assertThat(request.taskSettings(), anEmptyMap());
@@ -62,8 +62,8 @@ public class RerankRequestTests extends AbstractBWCSerializationTestCase<RerankR
             """, INPUT_TEXT, QUERY_TEXT);
         try (var parser = createParser(JsonXContent.jsonXContent, requestJson)) {
             var request = RerankRequest.PARSER.apply(parser, null);
-            assertThat(request.inputs(), is(List.of(new InferenceString(DataType.TEXT, INPUT_TEXT))));
-            assertThat(request.query(), is(new InferenceString(DataType.TEXT, QUERY_TEXT)));
+            assertThat(request.inputs(), is(List.of(InferenceString.ofText(INPUT_TEXT))));
+            assertThat(request.query(), is(InferenceString.ofText(QUERY_TEXT)));
             assertThat(request.topN(), is(nullValue()));
             assertThat(request.returnDocuments(), is(nullValue()));
             assertThat(request.taskSettings(), anEmptyMap());
@@ -80,11 +80,8 @@ public class RerankRequestTests extends AbstractBWCSerializationTestCase<RerankR
             """, INPUT_TEXT, input2, QUERY_TEXT);
         try (var parser = createParser(JsonXContent.jsonXContent, requestJson)) {
             var request = RerankRequest.PARSER.apply(parser, null);
-            assertThat(
-                request.inputs(),
-                is(List.of(new InferenceString(DataType.TEXT, INPUT_TEXT), new InferenceString(DataType.TEXT, input2)))
-            );
-            assertThat(request.query(), is(new InferenceString(DataType.TEXT, QUERY_TEXT)));
+            assertThat(request.inputs(), is(List.of(InferenceString.ofText(INPUT_TEXT), InferenceString.ofText(input2))));
+            assertThat(request.query(), is(InferenceString.ofText(QUERY_TEXT)));
             assertThat(request.topN(), is(nullValue()));
             assertThat(request.returnDocuments(), is(nullValue()));
             assertThat(request.taskSettings(), anEmptyMap());
@@ -105,11 +102,8 @@ public class RerankRequestTests extends AbstractBWCSerializationTestCase<RerankR
             """, firstInput, secondInput, QUERY_TEXT);
         try (var parser = createParser(JsonXContent.jsonXContent, requestJson)) {
             var request = RerankRequest.PARSER.apply(parser, null);
-            assertThat(
-                request.inputs(),
-                is(List.of(new InferenceString(DataType.TEXT, firstInput), new InferenceString(DataType.TEXT, secondInput)))
-            );
-            assertThat(request.query(), is(new InferenceString(DataType.TEXT, QUERY_TEXT)));
+            assertThat(request.inputs(), is(List.of(InferenceString.ofText(firstInput), InferenceString.ofText(secondInput))));
+            assertThat(request.query(), is(InferenceString.ofText(QUERY_TEXT)));
             assertThat(request.topN(), is(nullValue()));
             assertThat(request.returnDocuments(), is(nullValue()));
             assertThat(request.taskSettings(), anEmptyMap());
@@ -125,8 +119,8 @@ public class RerankRequestTests extends AbstractBWCSerializationTestCase<RerankR
             """, INPUT_TEXT, QUERY_TEXT);
         try (var parser = createParser(JsonXContent.jsonXContent, requestJson)) {
             var request = RerankRequest.PARSER.apply(parser, null);
-            assertThat(request.inputs(), is(List.of(new InferenceString(DataType.TEXT, INPUT_TEXT))));
-            assertThat(request.query(), is(new InferenceString(DataType.TEXT, QUERY_TEXT)));
+            assertThat(request.inputs(), is(List.of(InferenceString.ofText(INPUT_TEXT))));
+            assertThat(request.query(), is(InferenceString.ofText(QUERY_TEXT)));
             assertThat(request.topN(), is(nullValue()));
             assertThat(request.returnDocuments(), is(nullValue()));
             assertThat(request.taskSettings(), anEmptyMap());
@@ -154,8 +148,8 @@ public class RerankRequestTests extends AbstractBWCSerializationTestCase<RerankR
             """, INPUT_TEXT, QUERY_TEXT, topN, returnDocuments, fieldOne, valueOne, fieldTwo, valueTwo);
         try (var parser = createParser(JsonXContent.jsonXContent, requestJson)) {
             var request = RerankRequest.PARSER.apply(parser, null);
-            assertThat(request.inputs(), is(List.of(new InferenceString(DataType.TEXT, INPUT_TEXT))));
-            assertThat(request.query(), is(new InferenceString(DataType.TEXT, QUERY_TEXT)));
+            assertThat(request.inputs(), is(List.of(InferenceString.ofText(INPUT_TEXT))));
+            assertThat(request.query(), is(InferenceString.ofText(QUERY_TEXT)));
             assertThat(request.topN(), is(topN));
             assertThat(request.returnDocuments(), is(returnDocuments));
             assertThat(request.taskSettings(), is(Map.of(fieldOne, valueOne, fieldTwo, valueTwo)));
@@ -172,8 +166,8 @@ public class RerankRequestTests extends AbstractBWCSerializationTestCase<RerankR
             """, INPUT_TEXT, QUERY_TEXT);
         try (var parser = createParser(JsonXContent.jsonXContent, requestJson)) {
             var request = RerankRequest.PARSER.apply(parser, null);
-            assertThat(request.inputs(), is(List.of(new InferenceString(DataType.TEXT, INPUT_TEXT))));
-            assertThat(request.query(), is(new InferenceString(DataType.TEXT, QUERY_TEXT)));
+            assertThat(request.inputs(), is(List.of(InferenceString.ofText(INPUT_TEXT))));
+            assertThat(request.query(), is(InferenceString.ofText(QUERY_TEXT)));
             assertThat(request.topN(), is(nullValue()));
             assertThat(request.returnDocuments(), is(nullValue()));
             assertThat(request.taskSettings(), anEmptyMap());

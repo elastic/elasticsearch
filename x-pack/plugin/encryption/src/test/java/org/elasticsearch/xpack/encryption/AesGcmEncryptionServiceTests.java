@@ -27,7 +27,7 @@ import static org.mockito.Mockito.when;
 public class AesGcmEncryptionServiceTests extends ESTestCase {
 
     private static SecretKey randomAesKey() {
-        byte[] keyBytes = new byte[32];
+        byte[] keyBytes = new byte[PasswordBasedEncryption.PEK_LENGTH_BYTES];
         new SecureRandom().nextBytes(keyBytes);
         return new SecretKeySpec(keyBytes, "AES");
     }
@@ -109,7 +109,7 @@ public class AesGcmEncryptionServiceTests extends ESTestCase {
 
         EncryptedData encrypted = service.encrypt(randomByteArrayOfLength(32));
         byte[] tampered = encrypted.payload().clone();
-        tampered[tampered.length - 1] ^= 0xFF;
+        tampered[tampered.length - 1] ^= (byte) 0xFF;
 
         ElasticsearchException e = expectThrows(
             ElasticsearchException.class,
@@ -143,7 +143,7 @@ public class AesGcmEncryptionServiceTests extends ESTestCase {
             IllegalArgumentException.class,
             () -> service.decrypt(new EncryptedData("key-1", new byte[] { 0x01, 0x01 }))
         );
-        assertThat(e.getMessage(), containsString("invalid length of encrypted payload"));
+        assertThat(e.getMessage(), containsString("ciphertext too short"));
     }
 
     public void testEncryptFailsWhenKeyNotAvailable() {
@@ -195,7 +195,7 @@ public class AesGcmEncryptionServiceTests extends ESTestCase {
         EncryptedData encrypted = service.encrypt(randomByteArrayOfLength(32));
         byte[] tampered = encrypted.payload().clone();
         // IV starts at offset 1 (after version byte)
-        tampered[1] ^= 0xFF;
+        tampered[1] ^= (byte) 0xFF;
 
         ElasticsearchException e = expectThrows(
             ElasticsearchException.class,
@@ -220,18 +220,6 @@ public class AesGcmEncryptionServiceTests extends ESTestCase {
             () -> service.decrypt(new EncryptedData("key-2", encrypted.payload()))
         );
         assertThat(e.getMessage(), containsString("decryption failed"));
-    }
-
-    public void testDecryptEmptyPayload() {
-        SecretKey key = randomAesKey();
-        AesGcmEncryptionService.KeyProvider keyProvider = mockKeyProvider("key-1", key);
-        AesGcmEncryptionService service = new AesGcmEncryptionService(keyProvider);
-
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> service.decrypt(new EncryptedData("key-1", new byte[0]))
-        );
-        assertThat(e.getMessage(), containsString("invalid length of encrypted payload"));
     }
 
     public void testLargePayloadRoundTrip() {

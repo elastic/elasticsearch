@@ -48,6 +48,7 @@ import org.elasticsearch.xpack.core.enrich.action.PutEnrichPolicyAction;
 import org.elasticsearch.xpack.enrich.EnrichPlugin;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.datasources.datasource.TestEncryptionServicePlugin;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.junit.After;
@@ -89,6 +90,7 @@ public class EnrichIT extends AbstractEsqlIntegTestCase {
         plugins.add(ReindexPlugin.class);
         plugins.add(InternalTransportSettingPlugin.class);
         plugins.add(MockTransportService.TestPlugin.class);
+        plugins.add(TestEncryptionServicePlugin.class);
         return plugins;
     }
 

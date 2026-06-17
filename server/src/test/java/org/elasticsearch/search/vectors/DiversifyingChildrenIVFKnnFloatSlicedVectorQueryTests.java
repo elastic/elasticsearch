@@ -43,6 +43,7 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -85,7 +86,7 @@ public class DiversifyingChildrenIVFKnnFloatSlicedVectorQueryTests extends Abstr
             childFilter,
             parentBitSet,
             0,
-            random().nextBoolean(),
+            testResolver(),
             RoutingFieldMapper.NAME,
             SLICE_ZERO
         );
@@ -224,15 +225,15 @@ public class DiversifyingChildrenIVFKnnFloatSlicedVectorQueryTests extends Abstr
                 IndexSearcher searcher = new IndexSearcher(reader);
                 BitSetProducer parentFilter = parentFilter(searcher.getIndexReader());
                 Query query = getDiversifyingChildrenKnnQuery("field", new float[] { 2, 2 }, null, 3, parentFilter);
-                assertScorerResults(searcher, query, new float[] { 1f, 1f / 51f }, new String[] { "2", "7" }, 2);
+                assertScorerResults(searcher, query, new float[] { 1f, 1f / 51f }, new String[] { "2", "7" }, 2, 0.001f);
 
                 query = getDiversifyingChildrenKnnQuery("field", new float[] { 6, 6 }, null, 3, parentFilter);
-                assertScorerResults(searcher, query, new float[] { 1f / 3f, 1f / 3f }, new String[] { "5", "7" }, 2);
+                assertScorerResults(searcher, query, new float[] { 1f / 3f, 1f / 3f }, new String[] { "5", "7" }, 2, 0.001f);
                 query = getDiversifyingChildrenKnnQuery("field", new float[] { 6, 6 }, Queries.ALL_DOCS_INSTANCE, 20, parentFilter);
-                assertScorerResults(searcher, query, new float[] { 1f / 3f, 1f / 3f }, new String[] { "5", "7" }, 2);
+                assertScorerResults(searcher, query, new float[] { 1f / 3f, 1f / 3f }, new String[] { "5", "7" }, 2, 0.001f);
 
                 query = getDiversifyingChildrenKnnQuery("field", new float[] { 6, 6 }, Queries.ALL_DOCS_INSTANCE, 1, parentFilter);
-                assertScorerResults(searcher, query, new float[] { 1f / 3f, 1f / 3f }, new String[] { "5", "7" }, 1);
+                assertScorerResults(searcher, query, new float[] { 1f / 3f, 1f / 3f }, new String[] { "5", "7" }, 1, 0.001f);
             }
         }
     }
@@ -414,46 +415,80 @@ public class DiversifyingChildrenIVFKnnFloatSlicedVectorQueryTests extends Abstr
                     filterQuery = new TermQuery(new Term(filterField, filterValue));
                 }
                 for (int iters = 0; iters < 2; iters++) {
+                    // single slice
                     for (int slice = 0; slice < numSlices; slice++) {
                         int expectedDocs = applyFilter ? parentsWithHitPerSliceFiltered[slice] : parentsWithHitPerSlice[slice];
-                        int k = 2 * Math.max(1, expectedDocs);
-                        Query kvq = new DiversifyingChildrenIVFKnnFloatSlicedVectorQuery(
-                            "vector",
-                            vector,
-                            k,
-                            k,
-                            filterQuery,
-                            parents,
-                            1.0f,
-                            random().nextBoolean(),
-                            RoutingFieldMapper.NAME,
-                            new BytesRef("" + slice)
-                        );
-                        TopDocs topDocs = searcher.search(kvq, k);
-                        assertEquals(expectedDocs, topDocs.scoreDocs.length);
-                        for (int j = 0; j < topDocs.scoreDocs.length; j++) {
-                            Document document = reader.storedFields().document(topDocs.scoreDocs[j].doc);
-                            assertThat(document.getField(RoutingFieldMapper.NAME).binaryValue().utf8ToString(), equalTo("" + slice));
-                            if (applyFilter) {
-                                assertThat(document.getField(filterField).binaryValue().utf8ToString(), equalTo(filterValue));
-                            }
-                        }
+                        TopDocs topDocs = getTopDocs(expectedDocs, vector, filterQuery, parents, searcher, slice);
+                        assertTopDocs(applyFilter, expectedDocs, topDocs, reader, filterField, filterValue, slice);
                     }
-                    Query kvq = new DiversifyingChildrenIVFKnnFloatSlicedVectorQuery(
-                        "vector",
-                        vector,
-                        3,
-                        3,
-                        filterQuery,
-                        parents,
-                        1.0f,
-                        random().nextBoolean(),
-                        RoutingFieldMapper.NAME,
-                        new BytesRef("invalid")
-                    );
-                    TopDocs topDocs = searcher.search(kvq, 3);
+                    // multiple slice
+                    for (int i = 0; i < 10; i++) {
+                        int numQuerySlices = random().nextInt(numSlices) + 1;
+                        int[] querySlices = new int[numQuerySlices];
+                        int expectedDocs = 0;
+                        int prevSlice = 0;
+                        for (int j = 0; j < numQuerySlices; j++) {
+                            int slice = random().nextInt(prevSlice, numSlices - numQuerySlices + j + 1);
+                            querySlices[j] = slice;
+                            expectedDocs += applyFilter ? parentsWithHitPerSliceFiltered[slice] : parentsWithHitPerSlice[slice];
+                            prevSlice = slice + 1;
+                        }
+                        Arrays.sort(querySlices);
+                        TopDocs topDocs = getTopDocs(expectedDocs, vector, filterQuery, parents, searcher, querySlices);
+                        assertTopDocs(applyFilter, expectedDocs, topDocs, reader, filterField, filterValue, querySlices);
+                    }
+                    // non-existing slice
+                    TopDocs topDocs = getTopDocs(0, vector, filterQuery, parents, searcher, -1);
                     assertEquals(0, topDocs.scoreDocs.length);
                 }
+            }
+        }
+    }
+
+    private TopDocs getTopDocs(
+        int expectedDocs,
+        float[] vector,
+        Query filterQuery,
+        BitSetProducer parents,
+        IndexSearcher searcher,
+        int... slice
+    ) throws IOException {
+        BytesRef[] sliceRef = new BytesRef[slice.length];
+        for (int i = 0; i < slice.length; i++) {
+            sliceRef[i] = new BytesRef("" + slice[i]);
+        }
+        int k = 2 * Math.max(1, expectedDocs);
+        Query kvq = new DiversifyingChildrenIVFKnnFloatSlicedVectorQuery(
+            "vector",
+            vector,
+            k,
+            k,
+            filterQuery,
+            parents,
+            1.0f,
+            testResolver(),
+            RoutingFieldMapper.NAME,
+            sliceRef
+        );
+        return searcher.search(kvq, k);
+    }
+
+    private static void assertTopDocs(
+        boolean applyFilter,
+        int expectedDocs,
+        TopDocs topDocs,
+        IndexReader reader,
+        String filterField,
+        String filterValue,
+        int... slices
+    ) throws IOException {
+        assertEquals(expectedDocs, topDocs.scoreDocs.length);
+        for (int j = 0; j < topDocs.scoreDocs.length; j++) {
+            Document document = reader.storedFields().document(topDocs.scoreDocs[j].doc);
+            int docSlice = Integer.parseInt(document.getField(RoutingFieldMapper.NAME).binaryValue().utf8ToString());
+            assertTrue(Arrays.stream(slices).anyMatch(s -> s == docSlice));
+            if (applyFilter) {
+                assertThat(document.getField(filterField).binaryValue().utf8ToString(), equalTo(filterValue));
             }
         }
     }
@@ -476,12 +511,12 @@ public class DiversifyingChildrenIVFKnnFloatSlicedVectorQueryTests extends Abstr
             null,
             parent -> null,
             0.1f,
-            false,
+            testResolver(),
             RoutingFieldMapper.NAME,
             SLICE_ZERO
         );
         assertEquals(
-            "DiversifyingChildrenIVFKnnFloatSlicedVectorQuery:vec[0.5,...][4][" + RoutingFieldMapper.NAME + "=0]",
+            "DiversifyingChildrenIVFKnnFloatSlicedVectorQuery:vec[0.5,...][4][" + RoutingFieldMapper.NAME + "=[0]]",
             q.toString("ignored")
         );
     }

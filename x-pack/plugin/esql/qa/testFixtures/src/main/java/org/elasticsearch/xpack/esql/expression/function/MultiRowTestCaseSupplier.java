@@ -12,6 +12,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
+import org.elasticsearch.compute.data.LongRangeBlockBuilder;
 import org.elasticsearch.compute.data.TDigestHolder;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 import org.elasticsearch.geo.GeometryTestUtils;
@@ -41,6 +42,7 @@ import static org.elasticsearch.test.ESTestCase.randomList;
 import static org.elasticsearch.xpack.esql.core.util.NumericUtils.UNSIGNED_LONG_MAX;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
 import static org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier.TypedDataSupplier;
+import static org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier.appliesTo;
 
 /**
  * Extension of {@link TestCaseSupplier} that provided multi-row test cases.
@@ -71,6 +73,9 @@ public final class MultiRowTestCaseSupplier {
             case GEOHASH -> geohashCases(minRows, maxRows);
             case GEOTILE -> geotileCases(minRows, maxRows);
             case GEOHEX -> geohexCases(minRows, maxRows);
+            case DENSE_VECTOR -> denseVectorCases(minRows, maxRows);
+            case EXPONENTIAL_HISTOGRAM -> exponentialHistogramCases(minRows, maxRows);
+            case TDIGEST -> tdigestCases(minRows, maxRows);
             // If a type is missing here it's safe to them as you need them
             default -> throw new IllegalArgumentException("unsupported type [" + type + "]");
         };
@@ -346,6 +351,20 @@ public final class MultiRowTestCaseSupplier {
         return cases;
     }
 
+    public static List<TypedDataSupplier> dateRangeCases(int minRows, int maxRows) {
+        List<TypedDataSupplier> cases = new ArrayList<>();
+        if (DataType.DATE_RANGE.supportedVersion().supportedLocally() == false) {
+            return cases;
+        }
+
+        addSuppliers(cases, minRows, maxRows, "random date range", DataType.DATE_RANGE, () -> {
+            LongRangeBlockBuilder.LongRange r = TestCaseSupplier.randomDateRange();
+            return r;
+        });
+
+        return cases;
+    }
+
     public static List<TypedDataSupplier> booleanCases(int minRows, int maxRows) {
         List<TypedDataSupplier> cases = new ArrayList<>();
 
@@ -590,11 +609,14 @@ public final class MultiRowTestCaseSupplier {
         if (DataType.FLATTENED.supportedVersion().supportedLocally() == false) {
             return cases;
         }
-        addSuppliers(cases, minRows, maxRows, "empty", DataType.FLATTENED, FlattenedCases.EMPTY);
-        addSuppliers(cases, minRows, maxRows, "single key", DataType.FLATTENED, FlattenedCases.SINGLE_KEY);
-        addSuppliers(cases, minRows, maxRows, "multi key", DataType.FLATTENED, FlattenedCases.MULTI_KEY);
-        addSuppliers(cases, minRows, maxRows, "object", DataType.FLATTENED, FlattenedCases.OBJECT);
-        addSuppliers(cases, minRows, maxRows, "random", DataType.FLATTENED, FlattenedCases.RANDOM);
+        Function<TypedDataSupplier, TypedDataSupplier> transform = TestCaseSupplier.previewTransform(
+            appliesTo(FunctionAppliesToLifecycle.PREVIEW, "9.5.0", "", false)
+        );
+        addSuppliers(cases, minRows, maxRows, "empty", DataType.FLATTENED, FlattenedCases.EMPTY, transform);
+        addSuppliers(cases, minRows, maxRows, "single key", DataType.FLATTENED, FlattenedCases.SINGLE_KEY, transform);
+        addSuppliers(cases, minRows, maxRows, "multi key", DataType.FLATTENED, FlattenedCases.MULTI_KEY, transform);
+        addSuppliers(cases, minRows, maxRows, "object", DataType.FLATTENED, FlattenedCases.OBJECT, transform);
+        addSuppliers(cases, minRows, maxRows, "random", DataType.FLATTENED, FlattenedCases.RANDOM, transform);
         return cases;
     }
 
@@ -699,19 +721,37 @@ public final class MultiRowTestCaseSupplier {
         DataType type,
         Supplier<T> valueSupplier
     ) {
+        addSuppliers(cases, minRows, maxRows, name, type, valueSupplier, Function.identity());
+    }
+
+    private static <T> void addSuppliers(
+        List<TypedDataSupplier> cases,
+        int minRows,
+        int maxRows,
+        String name,
+        DataType type,
+        Supplier<T> valueSupplier,
+        Function<TypedDataSupplier, TypedDataSupplier> transform
+    ) {
         if (minRows <= 1 && maxRows >= 1) {
-            cases.add(new TypedDataSupplier("<single " + name + ">", () -> randomList(1, 1, valueSupplier), type, false, true, List.of()));
+            cases.add(
+                transform.apply(
+                    new TypedDataSupplier("<single " + name + ">", () -> randomList(1, 1, valueSupplier), type, false, true, List.of())
+                )
+            );
         }
 
         if (maxRows > 1) {
             cases.add(
-                new TypedDataSupplier(
-                    "<" + name + "s>",
-                    () -> randomList(Math.max(2, minRows), maxRows, valueSupplier),
-                    type,
-                    false,
-                    true,
-                    List.of()
+                transform.apply(
+                    new TypedDataSupplier(
+                        "<" + name + "s>",
+                        () -> randomList(Math.max(2, minRows), maxRows, valueSupplier),
+                        type,
+                        false,
+                        true,
+                        List.of()
+                    )
                 )
             );
         }

@@ -29,9 +29,10 @@ import java.util.List;
 /**
  * Parses OTLP protobuf metrics and produces protocol-neutral {@link ReceivedTelemetry} so that
  * tests can assert in a format-independent way. Builds APM-shaped JSON per data point and
- * delegates to {@link ApmIntakeMessageParser} for the JSON to ADT step.
+ * delegates to {@link ApmIntakeMessageParser} for the JSON to ADT step. Resource-attribute
+ * decoding is inherited from {@link OtlpParser}.
  */
-public final class OtlpMetricsParser {
+public final class OtlpMetricsParser extends OtlpParser {
 
     private OtlpMetricsParser() {}
 
@@ -46,6 +47,7 @@ public final class OtlpMetricsParser {
         ExportMetricsServiceRequest request = ExportMetricsServiceRequest.parseFrom(input);
         List<ReceivedTelemetry> result = new ArrayList<>();
         for (ResourceMetrics resourceMetrics : request.getResourceMetricsList()) {
+            result.add(new ReceivedTelemetry.ReceivedResource(extractRawAttributes(resourceMetrics.getResource().getAttributesList())));
             for (ScopeMetrics scopeMetrics : resourceMetrics.getScopeMetricsList()) {
                 String scopeName = scopeMetrics.getScope().getName();
                 for (Metric metric : scopeMetrics.getMetricsList()) {
@@ -56,6 +58,7 @@ public final class OtlpMetricsParser {
                                 : metric.getGauge().getDataPointsList();
                             for (NumberDataPoint dp : dataPoints) {
                                 var builder = XContentFactory.jsonBuilder().startObject().startObject("metricset");
+                                builder.field("time_unix_nano", dp.getTimeUnixNano());
                                 writeTags(builder, scopeName, dp.getAttributesList());
                                 builder.startObject("samples").startObject(metric.getName());
                                 switch (dp.getValueCase()) {
@@ -70,6 +73,7 @@ public final class OtlpMetricsParser {
                         case HISTOGRAM -> {
                             for (HistogramDataPoint dp : metric.getHistogram().getDataPointsList()) {
                                 var builder = XContentFactory.jsonBuilder().startObject().startObject("metricset");
+                                builder.field("time_unix_nano", dp.getTimeUnixNano());
                                 writeTags(builder, scopeName, dp.getAttributesList());
                                 builder.startObject("samples").startObject(metric.getName());
                                 builder.field("counts", dp.getBucketCountsList());

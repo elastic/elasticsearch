@@ -1,5 +1,11 @@
-# These can be removed once the APM Agent is fully deprecated
 org.elasticsearch.telemetry.apm:
+  # required by BufferingMetricExporter (disk executor + gauges enumerating the buffer directory)
+  - manage_threads
+  - files:
+      - relative_path: "telemetry-buffer"
+        relative_to: data
+        mode: read
+  # required by the legacy APM agent; can be removed once it is fully deprecated
   - create_class_loader
   - write_system_properties:
       properties:
@@ -84,14 +90,33 @@ org.elasticsearch.telemetry.apm:
         - elastic.apm.application_packages
         - elastic.apm.stack_trace_limit
         - elastic.apm.span_stack_trace_min_duration
+opentelemetry.disk.buffering:
+  - files:
+      - relative_path: "telemetry-buffer"
+        relative_to: data
+        mode: read_write
+
 io.opentelemetry.sdk.metrics:
   - manage_threads
 
 io.opentelemetry.sdk.trace:
   - manage_threads
 
+io.opentelemetry.sdk.logs:
+  - manage_threads
+
 io.opentelemetry.exporter.sender.jdk.internal:
   - outbound_network
+
+io.opentelemetry.exporter.sender.okhttp.internal:
+  - manage_threads
+
+okhttp3:
+  - manage_threads
+  - outbound_network
+
+okio:
+  - manage_threads
 
 io.opentelemetry.instrumentation.runtime_telemetry:
   - manage_threads

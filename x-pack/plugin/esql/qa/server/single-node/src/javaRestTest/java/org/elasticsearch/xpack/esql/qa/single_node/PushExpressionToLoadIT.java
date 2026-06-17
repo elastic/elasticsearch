@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.qa.single_node;
 
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
-import org.elasticsearch.Build;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
@@ -1229,6 +1228,7 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
                     .entry("planning", matchesMap().extraOk())
                     .entry("parsing", matchesMap().extraOk())
                     .entry("view_resolution", matchesMap().extraOk())
+                    .entry("dataset_resolution", matchesMap().extraOk())
                     .entry("preanalysis", matchesMap().extraOk())
                     .entry("indices_resolution", matchesMap().extraOk())
                     .entry("enrich_resolution", matchesMap().extraOk())
@@ -1362,7 +1362,8 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
     }
 
     private static String lookupOperatorName() {
-        return Build.current().isSnapshot() ? "StreamingLookupOperator" : "LookupOperator";
+        // Streaming lookup is enabled by default via the esql.query.lookup_join_streaming setting
+        return "StreamingLookupOperator";
     }
 
     private CheckedConsumer<XContentBuilder, IOException> justType(String type) {

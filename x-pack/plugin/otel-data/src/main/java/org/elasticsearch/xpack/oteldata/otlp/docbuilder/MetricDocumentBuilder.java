@@ -7,10 +7,14 @@
 
 package org.elasticsearch.xpack.oteldata.otlp.docbuilder;
 
+import io.opentelemetry.proto.metrics.v1.AggregationTemporality;
+
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.cluster.routing.TsidBuilder;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.hash.BufferedMurmur3Hasher;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.oteldata.otlp.datapoint.DataPoint;
@@ -28,6 +32,9 @@ import java.util.concurrent.TimeUnit;
  * It also handles dynamic templates for metrics based on their attributes.
  */
 public class MetricDocumentBuilder extends OTelDocumentBuilder {
+
+    public static final String UNIT_FIELD = "unit";
+    public static final String TEMPORALITY_FIELD = "temporality";
 
     private final BufferedMurmur3Hasher hasher = new BufferedMurmur3Hasher(0);
     private final MappingHints defaultMappingHints;
@@ -59,7 +66,11 @@ public class MetricDocumentBuilder extends OTelDocumentBuilder {
         buildScope(builder, dataPointGroup.scope(), dataPointGroup.scopeSchemaUrl());
         buildAttributes(builder, dataPointGroup.dataPointAttributes(), 0);
         if (Strings.hasLength(dataPointGroup.unit())) {
-            builder.field("unit", dataPointGroup.unit());
+            builder.field(UNIT_FIELD, dataPointGroup.unit());
+        }
+        String temporality = temporalityToString(dataPointGroup.temporality());
+        if (temporality != null && IndexSettings.TIME_SERIES_TEMPORALITY_FEATURE_FLAG.isEnabled()) {
+            builder.field(TEMPORALITY_FIELD, temporality);
         }
         String metricNamesHash = dataPointGroup.getMetricNamesHash(hasher);
         builder.field("_metric_names_hash", metricNamesHash);
@@ -77,7 +88,7 @@ public class MetricDocumentBuilder extends OTelDocumentBuilder {
                 dynamicTemplates.put(metricFieldPath, dynamicTemplate);
                 if (dataPointGroup.unit() != null && dataPointGroup.unit().isEmpty() == false) {
                     // Store the unit of the metric in the dynamic template parameters
-                    dynamicTemplateParams.put(metricFieldPath, Map.of("unit", dataPointGroup.unit()));
+                    dynamicTemplateParams.put(metricFieldPath, Map.of(UNIT_FIELD, dataPointGroup.unit()));
                 }
             }
             if (mappingHints.docCount()) {
@@ -92,6 +103,20 @@ public class MetricDocumentBuilder extends OTelDocumentBuilder {
         TsidBuilder tsidBuilder = dataPointGroup.tsidBuilder();
         tsidBuilder.addStringDimension("_metric_names_hash", metricNamesHash);
         return tsidBuilder.buildTsid(indexVersion);
+    }
+
+    /**
+     * Converts an {@link AggregationTemporality} to the string value stored in the temporality dimension field.
+     */
+    public static @Nullable String temporalityToString(@Nullable AggregationTemporality temporality) {
+        if (temporality == null) {
+            return null;
+        }
+        return switch (temporality) {
+            case AGGREGATION_TEMPORALITY_CUMULATIVE -> "cumulative";
+            case AGGREGATION_TEMPORALITY_DELTA -> "delta";
+            default -> null;
+        };
     }
 
 }

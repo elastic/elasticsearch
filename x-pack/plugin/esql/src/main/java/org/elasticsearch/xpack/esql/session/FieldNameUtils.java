@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Earliest;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Latest;
 import org.elasticsearch.xpack.esql.expression.function.grouping.TBucket;
+import org.elasticsearch.xpack.esql.expression.function.grouping.TStep;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.TRange;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.CompoundOutputEval;
@@ -50,6 +51,7 @@ import org.elasticsearch.xpack.esql.plan.logical.TsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
+import org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 import org.elasticsearch.xpack.esql.session.EsqlSession.PreAnalysisResult;
 
@@ -66,6 +68,7 @@ public class FieldNameUtils {
 
     private static final Set<String> FUNCTIONS_REQUIRING_TIMESTAMP = Set.of(
         TBucket.NAME.toLowerCase(Locale.ROOT),
+        TStep.NAME.toLowerCase(Locale.ROOT),
         TRange.NAME.toLowerCase(Locale.ROOT),
         Earliest.NAME.toLowerCase(Locale.ROOT),
         Latest.NAME.toLowerCase(Locale.ROOT)
@@ -80,9 +83,14 @@ public class FieldNameUtils {
             inlinestatsAggs.add(((InlineStats) i).aggregate());
         }
 
-        if (false == parsed.anyMatch(p -> shouldCollectReferencedFields(p, inlinestatsAggs))) {
+        if (false == mainQueryRequiresFieldCollection(parsed, inlinestatsAggs)) {
             // no explicit columns selection, for example "from employees"
             // also, inlinestats only adds columns to the existent output, its Aggregate shouldn't interfere with potentially using "*"
+            return new PreAnalysisResult(IndexResolver.ALL_FIELDS, Set.of());
+        }
+
+        // If main query does not require all_fields, check if subqueries require all_fields
+        if (false == subqueryRequiresFieldCollection(parsed, inlinestatsAggs)) {
             return new PreAnalysisResult(IndexResolver.ALL_FIELDS, Set.of());
         }
 
@@ -359,6 +367,39 @@ public class FieldNameUtils {
         }
 
         return prefixes;
+    }
+
+    /**
+     * Checks whether the main query (excluding subquery plans inside SemiJoin/AntiJoin right children)
+     * contains a plan node that requires explicit field collection (e.g. KEEP, STATS).
+     * Subquery plans are skipped because a KEEP inside a subquery should not force field collection
+     * for the main query — the main query may still need all fields.
+     */
+    private static boolean mainQueryRequiresFieldCollection(LogicalPlan plan, Set<Aggregate> inlinestatsAggs) {
+        if (shouldCollectReferencedFields(plan, inlinestatsAggs)) {
+            return true;
+        }
+        // Skip the right (subquery) child of SemiJoin/AntiJoin/MarkJoin — its KEEP/STATS should not
+        // force the main pipeline into explicit field collection.
+        if (plan instanceof AbstractSubqueryJoin subqueryJoin) {
+            return mainQueryRequiresFieldCollection(subqueryJoin.left(), inlinestatsAggs);
+        }
+        for (LogicalPlan child : plan.children()) {
+            if (mainQueryRequiresFieldCollection(child, inlinestatsAggs)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean subqueryRequiresFieldCollection(LogicalPlan plan, Set<Aggregate> inlinestatsAggs) {
+        Holder<Boolean> requireFieldCollection = new Holder<>(true);
+        plan.forEachUp(AbstractSubqueryJoin.class, sj -> {
+            if (sj.right().anyMatch(p -> shouldCollectReferencedFields(p, inlinestatsAggs)) == false) {
+                requireFieldCollection.set(false);
+            }
+        });
+        return requireFieldCollection.get();
     }
 
     /**

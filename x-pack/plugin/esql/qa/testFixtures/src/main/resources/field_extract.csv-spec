@@ -230,15 +230,35 @@ FROM flattened_otel_logs
 2020-01-01T11:43:13.255Z | filebeat-6t7v6        | low
 ;
 
-// host.ip stores multiple values for this @timestamp. The block-loader fusion reads them
-// directly out of the keyed sub-field doc values, so the result is a real multi-value
-// keyword block and MV_COUNT reports the number of values rather than a single value.
-// Gated on field_extract_flattened_pushdown because the per-row evaluator cannot produce
-// multi-valued output and would throw on the embedded JSON array.
+fieldExtractFromLookupJoinFlattenedField
+required_capability: fn_field_extract
+required_capability: flattened_datatype
+required_capability: join_lookup_v12
+
+FROM flattened_otel_logs
+| EVAL host_name = field_extract(resource.attributes, "host.name")
+| LOOKUP JOIN host_info_lookup ON host_name
+| EVAL team = field_extract(info, "team")
+| WHERE team IS NOT NULL
+| SORT @timestamp
+| LIMIT 3
+| KEEP @timestamp, host_name, team
+;
+
+@timestamp:date          | host_name:keyword                                | team:keyword
+2020-01-01T00:00:00.000Z | equal-host                                       | dev
+2020-01-01T00:02:48.461Z | infra-filebeat-6vjxr                             | infra
+2020-01-01T00:07:43.000Z | devops-ci-master-blue.c.elastic-ci-prod.internal | devops
+;
+
+// host.ip stores multiple values for this @timestamp. Both the block-loader pushdown and
+// the per-row parse path produce a real multi-value keyword block, so MV_COUNT reports the
+// number of values regardless of which path runs.
 multiValuedSubkeyAsMultiValue
 required_capability: fn_field_extract
 required_capability: flattened_datatype
 required_capability: field_extract_flattened_pushdown
+required_capability: field_extract_returns_multi_value
 
 FROM flattened_otel_logs
 | WHERE @timestamp == "2020-01-01T00:07:43.000Z"
@@ -251,6 +271,27 @@ FROM flattened_otel_logs
 
 n:integer
 2
+;
+
+// MV_EXPAND on a multi-value field_extract output emits one row per element of the
+// extracted array, in the order they appear in the JSON source. Pinning the output values
+// confirms the parse path preserves both arity and order, not just the count.
+mvExpandOnMultiValuedExtract
+required_capability: fn_field_extract
+required_capability: flattened_datatype
+required_capability: field_extract_returns_multi_value
+
+FROM flattened_otel_logs
+| WHERE @timestamp == "2020-01-01T00:07:43.000Z"
+| EVAL ips = field_extract(resource.attributes, "host.ip")
+| MV_EXPAND ips
+| KEEP ips
+| SORT ips
+;
+
+ips:keyword
+10.224.0.170
+fe80::4001:aff:fee0:aa
 ;
 
 // Numeric leaves in a flattened root come out as their stringified value
@@ -339,9 +380,6 @@ hn:keyword            | aid:keyword
 infra-filebeat-6vjxr  | c92cc400-fe39-4252-bc0f-4b024e742f25
 ;
 
-// A foldable but non-literal path expression (CONCAT of two literals) should
-// still go through the constant-evaluator path, validating the path once at
-// plan time rather than per row.
 computedConstantPath
 required_capability: fn_field_extract
 required_capability: flattened_datatype
@@ -354,6 +392,61 @@ FROM flattened_otel_logs
 
 hn:keyword
 infra-filebeat-6vjxr
+;
+
+dynamicPathViaCaseExpr
+required_capability: fn_field_extract
+required_capability: flattened_datatype
+
+FROM flattened_otel_logs
+| WHERE @timestamp IN ("2020-01-01T00:02:48.461Z", "2020-01-01T11:38:54.751Z")
+| EVAL path = CASE(@timestamp == "2020-01-01T00:02:48.461Z", "agent.id", "host.name")
+| EVAL extracted = FIELD_EXTRACT(resource.attributes, path)
+| DROP path
+| KEEP @timestamp, extracted
+| SORT @timestamp
+;
+
+@timestamp:date          | extracted:keyword
+2020-01-01T00:02:48.461Z | c92cc400-fe39-4252-bc0f-4b024e742f25
+2020-01-01T11:38:54.751Z | infra-filebeat-6vjxr
+;
+
+pathFromRowField
+required_capability: fn_field_extract
+required_capability: flattened_datatype
+
+FROM flattened_keyed
+| EVAL extracted = FIELD_EXTRACT(data, key)
+| KEEP id, extracted
+| SORT id
+;
+
+id:keyword | extracted:keyword
+a          | red
+b          | M
+c          | green
+d          | XL
+;
+
+pathFromLookupJoin
+required_capability: fn_field_extract
+required_capability: flattened_datatype
+required_capability: join_lookup_v12
+
+FROM flattened_keyed
+| LOOKUP JOIN path_lookup ON id
+| EVAL extracted = FIELD_EXTRACT(data, path)
+| DROP path
+| KEEP id, extracted
+| SORT id
+;
+
+id:keyword | extracted:keyword
+a          | red
+b          | M
+c          | green
+d          | XL
 ;
 
 // Path matching is case-sensitive: `Host.Name` does NOT match the flat key
@@ -464,17 +557,15 @@ FROM flattened_otel_logs
 2020-01-01T11:43:13.255Z
 ;
 
-// SingleValueQuery wrapping ensures multi-valued sub-keys do not match a scalar
-// equality. host.ip is multi-valued in every doc that has it, so == against any single ip
-// returns zero matches even when that ip is in the array. The pushed-down
-// SingleValueQuery emits the same multi-value warning that any scalar
-// comparison emits when it encounters a multi-valued field at the source.
-// Gated on field_extract_flattened_pushdown because the per-row evaluator raises a
-// different (JSON-array parse) failure on host.ip and would not match this warning text.
+// Scalar == against a multi-value extract emits the standard "single-value function
+// encountered multi-value" warning and treats the result as null, so the count is zero.
+// Both paths arrive at the same warning text: the pushdown path through the
+// SingleValueQuery wrapping the keyed sub-field, and the parse path through the per-row
+// Equals operator on the multi-value keyword block.
 multiValuedSubkeyDoesNotMatchScalarEquality
 required_capability: fn_field_extract
 required_capability: flattened_datatype
-required_capability: field_extract_flattened_pushdown
+required_capability: field_extract_returns_multi_value
 
 FROM flattened_otel_logs
 | WHERE field_extract(resource.attributes, "host.ip") == "10.224.0.170"
@@ -488,6 +579,114 @@ c:long
 0
 ;
 
+
+// > on a literal flat key pushes to a single-sided RangeQuery against the keyed sub-field.
+// The keyed flattened mapper substitutes a key-prefix sentinel for the open upper bound on
+// the data node so the resulting Lucene range stays inside this key's slice of the term
+// namespace. Result correctness is what we assert here. The fact that the filter is
+// actually pushed (not just evaluated per row) is verified by the IT tests against the
+// Lucene profile.
+greaterThanPushedToKeyedSubfield
+required_capability: fn_field_extract
+required_capability: flattened_datatype
+
+FROM flattened_otel_logs
+| WHERE field_extract(resource.attributes, "host.name") > "filebeat-8pmfj"
+| STATS c = count(*)
+;
+
+c:long
+5
+;
+
+// Inclusive variant of the above.
+greaterThanOrEqualPushedToKeyedSubfield
+required_capability: fn_field_extract
+required_capability: flattened_datatype
+
+FROM flattened_otel_logs
+| WHERE field_extract(resource.attributes, "host.name") >= "filebeat-8pmfj"
+| STATS c = count(*)
+;
+
+c:long
+6
+;
+
+// < on a literal flat key pushes to a single-sided RangeQuery against the keyed sub-field.
+// The keyed flattened mapper substitutes a key-prefix sentinel for the open lower bound on
+// the data node.
+lessThanPushedToKeyedSubfield
+required_capability: fn_field_extract
+required_capability: flattened_datatype
+
+FROM flattened_otel_logs
+| WHERE field_extract(resource.attributes, "host.name") < "filebeat-8pmfj"
+| STATS c = count(*)
+;
+
+c:long
+5
+;
+
+// Inclusive variant of the above.
+lessThanOrEqualPushedToKeyedSubfield
+required_capability: fn_field_extract
+required_capability: flattened_datatype
+
+FROM flattened_otel_logs
+| WHERE field_extract(resource.attributes, "host.name") <= "filebeat-8pmfj"
+| STATS c = count(*)
+;
+
+c:long
+6
+;
+
+// Closed range (combined >= and <=, equivalent to BETWEEN) on a literal flat key pushes
+// to a RangeQuery against the keyed sub-field with both bounds set. The pre-pass in
+// PushFiltersToSource folds the two BCs into a single Range node so the eligibility check
+// matches the keyed-mapper's closed-range contract. The narrow window [f, h] catches
+// exactly the two filebeat-* hosts and excludes both the elasticsearch-* hosts (below f)
+// and the infra-* hosts (above h).
+betweenPushedToKeyedSubfield
+required_capability: fn_field_extract
+required_capability: flattened_datatype
+
+FROM flattened_otel_logs
+| WHERE field_extract(resource.attributes, "host.name") >= "f" AND field_extract(resource.attributes, "host.name") <= "h"
+| KEEP @timestamp
+| SORT @timestamp
+;
+
+@timestamp:date
+2020-01-01T10:12:02.675Z
+2020-01-01T11:43:13.255Z
+;
+
+// Same single-sided range expressed via EVAL + WHERE on the EVAL'd column. The planner
+// cannot push the BC down through this shape (the WHERE's LHS is the EVAL'd
+// ReferenceAttribute rather than the original FieldExtract call), so this test covers the
+// per-row evaluator path for ranges and pins down the host.name -> @timestamp mapping the
+// other tests in this block rely on.
+rangeOverEvalExtract
+required_capability: fn_field_extract
+required_capability: flattened_datatype
+
+FROM flattened_otel_logs
+| EVAL hn = field_extract(resource.attributes, "host.name")
+| WHERE hn > "filebeat-8pmfj"
+| KEEP @timestamp, hn
+| SORT @timestamp
+;
+
+@timestamp:date          | hn:keyword
+2020-01-01T00:02:48.461Z | infra-filebeat-6vjxr
+2020-01-01T00:58:35.557Z | infra-filebeat-mdvqm
+2020-01-01T11:38:54.751Z | infra-filebeat-6vjxr
+2020-01-01T21:03:55.497Z | infra-filebeat-z5mjq
+2020-01-01T21:38:06.655Z | infra-filebeat-cpcmv
+;
 
 // INLINE STATS appends an aggregate over the extracted sub-field to every row.
 // The duplicated host (`infra-filebeat-6vjxr`, count 2) sorts first, the rest
@@ -513,11 +712,9 @@ FROM flattened_otel_logs
 2020-01-01T00:07:43.000Z | 1          | devops-ci-master-blue.c.elastic-ci-prod.internal
 ;
 
-// MV_EXPAND on a single-valued field_extract result is a row-preserving no-op,
-// but the test pins down that the keyword output of field_extract composes
-// cleanly with MV_EXPAND. Multi-valued flattened sub-fields (e.g. an
-// array-valued `host.ip`) are not yet supported by FIELD_EXTRACT and are
-// tracked as a follow-up.
+// MV_EXPAND on a single-valued field_extract result is a row-preserving no-op, but the
+// test pins down that the keyword output composes cleanly with MV_EXPAND. The
+// multi-valued counterpart is covered by mvExpandOnMultiValuedExtract above.
 mvExpandOnSingleValuedExtract
 required_capability: fn_field_extract
 required_capability: flattened_datatype
@@ -569,4 +766,45 @@ warningRegex:Line 2:9: java\.lang\.IllegalArgumentException: path \[host\.name\]
 @timestamp:date
 2020-01-01T00:02:48.461Z
 2020-01-01T11:38:54.751Z
+;
+
+// Pins the parse-path multi-value behavior independently of the pushdown gate. CASE can't be pushed. 
+// Asserting MV_COUNT == 2 here verifies the per-row evaluator emits a real multi-value keyword block. 
+// The value-level ordering is verified by mvExpandOnMultiValuedExtractViaCase below.
+multiValuedSubkeyAsMultiValueViaCase
+required_capability: fn_field_extract
+required_capability: flattened_datatype
+required_capability: fn_case_flattened
+required_capability: field_extract_returns_multi_value
+
+FROM flattened_otel_logs
+| WHERE @timestamp == "2020-01-01T00:07:43.000Z"
+| EVAL root = CASE(@timestamp < "2020-01-01T12:00:00Z", resource.attributes, attributes)
+| EVAL ips = field_extract(root, "host.ip")
+| EVAL n = MV_COUNT(ips)
+| KEEP n
+;
+
+n:integer
+2
+;
+
+mvExpandOnMultiValuedExtractViaCase
+required_capability: fn_field_extract
+required_capability: flattened_datatype
+required_capability: fn_case_flattened
+required_capability: field_extract_returns_multi_value
+
+FROM flattened_otel_logs
+| WHERE @timestamp == "2020-01-01T00:07:43.000Z"
+| EVAL root = CASE(@timestamp < "2020-01-01T12:00:00Z", resource.attributes, attributes)
+| EVAL ips = field_extract(root, "host.ip")
+| MV_EXPAND ips
+| KEEP ips
+| SORT ips
+;
+
+ips:keyword
+10.224.0.170
+fe80::4001:aff:fee0:aa
 ;

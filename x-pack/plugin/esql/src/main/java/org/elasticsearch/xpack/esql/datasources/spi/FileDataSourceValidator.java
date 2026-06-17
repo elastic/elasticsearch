@@ -7,16 +7,17 @@
 
 package org.elasticsearch.xpack.esql.datasources.spi;
 
-import org.elasticsearch.cluster.metadata.DataSourceSetting;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.datasources.PartitionConfig;
+import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceSetting;
 
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.BooleanSupplier;
 import java.util.function.Function;
 
 import static org.elasticsearch.xpack.esql.datasources.spi.DataSourceValidationUtils.rejectUnknownFields;
@@ -51,13 +52,14 @@ public class FileDataSourceValidator implements DataSourceValidator {
     @Nullable
     private final FormatConfigKeyResolver formatConfigKeyResolver;
     private final Set<String> compressionExtensions;
+    private final BooleanSupplier workloadIdentityEnabled;
 
     public FileDataSourceValidator(
         String type,
         Function<Map<String, Object>, DataSourceConfiguration> configFactory,
         Set<String> supportedSchemes
     ) {
-        this(type, configFactory, supportedSchemes, null, Set.of());
+        this(type, configFactory, supportedSchemes, null, Set.of(), () -> false);
     }
 
     private FileDataSourceValidator(
@@ -65,13 +67,15 @@ public class FileDataSourceValidator implements DataSourceValidator {
         Function<Map<String, Object>, DataSourceConfiguration> configFactory,
         Set<String> supportedSchemes,
         @Nullable FormatConfigKeyResolver formatConfigKeyResolver,
-        Set<String> compressionExtensions
+        Set<String> compressionExtensions,
+        BooleanSupplier workloadIdentityEnabled
     ) {
         this.type = type;
         this.configFactory = configFactory;
         this.supportedSchemes = supportedSchemes;
         this.formatConfigKeyResolver = formatConfigKeyResolver;
         this.compressionExtensions = compressionExtensions;
+        this.workloadIdentityEnabled = workloadIdentityEnabled;
     }
 
     /**
@@ -84,7 +88,18 @@ public class FileDataSourceValidator implements DataSourceValidator {
      * runtime resolution in {@code FormatReaderRegistry}/{@code DecompressionCodecRegistry}.
      */
     public FileDataSourceValidator withFormatConfigKeyResolver(FormatConfigKeyResolver resolver, Set<String> compressionExtensions) {
-        return new FileDataSourceValidator(type, configFactory, supportedSchemes, resolver, compressionExtensions);
+        return new FileDataSourceValidator(type, configFactory, supportedSchemes, resolver, compressionExtensions, workloadIdentityEnabled);
+    }
+
+    /**
+     * Returns a new validator that gates {@code auth=workload_identity} on the supplied boolean supplier.
+     * The supplier is called on each validation. Pass a live supplier (e.g. backed by an
+     * {@code AtomicBoolean} updated via {@code ClusterSettings.addSettingsUpdateConsumer}) so
+     * that operator changes to {@code esql.datasource.workload_identity.enabled} take effect
+     * without a node restart.
+     */
+    public FileDataSourceValidator withWorkloadIdentityEnabled(BooleanSupplier supplier) {
+        return new FileDataSourceValidator(type, configFactory, supportedSchemes, formatConfigKeyResolver, compressionExtensions, supplier);
     }
 
     @Override
@@ -98,6 +113,11 @@ public class FileDataSourceValidator implements DataSourceValidator {
             return Map.of();
         }
         DataSourceConfiguration config = configFactory.apply(datasourceSettings);
+        if (config instanceof FileDataSourceConfiguration fc
+            && fc.isWorkloadIdentity()
+            && workloadIdentityEnabled.getAsBoolean() == false) {
+            throw new ValidationException().addValidationError(FileDataSourceConfiguration.WORKLOAD_IDENTITY_DISABLED_MESSAGE);
+        }
         return config != null ? config.toStoredSettings() : Map.of();
     }
 

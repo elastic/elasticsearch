@@ -60,11 +60,12 @@ import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.reindex.AbstractBulkByPaginatedSearchRequest;
+import org.elasticsearch.index.reindex.BulkByPaginatedSearchResponse;
 import org.elasticsearch.index.reindex.BulkByPaginatedSearchTask;
-import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.PaginatedSearchFailure;
 import org.elasticsearch.index.reindex.ResumeInfo;
 import org.elasticsearch.index.reindex.WorkerBulkByPaginatedSearchTaskState;
@@ -144,7 +145,7 @@ import static org.mockito.Mockito.when;
 public class AsyncBulkByScrollActionTests extends ESTestCase {
     private MyMockClient client;
     private DummyAbstractBulkByPaginatedSearchRequest testRequest;
-    private PlainActionFuture<BulkByScrollResponse> listener;
+    private PlainActionFuture<BulkByPaginatedSearchResponse> listener;
     private String scrollId;
     private ThreadPool threadPool;
     private ThreadPool clientThreadPool;
@@ -453,7 +454,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         configurePitOrScroll(true);
         PaginatedHitSource.Response response = createPaginatedResponse(true, false, emptyList(), 0, emptyList(), null, null);
         simulatePaginatedResponse(new DummyAsyncBulkByScrollAction(), System.nanoTime(), 0, response, true);
-        BulkByScrollResponse bulkResponse = listener.get();
+        BulkByPaginatedSearchResponse bulkResponse = listener.get();
         assertTrue("PIT response should include pitId", bulkResponse.getPitId().isPresent());
         assertThat(bulkResponse.getPitId().get(), equalTo(TEST_PIT_ID));
     }
@@ -632,7 +633,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
             null
         );
         simulatePaginatedResponse(new DummyAsyncBulkByScrollAction(), System.nanoTime(), 0, scrollResponse, usePit);
-        BulkByScrollResponse response = listener.get();
+        BulkByPaginatedSearchResponse response = listener.get();
         assertThat(response.getBulkFailures(), empty());
         assertThat(response.getSearchFailures(), contains(shardFailure));
         assertFalse(response.isTimedOut());
@@ -649,7 +650,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         boolean usePit = configurePitOrScroll();
         PaginatedHitSource.Response scrollResponse = createPaginatedResponse(usePit, true, emptyList(), 0, emptyList(), null, null);
         simulatePaginatedResponse(new DummyAsyncBulkByScrollAction(), System.nanoTime(), 0, scrollResponse, usePit);
-        BulkByScrollResponse response = listener.get();
+        BulkByPaginatedSearchResponse response = listener.get();
         assertThat(response.getBulkFailures(), empty());
         assertThat(response.getSearchFailures(), empty());
         assertTrue(response.isTimedOut());
@@ -853,7 +854,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
             randomLong()
         );
         action.onBulkResponse(bulkResponse, Assert::fail);
-        BulkByScrollResponse response = listener.get();
+        BulkByPaginatedSearchResponse response = listener.get();
         assertThat(response.getBulkFailures(), contains(failure));
         assertThat(response.getSearchFailures(), empty());
         assertNull(response.getReasonCancelled());
@@ -1098,7 +1099,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         }
         if (failWithRejection) {
             action.sendBulkRequest(request, NO_OP_RELEASE_BATCH_HITS, Assert::fail);
-            BulkByScrollResponse response = listener.get();
+            BulkByPaginatedSearchResponse response = listener.get();
             assertThat(response.getBulkFailures(), hasSize(1));
             assertEquals(response.getBulkFailures().get(0).getStatus(), RestStatus.TOO_MANY_REQUESTS);
             assertThat(response.getSearchFailures(), empty());
@@ -1400,6 +1401,28 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         assertThat(h2.releases.get(), equalTo(1));
         // Terminal path must release hits without submitting bulk; without requestFinishing prepare reaches sendBulkRequest.
         assertThat(sendBulkInvocations.get(), equalTo(0));
+    }
+
+    public void testCopyRoutingPropagatesSliceRoutingProvenanceToWriteRequests() {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        DummyAsyncBulkByScrollAction action = new DummyAsyncBulkByScrollAction();
+        testRequest.getSearchRequest().searchSlice("slice-1");
+
+        IndexRequest indexRequest = new IndexRequest().index("test").id("1");
+        DeleteRequest deleteRequest = new DeleteRequest("test", "1");
+        action.copyRouting(AbstractAsyncBulkByPaginatedSearchAction.wrap(indexRequest), "slice-1");
+        action.copyRouting(AbstractAsyncBulkByPaginatedSearchAction.wrap(deleteRequest), "slice-1");
+
+        assertThat(indexRequest.routing(), equalTo("slice-1"));
+        assertTrue(indexRequest.isRoutingFromSlice());
+        assertThat(deleteRequest.routing(), equalTo("slice-1"));
+        assertTrue(deleteRequest.isRoutingFromSlice());
+
+        testRequest.getSearchRequest().searchSlice(null);
+        IndexRequest routingRequest = new IndexRequest().index("test").id("2");
+        action.copyRouting(AbstractAsyncBulkByPaginatedSearchAction.wrap(routingRequest), "routing-value");
+        assertThat(routingRequest.routing(), equalTo("routing-value"));
+        assertFalse(routingRequest.isRoutingFromSlice());
     }
 
     /**
@@ -1801,7 +1824,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         action.notifyDone(System.nanoTime(), asyncResponse, 0);
 
         assertTrue(listener.isDone());
-        final BulkByScrollResponse response = listener.actionGet();
+        final BulkByPaginatedSearchResponse response = listener.actionGet();
         assertTrue(response.getTaskResumeInfo().isPresent());
         final ResumeInfo resumeInfo = response.getTaskResumeInfo().get();
         assertNotNull(resumeInfo.worker());
@@ -1865,7 +1888,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         action.notifyDone(System.nanoTime(), asyncResponse, 0);
 
         assertTrue(listener.isDone());
-        final BulkByScrollResponse response = listener.actionGet();
+        final BulkByPaginatedSearchResponse response = listener.actionGet();
         assertTrue(response.getTaskResumeInfo().isPresent());
         final ResumeInfo resumeInfo = response.getTaskResumeInfo().get();
         assertNotNull(resumeInfo.worker());
@@ -2219,7 +2242,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         action.notifyDone(System.nanoTime(), asyncResponse, 0);
 
         assertTrue(listener.isDone());
-        final BulkByScrollResponse response = listener.actionGet();
+        final BulkByPaginatedSearchResponse response = listener.actionGet();
         assertTrue(response.getTaskResumeInfo().isPresent());
     }
 
@@ -2249,7 +2272,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         action.notifyDone(System.nanoTime(), asyncResponse, 0);
 
         assertTrue(listener.isDone());
-        final BulkByScrollResponse response = listener.actionGet();
+        final BulkByPaginatedSearchResponse response = listener.actionGet();
         assertTrue(response.getTaskResumeInfo().isPresent());
     }
 
@@ -2288,7 +2311,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
                 null,
                 null,
                 null,
-                randomFrom(BulkByScrollSearchContextMetrics.TaskKind.values()),
+                randomFrom(BulkByPaginatedSearchSearchContextMetrics.TaskKind.values()),
                 false,
                 maxTaskShutdownGracePeriod,
                 new ReindexSettings(),
@@ -2320,7 +2343,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
 
     private static class DummyTransportAsyncBulkByScrollAction extends TransportAction<
         DummyAbstractBulkByPaginatedSearchRequest,
-        BulkByScrollResponse> {
+        BulkByPaginatedSearchResponse> {
 
         protected DummyTransportAsyncBulkByScrollAction(String actionName, ActionFilters actionFilters, TaskManager taskManager) {
             super(actionName, actionFilters, taskManager, EsExecutors.DIRECT_EXECUTOR_SERVICE);
@@ -2330,7 +2353,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         protected void doExecute(
             Task task,
             DummyAbstractBulkByPaginatedSearchRequest request,
-            ActionListener<BulkByScrollResponse> listener
+            ActionListener<BulkByPaginatedSearchResponse> listener
         ) {
             // no-op
         }

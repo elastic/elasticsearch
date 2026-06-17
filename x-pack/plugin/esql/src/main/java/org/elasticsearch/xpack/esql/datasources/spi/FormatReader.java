@@ -237,4 +237,13 @@ public interface FormatReader extends Closeable {
         return true;
     }
 
+    /**
+     * Returns a typed snapshot of format-reader I/O counters, or {@code null} when the reader
+     * tracks none. The snapshot is folded into the {@code format_reader} field of the
+     * external-source operator status.
+     */
+    default FormatReaderStatus statusSnapshot() {
+        return null;
+    }
+
 }

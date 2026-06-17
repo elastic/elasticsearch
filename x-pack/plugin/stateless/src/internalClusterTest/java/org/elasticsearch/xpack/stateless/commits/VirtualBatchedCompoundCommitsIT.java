@@ -344,6 +344,10 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessPluginInte
     private long getDirectorySize(Directory directory) throws IOException {
         long size = 0;
         for (String file : directory.listAll()) {
+            // Don't count .tmp files from ongoing merges, they can and will disappear
+            if (file.endsWith(".tmp")) {
+                continue;
+            }
             size += directory.fileLength(file);
         }
         return size;
@@ -1125,7 +1129,7 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessPluginInte
         ensureSearchable(indexName);
     }
 
-    public void testVirtualBatchedCompoundCommitChunksPressure() {
+    public void testVirtualBatchedCompoundCommitChunksPressure() throws Exception {
         // The test admits a first refresh that requests a 1-page chunk, and halts it mid-way before returning the chunk response.
         // Then, a second refresh comes in, that requests another 1-page chunk. It is rejected two times in a row, and the third retry
         // attempt is halted mid-way before processing the chunk request (and thus is not yet counted by the pressure). Then, we complete
@@ -1258,12 +1262,12 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessPluginInte
         logger.info("--> continuing sending chunk for the first refresh");
         chunk1ToSendResponse.countDown();
         assertNoFailures(safeGet(refresh1));
-        assertThat(vbccChunksPressure.getCurrentChunksBytes(), equalTo(0L));
+        assertBusy(() -> assertThat(vbccChunksPressure.getCurrentChunksBytes(), equalTo(0L)));
 
         logger.info("--> continuing processing chunk for the second refresh");
         chunk2ToProcess.countDown();
         assertNoFailures(safeGet(refresh2));
-        assertThat(vbccChunksPressure.getCurrentChunksBytes(), equalTo(0L));
+        assertBusy(() -> assertThat(vbccChunksPressure.getCurrentChunksBytes(), equalTo(0L)));
 
         // Confirm that the pressure metrics were correctly set
         final int pages = pagesRead.get();

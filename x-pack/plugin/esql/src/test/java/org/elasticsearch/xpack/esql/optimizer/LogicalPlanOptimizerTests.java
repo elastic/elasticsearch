@@ -56,6 +56,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.DeltaOnlyHistogramMergeOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.DimensionValues;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.HistogramMerge;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.HistogramMergeOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.LastOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Max;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
@@ -7565,7 +7566,8 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         assertNotNull(aggsByTsid.timeBucket());
         assertThat(aggsByTsid.timeBucket().buckets().fold(FoldContext.small()), equalTo(Duration.ofHours(1)));
         Eval evalBucket = as(aggsByTsid.child(), Eval.class);
-        assertThat(evalBucket.fields(), hasSize(1));
+        // bucket alias + ToDouble(network.bytes_in) extracted from Sum's nested expression
+        assertThat(evalBucket.fields(), hasSize(2));
         EsRelation relation = as(evalBucket.child(), EsRelation.class);
         assertThat(relation.indexMode(), equalTo(IndexMode.STANDARD));
 
@@ -7576,7 +7578,11 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
         Sum sumTs = as(Alias.unwrap(aggsByTsid.aggregates().get(0)), Sum.class);
         assertThat(sumTs.summationMode(), equalTo(SummationMode.LOSSY_LITERAL));
-        assertThat(Expressions.attribute(sumTs.field()).name(), equalTo("network.bytes_in"));
+        // Avg(long) surrogate casts to double; the cast is extracted into the eval below the time-series agg.
+        Alias toDoubleAlias = as(evalBucket.fields().get(1), Alias.class);
+        ToDouble toDouble = as(toDoubleAlias.child(), ToDouble.class);
+        assertThat(Expressions.attribute(toDouble.field()).name(), equalTo("network.bytes_in"));
+        assertThat(Expressions.attribute(sumTs.field()).id(), equalTo(toDoubleAlias.id()));
         Count countTs = as(Alias.unwrap(aggsByTsid.aggregates().get(1)), Count.class);
         assertThat(Expressions.attribute(countTs.field()).name(), equalTo("network.bytes_in"));
         assertThat(Expressions.attribute(aggsByTsid.groupings().get(1)).id(), equalTo(evalBucket.fields().get(0).id()));
@@ -7595,7 +7601,11 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var limit = as(eval.child(), Limit.class);
         Aggregate finalAgg = as(limit.child(), Aggregate.class);
         assertThat(finalAgg, not(instanceOf(TimeSeriesAggregate.class)));
-        TimeSeriesAggregate aggsByTsid = as(finalAgg.child(), TimeSeriesAggregate.class);
+        // Avg(long) surrogate wraps Sum's input in ToDouble; the cast is extracted into an Eval above the TimeSeriesAggregate.
+        Eval evalToDouble = as(finalAgg.child(), Eval.class);
+        assertThat(evalToDouble.fields(), hasSize(1));
+        as(Alias.unwrap(evalToDouble.fields().get(0)), ToDouble.class);
+        TimeSeriesAggregate aggsByTsid = as(evalToDouble.child(), TimeSeriesAggregate.class);
         assertNotNull(aggsByTsid.timeBucket());
         assertThat(aggsByTsid.timeBucket().buckets().fold(FoldContext.small()), equalTo(Duration.ofMinutes(1)));
         Eval evalBucket = as(aggsByTsid.child(), Eval.class);
@@ -7697,7 +7707,11 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var limit = as(eval.child(), Limit.class);
         Aggregate finalAgg = as(limit.child(), Aggregate.class);
         assertThat(finalAgg, not(instanceOf(TimeSeriesAggregate.class)));
-        TimeSeriesAggregate aggsByTsid = as(finalAgg.child(), TimeSeriesAggregate.class);
+        // Avg(long) surrogate wraps Sum's input in ToDouble; the cast is extracted into an Eval above the TimeSeriesAggregate.
+        Eval evalToDouble = as(finalAgg.child(), Eval.class);
+        assertThat(evalToDouble.fields(), hasSize(1));
+        as(Alias.unwrap(evalToDouble.fields().get(0)), ToDouble.class);
+        TimeSeriesAggregate aggsByTsid = as(evalToDouble.child(), TimeSeriesAggregate.class);
         assertNotNull(aggsByTsid.timeBucket());
         assertThat(aggsByTsid.timeBucket().buckets().fold(FoldContext.small()), equalTo(Duration.ofMinutes(1)));
         Eval evalBucket = as(aggsByTsid.child(), Eval.class);
@@ -7734,14 +7748,14 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         Eval evalBucket = as(aggsByTsid.child(), Eval.class);
         assertThat(evalBucket.fields(), hasSize(1));
         EsRelation relation = as(evalBucket.child(), EsRelation.class);
-        assertThat(relation.indexMode(), equalTo(IndexMode.STANDARD));
+        assertThat(relation.indexMode(), equalTo(IndexMode.TIME_SERIES));
 
         var crossSeriesSum = as(Alias.unwrap(finalAgg.aggregates().get(0)), Sum.class);
         assertFalse(crossSeriesSum.hasFilter());
 
         var sumExtraction = as(Alias.unwrap(sumExtractionEval.expressions().get(0)), ExtractHistogramComponent.class);
 
-        var mergePerSeries = as(Alias.unwrap(aggsByTsid.aggregates().get(0)), DeltaOnlyHistogramMergeOverTime.class);
+        var mergePerSeries = as(Alias.unwrap(aggsByTsid.aggregates().get(0)), HistogramMergeOverTime.class);
         assertFalse(mergePerSeries.hasFilter());
         assertThat(Expressions.attribute(mergePerSeries.field()).name(), equalTo("responseTime"));
 
@@ -7765,14 +7779,14 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         Eval evalBucket = as(aggsByTsid.child(), Eval.class);
         assertThat(evalBucket.fields(), hasSize(1));
         EsRelation relation = as(evalBucket.child(), EsRelation.class);
-        assertThat(relation.indexMode(), equalTo(IndexMode.STANDARD));
+        assertThat(relation.indexMode(), equalTo(IndexMode.TIME_SERIES));
 
         var crossSeriesSum = as(Alias.unwrap(finalAgg.aggregates().get(0)), Sum.class);
         assertFalse(crossSeriesSum.hasFilter());
 
         var sumExtraction = as(Alias.unwrap(sumExtractionEval.expressions().get(0)), ExtractHistogramComponent.class);
 
-        var mergePerSeries = as(Alias.unwrap(aggsByTsid.aggregates().get(0)), DeltaOnlyHistogramMergeOverTime.class);
+        var mergePerSeries = as(Alias.unwrap(aggsByTsid.aggregates().get(0)), HistogramMergeOverTime.class);
         assertTrue(mergePerSeries.hasFilter());
         assertThat(mergePerSeries.filter(), instanceOf(Equals.class));
         assertThat(Expressions.attribute(mergePerSeries.field()).name(), equalTo("responseTime"));
@@ -7798,14 +7812,14 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         Eval evalBucket = as(aggsByTsid.child(), Eval.class);
         assertThat(evalBucket.fields(), hasSize(1));
         EsRelation relation = as(evalBucket.child(), EsRelation.class);
-        assertThat(relation.indexMode(), equalTo(IndexMode.STANDARD));
+        assertThat(relation.indexMode(), equalTo(IndexMode.TIME_SERIES));
 
         var percentileExtraction = as(Alias.unwrap(percentileExtractionEval.expressions().get(0)), HistogramPercentile.class);
 
         var crossSeriesMerge = as(Alias.unwrap(finalAgg.aggregates().get(0)), HistogramMerge.class);
         assertFalse(crossSeriesMerge.hasFilter());
 
-        var mergePerSeries = as(Alias.unwrap(aggsByTsid.aggregates().get(0)), DeltaOnlyHistogramMergeOverTime.class);
+        var mergePerSeries = as(Alias.unwrap(aggsByTsid.aggregates().get(0)), HistogramMergeOverTime.class);
         assertFalse(mergePerSeries.hasFilter());
         assertThat(Expressions.attribute(mergePerSeries.field()).name(), equalTo("responseTime"));
 
@@ -7830,14 +7844,14 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         Eval evalBucket = as(aggsByTsid.child(), Eval.class);
         assertThat(evalBucket.fields(), hasSize(1));
         EsRelation relation = as(evalBucket.child(), EsRelation.class);
-        assertThat(relation.indexMode(), equalTo(IndexMode.STANDARD));
+        assertThat(relation.indexMode(), equalTo(IndexMode.TIME_SERIES));
 
         var percentileExtraction = as(Alias.unwrap(percentileExtractionEval.expressions().get(0)), HistogramPercentile.class);
 
         var crossSeriesMerge = as(Alias.unwrap(finalAgg.aggregates().get(0)), HistogramMerge.class);
         assertFalse(crossSeriesMerge.hasFilter());
 
-        var mergePerSeries = as(Alias.unwrap(aggsByTsid.aggregates().get(0)), DeltaOnlyHistogramMergeOverTime.class);
+        var mergePerSeries = as(Alias.unwrap(aggsByTsid.aggregates().get(0)), HistogramMergeOverTime.class);
         assertTrue(mergePerSeries.hasFilter());
         assertThat(mergePerSeries.filter(), instanceOf(Equals.class));
         assertThat(Expressions.attribute(mergePerSeries.field()).name(), equalTo("responseTime"));
@@ -7845,6 +7859,28 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         assertThat(Expressions.attribute(aggsByTsid.groupings().get(1)).id(), equalTo(evalBucket.fields().get(0).id()));
         Bucket bucket = as(Alias.unwrap(evalBucket.fields().get(0)), Bucket.class);
         assertThat(Expressions.attribute(bucket.field()).name(), equalTo("@timestamp"));
+    }
+
+    public void testTranslateHistogramAvgOverTime() {
+        var query = "TS exp_histo_sample | STATS sum(avg_over_time(responseTime))";
+        var plan = planMetrics(query);
+        var limit = as(plan, Limit.class);
+        Aggregate finalAgg = as(limit.child(), Aggregate.class);
+        assertThat(finalAgg, not(instanceOf(TimeSeriesAggregate.class)));
+        Eval avgExtractionEval = as(finalAgg.child(), Eval.class);
+        assertThat(avgExtractionEval.fields(), hasSize(1));
+        var div = as(Alias.unwrap(avgExtractionEval.fields().get(0)), Div.class);
+        as(div.left(), ExtractHistogramComponent.class);
+        as(div.right(), ExtractHistogramComponent.class);
+
+        TimeSeriesAggregate aggsByTsid = as(avgExtractionEval.child(), TimeSeriesAggregate.class);
+        assertNull(aggsByTsid.timeBucket());
+        as(aggsByTsid.child(), EsRelation.class);
+
+        var crossSeriesSum = as(Alias.unwrap(finalAgg.aggregates().get(0)), Sum.class);
+
+        var mergePerSeries = as(Alias.unwrap(aggsByTsid.aggregates().get(0)), HistogramMergeOverTime.class);
+        assertThat(Expressions.attribute(mergePerSeries.field()).name(), equalTo("responseTime"));
     }
 
     public void testTranslateTDigestSumWithImplicitMergeOverTime() {
@@ -7862,7 +7898,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         Eval evalBucket = as(aggsByTsid.child(), Eval.class);
         assertThat(evalBucket.fields(), hasSize(1));
         EsRelation relation = as(evalBucket.child(), EsRelation.class);
-        assertThat(relation.indexMode(), equalTo(IndexMode.STANDARD));
+        assertThat(relation.indexMode(), equalTo(IndexMode.TIME_SERIES));
 
         var crossSeriesSum = as(Alias.unwrap(finalAgg.aggregates().get(0)), Sum.class);
         assertFalse(crossSeriesSum.hasFilter());
@@ -7894,7 +7930,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         Eval evalBucket = as(aggsByTsid.child(), Eval.class);
         assertThat(evalBucket.fields(), hasSize(1));
         EsRelation relation = as(evalBucket.child(), EsRelation.class);
-        assertThat(relation.indexMode(), equalTo(IndexMode.STANDARD));
+        assertThat(relation.indexMode(), equalTo(IndexMode.TIME_SERIES));
 
         var percentileExtraction = as(Alias.unwrap(percentileExtractionEval.expressions().get(0)), HistogramPercentile.class);
 
@@ -7914,14 +7950,14 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var query = """
             TS exp_histo_sample | STATS SUM(responseTime) BY bucket(@timestamp, 1 minute) | LIMIT 10
             """;
-        // With current version, the per-series agg should remain DeltaOnlyHistogramMergeOverTime
+        // With current version, the per-series agg should remain HistogramMergeOverTime
         {
             var plan = planMetrics(query);
             var limit = as(plan, Limit.class);
             Aggregate finalAgg = as(limit.child(), Aggregate.class);
             Eval sumExtractionEval = as(finalAgg.child(), Eval.class);
             TimeSeriesAggregate aggsByTsid = as(sumExtractionEval.child(), TimeSeriesAggregate.class);
-            var mergePerSeries = as(Alias.unwrap(aggsByTsid.aggregates().get(0)), DeltaOnlyHistogramMergeOverTime.class);
+            var mergePerSeries = as(Alias.unwrap(aggsByTsid.aggregates().get(0)), HistogramMergeOverTime.class);
             assertThat(Expressions.attribute(mergePerSeries.field()).name(), equalTo("responseTime"));
         }
         // With an old version that doesn't support the new aggregator, the fix should replace it with HistogramMerge
@@ -9554,7 +9590,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             .map(a -> (TimeSeriesMetadataAttribute) a)
             .toList();
         assertThat(timeSeriesAttrs, hasSize(1));
-        assertThat(timeSeriesAttrs.get(0).withoutFields(), equalTo(Set.of("pod")));
+        assertThat(timeSeriesAttrs.get(0).excludedFields(), equalTo(Set.of("pod")));
     }
 
     public void testWithoutGroupingExcludesMultipleDimensions() {
@@ -9572,7 +9608,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             .map(a -> (TimeSeriesMetadataAttribute) a)
             .toList();
         assertThat(timeSeriesAttrs, hasSize(1));
-        assertThat(timeSeriesAttrs.get(0).withoutFields(), equalTo(Set.of("pod", "region")));
+        assertThat(timeSeriesAttrs.get(0).excludedFields(), equalTo(Set.of("pod", "region")));
     }
 
     public void testWithoutGroupingNoDuplicateWithTsAggFunction() {
@@ -9602,7 +9638,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             .map(a -> (TimeSeriesMetadataAttribute) a)
             .toList();
         assertThat(timeSeriesAttrs, hasSize(1));
-        assertThat(timeSeriesAttrs.get(0).withoutFields(), equalTo(Set.of()));
+        assertThat(timeSeriesAttrs.get(0).excludedFields(), equalTo(Set.of()));
     }
 
     public void testTimeSeriesBareFieldWithBucketAndLimitZeroDoesNotFailVerifier() {
@@ -10250,13 +10286,6 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             )
         ).getMessage();
         assertThat(errorMessage, containsString("count_star [count(*)] can't be used with TS command; use count on a field instead"));
-        assertThat(
-            errorMessage,
-            containsString(
-                "[STATS count(*)] requires the [@timestamp] field, which was either not present "
-                    + "in the source index, or has been dropped or renamed"
-            )
-        );
     }
 
     /**

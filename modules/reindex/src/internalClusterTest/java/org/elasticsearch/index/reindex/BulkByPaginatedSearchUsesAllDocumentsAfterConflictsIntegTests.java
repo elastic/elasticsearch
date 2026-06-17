@@ -60,7 +60,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
-public class BulkByScrollUsesAllScrollDocumentsAfterConflictsIntegTests extends ReindexTestCase {
+public class BulkByPaginatedSearchUsesAllDocumentsAfterConflictsIntegTests extends ReindexTestCase {
     private static final String SCRIPT_LANG = "fake_lang";
     private static final String NOOP_GENERATOR = "modificationScript";
     private static final String RETURN_NOOP_FIELD = "return_noop";

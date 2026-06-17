@@ -105,7 +105,7 @@ public class FileSplitProvider implements SplitProvider {
 
     static final String RANGE_SPLIT_KEY = "_range_split";
     static final String FILE_LENGTH_KEY = "_file_length";
-    static final String CONFIG_TARGET_SPLIT_SIZE = "target_split_size";
+    public static final String CONFIG_TARGET_SPLIT_SIZE = "target_split_size";
 
     /**
      * Configuration keys this splitter consumes from a query-time configuration map. Aggregated by
@@ -894,6 +894,20 @@ public class FileSplitProvider implements SplitProvider {
         if (s.isEmpty()) {
             return targetSplitSizeBytes;
         }
+        return validateTargetSplitSize(value);
+    }
+
+    /**
+     * Parses and validates a {@code target_split_size} value, returning the size in bytes. Shared
+     * by the query path ({@link #resolveTargetSplitSize}) and the dataset CRUD validator so both
+     * accept exactly the same inputs. The caller is responsible for the null/empty fallback to a
+     * default; this method always parses.
+     *
+     * @throws org.elasticsearch.ElasticsearchParseException if the unit suffix is missing or malformed
+     * @throws IllegalArgumentException                      if the resulting size is not positive
+     */
+    public static long validateTargetSplitSize(Object value) {
+        String s = value.toString().trim();
         long result = ByteSizeValue.parseBytesSizeValue(s, CONFIG_TARGET_SPLIT_SIZE).getBytes();
         Check.isTrue(result > 0, "Invalid value for [{}]: [{}]; must be positive", CONFIG_TARGET_SPLIT_SIZE, value);
         return result;

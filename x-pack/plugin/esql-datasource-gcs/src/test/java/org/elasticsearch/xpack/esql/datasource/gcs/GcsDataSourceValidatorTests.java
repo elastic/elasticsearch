@@ -144,6 +144,33 @@ public class GcsDataSourceValidatorTests extends AbstractDataSourceValidatorTest
         );
     }
 
+    public void testValidateDatasetSchemaResolution() {
+        assertEquals(
+            "union_by_name",
+            validator.validateDataset(Map.of(), "gs://b/p", Map.of("schema_resolution", "union_by_name")).get("schema_resolution")
+        );
+        expectThrows(
+            org.elasticsearch.common.ValidationException.class,
+            () -> validator.validateDataset(Map.of(), "gs://b/p", Map.of("schema_resolution", "banana"))
+        );
+    }
+
+    public void testValidateDatasetErrorBudget() {
+        assertEquals("100", validator.validateDataset(Map.of(), "gs://b/p", Map.of("max_errors", "100")).get("max_errors"));
+        expectThrows(
+            org.elasticsearch.common.ValidationException.class,
+            () -> validator.validateDataset(Map.of(), "gs://b/p", Map.of("error_mode", "fail_fast", "max_errors", "10"))
+        );
+    }
+
+    public void testValidateDatasetTargetSplitSize() {
+        assertEquals("64mb", validator.validateDataset(Map.of(), "gs://b/p", Map.of("target_split_size", "64mb")).get("target_split_size"));
+        expectThrows(
+            org.elasticsearch.common.ValidationException.class,
+            () -> validator.validateDataset(Map.of(), "gs://b/p", Map.of("target_split_size", "abc"))
+        );
+    }
+
     public void testValidateDatasourceSkipsNullValues() {
         var settings = new java.util.HashMap<String, Object>();
         settings.put("project_id", "my-project");

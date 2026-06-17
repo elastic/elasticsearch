@@ -292,6 +292,94 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
         assertEquals(2, e.validationErrors().size());
     }
 
+    // --- Coordinator data-shape key validation (strict, via the owning query-path parsers) ---
+
+    public void testValidateDatasetSchemaResolutionAllValues() {
+        for (String v : new String[] { "first_file_wins", "strict", "union_by_name", "FIRST_FILE_WINS", "Union_By_Name" }) {
+            assertEquals(v, validator.validateDataset(Map.of(), "s3://b/p", Map.of("schema_resolution", v)).get("schema_resolution"));
+        }
+    }
+
+    public void testValidateDatasetSchemaResolutionInvalid() {
+        expectThrows(
+            org.elasticsearch.common.ValidationException.class,
+            () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("schema_resolution", "banana"))
+        );
+    }
+
+    public void testValidateDatasetMaxErrors() {
+        assertEquals("100", validator.validateDataset(Map.of(), "s3://b/p", Map.of("max_errors", "100")).get("max_errors"));
+    }
+
+    public void testValidateDatasetMaxErrorsNonNumber() {
+        expectThrows(
+            org.elasticsearch.common.ValidationException.class,
+            () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("max_errors", "abc"))
+        );
+    }
+
+    public void testValidateDatasetMaxErrorRatio() {
+        assertEquals("0.1", validator.validateDataset(Map.of(), "s3://b/p", Map.of("max_error_ratio", "0.1")).get("max_error_ratio"));
+    }
+
+    public void testValidateDatasetMaxErrorRatioOutOfRange() {
+        expectThrows(
+            org.elasticsearch.common.ValidationException.class,
+            () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("max_error_ratio", "2.0"))
+        );
+    }
+
+    public void testValidateDatasetErrorBudgetConflictsWithFailFast() {
+        // fail_fast always aborts on the first error, so a budget key is a contradiction the parser rejects.
+        expectThrows(
+            org.elasticsearch.common.ValidationException.class,
+            () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("error_mode", "fail_fast", "max_errors", "10"))
+        );
+    }
+
+    public void testValidateDatasetPartitionPath() {
+        assertEquals(
+            "year=*/month=*",
+            validator.validateDataset(Map.of(), "s3://b/p", Map.of("partition_path", "year=*/month=*")).get("partition_path")
+        );
+    }
+
+    public void testValidateDatasetHivePartitioning() {
+        assertEquals(false, validator.validateDataset(Map.of(), "s3://b/p", Map.of("hive_partitioning", false)).get("hive_partitioning"));
+        assertEquals(true, validator.validateDataset(Map.of(), "s3://b/p", Map.of("hive_partitioning", true)).get("hive_partitioning"));
+    }
+
+    public void testValidateDatasetTargetSplitSize() {
+        assertEquals("64mb", validator.validateDataset(Map.of(), "s3://b/p", Map.of("target_split_size", "64mb")).get("target_split_size"));
+    }
+
+    public void testValidateDatasetTargetSplitSizeInvalid() {
+        expectThrows(
+            org.elasticsearch.common.ValidationException.class,
+            () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("target_split_size", "abc"))
+        );
+    }
+
+    public void testValidateDatasetTargetSplitSizeUnitlessRejected() {
+        // ByteSizeValue requires a unit suffix; a bare number is rejected.
+        expectThrows(
+            org.elasticsearch.common.ValidationException.class,
+            () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("target_split_size", "1024"))
+        );
+    }
+
+    public void testValidateDatasetFormatStaysExternalOnly() {
+        // format/reader remain EXTERNAL-only dev knobs: they are NOT accepted as dataset settings.
+        expectThrows(
+            org.elasticsearch.common.ValidationException.class,
+            () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("format", "csv"))
+        );
+        expectThrows(
+            org.elasticsearch.common.ValidationException.class,
+            () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("reader", "java"))
+        );
+    }
+
     // --- Format-aware validation tests ---
 
     public void testFormatAwareValidatorAcceptsCsvDelimiter() {

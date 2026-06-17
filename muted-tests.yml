@@ -626,3 +626,6 @@ tests:
 - class: org.elasticsearch.xpack.logsdb.LogsdbRestIT
   method: testSyntheticSourceRuntimeFieldQueries
   issue: https://github.com/elastic/elasticsearch/issues/151546
+- class: org.elasticsearch.xpack.logsdb.LogsdbRestIT
+  method: testEsqlRuntimeFields
+  issue: https://github.com/elastic/elasticsearch/issues/151547

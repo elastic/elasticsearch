@@ -21,7 +21,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
 @SuppressWarnings("HiddenField")
-public class BulkIndexByScrollResponseMatcher extends TypeSafeMatcher<BulkByPaginatedSearchResponse> {
+public class BulkIndexByPaginatedSearchResponseMatcher extends TypeSafeMatcher<BulkByPaginatedSearchResponse> {
 
     private Matcher<Long> createdMatcher = equalTo(0L);
     private Matcher<Long> updatedMatcher = equalTo(0L);
@@ -38,42 +38,42 @@ public class BulkIndexByScrollResponseMatcher extends TypeSafeMatcher<BulkByPagi
     private Matcher<Long> versionConflictsMatcher = equalTo(0L);
     private Matcher<Integer> failuresMatcher = equalTo(0);
     private Matcher<String> reasonCancelledMatcher = nullValue(String.class);
-    private Matcher<Collection<? extends BulkIndexByScrollResponseMatcher>> slicesMatcher = empty();
+    private Matcher<Collection<? extends BulkIndexByPaginatedSearchResponseMatcher>> slicesMatcher = empty();
 
-    public BulkIndexByScrollResponseMatcher created(Matcher<Long> createdMatcher) {
+    public BulkIndexByPaginatedSearchResponseMatcher created(Matcher<Long> createdMatcher) {
         this.createdMatcher = createdMatcher;
         return this;
     }
 
-    public BulkIndexByScrollResponseMatcher created(long created) {
+    public BulkIndexByPaginatedSearchResponseMatcher created(long created) {
         return created(equalTo(created));
     }
 
-    public BulkIndexByScrollResponseMatcher updated(Matcher<Long> updatedMatcher) {
+    public BulkIndexByPaginatedSearchResponseMatcher updated(Matcher<Long> updatedMatcher) {
         this.updatedMatcher = updatedMatcher;
         return this;
     }
 
-    public BulkIndexByScrollResponseMatcher updated(long updated) {
+    public BulkIndexByPaginatedSearchResponseMatcher updated(long updated) {
         return updated(equalTo(updated));
     }
 
-    public BulkIndexByScrollResponseMatcher deleted(Matcher<Long> deletedMatcher) {
+    public BulkIndexByPaginatedSearchResponseMatcher deleted(Matcher<Long> deletedMatcher) {
         this.deletedMatcher = deletedMatcher;
         return this;
     }
 
-    public BulkIndexByScrollResponseMatcher deleted(long deleted) {
+    public BulkIndexByPaginatedSearchResponseMatcher deleted(long deleted) {
         return deleted(equalTo(deleted));
     }
 
     /// Set the matcher for the `total` field on the response (the planned number of source documents to process).
-    public BulkIndexByScrollResponseMatcher total(Matcher<Long> totalMatcher) {
+    public BulkIndexByPaginatedSearchResponseMatcher total(Matcher<Long> totalMatcher) {
         this.totalMatcher = totalMatcher;
         return this;
     }
 
-    public BulkIndexByScrollResponseMatcher total(long total) {
+    public BulkIndexByPaginatedSearchResponseMatcher total(long total) {
         return total(equalTo(total));
     }
 
@@ -82,26 +82,26 @@ public class BulkIndexByScrollResponseMatcher extends TypeSafeMatcher<BulkByPagi
      * integer because we usually don't care about how many batches the job
      * takes.
      */
-    public BulkIndexByScrollResponseMatcher batches(Matcher<Integer> batchesMatcher) {
+    public BulkIndexByPaginatedSearchResponseMatcher batches(Matcher<Integer> batchesMatcher) {
         this.batchesMatcher = batchesMatcher;
         return this;
     }
 
-    public BulkIndexByScrollResponseMatcher batches(int batches) {
+    public BulkIndexByPaginatedSearchResponseMatcher batches(int batches) {
         return batches(equalTo(batches));
     }
 
-    public BulkIndexByScrollResponseMatcher batches(int total, int batchSize) {
+    public BulkIndexByPaginatedSearchResponseMatcher batches(int total, int batchSize) {
         // Round up
         return batches((total + batchSize - 1) / batchSize);
     }
 
-    public BulkIndexByScrollResponseMatcher versionConflicts(Matcher<Long> versionConflictsMatcher) {
+    public BulkIndexByPaginatedSearchResponseMatcher versionConflicts(Matcher<Long> versionConflictsMatcher) {
         this.versionConflictsMatcher = versionConflictsMatcher;
         return this;
     }
 
-    public BulkIndexByScrollResponseMatcher versionConflicts(long versionConflicts) {
+    public BulkIndexByPaginatedSearchResponseMatcher versionConflicts(long versionConflicts) {
         return versionConflicts(equalTo(versionConflicts));
     }
 
@@ -110,7 +110,7 @@ public class BulkIndexByScrollResponseMatcher extends TypeSafeMatcher<BulkByPagi
      * matching do it by hand. The type signatures required to match the
      * actual failures list here just don't work.
      */
-    public BulkIndexByScrollResponseMatcher failures(Matcher<Integer> failuresMatcher) {
+    public BulkIndexByPaginatedSearchResponseMatcher failures(Matcher<Integer> failuresMatcher) {
         this.failuresMatcher = failuresMatcher;
         return this;
     }
@@ -118,11 +118,11 @@ public class BulkIndexByScrollResponseMatcher extends TypeSafeMatcher<BulkByPagi
     /**
      * Set the expected size of the failures list.
      */
-    public BulkIndexByScrollResponseMatcher failures(int failures) {
+    public BulkIndexByPaginatedSearchResponseMatcher failures(int failures) {
         return failures(equalTo(failures));
     }
 
-    public BulkIndexByScrollResponseMatcher reasonCancelled(Matcher<String> reasonCancelledMatcher) {
+    public BulkIndexByPaginatedSearchResponseMatcher reasonCancelled(Matcher<String> reasonCancelledMatcher) {
         this.reasonCancelledMatcher = reasonCancelledMatcher;
         return this;
     }
@@ -130,7 +130,7 @@ public class BulkIndexByScrollResponseMatcher extends TypeSafeMatcher<BulkByPagi
     /**
      * Set the matcher for the workers portion of the response.
      */
-    public BulkIndexByScrollResponseMatcher slices(Matcher<Collection<? extends BulkIndexByScrollResponseMatcher>> slicesMatcher) {
+    public BulkIndexByPaginatedSearchResponseMatcher slices(Matcher<Collection<? extends BulkIndexByPaginatedSearchResponseMatcher>> slicesMatcher) {
         this.slicesMatcher = slicesMatcher;
         return this;
     }

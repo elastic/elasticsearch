@@ -76,7 +76,7 @@ public class AlpDoubleCounterRoundTripTests extends ESTestCase {
         double seriesBase = 500_000.0;
         double current = seriesBase;
         for (int i = 0; i < size; i++) {
-            if (i > 0 && i % runLength == 0) {
+            if (i > 0 && (i % runLength) == 0) {
                 seriesBase += 100_000.0;
                 current = seriesBase;
             } else if (i > 0) {
@@ -93,7 +93,7 @@ public class AlpDoubleCounterRoundTripTests extends ESTestCase {
         final double stepPerSample = 3.0;
         double current = 0.0;
         for (int i = 0; i < size; i++) {
-            if (i > 0 && i % runLength == 0) {
+            if (i > 0 && (i % runLength) == 0) {
                 current = 0.0;
             } else if (i > 0) {
                 current += stepPerSample;

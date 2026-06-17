@@ -400,6 +400,33 @@ public class EsqlTestUtilsTests extends ESTestCase {
         );
     }
 
+    public void testConvertInSubqueryAfterRowCommand() {
+        // ROW + IN subquery
+        assertThat(
+            EsqlTestUtils.convertSubqueryToRemoteIndices(
+                "ROW emp_no = 10007"
+                + " | WHERE emp_no IN (FROM employees | WHERE salary > 70000 | KEEP emp_no)"
+            ),
+            equalTo("ROW emp_no = 10007"
+                + " | WHERE emp_no IN (FROM *:employees,employees | WHERE salary > 70000 | KEEP emp_no)")
+        );
+    }
+
+    public void testConvertInSubqueryAfterTsCommand() {
+        // TS + IN subquery
+        assertThat(
+            EsqlTestUtils.convertSubqueryToRemoteIndices(
+                "TS employees | WHERE emp_no IN (FROM employees | SORT emp_no ASC | LIMIT 3 | KEEP emp_no) | SORT emp_no | KEEP emp_no"
+            ),
+            equalTo(
+                "TS *:employees,employees"
+                    + " | WHERE emp_no IN (FROM *:employees,employees | SORT emp_no ASC | LIMIT 3 | KEEP emp_no)"
+                    + " | SORT emp_no | KEEP emp_no"
+            )
+        );
+    }
+
+
     public void testConvertWhereInSubqueryMultiline() {
         // Multi-line formatting is handled: splitIgnoringParentheses joins the main pipe segments
         // with " | ", collapsing newlines in the FROM clause. The subquery body inside the IN (...)

@@ -57,6 +57,10 @@ restResources {
     }
 }
 
+tasks.named("compileJava").configure {
+    options.compilerArgs << '-Xlint:-overloads'
+}
+
 tasks.named("test").configure {
     // in WhenThingsGoWrongTests we intentionally generate an out of memory error, this prevents the heap from being dumped to disk
     jvmArgs '-XX:-OmitStackTraceInFastThrow', '-XX:-HeapDumpOnOutOfMemoryError'

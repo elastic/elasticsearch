@@ -27,6 +27,7 @@ import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.blobstore.fs.FsBlobContainer;
 import org.elasticsearch.common.blobstore.fs.FsBlobStore;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -49,6 +50,7 @@ import org.elasticsearch.index.engine.ThreadPoolMergeExecutorService;
 import org.elasticsearch.index.engine.ThreadPoolMergeScheduler;
 import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
@@ -103,6 +105,7 @@ import org.elasticsearch.xpack.stateless.reshard.ReshardIndexService;
 import org.elasticsearch.xpack.stateless.reshard.ReshardSearchFilters;
 import org.elasticsearch.xpack.stateless.reshard.ReshardUnownedBitsetCache;
 import org.junit.Before;
+import org.mockito.Mockito;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -112,6 +115,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.Executor;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.atomic.AtomicLong;
@@ -174,6 +178,13 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
         assert threadPools.isEmpty() : threadPools;
         IOUtils.rm(blobStorePath);
         nodeEnvironment.close();
+        for (CircuitBreaker breaker : readerHeapBreakers) {
+            assertEquals(
+                "reader-heap breaker leaked bytes after test — every reservation must be released by reader close",
+                0L,
+                breaker.getUsed()
+            );
+        }
         super.tearDown();
     }
 
@@ -319,7 +330,9 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
 
     protected EngineConfig indexConfig(Settings settings, Settings nodeSettings, LongSupplier primaryTermSupplier, MergePolicy mergePolicy)
         throws IOException {
-        return indexConfig(settings, nodeSettings, primaryTermSupplier, mergePolicy, null);
+        MapperService mapperService = Mockito.mock(MapperService.class);
+        when(mapperService.mappingLookup()).thenReturn(MappingLookup.EMPTY);
+        return indexConfig(settings, nodeSettings, primaryTermSupplier, mergePolicy, mapperService);
     }
 
     protected EngineConfig indexConfig(
@@ -396,6 +409,20 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
         return newSearchEngineFromIndexEngine(searchConfig());
     }
 
+    /** Breakers handed out to engines built through this scaffold; checked for leaks in tearDown. */
+    private final CopyOnWriteArrayList<CircuitBreaker> readerHeapBreakers = new CopyOnWriteArrayList<>();
+
+    /**
+     * Default reader-heap breaker for engines built in tests: a tracking breaker with no limit, so reservations
+     * are recorded and the tearDown assertion verifies no bytes were leaked. Tests that need to exercise the
+     * breakable path override this to set a positive limit on the returned breaker.
+     */
+    protected CircuitBreaker newReaderHeapBreaker() {
+        var breaker = new TrackingCircuitBreaker(StatelessReaderHeapBreaker.NAME, -1L);
+        readerHeapBreakers.add(breaker);
+        return breaker;
+    }
+
     protected SearchEngine newSearchEngineFromIndexEngine(final EngineConfig searchConfig) {
         ClusterSettings clusterSettings = new ClusterSettings(
             Settings.EMPTY,
@@ -420,6 +447,8 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
             clusterSettings,
             DIRECT_EXECUTOR_SERVICE,
             new SearchCommitPrefetcherDynamicSettings(clusterSettings),
+            newReaderHeapBreaker(),
+            StatelessReaderHeapMetrics.NOOP,
             reshardSearchFilters
         ) {
             @Override
@@ -557,6 +586,20 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
                 ReshardUnownedBitsetCache.CACHE_SIZE_SETTING
             )
         );
+        return newSearchEngineSubclass(searchConfig, clusterSettings, nodeEnvironment);
+    }
+
+    /**
+     * Factory hook for the {@link SearchEngine} anonymous subclass returned by
+     * {@link #newSearchEngineFromIndexEngine(IndexEngine, DeterministicTaskQueue, BiConsumer, BiConsumer)}. Tests that
+     * need to inject behavior into the engine (e.g. making {@code registerReaderHeapRelease} throw to cover the
+     * reader-heap leak invariant) override this and return a further-overridden subclass.
+     */
+    protected SearchEngine newSearchEngineSubclass(
+        EngineConfig searchConfig,
+        ClusterSettings clusterSettings,
+        NodeEnvironment nodeEnvironment
+    ) {
         ReshardSearchFilters reshardSearchFilters = new ReshardSearchFilters(Settings.EMPTY);
         return new SearchEngine(
             searchConfig,
@@ -565,6 +608,8 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
             clusterSettings,
             DIRECT_EXECUTOR_SERVICE,
             new SearchCommitPrefetcherDynamicSettings(clusterSettings),
+            newReaderHeapBreaker(),
+            StatelessReaderHeapMetrics.NOOP,
             reshardSearchFilters
         ) {
             @Override

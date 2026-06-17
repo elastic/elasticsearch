@@ -17,6 +17,8 @@ import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.search.TaskExecutor;
 import org.elasticsearch.index.codec.vectors.DirectIOCapableFlatVectorsFormat;
 import org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer;
+import org.elasticsearch.index.codec.vectors.diskbbq.IvfFlushConfigSource;
+import org.elasticsearch.index.codec.vectors.diskbbq.IvfMergeConfigResolver;
 import org.elasticsearch.index.codec.vectors.es93.DirectIOCapableLucene99FlatVectorsFormat;
 import org.elasticsearch.index.codec.vectors.es93.ES93BFloat16FlatVectorsFormat;
 import org.elasticsearch.index.codec.vectors.es93.ES93GenericFlatVectorScorer;
@@ -366,7 +368,9 @@ public class ESNextDiskBBQVectorsFormat extends KnnVectorsFormat {
             false,
             DEFAULT_PRECONDITIONING_BLOCK_DIMENSION,
             defaultFlatThreshold(vectorPerCluster),
-            sliceField
+            sliceField,
+            IvfFlushConfigSource.empty(),
+            IvfMergeConfigResolver.useCodecDefault()
         );
     }
 
@@ -393,7 +397,9 @@ public class ESNextDiskBBQVectorsFormat extends KnnVectorsFormat {
             doPrecondition,
             preconditioningBlockDimension,
             defaultFlatThreshold(vectorPerCluster),
-            sliceField
+            sliceField,
+            IvfFlushConfigSource.empty(),
+            IvfMergeConfigResolver.useCodecDefault()
         );
     }
 
@@ -422,8 +428,8 @@ public class ESNextDiskBBQVectorsFormat extends KnnVectorsFormat {
             preconditioningBlockDimension,
             flatVectorThreshold,
             sliceField,
-            null,
-            null
+            IvfFlushConfigSource.empty(),
+            IvfMergeConfigResolver.useCodecDefault()
         );
     }
 

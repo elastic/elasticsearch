@@ -965,6 +965,7 @@ c:l | gender:s | b:s
 ;
 
 countSameFieldWithEnrich
+skip_flattened_rewrite: enrich_output_type_mismatch
 required_capability: fixed_pushdown_past_project
 required_capability: enrich_load
 from employees | stats  b = count(gender), c = count(gender) by gender | enrich languages_policy on gender with b = language_name | sort c asc
@@ -977,6 +978,7 @@ c:l | gender:s | b:s
 ;
 
 countSameFieldWithEnrichLimit0
+skip_flattened_rewrite: enrich_output_type_mismatch
 required_capability: fixed_pushdown_past_project
 from employees | stats  b = count(gender), c = count(gender) by gender | enrich languages_policy on gender with b = language_name | sort c asc | limit 0
 ;

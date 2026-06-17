@@ -1158,6 +1158,36 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
         assertEquals(expected, filtered);
     }
 
+    public void testSourceFilteringWithSupplementaryCodePoints() {
+        // Field names containing a supplementary (non-BMP) code point, e.g. U+1D54F, occupy two Java chars (a UTF-16
+        // surrogate pair). Both the pattern automaton (Automatons#patterns) and the source-map matcher
+        // (FieldSubsetReader#step) must walk whole code points; if the matcher steps by char it cannot traverse the
+        // builder's single code-point transition, and a granted non-BMP field is wrongly stripped from _source.
+        final String x = "\uD835\uDD4F"; // U+1D54F MATHEMATICAL DOUBLE-STRUCK CAPITAL X
+        final String y = "\uD835\uDD50"; // U+1D550 (a different supplementary code point)
+
+        // top-level: only "field𝕏" is granted; the other non-BMP field and the plain field are excluded
+        Map<String, Object> map = new HashMap<>();
+        map.put("field" + x, 1);
+        map.put("field" + y, 2);
+        map.put("plain", 3);
+
+        CharacterRunAutomaton include = new CharacterRunAutomaton(Automatons.patterns("field" + x));
+        Map<String, Object> filtered = FieldSubsetReader.filter(map, include, 0);
+        assertEquals(Map.of("field" + x, 1), filtered);
+
+        // nested object with non-BMP segments on both levels: "obj𝕏.inner𝕏" is granted, sibling is dropped
+        Map<String, Object> inner = new HashMap<>();
+        inner.put("inner" + x, 42);
+        inner.put("other", 6);
+        map = new HashMap<>();
+        map.put("obj" + x, inner);
+
+        include = new CharacterRunAutomaton(Automatons.patterns("obj" + x + ".inner" + x));
+        filtered = FieldSubsetReader.filter(map, include, 0);
+        assertEquals(Map.of("obj" + x, Map.of("inner" + x, 42)), filtered);
+    }
+
     /**
      * test special handling for _field_names field.
      */

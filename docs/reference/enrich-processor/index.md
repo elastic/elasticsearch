@@ -1,6 +1,6 @@
 ---
-navigation_title: Moved
+navigation_title: "Processor reference"
 ---
-# This page has moved
+# Ingest processor reference
 
-The processor reference has moved to [Ingest processor](/reference/ingest-processor/index.md).
+This page has moved. Continue to the [Ingest processor reference](/reference/ingest-processor/index.md).

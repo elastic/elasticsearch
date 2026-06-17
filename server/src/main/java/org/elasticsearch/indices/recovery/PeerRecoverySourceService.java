@@ -23,7 +23,6 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
-import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
@@ -86,13 +85,8 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
     private final RecoveryPlannerService recoveryPlannerService;
     private final RecoveryMetricsCollector metrics;
 
-    // TODO: register setting in `BUILT_IN_CLUSTER_SETTINGS`
-    private volatile int maxConcurrentOutgoingRecoveries;
-
     // visible for testing
     final OngoingRecoveries ongoingRecoveries = new OngoingRecoveries();
-    // visible for testing
-    final ClusterSettings clusterSettings;
 
     public PeerRecoverySourceService(
         TransportService transportService,
@@ -107,11 +101,11 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
         this.clusterService = clusterService;
         this.recoverySettings = recoverySettings;
         this.recoveryPlannerService = recoveryPlannerService;
-        this.clusterSettings = clusterService.getClusterSettings();
-        clusterSettings.initializeAndWatchIfRegistered(
-            INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING,
-            this::setMaxConcurrentOutgoingRecoveries
-        );
+        clusterService.getClusterSettings()
+            .initializeAndWatchIfRegistered(
+                INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING,
+                this::setMaxConcurrentOutgoingRecoveries
+            );
         this.metrics = recoveryMetricsCollector;
         // When the target node wants to start a peer recovery it sends a START_RECOVERY request to the source
         // node. Upon receiving START_RECOVERY, the source node will initiate the peer recovery.
@@ -171,11 +165,7 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
     }
 
     private void setMaxConcurrentOutgoingRecoveries(Integer maxConcurrentOutgoingRecoveries) {
-        final int oldMax = this.maxConcurrentOutgoingRecoveries;
-        this.maxConcurrentOutgoingRecoveries = maxConcurrentOutgoingRecoveries;
-        if (oldMax < maxConcurrentOutgoingRecoveries) {
-            ongoingRecoveries.triggerRecoveriesForEligibleCandidates();
-        }
+        ongoingRecoveries.updateMaxConcurrentOutgoingRecoveries(maxConcurrentOutgoingRecoveries);
     }
 
     private void recover(StartRecoveryRequest request, Task task, ActionListener<RecoveryResponse> listener) {
@@ -245,6 +235,9 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
     }
 
     final class OngoingRecoveries {
+
+        // TODO: register setting in `BUILT_IN_CLUSTER_SETTINGS` as part of elasticsearch-team#2805
+        private int maxConcurrentOutgoingRecoveries;
 
         private final Map<IndexShard, ShardRecoveryContext> activeRecoveries = new HashMap<>();
 
@@ -413,11 +406,13 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
             notifyRecoverySchedulingListeners();
         }
 
-        /// Collects all pending recoveries that fit within the current limit within the lock, and starts recoveries.
-        void triggerRecoveriesForEligibleCandidates() {
+        /// Updates the concurrency limit and, if the new limit is higher, drains any newly eligible pending recoveries.
+        void updateMaxConcurrentOutgoingRecoveries(int newMax) {
             final List<Tuple<PendingRecovery, RecoverySourceHandler>> eligibleRecoveries;
             synchronized (this) {
-                eligibleRecoveries = dequeuePendingRecoveriesUptoLimit();
+                final int oldMax = maxConcurrentOutgoingRecoveries;
+                maxConcurrentOutgoingRecoveries = newMax;
+                eligibleRecoveries = oldMax < newMax ? dequeuePendingRecoveriesUptoLimit() : List.of();
             }
             triggerRecovery(eligibleRecoveries);
         }

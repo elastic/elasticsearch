@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardTestCase;
@@ -572,12 +573,14 @@ public class PeerRecoverySourceServiceTests extends IndexShardTestCase {
     public void testDynamicLimitDecreaseQueuesNewRequests() throws IOException {
         final IndexShard primary1 = newStartedShard(true);
         final IndexShard primary2 = newStartedShard(true);
-        final var service = newPeerRecoverySourceServiceWithDynamicLimit(3);
+        final var serviceWithSettings = newPeerRecoverySourceServiceWithDynamicLimit(3);
+        final var service = serviceWithSettings.v1();
+        final var clusterSettings = serviceWithSettings.v2();
         service.start();
         final var task = newRecoveryTask();
 
         // Decrease the limit before any recoveries start
-        service.clusterSettings.applySettings(
+        clusterSettings.applySettings(
             Settings.builder().put(INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING.getKey(), 1).build()
         );
 
@@ -604,7 +607,9 @@ public class PeerRecoverySourceServiceTests extends IndexShardTestCase {
         final IndexShard primary2 = newStartedShard(true);
         final IndexShard primary3 = newStartedShard(true);
         final IndexShard primary4 = newStartedShard(true);
-        final var service = newPeerRecoverySourceServiceWithDynamicLimit(3);
+        final var serviceWithSettings = newPeerRecoverySourceServiceWithDynamicLimit(3);
+        final var service = serviceWithSettings.v1();
+        final var clusterSettings = serviceWithSettings.v2();
         service.start();
         final var task = newRecoveryTask();
 
@@ -620,7 +625,7 @@ public class PeerRecoverySourceServiceTests extends IndexShardTestCase {
         assertEquals(0, service.ongoingRecoveries.queuedRecoveryCount());
 
         // Decreasing the limit below the current active count must not cancel or disturb the in-flight recoveries
-        service.clusterSettings.applySettings(
+        clusterSettings.applySettings(
             Settings.builder().put(INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING.getKey(), 1).build()
         );
 
@@ -645,7 +650,9 @@ public class PeerRecoverySourceServiceTests extends IndexShardTestCase {
         final IndexShard primary2 = newStartedShard(true);
         final IndexShard primary3 = newStartedShard(true);
         final IndexShard primary4 = newStartedShard(true);
-        final var service = newPeerRecoverySourceServiceWithDynamicLimit(2);
+        final var serviceWithSettings = newPeerRecoverySourceServiceWithDynamicLimit(2);
+        final var service = serviceWithSettings.v1();
+        final var clusterSettings = serviceWithSettings.v2();
         service.start();
         final var task = newRecoveryTask();
 
@@ -654,7 +661,7 @@ public class PeerRecoverySourceServiceTests extends IndexShardTestCase {
         assertEquals(2, service.ongoingRecoveries.activeRecoveryCount());
         assertEquals(0, service.ongoingRecoveries.queuedRecoveryCount());
 
-        service.clusterSettings.applySettings(
+        clusterSettings.applySettings(
             Settings.builder().put(INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING.getKey(), 4).build()
         );
 
@@ -685,7 +692,9 @@ public class PeerRecoverySourceServiceTests extends IndexShardTestCase {
         final IndexShard primary3 = newStartedShard(true);
         final IndexShard primary4 = newStartedShard(true);
         final IndexShard primary5 = newStartedShard(true);
-        final var service = newPeerRecoverySourceServiceWithDynamicLimit(2);
+        final var serviceWithSettings = newPeerRecoverySourceServiceWithDynamicLimit(2);
+        final var service = serviceWithSettings.v1();
+        final var clusterSettings = serviceWithSettings.v2();
         service.start();
         final var task = newRecoveryTask();
 
@@ -715,7 +724,7 @@ public class PeerRecoverySourceServiceTests extends IndexShardTestCase {
         assertEquals(3, service.ongoingRecoveries.queuedRecoveryCount());
 
         // Raising the limit high enough to fit everything drains the entire queue at once
-        service.clusterSettings.applySettings(
+        clusterSettings.applySettings(
             Settings.builder().put(INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING.getKey(), 5).build()
         );
 
@@ -739,7 +748,9 @@ public class PeerRecoverySourceServiceTests extends IndexShardTestCase {
         final IndexShard primary3 = newStartedShard(true);
         final IndexShard primary4 = newStartedShard(true);
         final IndexShard primary5 = newStartedShard(true);
-        final var service = newPeerRecoverySourceServiceWithDynamicLimit(2);
+        final var serviceWithSettings = newPeerRecoverySourceServiceWithDynamicLimit(2);
+        final var service = serviceWithSettings.v1();
+        final var clusterSettings = serviceWithSettings.v2();
         service.start();
         final var task = newRecoveryTask();
 
@@ -769,7 +780,7 @@ public class PeerRecoverySourceServiceTests extends IndexShardTestCase {
         assertEquals(3, service.ongoingRecoveries.queuedRecoveryCount());
 
         // Raising to 4 opens 2 initial slots; the remaining queued recovery drains via cascade
-        service.clusterSettings.applySettings(
+        clusterSettings.applySettings(
             Settings.builder().put(INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING.getKey(), 4).build()
         );
 
@@ -792,20 +803,28 @@ public class PeerRecoverySourceServiceTests extends IndexShardTestCase {
         return newPeerRecoverySourceService(limit, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
     }
 
-    private PeerRecoverySourceService newPeerRecoverySourceServiceWithDynamicLimit(int limit) {
+    private Tuple<PeerRecoverySourceService, ClusterSettings> newPeerRecoverySourceServiceWithDynamicLimit(int limit) {
         final var registeredSettings = new HashSet<>(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         registeredSettings.add(INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING);
-        return newPeerRecoverySourceService(limit, registeredSettings);
+        final var settings = Settings.builder()
+            .put(NodeRoles.dataNode())
+            .put(INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING.getKey(), limit)
+            .build();
+        final var clusterSettings = new ClusterSettings(settings, registeredSettings);
+        return Tuple.tuple(newPeerRecoverySourceService(settings, clusterSettings), clusterSettings);
     }
 
     private PeerRecoverySourceService newPeerRecoverySourceService(int limit, Set<Setting<?>> registeredSettings) {
-        final var indicesService = mock(IndicesService.class);
-        final var clusterService = mock(ClusterService.class);
         final var settings = Settings.builder()
             .put(NodeRoles.dataNode())
             .put(PeerRecoverySourceService.INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING.getKey(), limit)
             .build();
-        final var clusterSettings = new ClusterSettings(settings, registeredSettings);
+        return newPeerRecoverySourceService(settings, new ClusterSettings(settings, registeredSettings));
+    }
+
+    private PeerRecoverySourceService newPeerRecoverySourceService(Settings settings, ClusterSettings clusterSettings) {
+        final var indicesService = mock(IndicesService.class);
+        final var clusterService = mock(ClusterService.class);
         when(clusterService.getSettings()).thenReturn(settings);
         when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
         when(indicesService.clusterService()).thenReturn(clusterService);

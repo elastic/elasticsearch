@@ -159,6 +159,15 @@ They are still available as self-managed connectors.
 ** Jira Cloud & Server
 ** Network drives
 
+* *Jira Server/Data Center syncs fail to fetch issues*
++
+https://github.com/elastic/connectors/pull/3710[elastic/connectors#3710^] migrated the Jira issues endpoint to the cursor-based `rest/api/3/search/jql` endpoint.
+That endpoint is not available on Jira Server/Data Center pre-v10, so syncs against those instances fail when fetching issues.
++
+*Affected versions*: 8.19.5–8.19.16. Jira Cloud is not affected.
++
+*Fix*: https://github.com/elastic/connectors/pull/4059[elastic/connectors#4059^], shipped in 8.19.17.
+
 * *Outlook connector fails to sync on non-English Exchange servers*
 +
 The connector resolved default folders by English display names (`Contacts`, `Archive`).

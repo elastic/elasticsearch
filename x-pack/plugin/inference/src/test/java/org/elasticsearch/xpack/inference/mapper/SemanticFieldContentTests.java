@@ -21,9 +21,11 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.inference.mapper.OffsetSourceFieldMapper.OffsetSource;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldTests.randomInferenceString;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldTests.randomSemanticInput;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.instanceOf;
 
 public class SemanticFieldContentTests extends ESTestCase {
 
@@ -51,25 +53,6 @@ public class SemanticFieldContentTests extends ESTestCase {
         }
     }
 
-    /**
-     * Converts each {@link InferenceString} in the input list to its xContent {@link Map} representation, simulating
-     * the JSON round-trip that occurs when values are written to and read from {@code _source}.
-     */
-    private static List<Object> materialize(List<Object> inputs) throws IOException {
-        List<Object> result = new ArrayList<>(inputs.size());
-        for (Object input : inputs) {
-            if (input instanceof InferenceString infString) {
-                XContentBuilder builder = XContentFactory.jsonBuilder();
-                infString.toXContent(builder, ToXContent.EMPTY_PARAMS);
-                Map<String, Object> map = XContentHelper.convertToMap(BytesReference.bytes(builder), false, XContentType.JSON).v2();
-                result.add(map);
-            } else {
-                result.add(input);
-            }
-        }
-        return result;
-    }
-
     public void testGetChunkTextEdgeCases() {
         // Layout with "hello" and "world": indices 0-4 = "hello", 5 = separator, 6-10 = "world"
         SemanticFieldContent content = new SemanticFieldContent(List.of("hello", "world"));
@@ -95,6 +78,40 @@ public class SemanticFieldContentTests extends ESTestCase {
         assertThrows(IndexOutOfBoundsException.class, () -> content.getChunkText(0, 1));
     }
 
+    public void testResolveErrors() {
+        SemanticFieldContent content = new SemanticFieldContent(List.of("hello", "world"));
+        String fieldName = "my_field";
+
+        // Missing object: index 0 is a text value, so getMapValue(0) returns null
+        IllegalArgumentException missingObject = assertThrows(
+            IllegalArgumentException.class,
+            () -> content.resolve(new OffsetSource(fieldName, 0))
+        );
+        assertThat(missingObject.getMessage(), containsString("Missing object value at input index [0]"));
+
+        // Out-of-bounds text offset propagates as IndexOutOfBoundsException
+        assertThrows(IndexOutOfBoundsException.class, () -> content.resolve(new OffsetSource(fieldName, 100, 101)));
+    }
+
+    /**
+     * Converts each {@link InferenceString} in the input list to its xContent {@link Map} representation, simulating
+     * the JSON round-trip that occurs when values are written to and read from {@code _source}.
+     */
+    private static List<Object> materialize(List<Object> inputs) throws IOException {
+        List<Object> result = new ArrayList<>(inputs.size());
+        for (Object input : inputs) {
+            if (input instanceof InferenceString infString) {
+                XContentBuilder builder = XContentFactory.jsonBuilder();
+                infString.toXContent(builder, ToXContent.EMPTY_PARAMS);
+                Map<String, Object> map = XContentHelper.convertToMap(BytesReference.bytes(builder), false, XContentType.JSON).v2();
+                result.add(map);
+            } else {
+                result.add(input);
+            }
+        }
+        return result;
+    }
+
     private static void assertSemanticFieldContent(List<Object> inputs, SemanticFieldContent content) throws IOException {
         int i = 0;
         int cursor = 0;
@@ -102,19 +119,33 @@ public class SemanticFieldContentTests extends ESTestCase {
             if (input instanceof InferenceString infString) {
                 Map<?, ?> mapValue = content.getMapValue(i);
                 assertNotNull("expected map value at index " + i, mapValue);
+                assertEquals(infString, parseInferenceStringValue(mapValue));
 
-                @SuppressWarnings("unchecked")
-                Map<String, Object> stringKeyedMap = (Map<String, Object>) mapValue;
-                InferenceString parsedMapValue = SemanticTextUtils.parseInferenceStringValue(stringKeyedMap);
-                assertEquals(infString, parsedMapValue);
+                Object resolvedValue = content.resolve(new OffsetSource("my_field", i));
+                assertThat(resolvedValue, instanceOf(Map.class));
+                assertEquals(infString, parseInferenceStringValue((Map<?, ?>) resolvedValue));
             } else {
-                assertNull("expected no map value at index " + i, content.getMapValue(i));
                 String expected = input.toString();
-                assertEquals(expected, content.getChunkText(cursor, cursor + expected.length()));
+                int startOffset = cursor;
+                int endOffset = cursor + expected.length();
+
+                assertNull("expected no map value at index " + i, content.getMapValue(i));
+                assertEquals(expected, content.getChunkText(startOffset, endOffset));
+
+                Object resolvedValue = content.resolve(new OffsetSource("my_field", startOffset, endOffset));
+                assertThat(resolvedValue, instanceOf(String.class));
+                assertEquals(expected, resolvedValue);
+
                 cursor += expected.length() + 1;
             }
 
             i++;
         }
+    }
+
+    private static InferenceString parseInferenceStringValue(Map<?, ?> map) {
+        @SuppressWarnings("unchecked")
+        Map<String, Object> stringKeyedMap = (Map<String, Object>) map;
+        return SemanticTextUtils.parseInferenceStringValue(stringKeyedMap);
     }
 }

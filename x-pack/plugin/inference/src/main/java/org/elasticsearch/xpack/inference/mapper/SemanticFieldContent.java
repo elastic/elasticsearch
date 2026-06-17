@@ -49,7 +49,7 @@ public class SemanticFieldContent {
         if (offset.inputIndex() != null) {
             Map<?, ?> mapValue = getMapValue(offset.inputIndex());
             if (mapValue == null) {
-                throw new IllegalArgumentException("missing object value at input index [" + offset.inputIndex() + "]");
+                throw new IllegalArgumentException("Missing object value at input index [" + offset.inputIndex() + "]");
             }
             return mapValue;
         }
@@ -57,7 +57,7 @@ public class SemanticFieldContent {
         return getChunkText(offset.start(), offset.end());
     }
 
-    public String getChunkText(int startOffset, int endOffset) {
+    String getChunkText(int startOffset, int endOffset) {
         if (textValues.isEmpty()) {
             throw new IndexOutOfBoundsException("Chunk text offset [" + startOffset + ", " + endOffset + "] is out of bounds");
         }
@@ -90,7 +90,7 @@ public class SemanticFieldContent {
         return currentTextValue.substring(currentStartOffset, currentEndOffset);
     }
 
-    public Map<?, ?> getMapValue(int inputIndex) {
+    Map<?, ?> getMapValue(int inputIndex) {
         var mapValue = mapValues.get(inputIndex);
         if (mapValue == null) {
             return null;

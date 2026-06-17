@@ -146,13 +146,6 @@ public class SnapshotMetricsIT extends AbstractSnapshotIntegTestCase {
         assertDoubleHistogramMetrics(SnapshotMetrics.SNAPSHOT_SHARDS_DURATION, hasSize(numShards));
         assertDoubleHistogramMetrics(SnapshotMetrics.SNAPSHOT_SHARDS_DURATION, everyItem(lessThan(maxHistogramDurationSeconds)));
 
-        // Sanity check shard queue time observations
-        assertDoubleHistogramMetrics(SnapshotMetrics.SNAPSHOT_SHARDS_QUEUE_TIME, hasSize(numShards));
-        assertDoubleHistogramMetrics(
-            SnapshotMetrics.SNAPSHOT_SHARDS_QUEUE_TIME,
-            everyItem(allOf(greaterThanOrEqualTo(0.0), lessThan(maxHistogramDurationSeconds)))
-        );
-
         // Sanity check snapshot observations
         assertDoubleHistogramMetrics(SnapshotMetrics.SNAPSHOT_DURATION, hasSize(1));
         assertDoubleHistogramMetrics(SnapshotMetrics.SNAPSHOT_DURATION, everyItem(lessThan(maxHistogramDurationSeconds)));

@@ -16,11 +16,10 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.aggregatemetric.mapper.AggregateMetricDoubleFieldMapper;
+import org.elasticsearch.xpack.downsample.SortedNumericDoubleValuesTestUtils.DocValuesType;
 
 import java.io.IOException;
 import java.util.List;
-
-import org.elasticsearch.xpack.downsample.SortedNumericDoubleValuesTestUtils.DocValuesType;
 
 import static org.elasticsearch.xpack.downsample.SortedNumericDoubleValuesTestUtils.withDocIdIterator;
 import static org.elasticsearch.xpack.downsample.SortedNumericDoubleValuesTestUtils.withoutDocIdIterator;
@@ -36,10 +35,7 @@ public class AggregateMetricDoubleFieldSerializerTests extends ESTestCase {
 
     @ParametersFactory(shuffle = false)
     public static List<Object[]> iteratorTypes() {
-        return List.of(
-            new Object[] { DocValuesType.WITH_ITERATOR },
-            new Object[] { DocValuesType.WITHOUT_ITERATOR }
-        );
+        return List.of(new Object[] { DocValuesType.WITH_ITERATOR }, new Object[] { DocValuesType.WITHOUT_ITERATOR });
     }
 
     private SortedNumericDoubleValues getIterator(IntArrayList docIdsWithValues, double... values) {

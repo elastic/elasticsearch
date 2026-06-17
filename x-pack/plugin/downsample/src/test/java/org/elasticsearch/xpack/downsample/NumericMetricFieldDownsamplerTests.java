@@ -15,11 +15,10 @@ import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.downsample.SortedNumericDoubleValuesTestUtils.DocValuesType;
 
 import java.io.IOException;
 import java.util.List;
-
-import org.elasticsearch.xpack.downsample.SortedNumericDoubleValuesTestUtils.DocValuesType;
 
 import static org.elasticsearch.xpack.downsample.SortedNumericDoubleValuesTestUtils.trackingWithDocIdIterator;
 import static org.elasticsearch.xpack.downsample.SortedNumericDoubleValuesTestUtils.withDocIdIterator;
@@ -35,10 +34,7 @@ public class NumericMetricFieldDownsamplerTests extends AggregatorTestCase {
 
     @ParametersFactory(shuffle = false)
     public static List<Object[]> iteratorTypes() {
-        return List.of(
-            new Object[] { DocValuesType.WITH_ITERATOR },
-            new Object[] { DocValuesType.WITHOUT_ITERATOR }
-        );
+        return List.of(new Object[] { DocValuesType.WITH_ITERATOR }, new Object[] { DocValuesType.WITHOUT_ITERATOR });
     }
 
     private SortedNumericDoubleValues getIterator(IntArrayList docIdsWithValues, double... values) {

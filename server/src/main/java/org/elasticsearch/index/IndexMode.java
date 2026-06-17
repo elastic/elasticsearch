@@ -471,7 +471,9 @@ public enum IndexMode {
         }
 
         @Override
-        public void validateMapping(MappingLookup lookup, Settings settings) {}
+        public void validateMapping(MappingLookup lookup, Settings settings) {
+            validateNoMappingRuntimeFields(lookup, this);
+        }
 
         @Override
         public void validateAlias(String indexRouting, String searchRouting) {
@@ -569,7 +571,9 @@ public enum IndexMode {
         }
 
         @Override
-        public void validateMapping(MappingLookup lookup, Settings settings) {}
+        public void validateMapping(MappingLookup lookup, Settings settings) {
+            validateNoMappingRuntimeFields(lookup, this);
+        }
 
         @Override
         public void validateAlias(String indexRouting, String searchRouting) {
@@ -739,6 +743,17 @@ public enum IndexMode {
 
     protected static String tsdbMode() {
         return "[" + IndexSettings.MODE.getKey() + "=time_series]";
+    }
+
+    /**
+     * Rejects mappings that declare runtime fields at the root of the document mapping.
+     */
+    private static void validateNoMappingRuntimeFields(MappingLookup lookup, IndexMode mode) {
+        // TODO Consider including the names of the offending runtime fields in this error message
+        // so users can locate the index or component template that introduced them.
+        if (lookup.getMapping().getRoot().runtimeFields().isEmpty() == false) {
+            throw new IllegalArgumentException("mapping-level runtime fields are not allowed in index using [" + mode + "] index mode");
+        }
     }
 
     private static CompressedXContent createDefaultMapping(CheckedConsumer<XContentBuilder, IOException> fieldsCustomizer)

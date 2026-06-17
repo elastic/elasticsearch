@@ -96,7 +96,7 @@ final class ColumnarSourceWriter {
 
             @Override
             public FieldInfo fieldInfo(String fieldName) {
-                // Shortcut: no need to to check an empty map.
+                // Shortcut: no need to check an empty map.
                 return null;
             }
 

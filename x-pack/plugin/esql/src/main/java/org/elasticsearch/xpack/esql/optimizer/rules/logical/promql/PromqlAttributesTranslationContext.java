@@ -10,6 +10,9 @@ package org.elasticsearch.xpack.esql.optimizer.rules.logical.promql;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
+import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
@@ -26,13 +29,14 @@ import java.util.function.Predicate;
  * and resolves it against real columns only at the very end.
  *
  * <h2>Abstract domain: label sets</h2>
- * A label set is a plain {@code List<Attribute>}, with the single sentinel {@code ALL} standing for the full universe
- * {@code T} ("every runtime label") - the one set we can never enumerate at plan time. {@code T} is realised physically
- * by the opaque {@code _timeseries} grouping key (see {@code TranslateTimeSeriesWithout}), which is why it contributes
- * no concrete columns when resolved. The static {@code union}/{@code intersect}/{@code minus} helpers implement set
- * algebra over these values (labels are compared by field name). {@code T} minus a finite set stays {@code T}: the
- * removed labels are never listed, and - because every {@code BY} forces a finite scope down its subtree - that
- * complement is never observed, so a single {@code ALL} sentinel is enough.
+ * A label set is a plain {@code List<Attribute>} plus two "top" sentinels: {@code UNIVERSE} for the full label universe
+ * {@code T} ("every runtime label") - the one set we can never enumerate at plan time - and {@code SCALAR} for a
+ * subtree that exposes no series identity at all (a literal/scalar or a bare {@code NONE}). {@code T} is realised
+ * physically by the opaque {@code _timeseries} grouping key (see {@code TranslateTimeSeriesWithout}), which is why it
+ * contributes no concrete columns when resolved. The static {@code union}/{@code intersect}/{@code minus} helpers
+ * implement set algebra over these values (labels are compared by field name). {@code T} minus a finite set stays
+ * {@code T}: the removed labels are never listed, and - because every {@code BY} forces a finite scope down its
+ * subtree - that complement is never observed, so a single {@code UNIVERSE} sentinel is enough.
  *
  * <h2>The two attributes</h2>
  * The translation is an <em>L-attributed</em> syntax-directed definition. Two attributes flow through the aggregate
@@ -98,14 +102,141 @@ import java.util.function.Predicate;
  */
 public final class PromqlAttributesTranslationContext {
 
-    private PromqlAttributesTranslationContext() {}
+    /**
+     * The full label universe {@code T} ("every runtime label"): the one set we never enumerate at plan time. It is
+     * realised physically by the opaque {@code _timeseries} grouping key, so it contributes no concrete columns.
+     */
+    private static final List<Attribute> UNIVERSE = List.of(new ReferenceAttribute(Source.EMPTY, ":U", DataType.NULL));
 
     /**
-     * The full label universe {@code T} ("every runtime label"): the one set we never enumerate. It is realised
-     * physically by the opaque {@code _timeseries} grouping key, so it contributes no concrete columns. Represented as
-     * {@code null} to keep the carrier a plain {@code List<Attribute>}; the set helpers below give it its meaning.
+     * The <b>scalar</b> sentinel: a subtree that exposes no series identity at all (a literal/scalar, or a bare
+     * {@code NONE} aggregate that collapses every series into one). Like {@code UNIVERSE} it is "top" for the set
+     * operations - a {@code BY} stacked on top keeps its declared keys - but, unlike {@code UNIVERSE}, it must
+     * <b>not</b> materialise a {@code _timeseries} grouping. Telling it apart from {@code UNIVERSE} is what lets an
+     * empty {@code without ()} (which retains the full universe {@code T}) be distinguished from {@code none()}
+     * (which retains nothing).
      */
-    private static final List<Attribute> ALL = null;
+    private static final List<Attribute> SCALAR = List.of(new ReferenceAttribute(Source.EMPTY, ":S", DataType.NULL));
+
+    private PromqlAttributesTranslationContext() {}
+
+    /** Whether {@code set} is one of the two top sentinels ({@code UNIVERSE} or {@code SCALAR}) rather than a finite, enumerable set. */
+    private static boolean isTop(List<Attribute> set) {
+        return set == UNIVERSE || set == SCALAR;
+    }
+
+    // label-set algebra:
+
+    /**
+     * Collapse a raw label list to its canonical set by field name: at most one attribute per field name, first
+     * occurrence wins, insertion order preserved. Every external finite list is funnelled through here before it is
+     * stored, so the algebra below can assume its inputs are already duplicate-free.
+     */
+    private static List<Attribute> canonicalizeByFieldName(List<Attribute> labels) {
+        assert isTop(labels) == false : "canonicalizeByFieldName expects a finite list, not a top sentinel";
+        List<Attribute> result = new ArrayList<>();
+        Set<String> seen = new LinkedHashSet<>();
+        for (Attribute attr : labels) {
+            if (seen.add(canonicalName(attr))) {
+                result.add(attr);
+            }
+        }
+        return result;
+    }
+
+    /** {@code a | b} by field name, order-preserving ({@code a} first). Both operands are finite. */
+    static List<Attribute> union(List<Attribute> a, List<Attribute> b) {
+        assert isTop(a) == false && isTop(b) == false : "union expects finite operands, not a top sentinel";
+        List<Attribute> result = new ArrayList<>();
+        Set<String> seen = new LinkedHashSet<>();
+        for (Attribute attr : a) {
+            if (seen.add(canonicalName(attr))) {
+                result.add(attr);
+            }
+        }
+        for (Attribute attr : b) {
+            if (seen.add(canonicalName(attr))) {
+                result.add(attr);
+            }
+        }
+        return result;
+    }
+
+    /** {@code a & b}. {@code a} may be a top sentinel ({@code T} or scalar; then the result is exactly {@code b}); {@code b} is finite. */
+    private static List<Attribute> intersect(List<Attribute> a, List<Attribute> b) {
+        assert isTop(b) == false : "intersect expects a finite right operand, not a top sentinel";
+        if (isTop(a)) {
+            return new ArrayList<>(b);
+        }
+        Set<String> names = fieldNames(b);
+        return filter(a, attr -> names.contains(canonicalName(attr)));
+    }
+
+    /** {@code a \ b}. {@code a} may be a top sentinel (top minus a finite set stays that same sentinel); {@code b} is finite. */
+    private static List<Attribute> minus(List<Attribute> a, List<Attribute> b) {
+        assert isTop(b) == false : "minus expects a finite right operand, not a top sentinel";
+        if (isTop(a)) {
+            return a;
+        }
+        Set<String> names = fieldNames(b);
+        return filter(a, attr -> names.contains(canonicalName(attr)) == false);
+    }
+
+    /** The member with this field name, or {@code null} (always {@code null} for {@code T}). */
+    static Attribute findByFieldName(List<Attribute> set, String name) {
+        if (isTop(set)) {
+            return null;
+        }
+        for (Attribute attr : set) {
+            if (canonicalName(attr).equals(name)) {
+                return attr;
+            }
+        }
+        return null;
+    }
+
+    /** The concrete members, or the empty list for a top sentinel ({@code T} or scalar). */
+    private static List<Attribute> asList(List<Attribute> set) {
+        return isTop(set) ? List.of() : set;
+    }
+
+    private static Set<String> fieldNames(List<Attribute> set) {
+        Set<String> names = new LinkedHashSet<>(set.size());
+        for (Attribute attr : set) {
+            names.add(canonicalName(attr));
+        }
+        return names;
+    }
+
+    private static List<Attribute> filter(List<Attribute> set, Predicate<Attribute> keep) {
+        List<Attribute> result = new ArrayList<>();
+        for (Attribute attr : set) {
+            if (keep.test(attr)) {
+                result.add(attr);
+            }
+        }
+        return result;
+    }
+
+    /**
+     * Canonical name used by the label algebra: a {@link FieldAttribute} uses its field name, everything else falls
+     * back to {@link Attribute#name()}. PromQL refers to labels by bare names ({@code le}, {@code job}), while TSDB
+     * dimensions that store Prometheus labels can be exposed as {@code labels.le} / {@code labels.job}. Strip that
+     * storage prefix so {@code by}, {@code without}, intersection, and difference compare PromQL label keys rather than
+     * backing field names (and so exclusion names match the dimensions the {@code _timeseries} block loader enumerates).
+     */
+    static String canonicalName(Attribute attr) {
+        return stripIgnorePrefix((attr instanceof FieldAttribute fa) ? fa.fieldName().string() : attr.name());
+    }
+
+    private static String stripIgnorePrefix(String name) {
+        return name.startsWith("labels.") ? name.substring("labels.".length()) : name;
+    }
+
+    /** The concrete dimension fields among {@code attributes} (used to seed a child demand from a selector's output). */
+    static List<Attribute> filterDimensionAttributes(List<Attribute> attributes) {
+        return attributes.stream().filter(a -> a instanceof FieldAttribute fa && fa.isDimension()).toList();
+    }
 
     /**
      * The <b>inherited</b> attribute: the scope a subtree must preserve, threaded down the aggregate chain. An
@@ -114,7 +245,7 @@ public final class PromqlAttributesTranslationContext {
      */
     public static final class InheritedAttributes {
 
-        /** {@code G}: the labels still in scope and required from below ({@code ALL} until a {@code BY} narrows it). */
+        /** {@code G}: the labels still in scope and required from below ({@code UNIVERSE} until a {@code BY} narrows it). */
         private final List<Attribute> required;
         /** {@code X}: every dimension dropped by a {@code WITHOUT} on the way down, for the innermost {@code _timeseries}. */
         private final List<Attribute> accumulatedExclusions;
@@ -126,12 +257,18 @@ public final class PromqlAttributesTranslationContext {
 
         /** Everything in scope ({@code G=T}), nothing excluded. */
         public static InheritedAttributes unconstrained() {
-            return new InheritedAttributes(ALL, List.of());
+            return new InheritedAttributes(UNIVERSE, List.of());
         }
 
-        /** {@code BY(W)}: only {@code W} stays in scope; accumulated exclusions are carried through unchanged. */
+        /**
+         * {@code BY(W)}: only {@code W} stays in scope, and the accumulated exclusions are <b>cleared</b>. A {@code BY}
+         * fixes its subtree's output to concrete keys, so any outer {@code WITHOUT} applies over those concrete labels
+         * (handled by the outer aggregate), not as a leaf {@code _timeseries} exclusion. Carrying the outer exclusions
+         * past a {@code BY} would wrongly inject a {@code _timeseries} into the inner concrete aggregate, making it group
+         * by {@code identity \ excluded} instead of {@code W} and leaking every other label.
+         */
         public InheritedAttributes including(List<Attribute> attributes) {
-            return new InheritedAttributes(canonicalizeByFieldName(attributes), accumulatedExclusions);
+            return new InheritedAttributes(canonicalizeByFieldName(attributes), List.of());
         }
 
         /** {@code WITHOUT(E)}: {@code E} drops out of scope ({@code G \ E}) and joins the accumulated exclusions. */
@@ -162,7 +299,7 @@ public final class PromqlAttributesTranslationContext {
      */
     public static final class SynthesizedAttributes {
 
-        /** {@code G}: the labels this subtree exposes as grouping keys ({@code ALL} for a literal/scalar). */
+        /** {@code G}: the labels this subtree exposes as grouping keys ({@code SCALAR} for a literal/scalar). */
         private final List<Attribute> grouping;
         /** {@code O}: the labels a {@code BY} promises to expose. Empty unless this shape came from a {@code BY}. */
         private final List<Attribute> output;
@@ -180,11 +317,12 @@ public final class PromqlAttributesTranslationContext {
         }
 
         /**
-         * The shape of a subtree that exposes no specific grouping (a literal selector, a scalar). It carries the full
-         * set {@code T} so that a {@code BY} stacked directly on top keeps its declared keys.
+         * The shape of a subtree that exposes no specific grouping (a literal selector, a scalar, a bare {@code NONE}
+         * aggregate). It carries the {@code SCALAR} sentinel: top-like for set operations (so a {@code BY} stacked directly
+         * on top keeps its declared keys) but, unlike {@code T}, it does not materialise a {@code _timeseries} grouping.
          */
         public static SynthesizedAttributes none() {
-            return new SynthesizedAttributes(ALL, List.of(), List.of());
+            return new SynthesizedAttributes(SCALAR, List.of(), List.of());
         }
 
         /** A shape built directly from a known label set, e.g., a bare selector's output. */
@@ -262,21 +400,43 @@ public final class PromqlAttributesTranslationContext {
          */
         private ResolvedAttributes translateAgainst(List<Attribute> available, List<Attribute> excludedDimensions) {
             List<Attribute> projected = projected();
-            Attribute ts = findByFieldName(available, MetadataAttribute.TIMESERIES);
-            List<Attribute> resolved = resolveAgainst(projected, available);
-            List<Attribute> missing = asList(minus(projected, resolved));
+            var timeseries = findByFieldName(available, MetadataAttribute.TIMESERIES);
 
-            if (ts != null) {
-                List<Attribute> attrs = new ArrayList<>();
-                for (Attribute attr : resolved) {
-                    if (MetadataAttribute.isTimeSeriesAttributeName(attr.name()) == false) {
-                        attrs.add(attr);
-                    }
-                }
-                return new ResolvedAttributes(List.of(ts), attrs, missing, excludedDimensions);
+            /*
+             * `without` means "group by the runtime label set", represented by `_timeseries`.
+             * If the input plan does not expose `_timeseries` yet, synthesize it here so the
+             * plan builder can lower it normally. Do not do this for the scalar/NONE sentinel.
+             */
+            if (timeseries == null && projected == UNIVERSE) {
+                timeseries = FieldAttribute.timeSeriesAttribute(Source.EMPTY);
             }
 
-            return new ResolvedAttributes(resolved, List.of(), missing, excludedDimensions);
+            var resolved = new ArrayList<Attribute>();
+
+            if (isTop(projected) == false) {
+                if (available == UNIVERSE) {
+                    resolved.addAll(projected);
+                } else {
+                    resolved.ensureCapacity(projected.size());
+                    for (Attribute attr : projected) {
+                        Attribute match = available.contains(attr) ? attr : findByFieldName(available, canonicalName(attr));
+
+                        if (match != null) {
+                            resolved.add(match);
+                        }
+                    }
+                }
+            }
+
+            var missing = asList(minus(projected, resolved));
+
+            if (timeseries == null) {
+                return new ResolvedAttributes(resolved, List.of(), missing, excludedDimensions);
+            }
+
+            resolved.removeIf(attr -> MetadataAttribute.isTimeSeriesAttributeName(attr.name()));
+
+            return new ResolvedAttributes(List.of(timeseries), resolved, missing, excludedDimensions);
         }
     }
 
@@ -319,146 +479,4 @@ public final class PromqlAttributesTranslationContext {
          */
         List<Attribute> excludedDimensions
     ) {}
-
-    // ----------------------------------------------------------------
-    // Label-set algebra: total operations over List<Attribute>, with the ALL sentinel for the universe T.
-    // Labels are compared by field name; the operands marked "finite" are never ALL.
-    // ----------------------------------------------------------------
-
-    /**
-     * Collapse a raw label list to its canonical set by field name: at most one attribute per field name, first
-     * occurrence wins, insertion order preserved. Every external finite list is funnelled through here before it is
-     * stored, so the algebra below can assume its inputs are already duplicate-free.
-     */
-    private static List<Attribute> canonicalizeByFieldName(List<Attribute> labels) {
-        assert labels != ALL : "canonicalizeByFieldName expects a finite list, not T";
-        List<Attribute> result = new ArrayList<>();
-        Set<String> seen = new LinkedHashSet<>();
-        for (Attribute attr : labels) {
-            if (seen.add(fieldName(attr))) {
-                result.add(attr);
-            }
-        }
-        return result;
-    }
-
-    /** {@code a | b} by field name, order-preserving ({@code a} first). Both operands are finite. */
-    static List<Attribute> union(List<Attribute> a, List<Attribute> b) {
-        assert a != ALL && b != ALL : "union expects finite operands, not T";
-        List<Attribute> result = new ArrayList<>();
-        Set<String> seen = new LinkedHashSet<>();
-        for (Attribute attr : a) {
-            if (seen.add(fieldName(attr))) {
-                result.add(attr);
-            }
-        }
-        for (Attribute attr : b) {
-            if (seen.add(fieldName(attr))) {
-                result.add(attr);
-            }
-        }
-        return result;
-    }
-
-    /** {@code a & b}. {@code a} may be {@code T} (then the result is exactly {@code b}); {@code b} is finite. */
-    private static List<Attribute> intersect(List<Attribute> a, List<Attribute> b) {
-        assert b != ALL : "intersect expects a finite right operand, not T";
-        if (a == ALL) {
-            return new ArrayList<>(b);
-        }
-        Set<String> names = fieldNames(b);
-        return filter(a, attr -> names.contains(fieldName(attr)));
-    }
-
-    /** {@code a \ b}. {@code a} may be {@code T} ({@code T} minus a finite set stays {@code T}); {@code b} is finite. */
-    private static List<Attribute> minus(List<Attribute> a, List<Attribute> b) {
-        assert b != ALL : "minus expects a finite right operand, not T";
-        if (a == ALL) {
-            return ALL;
-        }
-        Set<String> names = fieldNames(b);
-        return filter(a, attr -> names.contains(fieldName(attr)) == false);
-    }
-
-    /**
-     * The concrete columns {@code set} contributes when resolved against the labels {@code available} actually carries.
-     * {@code T} contributes none: it is realised by the opaque {@code _timeseries} grouping, not by enumerating the
-     * universe. A finite set keeps the identical attribute when present, otherwise substitutes the member of
-     * {@code available} sharing its field name, dropping entries with no match.
-     */
-    private static List<Attribute> resolveAgainst(List<Attribute> set, List<Attribute> available) {
-        if (set == ALL) {
-            return List.of();
-        }
-        if (available == ALL) {
-            return new ArrayList<>(set);
-        }
-        List<Attribute> resolved = new ArrayList<>();
-        for (Attribute attr : set) {
-            if (available.contains(attr)) {
-                resolved.add(attr);
-                continue;
-            }
-            Attribute byName = findByFieldName(available, fieldName(attr));
-            if (byName != null) {
-                resolved.add(byName);
-            }
-        }
-        return resolved;
-    }
-
-    /** The member with this field name, or {@code null} (always {@code null} for {@code T}). */
-    static Attribute findByFieldName(List<Attribute> set, String name) {
-        if (set == ALL) {
-            return null;
-        }
-        for (Attribute attr : set) {
-            if (fieldName(attr).equals(name)) {
-                return attr;
-            }
-        }
-        return null;
-    }
-
-    /** The concrete members, or the empty list for {@code T}. */
-    private static List<Attribute> asList(List<Attribute> set) {
-        return set == ALL ? List.of() : set;
-    }
-
-    private static Set<String> fieldNames(List<Attribute> set) {
-        Set<String> names = new LinkedHashSet<>();
-        for (Attribute attr : set) {
-            names.add(fieldName(attr));
-        }
-        return names;
-    }
-
-    private static List<Attribute> filter(List<Attribute> set, Predicate<Attribute> keep) {
-        List<Attribute> result = new ArrayList<>();
-        for (Attribute attr : set) {
-            if (keep.test(attr)) {
-                result.add(attr);
-            }
-        }
-        return result;
-    }
-
-    /**
-     * Canonical name used by the label algebra: a {@link FieldAttribute} uses its field name, everything else falls
-     * back to {@link Attribute#name()}. PromQL refers to labels by bare names ({@code le}, {@code job}), while TSDB
-     * dimensions that store Prometheus labels can be exposed as {@code labels.le} / {@code labels.job}. Strip that
-     * storage prefix so {@code by}, {@code without}, intersection, and difference compare PromQL label keys rather than
-     * backing field names (and so exclusion names match the dimensions the {@code _timeseries} block loader enumerates).
-     */
-    static String fieldName(Attribute attr) {
-        String name = attr instanceof FieldAttribute fieldAttr ? fieldAttr.fieldName().string() : attr.name();
-        return name.startsWith(PROMETHEUS_LABELS_PREFIX) ? name.substring(PROMETHEUS_LABELS_PREFIX.length()) : name;
-    }
-
-    private static final String PROMETHEUS_LABELS_PREFIX = "labels.";
-
-    /** The concrete dimension fields among {@code attributes} (used to seed a child demand from a selector's output). */
-    static List<Attribute> dimensionAttributes(List<Attribute> attributes) {
-        return attributes.stream().filter(a -> a instanceof FieldAttribute fa && fa.isDimension()).toList();
-    }
 }

@@ -155,8 +155,13 @@ public final class ThrottlingRecoveryService implements Closeable {
         }
     }
 
+    /// Metadata holder for a recovery that has been enqueued but not yet dispatched.
+    /// The `listener` is the one passed in to [#enqueue] by indicesServices. Slot-release and other wrappers are added
+    /// at dispatch time, such that aborting a queued-but-never-dispatched task does not decrement a slot that was never taken
     private record PendingRecovery(RecoveryState recoveryState, Consumer<RecoveryListener> task, RecoveryListener listener) {}
 
+    /// Executable wrapper for a dispatched recovery. The provided recovery listener (from [PendingRecovery]) is wrapped
+    /// with `runAfter` (to release a recovery slot on completion) and `assertOnce` (to ensure there is only one terminal callback).
     private static class RecoveryRunnable extends AbstractRunnable {
         private final RecoveryState recoveryState;
         private final Consumer<RecoveryListener> task;

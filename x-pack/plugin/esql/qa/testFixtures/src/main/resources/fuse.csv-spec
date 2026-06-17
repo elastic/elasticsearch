@@ -862,13 +862,13 @@ required_capability: fix_agg_on_null_by_replacing_with_eval
 required_capability: fuse_passthrough_with_first
 
 ROW x = null, _id = "", _index = "", _score = 1.0
-| FORK (EVAl y = 2 | LIMIT 1) (EVAl y = 3 | LIMIT 1)
+| FORK (EVAl y = 1 | LIMIT 1) (EVAl y = 1 | LIMIT 1)
 | FUSE LINEAR
 | EVAL _fork = mv_sort(_fork)
 ;
 
 _score:double | x:null | _id:keyword | _index:keyword | y:integer | _fork:keyword
-2             | null   | ""          | ""             | 2    | [fork1,fork2]
+2             | null   | ""          | ""             | 1    | [fork1,fork2]
 ;
 
 fuseWithForkAndFromWithNullValues

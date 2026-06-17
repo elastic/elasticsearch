@@ -20,7 +20,12 @@ public sealed interface LongRangeBlock extends Block permits LongRangeArrayBlock
     boolean isNull(int position);
 
     @Override
-    LongRangeBlock filter(boolean mayContainDuplicates, int... positions);
+    LongRangeBlock filter(boolean mayContainDuplicates, int[] positions, int offset, int length);
+
+    @Override
+    default LongRangeBlock filter(boolean mayContainDuplicates, int... positions) {
+        return filter(mayContainDuplicates, positions, 0, positions.length);
+    }
 
     @Override
     LongRangeBlock keepMask(BooleanVector mask);

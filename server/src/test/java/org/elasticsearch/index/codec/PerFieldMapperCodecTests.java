@@ -27,8 +27,10 @@ import org.elasticsearch.index.codec.tsdb.TSDBSyntheticIdPostingsFormat;
 import org.elasticsearch.index.codec.tsdb.es95.ES95TSDBDocValuesFormat;
 import org.elasticsearch.index.codec.tsdb.pipeline.FieldContext;
 import org.elasticsearch.index.codec.tsdb.pipeline.MetricRole;
+import org.elasticsearch.index.codec.tsdb.pipeline.PipelineConfig;
 import org.elasticsearch.index.codec.tsdb.pipeline.PipelineDescriptor;
 import org.elasticsearch.index.mapper.IdFieldMapper;
+import org.elasticsearch.index.codec.tsdb.pipeline.StaticPipelineConfigResolver;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
@@ -553,6 +555,34 @@ public class PerFieldMapperCodecTests extends ESTestCase {
         assertEquals(MetricRole.GAUGE, context.metricRole());
     }
 
+    private static final String OTEL_DOUBLE_GAUGE_MAPPING = """
+        {
+            "_data_stream_timestamp": {
+                "enabled": true
+            },
+            "properties": {
+                "@timestamp": {
+                    "type": "date"
+                },
+                "field": {
+                    "type": "keyword",
+                    "time_series_dimension": true
+                },
+                "cpu_usage": {
+                    "type": "double",
+                    "time_series_metric": "gauge"
+                }
+            }
+        }
+        """;
+
+    public void testResolveFieldContextForOTelDoubleGauge() throws IOException {
+        final PerFieldFormatSupplier supplier = createFormatSupplier(IndexMode.TIME_SERIES, OTEL_DOUBLE_GAUGE_MAPPING);
+        final FieldContext context = supplier.resolveFieldContext("cpu_usage", 512);
+        assertEquals(PipelineDescriptor.DataType.DOUBLE, context.dataType());
+        assertEquals(MetricRole.GAUGE, context.metricRole());
+    }
+
     public void testResolveFieldContextForTimestampDateField() throws IOException {
         final PerFieldFormatSupplier supplier = createFormatSupplier(IndexMode.TIME_SERIES, OTEL_COUNTER_LONG_MAPPING);
         final FieldContext context = supplier.resolveFieldContext("@timestamp", 512);
@@ -576,6 +606,21 @@ public class PerFieldMapperCodecTests extends ESTestCase {
         );
         final DocValuesFormat format = supplier.getDocValuesFormatForField("packets");
         assertThat(format, instanceOf(ES95TSDBDocValuesFormat.class));
+    }
+
+    public void testDoubleGaugeFieldGetsES95FormatAndAlpRouting() throws IOException {
+        assumeTrue("es95_codec feature flag must be enabled", IndexSettings.ES95_CODEC_FEATURE_FLAG.isEnabled());
+        final PerFieldFormatSupplier supplier = createFormatSupplierWithVersion(
+            IndexMode.TIME_SERIES,
+            OTEL_DOUBLE_GAUGE_MAPPING,
+            IndexVersion.current()
+        );
+        final DocValuesFormat format = supplier.getDocValuesFormatForField("cpu_usage");
+        assertThat(format, instanceOf(ES95TSDBDocValuesFormat.class));
+
+        final FieldContext context = supplier.resolveFieldContext("cpu_usage", 512);
+        final PipelineConfig config = StaticPipelineConfigResolver.INSTANCE.resolve(context);
+        assertEquals("alpDouble>delta>offset>gcd>bitPack", config.describeStages());
     }
 
     public void testGetDocValuesFormatForFieldReturnsSameInstanceAcrossCalls() throws IOException {

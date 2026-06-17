@@ -1925,7 +1925,23 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
             PainlessMethod method = scriptScope.getDecoration(userCallNode, StandardPainlessMethod.class).standardPainlessMethod();
             Object[] injections = PainlessLookupUtility.buildInjections(method, scriptScope.getCompilerSettings().asMap());
             Class<?>[] parameterTypes = method.javaMethod().getParameterTypes();
+            boolean cancellationAware = method.annotations().containsKey(ScriptAwareAnnotation.class);
+
+            // Where in the Java parameterTypes array the injected constants start. The compiler synthesises a `loadThis()`
+            // (PainlessScript) at index 0 for @script_aware methods and routes the augmented receiver through index 1 (or 0 if not
+            // augmented). Injections follow those, then the user-supplied arguments.
             int augmentedOffset = method.javaMethod().getDeclaringClass() == method.targetClass() ? 0 : 1;
+            if (cancellationAware) {
+                augmentedOffset++;
+            }
+
+            // Order must match the Java method signature: [PainlessScript], [receiver], injections..., user args...
+            // The PainlessScript prefix is emitted as a `loadThis()` in the ASM phase, so here we add the receiver as the first
+            // invoke argument when @script_aware (mirroring how non-@script_aware augmentations get the receiver via the wrapping
+            // BinaryImplNode below).
+            if (cancellationAware) {
+                irInvokeCallNode.addArgumentNode((ExpressionNode) visit(userCallNode.getPrefixNode(), scriptScope));
+            }
 
             for (int i = 0; i < injections.length; i++) {
                 Object injection = injections[i];
@@ -1939,11 +1955,6 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
                 constantNode.attachDecoration(new IRDExpressionType(parameterType));
                 constantNode.attachDecoration(new IRDConstant(injection));
                 irInvokeCallNode.addArgumentNode(constantNode);
-            }
-
-            boolean cancellationAware = method.annotations().containsKey(ScriptAwareAnnotation.class);
-            if (cancellationAware) {
-                irInvokeCallNode.addArgumentNode((ExpressionNode) visit(userCallNode.getPrefixNode(), scriptScope));
             }
 
             for (AExpression userCallArgumentNode : userCallNode.getArgumentNodes()) {

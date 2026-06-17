@@ -47,6 +47,7 @@ public class CountDistinctOverTime extends TimeSeriesAggregateFunction implement
     @FunctionInfo(
         type = FunctionType.TIME_SERIES_AGGREGATE,
         returnType = { "long" },
+        briefSummary = "Calculates the count of distinct values over time for a field.",
         description = "Calculates the count of distinct values over time for a field.",
         appliesTo = {
             @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.2.0"),

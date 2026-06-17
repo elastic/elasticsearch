@@ -32,6 +32,7 @@ import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.Objects;
 
 /**
@@ -195,9 +196,9 @@ public class SortedNumericIndexFieldData extends IndexNumericFieldData {
 
         public SortedNumericLongValues getLongValuesAsNanos() {
             try {
-                return SortedNumericLongValues.wrap(DocValues.getSortedNumeric(reader, fieldName));
+                return SortedNumericLongValues.getLongValues(fieldName, reader);
             } catch (IOException e) {
-                throw new IllegalStateException("Cannot load doc values", e);
+                throw new UncheckedIOException(e);
             }
         }
 
@@ -239,9 +240,9 @@ public class SortedNumericIndexFieldData extends IndexNumericFieldData {
         @Override
         public SortedNumericLongValues getLongValues() {
             try {
-                return SortedNumericLongValues.wrap(DocValues.getSortedNumeric(reader, field));
+                return SortedNumericLongValues.getLongValues(field, reader);
             } catch (IOException e) {
-                throw new IllegalStateException("Cannot load doc values", e);
+                throw new UncheckedIOException(e);
             }
         }
 

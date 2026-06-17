@@ -451,6 +451,50 @@ public class HistogramToExponentialHistogramConverterTests extends ESTestCase {
                     200.0,
                     1.0,
                     15.0
+                ) },
+            new Object[] {
+                "delta/single count no bounds with sum",
+                (Supplier<TestCase>) () -> new TestCase(
+                    HistogramDataPoint.newBuilder().addBucketCounts(10L).setCount(10L).setSum(100.0).build(),
+                    AggregationTemporality.AGGREGATION_TEMPORALITY_DELTA,
+                    List.of(10L),
+                    List.of(10.0),
+                    100.0,
+                    null,
+                    null
+                ) },
+            new Object[] {
+                "delta/single count no bounds without sum",
+                (Supplier<TestCase>) () -> new TestCase(
+                    HistogramDataPoint.newBuilder().addBucketCounts(5L).setCount(5L).build(),
+                    AggregationTemporality.AGGREGATION_TEMPORALITY_DELTA,
+                    List.of(5L),
+                    List.of(0.0),
+                    null,
+                    null,
+                    null
+                ) },
+            new Object[] {
+                "cumulative/single count no bounds with sum",
+                (Supplier<TestCase>) () -> new TestCase(
+                    HistogramDataPoint.newBuilder().addBucketCounts(7L).setCount(7L).setSum(70.0).build(),
+                    AggregationTemporality.AGGREGATION_TEMPORALITY_CUMULATIVE,
+                    List.of(7L),
+                    List.of(0.0),
+                    70.0,
+                    null,
+                    null
+                ) },
+            new Object[] {
+                "delta/single count no bounds with zero count",
+                (Supplier<TestCase>) () -> new TestCase(
+                    HistogramDataPoint.newBuilder().addBucketCounts(0L).setCount(0L).build(),
+                    AggregationTemporality.AGGREGATION_TEMPORALITY_DELTA,
+                    List.of(),
+                    List.of(),
+                    null,
+                    null,
+                    null
                 ) }
         );
 

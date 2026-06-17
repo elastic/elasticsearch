@@ -45,7 +45,6 @@ import java.io.IOException;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.common.Rounding.RoundingConvention.DOWN;
@@ -637,7 +636,7 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
         return configuration.equals(other.configuration) && offset == other.offset && roundingConvention == other.roundingConvention;
     }
 
-    public Map<String, Object> getIntervalMetadata(FoldContext foldContext) {
+    public BucketIntervalMetadata getIntervalMetadata(FoldContext foldContext) {
         if ((buckets.foldable() && (from == null || from.foldable()) && (to == null || to.foldable())) == false) {
             return null;
         }
@@ -655,9 +654,9 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
             if (from != null && to != null) {
                 long start = foldToLong(foldContext, from);
                 long end = foldToLong(foldContext, to);
-                return Map.of("bucket", Map.of("interval", interval.size(), "unit", interval.unit(), "start", start, "end", end));
+                return new BucketIntervalMetadata.DateInterval(interval.size(), interval.unit(), start, end);
             }
-            return Map.of("bucket", Map.of("interval", interval.size(), "unit", interval.unit()));
+            return new BucketIntervalMetadata.DateInterval(interval.size(), interval.unit(), null, null);
         }
         if (fieldType.isNumeric()) {
             double roundTo = getNumberRoundTo(foldContext);
@@ -667,7 +666,7 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
             if (Double.isFinite(roundTo) == false || roundTo <= 0.0) {
                 return null;
             }
-            return Map.of("bucket", Map.of("interval", roundTo));
+            return new BucketIntervalMetadata.NumericInterval(roundTo);
         }
         // BUCKET only supports date/date_nanos and numeric fields. Any new type added to BUCKET that hasn't been
         // taught to this metadata path should fail loudly rather than silently dropping metadata.

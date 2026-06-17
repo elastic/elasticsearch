@@ -136,6 +136,7 @@ import org.elasticsearch.xpack.esql.evaluator.command.UserAgentFunctionBridge;
 import org.elasticsearch.xpack.esql.expression.Foldables;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.function.grouping.BucketColumnMetadata;
+import org.elasticsearch.xpack.esql.expression.function.grouping.BucketIntervalMetadata;
 import org.elasticsearch.xpack.esql.inference.InferenceService;
 import org.elasticsearch.xpack.esql.inference.completion.CompletionOperator;
 import org.elasticsearch.xpack.esql.inference.rerank.RerankOperator;
@@ -1855,12 +1856,20 @@ public class LocalExecutionPlanner {
             .stream()
             .map(g -> getAttributeChannel(g, layout, "CHANGE_POINT BY expression must be an attribute"))
             .toList();
-        Map<String, Object> keyBucketMeta = BucketColumnMetadata.findBucketMetadataForAttribute(
+        BucketIntervalMetadata keyBucketMeta = BucketColumnMetadata.findBucketMetadataForAttribute(
             changePoint.child(),
             changePoint.key().id(),
             context.foldCtx()
         );
-        return source.with(new ChangePointOperator.Factory(valueChannel, groupingChannels, changePoint.source(), keyBucketMeta), layout);
+        return source.with(
+            new ChangePointOperator.Factory(
+                valueChannel,
+                groupingChannels,
+                changePoint.source(),
+                keyBucketMeta != null ? keyBucketMeta.toColumnInfoMetaMap() : null
+            ),
+            layout
+        );
     }
 
     private PhysicalOperation planSample(SampleExec rsx, LocalExecutionPlannerContext context) {

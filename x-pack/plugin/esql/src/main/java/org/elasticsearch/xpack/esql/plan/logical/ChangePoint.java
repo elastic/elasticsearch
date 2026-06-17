@@ -27,12 +27,12 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.NamedExpressions;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.function.grouping.BucketColumnMetadata;
+import org.elasticsearch.xpack.esql.expression.function.grouping.BucketIntervalMetadata;
 import org.elasticsearch.xpack.ml.MachineLearning;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.xpack.esql.SupportsObservabilityTier.ObservabilityTier.COMPLETE;
@@ -227,7 +227,7 @@ public class ChangePoint extends UnaryPlan
      * Returns {@code null} if the key is not backed by a BUCKET or the BUCKET's parameters are not foldable.
      */
     @Nullable
-    public Map<String, Object> keyBucketMetadata(FoldContext foldContext) {
+    public BucketIntervalMetadata keyBucketMetadata(FoldContext foldContext) {
         return BucketColumnMetadata.findBucketMetadataForAttribute(child(), key.id(), foldContext);
     }
 }

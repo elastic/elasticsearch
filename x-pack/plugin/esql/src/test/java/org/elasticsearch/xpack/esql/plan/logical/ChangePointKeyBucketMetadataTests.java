@@ -9,13 +9,11 @@ package org.elasticsearch.xpack.esql.plan.logical;
 
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.expression.function.grouping.BucketIntervalMetadata;
 import org.elasticsearch.xpack.esql.optimizer.AbstractLogicalPlanOptimizerTests;
 
-import java.util.Map;
-
-import static org.hamcrest.Matchers.hasEntry;
-import static org.hamcrest.Matchers.hasKey;
-import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -40,19 +38,17 @@ public class ChangePointKeyBucketMetadataTests extends AbstractLogicalPlanOptimi
 
         ChangePoint changePoint = findChangePoint(optimized);
 
-        Map<String, Object> meta = changePoint.keyBucketMetadata(FoldContext.small());
+        BucketIntervalMetadata meta = changePoint.keyBucketMetadata(FoldContext.small());
         assertThat(meta, notNullValue());
-
-        @SuppressWarnings("unchecked")
-        Map<String, Object> inner = (Map<String, Object>) meta.get("bucket");
-        assertThat(inner, notNullValue());
-        assertThat(inner, hasKey("interval"));
-        assertThat(inner, hasKey("unit"));
+        assertThat(meta, instanceOf(BucketIntervalMetadata.DateInterval.class));
+        BucketIntervalMetadata.DateInterval dateInterval = (BucketIntervalMetadata.DateInterval) meta;
 
         long expectedStart = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("1985-01-01T00:00:00Z");
         long expectedEnd = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("1995-01-01T00:00:00Z");
-        assertThat(inner, hasEntry("start", (Object) expectedStart));
-        assertThat(inner, hasEntry("end", (Object) expectedEnd));
+        assertThat(dateInterval.start(), equalTo(expectedStart));
+        assertThat(dateInterval.end(), equalTo(expectedEnd));
+        assertThat(dateInterval.intervalUnit(), notNullValue());
+        assertThat(dateInterval.intervalSize() > 0, equalTo(true));
     }
 
     /**
@@ -69,16 +65,14 @@ public class ChangePointKeyBucketMetadataTests extends AbstractLogicalPlanOptimi
 
         ChangePoint changePoint = findChangePoint(optimized);
 
-        Map<String, Object> meta = changePoint.keyBucketMetadata(FoldContext.small());
+        BucketIntervalMetadata meta = changePoint.keyBucketMetadata(FoldContext.small());
         assertThat(meta, notNullValue());
-
-        @SuppressWarnings("unchecked")
-        Map<String, Object> inner = (Map<String, Object>) meta.get("bucket");
-        assertThat(inner, notNullValue());
-        assertThat(inner, hasKey("interval"));
-        assertThat(inner, hasKey("unit"));
-        assertThat(inner, not(hasKey("start")));
-        assertThat(inner, not(hasKey("end")));
+        assertThat(meta, instanceOf(BucketIntervalMetadata.DateInterval.class));
+        BucketIntervalMetadata.DateInterval dateInterval = (BucketIntervalMetadata.DateInterval) meta;
+        assertThat(dateInterval.intervalUnit(), notNullValue());
+        assertThat(dateInterval.intervalSize() > 0, equalTo(true));
+        assertThat(dateInterval.start(), nullValue());
+        assertThat(dateInterval.end(), nullValue());
     }
 
     /**
@@ -95,7 +89,7 @@ public class ChangePointKeyBucketMetadataTests extends AbstractLogicalPlanOptimi
 
         ChangePoint changePoint = findChangePoint(optimized);
 
-        Map<String, Object> meta = changePoint.keyBucketMetadata(FoldContext.small());
+        BucketIntervalMetadata meta = changePoint.keyBucketMetadata(FoldContext.small());
         assertThat(meta, nullValue());
     }
 

@@ -26,9 +26,9 @@ public class BucketColumnMetadata {
         // we can fix this later by adding meta from analyzed plan as well
         optimizedPlan.forEachExpressionDown(Alias.class, alias -> {
             if (alias.child() instanceof Bucket bucket) {
-                Map<String, Object> intervalMetadata = bucket.getIntervalMetadata(foldContext);
+                BucketIntervalMetadata intervalMetadata = bucket.getIntervalMetadata(foldContext);
                 if (intervalMetadata != null) {
-                    resolved.put(alias.id(), intervalMetadata);
+                    resolved.put(alias.id(), intervalMetadata.toColumnInfoMetaMap());
                 }
             }
         });
@@ -42,8 +42,8 @@ public class BucketColumnMetadata {
      * are not foldable.
      */
     @Nullable
-    public static Map<String, Object> findBucketMetadataForAttribute(QueryPlan<?> plan, NameId attributeId, FoldContext foldContext) {
-        Holder<Map<String, Object>> result = new Holder<>();
+    public static BucketIntervalMetadata findBucketMetadataForAttribute(QueryPlan<?> plan, NameId attributeId, FoldContext foldContext) {
+        Holder<BucketIntervalMetadata> result = new Holder<>();
         plan.forEachExpressionDown(Alias.class, alias -> {
             if (result.get() == null && alias.id().equals(attributeId) && alias.child() instanceof Bucket bucket) {
                 result.set(bucket.getIntervalMetadata(foldContext));

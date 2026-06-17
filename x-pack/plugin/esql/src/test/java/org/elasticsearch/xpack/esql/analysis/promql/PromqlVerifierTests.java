@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
 import org.elasticsearch.xpack.esql.core.querydsl.QueryDslTimestampBoundsExtractor.TimestampBounds;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.parser.promql.PromqlAstTests;
+import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.local.EmptyLocalSupplier;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 
@@ -199,6 +200,18 @@ public class PromqlVerifierTests extends ESTestCase {
         var localRelations = plan.collect(LocalRelation.class);
         assertThat(localRelations, hasSize(1));
         assertThat(localRelations.get(0).supplier(), equalTo(EmptyLocalSupplier.EMPTY));
+    }
+
+    public void testSourcelessQueryOnEmptyIndexDoesNotShortCircuitToEmptyLocalRelation() {
+        var plan = analyzer().addEmptyIndex().query("PROMQL index=empty_index time=\"2025-01-01T00:00:00Z\" result=(time())");
+        int emptyLocalRelations = 0;
+        for (LocalRelation localRelation : plan.collect(LocalRelation.class)) {
+            if (localRelation.supplier() == EmptyLocalSupplier.EMPTY) {
+                emptyLocalRelations++;
+            }
+        }
+        assertThat(emptyLocalRelations, equalTo(0));
+        assertThat(plan.collect(Row.class), hasSize(1));
     }
 
     public void testAbsentMetricWithSimilarNameReturnsEmptyResult() {

@@ -107,7 +107,7 @@ public class ReindexRequestWireSerializingTests extends AbstractWireSerializingT
     }
 
     /**
-     * Mutates {@code mutatedRequest} (a copy of {@code originalRequest}) along exactly one logical field: bulk-by-scroll fields,
+     * Mutates {@code mutatedRequest} (a copy of {@code originalRequest}) along exactly one logical field: bulk-by-paginated-search fields,
      * destination index, destination version, remote info, or script.
      */
     public static void mutateReindexRequest(ReindexRequest originalRequest, ReindexRequest mutatedRequest) {

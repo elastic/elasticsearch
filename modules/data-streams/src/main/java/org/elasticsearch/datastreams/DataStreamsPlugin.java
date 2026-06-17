@@ -158,7 +158,11 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin, Extensibl
     @Override
     public void loadExtensions(ExtensionLoader loader) {
         List<DownsamplingOperations> extensions = loader.loadExtensions(DownsamplingOperations.class);
-        assert extensions.size() <= 1 : "Expected at most one DownsamplingOperations implementation, found: " + extensions.size();
+        if (extensions.size() > 1) {
+            throw new IllegalStateException(
+                "Expected at most one DownsamplingOperations implementation, found: " + extensions.stream().map(Object::getClass).toList()
+            );
+        }
         if (extensions.isEmpty() == false) {
             downsamplingOperations = extensions.get(0);
         }

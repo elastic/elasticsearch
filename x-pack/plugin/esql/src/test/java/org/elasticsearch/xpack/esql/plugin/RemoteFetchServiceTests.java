@@ -203,7 +203,7 @@ public class RemoteFetchServiceTests extends MapperServiceTestCase {
 
     public void testExecutePushdownForExchangeSupportsFilterExec() {
         blockFactory = blockFactory();
-        RemoteFetchPushdownCompiler pushdownCompiler = new RemoteFetchPushdownCompiler(
+        RemoteFetchPushdownPlanExecutor pushdownExecutor = new RemoteFetchPushdownPlanExecutor(
             blockFactory.bigArrays(),
             LocalCircuitBreaker.SizeSettings.DEFAULT_SETTINGS
         );
@@ -224,7 +224,7 @@ public class RemoteFetchServiceTests extends MapperServiceTestCase {
             inputPage = new Page(builder.build());
         }
 
-        List<Page> outputPages = pushdownCompiler.execute(
+        List<Page> outputPages = pushdownExecutor.execute(
             List.of(inputPage),
             pushdownPlan,
             new IndexedByShardIdFromSingleton<>(
@@ -263,7 +263,7 @@ public class RemoteFetchServiceTests extends MapperServiceTestCase {
 
     public void testExecutePushdownProjectPreservesPositionMapping() {
         blockFactory = blockFactory();
-        RemoteFetchPushdownCompiler pushdownCompiler = new RemoteFetchPushdownCompiler(
+        RemoteFetchPushdownPlanExecutor pushdownExecutor = new RemoteFetchPushdownPlanExecutor(
             blockFactory.bigArrays(),
             LocalCircuitBreaker.SizeSettings.DEFAULT_SETTINGS
         );
@@ -288,7 +288,7 @@ public class RemoteFetchServiceTests extends MapperServiceTestCase {
             inputPage = new Page(builder.build());
         }
 
-        List<Page> outputPages = pushdownCompiler.execute(
+        List<Page> outputPages = pushdownExecutor.execute(
             List.of(inputPage),
             pushdownPlan,
             new IndexedByShardIdFromSingleton<>(
@@ -320,7 +320,7 @@ public class RemoteFetchServiceTests extends MapperServiceTestCase {
             LocalCircuitBreaker.SizeSettings.DEFAULT_SETTINGS.maxOverReservedBytes()
         );
         BlockFactory exchangeBlockFactory = blockFactory.newChildFactory(localBreaker);
-        RemoteFetchPushdownCompiler pushdownCompiler = new RemoteFetchPushdownCompiler(
+        RemoteFetchPushdownPlanExecutor pushdownExecutor = new RemoteFetchPushdownPlanExecutor(
             blockFactory.bigArrays(),
             LocalCircuitBreaker.SizeSettings.DEFAULT_SETTINGS
         );
@@ -333,7 +333,7 @@ public class RemoteFetchServiceTests extends MapperServiceTestCase {
             inputPage = new Page(builder.build());
         }
 
-        List<Page> outputPages = pushdownCompiler.execute(
+        List<Page> outputPages = pushdownExecutor.execute(
             List.of(inputPage),
             pushdownPlan,
             new IndexedByShardIdFromSingleton<>(
@@ -354,7 +354,7 @@ public class RemoteFetchServiceTests extends MapperServiceTestCase {
 
     public void testExecutePushdownUsesSuppliedFoldContext() {
         blockFactory = blockFactory();
-        RemoteFetchPushdownCompiler pushdownCompiler = new RemoteFetchPushdownCompiler(
+        RemoteFetchPushdownPlanExecutor pushdownExecutor = new RemoteFetchPushdownPlanExecutor(
             blockFactory.bigArrays(),
             LocalCircuitBreaker.SizeSettings.DEFAULT_SETTINGS
         );
@@ -375,7 +375,7 @@ public class RemoteFetchServiceTests extends MapperServiceTestCase {
             inputPage = new Page(builder.build());
         }
 
-        List<Page> outputPages = pushdownCompiler.execute(
+        List<Page> outputPages = pushdownExecutor.execute(
             List.of(inputPage),
             pushdownPlan,
             new IndexedByShardIdFromSingleton<>(

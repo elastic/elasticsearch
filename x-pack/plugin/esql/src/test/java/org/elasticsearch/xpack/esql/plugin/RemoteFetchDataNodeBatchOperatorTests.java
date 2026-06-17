@@ -7,32 +7,71 @@
 
 package org.elasticsearch.xpack.esql.plugin;
 
-import org.elasticsearch.common.breaker.CircuitBreaker;
-import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.util.MockBigArrays;
-import org.elasticsearch.common.util.PageCacheRecycler;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.compute.operator.Operator;
+import org.elasticsearch.compute.operator.SourceOperator;
+import org.elasticsearch.compute.test.OperatorTestCase;
+import org.elasticsearch.compute.test.operator.blocksource.SequenceBytesRefBlockSourceOperator;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.matchesPattern;
 
-public class RemoteFetchDataNodeBatchOperatorTests extends ESTestCase {
-    private final List<BlockFactory> blockFactories = new ArrayList<>();
+public class RemoteFetchDataNodeBatchOperatorTests extends OperatorTestCase {
+    @Override
+    protected SourceOperator simpleInput(BlockFactory blockFactory, int size) {
+        return new SequenceBytesRefBlockSourceOperator(
+            blockFactory,
+            IntStream.range(0, size).mapToObj(i -> handle("node-1", "session-1", i).toBytesRef())
+        );
+    }
+
+    @Override
+    protected Operator.OperatorFactory simple(SimpleOptions options) {
+        return new Operator.OperatorFactory() {
+            @Override
+            public Operator get(DriverContext driverContext) {
+                return new RemoteFetchDataNodeBatchOperator(handles -> List.of(docsPage(driverContext, handles)));
+            }
+
+            @Override
+            public String describe() {
+                return "RemoteFetchDataNodeBatchOperator[]";
+            }
+        };
+    }
+
+    @Override
+    protected void assertSimpleOutput(List<Page> input, List<Page> results) {
+        List<Integer> expectedDocs = docsFromHandlePages(input);
+        List<Integer> actualDocs = docsFromOutputPages(results);
+        assertThat(actualDocs, equalTo(expectedDocs));
+    }
+
+    @Override
+    protected org.hamcrest.Matcher<String> expectedDescriptionOfSimple() {
+        return equalTo("RemoteFetchDataNodeBatchOperator[]");
+    }
+
+    @Override
+    protected org.hamcrest.Matcher<String> expectedToStringOfSimple() {
+        return matchesPattern(".*RemoteFetchDataNodeBatchOperator.*");
+    }
 
     public void testFetchedPagesArePlainPagesForBatchDriverSinkWrapping() {
         DriverContext driverContext = driverContext();
         try (
             RemoteFetchDataNodeBatchOperator operator = new RemoteFetchDataNodeBatchOperator(
-                handles -> List.of(intPage(driverContext, 10), intPage(driverContext, 20))
+                handles -> List.of(singleIntPage(driverContext, 10), singleIntPage(driverContext, 20))
             )
         ) {
             operator.addInput(handlesPage(driverContext));
@@ -63,9 +102,9 @@ public class RemoteFetchDataNodeBatchOperatorTests extends ESTestCase {
         AtomicInteger calls = new AtomicInteger();
         List<RemoteFetchHandle> captured = new ArrayList<>();
         List<RemoteFetchHandle> expected = List.of(
-            new RemoteFetchHandle("node-1", "session-1", 0, 0, 10),
-            new RemoteFetchHandle("node-1", "session-1", 0, 1, 20),
-            new RemoteFetchHandle("node-1", "session-1", 1, 0, 30)
+            handle("node-1", "session-1", 10),
+            handle("node-1", "session-1", 20),
+            handle("node-1", "session-1", 30)
         );
 
         try (RemoteFetchDataNodeBatchOperator operator = new RemoteFetchDataNodeBatchOperator(handles -> {
@@ -84,12 +123,7 @@ public class RemoteFetchDataNodeBatchOperatorTests extends ESTestCase {
     public void testRejectsHandlesFromDifferentTargetSessionsInSingleBatch() {
         DriverContext driverContext = driverContext();
         try (RemoteFetchDataNodeBatchOperator operator = new RemoteFetchDataNodeBatchOperator(handles -> List.of())) {
-            operator.addInput(
-                handlesPage(
-                    driverContext,
-                    List.of(new RemoteFetchHandle("node-1", "session-1", 0, 0, 1), new RemoteFetchHandle("node-2", "session-2", 0, 0, 2))
-                )
-            );
+            operator.addInput(handlesPage(driverContext, List.of(handle("node-1", "session-1", 1), handle("node-2", "session-2", 2))));
             IllegalStateException e = expectThrows(IllegalStateException.class, operator::getOutput);
             assertThat(
                 e.getMessage(),
@@ -100,30 +134,9 @@ public class RemoteFetchDataNodeBatchOperatorTests extends ESTestCase {
         }
     }
 
-    private DriverContext driverContext() {
-        BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofMb(4)).withCircuitBreaking();
-        BlockFactory blockFactory = BlockFactory.builder(bigArrays).build();
-        blockFactories.add(blockFactory);
-        return new DriverContext(bigArrays, blockFactory, null);
-    }
-
-    @Override
-    public void tearDown() throws Exception {
-        try {
-            for (BlockFactory blockFactory : blockFactories) {
-                assertThat(blockFactory.breaker().getUsed(), equalTo(0L));
-                assertThat(blockFactory.breaker().getTrippedCount(), equalTo(0L));
-                assertThat(blockFactory.breaker().getName(), equalTo(CircuitBreaker.REQUEST));
-            }
-            MockBigArrays.ensureAllArraysAreReleased();
-        } finally {
-            super.tearDown();
-        }
-    }
-
     private static Page handlesPage(DriverContext driverContext) {
         try (BytesRefBlock.Builder builder = driverContext.blockFactory().newBytesRefBlockBuilder(1)) {
-            builder.appendBytesRef(new RemoteFetchHandle("node-1", "session-1", 0, 0, 1).toBytesRef());
+            builder.appendBytesRef(handle("node-1", "session-1", 1).toBytesRef());
             return new Page(builder.build());
         }
     }
@@ -137,11 +150,50 @@ public class RemoteFetchDataNodeBatchOperatorTests extends ESTestCase {
         }
     }
 
-    private static Page intPage(DriverContext driverContext, int value) {
+    private static Page singleIntPage(DriverContext driverContext, int value) {
         try (IntBlock.Builder builder = driverContext.blockFactory().newIntBlockBuilder(1)) {
             builder.appendInt(value);
             return new Page(builder.build());
         }
+    }
+
+    private static Page docsPage(DriverContext driverContext, List<RemoteFetchHandle> handles) {
+        try (IntBlock.Builder builder = driverContext.blockFactory().newIntBlockBuilder(handles.size())) {
+            for (RemoteFetchHandle handle : handles) {
+                builder.appendInt(Math.toIntExact(handle.doc()));
+            }
+            return new Page(builder.build());
+        }
+    }
+
+    private static List<Integer> docsFromHandlePages(List<Page> pages) {
+        List<Integer> docs = new ArrayList<>();
+        BytesRef scratch = new BytesRef();
+        for (Page page : pages) {
+            BytesRefBlock block = page.getBlock(0);
+            for (int position = 0; position < page.getPositionCount(); position++) {
+                assertThat(block.getValueCount(position), equalTo(1));
+                RemoteFetchHandle handle = RemoteFetchHandle.fromBytesRef(block.getBytesRef(block.getFirstValueIndex(position), scratch));
+                docs.add(Math.toIntExact(handle.doc()));
+            }
+        }
+        return docs;
+    }
+
+    private static List<Integer> docsFromOutputPages(List<Page> pages) {
+        List<Integer> docs = new ArrayList<>();
+        for (Page page : pages) {
+            IntBlock block = page.getBlock(0);
+            for (int position = 0; position < page.getPositionCount(); position++) {
+                assertThat(block.getValueCount(position), equalTo(1));
+                docs.add(block.getInt(block.getFirstValueIndex(position)));
+            }
+        }
+        return docs;
+    }
+
+    private static RemoteFetchHandle handle(String nodeId, String retainedSessionId, int doc) {
+        return new RemoteFetchHandle(nodeId, retainedSessionId, 0, 0, doc);
     }
 
 }

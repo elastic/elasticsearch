@@ -89,7 +89,7 @@ public final class RemoteFetchService {
     private final PlannerSettings.Holder plannerSettings;
     private final LocalCircuitBreaker.SizeSettings localBreakerSettings;
     private final RemoteFieldLoader fieldLoader;
-    private final RemoteFetchPushdownCompiler pushdownCompiler;
+    private final RemoteFetchPushdownPlanExecutor pushdownPlanExecutor;
     private final RetainedSearchContextsRegistry retainedSearchContexts;
     private final ExchangeServerFactory exchangeServerFactory;
 
@@ -121,7 +121,7 @@ public final class RemoteFetchService {
         this.plannerSettings = transportActionServices.plannerSettings();
         this.localBreakerSettings = new LocalCircuitBreaker.SizeSettings(clusterService.getSettings());
         this.fieldLoader = new RemoteFieldLoader(bigArrays, localBreakerSettings);
-        this.pushdownCompiler = new RemoteFetchPushdownCompiler(bigArrays, localBreakerSettings);
+        this.pushdownPlanExecutor = new RemoteFetchPushdownPlanExecutor(bigArrays, localBreakerSettings);
         this.retainedSearchContexts = Objects.requireNonNull(retainedSearchContexts);
         this.exchangeServerFactory = Objects.requireNonNull(exchangeServerFactory);
         transportService.registerRequestHandler(
@@ -202,7 +202,7 @@ public final class RemoteFetchService {
     }
 
     public interface Client extends Releasable {
-        Exchange openExchange(
+        TargetExchange openTargetExchange(
             String nodeId,
             String retainedSessionId,
             List<FetchField> fields,
@@ -214,7 +214,13 @@ public final class RemoteFetchService {
         default void close() {}
     }
 
-    public interface Exchange extends Releasable {
+    /**
+     * Coordinator-side handle to a single target-session exchange channel.
+     * <p>
+     * Each instance is bound to one target node plus retained session pair and validates that all handles routed
+     * through it belong to that same target session.
+     */
+    public interface TargetExchange extends Releasable {
         void sendBatch(long batchId, List<RemoteFetchHandle> handles) throws Exception;
 
         Page pollPage();
@@ -259,7 +265,7 @@ public final class RemoteFetchService {
     private final class BatchExchangeFetchClient implements Client {
         private final CancellableTask parentTask;
         private final RetainedSessionReleaser retainedSessionReleaser;
-        private final Map<TargetSession, TargetState> targets = new HashMap<>();
+        private final Map<TargetSession, TargetExchangeChannel> targetExchanges = new HashMap<>();
         private volatile boolean closed;
 
         private BatchExchangeFetchClient(CancellableTask parentTask, RetainedSessionReleaser retainedSessionReleaser) {
@@ -268,7 +274,7 @@ public final class RemoteFetchService {
         }
 
         @Override
-        public Exchange openExchange(
+        public TargetExchange openTargetExchange(
             String nodeId,
             String retainedSessionId,
             List<FetchField> fields,
@@ -280,35 +286,35 @@ public final class RemoteFetchService {
             }
             TargetSession target = new TargetSession(nodeId, retainedSessionId);
             synchronized (this) {
-                TargetState existing = targets.get(target);
+                TargetExchangeChannel existing = targetExchanges.get(target);
                 if (existing != null) {
                     existing.validate(fields, pushdownPlan, configuration);
                     return existing;
                 }
-                TargetState created = createTargetState(target, fields, pushdownPlan, configuration);
-                targets.put(target, created);
+                TargetExchangeChannel created = createTargetExchange(target, fields, pushdownPlan, configuration);
+                targetExchanges.put(target, created);
                 return created;
             }
         }
 
         @Override
         public void close() {
-            Map<TargetSession, TargetState> states;
+            Map<TargetSession, TargetExchangeChannel> exchanges;
             synchronized (this) {
                 if (closed) {
                     return;
                 }
                 closed = true;
-                states = new HashMap<>(targets);
-                targets.clear();
+                exchanges = new HashMap<>(targetExchanges);
+                targetExchanges.clear();
             }
-            for (TargetState state : states.values()) {
-                state.close();
+            for (TargetExchangeChannel exchange : exchanges.values()) {
+                exchange.close();
             }
             retainedSessionReleaser.close();
         }
 
-        private TargetState createTargetState(
+        private TargetExchangeChannel createTargetExchange(
             TargetSession target,
             List<FetchField> fields,
             PhysicalPlan pushdownPlan,
@@ -359,11 +365,11 @@ public final class RemoteFetchService {
                 () -> node
             );
             retainedSessionReleaser.track(node, target.retainedSessionId());
-            return new TargetState(target, node, retainedSessionReleaser, client, fields, pushdownPlan, configuration);
+            return new TargetExchangeChannel(target, node, retainedSessionReleaser, client, fields, pushdownPlan, configuration);
         }
     }
 
-    private final class TargetState implements Exchange {
+    private final class TargetExchangeChannel implements TargetExchange {
         private final TargetSession target;
         private final DiscoveryNode targetNode;
         private final RetainedSessionReleaser retainedSessionReleaser;
@@ -376,7 +382,7 @@ public final class RemoteFetchService {
         private boolean closed;
         private boolean released;
 
-        private TargetState(
+        private TargetExchangeChannel(
             TargetSession target,
             DiscoveryNode targetNode,
             RetainedSessionReleaser retainedSessionReleaser,
@@ -410,7 +416,7 @@ public final class RemoteFetchService {
         public void sendBatch(long batchId, List<RemoteFetchHandle> handles) throws Exception {
             synchronized (lock) {
                 if (closed) {
-                    throw new IllegalStateException("remote fetch target state is closed");
+                    throw new IllegalStateException("remote fetch target exchange is closed");
                 }
                 validateHandlesForTarget(handles);
                 try {
@@ -483,7 +489,7 @@ public final class RemoteFetchService {
                     client.finishCollectingResponseHeaders();
                     client.close();
                 } catch (Exception e) {
-                    logger.debug("failed to close remote fetch target state", e);
+                    logger.debug("failed to close remote fetch target exchange", e);
                 } finally {
                     releaseTarget();
                 }
@@ -598,7 +604,7 @@ public final class RemoteFetchService {
         // Keep plan compilation in the service layer; the batch operator only needs to transform handle batches.
         return handles -> {
             List<Page> fetched = fieldLoader.execute(handles, request.fields(), shardContexts, settings, exchangeBlockFactory);
-            return pushdownCompiler.execute(
+            return pushdownPlanExecutor.execute(
                 fetched,
                 request.pushdownPlan(),
                 shardContexts,

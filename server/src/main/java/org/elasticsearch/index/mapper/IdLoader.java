@@ -564,15 +564,14 @@ public sealed interface IdLoader permits IdLoader.TsIdLoader, IdLoader.StoredIdL
             if (docIdsInLeaf == null) {
                 return new LazyDocValuesIdLeaf(binaryDocValues);
             }
-            String[] ids = new String[docIdsInLeaf.length];
+            BytesRef[] encodedIds = new BytesRef[docIdsInLeaf.length];
             for (int i = 0; i < docIdsInLeaf.length; i++) {
                 int docId = docIdsInLeaf[i];
                 boolean found = binaryDocValues.advanceExact(docId);
                 assert found : "_id doc value missing for docId " + docId;
-                BytesRef encoded = binaryDocValues.binaryValue();
-                ids[i] = Uid.decodeId(encoded.bytes, encoded.offset, encoded.length);
+                encodedIds[i] = binaryDocValues.binaryValue();
             }
-            return new DocValuesLeaf(docIdsInLeaf, ids);
+            return new DocValuesLeaf(docIdsInLeaf, encodedIds);
         }
 
         @Override
@@ -665,13 +664,13 @@ public sealed interface IdLoader permits IdLoader.TsIdLoader, IdLoader.StoredIdL
 
     final class DocValuesLeaf implements Leaf {
 
-        private final String[] ids;
+        private final BytesRef[] encodedIds;
         private final int[] docIdsInLeaf;
 
         private int idx = -1;
 
-        DocValuesLeaf(int[] docIdsInLeaf, String[] ids) {
-            this.ids = ids;
+        DocValuesLeaf(int[] docIdsInLeaf, BytesRef[] encodedIds) {
+            this.encodedIds = encodedIds;
             this.docIdsInLeaf = docIdsInLeaf;
         }
 
@@ -683,7 +682,7 @@ public sealed interface IdLoader permits IdLoader.TsIdLoader, IdLoader.StoredIdL
                     "expected to be called with [" + docIdsInLeaf[idx] + "] but was called with " + subDocId + " instead"
                 );
             }
-            return ids[idx];
+            return Uid.decodeId(encodedIds[idx]);
         }
     }
 

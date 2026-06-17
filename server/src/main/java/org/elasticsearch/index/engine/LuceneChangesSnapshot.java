@@ -293,7 +293,7 @@ public final class LuceneChangesSnapshot extends SearchBasedChangesSnapshot {
             assert fields.id() == null : "id shouldn't exist in stored fields if doc_values is enabled for _id field";
             BytesRef encoded = parallelArray.columnarIds[docIndex];
             if (encoded != null) {
-                id = Uid.decodeId(encoded.bytes, encoded.offset, encoded.offset + encoded.length);
+                id = Uid.decodeId(encoded);
             }
         } else {
             id = fields.id();

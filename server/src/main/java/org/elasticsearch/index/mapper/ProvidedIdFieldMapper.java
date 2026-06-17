@@ -66,9 +66,9 @@ public class ProvidedIdFieldMapper extends IdFieldMapper {
             + "body of your documents, and map this field as a keyword field that has [doc_values] enabled";
 
     public static final ProvidedIdFieldMapper DOCUMENT_ID = new ProvidedIdFieldMapper(Mode.DOCUMENT, false);
-    static final ProvidedIdFieldMapper DOCUMENT_ID_STRICT_COLUMNAR = new ProvidedIdFieldMapper(Mode.DOCUMENT, true);
+    static final ProvidedIdFieldMapper DOCUMENT_ID_DEFAULT_COLUMNAR = new ProvidedIdFieldMapper(Mode.DOCUMENT, true);
     static final ProvidedIdFieldMapper COLUMNAR_ID = new ProvidedIdFieldMapper(Mode.COLUMNAR, false);
-    static final ProvidedIdFieldMapper COLUMNAR_ID_STRICT_COLUMNAR = new ProvidedIdFieldMapper(Mode.COLUMNAR, true);
+    static final ProvidedIdFieldMapper COLUMNAR_ID_DEFAULT_COLUMNAR = new ProvidedIdFieldMapper(Mode.COLUMNAR, true);
 
     /**
      * Builder for {@link ProvidedIdFieldMapper} that supports the {@code mode} mapping parameter.
@@ -104,9 +104,9 @@ public class ProvidedIdFieldMapper extends IdFieldMapper {
             var mode = this.mode.getValue();
             switch (mode) {
                 case COLUMNAR:
-                    return columnarIdByDefault ? COLUMNAR_ID_STRICT_COLUMNAR : COLUMNAR_ID;
+                    return columnarIdByDefault ? COLUMNAR_ID_DEFAULT_COLUMNAR : COLUMNAR_ID;
                 case DOCUMENT:
-                    return columnarIdByDefault ? DOCUMENT_ID_STRICT_COLUMNAR : DOCUMENT_ID;
+                    return columnarIdByDefault ? DOCUMENT_ID_DEFAULT_COLUMNAR : DOCUMENT_ID;
                 default:
                     throw new IllegalArgumentException("Unsupported id field mode [" + mode + "]");
             }
@@ -345,10 +345,14 @@ public class ProvidedIdFieldMapper extends IdFieldMapper {
         if (mode == Mode.COLUMNAR) {
             // Nested child documents are in the same Lucene updateDocuments batch as the root document.
             // Lucene requires all documents in a batch to have a consistent field schema, so nested
-            // children must also carry the sorted doc values field for _id.
-            BytesRef encoded = Uid.encodeId(context.id());
-            for (LuceneDocument doc : context.nonRootDocuments()) {
-                doc.add(new BinaryDocValuesField(NAME, encoded));
+            // children must also carry the binary doc values field for _id.
+            var iterator = context.nonRootDocuments().iterator();
+            if (iterator.hasNext()) {
+                BytesRef encoded = Uid.encodeId(context.id());
+                while (iterator.hasNext()) {
+                    var doc = iterator.next();
+                    doc.add(new BinaryDocValuesField(NAME, encoded));
+                }
             }
         }
     }

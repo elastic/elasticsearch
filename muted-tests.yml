@@ -602,9 +602,6 @@ tests:
 - class: org.elasticsearch.upgrades.MultiVersionRepositoryAccessIT
   method: testUpgradeMovesRepoToNewMetaVersion
   issue: https://github.com/elastic/elasticsearch/issues/151391
-- class: org.elasticsearch.index.store.BytesReadRankFeatureIT
-  method: testRankFeaturePhaseEmptyDocIdsStillReportsDirectoryMetrics
-  issue: https://github.com/elastic/elasticsearch/issues/151392
 - class: org.elasticsearch.xpack.stateless.cluster.coordination.TransportConsistentClusterStateReadIT
   method: testWaitsUntilTheNodeRejoinsTheClusterToReturnAValidClusterState
   issue: https://github.com/elastic/elasticsearch/issues/151402

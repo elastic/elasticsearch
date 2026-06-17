@@ -289,12 +289,62 @@ public abstract class MultiValuedBinaryDocValuesField extends CustomDocValuesFie
 
         private boolean hasNonNullValue;
 
+        // Held so the record* helpers can update the count on each slot without re-deriving the companion field from the document.
+        private NumericDocValuesField countField;
+
         public ArrayOrderInlineNull(String name) {
             super(name, ValueOrdering.UNSORTED);
         }
 
         public String countFieldName() {
             return name() + SeparateCount.COUNT_FIELD_SUFFIX;
+        }
+
+        /**
+         * Records a non-null value directly into the document's accumulator for {@code fieldName}, in document order. The binary blob is
+         * added to the document lazily on the first non-null value, so an all-null or empty-array document writes the {@code .counts}
+         * field alone (see {@link ArrayOrderInlineNull}).
+         */
+        public static void recordValue(LuceneDocument doc, String fieldName, BytesRef value) {
+            var field = getOrCreate(doc, fieldName);
+            boolean firstNonNullValue = field.hasNonNullValue == false;
+            field.add(value);
+            if (firstNonNullValue) {
+                doc.add(field);
+            }
+            field.countField.setLongValue(field.count());
+        }
+
+        /**
+         * Records a {@code null} slot, preserving its position relative to the surrounding values; updates the {@code .counts} field but
+         * never adds the binary blob.
+         */
+        public static void recordNull(LuceneDocument doc, String fieldName) {
+            var field = getOrCreate(doc, fieldName);
+            field.addNull();
+            field.countField.setLongValue(field.count());
+        }
+
+        /**
+         * Records an empty array: ensures the {@code .counts} field exists (value {@code 0}); no binary blob is written.
+         */
+        public static void recordEmptyArray(LuceneDocument doc, String fieldName) {
+            getOrCreate(doc, fieldName);
+        }
+
+        /**
+         * Looks up the per-field accumulator on the document, creating it on first use. The accumulator is registered by key (without
+         * being added to the field list yet) and its always-present {@code .counts} companion is added to the document immediately.
+         */
+        private static ArrayOrderInlineNull getOrCreate(LuceneDocument doc, String fieldName) {
+            var field = (ArrayOrderInlineNull) doc.getByKey(fieldName);
+            if (field == null) {
+                field = new ArrayOrderInlineNull(fieldName);
+                field.countField = NumericDocValuesField.indexedField(field.countFieldName(), 0);
+                doc.onlyAddKey(fieldName, field);
+                doc.add(field.countField);
+            }
+            return field;
         }
 
         @Override

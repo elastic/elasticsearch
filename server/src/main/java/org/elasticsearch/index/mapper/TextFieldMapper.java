@@ -1894,7 +1894,7 @@ public final class TextFieldMapper extends FieldMapper {
         if (value == null) {
             // Record the null slot so synthetic source can rebuild the array with its nulls in the original positions (columnar mode).
             if (fieldType().usesArrayOrderBinaryDocValues()) {
-                context.getInlineBinaryArrayOrderContext().recordNull(fieldType().name());
+                MultiValuedBinaryDocValuesField.ArrayOrderInlineNull.recordNull(context.doc(), fieldType().name());
             } else if (recordOffsets) {
                 context.getOffSetContext().recordNull(offsetsFieldName);
             }
@@ -1904,9 +1904,9 @@ public final class TextFieldMapper extends FieldMapper {
         if (docValuesParameters.enabled()) {
             BytesRef binaryValue = new BytesRef(value);
             if (fieldType().usesArrayOrderBinaryDocValues()) {
-                // In-order path: accumulate values in document order (with inline nulls) and flush at the end of the document. The BytesRef
-                // built from the String above already owns a fresh byte[], so no defensive copy is needed.
-                context.getInlineBinaryArrayOrderContext().recordValue(fieldType().name(), binaryValue);
+                // In-order path: write the value into the field's own binary doc-values column directly, in document order with nulls. The
+                // BytesRef built from the String above already owns a fresh byte[], so no defensive copy is needed.
+                MultiValuedBinaryDocValuesField.ArrayOrderInlineNull.recordValue(context.doc(), fieldType().name(), binaryValue);
             } else if (fieldType().usesBinaryDocValues()) {
                 dvFactory.addBinaryField(
                     context.doc(),

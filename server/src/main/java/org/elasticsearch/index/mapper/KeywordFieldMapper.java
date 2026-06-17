@@ -1492,7 +1492,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             // In-order path: non-null values are recorded in indexValue (in document order); here we record null slots so their position
             // is preserved. Values that tripped ignore_above (indexed == false, value != null) record no slot, matching the offsets path.
             if (indexed == false && value == null) {
-                context.getInlineBinaryArrayOrderContext().recordNull(fieldType().name());
+                MultiValuedBinaryDocValuesField.ArrayOrderInlineNull.recordNull(context.doc(), fieldType().name());
             }
         } else if (FieldArrayContext.shouldRecordOffsets(context, offsetsFieldName, docValuesParameters.multiValue())) {
             if (indexed) {
@@ -1599,8 +1599,12 @@ public final class KeywordFieldMapper extends FieldMapper {
             // KeywordField is built with a FieldType that omits Lucene doc values; binary values are accumulated on a parallel field.
             assert fieldType.docValuesType() == DocValuesType.NONE;
             if (fieldType().usesArrayOrderBinaryDocValues()) {
-                // In-order path: accumulate values in document order (with inline nulls) and flush at the end of the document.
-                context.getInlineBinaryArrayOrderContext().recordValue(fieldType().name(), BytesRef.deepCopyOf(binaryValue));
+                // In-order path: write the value into the field's own binary doc-values column directly, in document order with nulls.
+                MultiValuedBinaryDocValuesField.ArrayOrderInlineNull.recordValue(
+                    context.doc(),
+                    fieldType().name(),
+                    BytesRef.deepCopyOf(binaryValue)
+                );
             } else {
                 dvFactory.addBinaryField(
                     context.doc(),

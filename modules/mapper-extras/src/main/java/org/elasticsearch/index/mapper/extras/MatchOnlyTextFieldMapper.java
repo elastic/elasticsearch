@@ -1188,7 +1188,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
         if (value == null) {
             // Record the null slot so synthetic source can rebuild the array with its nulls in the original positions (columnar mode).
             if (fieldType().usesArrayOrderBinaryDocValues()) {
-                context.getInlineBinaryArrayOrderContext().recordNull(fieldType().name());
+                MultiValuedBinaryDocValuesField.ArrayOrderInlineNull.recordNull(context.doc(), fieldType().name());
             } else if (recordOffsets) {
                 context.getOffSetContext().recordNull(offsetsFieldName);
             }
@@ -1205,9 +1205,14 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
         if (docValuesParameters.enabled()) {
             BytesRef binaryValue = new BytesRef(utfBytes.bytes(), utfBytes.offset(), utfBytes.length());
             if (fieldType().usesArrayOrderBinaryDocValues()) {
-                // In-order path: accumulate values in document order (with inline nulls) and flush at the end of the document. The BytesRef
-                // wraps the parser's reusable buffer, so a defensive deep copy is required before retaining it across the document.
-                context.getInlineBinaryArrayOrderContext().recordValue(fieldType().name(), BytesRef.deepCopyOf(binaryValue));
+                // In-order path: write the value into the field's own binary doc-values column directly, in document order with nulls. The
+                // BytesRef wraps the parser's reusable buffer, so a defensive deep copy is required before retaining it across the
+                // document.
+                MultiValuedBinaryDocValuesField.ArrayOrderInlineNull.recordValue(
+                    context.doc(),
+                    fieldType().name(),
+                    BytesRef.deepCopyOf(binaryValue)
+                );
             } else if (fieldType().usesBinaryDocValues()) {
                 dvFactory.addBinaryField(
                     context.doc(),

@@ -95,7 +95,7 @@ public final class ThrottlingRecoveryService implements Closeable {
         final RecoverySource source = recoveryState.getRecoverySource();
         stats.targetRecoveryQueued(source.getType());
         for (RecoverySchedulingListener listener : schedulingListeners) {
-            listener.onRecoveryQueued(source.getType(), RecoverySchedulingListener.RecoveryDirection.TARGET);
+            listener.onRecoveryQueued(source.getType(), RecoveryRole.TARGET);
         }
         fillSlots();
     }
@@ -124,7 +124,7 @@ public final class ThrottlingRecoveryService implements Closeable {
             final RecoverySource source = pending.recoveryState().getRecoverySource();
             pending.stats().targetQueuedRecoveryDiscarded(source.getType());
             for (RecoverySchedulingListener listener : schedulingListeners) {
-                listener.onQueuedRecoveryDiscarded(source.getType(), RecoverySchedulingListener.RecoveryDirection.TARGET);
+                listener.onQueuedRecoveryDiscarded(source.getType(), RecoveryRole.TARGET);
             }
         }
     }
@@ -153,7 +153,7 @@ public final class ThrottlingRecoveryService implements Closeable {
             final RecoverySource source = recovery.recoveryState().getRecoverySource();
             recovery.stats().targetRecoveryDequeuedAndStarted(source.getType());
             for (RecoverySchedulingListener listener : schedulingListeners) {
-                listener.onRecoveryStarted(source.getType(), RecoverySchedulingListener.RecoveryDirection.TARGET);
+                listener.onRecoveryDequeuedAndStarted(source.getType(), RecoveryRole.TARGET);
             }
         }
     }
@@ -170,7 +170,7 @@ public final class ThrottlingRecoveryService implements Closeable {
         final RecoverySource source = recovery.recoveryState().getRecoverySource();
         recovery.stats().targetRecoveryCompleted(source.getType());
         for (RecoverySchedulingListener listener : schedulingListeners) {
-            listener.onRecoveryCompleted(source.getType(), RecoverySchedulingListener.RecoveryDirection.TARGET);
+            listener.onRecoveryCompleted(source.getType(), RecoveryRole.TARGET);
         }
         fillSlots();
     }

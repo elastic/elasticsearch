@@ -765,8 +765,7 @@ public class SnapshotResiliencyTestHelper {
                     indicesService,
                     clusterService,
                     recoverySettings,
-                    PeerOnlyRecoveryPlannerService.INSTANCE,
-                    RecoveryMetricsCollector.NOOP
+                    PeerOnlyRecoveryPlannerService.INSTANCE
                 );
 
                 final ResponseCollectorService responseCollectorService = new ResponseCollectorService(clusterService);

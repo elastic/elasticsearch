@@ -23,27 +23,27 @@ public interface RecoverySchedulingListener {
     default void onRecoverySchedulingChange() {}
 
     /// Called when a recovery is queued on this data node.
-    default void onRecoveryQueued(RecoverySource.Type type, RecoveryDirection direction) {
+    default void onRecoveryQueued(RecoverySource.Type type, RecoveryRole role) {
         onRecoverySchedulingChange();
     }
 
     /// Called when a recovery has been dispatched for execution on this data node.
-    default void onRecoveryStarted(RecoverySource.Type type, RecoveryDirection direction) {
+    default void onRecoveryStarted(RecoverySource.Type type, RecoveryRole role) {
+        onRecoverySchedulingChange();
+    }
+
+    /// Called when a recovery has been dispatched for execution on this data node.
+    default void onRecoveryDequeuedAndStarted(RecoverySource.Type type, RecoveryRole role) {
         onRecoverySchedulingChange();
     }
 
     /// Called when a queued recovery is discarded without having ever run.
-    default void onQueuedRecoveryDiscarded(RecoverySource.Type type, RecoveryDirection direction) {
+    default void onQueuedRecoveryDiscarded(RecoverySource.Type type, RecoveryRole role) {
         onRecoverySchedulingChange();
     }
 
     /// Called when a running recovery finishes (success, failure or aborted).
-    default void onRecoveryCompleted(RecoverySource.Type type, RecoveryDirection direction) {
+    default void onRecoveryCompleted(RecoverySource.Type type, RecoveryRole role) {
         onRecoverySchedulingChange();
-    }
-
-    enum RecoveryDirection {
-        SOURCE,
-        TARGET
     }
 }

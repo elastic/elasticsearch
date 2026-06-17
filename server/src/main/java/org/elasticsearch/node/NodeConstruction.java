@@ -1370,8 +1370,7 @@ class NodeConstruction {
                 indicesService,
                 clusterService,
                 recoverySettings,
-                recoveryPlannerService,
-                recoveryMetricsCollector
+                recoveryPlannerService
             );
             throttlingRecoveryService.addRecoverySchedulingListener(recoveryMetricsCollector);
             peerRecovery.addRecoverySchedulingListener(recoveryMetricsCollector);

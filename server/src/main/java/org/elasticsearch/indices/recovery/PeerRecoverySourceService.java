@@ -83,7 +83,6 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
     private final ClusterService clusterService;
     private final RecoverySettings recoverySettings;
     private final RecoveryPlannerService recoveryPlannerService;
-    private final RecoveryMetricsCollector metrics;
 
     // TODO: make this value dynamic once we register `INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING`
     private final int maxConcurrentOutgoingRecoveries;
@@ -96,8 +95,7 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
         IndicesService indicesService,
         ClusterService clusterService,
         RecoverySettings recoverySettings,
-        RecoveryPlannerService recoveryPlannerService,
-        RecoveryMetricsCollector recoveryMetricsCollector
+        RecoveryPlannerService recoveryPlannerService
     ) {
         this.transportService = transportService;
         this.indicesService = indicesService;
@@ -107,7 +105,6 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
         this.maxConcurrentOutgoingRecoveries = INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING.get(
             clusterService.getSettings()
         );
-        this.metrics = recoveryMetricsCollector;
         // When the target node wants to start a peer recovery it sends a START_RECOVERY request to the source
         // node. Upon receiving START_RECOVERY, the source node will initiate the peer recovery.
         transportService.registerRequestHandler(
@@ -298,9 +295,10 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
                 shard.recoveryStats().sourceRecoveryDequeuedAndStarted();
             }
             for (RecoverySchedulingListener schedulingListener : recoverySchedulingListeners) {
-                schedulingListener.onRecoveryQueued(RecoverySource.Type.PEER, RecoverySchedulingListener.RecoveryDirection.SOURCE);
-                if (handler != null) {
-                    schedulingListener.onRecoveryStarted(RecoverySource.Type.PEER, RecoverySchedulingListener.RecoveryDirection.SOURCE);
+                if (handler == null) {
+                    schedulingListener.onRecoveryQueued(RecoverySource.Type.PEER, RecoveryRole.SOURCE);
+                } else {
+                    schedulingListener.onRecoveryStarted(RecoverySource.Type.PEER, RecoveryRole.SOURCE);
                 }
             }
             return handler;
@@ -342,10 +340,7 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
                     );
                 cancelledRecovery.shard().recoveryStats().sourceQueuedRecoveryDiscarded();
                 for (RecoverySchedulingListener schedulingListener : recoverySchedulingListeners) {
-                    schedulingListener.onQueuedRecoveryDiscarded(
-                        RecoverySource.Type.PEER,
-                        RecoverySchedulingListener.RecoveryDirection.SOURCE
-                    );
+                    schedulingListener.onQueuedRecoveryDiscarded(RecoverySource.Type.PEER, RecoveryRole.SOURCE);
                 }
             }
         }
@@ -396,7 +391,7 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
             }
             shard.recoveryStats().sourceRecoveryCompleted();
             for (RecoverySchedulingListener schedulingListener : recoverySchedulingListeners) {
-                schedulingListener.onRecoveryCompleted(RecoverySource.Type.PEER, RecoverySchedulingListener.RecoveryDirection.SOURCE);
+                schedulingListener.onRecoveryCompleted(RecoverySource.Type.PEER, RecoveryRole.SOURCE);
             }
             if (nextHandler != null) {
                 logger.trace(
@@ -410,7 +405,7 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
                 );
                 nextRecovery.shard().recoveryStats().sourceRecoveryDequeuedAndStarted();
                 for (RecoverySchedulingListener schedulingListener : recoverySchedulingListeners) {
-                    schedulingListener.onRecoveryStarted(RecoverySource.Type.PEER, RecoverySchedulingListener.RecoveryDirection.SOURCE);
+                    schedulingListener.onRecoveryDequeuedAndStarted(RecoverySource.Type.PEER, RecoveryRole.SOURCE);
                 }
             }
         }
@@ -433,10 +428,7 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
                     );
                 cancelledRecovery.shard().recoveryStats().sourceQueuedRecoveryDiscarded();
                 for (RecoverySchedulingListener schedulingListener : recoverySchedulingListeners) {
-                    schedulingListener.onQueuedRecoveryDiscarded(
-                        RecoverySource.Type.PEER,
-                        RecoverySchedulingListener.RecoveryDirection.SOURCE
-                    );
+                    schedulingListener.onQueuedRecoveryDiscarded(RecoverySource.Type.PEER, RecoveryRole.SOURCE);
                 }
             }
         }
@@ -494,10 +486,7 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
                     );
                 cancelledRecovery.shard().recoveryStats().sourceQueuedRecoveryDiscarded();
                 for (RecoverySchedulingListener schedulingListener : recoverySchedulingListeners) {
-                    schedulingListener.onQueuedRecoveryDiscarded(
-                        RecoverySource.Type.PEER,
-                        RecoverySchedulingListener.RecoveryDirection.SOURCE
-                    );
+                    schedulingListener.onQueuedRecoveryDiscarded(RecoverySource.Type.PEER, RecoveryRole.SOURCE);
                 }
             }
         }

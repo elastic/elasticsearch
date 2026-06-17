@@ -26,7 +26,9 @@ import java.util.concurrent.atomic.AtomicLong;
 public class RecoveryStats implements ToXContentFragment, Writeable {
 
     private static final TransportVersion SOURCE_QUEUED_STATS = TransportVersion.fromName("recovery_source_queued_stats");
-    private static final TransportVersion STORE_AND_QUEUED_STATS = TransportVersion.fromName("recovery_store_and_queued_stats");
+    private static final TransportVersion STORE_AND_TARGET_QUEUED_STATS = TransportVersion.fromName(
+        "recovery_store_and_target_queued_stats"
+    );
 
     private final AtomicInteger currentAsSource = new AtomicInteger();
     private final AtomicInteger currentAsSourceQueued = new AtomicInteger();
@@ -44,9 +46,9 @@ public class RecoveryStats implements ToXContentFragment, Writeable {
         currentAsSource.set(in.readVInt());
         if (in.getTransportVersion().supports(SOURCE_QUEUED_STATS)) {
             currentAsSourceQueued.set(in.readVInt());
-        }
+        } // else we cannot have any queued recoveries, the cluster is too old
         currentAsTarget.set(in.readVInt());
-        if (in.getTransportVersion().supports(STORE_AND_QUEUED_STATS)) {
+        if (in.getTransportVersion().supports(STORE_AND_TARGET_QUEUED_STATS)) {
             currentAsTargetQueued.set(in.readVInt());
             currentFromStore.set(in.readVInt());
             currentFromStoreQueued.set(in.readVInt());
@@ -221,7 +223,7 @@ public class RecoveryStats implements ToXContentFragment, Writeable {
             out.writeVInt(currentAsSourceQueued.get());
         }
         out.writeVInt(currentAsTarget.get());
-        if (out.getTransportVersion().supports(STORE_AND_QUEUED_STATS)) {
+        if (out.getTransportVersion().supports(STORE_AND_TARGET_QUEUED_STATS)) {
             out.writeVInt(currentAsTargetQueued.get());
             out.writeVInt(currentFromStore.get());
             out.writeVInt(currentFromStoreQueued.get());

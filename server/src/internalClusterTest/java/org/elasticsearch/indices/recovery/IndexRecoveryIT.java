@@ -1646,7 +1646,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         ensureGreen(indexName);
     }
 
-    public void testCancelRecoveryWithAutoExpandReplicas() throws Exception {
+    public void testCancelRecoveryWithAutoExpandReplicas() {
         internalCluster().startMasterOnlyNode();
         assertAcked(
             indicesAdmin().prepareCreate("test")
@@ -1657,11 +1657,14 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         internalCluster().startNode();
         ClusterRerouteUtils.rerouteRetryFailed(client());
         assertAcked(indicesAdmin().prepareDelete("test")); // cancel recoveries
-        assertBusy(() -> {
-            for (PeerRecoverySourceService recoveryService : internalCluster().getDataNodeInstances(PeerRecoverySourceService.class)) {
-                assertThat(recoveryService.ongoingRecoveries.activeRecoveryCount(), equalTo(0));
-            }
-        });
+        awaitRecoveryCountStats(
+            clusterService().state()
+                .nodes()
+                .getDataNodes()
+                .values()
+                .stream()
+                .collect(Collectors.toMap(DiscoveryNode::getName, ignored -> RecoveryStats::noCurrentRecoveries))
+        );
     }
 
     public void testCancelRecoveryUpdatesRecoveryStats() throws Exception {
@@ -1702,11 +1705,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         indicesAdmin().prepareDelete(INDEX_NAME).get();
 
         allowRecoveryToCompleteLatch.countDown();
-        assertBusy(() -> {
-            for (PeerRecoverySourceService recoveryService : internalCluster().getDataNodeInstances(PeerRecoverySourceService.class)) {
-                assertThat(recoveryService.ongoingRecoveries.activeRecoveryCount(), equalTo(0));
-            }
-        });
+        awaitRecoveryCountStats(Map.of(node, stats -> stats.currentAsSource() == 0));
         assertThat(primaryShard.recoveryStats().currentAsSource(), equalTo(0));
         transportService.clearAllRules();
     }
@@ -1943,8 +1942,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         // Wait for the index to be deleted
         assertTrue(deleteListener.get(20, TimeUnit.SECONDS).isAcknowledged());
 
-        final var peerRecoverySourceService = internalCluster().getInstance(PeerRecoverySourceService.class, primaryNode);
-        assertBusy(() -> assertEquals(0, peerRecoverySourceService.ongoingRecoveries.activeRecoveryCount()));
+        awaitRecoveryCountStats(Map.of(primaryNode, stats -> stats.currentAsSource() == 0));
         recoveryCompleteListener.onResponse(null);
     }
 

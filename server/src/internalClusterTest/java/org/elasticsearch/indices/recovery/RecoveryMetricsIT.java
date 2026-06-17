@@ -80,7 +80,7 @@ public class RecoveryMetricsIT extends AbstractIndexRecoveryIntegTestCase {
         Measurement metric = totalTime.getFirst();
         assertThat("Total time value", metric.getLong(), greaterThanOrEqualTo(0L));
         assertThat("Primary attribute", metric.attributes().get("primary"), equalTo(true));
-        assertThat("Recovery type", metric.attributes().get("es_recovery_type"), equalTo("EMPTY_STORE"));
+        assertThat("Recovery type", metric.attributes().get("recovery_type"), equalTo("EMPTY_STORE"));
     }
 
     public void testRecoveryMetricsOnPeerRecovery() {
@@ -195,7 +195,7 @@ public class RecoveryMetricsIT extends AbstractIndexRecoveryIntegTestCase {
             Measurement metric = totalTime.getFirst();
             assertThat("Total time value", metric.getLong(), greaterThanOrEqualTo(0L));
             assertThat("Primary attribute", metric.attributes().get("primary"), equalTo(false));
-            assertThat("Recovery type", metric.attributes().get("es_recovery_type"), equalTo("PEER"));
+            assertThat("Recovery type", metric.attributes().get("recovery_type"), equalTo("PEER"));
 
             List<Measurement> indexTime = targetTelemetry.getLongHistogramMeasurement(
                 RecoveryMetricsCollector.RECOVERY_INDEX_TIME_METRIC_IN_SECONDS
@@ -325,7 +325,7 @@ public class RecoveryMetricsIT extends AbstractIndexRecoveryIntegTestCase {
             Measurement metric = totalTime.getFirst();
             assertThat("Total time value", metric.getLong(), greaterThanOrEqualTo(0L));
             assertThat("Primary attribute", metric.attributes().get("primary"), equalTo(true));
-            assertThat("Recovery type", metric.attributes().get("es_recovery_type"), equalTo("PEER"));
+            assertThat("Recovery type", metric.attributes().get("recovery_type"), equalTo("PEER"));
 
             activePeerRecoveriesNode1 = node1Telemetry.getLongUpDownCounterMeasurement(
                 RecoveryMetricsCollector.CURRENT_PEER_RECOVERIES_AS_SOURCE

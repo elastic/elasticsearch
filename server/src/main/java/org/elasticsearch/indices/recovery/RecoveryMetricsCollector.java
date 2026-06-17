@@ -131,65 +131,67 @@ public class RecoveryMetricsCollector implements IndexEventListener, RecoverySch
         }
     }
 
+    // TODO: rename "recovery_type" to "es_recovery_type" to match ES OTel attribute naming convention
     private static Map<String, Object> recoveryTimeMetricLabels(IndexShard indexShard) {
         return Map.of(
             "primary",
             indexShard.routingEntry().primary(),
-            "es_recovery_type",
+            "recovery_type",
             indexShard.recoveryState().getRecoverySource().getType().name()
         );
     }
 
     @Override
-    public void onRecoveryQueued(RecoverySource.Type type, RecoveryDirection direction) {
-        updateQueuedRecovery(type, direction, 1);
+    public void onRecoveryQueued(RecoverySource.Type type, RecoveryRole role) {
+        updateQueuedRecovery(type, role, 1);
     }
 
     @Override
-    public void onRecoveryStarted(RecoverySource.Type type, RecoveryDirection direction) {
-        updateQueuedRecovery(type, direction, -1);
-        updateActiveRecovery(type, direction, 1);
+    public void onRecoveryStarted(RecoverySource.Type type, RecoveryRole role) {
+        updateActiveRecovery(type, role, 1);
     }
 
     @Override
-    public void onQueuedRecoveryDiscarded(RecoverySource.Type type, RecoveryDirection direction) {
-        updateQueuedRecovery(type, direction, -1);
+    public void onRecoveryDequeuedAndStarted(RecoverySource.Type type, RecoveryRole role) {
+        updateQueuedRecovery(type, role, -1);
+        updateActiveRecovery(type, role, 1);
     }
 
     @Override
-    public void onRecoveryCompleted(RecoverySource.Type type, RecoveryDirection direction) {
-        updateActiveRecovery(type, direction, -1);
+    public void onQueuedRecoveryDiscarded(RecoverySource.Type type, RecoveryRole role) {
+        updateQueuedRecovery(type, role, -1);
     }
 
-    private void updateQueuedRecovery(RecoverySource.Type type, RecoveryDirection direction, int delta) {
+    @Override
+    public void onRecoveryCompleted(RecoverySource.Type type, RecoveryRole role) {
+        updateActiveRecovery(type, role, -1);
+    }
+
+    private void updateQueuedRecovery(RecoverySource.Type type, RecoveryRole role, int delta) {
         switch (type) {
-            case EMPTY_STORE, EXISTING_STORE, SNAPSHOT, LOCAL_SHARDS, RESHARD_SPLIT -> {
-                queuedStoreRecoveriesMetric.add(delta, recoveryLifecycleMetricLabels(type));
-            }
+            case EMPTY_STORE, EXISTING_STORE, SNAPSHOT, LOCAL_SHARDS, RESHARD_SPLIT -> queuedStoreRecoveriesMetric.add(
+                delta,
+                recoveryLifecycleMetricLabels(type)
+            );
             case PEER -> {
-                if (direction == RecoveryDirection.TARGET) {
-                    queuedPeerRecoveriesAsTargetMetric.add(delta);
-                } else if (direction == RecoveryDirection.SOURCE) {
-                    queuedPeerRecoveriesAsSourceMetric.add(delta);
-                } else {
-                    assert false : "peer recovery should have a direction";
+                switch (role) {
+                    case TARGET -> queuedPeerRecoveriesAsTargetMetric.add(delta);
+                    case SOURCE -> queuedPeerRecoveriesAsSourceMetric.add(delta);
                 }
             }
         }
     }
 
-    private void updateActiveRecovery(RecoverySource.Type type, RecoveryDirection direction, int delta) {
+    private void updateActiveRecovery(RecoverySource.Type type, RecoveryRole role, int delta) {
         switch (type) {
-            case EMPTY_STORE, EXISTING_STORE, SNAPSHOT, LOCAL_SHARDS, RESHARD_SPLIT -> {
-                activeStoreRecoveriesMetric.add(delta, recoveryLifecycleMetricLabels(type));
-            }
+            case EMPTY_STORE, EXISTING_STORE, SNAPSHOT, LOCAL_SHARDS, RESHARD_SPLIT -> activeStoreRecoveriesMetric.add(
+                delta,
+                recoveryLifecycleMetricLabels(type)
+            );
             case PEER -> {
-                if (direction == RecoveryDirection.TARGET) {
-                    activePeerRecoveriesAsTargetMetric.add(delta);
-                } else if (direction == RecoveryDirection.SOURCE) {
-                    activePeerRecoveriesAsSourceMetric.add(delta);
-                } else {
-                    assert false : "peer recovery should have a direction";
+                switch (role) {
+                    case TARGET -> activePeerRecoveriesAsTargetMetric.add(delta);
+                    case SOURCE -> activePeerRecoveriesAsSourceMetric.add(delta);
                 }
             }
         }

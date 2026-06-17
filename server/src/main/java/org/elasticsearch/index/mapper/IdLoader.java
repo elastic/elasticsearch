@@ -614,7 +614,7 @@ public sealed interface IdLoader permits IdLoader.TsIdLoader, IdLoader.StoredIdL
                 throws IOException {
                 try (var builder = factory.bytesRefs(docs.count() - offset)) {
                     for (int i = offset; i < docs.count(); i++) {
-                        read(docs.get(i), (BlockLoader.BytesRefBuilder) builder);
+                        read(docs.get(i), builder);
                     }
                     return builder.build();
                 }

@@ -130,7 +130,9 @@ public class BulkIndexByPaginatedSearchResponseMatcher extends TypeSafeMatcher<B
     /**
      * Set the matcher for the workers portion of the response.
      */
-    public BulkIndexByPaginatedSearchResponseMatcher slices(Matcher<Collection<? extends BulkIndexByPaginatedSearchResponseMatcher>> slicesMatcher) {
+    public BulkIndexByPaginatedSearchResponseMatcher slices(
+        Matcher<Collection<? extends BulkIndexByPaginatedSearchResponseMatcher>> slicesMatcher
+    ) {
         this.slicesMatcher = slicesMatcher;
         return this;
     }

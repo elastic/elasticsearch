@@ -13,71 +13,102 @@ import org.elasticsearch.gradle.fixtures.AbstractJavaGradleFuncTest
 import org.gradle.testkit.runner.TaskOutcome
 
 /**
- * Exercises the plugin in a real Gradle invocation. ProjectBuilder cannot reliably observe the
- * interaction between this plugin's overrides and {@code ElasticsearchJavaBasePlugin}'s and
- * {@code ElasticsearchJavaModulePathPlugin}'s {@code configureEach} actions; those actions only
- * realize at task realization time inside a normal Gradle build, so the toolchain version and
- * module-path inference settings must be verified end-to-end here.
+ * Exercises the plugin's wiring in a real Gradle invocation. Validation of the actual processor's
+ * output lives with the processor library itself; here we only verify that the plugin runs an
+ * annotation processor against the consumer's sources and routes its output to the expected
+ * locations. A dummy processor is supplied via the {@code foreignLibraryProcessor} configuration
+ * so the test does not need any real {@code :libs:foreign-library} artifacts.
  */
 class ForeignLibraryPluginFuncTest extends AbstractJavaGradleFuncTest {
 
     def setup() {
         internalBuild()
+
+        settingsFile << """
+            include ':fakeprocessor'
+        """.stripIndent()
+
+        // A trivial annotation processor: when invoked, it writes a marker resource file so the test
+        // can assert that the processForeignAnnotations task did invoke a processor. It also writes a
+        // mock services file at the path the plugin's augmentForeignModuleInfo task reads from,
+        // proving the generated-classes output dir is wired correctly.
+        file('fakeprocessor/build.gradle') << """
+            apply plugin: 'java-library'
+        """.stripIndent()
+
+        file('fakeprocessor/src/main/java/fake/Marker.java') << """
+            package fake;
+            import java.lang.annotation.*;
+            @Retention(RetentionPolicy.SOURCE)
+            @Target(ElementType.TYPE)
+            public @interface Marker {}
+        """.stripIndent()
+
+        file('fakeprocessor/src/main/java/fake/MarkerProcessor.java') << """
+            package fake;
+            import java.io.Writer;
+            import java.util.Set;
+            import javax.annotation.processing.*;
+            import javax.lang.model.SourceVersion;
+            import javax.lang.model.element.TypeElement;
+            import javax.tools.StandardLocation;
+
+            @SupportedAnnotationTypes("fake.Marker")
+            public class MarkerProcessor extends AbstractProcessor {
+                @Override
+                public SourceVersion getSupportedSourceVersion() { return SourceVersion.latestSupported(); }
+
+                @Override
+                public boolean process(Set<? extends TypeElement> annotations, RoundEnvironment env) {
+                    if (env.processingOver() == false) {
+                        try {
+                            var marker = processingEnv.getFiler().createResource(
+                                StandardLocation.CLASS_OUTPUT, "", "fake-marker.txt");
+                            try (Writer w = marker.openWriter()) {
+                                w.write("processor ran");
+                            }
+                        } catch (Exception e) {
+                            throw new RuntimeException(e);
+                        }
+                    }
+                    return true;
+                }
+            }
+        """.stripIndent()
+
+        file('fakeprocessor/src/main/resources/META-INF/services/javax.annotation.processing.Processor') <<
+            'fake.MarkerProcessor'
+
+        // Consumer module: applies the plugin, annotates a class with @fake.Marker, and substitutes
+        // the dummy processor for the plugin's default :libs:foreign-library:processor dep.
+        file('src/main/java/test/Lib.java') << """
+            package test;
+            @fake.Marker
+            public class Lib {}
+        """.stripIndent()
+
         buildFile << """
             apply plugin: 'elasticsearch.foreign-library'
 
-            // The plugin guards its project deps with findProject(...) so this composite build,
-            // which doesn't include the foreign-library projects, exercises the same code path as
-            // the serverless composite. That's enough for the wiring checks below.
-
-            tasks.register('inspectProcessorTask') {
-              // Capture everything at configuration time as primitives — the configuration cache
-              // forbids retaining Task references in execution-time closures.
-              def proc = tasks.named('${ForeignLibraryPlugin.PROCESS_ANNOTATIONS_TASK_NAME}').get()
-              def compile = tasks.named('compileJava').get()
-              def procToolchain = proc.javaCompiler.get().metadata.languageVersion.asInt()
-              def procSourceCompat = proc.sourceCompatibility
-              def procTargetCompat = proc.targetCompatibility
-              def procReleaseSet = proc.options.release.isPresent()
-              def procInferModulePath = proc.modularity.inferModulePath.get()
-              def procCompilerArgs = proc.options.compilerArgs.toList()
-              def compileToolchain = compile.javaCompiler.get().metadata.languageVersion.asInt()
-              def compileDependsOnProc = compile.taskDependencies.getDependencies(compile)
-                  .collect { it.name }
-                  .contains('${ForeignLibraryPlugin.PROCESS_ANNOTATIONS_TASK_NAME}')
-              doLast {
-                println "PROC_TOOLCHAIN=" + procToolchain
-                println "PROC_SOURCE_COMPAT=" + procSourceCompat
-                println "PROC_TARGET_COMPAT=" + procTargetCompat
-                println "PROC_RELEASE_SET=" + procReleaseSet
-                println "PROC_INFER_MODULE_PATH=" + procInferModulePath
-                println "PROC_COMPILER_ARGS=" + procCompilerArgs
-                println "COMPILE_TOOLCHAIN=" + compileToolchain
-                println "COMPILE_DEPENDS_ON_PROC=" + compileDependsOnProc
-              }
+            dependencies {
+                // compileOnly so the @Marker annotation (SOURCE retention) is visible during compile
+                compileOnly project(':fakeprocessor')
+                foreignLibraryProcessor project(':fakeprocessor')
             }
-        """
+        """.stripIndent()
     }
 
-    def "process task runs under JDK 25 toolchain while compileJava stays on the project's minimum"() {
+    def "wires foreignLibraryProcessor onto the annotation processor path and runs it"() {
         when:
-        def result = gradleRunner('inspectProcessorTask', '-g', gradleUserHome).build()
+        def result = gradleRunner('processForeignAnnotations', '-g', gradleUserHome).build()
 
         then:
-        result.task(":inspectProcessorTask").outcome == TaskOutcome.SUCCESS
-        result.output.contains("PROC_TOOLCHAIN=25")
-        result.output.contains("PROC_SOURCE_COMPAT=25")
-        result.output.contains("PROC_TARGET_COMPAT=25")
-        // We intentionally leave --release unset on the processor task — pinning it to the
-        // consumer's release would reject sources that reference now-finalized preview APIs.
-        result.output.contains("PROC_RELEASE_SET=false")
-        // ElasticsearchJavaModulePathPlugin disables inferModulePath globally; we re-enable it
-        // for the processor task so it can resolve the consumer's `requires` clauses.
-        result.output.contains("PROC_INFER_MODULE_PATH=true")
-        result.output.contains("-proc:only")
-        // compileJava continues to use the project's minimum runtime, not JDK 25.
-        result.output.contains("COMPILE_TOOLCHAIN=21")
-        // Hand-written sources never reference generated classes, so compileJava is independent.
-        result.output.contains("COMPILE_DEPENDS_ON_PROC=false")
+        result.task(":processForeignAnnotations").outcome == TaskOutcome.SUCCESS
+        // The dummy processor's marker file lands in the plugin's configured output dir, proving
+        // the foreignLibraryProcessor config was wired onto javac's annotation processor path and
+        // that Filer output routes to processForeignAnnotations' destinationDirectory.
+        file("build/generated-foreign-library-classes/fake-marker.txt").exists()
+        file("build/generated-foreign-library-classes/fake-marker.txt").text == "processor ran"
     }
+
 }

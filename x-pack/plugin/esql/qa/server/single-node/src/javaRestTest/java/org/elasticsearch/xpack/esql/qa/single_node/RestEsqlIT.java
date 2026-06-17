@@ -1335,7 +1335,7 @@ public class RestEsqlIT extends RestEsqlTestCase {
             "requires fixed ValuesReader state after conditional block loaders switch strategies across segments",
             hasCapabilities(adminClient(), List.of(EsqlCapabilities.Cap.FIX_VALUES_READER_STALE_ROW_STRIDE_READER.capabilityName()))
         );
-        createIndex(testIndexName(), Settings.builder().put("index.number_of_shards", "1").put("index.number_of_replicas", "0").build(), """
+        createIndex(testIndexName(), Settings.builder().put("index.number_of_shards", "1").build(), """
             {
               "properties": {
                 "sort": {

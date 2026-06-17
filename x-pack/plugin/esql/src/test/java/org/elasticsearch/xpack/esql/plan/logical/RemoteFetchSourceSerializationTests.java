@@ -4,30 +4,27 @@
  * 2.0; you may not use this file except in compliance with the Elastic License
  * 2.0.
  */
-
-package org.elasticsearch.xpack.esql.plan.physical;
+package org.elasticsearch.xpack.esql.plan.logical;
 
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
-import org.elasticsearch.xpack.esql.core.tree.Source;
 
 import java.io.IOException;
 import java.util.List;
 
-public class RemoteFetchSourceExecSerializationTests extends AbstractPhysicalPlanSerializationTests<RemoteFetchSourceExec> {
-    public static RemoteFetchSourceExec randomRemoteFetchSourceExec() {
-        Source source = randomSource();
+public class RemoteFetchSourceSerializationTests extends AbstractLogicalPlanSerializationTests<RemoteFetchSource> {
+    public static RemoteFetchSource randomRemoteFetchSource() {
         List<Attribute> output = randomFieldAttributes(1, 4, false);
-        return new RemoteFetchSourceExec(source, output);
+        return new RemoteFetchSource(randomSource(), output);
     }
 
     @Override
-    protected RemoteFetchSourceExec createTestInstance() {
-        return randomRemoteFetchSourceExec();
+    protected RemoteFetchSource createTestInstance() {
+        return randomRemoteFetchSource();
     }
 
     @Override
-    protected RemoteFetchSourceExec mutateInstance(RemoteFetchSourceExec instance) throws IOException {
-        return new RemoteFetchSourceExec(
+    protected RemoteFetchSource mutateInstance(RemoteFetchSource instance) throws IOException {
+        return new RemoteFetchSource(
             instance.source(),
             randomValueOtherThan(instance.output(), () -> randomFieldAttributes(1, 4, false))
         );

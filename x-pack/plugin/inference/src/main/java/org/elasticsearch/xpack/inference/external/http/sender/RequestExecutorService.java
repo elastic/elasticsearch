@@ -567,10 +567,6 @@ public class RequestExecutorService implements RequestExecutor {
         // Rate limited execution path
         if (isEmbeddingsIngestInput(inferenceInputs) || rateLimitingEnabled(requestManager.rateLimitSettings())) {
             submitTaskToRateLimitedExecutionPath(task);
-            // "Immediate" execution path
-            // An "immediate" execution is just from the RequestExecutorService immediate.
-            // The request can still hang on the Apache HTTP Client,
-            // that's why we need to call acquire on the "in flight" request semaphore here, too.
         } else {
             boolean taskAccepted = requestQueue.offer(task);
 

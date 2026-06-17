@@ -241,9 +241,79 @@ public class RemoteFetchServiceTests extends MapperServiceTestCase {
                 new GreaterThan(Source.EMPTY, fetchedAttribute, new Literal(Source.EMPTY, 15L, DataType.LONG))
             )
         );
-        Page inputPage = fetchedPageWithPosition(blockFactory, 10L, 20L, 30L);
-        List<Page> outputPages = runPushdownThroughDriver(
-            pushdownBuilder,
+        Page inputPage;
+        try (LongBlock.Builder builder = blockFactory.newLongBlockBuilder(3)) {
+            builder.appendLong(10L);
+            builder.appendLong(20L);
+            builder.appendLong(30L);
+            inputPage = new Page(builder.build());
+        }
+
+        List<Page> outputPages = pushdownCompiler.execute(
+            List.of(inputPage),
+            pushdownPlan,
+            new IndexedByShardIdFromSingleton<>(
+                Mockito.mock(EsPhysicalOperationProviders.ShardContext.class, Mockito.withSettings().stubOnly())
+            ),
+            blockFactory,
+            FoldContext.small()
+        );
+
+        try {
+            assertThat(outputPages.size(), equalTo(1));
+            Page output = outputPages.getFirst();
+            assertThat(output.getPositionCount(), equalTo(2));
+            assertThat(output.getBlockCount(), equalTo(2));
+            assertThat(output.<LongBlock>getBlock(0).getLong(0), equalTo(20L));
+            assertThat(output.<LongBlock>getBlock(0).getLong(1), equalTo(30L));
+            assertThat(output.<IntBlock>getBlock(1).getInt(0), equalTo(1));
+            assertThat(output.<IntBlock>getBlock(1).getInt(1), equalTo(2));
+        } finally {
+            Releasables.closeExpectNoException(Releasables.wrap(Iterators.map(outputPages.iterator(), page -> page::releaseBlocks)));
+        }
+    }
+
+    public void testPushdownLogicalProjectRejectsScalarAliases() {
+        ReferenceAttribute fetchedAttribute = new ReferenceAttribute(Source.EMPTY, null, "n", DataType.LONG);
+        ReferenceAttribute positionAttribute = new ReferenceAttribute(Source.EMPTY, null, "_remote_fetch_position", DataType.INTEGER);
+        expectThrows(
+            AssertionError.class,
+            () -> new Project(
+                Source.EMPTY,
+                new RemoteFetchSource(Source.EMPTY, List.of(fetchedAttribute, positionAttribute)),
+                List.of(new Alias(Source.EMPTY, "constant", new Literal(Source.EMPTY, 1, DataType.INTEGER)))
+            )
+        );
+    }
+
+    public void testExecutePushdownProjectPreservesPositionMapping() {
+        blockFactory = blockFactory();
+        RemoteFetchPushdownCompiler pushdownCompiler = new RemoteFetchPushdownCompiler(
+            blockFactory.bigArrays(),
+            LocalCircuitBreaker.SizeSettings.DEFAULT_SETTINGS
+        );
+        ReferenceAttribute fetchedAttribute = new ReferenceAttribute(Source.EMPTY, null, "n", DataType.LONG);
+        ReferenceAttribute positionAttribute = new ReferenceAttribute(Source.EMPTY, null, "_remote_fetch_position", DataType.INTEGER);
+        PhysicalPlan pushdownPlan = new FragmentExec(
+            new Project(
+                Source.EMPTY,
+                new Filter(
+                    Source.EMPTY,
+                    new RemoteFetchSource(Source.EMPTY, List.of(fetchedAttribute, positionAttribute)),
+                    new GreaterThan(Source.EMPTY, fetchedAttribute, new Literal(Source.EMPTY, 15L, DataType.LONG))
+                ),
+                List.of(fetchedAttribute)
+            )
+        );
+        Page inputPage;
+        try (LongBlock.Builder builder = blockFactory.newLongBlockBuilder(3)) {
+            builder.appendLong(10L);
+            builder.appendLong(20L);
+            builder.appendLong(30L);
+            inputPage = new Page(builder.build());
+        }
+
+        List<Page> outputPages = pushdownCompiler.execute(
             List.of(inputPage),
             pushdownPlan,
             new IndexedByShardIdFromSingleton<>(
@@ -333,16 +403,14 @@ public class RemoteFetchServiceTests extends MapperServiceTestCase {
         RemoteFetchPushdownOperatorBuilder pushdownBuilder = new RemoteFetchPushdownOperatorBuilder();
         ReferenceAttribute fetchedAttribute = new ReferenceAttribute(Source.EMPTY, null, "n", DataType.LONG);
         ReferenceAttribute positionAttribute = new ReferenceAttribute(Source.EMPTY, null, "_remote_fetch_position", DataType.INTEGER);
-        PhysicalPlan pushdownPlan = new FragmentExec(
-            new Eval(
-                Source.EMPTY,
-                new RemoteFetchSource(Source.EMPTY, List.of(fetchedAttribute, positionAttribute)),
-                List.of(new Alias(Source.EMPTY, "tracked", new FoldContextTrackingExpression(Source.EMPTY, new AtomicLong(-1L))))
-            )
-        );
-        Page inputPage = fetchedPageWithPosition(blockFactory, 10L);
-        List<Page> outputPages = runPushdownThroughDriver(
-            pushdownBuilder,
+        PhysicalPlan pushdownPlan = new FragmentExec(new RemoteFetchSource(Source.EMPTY, List.of(fetchedAttribute, positionAttribute)));
+        Page inputPage;
+        try (LongBlock.Builder builder = blockFactory.newLongBlockBuilder(1)) {
+            builder.appendLong(10L);
+            inputPage = new Page(builder.build());
+        }
+
+        List<Page> outputPages = pushdownCompiler.execute(
             List.of(inputPage),
             pushdownPlan,
             new IndexedByShardIdFromSingleton<>(

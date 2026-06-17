@@ -1367,6 +1367,12 @@ public class EsqlCapabilities {
         WHERE_IN_SUBQUERY_WITHOUT_VIEW(Build.current().isSnapshot()),
 
         /**
+         * Support IN non-correlated subqueries in WHERE command with View. The views can be referenced by IN subqueries, and the view
+         * definition can contain IN subqueries.
+         */
+        WHERE_IN_SUBQUERY_WITH_VIEW(Build.current().isSnapshot()),
+
+        /**
          * Support ROW as a source command inside subquery in the from command.
          */
         SUBQUERY_WITH_ROW(Build.current().isSnapshot()),
@@ -3027,6 +3033,11 @@ public class EsqlCapabilities {
         DEDUP_COMMAND(Build.current().isSnapshot()),
 
         /**
+         * Support for VALUES with date_range type.
+         */
+        VALUES_DATE_RANGE(DATE_RANGE_FIELD_TYPE_V6.isEnabled()),
+
+        /**
          * Support for COALESCE with date_range type.
          */
         COALESCE_DATE_RANGE(DATE_RANGE_FIELD_TYPE_V6.isEnabled()),
@@ -3060,6 +3071,20 @@ public class EsqlCapabilities {
          * https://github.com/elastic/elasticsearch/issues/149792
          */
         FIX_PROMQL_SCALAR_FLOAT_DIV,
+
+        /**
+         * Fix for PromQL constant scalar expressions (e.g. {@code 3.14}, {@code pi()}) that were previously
+         * evaluated through the full PromqlCommand pipeline and produced no results when the index was empty.
+         * They are now folded at planning time and emitted as a {@code ROW} without touching the index.
+         */
+        FIX_PROMQL_SCALAR_CONSTANT_RESULTS,
+
+        /**
+         * PromQL {@code quantile} and {@code quantile_over_time} take the quantile φ in the range [0, 1], but the
+         * φ value was passed straight through to the ES|QL {@code PERCENTILE} aggregation (which expects [0, 100]),
+         * so e.g. {@code quantile(1.0, x)} returned ≈ the minimum instead of the maximum. φ is now scaled by 100.
+         */
+        FIX_PROMQL_QUANTILE_SCALE,
 
         /**
          * Bugfix in query approximation to not rewrite non-approximable FORK branches:

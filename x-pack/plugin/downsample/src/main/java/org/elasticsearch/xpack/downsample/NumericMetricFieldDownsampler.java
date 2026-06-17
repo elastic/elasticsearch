@@ -85,7 +85,12 @@ abstract sealed class NumericMetricFieldDownsampler extends AbstractFieldDownsam
     }
 
     /**
-     * Collects buffered docs by walking two ordered streams without rewinding the doc-values iterator.
+     * Collects buffered docs by intersecting the ordered buffer with the numeric doc-values iterator.
+     * <p>
+     * This path is used only when the field exposes a {@link DocIdSetIterator}. The iterator is leaf-local
+     * and forward-only, so we never try to rewind it. When collection later returns to a previously seen
+     * leaf, {@link #resetLeafIteratorStateIfNeeded(DocIdSetIterator)} reads the iterator's own
+     * {@link DocIdSetIterator#docID()} and resumes from that position.
      *
      * <pre>
      * buffered doc ids:  [ 3 ][ 7 ][ 9 ][ 15 ]
@@ -104,10 +109,9 @@ abstract sealed class NumericMetricFieldDownsampler extends AbstractFieldDownsam
      *    current doc == target doc -> collect current values, then move to the next buffered target
      *    current doc &gt; target doc  -> binary-search the next buffered target that is >= current doc
      *
-     * 3. Persist the last doc-values position for this leaf so the next flush resumes from there.
-     *
-     * This turns the problem into a forward-only merge between buffered doc ids and the field's
-     * own doc-values doc ids instead of probing every buffered doc with {@code advanceExact(docId)}.
+     * If the iterator is exhausted, the leaf is marked exhausted and later collections for the same iterator
+     * return without touching doc values. This turns the problem into a forward-only merge instead of probing
+     * every buffered doc with {@code advanceExact(docId)}.
      * </pre>
      */
     private void collectUsingDocIdIterator(SortedNumericDoubleValues docValues, IntArrayList docIdBuffer) throws IOException {

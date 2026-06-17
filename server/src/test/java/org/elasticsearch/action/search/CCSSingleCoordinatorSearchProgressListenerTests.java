@@ -171,6 +171,32 @@ public class CCSSingleCoordinatorSearchProgressListenerTests extends ESTestCase 
         assertThat(clusters.getCluster(cluster).getTook().millis(), equalTo(1L));
     }
 
+    public void testFetchResultDoesNotRefreshTookWhenClusterStillRunning() {
+        String cluster = "project-a";
+        Map<String, SearchResponse.Cluster> clusterMap = new HashMap<>();
+        clusterMap.put(cluster, new SearchResponse.Cluster(cluster, "my-alias", false, null));
+        SearchResponse.Clusters clusters = new SearchResponse.Clusters(clusterMap, false);
+        List<SearchShard> shards = List.of(new SearchShard(cluster, new ShardId("my-index", "uuid-a", 0)));
+
+        AtomicLong nowNanos = new AtomicLong(TimeValue.timeValueMillis(1).nanos());
+        TransportSearchAction.SearchTimeProvider timeProvider = new TransportSearchAction.SearchTimeProvider(0L, 0L, nowNanos::get);
+        CCSSingleCoordinatorSearchProgressListener listener = new CCSSingleCoordinatorSearchProgressListener();
+
+        listener.onListShards(shards, Map.of(), clusters, true, timeProvider);
+        listener.onQueryResult(0, queryResultForShard(cluster, "my-index", "uuid-a", 0));
+
+        SearchResponse.Cluster afterQuery = clusters.getCluster(cluster);
+        assertThat(afterQuery.getStatus(), equalTo(SearchResponse.Cluster.Status.RUNNING));
+        assertNull(afterQuery.getTook());
+
+        nowNanos.set(TimeValue.timeValueMillis(9).nanos());
+        listener.onFetchResult(0);
+
+        SearchResponse.Cluster afterFetch = clusters.getCluster(cluster);
+        assertThat(afterFetch.getStatus(), equalTo(SearchResponse.Cluster.Status.RUNNING));
+        assertNull(afterFetch.getTook());
+    }
+
     public void testFetchFailureRefreshesTookWhenFetchPhaseEnabled() {
         String cluster = "project-a";
         Map<String, SearchResponse.Cluster> clusterMap = new HashMap<>();

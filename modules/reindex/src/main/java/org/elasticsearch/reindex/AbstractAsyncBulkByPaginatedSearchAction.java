@@ -129,7 +129,7 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
      * The current scroll response being processed. Set atomically so that either {@link #prepareBulkRequest} or
      * {@link #finishHim(Exception, List, List, boolean)} can claim exclusive ownership of the remaining hits and release them exactly once.
      */
-    private final AtomicReference<ScrollConsumableHitsResponse> currentScrollResponse = new AtomicReference<>();
+    private final AtomicReference<PaginatedSearchConsumableHitsResponse> currentScrollResponse = new AtomicReference<>();
     /**
      * Set to {@code true} at the start of {@link #finishHim(Exception, List, List, boolean)} so {@link #prepareBulkRequest} can still
      * release unconsumed hits when {@link #currentScrollResponse} is temporarily {@code null} after prepare's CAS (before the ref is
@@ -512,10 +512,10 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
     }
 
     void onScrollResponse(PaginatedHitSource.AsyncResponse asyncResponse) {
-        onScrollResponse(new ScrollConsumableHitsResponse(asyncResponse));
+        onScrollResponse(new PaginatedSearchConsumableHitsResponse(asyncResponse));
     }
 
-    void onScrollResponse(ScrollConsumableHitsResponse asyncResponse) {
+    void onScrollResponse(PaginatedSearchConsumableHitsResponse asyncResponse) {
         // TODO - https://github.com/elastic/elasticsearch/issues/150875
         // lastBatchStartTime is essentially unused (see WorkerBulkByPaginatedSearchTaskState.throttleWaitTime).
         // Leaving it for now, since it seems like a bug?
@@ -528,7 +528,7 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
      * @param lastBatchSizeToUse the size of the last batch. Used to calculate the throttling delay.
      * @param asyncResponse the response to process from {@link PaginatedHitSource}
      */
-    void onScrollResponse(long lastBatchStartTimeNS, int lastBatchSizeToUse, ScrollConsumableHitsResponse asyncResponse) {
+    void onScrollResponse(long lastBatchStartTimeNS, int lastBatchSizeToUse, PaginatedSearchConsumableHitsResponse asyncResponse) {
         currentScrollResponse.set(asyncResponse);
         PaginatedHitSource.Response response = asyncResponse.response();
         logger.debug("[{}]: got scroll response with [{}] hits", task.getId(), asyncResponse.remainingHits());
@@ -576,7 +576,7 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
      * delay has been slept. Uses the generic thread pool because reindex is rare enough not to need its own thread pool and because the
      * thread may be blocked by the user script.
      */
-    void prepareBulkRequest(long thisBatchStartTimeNS, ScrollConsumableHitsResponse asyncResponse) {
+    void prepareBulkRequest(long thisBatchStartTimeNS, PaginatedSearchConsumableHitsResponse asyncResponse) {
         logger.debug("[{}]: preparing bulk request", task.getId());
         // Atomically claim ownership of the response. If finishHim already claimed it (CAS returns false),
         // the hits have already been released — nothing to do here.
@@ -753,7 +753,7 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
         }
     }
 
-    void notifyDone(long thisBatchStartTimeNS, ScrollConsumableHitsResponse asyncResponse, int batchSize) {
+    void notifyDone(long thisBatchStartTimeNS, PaginatedSearchConsumableHitsResponse asyncResponse, int batchSize) {
         if (task.isCancelled()) {
             logger.debug("[{}]: finishing early because the task was cancelled", task.getId());
             finishHim(null);
@@ -964,7 +964,7 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
         // Atomically claim the current response. If prepareBulkRequest already claimed it (null), this is a no-op.
         // If we win the CAS, we release any hits that were not yet consumed (i.e. from consumedOffset to end).
         // This covers: prepareBulkRequest hasn't run yet (consumedOffset == 0) and the maxDocs partial-batch case.
-        ScrollConsumableHitsResponse toRelease = currentScrollResponse.getAndSet(null);
+        PaginatedSearchConsumableHitsResponse toRelease = currentScrollResponse.getAndSet(null);
         if (toRelease != null) {
             toRelease.releaseRemainingHits();
         }
@@ -1020,7 +1020,7 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
      * Seeds {@link #currentScrollResponse} for tests that need a specific scroll ref before {@link #prepareBulkRequest} (e.g. partial-batch
      * / terminal-finish scenarios). Exists entirely for testing.
      */
-    void setCurrentScrollResponseForTests(ScrollConsumableHitsResponse response) {
+    void setCurrentPaginatedSearchResponseForTests(PaginatedSearchConsumableHitsResponse response) {
         currentScrollResponse.set(response);
     }
 
@@ -1030,7 +1030,7 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
         }
     }
 
-    private boolean tryReleaseCurrentResponse(ScrollConsumableHitsResponse expected) {
+    private boolean tryReleaseCurrentResponse(PaginatedSearchConsumableHitsResponse expected) {
         if (currentScrollResponse.compareAndSet(expected, null)) {
             expected.releaseRemainingHits();
             return true;
@@ -1325,7 +1325,7 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
         }
     }
 
-    static class ScrollConsumableHitsResponse {
+    static class PaginatedSearchConsumableHitsResponse {
         private final PaginatedHitSource.AsyncResponse asyncResponse;
         private final List<? extends PaginatedHitSource.Hit> hits;
         /**
@@ -1338,7 +1338,7 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
         private volatile int consumedOffset = 0;
         private final Releasable releaseRemainingHitsOnce;
 
-        ScrollConsumableHitsResponse(PaginatedHitSource.AsyncResponse asyncResponse) {
+        PaginatedSearchConsumableHitsResponse(PaginatedHitSource.AsyncResponse asyncResponse) {
             this.asyncResponse = asyncResponse;
             this.hits = asyncResponse.response().getHits();
             this.releaseRemainingHitsOnce = Releasables.releaseOnce(this::doReleaseRemainingHits);

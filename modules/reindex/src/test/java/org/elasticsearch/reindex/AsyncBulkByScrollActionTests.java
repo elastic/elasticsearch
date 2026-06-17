@@ -273,7 +273,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         action.onScrollResponse(
             lastBatchTime,
             lastBatchSize,
-            new AbstractAsyncBulkByPaginatedSearchAction.ScrollConsumableHitsResponse(new PaginatedHitSource.AsyncResponse() {
+            new AbstractAsyncBulkByPaginatedSearchAction.PaginatedSearchConsumableHitsResponse(new PaginatedHitSource.AsyncResponse() {
                 @Override
                 public PaginatedHitSource.Response response() {
                     return response;
@@ -757,7 +757,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         action.onScrollResponse(
             System.nanoTime(),
             0,
-            new AbstractAsyncBulkByPaginatedSearchAction.ScrollConsumableHitsResponse(new PaginatedHitSource.AsyncResponse() {
+            new AbstractAsyncBulkByPaginatedSearchAction.PaginatedSearchConsumableHitsResponse(new PaginatedHitSource.AsyncResponse() {
                 @Override
                 public PaginatedHitSource.Response response() {
                     return response;
@@ -799,8 +799,8 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
             scrollId(),
             null
         );
-        AbstractAsyncBulkByPaginatedSearchAction.ScrollConsumableHitsResponse response =
-            new AbstractAsyncBulkByPaginatedSearchAction.ScrollConsumableHitsResponse(new PaginatedHitSource.AsyncResponse() {
+        AbstractAsyncBulkByPaginatedSearchAction.PaginatedSearchConsumableHitsResponse response =
+            new AbstractAsyncBulkByPaginatedSearchAction.PaginatedSearchConsumableHitsResponse(new PaginatedHitSource.AsyncResponse() {
                 @Override
                 public PaginatedHitSource.Response response() {
                     return scrollResponse;
@@ -1274,7 +1274,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         }
     }
 
-    public void testScrollConsumableHitsResponseCanBeConsumedInChunks() {
+    public void testPaginatedSearchConsumableHitsResponseCanBeConsumedInChunks() {
         boolean usePit = configurePitOrScroll();
         List<PaginatedHitSource.BasicHit> hits = new ArrayList<>();
         int numberOfHits = randomIntBetween(0, 300);
@@ -1290,8 +1290,8 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
             usePit ? null : "scrollid",
             usePit ? new Object[] { "search_after" } : null
         );
-        final AbstractAsyncBulkByPaginatedSearchAction.ScrollConsumableHitsResponse response =
-            new AbstractAsyncBulkByPaginatedSearchAction.ScrollConsumableHitsResponse(new PaginatedHitSource.AsyncResponse() {
+        final AbstractAsyncBulkByPaginatedSearchAction.PaginatedSearchConsumableHitsResponse response =
+            new AbstractAsyncBulkByPaginatedSearchAction.PaginatedSearchConsumableHitsResponse(new PaginatedHitSource.AsyncResponse() {
                 @Override
                 public PaginatedHitSource.Response response() {
                     return scrollResponse;
@@ -1355,8 +1355,8 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         CountDownLatch firstConsumeReturnedFromSuper = new CountDownLatch(1);
         CountDownLatch resumePrepareAfterFinishHim = new CountDownLatch(1);
         AtomicInteger sendBulkInvocations = new AtomicInteger();
-        AbstractAsyncBulkByPaginatedSearchAction.ScrollConsumableHitsResponse consumable = new ScrollConsumableHitsResponseGate(
-            new PaginatedHitSource.AsyncResponse() {
+        AbstractAsyncBulkByPaginatedSearchAction.PaginatedSearchConsumableHitsResponse consumable =
+            new PaginatedSearchConsumableHitsResponseGate(new PaginatedHitSource.AsyncResponse() {
                 @Override
                 public PaginatedHitSource.Response response() {
                     return scrollResponse;
@@ -1364,10 +1364,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
 
                 @Override
                 public void done(TimeValue extraKeepAlive) {}
-            },
-            firstConsumeReturnedFromSuper,
-            resumePrepareAfterFinishHim
-        );
+            }, firstConsumeReturnedFromSuper, resumePrepareAfterFinishHim);
 
         DummyAsyncBulkByScrollAction action = new DummyAsyncBulkByScrollAction() {
             @Override
@@ -1382,7 +1379,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
             }
         };
         action.setScroll(scrollId());
-        action.setCurrentScrollResponseForTests(consumable);
+        action.setCurrentPaginatedSearchResponseForTests(consumable);
 
         Future<?> prepareFuture = threadPool.generic().submit(() -> action.prepareBulkRequest(System.nanoTime(), consumable));
         assertTrue(firstConsumeReturnedFromSuper.await(30, TimeUnit.SECONDS));
@@ -1429,7 +1426,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
      * Complementary to {@link #testPartialScrollRequestFinishing}: {@link AbstractAsyncBulkByPaginatedSearchAction#finishHim} runs first
      * and wins {@link AbstractAsyncBulkByPaginatedSearchAction#currentScrollResponse}'s {@code getAndSet(null)}, releasing unconsumed hits.
      * A later {@link AbstractAsyncBulkByPaginatedSearchAction#prepareBulkRequest} for the same
-     * {@link AbstractAsyncBulkByPaginatedSearchAction.ScrollConsumableHitsResponse} must lose
+     * {@link AbstractAsyncBulkByPaginatedSearchAction.PaginatedSearchConsumableHitsResponse} must lose
      * the {@code compareAndSet(asyncResponse, null)} race and return without consuming or releasing again.
      */
     public void testPrepareBulkRequestNoOpsWhenFinishHimAlreadyClaimedScrollResponse() {
@@ -1449,8 +1446,8 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
             scrollId(),
             null
         );
-        AbstractAsyncBulkByPaginatedSearchAction.ScrollConsumableHitsResponse consumable =
-            new AbstractAsyncBulkByPaginatedSearchAction.ScrollConsumableHitsResponse(new PaginatedHitSource.AsyncResponse() {
+        AbstractAsyncBulkByPaginatedSearchAction.PaginatedSearchConsumableHitsResponse consumable =
+            new AbstractAsyncBulkByPaginatedSearchAction.PaginatedSearchConsumableHitsResponse(new PaginatedHitSource.AsyncResponse() {
                 @Override
                 public PaginatedHitSource.Response response() {
                     return scrollResponse;
@@ -1461,7 +1458,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
             });
         DummyAsyncBulkByScrollAction action = new DummyAsyncBulkByScrollAction();
         action.setScroll(scrollId());
-        action.setCurrentScrollResponseForTests(consumable);
+        action.setCurrentPaginatedSearchResponseForTests(consumable);
 
         action.finishHim(null);
         assertThat(listener.isDone(), equalTo(true));
@@ -1473,7 +1470,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         assertThat(h2.releases.get(), equalTo(1));
     }
 
-    public void testScrollConsumableHitsResponseErrorHandling() {
+    public void testPaginatedSearchConsumableHitsResponseErrorHandling() {
         boolean usePit = configurePitOrScroll();
         List<PaginatedHitSource.BasicHit> hits = new ArrayList<>();
         int numberOfHits = randomIntBetween(2, 300);
@@ -1490,8 +1487,8 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
             usePit ? null : "scrollid",
             usePit ? new Object[] { "search_after" } : null
         );
-        final AbstractAsyncBulkByPaginatedSearchAction.ScrollConsumableHitsResponse response =
-            new AbstractAsyncBulkByPaginatedSearchAction.ScrollConsumableHitsResponse(new PaginatedHitSource.AsyncResponse() {
+        final AbstractAsyncBulkByPaginatedSearchAction.PaginatedSearchConsumableHitsResponse response =
+            new AbstractAsyncBulkByPaginatedSearchAction.PaginatedSearchConsumableHitsResponse(new PaginatedHitSource.AsyncResponse() {
                 @Override
                 public PaginatedHitSource.Response response() {
                     return scrollResponse;
@@ -1698,7 +1695,8 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
             client.lastSearch.get().listener.onResponse(firstResponse);
             assertNotNull("first batch must be delivered", capturedAsyncResponse.get());
             assertEquals("first batch reports the accurate total", totalHits, capturedAsyncResponse.get().response().getTotalHits());
-            new AbstractAsyncBulkByPaginatedSearchAction.ScrollConsumableHitsResponse(capturedAsyncResponse.get()).releaseRemainingHits();
+            new AbstractAsyncBulkByPaginatedSearchAction.PaginatedSearchConsumableHitsResponse(capturedAsyncResponse.get())
+                .releaseRemainingHits();
             capturedAsyncResponse.set(null);
         } finally {
             firstResponse.decRef();
@@ -1732,7 +1730,8 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
                 totalHits,
                 capturedAsyncResponse.get().response().getTotalHits()
             );
-            new AbstractAsyncBulkByPaginatedSearchAction.ScrollConsumableHitsResponse(capturedAsyncResponse.get()).releaseRemainingHits();
+            new AbstractAsyncBulkByPaginatedSearchAction.PaginatedSearchConsumableHitsResponse(capturedAsyncResponse.get())
+                .releaseRemainingHits();
         } finally {
             secondResponse.decRef();
         }
@@ -1807,7 +1806,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         };
         action.setScroll(expectedScrollId);
 
-        final var asyncResponse = new AbstractAsyncBulkByPaginatedSearchAction.ScrollConsumableHitsResponse(
+        final var asyncResponse = new AbstractAsyncBulkByPaginatedSearchAction.PaginatedSearchConsumableHitsResponse(
             new PaginatedHitSource.AsyncResponse() {
                 @Override
                 public PaginatedHitSource.Response response() {
@@ -1871,7 +1870,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         };
         action.setSearchAfterValues(expectedSearchAfter);
 
-        final var asyncResponse = new AbstractAsyncBulkByPaginatedSearchAction.ScrollConsumableHitsResponse(
+        final var asyncResponse = new AbstractAsyncBulkByPaginatedSearchAction.PaginatedSearchConsumableHitsResponse(
             new PaginatedHitSource.AsyncResponse() {
                 @Override
                 public PaginatedHitSource.Response response() {
@@ -1914,7 +1913,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         action.setScroll(expectedScrollId);
 
         final AtomicBoolean doneCalled = new AtomicBoolean();
-        final var asyncResponse = new AbstractAsyncBulkByPaginatedSearchAction.ScrollConsumableHitsResponse(
+        final var asyncResponse = new AbstractAsyncBulkByPaginatedSearchAction.PaginatedSearchConsumableHitsResponse(
             new PaginatedHitSource.AsyncResponse() {
                 @Override
                 public PaginatedHitSource.Response response() {
@@ -1946,7 +1945,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         action.setSearchAfterValues(expectedSearchAfter);
 
         final AtomicBoolean doneCalled = new AtomicBoolean();
-        final var asyncResponse = new AbstractAsyncBulkByPaginatedSearchAction.ScrollConsumableHitsResponse(
+        final var asyncResponse = new AbstractAsyncBulkByPaginatedSearchAction.PaginatedSearchConsumableHitsResponse(
             new PaginatedHitSource.AsyncResponse() {
                 @Override
                 public PaginatedHitSource.Response response() {
@@ -1977,7 +1976,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         action.setScroll(expectedScrollId);
 
         final AtomicBoolean doneCalled = new AtomicBoolean();
-        final var asyncResponse = new AbstractAsyncBulkByPaginatedSearchAction.ScrollConsumableHitsResponse(
+        final var asyncResponse = new AbstractAsyncBulkByPaginatedSearchAction.PaginatedSearchConsumableHitsResponse(
             new PaginatedHitSource.AsyncResponse() {
                 @Override
                 public PaginatedHitSource.Response response() {
@@ -2008,7 +2007,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         action.setSearchAfterValues(expectedSearchAfter);
 
         final AtomicBoolean doneCalled = new AtomicBoolean();
-        final var asyncResponse = new AbstractAsyncBulkByPaginatedSearchAction.ScrollConsumableHitsResponse(
+        final var asyncResponse = new AbstractAsyncBulkByPaginatedSearchAction.PaginatedSearchConsumableHitsResponse(
             new PaginatedHitSource.AsyncResponse() {
                 @Override
                 public PaginatedHitSource.Response response() {
@@ -2039,7 +2038,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         final AtomicBoolean onScrollResponseCalled = new AtomicBoolean();
         final DummyAsyncBulkByScrollAction action = new DummyAsyncBulkByScrollAction() {
             @Override
-            void onScrollResponse(final AbstractAsyncBulkByPaginatedSearchAction.ScrollConsumableHitsResponse asyncResponse) {
+            void onScrollResponse(final AbstractAsyncBulkByPaginatedSearchAction.PaginatedSearchConsumableHitsResponse asyncResponse) {
                 onScrollResponseCalled.set(true);
                 // don't call super - continues ingesting and listener might complete before assertions
             }
@@ -2050,7 +2049,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
             new PaginatedHitSource.BasicHit("index", "id-1", -1),
             new PaginatedHitSource.BasicHit("index", "id-2", -1)
         );
-        final var asyncResponse = new AbstractAsyncBulkByPaginatedSearchAction.ScrollConsumableHitsResponse(
+        final var asyncResponse = new AbstractAsyncBulkByPaginatedSearchAction.PaginatedSearchConsumableHitsResponse(
             new PaginatedHitSource.AsyncResponse() {
                 @Override
                 public PaginatedHitSource.Response response() {
@@ -2083,7 +2082,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         final AtomicBoolean onScrollResponseCalled = new AtomicBoolean();
         final DummyAsyncBulkByScrollAction action = new DummyAsyncBulkByScrollAction() {
             @Override
-            void onScrollResponse(final AbstractAsyncBulkByPaginatedSearchAction.ScrollConsumableHitsResponse asyncResponse) {
+            void onScrollResponse(final AbstractAsyncBulkByPaginatedSearchAction.PaginatedSearchConsumableHitsResponse asyncResponse) {
                 onScrollResponseCalled.set(true);
                 // don't call super - continues ingesting and listener might complete before assertions
             }
@@ -2094,7 +2093,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
             new PaginatedHitSource.BasicHit("index", "id-1", -1),
             new PaginatedHitSource.BasicHit("index", "id-2", -1)
         );
-        final var asyncResponse = new AbstractAsyncBulkByPaginatedSearchAction.ScrollConsumableHitsResponse(
+        final var asyncResponse = new AbstractAsyncBulkByPaginatedSearchAction.PaginatedSearchConsumableHitsResponse(
             new PaginatedHitSource.AsyncResponse() {
                 @Override
                 public PaginatedHitSource.Response response() {
@@ -2124,7 +2123,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         worker.setNodeToRelocateToSupplier(() -> Optional.of("target-node"));
 
         final DummyAsyncBulkByScrollAction action = new DummyAsyncBulkByScrollAction();
-        final var asyncResponse = new AbstractAsyncBulkByPaginatedSearchAction.ScrollConsumableHitsResponse(
+        final var asyncResponse = new AbstractAsyncBulkByPaginatedSearchAction.PaginatedSearchConsumableHitsResponse(
             new PaginatedHitSource.AsyncResponse() {
                 @Override
                 public PaginatedHitSource.Response response() {
@@ -2183,7 +2182,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         final DummyAsyncBulkByScrollAction action = new DummyAsyncBulkByScrollAction(TimeValue.timeValueHours(1));
 
         final AtomicBoolean doneCalled = new AtomicBoolean();
-        final var asyncResponse = new AbstractAsyncBulkByPaginatedSearchAction.ScrollConsumableHitsResponse(
+        final var asyncResponse = new AbstractAsyncBulkByPaginatedSearchAction.PaginatedSearchConsumableHitsResponse(
             new PaginatedHitSource.AsyncResponse() {
                 @Override
                 public PaginatedHitSource.Response response() {
@@ -2226,7 +2225,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         final DummyAsyncBulkByScrollAction action = new DummyAsyncBulkByScrollAction(task, TimeValue.ZERO);
         action.setScroll(expectedScrollId);
 
-        final var asyncResponse = new AbstractAsyncBulkByPaginatedSearchAction.ScrollConsumableHitsResponse(
+        final var asyncResponse = new AbstractAsyncBulkByPaginatedSearchAction.PaginatedSearchConsumableHitsResponse(
             new PaginatedHitSource.AsyncResponse() {
                 @Override
                 public PaginatedHitSource.Response response() {
@@ -2256,7 +2255,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         final DummyAsyncBulkByScrollAction action = new DummyAsyncBulkByScrollAction(TimeValue.timeValueHours(1));
         action.setScroll(expectedScrollId);
 
-        final var asyncResponse = new AbstractAsyncBulkByPaginatedSearchAction.ScrollConsumableHitsResponse(
+        final var asyncResponse = new AbstractAsyncBulkByPaginatedSearchAction.PaginatedSearchConsumableHitsResponse(
             new PaginatedHitSource.AsyncResponse() {
                 @Override
                 public PaginatedHitSource.Response response() {
@@ -2585,12 +2584,12 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
      * so {@link AbstractAsyncBulkByPaginatedSearchAction#currentScrollResponse} stays {@code null} across {@code finishHim}'s
      * {@code getAndSet} when {@code maxDocs} leaves a partial scroll batch.
      */
-    private static final class ScrollConsumableHitsResponseGate extends
-        AbstractAsyncBulkByPaginatedSearchAction.ScrollConsumableHitsResponse {
+    private static final class PaginatedSearchConsumableHitsResponseGate extends
+        AbstractAsyncBulkByPaginatedSearchAction.PaginatedSearchConsumableHitsResponse {
         private final CountDownLatch firstConsumeReturnedFromSuper;
         private final CountDownLatch resumePrepareAfterFinishHim;
 
-        ScrollConsumableHitsResponseGate(
+        PaginatedSearchConsumableHitsResponseGate(
             PaginatedHitSource.AsyncResponse asyncResponse,
             CountDownLatch firstConsumeReturnedFromSuper,
             CountDownLatch resumePrepareAfterFinishHim

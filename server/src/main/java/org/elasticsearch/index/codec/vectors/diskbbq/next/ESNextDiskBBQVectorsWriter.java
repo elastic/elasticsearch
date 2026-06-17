@@ -941,16 +941,9 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
                 if (reader instanceof PerFieldKnnVectorsFormat.FieldsReader perFieldReader) {
                     reader = perFieldReader.getFieldReader(fieldInfo.name);
                 }
-                if (reader instanceof IVFVectorsReader<?> ivfReader) {
-                    FieldInfo readerFieldInfo = mergeState.fieldInfos[i].fieldInfo(fieldInfo.name);
-                    if (readerFieldInfo == null) {
-                        segmentSizes[i] = 0;
-                        segmentCentroidCounts[i] = 0;
-                        continue;
-                    }
-                    FloatVectorValues vectorValues = mergeState.knnVectorsReaders[i].getFloatVectorValues(fieldInfo.name);
-                    segmentSizes[i] = vectorValues != null ? vectorValues.size() : 0;
-                    segmentCentroidData[i] = ivfReader.readCentroidData(readerFieldInfo);
+                if (reader instanceof IVFVectorsReader<?> ivfReader && mergeState.fieldInfos[i].fieldInfo(fieldInfo.name) != null) {
+                    segmentSizes[i] = ivfReader.getFloatVectorValues(fieldInfo.name).size();
+                    segmentCentroidData[i] = ivfReader.readCentroidData(fieldInfo.name);
                     segmentCentroidCounts[i] = segmentCentroidData[i] != null ? segmentCentroidData[i].numCentroids() : 0;
                 } else {
                     segmentSizes[i] = 0;

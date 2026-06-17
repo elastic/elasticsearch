@@ -243,11 +243,11 @@ public class EvictionPolicyTests extends ESTestCase {
      * Tests an eviction policy that makes decisions purely from the region's representative timestamp.
      */
     public void testTimestampBasedEvictionPolicy() throws IOException {
-        final int numRegions = randomIntBetween(4, 50);
+        final long numRegions = randomIntBetween(4, 50);
         final long regionSizeInBytes = size(100);
         Settings settings = Settings.builder()
             .put(NODE_NAME_SETTING.getKey(), "node")
-            .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size((long) numRegions * 100)))
+            .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(numRegions * 100)))
             .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(regionSizeInBytes))
             .put(SharedBlobCacheService.SHARED_CACHE_INITIAL_DECAYS_SETTING.getKey(), 0)
             .put("path.home", createTempDir())
@@ -294,29 +294,49 @@ public class EvictionPolicyTests extends ESTestCase {
 
             // Fill the cache with oldTimestamp.
             for (int i = 0; i < numRegions; i++) {
-                cacheService.get(new TestKey(oldShard, "u-" + i), randomLongBetween(1, regionSizeInBytes - 1L), 0, oldTimestamp);
+                cacheService.get(new TestKey(oldShard, "old-" + i), randomLongBetween(1, regionSizeInBytes - 1L), 0, oldTimestamp);
             }
-            assertEquals(0, cacheService.freeRegionCount());
-            assertThat(cacheService.countCachedRegions(key -> key.shardId().equals(oldShard)), equalTo((long) numRegions));
+            assertThat("cache should be full after inserting numRegions old-timestamp regions", cacheService.freeRegionCount(), equalTo(0));
+            assertThat(
+                "all old-timestamp regions should be cached after filling the cache",
+                cacheService.countCachedRegions(key -> key.shardId().equals(oldShard)),
+                equalTo(numRegions)
+            );
 
             // Newer data evicts the older stamped regions (oldTimestamp <= now).
             for (int i = 0; i < numRegions; i++) {
-                cacheService.get(new TestKey(newShard, "n-" + i), randomLongBetween(1, regionSizeInBytes - 1L), 0, now);
+                cacheService.get(new TestKey(newShard, "new-" + i), randomLongBetween(1, regionSizeInBytes - 1L), 0, now);
             }
-            assertThat(cacheService.countCachedRegions(key -> key.shardId().equals(oldShard)), equalTo(0L));
-            assertThat(cacheService.countCachedRegions(key -> key.shardId().equals(newShard)), equalTo((long) numRegions));
+            assertThat(
+                "old-timestamp regions should have been evicted by newer incoming data",
+                cacheService.countCachedRegions(key -> key.shardId().equals(oldShard)),
+                equalTo(0L)
+            );
+            assertThat(
+                "all newer regions should be cached after evicting the older ones",
+                cacheService.countCachedRegions(key -> key.shardId().equals(newShard)),
+                equalTo(numRegions)
+            );
 
             // Data older than what is cached cannot evict the newer regions: every region refuses eviction, so allocation fails and
             // the older data is never cached.
             for (int i = 0; i < numRegions; i++) {
-                final var olderKey = new TestKey(olderShard, "x-" + i);
+                final var olderKey = new TestKey(olderShard, "oldest-" + i);
                 expectThrows(
                     AlreadyClosedException.class,
                     () -> cacheService.get(olderKey, randomLongBetween(1, regionSizeInBytes - 1L), 0, olderThanCachedTimestamp)
                 );
             }
-            assertThat(cacheService.countCachedRegions(key -> key.shardId().equals(olderShard)), equalTo(0L));
-            assertThat(cacheService.countCachedRegions(key -> key.shardId().equals(newShard)), equalTo((long) numRegions));
+            assertThat(
+                "older-than-cached data must not be cached because it cannot evict the newer regions",
+                cacheService.countCachedRegions(key -> key.shardId().equals(olderShard)),
+                equalTo(0L)
+            );
+            assertThat(
+                "newer regions must remain cached; older incoming data cannot evict them",
+                cacheService.countCachedRegions(key -> key.shardId().equals(newShard)),
+                equalTo(numRegions)
+            );
         }
     }
 }

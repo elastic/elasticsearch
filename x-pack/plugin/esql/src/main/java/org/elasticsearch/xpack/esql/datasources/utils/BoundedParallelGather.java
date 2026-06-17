@@ -71,7 +71,7 @@ public final class BoundedParallelGather {
         AtomicReference<Exception> firstError = new AtomicReference<>();
 
         @SuppressWarnings("unchecked")
-        CompletableFuture<R>[] futures = new CompletableFuture[size];
+        CompletableFuture<R>[] futures = (CompletableFuture<R>[]) new CompletableFuture<?>[size];
 
         for (int i = 0; i < size; i++) {
             T item = items.get(i);

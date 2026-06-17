@@ -17,4 +17,11 @@ import org.elasticsearch.action.ActionListener;
  */
 public interface SecretsApplier {
     void applyTo(HttpRequestBase request, ActionListener<HttpRequestBase> listener);
+
+    /**
+     * Called when the remote service responds with a 401. Implementations that cache
+     * authentication credentials (e.g. OAuth2 bearer tokens) should use this hook to
+     * drop the cached credential so the next request fetches a fresh one.
+     */
+    default void onAuthenticationFailure() {}
 }

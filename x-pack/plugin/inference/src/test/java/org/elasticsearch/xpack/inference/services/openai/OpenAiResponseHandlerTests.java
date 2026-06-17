@@ -27,6 +27,8 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.core.Is.is;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class OpenAiResponseHandlerTests extends ESTestCase {
@@ -142,6 +144,41 @@ public class OpenAiResponseHandlerTests extends ESTestCase {
             containsString("Received an unsuccessful status code for request from inference entity id [id] status [402]")
         );
         assertThat(((ElasticsearchStatusException) retryException.getCause()).status(), is(RestStatus.PAYMENT_REQUIRED));
+    }
+
+    public void testCheckForFailureStatusCode_401_CallsOnAuthenticationFailure() {
+        var statusLine = mock(StatusLine.class);
+        when(statusLine.getStatusCode()).thenReturn(401);
+        var httpResponse = mock(HttpResponse.class);
+        when(httpResponse.getStatusLine()).thenReturn(statusLine);
+        var header = mock(Header.class);
+        when(header.getElements()).thenReturn(new HeaderElement[] {});
+        when(httpResponse.getFirstHeader(anyString())).thenReturn(header);
+
+        var mockRequest = RequestTests.mockRequest("id");
+        var httpResult = new HttpResult(httpResponse, new byte[] {});
+        var handler = new OpenAiResponseHandler("", (request, result) -> null, false);
+
+        var retryException = expectThrows(RetryException.class, () -> handler.checkForFailureStatusCode(mockRequest, httpResult));
+        assertFalse(retryException.shouldRetry());
+        verify(mockRequest).onAuthenticationFailure();
+    }
+
+    public void testCheckForFailureStatusCode_Non401_DoesNotCallOnAuthenticationFailure() {
+        var statusLine = mock(StatusLine.class);
+        when(statusLine.getStatusCode()).thenReturn(500);
+        var httpResponse = mock(HttpResponse.class);
+        when(httpResponse.getStatusLine()).thenReturn(statusLine);
+        var header = mock(Header.class);
+        when(header.getElements()).thenReturn(new HeaderElement[] {});
+        when(httpResponse.getFirstHeader(anyString())).thenReturn(header);
+
+        var mockRequest = RequestTests.mockRequest("id");
+        var httpResult = new HttpResult(httpResponse, new byte[] {});
+        var handler = new OpenAiResponseHandler("", (request, result) -> null, false);
+
+        expectThrows(RetryException.class, () -> handler.checkForFailureStatusCode(mockRequest, httpResult));
+        verify(mockRequest, never()).onAuthenticationFailure();
     }
 
     public void testBuildRateLimitErrorMessage() {

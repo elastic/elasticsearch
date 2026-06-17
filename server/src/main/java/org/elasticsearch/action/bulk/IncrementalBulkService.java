@@ -263,10 +263,10 @@ public class IncrementalBulkService {
 
         public void lastItems(List<DocWriteRequest<?>> items, Releasable releasable, ActionListener<BulkResponse> listener) {
             assert bulkInProgress == false;
+            ActionListener<BulkResponse> finalListener = ActionListener.runBefore(listener, () -> taskManager.unregister(bulkSessionTask));
             if (bulkActionLevelFailure != null) {
                 shortCircuitDueToTopLevelFailure(items, releasable);
-                errorResponse(listener);
-                taskManager.unregister(bulkSessionTask);
+                errorResponse(finalListener);
             } else {
                 assert bulkRequest != null;
                 if (internalAddItems(items, releasable)) {
@@ -282,22 +282,20 @@ public class IncrementalBulkService {
                         @Override
                         public void onResponse(BulkResponse bulkResponse) {
                             handleBulkSuccess(bulkResponse);
-                            listener.onResponse(BulkResponse.combine(responses));
+                            finalListener.onResponse(BulkResponse.combine(responses));
                         }
 
                         @Override
                         public void onFailure(Exception e) {
                             handleBulkFailure(isFirstRequest, e);
-                            errorResponse(listener);
+                            errorResponse(finalListener);
                         }
                     }, () -> {
                         toRelease.forEach(Releasable::close);
                         coordinating.close();
-                        taskManager.unregister(bulkSessionTask);
                     }));
                 } else {
-                    errorResponse(listener);
-                    taskManager.unregister(bulkSessionTask);
+                    errorResponse(finalListener);
                 }
             }
         }

@@ -1364,7 +1364,7 @@ ROW content = ["foo", "bar", "foobar"]
 
 content:keyword | x:boolean
 foo             | true
-foobar          |true
+foobar          | true
 ;
 
 matchOnBooleanWithRowAndNullValues
@@ -1432,7 +1432,7 @@ required_capability: match_runtime_search
 
 pragma: runtime_lexical_search=true
 
-ROW a = [1.2, 1.3, 1,4, 1.5]
+ROW a = [1.2, 1.3, 1.4, 1.5]
 | MV_EXPAND a
 | WHERE match(a, 1.2) OR match(a, 1.3)
 | SORT a
@@ -1451,7 +1451,7 @@ required_capability: match_runtime_search
 pragma: runtime_lexical_search=true
 
 
-ROW a = [1.2, 1.3, 1,4, 1.5, 1.6]
+ROW a = [1.2, 1.3, 1.4, 1.5, 1.6]
 | MV_EXPAND a
 | EVAL a = CASE(a > 1.5, NULL, a)
 | WHERE match(a, 1.2) OR match(a, 1.3)
@@ -1470,7 +1470,7 @@ required_capability: match_runtime_search
 
 pragma: runtime_lexical_search=true
 
-ROW a = [1.2, 1.3, 1,4, 1.5, 1.6]
+ROW a = [1.2, 1.3, 1.4, 1.5, 1.6]
 | MV_EXPAND a
 | EVAL a = mv_append(a, round(a - 0.1, 1))
 | WHERE match(a, 1.2) OR match(a, 1.3)
@@ -1480,6 +1480,7 @@ ROW a = [1.2, 1.3, 1,4, 1.5, 1.6]
 a:double
 [1.2, 1.1]
 [1.3, 1.2]
+[1.4, 1.3]
 ;
 
 matchOnRuntimeLong
@@ -1907,4 +1908,79 @@ ROW content = ["1980-01-29T00:00:00.000Z", "1990-09-23T00:00:00.000Z", "1987-06-
 
 content:date_nanos
 [1990-09-23T00:00:00.000Z, 2026-09-12T00:00:00.000Z]
+;
+
+matchOnRuntimeUnsignedLong
+
+required_capability: match_function
+required_capability: match_runtime_search
+
+pragma: runtime_lexical_search=true
+
+FROM employees
+| EVAL x = to_unsigned_long(emp_no + 10000)
+| WHERE match(x, 20002::unsigned_long) OR match(x, 20005::unsigned_long)
+| SORT emp_no
+| KEEP emp_no, x
+;
+
+emp_no:integer | x:unsigned_long
+10002          | 20002
+10005          | 20005
+;
+
+matchOnRuntimeUnsignedLongWithRow
+
+required_capability: match_function
+required_capability: match_runtime_search
+
+pragma: runtime_lexical_search=true
+
+ROW a = [100, 200, 300, 400]::unsigned_long
+| MV_EXPAND a
+| WHERE match(a, 100::unsigned_long) OR match(a, 200::unsigned_long)
+| SORT a
+;
+
+a:unsigned_long
+100
+200
+;
+
+matchOnUnsignedLongWithRowAndNullValues
+
+required_capability: match_function
+required_capability: match_runtime_search
+
+pragma: runtime_lexical_search=true
+
+ROW a = [100, 200, 300, 400]::unsigned_long
+| MV_EXPAND a
+| EVAL a = CASE(a > 200::unsigned_long, NULL, a)
+| WHERE match(a, 100::unsigned_long) OR match(a, 200::unsigned_long)
+| SORT a
+;
+
+a:unsigned_long
+100
+200
+;
+
+matchOnUnsignedLongWithRowAndMultiValues
+
+required_capability: match_function
+required_capability: match_runtime_search
+
+pragma: runtime_lexical_search=true
+
+ROW a = [100, 200, 300, 400]::unsigned_long
+| MV_EXPAND a
+| EVAL a = mv_append(a, a + 100::unsigned_long)
+| WHERE match(a, 100::unsigned_long) OR match(a, 200::unsigned_long)
+| SORT a
+;
+
+a:unsigned_long
+[100, 200]
+[200, 300]
 ;

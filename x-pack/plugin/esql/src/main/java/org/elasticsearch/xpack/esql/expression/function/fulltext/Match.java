@@ -473,7 +473,15 @@ public class Match extends SingleFieldFullTextFunction implements OptionalArgume
                 queryString != null ? EsqlDataTypeConverter.stringToDouble(queryString) : ((Number) queryObject).doubleValue()
             );
             case LONG -> {
-                if (field().dataType().isNumeric()) {
+                if (field().dataType() == UNSIGNED_LONG) {
+                    if (queryString != null) {
+                        queryObject = EsqlDataTypeConverter.stringToUnsignedLong(queryString);
+                    } else if (query().dataType() == UNSIGNED_LONG) {
+                        queryObject = ((Number) queryObject).longValue();
+                    } else {
+                        queryObject = EsqlDataTypeConverter.longToUnsignedLong(((Number) queryObject).longValue(), true);
+                    }
+                } else if (field().dataType().isNumeric()) {
                     queryObject = queryString != null
                         ? EsqlDataTypeConverter.stringToLong(queryString)
                         : ((Number) queryObject).longValue();

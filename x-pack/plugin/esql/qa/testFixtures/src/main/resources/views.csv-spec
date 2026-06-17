@@ -1536,6 +1536,7 @@ emp_no:integer
 ;
 
 inSubqueryReferencingNestedInSubqueryView
+skip_flattened_rewrite: view_in_subquery_flattened
 required_capability: views_with_no_branching
 required_capability: views_crud_as_index_actions
 required_capability: where_in_subquery_with_view
@@ -1560,6 +1561,7 @@ emp_no:integer | first_name:keyword
 ;
 
 inSubqueryReferencingConjunctionView
+skip_flattened_rewrite: view_in_subquery_flattened
 required_capability: views_with_no_branching
 required_capability: views_crud_as_index_actions
 required_capability: where_in_subquery_with_view
@@ -1589,6 +1591,7 @@ c:long
 ;
 
 threeInSubqueriesIntersectNestedConjunctionDisjunctionViews
+skip_flattened_rewrite: view_in_subquery_flattened
 required_capability: views_with_no_branching
 required_capability: views_crud_as_index_actions
 required_capability: where_in_subquery_with_view
@@ -1605,6 +1608,7 @@ emp_no:integer | first_name:keyword
 ;
 
 inNestedAndDisjunctionNotInConjunctionViews
+skip_flattened_rewrite: view_in_subquery_flattened
 required_capability: views_with_no_branching
 required_capability: views_crud_as_index_actions
 required_capability: where_in_subquery_with_view
@@ -1779,6 +1783,7 @@ emp_no:integer
 ;
 
 inSubqueryReferencingNestedInSubqueryViewAlternateView
+skip_flattened_rewrite: view_in_subquery_flattened
 required_capability: views_with_no_branching
 required_capability: views_crud_as_index_actions
 required_capability: where_in_subquery_with_view
@@ -1803,6 +1808,7 @@ emp_no:integer | first_name:keyword
 ;
 
 inSubqueryReferencingConjunctionViewAlternateView
+skip_flattened_rewrite: view_in_subquery_flattened
 required_capability: views_with_no_branching
 required_capability: views_crud_as_index_actions
 required_capability: where_in_subquery_with_view
@@ -1835,6 +1841,7 @@ c:long
 ;
 
 threeInSubqueriesIntersectNestedConjunctionDisjunctionViewsAlternateView
+skip_flattened_rewrite: view_in_subquery_flattened
 required_capability: views_with_no_branching
 required_capability: views_crud_as_index_actions
 required_capability: where_in_subquery_with_view
@@ -1854,6 +1861,7 @@ emp_no:integer | first_name:keyword
 ;
 
 inNestedAndDisjunctionNotInConjunctionViewsAlternateView
+skip_flattened_rewrite: view_in_subquery_flattened
 required_capability: views_with_no_branching
 required_capability: views_crud_as_index_actions
 required_capability: where_in_subquery_with_view

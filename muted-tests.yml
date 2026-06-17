@@ -377,9 +377,6 @@ tests:
 - class: org.elasticsearch.xpack.ccr.CcrSeqNoPruningIT
   method: testSeqNoPartiallyRetainedByCcrLease
   issue: https://github.com/elastic/elasticsearch/issues/150435
-- class: org.elasticsearch.packaging.test.DockerTests
-  method: test011SecurityEnabledStatus
-  issue: https://github.com/elastic/elasticsearch/issues/150438
 - class: org.elasticsearch.xpack.esql.action.FileSourceSecretDecryptionAcrossNodesIT
   method: testJoinedDataNodeDecryptsTheSecret
   issue: https://github.com/elastic/elasticsearch/issues/150440
@@ -524,9 +521,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.StatelessMergeIT
   method: testOnlyForceMergesAreAllowedDuringRelocation
   issue: https://github.com/elastic/elasticsearch/issues/150925
-- class: org.elasticsearch.reindex.management.ReindexRelocationIT
-  method: testNonSlicedRemoteReindexRelocation
-  issue: https://github.com/elastic/elasticsearch/issues/150966
 - class: org.elasticsearch.xpack.esql.inference.rerank.RerankOperatorTests
   method: testInferenceFailure
   issue: https://github.com/elastic/elasticsearch/issues/150976

@@ -496,7 +496,7 @@ public abstract class TransportReplicationAction<
 
         @Override
         protected void doRun() throws Exception {
-            if (replicationTask.notifyIfCancelled(onCompletionListener)) {
+            if (replicationTask != null && replicationTask.notifyIfCancelled(onCompletionListener)) {
                 logger.debug(
                     () -> format(
                         "Transport replication action request [%s] for Index shard [%s] is cancelled post-submission.",

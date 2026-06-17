@@ -169,7 +169,7 @@ public class BulkByPaginatedSearchUsesAllDocumentsAfterConflictsIntegTests exten
 
         final int numDocs = 100;
         final int maxDocs = 10;
-        final int scrollSize = randomIntBetween(maxDocs, numDocs);
+        final int batchSize = randomIntBetween(maxDocs, numDocs);
 
         List<IndexRequestBuilder> indexRequests = new ArrayList<>(numDocs);
         int noopDocs = 0;
@@ -247,7 +247,7 @@ public class BulkByPaginatedSearchUsesAllDocumentsAfterConflictsIntegTests exten
             }
 
             final SearchRequestBuilder source = requestBuilder.source();
-            source.setSize(scrollSize);
+            source.setSize(batchSize);
             source.addSort(SORTING_FIELD, SortOrder.DESC);
             source.setQuery(QueryBuilders.matchAllQuery());
             final ActionFuture<BulkByPaginatedSearchResponse> updateByQueryResponse = requestBuilder.execute();

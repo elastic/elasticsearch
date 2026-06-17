@@ -6,5 +6,5 @@ mapped_pages:
 
 # ES|QL `LOG10` function [esql-log10]
 
-:::{include} ../../_snippets/functions/layout/log10.md
+:::{include} ../../_snippets/generated/x-pack-esql/functions/layout/log10.md
 :::

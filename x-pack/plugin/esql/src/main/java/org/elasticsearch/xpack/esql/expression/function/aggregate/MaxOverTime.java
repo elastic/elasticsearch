@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.esql.expression.function.aggregate;
 
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -25,15 +23,14 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.function.TimestampAware;
 import org.elasticsearch.xpack.esql.expression.function.scalar.histogram.ExtractHistogramComponent;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition;
 import org.elasticsearch.xpack.esql.planner.ToAggregator;
 
-import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
-import static java.util.Collections.emptyList;
 import static org.elasticsearch.compute.data.HistogramBlock.Component;
 
 /**
@@ -43,24 +40,23 @@ public class MaxOverTime extends TimeSeriesAggregateFunction
     implements
         OptionalArgument,
         SurrogateExpression,
+        TimestampAware,
         AggregateMetricDoubleNativeSupport,
         ToAggregator {
-    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
-        Expression.class,
-        "MaxOverTime",
-        MaxOverTime::new
-    );
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(MaxOverTime.class)
-        .binary(MaxOverTime::new)
+        .ternary(MaxOverTime::new)
         .name("max_over_time");
     public static final PromqlFunctionDefinition PROMQL_DEFINITION = PromqlFunctionDefinition.def()
-        .withinSeriesOverTime(MaxOverTime::new)
+        .withinSeries(MaxOverTime::new)
         .description("Returns the maximum value of all points in the specified time range.")
         .example("max_over_time(http_requests_total[5m])")
         .name("max_over_time");
 
+    private final Expression timestamp;
+
     @FunctionInfo(
         returnType = { "boolean", "double", "integer", "long", "date", "date_nanos", "ip", "keyword", "unsigned_long", "version" },
+        briefSummary = "Calculates the maximum value of a field over a time window.",
         description = "Calculates the maximum over time value of a field.",
         type = FunctionType.TIME_SERIES_AGGREGATE,
         appliesTo = {
@@ -94,37 +90,35 @@ public class MaxOverTime extends TimeSeriesAggregateFunction
             type = { "time_duration" },
             description = "the time window over which to compute the maximum",
             optional = true
-        ) Expression window
+        ) Expression window,
+        Expression timestamp
     ) {
-        this(source, field, Literal.TRUE, Objects.requireNonNullElse(window, NO_WINDOW));
+        this(source, field, Literal.TRUE, Objects.requireNonNullElse(window, NO_WINDOW), timestamp);
     }
 
-    public MaxOverTime(Source source, Expression field, Expression filter, Expression window) {
-        super(source, field, filter, window, emptyList());
-    }
-
-    private MaxOverTime(StreamInput in) throws IOException {
-        super(in);
+    public MaxOverTime(Source source, Expression field, Expression filter, Expression window, Expression timestamp) {
+        super(source, field, filter, window, List.of(timestamp));
+        this.timestamp = timestamp;
     }
 
     @Override
     public String getWriteableName() {
-        return ENTRY.name;
+        throw new UnsupportedOperationException("MaxOverTime is not directly serializable");
     }
 
     @Override
     public MaxOverTime withFilter(Expression filter) {
-        return new MaxOverTime(source(), field(), filter, window());
+        return new MaxOverTime(source(), field(), filter, window(), timestamp);
     }
 
     @Override
     protected NodeInfo<MaxOverTime> info() {
-        return NodeInfo.create(this, MaxOverTime::new, field(), filter(), window());
+        return NodeInfo.create(this, MaxOverTime::new, field(), filter(), window(), timestamp);
     }
 
     @Override
     public MaxOverTime replaceChildren(List<Expression> newChildren) {
-        return new MaxOverTime(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2));
+        return new MaxOverTime(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2), newChildren.get(3));
     }
 
     @Override
@@ -145,11 +139,8 @@ public class MaxOverTime extends TimeSeriesAggregateFunction
     @Override
     public Expression surrogate() {
         if (field().dataType() == DataType.EXPONENTIAL_HISTOGRAM || field().dataType() == DataType.TDIGEST) {
-            return ExtractHistogramComponent.create(
-                source(),
-                new DeltaOnlyHistogramMergeOverTime(source(), field(), filter(), window()),
-                Component.MAX
-            );
+            var mergeOverTime = new HistogramMergeOverTime(source(), field(), filter(), window(), timestamp);
+            return ExtractHistogramComponent.create(source(), mergeOverTime, Component.MAX);
         }
         return null;
     }
@@ -157,5 +148,10 @@ public class MaxOverTime extends TimeSeriesAggregateFunction
     @Override
     public Max perTimeSeriesAggregation() {
         return new Max(source(), field(), filter(), window());
+    }
+
+    @Override
+    public Expression timestamp() {
+        return timestamp;
     }
 }

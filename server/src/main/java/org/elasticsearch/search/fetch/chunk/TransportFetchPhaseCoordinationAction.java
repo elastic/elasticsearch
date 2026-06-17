@@ -235,6 +235,7 @@ public class TransportFetchPhaseCoordinationAction extends HandledTransportActio
                 dataNodeResult.getSearchShardTarget(),
                 dataNodeResult.profileResult()
             );
+            finalResult.setDirectoryMetrics(dataNodeResult.getDirectoryMetrics());
 
             ActionListener.respondAndRelease(listener.map(Response::new), finalResult);
         }, listener::onFailure), () -> Releasables.close(registration, responseStream::decRef));

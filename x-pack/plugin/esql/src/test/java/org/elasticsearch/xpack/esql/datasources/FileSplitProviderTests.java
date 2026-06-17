@@ -9,7 +9,10 @@ package org.elasticsearch.xpack.esql.datasources;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.test.ESTestCase;
@@ -22,6 +25,7 @@ import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.datasource.csv.CsvFormatReader;
 import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
 import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
@@ -31,6 +35,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.RangeAwareFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.RangeAwareFormatReader.SplitRange;
 import org.elasticsearch.xpack.esql.datasources.spi.RangeReadContext;
+import org.elasticsearch.xpack.esql.datasources.spi.RecordSplitter;
 import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SplitDiscoveryContext;
@@ -62,8 +67,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.lessThan;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.mock;
@@ -578,7 +586,9 @@ public class FileSplitProviderTests extends ESTestCase {
     ) throws IOException {
         SegmentableFormatReader mockReader = mock(SegmentableFormatReader.class);
         when(mockReader.minimumSegmentSize()).thenReturn(1024L);
-        when(mockReader.findNextRecordBoundary(any())).thenAnswer(invocation -> {
+        RecordSplitter mockSplitter = mock(RecordSplitter.class);
+        when(mockReader.recordSplitter(anyInt())).thenReturn(mockSplitter);
+        when(mockSplitter.findNextRecordBoundary(any())).thenAnswer(invocation -> {
             InputStream in = invocation.getArgument(0);
             long consumed = 0;
             int b;
@@ -640,7 +650,7 @@ public class FileSplitProviderTests extends ESTestCase {
             }
         }
         assertEquals(fileLength, expectedOffset);
-        verify(mockReader, atLeastOnce()).findNextRecordBoundary(any());
+        verify(mockSplitter, atLeastOnce()).findNextRecordBoundary(any());
     }
 
     /**
@@ -650,9 +660,7 @@ public class FileSplitProviderTests extends ESTestCase {
      * starts and that reading each split yields the correct total row count.
      */
     public void testRecordAlignedMacroSplitBoundariesRespectCsvQuoting() throws IOException {
-        var blockFactory = org.elasticsearch.compute.data.BlockFactory.builder(
-            org.elasticsearch.common.util.BigArrays.NON_RECYCLING_INSTANCE
-        ).breaker(new org.elasticsearch.common.breaker.NoopCircuitBreaker("test")).build();
+        var blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("test")).build();
 
         // Build a CSV payload exceeding 3 MiB so that at least two splits are produced
         // (minimumSegmentSize defaults to 1 MiB). Every third row contains ""-escaped
@@ -674,11 +682,17 @@ public class FileSplitProviderTests extends ESTestCase {
         long fileLength = payload.length;
         assertTrue("payload must exceed 2 MiB for multiple splits", fileLength > 2 * 1024 * 1024);
 
-        var csvReader = new org.elasticsearch.xpack.esql.datasource.csv.CsvFormatReader(blockFactory);
+        var csvReader = new CsvFormatReader(blockFactory);
         StorageObject obj = createInMemoryStorageObject(payload, StoragePath.of("mem://test.csv"));
 
         long stride = fileLength / 4;
-        List<Long> starts = FileSplitProvider.computeRecordAlignedMacroSplitStarts(csvReader, obj, fileLength, stride);
+        List<Long> starts = FileSplitProvider.computeRecordAlignedMacroSplitStarts(
+            csvReader,
+            obj,
+            fileLength,
+            stride,
+            SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES
+        );
 
         assertTrue("Expected multiple macro-split boundaries, got " + starts.size(), starts.size() > 1);
         assertEquals("First boundary must be 0", 0L, starts.get(0).longValue());
@@ -697,7 +711,7 @@ public class FileSplitProviderTests extends ESTestCase {
 
         // Read each split range with recordAligned=true and count total rows.
         var meta = csvReader.metadata(obj);
-        var withSchema = (org.elasticsearch.xpack.esql.datasource.csv.CsvFormatReader) csvReader.withSchema(meta.schema());
+        var withSchema = csvReader.withSchema(meta.schema());
         long totalRows = 0;
         for (int i = 0; i < starts.size(); i++) {
             long start = starts.get(i);
@@ -707,7 +721,7 @@ public class FileSplitProviderTests extends ESTestCase {
                 start,
                 end - start
             );
-            var ctx = org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext.builder()
+            var ctx = FormatReadContext.builder()
                 .projectedColumns(List.of("id", "name", "note"))
                 .batchSize(500)
                 .firstSplit(i == 0)
@@ -725,16 +739,68 @@ public class FileSplitProviderTests extends ESTestCase {
         assertEquals("Total rows across all splits must match data row count", dataRows, totalRows);
     }
 
+    /**
+     * Regression guard: {@link FileSplitProvider#computeRecordAlignedMacroSplitStarts} opens a
+     * range stream for each stride probe, reads only enough bytes to find the next record
+     * boundary, then must call {@link StorageObject#abortStream} — not a draining {@code close()}.
+     */
+    public void testComputeRecordAlignedMacroSplitStartsDoesNotDrainStream() throws IOException {
+        var blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("test")).build();
+
+        StringBuilder csv = new StringBuilder("id,name\n");
+        while (csv.length() < 3 * 1024 * 1024) {
+            csv.append(csv.length()).append(",value\n");
+        }
+        byte[] payload = csv.toString().getBytes(StandardCharsets.UTF_8);
+        long fileLength = payload.length;
+
+        DrainSimulatingStorageObject.Tracking tracking = new DrainSimulatingStorageObject.Tracking();
+        StorageObject object = DrainSimulatingStorageObject.create(payload, tracking);
+
+        var csvReader = new CsvFormatReader(blockFactory);
+        long stride = fileLength / 4;
+        List<Long> starts = FileSplitProvider.computeRecordAlignedMacroSplitStarts(
+            csvReader,
+            object,
+            fileLength,
+            stride,
+            SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES
+        );
+
+        assertThat("expected multiple macro-split boundaries", starts.size(), greaterThan(1));
+        assertTrue("each boundary probe must abort the underlying stream", tracking.abortCalls.get() >= starts.size() - 1);
+        assertThat(
+            "boundary probes must not drain the range streams; consumed " + tracking.bytesConsumed.get() + " of " + fileLength + " bytes",
+            tracking.bytesConsumed.get(),
+            lessThan(fileLength / 2)
+        );
+    }
+
+    public void testRecordAlignedMacroSplitDiscoveryStopsOnMaxRecordSize() throws IOException {
+        var blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("test")).build();
+        StringBuilder csv = new StringBuilder("ok\n").append("x".repeat(128)).append('\n');
+        while (csv.length() < 2 * 1024 * 1024) {
+            csv.append("tail\n");
+        }
+        byte[] payload = csv.toString().getBytes(StandardCharsets.UTF_8);
+        StorageObject object = createInMemoryStorageObject(payload, StoragePath.of("mem://test.csv"));
+        CsvFormatReader csvReader = new CsvFormatReader(blockFactory);
+
+        List<Long> starts = FileSplitProvider.computeRecordAlignedMacroSplitStarts(csvReader, object, payload.length, 4, 16);
+
+        assertEquals(List.of(0L), starts);
+    }
+
     private static StorageObject createInMemoryStorageObject(byte[] data, StoragePath path) {
         return new StorageObject() {
             @Override
             public InputStream newStream() {
-                return new java.io.ByteArrayInputStream(data);
+                return new ByteArrayInputStream(data);
             }
 
             @Override
             public InputStream newStream(long position, long length) {
-                return new java.io.ByteArrayInputStream(data, (int) position, (int) length);
+                return new ByteArrayInputStream(data, (int) position, (int) length);
             }
 
             @Override
@@ -743,8 +809,8 @@ public class FileSplitProviderTests extends ESTestCase {
             }
 
             @Override
-            public java.time.Instant lastModified() {
-                return java.time.Instant.EPOCH;
+            public Instant lastModified() {
+                return Instant.EPOCH;
             }
 
             @Override

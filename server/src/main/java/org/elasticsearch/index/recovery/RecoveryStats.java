@@ -8,6 +8,7 @@
  */
 package org.elasticsearch.index.recovery;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -26,14 +27,20 @@ import java.util.concurrent.atomic.AtomicLong;
  */
 public class RecoveryStats implements ToXContentFragment, Writeable {
 
+    private static final TransportVersion SOURCE_QUEUED_STATS = TransportVersion.fromName("recovery_source_queued_stats");
+
     private final AtomicInteger currentAsSource = new AtomicInteger();
     private final AtomicInteger currentAsTarget = new AtomicInteger();
+    private final AtomicInteger currentAsSourceQueued = new AtomicInteger();
     private final AtomicLong throttleTimeInNanos = new AtomicLong();
 
     public RecoveryStats() {}
 
     public RecoveryStats(StreamInput in) throws IOException {
         currentAsSource.set(in.readVInt());
+        if (in.getTransportVersion().supports(SOURCE_QUEUED_STATS)) {
+            currentAsSourceQueued.set(in.readVInt());
+        } // else we cannot have any queued recoveries, the cluster is too old
         currentAsTarget.set(in.readVInt());
         throttleTimeInNanos.set(in.readLong());
     }
@@ -42,6 +49,7 @@ public class RecoveryStats implements ToXContentFragment, Writeable {
         if (recoveryStats != null) {
             this.currentAsSource.addAndGet(recoveryStats.currentAsSource());
             this.currentAsTarget.addAndGet(recoveryStats.currentAsTarget());
+            this.currentAsSourceQueued.addAndGet(recoveryStats.currentAsSourceQueued());
         }
         addTotals(recoveryStats);
     }
@@ -67,6 +75,20 @@ public class RecoveryStats implements ToXContentFragment, Writeable {
     }
 
     /**
+     * Number of queued recoveries for which a shard serves as a source
+     */
+    public int currentAsSourceQueued() {
+        return currentAsSourceQueued.get();
+    }
+
+    /**
+     * Returns true if there are no ongoing or queued recoveries
+     */
+    public boolean noCurrentRecoveries() {
+        return currentAsSourceQueued.get() == 0 && currentAsSource.get() == 0 && currentAsTarget.get() == 0;
+    }
+
+    /**
      * Total time recoveries waited due to throttling
      */
     public TimeValue throttleTime() {
@@ -89,6 +111,14 @@ public class RecoveryStats implements ToXContentFragment, Writeable {
         currentAsSource.decrementAndGet();
     }
 
+    public void incCurrentAsSourceQueued() {
+        currentAsSourceQueued.incrementAndGet();
+    }
+
+    public void decCurrentAsSourceQueued() {
+        currentAsSourceQueued.decrementAndGet();
+    }
+
     public void addThrottleTime(long nanos) {
         throttleTimeInNanos.addAndGet(nanos);
     }
@@ -97,6 +127,7 @@ public class RecoveryStats implements ToXContentFragment, Writeable {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(Fields.RECOVERY);
         builder.field(Fields.CURRENT_AS_SOURCE, currentAsSource());
+        builder.field(Fields.CURRENT_AS_SOURCE_QUEUED, currentAsSourceQueued());
         builder.field(Fields.CURRENT_AS_TARGET, currentAsTarget());
         builder.humanReadableField(Fields.THROTTLE_TIME_IN_MILLIS, Fields.THROTTLE_TIME, throttleTime());
         builder.endObject();
@@ -106,6 +137,7 @@ public class RecoveryStats implements ToXContentFragment, Writeable {
     static final class Fields {
         static final String RECOVERY = "recovery";
         static final String CURRENT_AS_SOURCE = "current_as_source";
+        static final String CURRENT_AS_SOURCE_QUEUED = "current_as_source_queued";
         static final String CURRENT_AS_TARGET = "current_as_target";
         static final String THROTTLE_TIME = "throttle_time";
         static final String THROTTLE_TIME_IN_MILLIS = "throttle_time_in_millis";
@@ -114,6 +146,11 @@ public class RecoveryStats implements ToXContentFragment, Writeable {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVInt(currentAsSource.get());
+        if (out.getTransportVersion().supports(SOURCE_QUEUED_STATS)) {
+            out.writeVInt(currentAsSourceQueued.get());
+        } else {
+            assert currentAsSourceQueued.get() == 0 : currentAsSourceQueued.get();
+        }
         out.writeVInt(currentAsTarget.get());
         out.writeLong(throttleTimeInNanos.get());
     }
@@ -124,20 +161,23 @@ public class RecoveryStats implements ToXContentFragment, Writeable {
         if (o == null || getClass() != o.getClass()) return false;
         RecoveryStats that = (RecoveryStats) o;
         return currentAsSource() == that.currentAsSource()
+            && currentAsSourceQueued() == that.currentAsSourceQueued()
             && currentAsTarget() == that.currentAsTarget()
             && Objects.equals(throttleTime(), that.throttleTime());
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(currentAsSource(), currentAsTarget(), throttleTime());
+        return Objects.hash(currentAsSource(), currentAsSourceQueued(), currentAsTarget(), throttleTime());
     }
 
     @Override
     public String toString() {
         return "recoveryStats, currentAsSource ["
             + currentAsSource()
-            + "],currentAsTarget ["
+            + "], currentAsSourceQueued ["
+            + currentAsSourceQueued()
+            + "], currentAsTarget ["
             + currentAsTarget()
             + "], throttle ["
             + throttleTime()

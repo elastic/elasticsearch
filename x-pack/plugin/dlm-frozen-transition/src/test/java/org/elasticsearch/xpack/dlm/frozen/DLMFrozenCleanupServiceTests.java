@@ -28,6 +28,7 @@ import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleService;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.repositories.RepositoriesService;
@@ -148,7 +149,7 @@ public class DLMFrozenCleanupServiceTests extends ESTestCase {
 
     private IndexMetadata createDlmManagedIndex(String name) {
         return IndexMetadata.builder(name)
-            .settings(settings(IndexVersion.current()).put(DLMConvertToFrozen.DLM_CREATED_SETTING_KEY, true).build())
+            .settings(settings(IndexVersion.current()).put(DataStreamLifecycleService.DLM_CREATED_SETTING_KEY, true).build())
             .numberOfShards(1)
             .numberOfReplicas(0)
             .build();
@@ -157,7 +158,7 @@ public class DLMFrozenCleanupServiceTests extends ESTestCase {
     private IndexMetadata createDlmManagedMountedIndex(String name, String sourceIndexName) {
         return IndexMetadata.builder(name)
             .settings(
-                settings(IndexVersion.current()).put(DLMConvertToFrozen.DLM_CREATED_SETTING_KEY, true)
+                settings(IndexVersion.current()).put(DataStreamLifecycleService.DLM_CREATED_SETTING_KEY, true)
                     .put(SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOT_INDEX_NAME_SETTING_KEY, sourceIndexName)
                     .build()
             )
@@ -169,7 +170,7 @@ public class DLMFrozenCleanupServiceTests extends ESTestCase {
     private IndexMetadata createDlmManagedClonedIndex(String name, String sourceIndexName, String sourceIndexUuid) {
         return IndexMetadata.builder(name)
             .settings(
-                settings(IndexVersion.current()).put(DLMConvertToFrozen.DLM_CREATED_SETTING_KEY, true)
+                settings(IndexVersion.current()).put(DataStreamLifecycleService.DLM_CREATED_SETTING_KEY, true)
                     .put(IndexMetadata.INDEX_RESIZE_SOURCE_NAME_KEY, sourceIndexName)
                     .put(IndexMetadata.INDEX_RESIZE_SOURCE_UUID_KEY, sourceIndexUuid)
                     .build()
@@ -333,7 +334,7 @@ public class DLMFrozenCleanupServiceTests extends ESTestCase {
 
         IndexMetadata frozenMeta = IndexMetadata.builder(frozenIndex)
             .settings(
-                settings(IndexVersion.current()).put(DLMConvertToFrozen.DLM_CREATED_SETTING_KEY, true)
+                settings(IndexVersion.current()).put(DataStreamLifecycleService.DLM_CREATED_SETTING_KEY, true)
                     .put(SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOT_INDEX_NAME_SETTING_KEY, cloneIndex)
                     .put(IndexMetadata.INDEX_RESIZE_SOURCE_NAME_KEY, sourceIndex)
                     .put(IndexMetadata.INDEX_RESIZE_SOURCE_UUID_KEY, randomAlphaOfLength(10))

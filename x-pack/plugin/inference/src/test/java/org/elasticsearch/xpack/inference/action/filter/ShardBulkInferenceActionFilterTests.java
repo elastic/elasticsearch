@@ -28,6 +28,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.InferenceFieldMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.Strings;
@@ -180,6 +181,7 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
         Task task = mock(Task.class);
         BulkShardRequest request = new BulkShardRequest(
             new ShardId("test", "test", 0),
+            SplitShardCountSummary.IRRELEVANT,
             WriteRequest.RefreshPolicy.NONE,
             new BulkItemRequest[0]
         );
@@ -231,7 +233,12 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
         );
         BulkItemRequest[] items = new BulkItemRequest[1];
         items[0] = new BulkItemRequest(0, new IndexRequest("test").source("obj.field1", "Test"));
-        BulkShardRequest request = new BulkShardRequest(new ShardId("test", "test", 0), WriteRequest.RefreshPolicy.NONE, items);
+        BulkShardRequest request = new BulkShardRequest(
+            new ShardId("test", "test", 0),
+            SplitShardCountSummary.IRRELEVANT,
+            WriteRequest.RefreshPolicy.NONE,
+            items
+        );
         request.setInferenceFieldMap(inferenceFieldMap);
 
         filter.apply(task, TransportShardBulkAction.ACTION_NAME, request, actionListener, actionFilterChain);
@@ -287,7 +294,12 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
         );
         BulkItemRequest[] items = new BulkItemRequest[1];
         items[0] = new BulkItemRequest(0, new IndexRequest("test").source("obj.field1", "Test"));
-        BulkShardRequest request = new BulkShardRequest(new ShardId("test", "test", 0), WriteRequest.RefreshPolicy.NONE, items);
+        BulkShardRequest request = new BulkShardRequest(
+            new ShardId("test", "test", 0),
+            SplitShardCountSummary.IRRELEVANT,
+            WriteRequest.RefreshPolicy.NONE,
+            items
+        );
         request.setInferenceFieldMap(inferenceFieldMap);
 
         filter.apply(task, TransportShardBulkAction.ACTION_NAME, request, actionListener, actionFilterChain);
@@ -343,7 +355,12 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
                 new IndexRequest("index").source(docMap, XContentType.JSON)
             );
         }
-        BulkShardRequest request = new BulkShardRequest(new ShardId("test", "test", 0), WriteRequest.RefreshPolicy.NONE, items);
+        BulkShardRequest request = new BulkShardRequest(
+            new ShardId("test", "test", 0),
+            SplitShardCountSummary.IRRELEVANT,
+            WriteRequest.RefreshPolicy.NONE,
+            items
+        );
         request.setInferenceFieldMap(inferenceFieldMap);
         filter.apply(task, TransportShardBulkAction.ACTION_NAME, request, actionListener, actionFilterChain);
         awaitLatch(chainExecuted, 10, TimeUnit.SECONDS);
@@ -413,7 +430,12 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
         items[0] = new BulkItemRequest(0, new IndexRequest("index").source("field1", "I am a failure"));
         items[1] = new BulkItemRequest(1, new IndexRequest("index").source("field1", "I am a success"));
         items[2] = new BulkItemRequest(2, new IndexRequest("index").source("field1", "I am a failure"));
-        BulkShardRequest request = new BulkShardRequest(new ShardId("test", "test", 0), WriteRequest.RefreshPolicy.NONE, items);
+        BulkShardRequest request = new BulkShardRequest(
+            new ShardId("test", "test", 0),
+            SplitShardCountSummary.IRRELEVANT,
+            WriteRequest.RefreshPolicy.NONE,
+            items
+        );
         request.setInferenceFieldMap(inferenceFieldMap);
         filter.apply(task, TransportShardBulkAction.ACTION_NAME, request, actionListener, actionFilterChain);
         awaitLatch(chainExecuted, 10, TimeUnit.SECONDS);
@@ -506,7 +528,12 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
         items[2] = new BulkItemRequest(2, new IndexRequest("index").source("obj.field1", "I am a failure"));
         items[3] = new BulkItemRequest(3, new UpdateRequest().doc(new IndexRequest("index").source(Map.of("obj", sourceWithNull))));
         items[4] = new BulkItemRequest(4, new UpdateRequest().doc(new IndexRequest("index").source(Map.of("field2", "value"))));
-        BulkShardRequest request = new BulkShardRequest(new ShardId("test", "test", 0), WriteRequest.RefreshPolicy.NONE, items);
+        BulkShardRequest request = new BulkShardRequest(
+            new ShardId("test", "test", 0),
+            SplitShardCountSummary.IRRELEVANT,
+            WriteRequest.RefreshPolicy.NONE,
+            items
+        );
         request.setInferenceFieldMap(inferenceFieldMap);
         filter.apply(task, TransportShardBulkAction.ACTION_NAME, request, actionListener, actionFilterChain);
         awaitLatch(chainExecuted, 10, TimeUnit.SECONDS);
@@ -560,7 +587,12 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
         items[0] = new BulkItemRequest(0, new IndexRequest("index").source(Map.of("semantic_text_field", "")));
         items[1] = new BulkItemRequest(1, new IndexRequest("index").source(Map.of("semantic_text_field", " ")));
         items[2] = new BulkItemRequest(2, new UpdateRequest().doc(new IndexRequest("index").source(Map.of("semantic_text_field", "  "))));
-        BulkShardRequest request = new BulkShardRequest(new ShardId("test", "test", 0), WriteRequest.RefreshPolicy.NONE, items);
+        BulkShardRequest request = new BulkShardRequest(
+            new ShardId("test", "test", 0),
+            SplitShardCountSummary.IRRELEVANT,
+            WriteRequest.RefreshPolicy.NONE,
+            items
+        );
         request.setInferenceFieldMap(inferenceFieldMap);
         filter.apply(task, TransportShardBulkAction.ACTION_NAME, request, actionListener, actionFilterChain);
         awaitLatch(chainExecuted, 10, TimeUnit.SECONDS);
@@ -623,7 +655,12 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
         };
         ActionListener actionListener = mock(ActionListener.class);
         Task task = mock(Task.class);
-        BulkShardRequest original = new BulkShardRequest(new ShardId("test", "test", 0), WriteRequest.RefreshPolicy.NONE, originalRequests);
+        BulkShardRequest original = new BulkShardRequest(
+            new ShardId("test", "test", 0),
+            SplitShardCountSummary.IRRELEVANT,
+            WriteRequest.RefreshPolicy.NONE,
+            originalRequests
+        );
         original.setInferenceFieldMap(inferenceFieldMap);
         filter.apply(task, TransportShardBulkAction.ACTION_NAME, original, actionListener, actionFilterChain);
         awaitLatch(chainExecuted, 10, TimeUnit.SECONDS);
@@ -743,7 +780,12 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
             new UpdateRequest().doc(new IndexRequest("index").id("doc_3").source("non_inference_field", "yet another updated value"))
         );
 
-        BulkShardRequest request = new BulkShardRequest(new ShardId("test", "test", 0), WriteRequest.RefreshPolicy.NONE, items);
+        BulkShardRequest request = new BulkShardRequest(
+            new ShardId("test", "test", 0),
+            SplitShardCountSummary.IRRELEVANT,
+            WriteRequest.RefreshPolicy.NONE,
+            items
+        );
         request.setInferenceFieldMap(inferenceFieldMap);
         filter.apply(task, TransportShardBulkAction.ACTION_NAME, request, actionListener, actionFilterChain);
         awaitLatch(chainExecuted, 10, TimeUnit.SECONDS);
@@ -828,7 +870,12 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
         items[1] = new BulkItemRequest(1, new IndexRequest("index").id("doc_1").source(doc1Source));
         items[2] = new BulkItemRequest(2, new IndexRequest("index").id("doc_2").source("non_inference_field", "baz"));
 
-        BulkShardRequest request = new BulkShardRequest(new ShardId("test", "test", 0), WriteRequest.RefreshPolicy.NONE, items);
+        BulkShardRequest request = new BulkShardRequest(
+            new ShardId("test", "test", 0),
+            SplitShardCountSummary.IRRELEVANT,
+            WriteRequest.RefreshPolicy.NONE,
+            items
+        );
         request.setInferenceFieldMap(inferenceFieldMap);
         filter.apply(task, TransportShardBulkAction.ACTION_NAME, request, actionListener, actionFilterChain);
         awaitLatch(chainExecuted, 10, TimeUnit.SECONDS);
@@ -913,7 +960,12 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
         items[1] = new BulkItemRequest(1, new IndexRequest("index").id("doc_1").source(doc1Source));
         items[2] = new BulkItemRequest(2, new IndexRequest("index").id("doc_2").source("non_inference_field", "baz"));
 
-        BulkShardRequest request = new BulkShardRequest(new ShardId("test", "test", 0), WriteRequest.RefreshPolicy.NONE, items);
+        BulkShardRequest request = new BulkShardRequest(
+            new ShardId("test", "test", 0),
+            SplitShardCountSummary.IRRELEVANT,
+            WriteRequest.RefreshPolicy.NONE,
+            items
+        );
         request.setInferenceFieldMap(inferenceFieldMap);
         filter.apply(task, TransportShardBulkAction.ACTION_NAME, request, actionListener, actionFilterChain);
         awaitLatch(chainExecuted, 10, TimeUnit.SECONDS);
@@ -1028,7 +1080,12 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
         items[2] = new BulkItemRequest(2, new IndexRequest("index").id("doc_2").source(doc2Source));
         items[3] = new BulkItemRequest(3, new IndexRequest("index").id("doc_3").source("non_inference_field", "baz"));
 
-        BulkShardRequest request = new BulkShardRequest(new ShardId("test", "test", 0), WriteRequest.RefreshPolicy.NONE, items);
+        BulkShardRequest request = new BulkShardRequest(
+            new ShardId("test", "test", 0),
+            SplitShardCountSummary.IRRELEVANT,
+            WriteRequest.RefreshPolicy.NONE,
+            items
+        );
         request.setInferenceFieldMap(inferenceFieldMap);
         filter.apply(task, TransportShardBulkAction.ACTION_NAME, request, actionListener, actionFilterChain);
         awaitLatch(chainExecuted, 10, TimeUnit.SECONDS);
@@ -1124,7 +1181,12 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
             );
         }
 
-        BulkShardRequest request = new BulkShardRequest(new ShardId("test", "test", 0), WriteRequest.RefreshPolicy.NONE, items);
+        BulkShardRequest request = new BulkShardRequest(
+            new ShardId("test", "test", 0),
+            SplitShardCountSummary.IRRELEVANT,
+            WriteRequest.RefreshPolicy.NONE,
+            items
+        );
         request.setInferenceFieldMap(inferenceFieldMap);
         filter.apply(task, TransportShardBulkAction.ACTION_NAME, request, actionListener, actionFilterChain);
         awaitLatch(chainExecuted, 10, TimeUnit.SECONDS);
@@ -1208,8 +1270,8 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
         InferenceService inferenceService = mock(InferenceService.class);
         Answer<?> chunkedInferAnswer = invocationOnMock -> {
             StaticModel model = (StaticModel) invocationOnMock.getArguments()[0];
-            List<ChunkInferenceInput> inputs = (List<ChunkInferenceInput>) invocationOnMock.getArguments()[2];
-            ActionListener<List<ChunkedInference>> listener = (ActionListener<List<ChunkedInference>>) invocationOnMock.getArguments()[6];
+            List<ChunkInferenceInput> inputs = (List<ChunkInferenceInput>) invocationOnMock.getArguments()[1];
+            ActionListener<List<ChunkedInference>> listener = (ActionListener<List<ChunkedInference>>) invocationOnMock.getArguments()[5];
 
             Runnable runnable = () -> {
                 List<ChunkedInference> results = new ArrayList<>();
@@ -1236,7 +1298,7 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
 
             return null;
         };
-        doAnswer(chunkedInferAnswer).when(inferenceService).chunkedInfer(any(), any(), any(), any(), any(), any(), any());
+        doAnswer(chunkedInferAnswer).when(inferenceService).chunkedInfer(any(), any(), any(), any(), any(), any());
 
         Answer<?> embeddingInferAnswer = invocationOnMock -> {
             StaticModel model = (StaticModel) invocationOnMock.getArguments()[0];

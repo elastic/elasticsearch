@@ -68,11 +68,13 @@ class PrometheusQueryResponseListener implements ActionListener<EsqlQueryRespons
     }
 
     private final RestChannel channel;
+    private final String resultType;
     private final QueryMode mode;
     private final int limit;
 
-    PrometheusQueryResponseListener(RestChannel channel, QueryMode mode, int limit) {
+    PrometheusQueryResponseListener(RestChannel channel, String resultType, QueryMode mode, int limit) {
         this.channel = channel;
+        this.resultType = resultType;
         this.mode = mode;
         this.limit = limit;
     }
@@ -84,7 +86,7 @@ class PrometheusQueryResponseListener implements ActionListener<EsqlQueryRespons
         // and crash the node.
         try {
             EsqlResponse response = queryResponse.response();
-            XContentBuilder builder = convertToPrometheusJson(response, mode, limit);
+            XContentBuilder builder = convertToPrometheusJson(response, resultType, mode, limit);
             channel.sendResponse(new RestResponse(RestStatus.OK, builder));
         } catch (Exception e) {
             sendErrorResponse(e);
@@ -113,11 +115,11 @@ class PrometheusQueryResponseListener implements ActionListener<EsqlQueryRespons
      *   <li>Column N-1 (last): {@code step} ({@code long} or {@code List<Long>}, epoch milliseconds)</li>
      * </ol>
      */
-    static XContentBuilder convertToPrometheusJson(EsqlResponse response, QueryMode mode) throws IOException {
-        return convertToPrometheusJson(response, mode, Integer.MAX_VALUE);
+    static XContentBuilder convertToPrometheusJson(EsqlResponse response, String resultType, QueryMode mode) throws IOException {
+        return convertToPrometheusJson(response, resultType, mode, Integer.MAX_VALUE);
     }
 
-    static XContentBuilder convertToPrometheusJson(EsqlResponse response, QueryMode mode, int limit) throws IOException {
+    static XContentBuilder convertToPrometheusJson(EsqlResponse response, String resultType, QueryMode mode, int limit) throws IOException {
         List<? extends ColumnInfo> columns = response.columns();
         if (columns.size() < 1 || VALUE_COLUMN.equals(columns.get(VALUE_COL_IDX).name()) == false) {
             throw new IllegalStateException("PROMQL response is missing required 'value' column at index " + VALUE_COL_IDX);
@@ -133,10 +135,16 @@ class PrometheusQueryResponseListener implements ActionListener<EsqlQueryRespons
         builder.startObject();
         builder.field("status", "success");
         builder.startObject("data");
-        builder.field("resultType", mode == QueryMode.RANGE ? "matrix" : "vector");
-        builder.startArray("result");
-        boolean truncated = writeResultArray(builder, response, mode, limit, columns, stepColIdx, useSeriesCol);
-        builder.endArray(); // result
+        builder.field("resultType", resultType);
+        boolean truncated;
+        if ("scalar".equals(resultType)) {
+            writeScalarResult(builder, response, columns, stepColIdx);
+            truncated = false;
+        } else {
+            builder.startArray("result");
+            truncated = writeResultArray(builder, response, mode, limit, columns, stepColIdx, useSeriesCol);
+            builder.endArray(); // result
+        }
         builder.endObject(); // data
         if (truncated) {
             builder.startArray("warnings");
@@ -145,6 +153,39 @@ class PrometheusQueryResponseListener implements ActionListener<EsqlQueryRespons
         }
         builder.endObject(); // root
         return builder;
+    }
+
+    private static void writeScalarResult(
+        XContentBuilder builder,
+        EsqlResponse response,
+        List<? extends ColumnInfo> columns,
+        int stepColIdx
+    ) throws IOException {
+        for (Iterable<Object> row : response.rows()) {
+            Object[] values = toArray(row, columns.size());
+            List<Object> valueList = toList(values[VALUE_COL_IDX]);
+            List<Object> stepList = toList(values[stepColIdx]);
+            if (valueList == null || stepList == null || valueList.isEmpty()) {
+                continue;
+            }
+            if (valueList.size() != stepList.size()) {
+                throw new IllegalStateException(
+                    "PROMQL response has misaligned collapsed step/value columns: step count ["
+                        + stepList.size()
+                        + "], value count ["
+                        + valueList.size()
+                        + "]"
+                );
+            }
+            int last = valueList.size() - 1;
+            builder.startArray("result");
+            builder.value(parseTimestamp(stepList.get(last)));
+            builder.value(formatSampleValue(valueList.get(last)));
+            builder.endArray();
+            return;
+        }
+        builder.startArray("result");
+        builder.endArray();
     }
 
     private static boolean writeResultArray(
@@ -205,7 +246,11 @@ class PrometheusQueryResponseListener implements ActionListener<EsqlQueryRespons
             writeMetricFromSeriesJson(builder, seriesJson);
         } else {
             for (int i = DIMENSION_COL_START_IDX; i < stepColIdx; i++) {
-                builder.field(columns.get(i).name(), values[i] != null ? values[i].toString() : "");
+                // Omit null labels (e.g. a null-filled missing BY label) rather than emitting "". PromQL distinguishes
+                // an absent label from one whose value is empty; this mirrors writeMetricFields on the _timeseries path.
+                if (values[i] != null) {
+                    builder.field(columns.get(i).name(), values[i].toString());
+                }
             }
         }
         builder.endObject(); // metric

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.prometheus;
 
+import org.apache.http.message.BasicNameValuePair;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.test.rest.ObjectPath;
@@ -28,10 +29,11 @@ public class PrometheusInstantQueryRestIT extends AbstractPrometheusRestIT {
      * Verifies that querying when no Prometheus indices exist returns an empty result instead of an error.
      */
     public void testInstantQueryWithNoPrometheusIndicesReturnsEmptyResult() throws Exception {
-        Request request = new Request("GET", "/_prometheus/api/v1/query");
-        request.addParameter("query", "nonexistent_metric");
-        request.addParameter("time", "2026-01-01T00:05:00Z");
-        addReadAuth(request);
+        Request request = prometheusReadRequest(
+            "/_prometheus/api/v1/query",
+            new BasicNameValuePair("query", "nonexistent_metric"),
+            new BasicNameValuePair("time", "2026-01-01T00:05:00Z")
+        );
 
         Response response = client().performRequest(request);
         assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
@@ -63,9 +65,10 @@ public class PrometheusInstantQueryRestIT extends AbstractPrometheusRestIT {
     public void testInstantQueryWithoutTimeDefaultsToNow() throws Exception {
         ingestTestData("test_gauge_iq");
 
-        Request request = new Request("GET", "/_prometheus/api/v1/query");
-        request.addParameter("query", "test_gauge_iq{job=\"test_job\"}");
-        addReadAuth(request);
+        Request request = prometheusReadRequest(
+            "/_prometheus/api/v1/query",
+            new BasicNameValuePair("query", "test_gauge_iq{job=\"test_job\"}")
+        );
 
         Response response = client().performRequest(request);
         assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
@@ -74,6 +77,40 @@ public class PrometheusInstantQueryRestIT extends AbstractPrometheusRestIT {
         assertThat(responsePath.evaluate("status"), equalTo("success"));
         assertThat(responsePath.evaluate("data.resultType"), equalTo("vector"));
         // Test data is in the past, so current-time lookback returns no results — that's expected.
+        assertThat(responsePath.evaluate("data.result"), empty());
+    }
+
+    public void testInstantQueryReturnsLatestSampleWithinDefaultLookback() throws Exception {
+        ingestTestData("test_gauge_iq");
+        // Evaluation time T = 00:08:00; default lookback = 5m, so window is (00:03:00, 00:08:00].
+        ObjectPath responsePath = executeInstantQuery("test_gauge_iq{job=\"test_job\"}", "2026-01-01T00:08:00Z", null);
+        assertThat(responsePath.evaluate("data.result"), hasSize(1));
+        assertThat(responsePath.evaluate("data.result.0.value"), equalTo(List.of(1767226080.0 /*=2026-01-01T00:08:00Z*/, "40.0")));
+    }
+
+    /**
+     * A pure scalar constant requires no index data: the result is produced entirely from the literal value.
+     */
+    public void testInstantQueryScalarConstantRequiresNoIndexData() throws Exception {
+        Request request = prometheusReadRequest(
+            "/_prometheus/api/v1/query",
+            new BasicNameValuePair("query", "3.14"),
+            new BasicNameValuePair("time", "2026-01-01T00:05:00Z")
+        );
+        Response response = client().performRequest(request);
+        assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
+
+        ObjectPath path = ObjectPath.createFromResponse(response);
+        assertThat(path.evaluate("status"), equalTo("success"));
+        assertThat(path.evaluate("data.resultType"), equalTo("scalar"));
+        // scalar result is [timestamp_seconds, value_string]
+        assertThat(path.evaluate("data.result"), equalTo(List.of(1767225900.0, "3.14")));
+    }
+
+    public void testInstantQueryDropsSeriesOutsideDefaultLookback() throws Exception {
+        ingestTestData("test_gauge_iq");
+
+        ObjectPath responsePath = executeInstantQuery("test_gauge_iq{job=\"test_job\"}", "2026-01-01T00:10:00Z", null);
         assertThat(responsePath.evaluate("data.result"), empty());
     }
 
@@ -90,11 +127,12 @@ public class PrometheusInstantQueryRestIT extends AbstractPrometheusRestIT {
     }
 
     private ObjectPath executeInstantQuery(String index) throws Exception {
+        return executeInstantQuery("test_gauge_iq{job=\"test_job\"}", "2026-01-01T00:05:00Z", index);
+    }
+
+    private ObjectPath executeInstantQuery(String query, String time, String index) throws Exception {
         String path = index == null ? "/_prometheus/api/v1/query" : "/_prometheus/" + index + "/api/v1/query";
-        Request request = new Request("GET", path);
-        request.addParameter("query", "test_gauge_iq{job=\"test_job\"}");
-        request.addParameter("time", "2026-01-01T00:05:00Z");
-        addReadAuth(request);
+        Request request = prometheusReadRequest(path, new BasicNameValuePair("query", query), new BasicNameValuePair("time", time));
 
         Response response = client().performRequest(request);
         assertThat(response.getStatusLine().getStatusCode(), equalTo(200));

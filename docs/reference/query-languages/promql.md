@@ -2,8 +2,8 @@
 description: Query metrics in Elasticsearch time series data streams with PromQL through the ES|QL runtime and a Prometheus-compatible HTTP API.
 navigation_title: PromQL
 applies_to:
-  stack: preview 9.4.0
-  serverless: preview
+  stack: preview 9.4, ga 9.5
+  serverless: ga
 products:
   - id: elasticsearch
 ---
@@ -12,11 +12,6 @@ products:
 
 The [Prometheus Query Language (PromQL)](https://prometheus.io/docs/prometheus/latest/querying/basics/) is a functional query language to select and aggregate metrics.
 
-
-::::{warning}
-This functionality is in technical preview and might be changed or removed in a future release.
-Elastic will work to fix any issues, but features in technical preview are not subject to the support SLA of official GA features.
-::::
 
 ## What is PromQL in {{es}}? [promql-what]
 

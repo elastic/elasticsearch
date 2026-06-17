@@ -115,6 +115,7 @@ public class StGeotile extends SpatialGridFunction implements EvaluatorMapper {
         returnType = "geotile",
         preview = true,
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.2.0") },
+        briefSummary = "Calculates the geotile of the supplied geo_point at the specified precision.",
         description = """
             Calculates the `geotile` of the supplied geo_point at the specified precision.
             The result is long encoded.

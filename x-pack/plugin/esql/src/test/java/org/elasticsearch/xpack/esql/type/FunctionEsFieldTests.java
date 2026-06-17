@@ -21,6 +21,8 @@ import org.elasticsearch.xpack.esql.expression.function.vector.L2Norm;
 
 import java.io.IOException;
 
+import static org.elasticsearch.xpack.esql.type.EsFieldTestUtils.randomSerializableEsField;
+
 public class FunctionEsFieldTests extends AbstractEsFieldTypeTests<FunctionEsField> {
     @Override
     protected FunctionEsField createTestInstance() {

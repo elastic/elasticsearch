@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 149881
+summary: "ESQL|DS: remove zstd-jni from Parquet codec via Panama FFI"
+type: enhancement

@@ -9,7 +9,8 @@
 
 package org.elasticsearch.ingest.attachment;
 
-import org.elasticsearch.telemetry.metric.LongHistogram;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.telemetry.metric.DoubleHistogram;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 
 /**
@@ -20,35 +21,41 @@ public final class AttachmentIngestMetrics {
     /**
      * Raw size of the attachment source field (before base64 decode) observed before the max-field size check runs.
      */
-    public static final String RAW_FIELD_BYTES_RECEIVED = "es.ingest.attachment.raw_field_bytes.received.histogram";
+    public static final String RAW_FIELD_SIZE_IN_MEGABYTES_RECEIVED =
+        "es.ingest.attachment.raw_field_size_in_megabytes.received.histogram";
 
     /**
      * Raw size of the attachment source field (before base64 decode) for attachments that were processed.
      */
-    public static final String RAW_FIELD_BYTES_PROCESSED = "es.ingest.attachment.raw_field_bytes.processed.histogram";
+    public static final String RAW_FIELD_SIZE_IN_MEGABYTES_PROCESSED =
+        "es.ingest.attachment.raw_field_size_in_megabytes.processed.histogram";
 
-    private final LongHistogram rawBytesReceived;
-    private final LongHistogram rawBytesProcessed;
+    private final DoubleHistogram rawMegabytesReceived;
+    private final DoubleHistogram rawMegabytesProcessed;
 
     public AttachmentIngestMetrics(MeterRegistry meterRegistry) {
-        this.rawBytesReceived = meterRegistry.registerLongHistogram(
-            RAW_FIELD_BYTES_RECEIVED,
-            "Raw attachment field sizes in bytes before max-field size checks.",
-            "bytes"
+        this.rawMegabytesReceived = meterRegistry.registerDoubleHistogram(
+            RAW_FIELD_SIZE_IN_MEGABYTES_RECEIVED,
+            "Raw attachment field sizes in mebibytes before max-field size checks.",
+            "megabytes"
         );
-        this.rawBytesProcessed = meterRegistry.registerLongHistogram(
-            RAW_FIELD_BYTES_PROCESSED,
-            "Raw attachment field sizes in bytes that completed attachment processing.",
-            "bytes"
+        this.rawMegabytesProcessed = meterRegistry.registerDoubleHistogram(
+            RAW_FIELD_SIZE_IN_MEGABYTES_PROCESSED,
+            "Raw attachment field sizes in mebibytes that completed attachment processing.",
+            "megabytes"
         );
     }
 
     public void recordRawBytesReceived(long rawBytes) {
-        rawBytesReceived.record(rawBytes);
+        rawMegabytesReceived.record(toMegabytes(rawBytes));
     }
 
     public void recordRawBytesProcessed(long rawBytes) {
-        rawBytesProcessed.record(rawBytes);
+        rawMegabytesProcessed.record(toMegabytes(rawBytes));
+    }
+
+    static double toMegabytes(long rawBytes) {
+        return ByteSizeValue.ofBytes(rawBytes).getMbFrac();
     }
 
 }

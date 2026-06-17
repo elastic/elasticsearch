@@ -263,20 +263,33 @@ public final class PromqlAttributesTranslationContext {
         }
 
         /**
-         * {@code BY(W)}: only {@code W} stays in scope, and the accumulated exclusions are <b>cleared</b>. A {@code BY}
-         * fixes its subtree's output to concrete keys, so any outer {@code WITHOUT} applies over those concrete labels
-         * (handled by the outer aggregate), not as a leaf {@code _timeseries} exclusion. Carrying the outer exclusions
-         * past a {@code BY} would wrongly inject a {@code _timeseries} into the inner concrete aggregate, making it group
-         * by {@code identity \ excluded} instead of {@code W} and leaking every other label.
+         * {@code BY(W)}: the child scope becomes exactly {@code W}, and the accumulated exclusions are <b>cleared</b>. A
+         * {@code BY} fixes its subtree's output to concrete keys, so any outer {@code WITHOUT} applies over those concrete
+         * labels (handled by the outer aggregate), not as a leaf {@code _timeseries} exclusion. Carrying the outer
+         * exclusions past a {@code BY} would wrongly inject a {@code _timeseries} into the inner concrete aggregate, making
+         * it group by {@code identity \ excluded} instead of {@code W} and leaking every other label.
          */
-        public InheritedAttributes including(List<Attribute> attributes) {
-            return new InheritedAttributes(canonicalizeByFieldName(attributes), List.of());
+        public InheritedAttributes limitedTo(List<Attribute> labels) {
+            return new InheritedAttributes(canonicalizeByFieldName(labels), List.of());
         }
 
         /** {@code WITHOUT(E)}: {@code E} drops out of scope ({@code G \ E}) and joins the accumulated exclusions. */
-        public InheritedAttributes excluding(List<Attribute> attributes) {
-            List<Attribute> dropped = canonicalizeByFieldName(attributes);
+        public InheritedAttributes excluding(List<Attribute> labels) {
+            List<Attribute> dropped = canonicalizeByFieldName(labels);
             return new InheritedAttributes(minus(required, dropped), union(accumulatedExclusions, dropped));
+        }
+
+        /**
+         * A function-internal requirement (e.g. {@code histogram_quantile} materializing the {@code le} bucket label):
+         * keep the current scope and additionally require {@code labels}. Unlike {@link #limitedTo} this <b>widens</b> the
+         * scope rather than replacing it; like {@code BY} it re-fixes the subtree to concrete keys and so <b>clears</b> the
+         * accumulated exclusions (the function regroups by concrete labels, so an outer {@code WITHOUT} applies over those
+         * keys at the outer aggregate, not as a leaf {@code _timeseries} exclusion). When the current scope is the full
+         * universe {@code T} the labels already cover it, so it collapses to exactly {@code labels}.
+         */
+        public InheritedAttributes including(List<Attribute> labels) {
+            List<Attribute> add = canonicalizeByFieldName(labels);
+            return new InheritedAttributes(isTop(required) ? add : union(required, add), List.of());
         }
 
         /**
@@ -290,11 +303,6 @@ public final class PromqlAttributesTranslationContext {
         /** Every dimension excluded along the path to here, for the innermost aggregate's {@code TimeSeriesWithout}. */
         public List<Attribute> pathExclusions() {
             return accumulatedExclusions;
-        }
-
-        /** The finite labels required from below, or an empty list when the demand is unconstrained ({@code T}). */
-        public List<Attribute> requiredLabels() {
-            return asList(required);
         }
     }
 

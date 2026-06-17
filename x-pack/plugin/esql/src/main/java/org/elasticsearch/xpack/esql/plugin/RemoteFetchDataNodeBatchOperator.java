@@ -19,18 +19,19 @@ import java.util.Deque;
 import java.util.List;
 
 /**
- * Server-side batch operator for remote fetch over bidirectional exchange.
- * Consumes one handles page per batch and emits one or more fetched pages
- * carrying the same batch ID.
+ * Data-node-side batch operator for remote fetch over bidirectional exchange.
+ * <p>
+ * It consumes one page of handles that has already been partitioned to a single retained target session and
+ * executes one local fetch call for that full handle batch. This operator does not perform transport fanout.
  */
-final class RemoteFetchBatchOperator implements Operator {
-    private final RemoteFetcher remoteFetcher;
+final class RemoteFetchDataNodeBatchOperator implements Operator {
+    private final RemoteFetcher batchFetcher;
     private final Deque<Page> outputQueue = new ArrayDeque<>();
     private boolean finished;
     private Exception failure;
 
-    RemoteFetchBatchOperator(RemoteFetcher remoteFetcher) {
-        this.remoteFetcher = remoteFetcher;
+    RemoteFetchDataNodeBatchOperator(RemoteFetcher batchFetcher) {
+        this.batchFetcher = batchFetcher;
     }
 
     @Override
@@ -45,9 +46,10 @@ final class RemoteFetchBatchOperator implements Operator {
                 return;
             }
             List<RemoteFetchHandle> handles = decodeHandles(page);
+            validateSingleTargetSession(handles);
             // This executes on the target data node against retained local shard contexts;
             // it does not fan out additional transport requests per handle from here.
-            List<Page> fetched = remoteFetcher.fetch(handles);
+            List<Page> fetched = batchFetcher.fetch(handles);
             enqueue(fetched);
         } catch (Exception e) {
             failure = e;
@@ -122,6 +124,30 @@ final class RemoteFetchBatchOperator implements Operator {
         } finally {
             if (success == false) {
                 Releasables.closeExpectNoException(Releasables.wrap(fetchedPages));
+            }
+        }
+    }
+
+    private static void validateSingleTargetSession(List<RemoteFetchHandle> handles) {
+        if (handles.size() < 2) {
+            return;
+        }
+        RemoteFetchHandle first = handles.getFirst();
+        for (int i = 1; i < handles.size(); i++) {
+            RemoteFetchHandle current = handles.get(i);
+            if (first.nodeId().equals(current.nodeId()) == false
+                || first.retainedSessionId().equals(current.retainedSessionId()) == false) {
+                throw new IllegalStateException(
+                    "remote fetch batch must contain handles from a single target session but saw ["
+                        + first.nodeId()
+                        + "/"
+                        + first.retainedSessionId()
+                        + "] and ["
+                        + current.nodeId()
+                        + "/"
+                        + current.retainedSessionId()
+                        + "]"
+                );
             }
         }
     }

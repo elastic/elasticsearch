@@ -565,7 +565,7 @@ public final class RemoteFetchService {
             );
             releasable = Releasables.wrap(server, lease, localBreaker);
             List<Operator> intermediate = List.of(
-                new RemoteFetchBatchOperator(buildRemoteFetcher(request, shardContexts, settings, driverContext.blockFactory()))
+                new RemoteFetchDataNodeBatchOperator(buildRemoteFetcher(request, shardContexts, settings, driverContext.blockFactory()))
             );
             server.startWithOperators(
                 driverContext,
@@ -589,7 +589,7 @@ public final class RemoteFetchService {
         }
     }
 
-    private RemoteFetchBatchOperator.RemoteFetcher buildRemoteFetcher(
+    private RemoteFetchDataNodeBatchOperator.RemoteFetcher buildRemoteFetcher(
         ExchangeSetupRequest request,
         IndexedByShardId<? extends EsPhysicalOperationProviders.ShardContext> shardContexts,
         PlannerSettings settings,

@@ -22,9 +22,9 @@ import java.io.IOException;
  * and records the count to a {@link TokenCountingMetrics} histogram. This enables observation of
  * the token count distribution across the fleet without enforcing any limits.
  *
- * <p>Each field value's token count is recorded when the token stream is fully consumed
- * (when {@link TokenFilter#incrementToken()} returns false). The counter resets in
- * {@link TokenFilter#reset()} before each new field value.
+ * <p>Each field value's token count is recorded when the token stream is finalized
+ * via {@link TokenFilter#end()}. The counter resets in {@link TokenFilter#reset()}
+ * before each new field value.
  */
 public final class TokenCountingAnalyzer extends AnalyzerWrapper {
 
@@ -61,7 +61,7 @@ public final class TokenCountingAnalyzer extends AnalyzerWrapper {
 
     /**
      * A token filter that counts tokens for a single field value and records the count
-     * to the metrics histogram when the token stream is fully consumed.
+     * to the metrics histogram when the token stream is finalized via {@link #end()}.
      *
      * <p>The counter resets to zero in {@link #reset()} (called by Lucene before each field
      * value's token stream starts).
@@ -85,11 +85,16 @@ public final class TokenCountingAnalyzer extends AnalyzerWrapper {
         @Override
         public boolean incrementToken() throws IOException {
             if (input.incrementToken() == false) {
-                metrics.recordTokenCount(count);
                 return false;
             }
             count++;
             return true;
+        }
+
+        @Override
+        public void end() throws IOException {
+            super.end();
+            metrics.recordTokenCount(count);
         }
     }
 }

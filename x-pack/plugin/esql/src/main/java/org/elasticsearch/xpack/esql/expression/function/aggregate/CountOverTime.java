@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.expression.function.aggregate;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
+import org.elasticsearch.compute.data.HistogramBlock;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -25,6 +26,9 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToLong;
+import org.elasticsearch.xpack.esql.expression.function.scalar.histogram.ExtractHistogramComponent;
+import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition;
 import org.elasticsearch.xpack.esql.planner.ToAggregator;
 
@@ -33,6 +37,7 @@ import java.util.List;
 import java.util.Objects;
 
 import static java.util.Collections.emptyList;
+import static org.elasticsearch.xpack.esql.core.type.DataType.EXPONENTIAL_HISTOGRAM;
 
 /**
  * Similar to {@link Count}, but it is used to calculate the count of values over a time series from the given field.
@@ -60,6 +65,7 @@ public class CountOverTime extends TimeSeriesAggregateFunction
     @FunctionInfo(
         type = FunctionType.TIME_SERIES_AGGREGATE,
         returnType = { "long" },
+        briefSummary = "Calculates the count over time value of a field.",
         description = "Calculates the count over time value of a field.",
         appliesTo = {
             @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.2.0"),
@@ -141,11 +147,6 @@ public class CountOverTime extends TimeSeriesAggregateFunction
     }
 
     @Override
-    public Expression surrogate() {
-        return perTimeSeriesAggregation();
-    }
-
-    @Override
     public AggregatorFunctionSupplier supplier() {
         return perTimeSeriesAggregation().supplier();
     }
@@ -153,5 +154,19 @@ public class CountOverTime extends TimeSeriesAggregateFunction
     @Override
     public Count perTimeSeriesAggregation() {
         return new Count(source(), field(), filter(), window());
+    }
+
+    @Override
+    public Expression surrogate() {
+        if (field().dataType() == EXPONENTIAL_HISTOGRAM || field().dataType() == DataType.TDIGEST) {
+            var mergeOverTime = new DeltaOnlyHistogramMergeOverTime(source(), field(), filter(), window());
+            return new Coalesce(
+                source(),
+                // We need to cast here because ExtractHistogramComponent returns a double.
+                new ToLong(source(), ExtractHistogramComponent.create(source(), mergeOverTime, HistogramBlock.Component.COUNT)),
+                List.of(new Literal(source(), 0L, DataType.LONG))
+            );
+        }
+        return null;
     }
 }

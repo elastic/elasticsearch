@@ -9,14 +9,20 @@ package org.elasticsearch.xpack.diskbbq;
 
 import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.elasticsearch.Build;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexSettingProvider;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
+import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormat;
 import org.elasticsearch.index.codec.vectors.diskbbq.es94.ES940DiskBBQVectorsFormat;
 import org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat;
+import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.VectorsFormatProvider;
 import org.elasticsearch.license.License;
@@ -27,6 +33,9 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.internal.InternalVectorFormatProviderPlugin;
 import org.elasticsearch.xpack.core.XPackPlugin;
 
+import java.time.Instant;
+import java.util.Collection;
+import java.util.List;
 import java.util.concurrent.ExecutorService;
 
 public class DiskBBQPlugin extends Plugin implements InternalVectorFormatProviderPlugin {
@@ -38,6 +47,7 @@ public class DiskBBQPlugin extends Plugin implements InternalVectorFormatProvide
     );
 
     private final boolean statelessNode;
+    private static final SliceIndexingValidationProvider PROVIDER_INSTANCE = new SliceIndexingValidationProvider();
 
     public DiskBBQPlugin(Settings settings) {
         this.statelessNode = DiscoveryNode.isStateless(settings);
@@ -45,6 +55,11 @@ public class DiskBBQPlugin extends Plugin implements InternalVectorFormatProvide
 
     protected XPackLicenseState getLicenseState() {
         return XPackPlugin.getSharedLicenseState();
+    }
+
+    @Override
+    public Collection<IndexSettingProvider> getAdditionalIndexSettingProviders(IndexSettingProvider.Parameters parameters) {
+        return List.of(PROVIDER_INSTANCE);
     }
 
     @Override
@@ -75,6 +90,9 @@ public class DiskBBQPlugin extends Plugin implements InternalVectorFormatProvide
                     boolean onDiskRescore = diskbbq.isOnDiskRescore();
                     boolean doPrecondition = diskbbq.doPrecondition();
                     int flatIndexThreshold = diskbbq.getFlatIndexThreshold();
+                    final String sliceField = SliceIndexing.SLICE_FEATURE_FLAG.isEnabled() && indexSettings.isSliceEnabled()
+                        ? RoutingFieldMapper.NAME
+                        : null;
                     if (Build.current().isSnapshot()) {
                         return new ESNextDiskBBQVectorsFormat(
                             ESNextDiskBBQVectorsFormat.QuantEncoding.fromBits((byte) diskbbq.getBits()),
@@ -87,7 +105,7 @@ public class DiskBBQPlugin extends Plugin implements InternalVectorFormatProvide
                             doPrecondition,
                             ESNextDiskBBQVectorsFormat.DEFAULT_PRECONDITIONING_BLOCK_DIMENSION,
                             flatIndexThreshold,
-                            null
+                            sliceField
                         );
                     }
                     return new ES940DiskBBQVectorsFormat(
@@ -106,6 +124,25 @@ public class DiskBBQPlugin extends Plugin implements InternalVectorFormatProvide
                 return null;
             }
         };
+    }
+
+    private static final class SliceIndexingValidationProvider implements IndexSettingProvider {
+        @Override
+        public void provideAdditionalSettings(
+            String indexName,
+            String dataStreamName,
+            IndexMode templateIndexMode,
+            ProjectMetadata projectMetadata,
+            Instant resolvedAt,
+            Settings indexTemplateAndCreateRequestSettings,
+            List<CompressedXContent> combinedTemplateMappings,
+            IndexVersion indexVersion,
+            Settings.Builder additionalSettings
+        ) {
+            if (IndexSettings.SLICE_ENABLED.get(indexTemplateAndCreateRequestSettings)) {
+                additionalSettings.put(IndexSettings.SLICE_VALIDATED.getKey(), "true");
+            }
+        }
     }
 
 }

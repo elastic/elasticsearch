@@ -6,5 +6,5 @@ mapped_pages:
 
 # ES|QL `CLAMP_MAX` function [esql-clamp_max]
 
-:::{include} ../../_snippets/functions/layout/clamp_max.md
+:::{include} ../../_snippets/generated/x-pack-esql/functions/layout/clamp_max.md
 :::

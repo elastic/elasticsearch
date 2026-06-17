@@ -1,0 +1,198 @@
+---
+setup:
+  - requires:
+      cluster_features: ["mapper.text.doc_values_prefix_wildcard_regexp"]
+      reason: "prefix/wildcard/regexp queries on doc-values-only text fields require mapper.text.doc_values_prefix_wildcard_regexp"
+
+  - do:
+      indices.create:
+        index: test_text_dv_low
+        body:
+          settings:
+            number_of_shards: 1
+          mappings:
+            dynamic: false
+            properties:
+              text_field:
+                type: text
+                index: false
+                doc_values:
+                  cardinality: low
+
+  - do:
+      index:
+        index: test_text_dv_low
+        id: "1"
+        body: { "text_field": "London Heathrow Airport" }
+
+  - do:
+      index:
+        index: test_text_dv_low
+        id: "2"
+        body: { "text_field": "London Gatwick Airport" }
+
+  - do:
+      index:
+        index: test_text_dv_low
+        id: "3"
+        body: { "text_field": "Singapore Changi Airport" }
+
+  - do:
+      index:
+        index: test_text_dv_low
+        id: "4"
+        body: { "text_field": "New York JFK Airport" }
+
+  - do:
+      indices.create:
+        index: test_text_dv_high
+        body:
+          settings:
+            number_of_shards: 1
+          mappings:
+            dynamic: false
+            properties:
+              text_field:
+                type: text
+                index: false
+                doc_values:
+                  cardinality: high
+
+  - do:
+      index:
+        index: test_text_dv_high
+        id: "1"
+        body: { "text_field": "London Heathrow Airport" }
+
+  - do:
+      index:
+        index: test_text_dv_high
+        id: "2"
+        body: { "text_field": "London Gatwick Airport" }
+
+  - do:
+      index:
+        index: test_text_dv_high
+        id: "3"
+        body: { "text_field": "Singapore Changi Airport" }
+
+  - do:
+      index:
+        index: test_text_dv_high
+        id: "4"
+        body: { "text_field": "New York JFK Airport" }
+
+  - do:
+      indices.refresh: {}
+
+---
+"Test prefix query on sorted-set doc-values-only text field":
+
+  - do:
+      search:
+        index: test_text_dv_low
+        body: { query: { prefix: { text_field: { value: "London" } } } }
+  - length: { hits.hits: 2 }
+
+---
+"Test case-insensitive prefix query on sorted-set doc-values-only text field":
+
+  - do:
+      search:
+        index: test_text_dv_low
+        body: { query: { prefix: { text_field: { value: "london", case_insensitive: true } } } }
+  - length: { hits.hits: 2 }
+
+---
+"Test wildcard query on sorted-set doc-values-only text field":
+
+  - do:
+      search:
+        index: test_text_dv_low
+        body: { query: { wildcard: { text_field: { value: "*Changi*" } } } }
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._id: "3" }
+
+---
+"Test case-insensitive wildcard query on sorted-set doc-values-only text field":
+
+  - do:
+      search:
+        index: test_text_dv_low
+        body: { query: { wildcard: { text_field: { value: "*changi*", case_insensitive: true } } } }
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._id: "3" }
+
+---
+"Test regexp query on sorted-set doc-values-only text field":
+
+  - do:
+      search:
+        index: test_text_dv_low
+        body: { query: { regexp: { text_field: { value: "London.*" } } } }
+  - length: { hits.hits: 2 }
+
+---
+"Test case-insensitive regexp query on sorted-set doc-values-only text field":
+
+  - do:
+      search:
+        index: test_text_dv_low
+        body: { query: { regexp: { text_field: { value: "london.*", case_insensitive: true } } } }
+  - length: { hits.hits: 2 }
+
+---
+"Test prefix query on binary doc-values-only text field":
+
+  - do:
+      search:
+        index: test_text_dv_high
+        body: { query: { prefix: { text_field: { value: "London" } } } }
+  - length: { hits.hits: 2 }
+
+---
+"Test case-insensitive prefix query on binary doc-values-only text field":
+
+  - do:
+      search:
+        index: test_text_dv_high
+        body: { query: { prefix: { text_field: { value: "london", case_insensitive: true } } } }
+  - length: { hits.hits: 2 }
+
+---
+"Test wildcard query on binary doc-values-only text field":
+
+  - do:
+      search:
+        index: test_text_dv_high
+        body: { query: { wildcard: { text_field: { value: "*Changi*" } } } }
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._id: "3" }
+
+---
+"Test case-insensitive wildcard query on binary doc-values-only text field":
+
+  - do:
+      search:
+        index: test_text_dv_high
+        body: { query: { wildcard: { text_field: { value: "*changi*", case_insensitive: true } } } }
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._id: "3" }
+
+---
+"Test regexp query on binary doc-values-only text field":
+
+  - do:
+      search:
+        index: test_text_dv_high
+        body: { query: { regexp: { text_field: { value: "London.*" } } } }
+  - length: { hits.hits: 2 }
+
+---
+"Test case-insensitive regexp query on binary doc-values-only text field":
+
+  - do:
+      search:
+        index: test_text_dv_high
+        body: { query: { regexp: { text_field: { value: "london.*", case_insensitive: true } } } }
+  - length: { hits.hits: 2 }

@@ -9,7 +9,9 @@ package org.elasticsearch.xpack.esql.plan.logical;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.xpack.esql.capabilities.PostAnalysisVerificationAware;
 import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
+import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.capabilities.Resolvables;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -20,11 +22,13 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
+import static org.elasticsearch.xpack.esql.plan.logical.Aggregate.checkUnsupportedGroupingType;
+
 /**
  * Retains at most N rows per group defined by one or more grouping key expressions.
  * This is the {@code LIMIT N BY expr1, expr2, ...} command.
  */
-public class LimitBy extends UnaryPlan implements TelemetryAware, PipelineBreaker {
+public class LimitBy extends UnaryPlan implements PostAnalysisVerificationAware, TelemetryAware, PipelineBreaker {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(LogicalPlan.class, "LimitBy", LimitBy::new);
 
     private final Expression limitPerGroup;
@@ -106,6 +110,11 @@ public class LimitBy extends UnaryPlan implements TelemetryAware, PipelineBreake
     @Override
     public boolean expressionsResolved() {
         return limitPerGroup.resolved() && Resolvables.resolved(groupings);
+    }
+
+    @Override
+    public void postAnalysisVerification(Failures failures) {
+        groupings.forEach(e -> checkUnsupportedGroupingType(e, failures));
     }
 
     @Override

@@ -15,6 +15,7 @@ dependencies {
   javaRestTestImplementation project(":test:framework")
   javaRestTestImplementation project(':test:fixtures:aws-fixture-utils')
   javaRestTestImplementation project(':test:fixtures:s3-fixture')
+  javaRestTestImplementation project(':test:fixtures:tls-utils')
 }
 
 restResources {

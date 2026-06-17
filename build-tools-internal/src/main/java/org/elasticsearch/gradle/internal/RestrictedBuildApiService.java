@@ -27,12 +27,9 @@ public abstract class RestrictedBuildApiService implements BuildService<Restrict
 
     private static ListMultimap<Class<?>, String> createLegacyRestTestBasePluginUsage() {
         ListMultimap<Class<?>, String> map = ArrayListMultimap.create(1, 200);
-        map.put(LegacyRestTestBasePlugin.class, ":docs");
-        map.put(LegacyRestTestBasePlugin.class, ":distribution:docker");
         map.put(LegacyRestTestBasePlugin.class, ":modules:reindex");
         map.put(LegacyRestTestBasePlugin.class, ":qa:ccs-rolling-upgrade-remote-cluster");
         map.put(LegacyRestTestBasePlugin.class, ":qa:mixed-cluster");
-        map.put(LegacyRestTestBasePlugin.class, ":qa:multi-cluster-search");
         map.put(LegacyRestTestBasePlugin.class, ":qa:remote-clusters");
         map.put(LegacyRestTestBasePlugin.class, ":qa:repository-multi-version");
         map.put(LegacyRestTestBasePlugin.class, ":qa:rolling-upgrade-legacy");
@@ -47,7 +44,6 @@ public abstract class RestrictedBuildApiService implements BuildService<Restrict
         map.put(LegacyRestTestBasePlugin.class, ":x-pack:qa:xpack-prefix-rest-compat");
         map.put(LegacyRestTestBasePlugin.class, ":x-pack:plugin:ent-search:qa:rest");
         map.put(LegacyRestTestBasePlugin.class, ":x-pack:plugin:eql:qa:ccs-rolling-upgrade");
-        map.put(LegacyRestTestBasePlugin.class, ":x-pack:plugin:eql:qa:correctness");
         map.put(LegacyRestTestBasePlugin.class, ":x-pack:plugin:eql:qa:mixed-node");
         map.put(LegacyRestTestBasePlugin.class, ":x-pack:plugin:ml:qa:basic-multi-node");
         map.put(LegacyRestTestBasePlugin.class, ":x-pack:plugin:ml:qa:disabled");
@@ -55,19 +51,15 @@ public abstract class RestrictedBuildApiService implements BuildService<Restrict
         map.put(LegacyRestTestBasePlugin.class, ":x-pack:plugin:ml:qa:multi-cluster-tests-with-security");
         map.put(LegacyRestTestBasePlugin.class, ":x-pack:plugin:ml:qa:native-multi-node-tests");
         map.put(LegacyRestTestBasePlugin.class, ":x-pack:plugin:ml:qa:single-node-tests");
-        map.put(LegacyRestTestBasePlugin.class, ":x-pack:plugin:searchable-snapshots:qa:hdfs");
         map.put(LegacyRestTestBasePlugin.class, ":x-pack:plugin:searchable-snapshots:qa:rest");
-        map.put(LegacyRestTestBasePlugin.class, ":x-pack:plugin:searchable-snapshots:qa:url");
         map.put(LegacyRestTestBasePlugin.class, ":x-pack:plugin:shutdown:qa:multi-node");
         map.put(LegacyRestTestBasePlugin.class, ":x-pack:plugin:shutdown:qa:rolling-upgrade");
         map.put(LegacyRestTestBasePlugin.class, ":x-pack:plugin:snapshot-based-recoveries:qa:fs");
         map.put(LegacyRestTestBasePlugin.class, ":x-pack:plugin:snapshot-based-recoveries:qa:license-enforcing");
-        map.put(LegacyRestTestBasePlugin.class, ":x-pack:plugin:snapshot-repo-test-kit:qa:hdfs");
         map.put(LegacyRestTestBasePlugin.class, ":x-pack:plugin:snapshot-repo-test-kit:qa:rest");
         map.put(LegacyRestTestBasePlugin.class, ":x-pack:plugin:text-structure:qa:text-structure-with-security");
         map.put(LegacyRestTestBasePlugin.class, ":x-pack:plugin:transform:qa:multi-cluster-tests-with-security");
         map.put(LegacyRestTestBasePlugin.class, ":x-pack:plugin:transform:qa:multi-node-tests");
-        map.put(LegacyRestTestBasePlugin.class, ":x-pack:plugin:transform:qa:single-node-tests");
         return map;
     }
 

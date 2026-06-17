@@ -44,13 +44,18 @@ public class DocBlock extends AbstractVectorBlock implements Block, RefCounted {
     }
 
     @Override
+    public int valueMaxByteSize() {
+        return 3 * Integer.BYTES;
+    }
+
+    @Override
     public Block slice(int beginInclusive, int endExclusive) {
         return vector.slice(beginInclusive, endExclusive).asBlock();
     }
 
     @Override
-    public Block filter(boolean mayContainDuplicates, int... positions) {
-        return new DocBlock(vector.filter(mayContainDuplicates, positions));
+    public Block filter(boolean mayContainDuplicates, int[] positions, int offset, int length) {
+        return new DocBlock(vector.filter(mayContainDuplicates, positions, offset, length));
     }
 
     @Override

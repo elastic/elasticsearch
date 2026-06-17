@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.security.metric.SecurityAuthcFailureReason;
 import org.elasticsearch.xpack.security.metric.SecurityMetricType;
 
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
 import static org.hamcrest.Matchers.equalTo;
@@ -52,9 +53,9 @@ public class ServiceAccountAuthenticatorTests extends AbstractAuthenticatorTests
         final ServiceAccountToken serviceAccountToken = randomServiceAccountToken();
         final Authenticator.Context context = mockServiceAccountAuthenticatorContext(serviceAccountToken);
 
-        final long executionTimeInNanos = randomLongBetween(0, 500);
+        final long executionTimeInMillis = randomLongBetween(0, 500);
         doAnswer(invocation -> {
-            nanoTimeSupplier.advanceTime(executionTimeInNanos);
+            nanoTimeSupplier.advanceTime(TimeUnit.MILLISECONDS.toNanos(executionTimeInMillis));
             final ActionListener<Authentication> listener = invocation.getArgument(2);
             Authentication authentication = Authentication.newServiceAccountAuthentication(
                 new User(serviceAccountToken.getAccountId().asPrincipal()),
@@ -86,7 +87,7 @@ public class ServiceAccountAuthenticatorTests extends AbstractAuthenticatorTests
         assertAuthenticationTimeMetric(
             telemetryPlugin,
             SecurityMetricType.AUTHC_SERVICE_ACCOUNT,
-            executionTimeInNanos,
+            executionTimeInMillis,
             Map.ofEntries(
                 Map.entry(ServiceAccountAuthenticator.ATTRIBUTE_SERVICE_ACCOUNT_ID, serviceAccountToken.getAccountId().asPrincipal())
             )
@@ -111,9 +112,9 @@ public class ServiceAccountAuthenticatorTests extends AbstractAuthenticatorTests
         var failureError = new ElasticsearchSecurityException("failed to authenticate test service account", RestStatus.UNAUTHORIZED);
         when(context.getRequest().exceptionProcessingRequest(same(failureError), any())).thenReturn(failureError);
 
-        final long executionTimeInNanos = randomLongBetween(0, 500);
+        final long executionTimeInMillis = randomLongBetween(0, 500);
         doAnswer(invocation -> {
-            nanoTimeSupplier.advanceTime(executionTimeInNanos);
+            nanoTimeSupplier.advanceTime(TimeUnit.MILLISECONDS.toNanos(executionTimeInMillis));
             final ActionListener<Authentication> listener = invocation.getArgument(2);
             listener.onFailure(failureError);
             return Void.TYPE;
@@ -144,7 +145,7 @@ public class ServiceAccountAuthenticatorTests extends AbstractAuthenticatorTests
         assertAuthenticationTimeMetric(
             telemetryPlugin,
             SecurityMetricType.AUTHC_SERVICE_ACCOUNT,
-            executionTimeInNanos,
+            executionTimeInMillis,
             Map.ofEntries(
                 Map.entry(ServiceAccountAuthenticator.ATTRIBUTE_SERVICE_ACCOUNT_ID, serviceAccountToken.getAccountId().asPrincipal())
             )

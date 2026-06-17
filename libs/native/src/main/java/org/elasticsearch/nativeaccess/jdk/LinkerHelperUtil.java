@@ -20,5 +20,13 @@ public class LinkerHelperUtil {
         return NONE;
     }
 
+    /**
+     * Whether downcalls may receive heap {@link java.lang.foreign.MemorySegment}s directly. False on JDK 21 because
+     * {@code Linker.Option.critical(boolean)} (which permits heap segments as downcall arguments) is unavailable.
+     */
+    static boolean heapAccessAvailable() {
+        return false;
+    }
+
     private LinkerHelperUtil() {}
 }

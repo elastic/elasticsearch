@@ -30,6 +30,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.indices.SystemIndices;
@@ -43,6 +44,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
 import org.junit.Before;
 
+import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.action.synonyms.SynonymsTestUtils.randomSynonymsSet;
@@ -69,7 +71,14 @@ public class SynonymsManagementAPIServiceTests extends ESTestCase {
     }
 
     private SynonymsManagementAPIService buildService(Client client, ClusterService cs, int maxRules, int chunkSize) {
-        return new SynonymsManagementAPIService(client, cs, maxRules, SynonymsManagementAPIService.PIT_BATCH_SIZE, chunkSize);
+        return new SynonymsManagementAPIService(
+            client,
+            cs,
+            maxRules,
+            SynonymsManagementAPIService.PIT_BATCH_SIZE,
+            chunkSize,
+            new FeatureService(List.of(new SynonymFeatures()))
+        );
     }
 
     /**
@@ -86,7 +95,7 @@ public class SynonymsManagementAPIServiceTests extends ESTestCase {
         var service = buildService(countingClient, clusterService, numRules, chunkSize);
 
         var future = new PlainActionFuture<Void>();
-        service.bulkUpdateSynonymsSet("my-set", rules, future);
+        service.bulkUpdateSynonymsSet("my-set", rules, 0, future);
         safeGet(future);
 
         // +1 for the synonym set document written in the first chunk
@@ -106,7 +115,7 @@ public class SynonymsManagementAPIServiceTests extends ESTestCase {
         );
 
         var future = new PlainActionFuture<Void>();
-        service.bulkUpdateSynonymsSet("my-set", new SynonymRule[0], future);
+        service.bulkUpdateSynonymsSet("my-set", new SynonymRule[0], 0, future);
         safeGet(future);
 
         assertThat(countingClient.bulkRequestCount.get(), equalTo(1));
@@ -138,7 +147,7 @@ public class SynonymsManagementAPIServiceTests extends ESTestCase {
 
             SynonymRule[] rules = randomSynonymsSet(SynonymsManagementAPIService.PRE_LARGE_SETS_LIMIT + 1);
             var future = new PlainActionFuture<SynonymsManagementAPIService.SynonymsReloadResult>();
-            service.putSynonymsSet("my-set", rules, false, future);
+            service.putSynonymsSet("my-set", rules, false, false, future);
 
             Exception ex = expectThrows(ElasticsearchException.class, () -> future.actionGet(TEST_REQUEST_TIMEOUT));
             assertThat(ex.getMessage(), containsString("all nodes in the cluster have been upgraded"));
@@ -196,9 +205,9 @@ public class SynonymsManagementAPIServiceTests extends ESTestCase {
         var service = buildService(failingClient, clusterService, numRules, chunkSize);
 
         var future = new PlainActionFuture<Void>();
-        service.bulkUpdateSynonymsSet("my-set", rules, future);
+        service.bulkUpdateSynonymsSet("my-set", rules, 0, future);
 
-        Exception ex = expectThrows(Exception.class, () -> future.actionGet(TEST_REQUEST_TIMEOUT));
+        Exception ex = expectThrows(ElasticsearchException.class, () -> future.actionGet(TEST_REQUEST_TIMEOUT));
         assertThat(ex.getMessage(), containsString("Error updating synonyms"));
         assertThat("chunk 2 must not be attempted after chunk 1 fails", failingClient.bulkRequestCount.get(), equalTo(2));
     }
@@ -242,7 +251,7 @@ public class SynonymsManagementAPIServiceTests extends ESTestCase {
                 ActionListener.respondAndRelease(
                     (ActionListener<SearchResponse>) listener,
                     SearchResponseUtils.successfulResponse(
-                        SearchHits.unpooled(SearchHits.EMPTY, new TotalHits(ruleCount, TotalHits.Relation.EQUAL_TO), Float.NaN)
+                        new SearchHits(SearchHits.EMPTY, new TotalHits(ruleCount, TotalHits.Relation.EQUAL_TO), Float.NaN)
                     )
                 );
                 return;
@@ -319,4 +328,5 @@ public class SynonymsManagementAPIServiceTests extends ESTestCase {
             super.doExecute(action, request, listener);
         }
     }
+
 }

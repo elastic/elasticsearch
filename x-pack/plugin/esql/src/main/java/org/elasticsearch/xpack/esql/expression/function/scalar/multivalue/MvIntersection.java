@@ -50,6 +50,7 @@ public class MvIntersection extends MvSetOperationFunction {
     );
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(MvIntersection.class)
         .binary(MvIntersection::new)
+        .capabilities("flattened")
         .name("mv_intersection");
 
     @FunctionInfo(
@@ -60,6 +61,7 @@ public class MvIntersection extends MvSetOperationFunction {
             "date",
             "date_nanos",
             "double",
+            "flattened",
             "geo_point",
             "geo_shape",
             "geohash",
@@ -71,6 +73,7 @@ public class MvIntersection extends MvSetOperationFunction {
             "long",
             "unsigned_long",
             "version" },
+        briefSummary = "Returns values present in both multi-value fields.",
         description = "Returns the values that appear in both input fields. Returns `null` if either field is null or if no values match.",
         preview = true,
         examples = {
@@ -92,6 +95,7 @@ public class MvIntersection extends MvSetOperationFunction {
                 "date",
                 "date_nanos",
                 "double",
+                "flattened",
                 "geo_point",
                 "geo_shape",
                 "geohash",
@@ -115,6 +119,7 @@ public class MvIntersection extends MvSetOperationFunction {
                 "date",
                 "date_nanos",
                 "double",
+                "flattened",
                 "geo_point",
                 "geo_shape",
                 "geohash",

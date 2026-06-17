@@ -7,7 +7,11 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
+import org.elasticsearch.xpack.esql.core.expression.Alias;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.AttributeMap;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
+import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LimitBy;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -37,14 +41,33 @@ public final class ReorderLimitProjectAndOrderBy extends OptimizerRules.Optimize
             && plan.child() instanceof Project proj
             && Expressions.references(limitBy.groupings()).subsetOf(proj.child().outputSet())) {
                 return proj.replaceChild(limitBy.replaceChild(proj.child()));
-                // If swapping Project and Limit / LimitBy was not possible, swap Project and OrderBy if possible
-                // Make sure all of the references OrderBy uses are included in the Project, because there could be re-aliasing there
-            } else if (plan instanceof Project proj
-                && plan.child() instanceof OrderBy orderBy
-                && Expressions.references(orderBy.expressions()).subsetOf(proj.child().outputSet())) {
-                    return orderBy.replaceChild(proj.replaceChild(orderBy.child()));
+                // If swapping Project and Limit / LimitBy was not possible, swap Project and OrderBy if possible.
+                // Make sure all the references OrderBy uses are included in the Project, because there could be re-aliasing there
+            } else if (plan instanceof Project proj && plan.child() instanceof OrderBy orderBy) {
+                // After the swap, OrderBy sits on top of the Project and reads from its output, so any reference to an
+                // attribute that the Project renames must be rewritten to the renamed name.
+                AttributeMap<Attribute> renamedInProject = renamedInputAttributes(proj);
+                OrderBy rewrittenOrderBy = renamedInProject.isEmpty()
+                    ? orderBy
+                    : (OrderBy) orderBy.transformExpressionsOnly(Attribute.class, a -> renamedInProject.resolve(a, a));
+                if (Expressions.references(rewrittenOrderBy.expressions()).subsetOf(proj.outputSet())) {
+                    return rewrittenOrderBy.replaceChild(proj.replaceChild(orderBy.child()));
                 }
+            }
 
         return plan;
+    }
+
+    /**
+     * Build a map from a {@link Project}'s input attributes to the output attributes that alias them.
+     */
+    private static AttributeMap<Attribute> renamedInputAttributes(Project proj) {
+        AttributeMap.Builder<Attribute> builder = AttributeMap.builder();
+        for (NamedExpression ne : proj.projections()) {
+            if (ne instanceof Alias alias && alias.child() instanceof Attribute inputAttr) {
+                builder.put(inputAttr, alias.toAttribute());
+            }
+        }
+        return builder.build();
     }
 }

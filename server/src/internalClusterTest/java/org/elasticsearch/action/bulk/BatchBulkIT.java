@@ -25,6 +25,9 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.junit.ClassRule;
+import org.junit.rules.TestRule;
+import org.junit.runners.model.Statement;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -35,15 +38,19 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.hamcrest.Matchers.equalTo;
+import static org.junit.Assume.assumeTrue;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE, numDataNodes = 2, numClientNodes = 1)
 public class BatchBulkIT extends ESIntegTestCase {
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
-        assumeTrue("batch indexing requires snapshot builds", Build.current().isSnapshot());
-    }
+    @ClassRule
+    public static TestRule snapshotBuildRule = (base, description) -> new Statement() {
+        @Override
+        public void evaluate() throws Throwable {
+            assumeTrue("batch indexing requires snapshot builds", Build.current().isSnapshot());
+            base.evaluate();
+        }
+    };
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
@@ -732,6 +739,53 @@ public class BatchBulkIT extends ESIntegTestCase {
                 }
             }
         );
+    }
+
+    public void testBulkWithExplicitRouting() throws IOException {
+        // Exercises RoutingFieldMapper.preParse on the batch path. A routing-aware GET would still
+        // succeed without the metadata hook running (sharding alone routes the GET to the right
+        // shard and the doc is found by id), so we assert via a term query on _routing — that field
+        // is only indexed if RoutingFieldMapper.preParse ran during parseRow.
+        String index = "test-batch-routing";
+        createBatchIndex(index, 3, 0);
+        String coordinatingNode = findCoordinatingNode();
+
+        int numRoutingKeys = 4;
+        int numDocs = randomIntBetween(20, 60);
+        int[] perRoute = new int[numRoutingKeys];
+        BulkRequest bulkRequest = new BulkRequest();
+        for (int i = 0; i < numDocs; i++) {
+            int route = i % numRoutingKeys;
+            perRoute[route]++;
+            bulkRequest.add(
+                new IndexRequest(index).id("doc-" + i)
+                    .routing("route-" + route)
+                    .opType(DocWriteRequest.OpType.CREATE)
+                    .source(Map.of("name", "routed-" + i, "value", i, "message", "routing test"))
+            );
+        }
+
+        BulkResponse bulkResponse = client(coordinatingNode).bulk(bulkRequest).actionGet();
+        assertNoFailures(bulkResponse);
+        assertThat(bulkResponse.getItems().length, equalTo(numDocs));
+
+        refresh(index);
+
+        for (int route = 0; route < numRoutingKeys; route++) {
+            int expected = perRoute[route];
+            String routingValue = "route-" + route;
+            assertResponse(
+                prepareSearch(index).setQuery(QueryBuilders.termQuery("_routing", routingValue)).setSize(0).setTrackTotalHits(true),
+                searchResponse -> {
+                    assertNoFailures(searchResponse);
+                    assertThat(
+                        "_routing term query for " + routingValue + " should hit RoutingFieldMapper-indexed docs",
+                        searchResponse.getHits().getTotalHits().value(),
+                        equalTo((long) expected)
+                    );
+                }
+            );
+        }
     }
 
     public void testTimeSeriesIndexViaBatchMode() throws IOException {

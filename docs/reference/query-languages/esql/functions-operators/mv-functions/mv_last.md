@@ -6,5 +6,5 @@ mapped_pages:
 
 # ES|QL `MV_LAST` function [esql-mv_last]
 
-:::{include} ../../_snippets/functions/layout/mv_last.md
+:::{include} ../../_snippets/generated/x-pack-esql/functions/layout/mv_last.md
 :::

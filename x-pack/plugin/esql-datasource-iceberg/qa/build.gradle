@@ -90,6 +90,7 @@ standaloneParquetFromCsv.each { baseName ->
     inputs.file(csvInput)
     outputs.file(parquetOut)
     systemProperty 'slf4j.provider', 'org.slf4j.nop.NOPServiceProvider'
+    systemProperty 'slf4j.internal.verbosity', 'WARN'
   }
   generateIcebergStandaloneParquetTasks.add(tasks.named(taskName))
 }

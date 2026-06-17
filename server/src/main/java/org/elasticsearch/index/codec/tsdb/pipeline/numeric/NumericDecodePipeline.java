@@ -15,9 +15,11 @@ import org.elasticsearch.index.codec.tsdb.pipeline.DecodingContext;
 import org.elasticsearch.index.codec.tsdb.pipeline.PipelineDescriptor;
 import org.elasticsearch.index.codec.tsdb.pipeline.StageId;
 import org.elasticsearch.index.codec.tsdb.pipeline.StageSpec;
+import org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages.AlpDoubleTransformStage;
 import org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages.DeltaCodecStage;
 import org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages.GcdCodecStage;
 import org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages.OffsetCodecStage;
+import org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages.SplitDeltaCodecStage;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -65,7 +67,7 @@ public final class NumericDecodePipeline {
 
         for (int i = 0; i < stageCount - 1; i++) {
             final StageSpec spec = StageFactory.specFromStageId(StageId.fromId(descriptor.stageIdAt(i)));
-            transforms.add(StageFactory.newTransformStage(spec));
+            transforms.add(StageFactory.newTransformStage(spec, blockSize));
         }
         final StageSpec payloadSpec = StageFactory.specFromStageId(StageId.fromId(descriptor.stageIdAt(stageCount - 1)));
         final PayloadCodecStage payloadStage = StageFactory.newPayloadStage(payloadSpec, blockSize);
@@ -95,6 +97,18 @@ public final class NumericDecodePipeline {
                     case DELTA_STAGE -> DeltaCodecStage.decodeStatic((DeltaCodecStage) transformStages[i], values, count, context);
                     case OFFSET_STAGE -> OffsetCodecStage.decodeStatic((OffsetCodecStage) transformStages[i], values, count, context);
                     case GCD_STAGE -> GcdCodecStage.decodeStatic((GcdCodecStage) transformStages[i], values, count, context);
+                    case SPLIT_DELTA_STAGE -> SplitDeltaCodecStage.decodeStatic(
+                        (SplitDeltaCodecStage) transformStages[i],
+                        values,
+                        count,
+                        context
+                    );
+                    case ALP_DOUBLE_STAGE -> AlpDoubleTransformStage.decodeStatic(
+                        (AlpDoubleTransformStage) transformStages[i],
+                        values,
+                        count,
+                        context
+                    );
                     default -> throw new IllegalStateException("Unexpected decode stage: " + stageIds[i]);
                 }
             }

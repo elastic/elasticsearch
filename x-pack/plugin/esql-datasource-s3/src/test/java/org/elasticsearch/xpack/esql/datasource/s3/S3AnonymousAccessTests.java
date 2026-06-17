@@ -13,7 +13,6 @@ import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectResponse;
 import software.amazon.awssdk.services.s3.model.HeadObjectRequest;
-import software.amazon.awssdk.services.s3.model.HeadObjectResponse;
 import software.amazon.awssdk.services.s3.model.NoSuchKeyException;
 import software.amazon.awssdk.services.s3.model.S3Exception;
 
@@ -25,6 +24,7 @@ import java.io.IOException;
 import java.time.Instant;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -89,10 +89,13 @@ public class S3AnonymousAccessTests extends ESTestCase {
     }
 
     /**
-     * When HeadObject returns a non-403 error, it should propagate as IOException
-     * without attempting the range GET fallback.
+     * When the suffix-range GET fails with a non-403 S3 error, falls back to HEAD.
+     * If HEAD also fails, the error propagates as IOException.
      */
     public void testHeadNon403ErrorPropagates() {
+        when(mockS3Client.getObject(any(GetObjectRequest.class))).thenThrow(
+            S3Exception.builder().statusCode(500).message("Internal Server Error").build()
+        );
         when(mockS3Client.headObject(any(HeadObjectRequest.class))).thenThrow(
             S3Exception.builder().statusCode(500).message("Internal Server Error").build()
         );
@@ -104,14 +107,17 @@ public class S3AnonymousAccessTests extends ESTestCase {
     }
 
     /**
-     * When HeadObject succeeds normally, no fallback is needed.
+     * When the suffix-range GET succeeds, metadata is resolved without HEAD.
      */
     public void testHeadSucceedsNormally() throws IOException {
-        HeadObjectResponse headResponse = HeadObjectResponse.builder()
-            .contentLength(OBJECT_SIZE)
+        GetObjectResponse resp = GetObjectResponse.builder()
+            .contentRange("bytes " + (OBJECT_SIZE - 1) + "-" + (OBJECT_SIZE - 1) + "/" + OBJECT_SIZE)
+            .contentLength(1L)
             .lastModified(Instant.parse("2026-03-18T12:00:00Z"))
             .build();
-        when(mockS3Client.headObject(any(HeadObjectRequest.class))).thenReturn(headResponse);
+        when(mockS3Client.getObject(any(GetObjectRequest.class))).thenReturn(
+            new ResponseInputStream<>(resp, AbortableInputStream.create(new ByteArrayInputStream(new byte[] { 0 })))
+        );
 
         S3StorageObject obj = new S3StorageObject(mockS3Client, BUCKET, KEY, PATH);
 
@@ -159,5 +165,46 @@ public class S3AnonymousAccessTests extends ESTestCase {
      */
     public void testConfigurationAnonymousModeConflictsWithCredentials() {
         expectThrows(org.elasticsearch.common.ValidationException.class, () -> S3Configuration.fromFields("ak", "sk", null, null, "none"));
+    }
+
+    /**
+     * auth=workload_identity delegates to {@code buildWorkloadIdentityCredentialsProvider()}, which
+     * by default returns an {@code AwsCredentialsProviderChain}. Tests may subclass and override
+     * that method to inject a static provider — the same seam used by GcsStorageProvider.
+     */
+    public void testWorkloadIdentityCredentialsProviderType() {
+        S3Configuration config = S3Configuration.fromFields(null, null, null, "us-east-1", "workload_identity");
+        assertNotNull(config);
+        assertTrue(config.isWorkloadIdentity());
+        var provider = new S3StorageProvider(null, null).credentialsProvider(config);
+        assertThat(provider, instanceOf(software.amazon.awssdk.auth.credentials.AwsCredentialsProviderChain.class));
+    }
+
+    /**
+     * Verifies that overriding {@code buildWorkloadIdentityCredentialsProvider()} allows injecting
+     * a test credential — the unit-test seam for wrong-credential counter-proofs.
+     */
+    public void testWorkloadIdentityCredentialOverrideSeam() {
+        S3Configuration config = S3Configuration.fromFields(null, null, null, "us-east-1", "workload_identity");
+        var injected = software.amazon.awssdk.auth.credentials.StaticCredentialsProvider.create(
+            software.amazon.awssdk.auth.credentials.AwsBasicCredentials.create("test-key", "test-secret")
+        );
+        var provider = new S3StorageProvider(null, null) {
+            @Override
+            protected software.amazon.awssdk.auth.credentials.AwsCredentialsProvider buildWorkloadIdentityCredentialsProvider() {
+                return injected;
+            }
+        }.credentialsProvider(config);
+        assertSame("credentialsProvider() must delegate to buildWorkloadIdentityCredentialsProvider()", injected, provider);
+    }
+
+    /**
+     * auth=workload_identity is mutually exclusive with explicit credentials.
+     */
+    public void testWorkloadIdentityModeConflictsWithCredentials() {
+        expectThrows(
+            org.elasticsearch.common.ValidationException.class,
+            () -> S3Configuration.fromFields("ak", "sk", null, null, "workload_identity")
+        );
     }
 }

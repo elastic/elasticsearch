@@ -50,9 +50,14 @@ public final class ConstantNullVector extends AbstractVector
     }
 
     @Override
-    public ConstantNullVector filter(boolean mayContainDuplicates, int... positions) {
+    public ConstantNullVector filter(boolean mayContainDuplicates, int[] positions, int offset, int length) {
         assert false : "null vector";
         throw new UnsupportedOperationException("null vector");
+    }
+
+    @Override
+    public ConstantNullVector filter(boolean mayContainDuplicates, int... positions) {
+        return filter(mayContainDuplicates, positions, 0, positions.length);
     }
 
     @Override
@@ -178,6 +183,11 @@ public final class ConstantNullVector extends AbstractVector
     @Override
     public ElementType elementType() {
         return ElementType.NULL;
+    }
+
+    @Override
+    public int valueMaxByteSize() {
+        return 0;
     }
 
     @Override

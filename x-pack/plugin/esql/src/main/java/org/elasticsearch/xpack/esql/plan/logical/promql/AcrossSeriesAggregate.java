@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.promql.function.FunctionType;
+import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
 import java.util.List;
@@ -55,12 +56,12 @@ public final class AcrossSeriesAggregate extends PromqlFunctionCall {
     public AcrossSeriesAggregate(
         Source source,
         LogicalPlan child,
-        String functionName,
+        PromqlFunctionDefinition definition,
         List<Expression> parameters,
         Grouping grouping,
         List<Attribute> groupings
     ) {
-        super(source, child, functionName, parameters);
+        super(source, child, definition, parameters);
         this.grouping = grouping;
         this.groupings = groupings;
         this.timeseriesAttribute = FieldAttribute.timeSeriesAttribute(source);
@@ -81,12 +82,12 @@ public final class AcrossSeriesAggregate extends PromqlFunctionCall {
 
     @Override
     protected NodeInfo<PromqlFunctionCall> info() {
-        return NodeInfo.create(this, AcrossSeriesAggregate::new, child(), functionName(), parameters(), grouping(), groupings());
+        return NodeInfo.create(this, AcrossSeriesAggregate::new, child(), definition(), parameters(), grouping(), groupings());
     }
 
     @Override
     public AcrossSeriesAggregate replaceChild(LogicalPlan newChild) {
-        return new AcrossSeriesAggregate(source(), newChild, functionName(), parameters(), grouping(), groupings());
+        return new AcrossSeriesAggregate(source(), newChild, definition(), parameters(), grouping(), groupings());
     }
 
     // @Override
@@ -113,7 +114,13 @@ public final class AcrossSeriesAggregate extends PromqlFunctionCall {
         if (grouping == Grouping.WITHOUT) {
             return List.of(timeseriesAttribute);
         }
-        return groupings.stream().filter(a -> a.resolved() == false || a.dataType() != DataType.NULL).toList();
+        // A label that resolved to a metric field is not a real label, so translation drops it from the
+        // aggregate; exclude it from the output too, otherwise the command projection references a column the
+        // plan never produces. Absent labels are already excluded by the resolved() check.
+        return groupings.stream()
+            .filter(a -> a.resolved() && a.dataType() != DataType.NULL)
+            .filter(a -> a instanceof FieldAttribute fieldAttribute ? fieldAttribute.isMetric() == false : true)
+            .toList();
     }
 
     @Override

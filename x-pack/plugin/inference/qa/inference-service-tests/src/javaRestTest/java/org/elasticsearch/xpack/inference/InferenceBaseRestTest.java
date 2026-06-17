@@ -200,6 +200,21 @@ public class InferenceBaseRestTest extends ESRestTestCase {
             """, dimensions);
     }
 
+    static String mockTextEmbeddingServiceModelConfig_NoDimensions() {
+        return Strings.format("""
+            {
+              "task_type": "text_embedding",
+              "service": "text_embedding_test_service",
+              "service_settings": {
+                "model": "my_dense_vector_model",
+                "api_key": "abc64"
+              },
+              "task_settings": {
+              }
+            }
+            """);
+    }
+
     static String mockRerankServiceModelConfig() {
         return """
             {
@@ -232,6 +247,21 @@ public class InferenceBaseRestTest extends ESRestTestCase {
               }
             }
             """, dimensions);
+    }
+
+    static String mockEmbeddingServiceModelConfig_NoDimensions() {
+        return Strings.format("""
+            {
+              "task_type": "embedding",
+              "service": "text_embedding_test_service",
+              "service_settings": {
+                "model": "my_dense_vector_model",
+                "api_key": "abc64"
+              },
+              "task_settings": {
+              }
+            }
+            """);
     }
 
     static void deleteModel(String modelId) throws IOException {
@@ -426,6 +456,11 @@ public class InferenceBaseRestTest extends ESRestTestCase {
     protected Map<String, Object> infer(String modelId, List<String> input) throws IOException {
         var endpoint = Strings.format("_inference/%s", modelId);
         return inferInternal(endpoint, input, null, Map.of());
+    }
+
+    protected Map<String, Object> rerankInfer(String modelId, List<String> input, String query) throws IOException {
+        var endpoint = Strings.format("_inference/%s", modelId);
+        return inferInternal(endpoint, input, query, Map.of());
     }
 
     protected Deque<ServerSentEvent> streamInferOnMockService(

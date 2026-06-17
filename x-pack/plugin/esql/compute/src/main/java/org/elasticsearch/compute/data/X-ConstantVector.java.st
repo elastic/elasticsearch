@@ -81,8 +81,17 @@ $if(BytesRef)$
 $endif$
 
     @Override
-    public $Type$Vector filter(boolean mayContainDuplicates, int... positions) {
-        return blockFactory().newConstant$Type$Vector(value, positions.length);
+    public int valueMaxByteSize() {
+$if(BytesRef)$
+        return getPositionCount() == 0 ? 0 : value.length;
+$else$
+        return $BYTES$;
+$endif$
+    }
+
+    @Override
+    public $Type$Vector filter(boolean mayContainDuplicates, int[] positions, int offset, int length) {
+        return blockFactory().newConstant$Type$Vector(value, length);
     }
 
     @Override

@@ -12,6 +12,10 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.RemoteClusterClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.inference.DataFormat;
+import org.elasticsearch.inference.DataType;
+import org.elasticsearch.inference.InferenceString;
+import org.elasticsearch.inference.InferenceStringGroup;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.license.LicenseSettings;
 import org.elasticsearch.plugins.Plugin;
@@ -19,6 +23,7 @@ import org.elasticsearch.test.AbstractMultiClustersTestCase;
 import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.inference.action.GetInferenceFieldsInternalAction;
+import org.elasticsearch.xpack.core.ml.inference.results.MlDenseEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
 import org.elasticsearch.xpack.inference.FakeMlPlugin;
 import org.elasticsearch.xpack.inference.LocalStateInferencePlugin;
@@ -46,6 +51,20 @@ public class GetInferenceFieldsCrossClusterIT extends AbstractMultiClustersTestC
     private static final String INFERENCE_FIELD = "test-inference-field";
     private static final String INFERENCE_ID = "test-inference-id";
     private static final Map<String, Object> INFERENCE_ENDPOINT_SERVICE_SETTINGS = Map.of("model", "my_model", "api_key", "my_api_key");
+
+    private static final String EMBEDDING_INDEX_NAME = "test-embedding-index";
+    private static final String EMBEDDING_INFERENCE_FIELD = "test-embedding-field";
+    private static final String EMBEDDING_INFERENCE_ID = "test-embedding-id";
+    private static final Map<String, Object> EMBEDDING_ENDPOINT_SERVICE_SETTINGS = Map.of(
+        "model",
+        "my_model",
+        "dimensions",
+        256,
+        "similarity",
+        "cosine",
+        "api_key",
+        "my_api_key"
+    );
 
     @Override
     protected List<String> remoteClusterAlias() {
@@ -134,6 +153,66 @@ public class GetInferenceFieldsCrossClusterIT extends AbstractMultiClustersTestC
         assertInferenceResultsMap(response.getInferenceResultsMap(), Map.of(INFERENCE_ID, TextExpansionResults.class));
     }
 
+    public void testRemoteClusterActionWithEmbeddingTaskType() {
+        RemoteClusterClient remoteClusterClient = client().getRemoteClusterClient(
+            REMOTE_CLUSTER,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            RemoteClusterService.DisconnectedStrategy.RECONNECT_IF_DISCONNECTED
+        );
+
+        var request = new GetInferenceFieldsInternalAction.Request(
+            new String[] { EMBEDDING_INDEX_NAME },
+            generateDefaultWeightFieldMap(Set.of(EMBEDDING_INFERENCE_FIELD)),
+            false,
+            false,
+            "foo"
+        );
+        PlainActionFuture<GetInferenceFieldsInternalAction.Response> future = new PlainActionFuture<>();
+        remoteClusterClient.execute(GetInferenceFieldsInternalAction.REMOTE_TYPE, request, future);
+
+        var response = future.actionGet(TEST_REQUEST_TIMEOUT);
+        assertInferenceFieldsMap(
+            response.getInferenceFieldsMap(),
+            Map.of(
+                EMBEDDING_INDEX_NAME,
+                Set.of(new GetInferenceFieldsIT.InferenceFieldWithTestMetadata(EMBEDDING_INFERENCE_FIELD, EMBEDDING_INFERENCE_ID, 1.0f))
+            )
+        );
+        assertInferenceResultsMap(response.getInferenceResultsMap(), Map.of(EMBEDDING_INFERENCE_ID, MlDenseEmbeddingResults.class));
+    }
+
+    public void testRemoteClusterActionWithImageEmbeddingTaskType() {
+        RemoteClusterClient remoteClusterClient = client().getRemoteClusterClient(
+            REMOTE_CLUSTER,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            RemoteClusterService.DisconnectedStrategy.RECONNECT_IF_DISCONNECTED
+        );
+
+        var imageInput = new InferenceStringGroup(
+            new InferenceString(DataType.IMAGE, DataFormat.BASE64, "data:image/jpeg;base64,aGVsbG8=")
+        );
+        var request = new GetInferenceFieldsInternalAction.Request(
+            new String[] { EMBEDDING_INDEX_NAME },
+            generateDefaultWeightFieldMap(Set.of(EMBEDDING_INFERENCE_FIELD)),
+            false,
+            false,
+            imageInput,
+            null
+        );
+        PlainActionFuture<GetInferenceFieldsInternalAction.Response> future = new PlainActionFuture<>();
+        remoteClusterClient.execute(GetInferenceFieldsInternalAction.REMOTE_TYPE, request, future);
+
+        var response = future.actionGet(TEST_REQUEST_TIMEOUT);
+        assertInferenceFieldsMap(
+            response.getInferenceFieldsMap(),
+            Map.of(
+                EMBEDDING_INDEX_NAME,
+                Set.of(new GetInferenceFieldsIT.InferenceFieldWithTestMetadata(EMBEDDING_INFERENCE_FIELD, EMBEDDING_INFERENCE_ID, 1.0f))
+            )
+        );
+        assertInferenceResultsMap(response.getInferenceResultsMap(), Map.of(EMBEDDING_INFERENCE_ID, MlDenseEmbeddingResults.class));
+    }
+
     private void setupTwoClusters() throws IOException {
         setupCluster(LOCAL_CLUSTER);
         setupCluster(REMOTE_CLUSTER);
@@ -148,5 +227,16 @@ public class GetInferenceFieldsCrossClusterIT extends AbstractMultiClustersTestC
         XContentBuilder mappings = generateSemanticTextMapping(Map.of(INFERENCE_FIELD, INFERENCE_ID));
         Settings indexSettings = indexSettings(randomIntBetween(1, dataNodeCount), 0).build();
         assertAcked(client.admin().indices().prepareCreate(INDEX_NAME).setSettings(indexSettings).setMapping(mappings));
+
+        createInferenceEndpoint(client, TaskType.EMBEDDING, EMBEDDING_INFERENCE_ID, EMBEDDING_ENDPOINT_SERVICE_SETTINGS);
+
+        XContentBuilder embeddingMappings = generateSemanticTextMapping(Map.of(EMBEDDING_INFERENCE_FIELD, EMBEDDING_INFERENCE_ID));
+        assertAcked(
+            client.admin()
+                .indices()
+                .prepareCreate(EMBEDDING_INDEX_NAME)
+                .setSettings(indexSettings(randomIntBetween(1, dataNodeCount), 0).build())
+                .setMapping(embeddingMappings)
+        );
     }
 }

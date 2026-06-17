@@ -53,7 +53,10 @@ import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.stringToIn
  */
 public class MvSlice extends EsqlScalarFunction implements OptionalArgument, EvaluatorMapper {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "MvSlice", MvSlice::new);
-    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(MvSlice.class).ternary(MvSlice::new).name("mv_slice");
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(MvSlice.class)
+        .ternary(MvSlice::new)
+        .capabilities("flattened")
+        .name("mv_slice");
 
     private final Expression field, start, end;
 
@@ -65,6 +68,7 @@ public class MvSlice extends EsqlScalarFunction implements OptionalArgument, Eva
             "date",
             "date_nanos",
             "double",
+            "flattened",
             "geo_point",
             "geo_shape",
             "geohash",
@@ -76,6 +80,7 @@ public class MvSlice extends EsqlScalarFunction implements OptionalArgument, Eva
             "long",
             "unsigned_long",
             "version" },
+        briefSummary = "Returns a subset of a multi-value field using start and end indexes.",
         description = """
             Returns a subset of the multivalued field using the start and end index values. Indexes are 0-based.
             This is most useful when reading from a function that emits multivalued columns
@@ -97,6 +102,7 @@ public class MvSlice extends EsqlScalarFunction implements OptionalArgument, Eva
                 "date",
                 "date_nanos",
                 "double",
+                "flattened",
                 "geo_point",
                 "geo_shape",
                 "geohash",

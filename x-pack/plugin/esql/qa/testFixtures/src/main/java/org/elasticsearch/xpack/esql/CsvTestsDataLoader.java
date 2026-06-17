@@ -297,7 +297,7 @@ public class CsvTestsDataLoader {
             "metric_temporality-mappings.json",
             "metric_temporality.csv",
             "metric_temporality-settings.json"
-        ).withRequiredCapabilities(EsqlCapabilities.Cap.TSDB_TEMPORALITY_SUPPORT_V8),
+        ).withRequiredCapabilities(EsqlCapabilities.Cap.TSDB_TEMPORALITY_SUPPORT_V9),
         new TestDataset("ts_window", "ts_window-mappings.json", "ts_window.csv", "ts_window-settings.json")
     ).collect(toMap(TestDataset::indexName, Function.identity()));
 
@@ -827,6 +827,11 @@ public class CsvTestsDataLoader {
         // it might succeed on a new node (which has @ServerlessScope) while a subsequent PUT then
         // fails with 410 on an old node (which doesn't). The /_capabilities TransportNodesAction
         // queries every node and returns supported=true only when all of them agree.
+        // Checking the view_crud_as_index_actions capability string is insufficient: that capability
+        // is declared by RestPutViewAction on all nodes even before @ServerlessScope was added, so
+        // it returns true even on old serverless nodes where the endpoint is blocked.
+        // Using method=GET&path=/_query/view instead lets /_capabilities verify actual accessibility
+        // (including serverless scope) on every node.
         Request capRequest = new Request("GET", "/_capabilities");
         capRequest.addParameter("method", "GET");
         capRequest.addParameter("path", "/_query/view");

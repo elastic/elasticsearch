@@ -15,7 +15,6 @@ import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
@@ -98,6 +97,7 @@ import static org.elasticsearch.xpack.esql.core.expression.MetadataAttribute.isT
 import static org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction.withFilter;
 import static org.elasticsearch.xpack.esql.expression.predicate.Predicates.combineAnd;
 import static org.elasticsearch.xpack.esql.expression.predicate.Predicates.combineAndNullable;
+import static org.elasticsearch.xpack.esql.optimizer.rules.logical.promql.PromqlAttributesTranslationContext.canonicalName;
 
 /**
  * Translates PromQL logical plan into ESQL plan.
@@ -384,10 +384,10 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
         LogicalPlan childPlan = childResult.plan();
         boolean childAlreadyAggregated = findAggregate(childResult.plan(), Aggregate.class) != null;
         Attribute upperBound = childAlreadyAggregated
-            ? findAttributeByPromqlLabelName(childResult.synthesizedAttributes().declared(), HistogramQuantile.LE_LABEL)
+            ? findAttributeByLabelName(childResult.synthesizedAttributes().declared(), HistogramQuantile.LE_LABEL)
             : null;
         if (upperBound == null && childAlreadyAggregated) {
-            upperBound = findAttributeByPromqlLabelName(childResult.plan().output(), HistogramQuantile.LE_LABEL);
+            upperBound = findAttributeByLabelName(childResult.plan().output(), HistogramQuantile.LE_LABEL);
         }
         SynthesizedAttributes exportLabels;
         if (upperBound == null) {
@@ -440,22 +440,30 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
     }
 
     private static InheritedAttributes histogramQuantileChildLabels(HistogramQuantile histogramQuantile) {
-        List<Attribute> childLabels = PromqlAttributesTranslationContext.dimensionAttributes(histogramQuantile.child().output());
+        List<Attribute> childLabels = PromqlAttributesTranslationContext.filterDimensionAttributes(histogramQuantile.child().output());
         List<Attribute> demand = childLabels.isEmpty() ? histogramQuantile.child().output() : childLabels;
         return InheritedAttributes.unconstrained().including(demand);
     }
 
-    private static Attribute findAttributeByPromqlLabelName(List<Attribute> attributes, String labelName) {
-        for (Attribute attribute : attributes) {
-            if (promqlLabelKey(attribute).equals(labelName)) {
-                return attribute;
+    private static Attribute findAttributeByLabelName(List<Attribute> attributes, String labelName) {
+        // Prometheus passthrough dimensions surface under two names: the concrete field (e.g. `labels.pod`) and a short
+        // alias (`pod`). `canonicalName` strips the passthrough prefix, so both match `labelName`. The `_timeseries`
+        // block loader excludes by the concrete dimension field name, so we must resolve to the concrete (prefixed)
+        // attribute and never to the bare alias - otherwise the exclusion name never matches and the label leaks. The
+        // bare attribute is the right answer only when no prefixed variant exists (a top-level dimension), so keep it
+        // as a fallback. Without this preference the result depended on the alphabetical order of `attributes`: labels
+        // sorting after `labels.` (e.g. `pod`) happened to hit the concrete field first, while earlier ones (`cluster`,
+        // `job`, `instance`) hit the alias and leaked.
+        Attribute bareMatch = null;
+        for (var attr : attributes) {
+            if (canonicalName(attr).equals(labelName)) {
+                if (attr.name().equals(labelName) == false) {
+                    return attr;
+                }
+                bareMatch = attr;
             }
         }
-        return null;
-    }
-
-    private static String promqlLabelKey(Attribute attr) {
-        return PromqlAttributesTranslationContext.fieldName(attr);
+        return bareMatch;
     }
 
     private static Expression histogramQuantileUpperBound(Source source, Attribute upperBound) {
@@ -761,9 +769,9 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
         // exclusions).
         var translation = synthesizedAttributes.translateLeaf(pathExclusions);
 
-        // Only concrete dimension fields can be excluded from the `_timeseries` grouping; non-dimension labels are dropped.
-        List<Attribute> excludedDimensions = dimensionAttributes(translation.excludedDimensions());
-        boolean needsTimeSeriesGrouping = hasTSGrouping(translation.groupings()) || excludedDimensions.isEmpty() == false;
+        // Empty `without ()` retains the full label set T: translateLeaf surfaces a `_timeseries` grouping key for it
+        // (with an empty exclusion set), so hasTSGrouping already covers it - no separate full-label-set signal needed.
+        boolean needsTimeSeriesGrouping = hasTSGrouping(translation.groupings()) || translation.excludedDimensions().isEmpty() == false;
         // TranslateTimeSeriesAggregate splits this node into two phases, replacing inner
         // TimeSeriesAggregateFunctions (e.g. LastOverTime) with references to phase-1 results.
         // The phase-2 expression must remain a valid AggregateFunction inside the Aggregate node.
@@ -785,7 +793,16 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
         aggregates.add(ctx.stepAttr());
 
         if (needsTimeSeriesGrouping) {
-            var function = new TimeSeriesWithout(source, new ArrayList<Expression>(excludedDimensions));
+            // Resolve each excluded label to the concrete dimension column the child exposes, so the exclusion names
+            // match the backing dimension fields the `_timeseries` block loader enumerates: PromQL `pod` must become the
+            // stored dimension `labels.pod` for Prometheus passthrough data, otherwise the bare key never matches and
+            // the label leaks into the output. A label absent from the child stays unresolved and is simply a no-op.
+            List<Expression> excluded = new ArrayList<>(translation.excludedDimensions().size());
+            for (Attribute label : translation.excludedDimensions()) {
+                Attribute resolved = findAttributeByLabelName(plan.output(), canonicalName(label));
+                excluded.add(resolved != null ? resolved : label);
+            }
+            var function = new TimeSeriesWithout(source, excluded);
             var expression = function.createNamedExpression();
             groupings.add(expression);
             aggregates.add(expression.toAttribute());
@@ -814,11 +831,6 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
         return groupings.stream().anyMatch(attribute -> MetadataAttribute.isTimeSeriesAttributeName(attribute.name()));
     }
 
-    /** Keep only concrete dimension fields; non-dimension labels cannot be excluded from the {@code _timeseries} grouping. */
-    private static List<Attribute> dimensionAttributes(List<Attribute> attributes) {
-        return attributes.stream().filter(a -> a instanceof FieldAttribute fa && fa.isDimension()).toList();
-    }
-
     /** Outer aggregation over an already-aggregated child. */
     private static LogicalPlan createOuterAggregatePlan(
         TranslationContext ctx,
@@ -831,7 +843,9 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
 
         var translation = labels.translate(plan.output());
 
-        if (labels.hasExclusions() && hasTSGrouping(translation.groupings())) {
+        if (labels.hasExclusions()) {
+            // A WITHOUT regroup (whether the child exposes `_timeseries` or only concrete labels) must pack its carried
+            // dimensions before aggregating: a multi-valued dimension would otherwise split the row and double-count.
             // Pack all carried dimensions before the aggregate to prevent multi-valued splitting,
             // then Unpack after. This covers keys (_timeseries or concrete), attributes (labels
             // to pass through), and missing labels (null-synthesized for BY over WITHOUT).
@@ -935,7 +949,7 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
     }
 
     private static Alias aliasExistingPromqlLabel(Source source, LogicalPlan plan, Attribute attribute) {
-        Attribute existing = findAttributeByPromqlLabelName(plan.output(), promqlLabelKey(attribute));
+        Attribute existing = findAttributeByLabelName(plan.output(), canonicalName(attribute));
         return existing == null ? nullAlias(attribute) : new Alias(source, attribute.name(), existing, attribute.id());
     }
 

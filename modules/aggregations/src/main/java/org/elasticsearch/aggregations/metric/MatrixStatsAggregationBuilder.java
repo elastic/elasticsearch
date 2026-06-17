@@ -93,7 +93,6 @@ public class MatrixStatsAggregationBuilder extends ArrayValuesSourceAggregationB
     @Override
     public boolean equals(Object obj) {
         if (this == obj) return true;
-        if (obj == null || getClass() != obj.getClass()) return false;
         if (super.equals(obj) == false) return false;
         MatrixStatsAggregationBuilder other = (MatrixStatsAggregationBuilder) obj;
         return multiValueMode == other.multiValueMode;

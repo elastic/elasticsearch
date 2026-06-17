@@ -24,6 +24,12 @@ public class MatrixStatsAggregationBuilderTests extends ESTestCase {
         MatrixStatsAggregationBuilder a = new MatrixStatsAggregationBuilder("matrix").missingMap(Map.of("field", 1));
         MatrixStatsAggregationBuilder b = new MatrixStatsAggregationBuilder("matrix").missingMap(Map.of("field", 2));
         assertNotEquals(a, b);
+        assertNotEquals(a.hashCode(), b.hashCode());
+
+        // Builders that agree on missingMap are equal and, per the hashCode contract, must hash consistently.
+        MatrixStatsAggregationBuilder aCopy = new MatrixStatsAggregationBuilder("matrix").missingMap(Map.of("field", 1));
+        assertEquals(a, aCopy);
+        assertEquals(a.hashCode(), aCopy.hashCode());
     }
 
     /**
@@ -36,6 +42,12 @@ public class MatrixStatsAggregationBuilderTests extends ESTestCase {
         MatrixStatsAggregationBuilder a = new MatrixStatsAggregationBuilder("matrix").multiValueMode(MultiValueMode.MIN);
         MatrixStatsAggregationBuilder b = new MatrixStatsAggregationBuilder("matrix").multiValueMode(MultiValueMode.MAX);
         assertNotEquals(a, b);
+        assertNotEquals(a.hashCode(), b.hashCode());
+
+        // Builders that agree on multiValueMode are equal and, per the hashCode contract, must hash consistently.
+        MatrixStatsAggregationBuilder aCopy = new MatrixStatsAggregationBuilder("matrix").multiValueMode(MultiValueMode.MIN);
+        assertEquals(a, aCopy);
+        assertEquals(a.hashCode(), aCopy.hashCode());
     }
 
 }

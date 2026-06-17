@@ -73,7 +73,6 @@ public abstract class ArrayValuesSourceAggregationBuilder<AB extends ArrayValues
      */
     private ValueType userValueTypeHint = null;
     private String format = null;
-    private Object missing = null;
     private Map<String, Object> missingMap = Collections.emptyMap();
 
     protected ArrayValuesSourceAggregationBuilder(String name) {
@@ -90,7 +89,6 @@ public abstract class ArrayValuesSourceAggregationBuilder<AB extends ArrayValues
         this.userValueTypeHint = clone.userValueTypeHint;
         this.format = clone.format;
         this.missingMap = new HashMap<>(clone.missingMap);
-        this.missing = clone.missing;
     }
 
     protected ArrayValuesSourceAggregationBuilder(StreamInput in) throws IOException {
@@ -225,8 +223,8 @@ public abstract class ArrayValuesSourceAggregationBuilder<AB extends ArrayValues
         if (fields != null) {
             builder.field(CommonFields.FIELDS.getPreferredName(), fields);
         }
-        if (missing != null) {
-            builder.field(CommonFields.MISSING.getPreferredName(), missing);
+        if (missingMap.isEmpty() == false) {
+            builder.field(CommonFields.MISSING.getPreferredName(), missingMap);
         }
         if (format != null) {
             builder.field(CommonFields.FORMAT.getPreferredName(), format);

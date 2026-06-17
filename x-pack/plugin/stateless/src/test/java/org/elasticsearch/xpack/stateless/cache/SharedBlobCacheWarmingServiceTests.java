@@ -485,7 +485,7 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
         }
     }
 
-    public void testPrefetchRegion0OfReferencedBccBlobsBeforeHeaderReads() throws Exception {
+    public void testPrefetchRegionZeroOfReferencedBccBlobsBeforeHeaderReads() throws Exception {
         final long primaryTerm = randomLongBetween(10, 42);
         Map<String, WarmTaskInfo> warmTasksForBCCs = ConcurrentCollections.newConcurrentMap();
         long regionSizeInBytes = SharedBytes.PAGE_SIZE * randomLongBetween(1, 3);
@@ -603,6 +603,7 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                 assertThat(warmTasksForBCCs.get(blobName).byteRangeToWarm(), lessThanOrEqualTo(expectedRegion0));
             }
             assertFalse("latest BCC blob should be skipped", warmTasksForBCCs.containsKey(skippedBlobName));
+            assertThat(fakeNode.sharedCacheService.getStats().missCount(), equalTo(0L));
         }
     }
 

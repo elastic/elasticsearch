@@ -98,7 +98,7 @@ final class ColumnarSourceWriter {
         SourceLoader.SyntheticFieldLoader fieldLoader,
         SourceLoader.Leaf sourceLoaderLeaf,
         ReusableColumnarStoredLeafReader leafReader
-        ) {}
+    ) {}
 
     static class ReusableColumnarStoredLeafReader extends LeafReader {
 

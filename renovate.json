@@ -60,8 +60,8 @@
     {
       "description": "Update distributionUrl and distributionSha256Sum together in every gradle-wrapper.properties file. Uses the gradle-version datasource which exposes the official SHA-256 as currentDigest, so all three properties files (root, build-tools-internal, plugins/examples) are updated in lockstep within a single PR.",
       "customType": "regex",
-      "fileMatch": [
-        "(^|/)gradle/wrapper/gradle-wrapper\\.properties$"
+      "managerFilePatterns": [
+        "/(^|/)gradle/wrapper/gradle-wrapper\\.properties$/"
       ],
       "matchStrings": [
         "distributionSha256Sum=(?<currentDigest>[a-f0-9]{64})\\s+distributionUrl=https\\\\://services\\.gradle\\.org/distributions/gradle-(?<currentValue>\\d[\\w.-]*?)-(?:all|bin)\\.zip"

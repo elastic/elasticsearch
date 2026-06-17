@@ -1219,6 +1219,17 @@ public class InternalEngine extends Engine {
         return localCheckpointTracker.generateSeqNo();
     }
 
+    /**
+     * Atomically reserve {@code count} contiguous sequence numbers and return the first.
+     * The caller owns {@code [result, result + count - 1]}.
+     *
+     * @param count the number of sequence numbers to reserve; must be positive
+     * @return the first (lowest) sequence number in the reserved range
+     */
+    protected long doGenerateSeqNos(int count) {
+        return localCheckpointTracker.generateSeqNos(count);
+    }
+
     @Override
     public IndexResult index(Index index) throws IOException {
         final boolean doThrottle = index.origin().isRecovery() == false;
@@ -1497,7 +1508,7 @@ public class InternalEngine extends Engine {
             long seqNoToBeMarkedSeen = SequenceNumbers.NO_OPS_PERFORMED;
             final int seqNoCount = subBatchSize - opsWithPreflightErrors;
             if (origin == Operation.Origin.PRIMARY && seqNoCount > 0) {
-                firstPrimarySeqNo = localCheckpointTracker.generateSeqNos(seqNoCount);
+                firstPrimarySeqNo = doGenerateSeqNos(seqNoCount);
             }
             int batchSeqNoIdx = 0;
             for (int i = 0; i < subBatchSize; i++) {

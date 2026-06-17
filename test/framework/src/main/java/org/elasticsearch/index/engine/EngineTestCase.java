@@ -675,6 +675,18 @@ public abstract class EngineTestCase extends ESTestCase {
                 protected long doGenerateSeqNo() {
                     return seqNoForOperation != null ? seqNoForOperation.applyAsLong(this) : super.doGenerateSeqNo();
                 }
+
+                @Override
+                protected long doGenerateSeqNos(int count) {
+                    if (seqNoForOperation != null) {
+                        long first = doGenerateSeqNo();
+                        for (int i = 1; i < count; i++) {
+                            doGenerateSeqNo();
+                        }
+                        return first;
+                    }
+                    return super.doGenerateSeqNos(count);
+                }
             };
         } else {
             return new InternalTestEngine(config, IndexWriter.MAX_DOCS, localCheckpointTrackerSupplier) {
@@ -688,6 +700,18 @@ public abstract class EngineTestCase extends ESTestCase {
                 @Override
                 protected long doGenerateSeqNo() {
                     return seqNoForOperation != null ? seqNoForOperation.applyAsLong(this) : super.doGenerateSeqNo();
+                }
+
+                @Override
+                protected long doGenerateSeqNos(int count) {
+                    if (seqNoForOperation != null) {
+                        long first = doGenerateSeqNo();
+                        for (int i = 1; i < count; i++) {
+                            doGenerateSeqNo();
+                        }
+                        return first;
+                    }
+                    return super.doGenerateSeqNos(count);
                 }
             };
         }

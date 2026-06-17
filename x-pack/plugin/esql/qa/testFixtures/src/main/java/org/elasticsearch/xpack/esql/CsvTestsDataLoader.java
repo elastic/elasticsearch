@@ -812,9 +812,24 @@ public class CsvTestsDataLoader {
     }
 
     private static boolean clusterHasViewSupport(RestClient client) throws IOException {
-        Request request = new Request("GET", "/_query/view");
+        // Use the /_capabilities endpoint to check ALL nodes for PUT view support.
+        // A simple GET /_query/view can hit any single node — in a mixed cluster during an upgrade,
+        // GET might succeed on a new node (which has @ServerlessScope) while PUT then fails with
+        // 410 on an old node (which doesn't). The /_capabilities TransportNodesAction queries every
+        // node and returns supported=true only when all of them agree.
+        Request capRequest = new Request("GET", "/_capabilities");
+        capRequest.addParameter("method", "PUT");
+        capRequest.addParameter("path", "/_query/view/test");
         try {
-            Response ignored = client.performRequest(request);
+            Response capResponse = client.performRequest(capRequest);
+            ObjectMapper mapper = new ObjectMapper();
+            JsonNode json = mapper.readTree(capResponse.getEntity().getContent());
+            JsonNode supported = json.get("supported");
+            if (supported != null && supported.isBoolean()) {
+                return supported.asBoolean();
+            }
+            // null means the capabilities check was inconclusive (e.g. node failures) — be conservative
+            return false;
         } catch (ResponseException e) {
             int code = e.getResponse().getStatusLine().getStatusCode();
             // Different versions of Elasticsearch return different codes when views are not supported
@@ -823,7 +838,6 @@ public class CsvTestsDataLoader {
             }
             throw e;
         }
-        return true;
     }
 
     private static void deleteView(RestClient client, String viewName) throws IOException {

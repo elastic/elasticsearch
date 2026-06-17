@@ -50,6 +50,12 @@ public interface ESVectorUtilSupport {
     /** Calculates the dot product of the given byte arrays. */
     float dotProduct(byte[] a, byte[] b);
 
+    /** Calculates the dot product over {@code [offset, offset + length)}. */
+    float dotProduct(byte[] a, byte[] b, int offset, int length);
+
+    /** L2-normalizes {@code v[0:length)} in place using signed byte values as real components. */
+    void l2Normalize(byte[] v, int length);
+
     float maxSimDotProduct(MultiFloatVectorsSource source, float[][] query, float[] scoresScratch);
 
     float maxSimDotProduct(MultiBFloat16VectorsSource source, float[][] query, float[] scoresScratch);

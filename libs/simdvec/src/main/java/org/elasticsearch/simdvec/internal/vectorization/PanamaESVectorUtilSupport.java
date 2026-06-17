@@ -167,18 +167,21 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
         }
         FloatVector acc = FloatVector.zero(FLOAT_SPECIES);
         int i = offset;
-        final int end = offset + length;
         final int vectorEnd = offset + FLOAT_SPECIES.loopBound(length);
         for (; i < vectorEnd; i += FLOAT_SPECIES.length()) {
             FloatVector av = FloatVector.fromArray(FLOAT_SPECIES, a, i);
             FloatVector bv = FloatVector.fromArray(FLOAT_SPECIES, b, i);
             acc = fma(av, bv, acc);
         }
-        float sum = acc.reduceLanes(ADD);
-        for (; i < end; i++) {
-            sum = fma(a[i], b[i], sum);
+
+        int remaining = offset + length - i;
+        if (remaining > 0) {
+            VectorMask<Float> mask = VectorMask.fromLong(FLOAT_SPECIES, (1L << remaining) - 1);
+            FloatVector av = FloatVector.fromArray(FLOAT_SPECIES, a, i, mask);
+            FloatVector bv = FloatVector.fromArray(FLOAT_SPECIES, b, i, mask);
+            acc = fma(av, bv, acc);
         }
-        return sum;
+        return acc.reduceLanes(ADD);
     }
 
     @Override
@@ -191,11 +194,13 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
             FloatVector vv = FloatVector.fromArray(FLOAT_SPECIES, v, i);
             acc = fma(vv, vv, acc);
         }
-        normSq = acc.reduceLanes(ADD);
-        for (; i < length; i++) {
-            double t = v[i];
-            normSq += t * t;
+        int remaining = length - i;
+        if (remaining > 0) {
+            VectorMask<Float> mask = VectorMask.fromLong(FLOAT_SPECIES, (1L << remaining) - 1);
+            FloatVector vv = FloatVector.fromArray(FLOAT_SPECIES, v, i, mask);
+            acc = fma(vv, vv, acc);
         }
+        normSq = acc.reduceLanes(ADD);
         if (normSq == 0) {
             return;
         }
@@ -207,8 +212,11 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
             FloatVector vv = FloatVector.fromArray(FLOAT_SPECIES, v, i);
             vv.mul(scaleVec).intoArray(v, i);
         }
-        for (; i < length; i++) {
-            v[i] = (float) (v[i] * invNorm);
+        remaining = length - i;
+        if (remaining > 0) {
+            VectorMask<Float> mask = VectorMask.fromLong(FLOAT_SPECIES, (1L << remaining) - 1);
+            FloatVector vv = FloatVector.fromArray(FLOAT_SPECIES, v, i, mask);
+            vv.mul(scaleVec).intoArray(v, i, mask);
         }
     }
 
@@ -248,6 +256,79 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
     @Override
     public float dotProduct(byte[] a, byte[] b) {
         return VectorUtil.dotProduct(a, b);
+    }
+
+    @Override
+    public float dotProduct(byte[] a, byte[] b, int offset, int length) {
+        if (offset == 0 && length == a.length) {
+            return dotProduct(a, b);
+        }
+        if (length >= BYTE_SPECIES.length()) {
+            return dotProductByteSubRange(a, b, offset, length);
+        }
+        int sum = 0;
+        for (int i = offset; i < offset + length; i++) {
+            sum += a[i] * b[i];
+        }
+        return sum;
+    }
+
+    @Override
+    public void l2Normalize(byte[] v, int length) {
+        double normSq;
+        int i = 0;
+        if (length >= BYTE_SPECIES.length()) {
+            IntVector acc = IntVector.zero(INTEGER_SPECIES);
+            final int byteLen = BYTE_SPECIES.length();
+            final int byteVectorEnd = BYTE_SPECIES.loopBound(length);
+            for (; i < byteVectorEnd; i += byteLen) {
+                ByteVector vv = ByteVector.fromArray(BYTE_SPECIES, v, i);
+                for (int part = 0; part < BYTE_TO_FLOAT_PARTS; part++) {
+                    IntVector vi = (IntVector) vv.castShape(INTEGER_SPECIES, part);
+                    acc = acc.add(vi.mul(vi));
+                }
+            }
+            normSq = acc.reduceLanes(VectorOperators.ADD);
+            for (; i < length; i++) {
+                double t = v[i];
+                normSq += t * t;
+            }
+        } else {
+            normSq = 0;
+            for (int j = 0; j < length; j++) {
+                double t = v[j];
+                normSq += t * t;
+            }
+        }
+        if (normSq == 0) {
+            return;
+        }
+        double invNorm = 1.0 / Math.sqrt(normSq);
+        for (int j = 0; j < length; j++) {
+            v[j] = (byte) (v[j] * invNorm);
+        }
+    }
+
+    private float dotProductByteSubRange(byte[] a, byte[] b, int offset, int length) {
+        IntVector acc = IntVector.zero(INTEGER_SPECIES);
+        int i = offset;
+        final int end = offset + length;
+        final int byteLen = BYTE_SPECIES.length();
+        final int vectorEnd = offset + BYTE_SPECIES.loopBound(length);
+        for (; i < vectorEnd; i += byteLen) {
+            ByteVector ba = ByteVector.fromArray(BYTE_SPECIES, a, i);
+            ByteVector bb = ByteVector.fromArray(BYTE_SPECIES, b, i);
+            for (int part = 0; part < BYTE_TO_FLOAT_PARTS; part++) {
+                IntVector ia = (IntVector) ba.castShape(INTEGER_SPECIES, part);
+                IntVector ib = (IntVector) bb.castShape(INTEGER_SPECIES, part);
+                acc = acc.add(ia.mul(ib));
+            }
+        }
+        int sum = acc.reduceLanes(VectorOperators.ADD);
+        for (; i < end; i++) {
+            sum += a[i] * b[i];
+        }
+        return sum;
     }
 
     @Override

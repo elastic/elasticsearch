@@ -115,6 +115,35 @@ public final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
         return VectorUtil.dotProduct(a, b);
     }
 
+    @Override
+    public float dotProduct(byte[] a, byte[] b, int offset, int length) {
+        if (offset == 0 && length == a.length && length == b.length) {
+            return dotProduct(a, b);
+        }
+        int sum = 0;
+        int end = offset + length;
+        for (int i = offset; i < end; i++) {
+            sum += a[i] * b[i];
+        }
+        return sum;
+    }
+
+    @Override
+    public void l2Normalize(byte[] v, int length) {
+        double normSq = 0;
+        for (int j = 0; j < length; j++) {
+            double t = v[j];
+            normSq += t * t;
+        }
+        if (normSq == 0) {
+            return;
+        }
+        double invNorm = 1.0 / Math.sqrt(normSq);
+        for (int j = 0; j < length; j++) {
+            v[j] = (byte) (v[j] * invNorm);
+        }
+    }
+
     static float maxSimDotProductImpl(MultiFloatVectorsSource source, float[][] query, float[] scoresScratch) {
         float sum = 0f;
         for (float[] floats : query) {

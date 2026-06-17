@@ -163,6 +163,46 @@ public class ESVectorUtil {
     }
 
     /**
+     * Dot product of the first {@code length} components of {@code a} and {@code b}.
+     */
+    public static float dotProduct(byte[] a, byte[] b, int length) {
+        if (a.length != b.length) {
+            throw new IllegalArgumentException("vector dimensions incompatible: " + a.length + "!= " + b.length);
+        }
+        Objects.checkFromIndexSize(0, length, a.length);
+        return IMPL.dotProduct(a, b, 0, length);
+    }
+
+    /**
+     * Dot product over {@code [offset, offset + length)}.
+     */
+    public static float dotProduct(byte[] a, byte[] b, int offset, int length) {
+        if (a.length != b.length) {
+            throw new IllegalArgumentException("vector dimensions incompatible: " + a.length + "!= " + b.length);
+        }
+        Objects.checkFromIndexSize(offset, length, a.length);
+        return IMPL.dotProduct(a, b, offset, length);
+    }
+
+    /**
+     * L2-normalizes the prefix {@code v[0..length)} in place using signed byte values as real
+     * components. Elements at indices {@code length} and beyond are left unchanged. A zero prefix
+     * is a no-op.
+     */
+    public static void l2Normalize(byte[] v, int length) {
+        if (length <= 0) {
+            return;
+        }
+        Objects.checkFromIndexSize(0, length, v.length);
+        IMPL.l2Normalize(v, length);
+    }
+
+    /** L2-normalizes all components of {@code v} in place. */
+    public static void l2Normalize(byte[] v) {
+        l2Normalize(v, v.length);
+    }
+
+    /**
      * Computes max-sim dot product for float query vectors against a multi-vector source.
      * <p>
      * The provided {@code scoresScratch} buffer is reused as temporary per-document scores for

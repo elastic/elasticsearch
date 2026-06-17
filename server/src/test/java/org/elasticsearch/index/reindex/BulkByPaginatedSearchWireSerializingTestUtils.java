@@ -41,7 +41,7 @@ import static org.elasticsearch.index.reindex.resumeinfo.SliceStatusWireSerializ
 import static org.elasticsearch.xcontent.json.JsonXContent.jsonXContent;
 
 /**
- * Shared helpers for bulk-by-scroll wire serialization tests.
+ * Shared helpers for bulk-by-paginated-search wire serialization tests.
  */
 public final class BulkByPaginatedSearchWireSerializingTestUtils {
 
@@ -260,7 +260,7 @@ public final class BulkByPaginatedSearchWireSerializingTestUtils {
     }
 
     /**
-     * Minimal random resume info for embedding in bulk-by-scroll requests (worker or multi-slice).
+     * Minimal random resume info for embedding in bulk-by-paginated-search requests (worker or multi-slice).
      */
     public static void fillRandomBulkFields(AbstractBulkByPaginatedSearchRequest<?> request) {
         if (ESTestCase.randomBoolean()) {

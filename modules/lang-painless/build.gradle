@@ -29,10 +29,6 @@ testClusters.configureEach {
 configurations {
     spi
     compileOnlyApi.extendsFrom(spi)
-    if (isEclipse) {
-        // Eclipse buildship doesn't know about compileOnlyApi
-        api.extendsFrom(spi)
-    }
 }
 
 dependencies {
@@ -61,6 +57,10 @@ restResources {
     }
 }
 
+tasks.named("compileJava").configure {
+    options.compilerArgs << '-Xlint:-overloads'
+}
+
 tasks.named("test").configure {
     // in WhenThingsGoWrongTests we intentionally generate an out of memory error, this prevents the heap from being dumped to disk
     jvmArgs '-XX:-OmitStackTraceInFastThrow', '-XX:-HeapDumpOnOutOfMemoryError'
@@ -83,15 +83,6 @@ dependencies {
     docImplementation project(':modules:lang-painless')
     docImplementation 'com.github.javaparser:javaparser-core:3.18.0'
     docImplementation 'org.jsoup:jsoup:1.13.1'
-    if (isEclipse) {
-        /*
-         * Eclipse isn't quite "with it" enough to understand the different
-         * source sets. This adds the dependency to all source sets so it
-         * can compile the doc java files.
-         */
-        implementation 'com.github.javaparser:javaparser-core:3.18.0'
-        implementation 'org.jsoup:jsoup:1.13.1'
-    }
 }
 
 def generateContextCluster = testClusters.register("generateContextCluster") {

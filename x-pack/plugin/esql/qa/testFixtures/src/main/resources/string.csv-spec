@@ -937,6 +937,48 @@ ROW a=[10, 9, 8]
 // end::mv_concat-to_string-result[]
 ;
 
+mvConcatFromEmployees
+request_stored: skip
+FROM employees
+| WHERE emp_no < 10010
+| EVAL joined = MV_CONCAT(job_positions, ", ")
+| KEEP emp_no, joined
+| SORT emp_no DESC
+;
+
+emp_no:integer | joined:keyword
+10009          | "Internship, Senior Python Developer"
+10008          | "Internship, Junior Developer, Purchase Manager, Senior Python Developer"
+10007          | null
+10006          | "Principal Support Engineer, Senior Team Lead, Tech Lead"
+10005          | null
+10004          | "Head Human Resources, Reporting Analyst, Support Engineer, Tech Lead"
+10003          | null
+10002          | "Senior Team Lead"
+10001          | "Accountant, Senior Python Developer"
+;
+
+mvConcatFieldDelimiter
+request_stored: skip
+FROM employees
+| WHERE emp_no < 10010
+| EVAL joined = MV_CONCAT(job_positions, last_name)
+| KEEP emp_no, joined
+| SORT emp_no DESC
+;
+
+emp_no:integer | joined:keyword
+10009          | "InternshipPeacSenior Python Developer"
+10008          | "InternshipKalloufiJunior DeveloperKalloufiPurchase ManagerKalloufiSenior Python Developer"
+10007          | null
+10006          | "Principal Support EngineerPreusigSenior Team LeadPreusigTech Lead"
+10005          | null
+10004          | "Head Human ResourcesKoblickReporting AnalystKoblickSupport EngineerKoblickTech Lead"
+10003          | null
+10002          | "Senior Team Lead"
+10001          | "AccountantFacelloSenior Python Developer"
+;
+
 mvSort
 required_capability: mv_sort
 
@@ -2975,6 +3017,22 @@ u:keyword
 ["hello+elastic%21", "a%2Bb-c%25d", "", ".-_~", "%21%23%24%26%27%28%29%2A%2B%2C%2F%3A%3B%3D%3F%40%5B%5D", "%F0%9F%94%A5%F0%9F%92%A7"]
 ;
 
+url_encode tests with text field table reads
+required_capability: url_encode
+
+FROM books
+| EVAL author_encoded = URL_ENCODE(author),
+        title_encoded = URL_ENCODE(title)
+| KEEP book_no, author_encoded, title_encoded
+| SORT book_no
+| WHERE book_no IN ("1211", "1463")
+;
+
+book_no:keyword | author_encoded:keyword | title_encoded:keyword
+1211            | Fyodor+Dostoevsky      | The+brothers+Karamazov
+1463            | J.+R.+R.+Tolkien       | Realms+of+Tolkien%3A+Images+of+Middle-earth
+;
+
 url_decode sample for docs
 required_capability: url_decode
 
@@ -3086,6 +3144,19 @@ ROW a = "+!\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcd
 
 a:keyword                                                                                                                                                   | b:keyword | c:keyword
 "%2B%21%22%23%24%25%26%27%28%29%2A%2B%2C-.%2F0123456789%3A%3B%3C%3D%3E%3F%40ABCDEFGHIJKLMNOPQRSTUVWXYZ%5B%5C%5D%5E_%60abcdefghijklmnopqrstuvwxyz%7B%7C%7D~" | ".-_~"    |❗🐶🐱
+;
+
+url_encode_component tests with keyword field table reads
+required_capability: url_encode_component
+
+FROM sample_data
+| WHERE message == "Connected to 10.1.0.1"
+| EVAL encoded = URL_ENCODE_COMPONENT(message)
+| KEEP encoded
+;
+
+encoded:keyword
+Connected%20to%2010.1.0.1
 ;
 
 url_encode_component tests with table reads

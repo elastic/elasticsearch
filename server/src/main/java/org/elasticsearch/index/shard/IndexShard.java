@@ -1118,7 +1118,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             doc.addDynamicMappingsUpdate(Mapping.emptyCompressed());
         }
         final BytesRef uid = mapperService.getIndexSettings().isSliceEnabled() && source.routing() != null
-            ? Uid.encodeSliceId(source.routing(), doc.id())
+            ? Uid.encodeId(Uid.compositeId(source.routing(), doc.id()))
             : Uid.encodeId(doc.id());
         return new Engine.Index(
             uid,
@@ -1387,8 +1387,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         long ifPrimaryTerm
     ) {
         long startTime = System.nanoTime();
-        BytesRef uid = sliceEnabled && routing != null ? Uid.encodeSliceId(routing, id) : Uid.encodeId(id);
-        return new Engine.Delete(id, routing, uid, seqNo, primaryTerm, version, versionType, origin, startTime, ifSeqNo, ifPrimaryTerm);
+        // On the primary write path routing is the slice, so build the composite term. On replay routing is null and id is
+        // already the composite "slice#id", so encodeId(id) reproduces the original term (no double-encode).
+        BytesRef uid = sliceEnabled && routing != null ? Uid.encodeId(Uid.compositeId(routing, id)) : Uid.encodeId(id);
+        return new Engine.Delete(id, uid, seqNo, primaryTerm, version, versionType, origin, startTime, ifSeqNo, ifPrimaryTerm);
     }
 
     public static Engine.Delete prepareDelete(
@@ -2300,13 +2302,15 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             }
             case DELETE -> {
                 final Translog.Delete delete = (Translog.Delete) operation;
+                // The translog Delete uid is self-describing: for slice indices it is encodeId("slice#id"), so
+                // Uid.decodeId yields "slice#id" and prepareDelete (with routing=null) re-encodes it to the same term.
                 result = applyDeleteOperation(
                     engine,
                     delete.seqNo(),
                     delete.primaryTerm(),
                     delete.version(),
                     Uid.decodeId(delete.uid()),
-                    delete.routing(),
+                    null,
                     versionType,
                     UNASSIGNED_SEQ_NO,
                     0,

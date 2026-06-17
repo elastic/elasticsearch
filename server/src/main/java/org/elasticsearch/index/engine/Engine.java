@@ -2054,12 +2054,9 @@ public abstract class Engine implements Closeable {
         private final String id;
         private final long ifSeqNo;
         private final long ifPrimaryTerm;
-        @Nullable
-        private final String routing;
 
         public Delete(
             String id,
-            @Nullable String routing,
             BytesRef uid,
             long seqNo,
             long primaryTerm,
@@ -2079,28 +2076,11 @@ public abstract class Engine implements Closeable {
             this.id = Objects.requireNonNull(id);
             this.ifSeqNo = ifSeqNo;
             this.ifPrimaryTerm = ifPrimaryTerm;
-            this.routing = routing;
-        }
-
-        public Delete(
-            String id,
-            BytesRef uid,
-            long seqNo,
-            long primaryTerm,
-            long version,
-            VersionType versionType,
-            Origin origin,
-            long startTime,
-            long ifSeqNo,
-            long ifPrimaryTerm
-        ) {
-            this(id, null, uid, seqNo, primaryTerm, version, versionType, origin, startTime, ifSeqNo, ifPrimaryTerm);
         }
 
         public Delete(String id, BytesRef uid, long primaryTerm) {
             this(
                 id,
-                null,
                 uid,
                 UNASSIGNED_SEQ_NO,
                 primaryTerm,
@@ -2134,11 +2114,6 @@ public abstract class Engine implements Closeable {
 
         public long getIfPrimaryTerm() {
             return ifPrimaryTerm;
-        }
-
-        @Nullable
-        public String routing() {
-            return routing;
         }
     }
 
@@ -2197,7 +2172,7 @@ public abstract class Engine implements Closeable {
         private long ifSeqNo = UNASSIGNED_SEQ_NO;
         private long ifPrimaryTerm = UNASSIGNED_PRIMARY_TERM;
 
-        public Get(boolean realtime, boolean readFromTranslog, String id) {
+        Get(boolean realtime, boolean readFromTranslog, String id) {
             this.realtime = realtime;
             this.id = id;
             this.uid = Uid.encodeId(id);

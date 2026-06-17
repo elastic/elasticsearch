@@ -26,7 +26,6 @@ public final class SliceIndexing {
     public static final String PARAM_NAME = "_slice";
     public static final FeatureFlag SLICE_FEATURE_FLAG = new FeatureFlag("slice_indexing");
     public static final TransportVersion SLICE_MISSING_EXCEPTION_VERSION = TransportVersion.fromName("slice_missing_exception");
-    public static final TransportVersion SLICE_TRANSLOG_DELETE_ROUTING = TransportVersion.fromName("slice_translog_delete_routing");
     public static final TransportVersion SEARCH_SLICE_ROUTING_STATE_VERSION = TransportVersion.fromName("search_slice_routing_state");
     public static final TransportVersion CLUSTER_SEARCH_SHARDS_SLICE_ROUTING_STATE_VERSION = TransportVersion.fromName(
         "cluster_search_shards_slice_routing_state"

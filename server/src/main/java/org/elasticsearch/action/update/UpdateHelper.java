@@ -65,8 +65,9 @@ public class UpdateHelper {
         if (indexShard.indexSettings().sequenceNumbersDisabled()) {
             throw new UpdateNotSupportedException(indexShard.shardId());
         }
+        // Pass the routing (the slice for slice-enabled indices) so the get resolves the composite (slice, id) term.
         final GetResult getResult = indexShard.getService()
-            .getForUpdate(request.id(), request.ifSeqNo(), request.ifPrimaryTerm(), fetchSourceContext);
+            .getForUpdate(request.id(), request.routing(), request.ifSeqNo(), request.ifPrimaryTerm(), fetchSourceContext);
         return prepare(indexShard, request, getResult, nowInMillis);
     }
 

@@ -39,7 +39,6 @@ import org.elasticsearch.eirf.EirfRowReader;
 import org.elasticsearch.eirf.EirfRowToXContent;
 import org.elasticsearch.eirf.EirfRowXContentParser;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.TranslogOperationAsserter;
 import org.elasticsearch.index.mapper.IdFieldMapper;
@@ -1605,13 +1604,10 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         public static final int FORMAT_NO_VERSION_TYPE = FORMAT_NO_PARENT + 1;
         public static final int FORMAT_NO_DOC_TYPE = FORMAT_NO_VERSION_TYPE + 1;    // since 8.0
         public static final int FORMAT_REORDERED = FORMAT_NO_DOC_TYPE + 1;
-        public static final int FORMAT_WITH_ROUTING = FORMAT_REORDERED + 1;
-        public static final int SERIALIZATION_FORMAT = FORMAT_WITH_ROUTING;
+        public static final int SERIALIZATION_FORMAT = FORMAT_REORDERED;
 
         private final BytesRef uid;
         private final long version;
-        @Nullable
-        private final String routing;
 
         private static Delete readFrom(StreamInput in) throws IOException {
             final int format = in.readVInt();// SERIALIZATION_FORMAT
@@ -1642,17 +1638,12 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                 seqNo = in.readLong();
                 primaryTerm = in.readLong();
                 uid = in.readBytesRef();
-                String routing = null;
-                if (format >= FORMAT_WITH_ROUTING) {
-                    routing = in.readOptionalString();
-                }
-                return new Delete(uid, routing, seqNo, primaryTerm, version);
             }
-            return new Delete(uid, null, seqNo, primaryTerm, version);
+            return new Delete(uid, seqNo, primaryTerm, version);
         }
 
         public Delete(Engine.Delete delete, Engine.DeleteResult deleteResult) {
-            this(Uid.encodeId(delete.id()), delete.routing(), deleteResult.getSeqNo(), delete.primaryTerm(), deleteResult.getVersion());
+            this(delete.uid(), deleteResult.getSeqNo(), delete.primaryTerm(), deleteResult.getVersion());
         }
 
         /** utility for testing */
@@ -1661,17 +1652,12 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         }
 
         public Delete(String id, long seqNo, long primaryTerm, long version) {
-            this(Uid.encodeId(id), null, seqNo, primaryTerm, version);
+            this(Uid.encodeId(id), seqNo, primaryTerm, version);
         }
 
         public Delete(BytesRef uid, long seqNo, long primaryTerm, long version) {
-            this(uid, null, seqNo, primaryTerm, version);
-        }
-
-        public Delete(BytesRef uid, @Nullable String routing, long seqNo, long primaryTerm, long version) {
             super(seqNo, primaryTerm);
             this.uid = Objects.requireNonNull(uid);
-            this.routing = routing;
             this.version = version;
         }
 
@@ -1682,7 +1668,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
 
         @Override
         public long estimateSize() {
-            return uid.length + (routing != null ? 2 * routing.length() : 0) + (3 * Long.BYTES); // seq_no, primary_term, and version;
+            return uid.length + (3 * Long.BYTES); // seq_no, primary_term, and version;
         }
 
         @Override
@@ -1692,18 +1678,10 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             out.writeLong(seqNo);
             out.writeLong(primaryTerm);
             out.writeBytesRef(uid);
-            if (format >= FORMAT_WITH_ROUTING) {
-                out.writeOptionalString(routing);
-            }
         }
 
         public BytesRef uid() {
             return uid;
-        }
-
-        @Nullable
-        public String routing() {
-            return this.routing;
         }
 
         public long version() {
@@ -1712,14 +1690,9 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
 
         @Override
         public void writeBody(final StreamOutput out) throws IOException {
-            final int format;
-            if (out.getTransportVersion().supports(SliceIndexing.SLICE_TRANSLOG_DELETE_ROUTING)) {
-                format = FORMAT_WITH_ROUTING;
-            } else if (out.getTransportVersion().supports(REORDERED_TRANSLOG_OPERATIONS)) {
-                format = FORMAT_REORDERED;
-            } else {
-                format = FORMAT_NO_DOC_TYPE;
-            }
+            final int format = out.getTransportVersion().supports(REORDERED_TRANSLOG_OPERATIONS)
+                ? SERIALIZATION_FORMAT
+                : FORMAT_NO_DOC_TYPE;
             if (format < FORMAT_REORDERED) {
                 out.writeVInt(format);
                 if (format < FORMAT_NO_DOC_TYPE) {

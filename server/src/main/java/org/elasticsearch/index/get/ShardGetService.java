@@ -193,7 +193,9 @@ public final class ShardGetService extends AbstractIndexShardComponent {
         currentMetric.inc();
         final long now = System.nanoTime();
         try {
-            final BytesRef uid = indexSettings.isSliceEnabled() && routing != null ? Uid.encodeSliceId(routing, id) : Uid.encodeId(id);
+            final BytesRef uid = indexSettings.isSliceEnabled() && routing != null
+                ? Uid.encodeId(Uid.compositeId(routing, id))
+                : Uid.encodeId(id);
             var engineGet = new Engine.Get(realtime, realtime, id, uid).version(version)
                 .versionType(versionType)
                 .setIfSeqNo(ifSeqNo)
@@ -301,9 +303,19 @@ public final class ShardGetService extends AbstractIndexShardComponent {
     }
 
     public GetResult getForUpdate(String id, long ifSeqNo, long ifPrimaryTerm, FetchSourceContext fetchSourceContext) throws IOException {
+        return getForUpdate(id, null, ifSeqNo, ifPrimaryTerm, fetchSourceContext);
+    }
+
+    public GetResult getForUpdate(
+        String id,
+        @Nullable String routing,
+        long ifSeqNo,
+        long ifPrimaryTerm,
+        FetchSourceContext fetchSourceContext
+    ) throws IOException {
         return doGet(
             id,
-            null,
+            routing,
             new String[] { RoutingFieldMapper.NAME },
             true,
             Versions.MATCH_ANY,

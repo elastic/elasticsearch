@@ -102,7 +102,7 @@ public sealed interface IdLoader permits IdLoader.TsIdLoader, IdLoader.StoredIdL
     /**
      * Returns a leaf instance for a leaf reader that returns the _id for segment level doc ids.
      */
-    sealed interface Leaf permits StoredLeaf, TsIdLeaf, LazyTsIdLeaf, LazyLegacyTsIdLeaf, SliceIdLeaf, LazySliceIdLeaf {
+    sealed interface Leaf permits StoredLeaf, TsIdLeaf, LazyTsIdLeaf, LazyLegacyTsIdLeaf, SliceIdLeaf {
 
         /**
          * @param subDocId The segment level doc id for which the return the _id
@@ -542,22 +542,11 @@ public sealed interface IdLoader permits IdLoader.TsIdLoader, IdLoader.StoredIdL
         }
     }
 
+    /** loads IDs that dynamically contain the user provided _slice as a prefix */
     final class SliceIdLoader implements IdLoader {
-
         @Override
         public Leaf leaf(LeafStoredFieldLoader loader, LeafReader reader, int[] docIdsInLeaf) throws IOException {
-            if (docIdsInLeaf == null) {
-                return new LazySliceIdLeaf(reader);
-            }
-            String[] ids = new String[docIdsInLeaf.length];
-            org.apache.lucene.index.StoredFields storedFields = reader.storedFields();
-            RawIdVisitor visitor = new RawIdVisitor();
-            for (int i = 0; i < docIdsInLeaf.length; i++) {
-                visitor.reset();
-                storedFields.document(docIdsInLeaf[i], visitor);
-                ids[i] = visitor.plainId();
-            }
-            return new SliceIdLeaf(docIdsInLeaf, ids);
+            return new SliceIdLeaf(loader);
         }
 
         @Override
@@ -566,69 +555,21 @@ public sealed interface IdLoader permits IdLoader.TsIdLoader, IdLoader.StoredIdL
         }
     }
 
-    static class RawIdVisitor extends org.apache.lucene.index.StoredFieldVisitor {
-        private byte[] idBytes;
-
-        void reset() {
-            idBytes = null;
-        }
-
-        String plainId() {
-            assert idBytes != null;
-            return Uid.decodeSliceId(idBytes, 0, idBytes.length);
-        }
-
-        @Override
-        public Status needsField(org.apache.lucene.index.FieldInfo fieldInfo) {
-            return IdFieldMapper.NAME.equals(fieldInfo.name) ? Status.YES : Status.NO;
-        }
-
-        @Override
-        public void binaryField(org.apache.lucene.index.FieldInfo fieldInfo, byte[] value) {
-            this.idBytes = value;
-        }
-    }
-
+    /**
+     * Loads the plain id from a slice-enabled index, where {@code _id} is stored as {@code encodeId("slice#id")}. The
+     * standard {@link LeafStoredFieldLoader#id()} already decodes that to the composite string; we only strip the slice
+     * prefix to recover the user-visible id.
+     */
     final class SliceIdLeaf implements Leaf {
-        private final int[] docIdsInLeaf;
-        private final String[] ids;
-        private int idx = -1;
+        private final LeafStoredFieldLoader loader;
 
-        SliceIdLeaf(int[] docIdsInLeaf, String[] ids) {
-            this.docIdsInLeaf = docIdsInLeaf;
-            this.ids = ids;
+        SliceIdLeaf(LeafStoredFieldLoader loader) {
+            this.loader = loader;
         }
 
         @Override
         public String getId(int subDocId) {
-            idx++;
-            if (docIdsInLeaf[idx] != subDocId) {
-                throw new IllegalArgumentException(
-                    "expected to be called with [" + docIdsInLeaf[idx] + "] but was called with " + subDocId + " instead"
-                );
-            }
-            return ids[idx];
+            return Uid.idFromCompositeId(loader.id());
         }
     }
-
-    final class LazySliceIdLeaf implements Leaf {
-        private final org.apache.lucene.index.StoredFields storedFields;
-        private final RawIdVisitor visitor = new RawIdVisitor();
-
-        LazySliceIdLeaf(LeafReader reader) throws IOException {
-            this.storedFields = reader.storedFields();
-        }
-
-        @Override
-        public String getId(int subDocId) {
-            try {
-                visitor.reset();
-                storedFields.document(subDocId, visitor);
-                return visitor.plainId();
-            } catch (IOException e) {
-                throw new java.io.UncheckedIOException(e);
-            }
-        }
-    }
-
 }

@@ -90,7 +90,7 @@ public class TermVectorsService {
                     false,
                     request.id(),
                     indexShard.indexSettings().isSliceEnabled() && request.routing() != null
-                        ? Uid.encodeSliceId(request.routing(), request.id())
+                        ? Uid.encodeId(Uid.compositeId(request.routing(), request.id()))
                         : Uid.encodeId(request.id())
                 ).version(request.version()).versionType(request.versionType()),
                 request.getSplitShardCountSummary()

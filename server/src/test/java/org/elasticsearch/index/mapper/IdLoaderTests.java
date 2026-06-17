@@ -20,6 +20,7 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
@@ -29,6 +30,8 @@ import org.apache.lucene.tests.analysis.MockAnalyzer;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.index.fieldvisitor.LeafStoredFieldLoader;
+import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -209,42 +212,25 @@ public class IdLoaderTests extends ESTestCase {
 
     /**
      * In a slice-enabled index the {@code _id} is stored as a composite {@code (slice, id)} term. The {@link IdLoader.SliceIdLoader}
-     * must recover the plain, user-visible id from those stored bytes. This verifies the eager path, where the set of doc ids in the
-     * leaf is known up-front and pre-decoded into a {@link IdLoader.SliceIdLeaf}.
+     * recovers the plain, user-visible id from the stored value as it is iterated, mirroring the fetch path which feeds it a
+     * {@link LeafStoredFieldLoader} positioned on each doc.
      */
-    public void testSliceIdLoaderEager() throws Exception {
+    public void testSliceIdLoaderRecoversPlainId() throws Exception {
         var idLoader = new IdLoader.SliceIdLoader();
         // Note: the same plain id "1" appears under two different slices, which is exactly what slice-scoped uniqueness allows.
         List<SliceDoc> docs = List.of(new SliceDoc("slice-a", "1"), new SliceDoc("slice-a", "2"), new SliceDoc("slice-b", "1"));
         CheckedConsumer<IndexReader, IOException> verify = indexReader -> {
             assertThat(indexReader.leaves(), hasSize(1));
-            LeafReader leafReader = indexReader.leaves().get(0).reader();
-            assertThat(leafReader.numDocs(), equalTo(docs.size()));
-            var leaf = idLoader.leaf(null, leafReader, new int[] { 0, 1, 2 });
+            LeafReaderContext leafContext = indexReader.leaves().get(0);
+            assertThat(leafContext.reader().numDocs(), equalTo(docs.size()));
+            LeafStoredFieldLoader storedFieldLoader = StoredFieldLoader.create(false, Set.of(IdFieldMapper.NAME))
+                .getLoader(leafContext, null);
+            var leaf = idLoader.leaf(storedFieldLoader, leafContext.reader(), new int[] { 0, 1, 2 });
             assertThat(leaf, instanceOf(IdLoader.SliceIdLeaf.class));
             for (int i = 0; i < docs.size(); i++) {
+                storedFieldLoader.advanceTo(i);
                 assertThat(leaf.getId(i), equalTo(docs.get(i).id()));
             }
-        };
-        prepareSliceIndexReader(docs, verify);
-    }
-
-    /**
-     * Verifies the lazy path of {@link IdLoader.SliceIdLoader}, used when the doc ids are not known up-front. The returned
-     * {@link IdLoader.LazySliceIdLeaf} decodes the composite {@code _id} on demand and may be queried in any order.
-     */
-    public void testSliceIdLoaderLazy() throws Exception {
-        var idLoader = new IdLoader.SliceIdLoader();
-        List<SliceDoc> docs = List.of(new SliceDoc("slice-a", "1"), new SliceDoc("slice-a", "2"), new SliceDoc("slice-b", "1"));
-        CheckedConsumer<IndexReader, IOException> verify = indexReader -> {
-            assertThat(indexReader.leaves(), hasSize(1));
-            LeafReader leafReader = indexReader.leaves().get(0).reader();
-            var leaf = idLoader.leaf(null, leafReader, null);
-            assertThat(leaf, instanceOf(IdLoader.LazySliceIdLeaf.class));
-            // The lazy leaf imposes no ordering constraint, unlike the eager leaf.
-            assertThat(leaf.getId(2), equalTo("1"));
-            assertThat(leaf.getId(0), equalTo("1"));
-            assertThat(leaf.getId(1), equalTo("2"));
         };
         prepareSliceIndexReader(docs, verify);
     }
@@ -258,10 +244,13 @@ public class IdLoaderTests extends ESTestCase {
         }
         CheckedConsumer<IndexReader, IOException> verify = indexReader -> {
             assertThat(indexReader.leaves(), hasSize(1));
-            LeafReader leafReader = indexReader.leaves().get(0).reader();
-            assertThat(leafReader.numDocs(), equalTo(docs.size()));
-            var leaf = idLoader.leaf(null, leafReader, IntStream.range(0, docs.size()).toArray());
+            LeafReaderContext leafContext = indexReader.leaves().get(0);
+            assertThat(leafContext.reader().numDocs(), equalTo(docs.size()));
+            LeafStoredFieldLoader storedFieldLoader = StoredFieldLoader.create(false, Set.of(IdFieldMapper.NAME))
+                .getLoader(leafContext, null);
+            var leaf = idLoader.leaf(storedFieldLoader, leafContext.reader(), IntStream.range(0, docs.size()).toArray());
             for (int i = 0; i < docs.size(); i++) {
+                storedFieldLoader.advanceTo(i);
                 assertThat(leaf.getId(i), equalTo(docs.get(i).id()));
             }
         };
@@ -274,8 +263,8 @@ public class IdLoaderTests extends ESTestCase {
             try (IndexWriter indexWriter = new IndexWriter(directory, config)) {
                 for (SliceDoc doc : docs) {
                     List<IndexableField> fields = new ArrayList<>();
-                    // Mirror the indexing path: the composite slice+id uid is what gets stored in the _id field.
-                    fields.add(IdFieldMapper.standardIdField(Uid.encodeSliceId(doc.slice(), doc.id()), Field.Store.YES));
+                    // Mirror the indexing path: the composite "slice#id" (standard-encoded) is what gets stored in the _id field.
+                    fields.add(IdFieldMapper.standardIdField(Uid.encodeId(Uid.compositeId(doc.slice(), doc.id())), Field.Store.YES));
                     indexWriter.addDocument(fields);
                 }
                 // Force a single segment so the doc ids are stable and in insertion order.

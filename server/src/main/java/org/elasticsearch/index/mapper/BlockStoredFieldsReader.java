@@ -216,25 +216,22 @@ public abstract class BlockStoredFieldsReader implements BlockLoader.RowStrideRe
 
         @Override
         public RowStrideReader rowStrideReader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
-            return new SliceId(breaker, context.reader().storedFields());
+            return new SliceId(breaker);
         }
     }
 
     private static class SliceId extends BlockStoredFieldsReader {
-        private final org.apache.lucene.index.StoredFields luceneStoredFields;
-        private final IdLoader.RawIdVisitor visitor = new IdLoader.RawIdVisitor();
         private final BytesRef scratch = new BytesRef();
 
-        protected SliceId(CircuitBreaker breaker, org.apache.lucene.index.StoredFields luceneStoredFields) {
+        protected SliceId(CircuitBreaker breaker) {
             super(breaker);
-            this.luceneStoredFields = luceneStoredFields;
         }
 
         @Override
         public void read(int docId, BlockLoader.StoredFields storedFields, BlockLoader.Builder builder) throws IOException {
-            visitor.reset();
-            luceneStoredFields.document(docId, visitor);
-            ((BytesRefBuilder) builder).appendBytesRef(BlockSourceReader.toBytesRef(scratch, visitor.plainId()));
+            // storedFields.id() is the standard-decoded composite "slice#id"; strip the slice prefix to emit the plain id,
+            // matching the non-slice IdBlockLoader.
+            ((BytesRefBuilder) builder).appendBytesRef(BlockSourceReader.toBytesRef(scratch, Uid.idFromCompositeId(storedFields.id())));
         }
 
         @Override

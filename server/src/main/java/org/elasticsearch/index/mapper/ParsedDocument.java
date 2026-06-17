@@ -123,9 +123,11 @@ public class ParsedDocument {
 
         } else {
             // Use standard _id field (indexed and stored, some indices also trim the stored field at some point)
-            // When uid is provided (slice-enabled indices), use the composite uid for the Lucene term.
+            // When uid is provided (slice-enabled indices), use the composite uid for the Lucene term. The field must be
+            // stored (like the non-slice branch below): ops-based recovery reads the tombstone's _id back from stored
+            // fields, and a missing stored _id would make LuceneChangesSnapshot misclassify the delete as a no-op.
             if (uid != null) {
-                document.add(IdFieldMapper.standardIdField(uid, Field.Store.NO));
+                document.add(IdFieldMapper.standardIdField(uid, Field.Store.YES));
             } else {
                 document.add(IdFieldMapper.standardIdField(id));
             }

@@ -14,7 +14,6 @@ import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.Strings;
 
-import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Base64;
 
@@ -201,33 +200,31 @@ public final class Uid {
         };
     }
 
-    /** Encode a slice-scoped uid: length-prefixed slice followed by the standard encoded id. */
-    public static BytesRef encodeSliceId(String slice, String id) {
-        BytesRef encodedId = encodeId(id);
-        byte[] sliceBytes = slice.getBytes(StandardCharsets.UTF_8);
-        assert sliceBytes.length >= 1 && sliceBytes.length <= 128;
-        byte[] b = new byte[1 + sliceBytes.length + encodedId.length];
-        b[0] = (byte) sliceBytes.length;
-        System.arraycopy(sliceBytes, 0, b, 1, sliceBytes.length);
-        System.arraycopy(encodedId.bytes, encodedId.offset, b, 1 + sliceBytes.length, encodedId.length);
-        return new BytesRef(b);
+    /**
+     * Separator between the slice and the user id in the composite id string used by slice-enabled indices.
+     * It is the same character as {@link #DELIMITER_BYTE} ({@code '#'}) and is intentionally excluded from the
+     * allowed slice charset, so the first occurrence unambiguously splits the slice from the id (the id itself
+     * may contain {@code '#'}).
+     */
+    public static final String SLICE_SEPARATOR = "#";
+
+    /**
+     * Build the composite id string {@code slice + "#" + id} used by slice-enabled indices. The result is fed
+     * through the standard {@link #encodeId(String)} so the slice is encoded into the {@code _id} term itself,
+     * scoping engine uniqueness by {@code (slice, id)}.
+     */
+    public static String compositeId(String slice, String id) {
+        return slice + SLICE_SEPARATOR + id;
     }
 
-    /** Recover the plain id from a slice-scoped uid produced by {@link #encodeSliceId}. */
-    public static String decodeSliceId(byte[] bytes, int offset, int length) {
-        int sliceLen = bytes[offset] & 0xff;
-        int idOffset = offset + 1 + sliceLen;
-        return decodeId(bytes, idOffset, length - 1 - sliceLen);
-    }
-
-    /** Recover the plain id from a slice-scoped uid. */
-    public static String decodeSliceId(BytesRef b) {
-        return decodeSliceId(b.bytes, b.offset, b.length);
-    }
-
-    /** Recover the slice from a slice-scoped uid (used by ops recovery / diagnostics). */
-    public static String decodeSlice(BytesRef b) {
-        int sliceLen = b.bytes[b.offset] & 0xff;
-        return new String(b.bytes, b.offset + 1, sliceLen, StandardCharsets.UTF_8);
+    /**
+     * Recover the plain, user-visible id from a composite id string produced by {@link #compositeId(String, String)}.
+     * Splits on the first {@code '#'} (the slice cannot contain {@code '#'}, so this is unambiguous even when the
+     * id itself contains {@code '#'}).
+     */
+    public static String idFromCompositeId(String compositeId) {
+        int i = compositeId.indexOf('#');
+        assert i >= 0 : "composite id missing separator: " + compositeId;
+        return compositeId.substring(i + 1);
     }
 }

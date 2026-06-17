@@ -60,7 +60,7 @@ public class SliceIdFieldMapper extends IdFieldMapper {
             for (Object v : values) {
                 String idStr = (v instanceof BytesRef br) ? br.utf8ToString() : v.toString();
                 for (String slice : slices) {
-                    terms.add(Uid.encodeSliceId(slice.trim(), idStr));
+                    terms.add(Uid.encodeId(Uid.compositeId(slice.trim(), idStr)));
                 }
             }
             return new TermInSetQuery(name(), terms);
@@ -78,7 +78,8 @@ public class SliceIdFieldMapper extends IdFieldMapper {
 
         @Override
         public String decodeStoredId(BytesRef bytes) {
-            return Uid.decodeSliceId(bytes);
+            // The stored _id is encodeId("slice#id"); recover the plain, user-visible id by stripping the slice prefix.
+            return Uid.idFromCompositeId(Uid.decodeId(bytes));
         }
 
         @Override
@@ -95,7 +96,9 @@ public class SliceIdFieldMapper extends IdFieldMapper {
         context.id(context.sourceToParse().id());
         String slice = context.sourceToParse().routing();
         assert slice != null : "_slice (routing) must be set for slice-enabled indices";
-        BytesRef uid = Uid.encodeSliceId(slice, context.id());
+        // Store the composite (slice, id) as a standard-encoded id string so engine uniqueness is scoped by (slice, id).
+        // context.id() stays the plain user id, so write responses surface the plain id.
+        BytesRef uid = Uid.encodeId(Uid.compositeId(slice, context.id()));
         context.doc().add(IdFieldMapper.standardIdField(uid, Field.Store.YES));
     }
 

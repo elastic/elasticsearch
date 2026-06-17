@@ -105,14 +105,10 @@ public class FieldsVisitor extends FieldNamesProvidingStoredFieldsVisitor {
         if (sourceFieldName.equals(name)) {
             source = new BytesArray(value);
         } else if (IdFieldMapper.NAME.equals(name)) {
-            id = decodeIdBytes(value, 0, value.length);
+            id = Uid.decodeId(value, 0, value.length);
         } else {
             addValue(name, new BytesRef(value));
         }
-    }
-
-    protected String decodeIdBytes(byte[] value, int offset, int length) {
-        return Uid.decodeId(value, offset, length);
     }
 
     @Override

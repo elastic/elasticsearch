@@ -191,7 +191,7 @@ public class TransportExplainAction extends TransportSingleShardAction<ExplainRe
         try {
             // No need to check the type, IndexShard#get does it for us
             final BytesRef uid = context.indexShard().indexSettings().isSliceEnabled() && request.isRoutingFromSlice()
-                ? Uid.encodeSliceId(request.routing(), request.id())
+                ? Uid.encodeId(Uid.compositeId(request.routing(), request.id()))
                 : Uid.encodeId(request.id());
             result = context.indexShard().get(new Engine.Get(false, false, request.id(), uid), request.getSplitShardCountSummary());
             if (result.exists() == false) {

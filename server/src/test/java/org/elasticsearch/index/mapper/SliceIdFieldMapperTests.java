@@ -34,8 +34,8 @@ public class SliceIdFieldMapperTests extends MapperServiceTestCase {
     public void testDecodeStoredIdRecoversPlainId() {
         String id = randomAlphaOfLengthBetween(1, 16);
         String slice = randomAlphaOfLengthBetween(1, 16);
-        // The stored value is the composite uid; decodeStoredId must hand back the user-visible id.
-        assertThat(fieldType().decodeStoredId(Uid.encodeSliceId(slice, id)), equalTo(id));
+        // The stored value is encodeId("slice#id"); decodeStoredId must hand back the user-visible id.
+        assertThat(fieldType().decodeStoredId(Uid.encodeId(Uid.compositeId(slice, id))), equalTo(id));
     }
 
     public void testFielddataIsNotSupported() {
@@ -53,7 +53,7 @@ public class SliceIdFieldMapperTests extends MapperServiceTestCase {
         Query query = fieldType().termsQuery(List.of("a", "b"), context);
         Query expected = new TermInSetQuery(
             IdFieldMapper.NAME,
-            List.of(Uid.encodeSliceId("slice-1", "a"), Uid.encodeSliceId("slice-1", "b"))
+            List.of(Uid.encodeId(Uid.compositeId("slice-1", "a")), Uid.encodeId(Uid.compositeId("slice-1", "b")))
         );
         assertThat(query, equalTo(expected));
     }
@@ -64,7 +64,7 @@ public class SliceIdFieldMapperTests extends MapperServiceTestCase {
         Query query = fieldType().termsQuery(List.of("a"), context);
         Query expected = new TermInSetQuery(
             IdFieldMapper.NAME,
-            List.of(Uid.encodeSliceId("slice-1", "a"), Uid.encodeSliceId("slice-2", "a"))
+            List.of(Uid.encodeId(Uid.compositeId("slice-1", "a")), Uid.encodeId(Uid.compositeId("slice-2", "a")))
         );
         assertThat(query, equalTo(expected));
     }
@@ -73,7 +73,7 @@ public class SliceIdFieldMapperTests extends MapperServiceTestCase {
         SearchExecutionContext context = createSearchExecutionContext(createMapperService(mapping(b -> {})));
         context.setSliceRouting("slice-1");
         Query query = fieldType().termQuery("a", context);
-        Query expected = new TermInSetQuery(IdFieldMapper.NAME, List.of(Uid.encodeSliceId("slice-1", "a")));
+        Query expected = new TermInSetQuery(IdFieldMapper.NAME, List.of(Uid.encodeId(Uid.compositeId("slice-1", "a"))));
         assertThat(query, equalTo(expected));
     }
 

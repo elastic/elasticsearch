@@ -1846,7 +1846,12 @@ public class IndexShardTests extends IndexShardTestCase {
         }
         long refreshCount = shard.refreshStats().getTotal();
         indexDoc(shard, "_doc", "test");
-        try (Engine.GetResult ignored = shard.get(new Engine.Get(true, false, "test"), SplitShardCountSummary.IRRELEVANT)) {
+        try (
+            Engine.GetResult ignored = shard.get(
+                new Engine.Get(true, false, "test", Uid.encodeId("test")),
+                SplitShardCountSummary.IRRELEVANT
+            )
+        ) {
             assertThat(shard.refreshStats().getTotal(), equalTo(refreshCount + 1));
         }
         indexDoc(shard, "_doc", "test");
@@ -1873,7 +1878,12 @@ public class IndexShardTests extends IndexShardTestCase {
         final long externalRefreshCount = shard.refreshStats().getExternalTotal();
         final long extraInternalRefreshes = shard.routingEntry().primary() || shard.indexSettings().isSoftDeleteEnabled() == false ? 0 : 1;
         indexDoc(shard, "_doc", "test");
-        try (Engine.GetResult ignored = shard.get(new Engine.Get(true, false, "test"), SplitShardCountSummary.IRRELEVANT)) {
+        try (
+            Engine.GetResult ignored = shard.get(
+                new Engine.Get(true, false, "test", Uid.encodeId("test")),
+                SplitShardCountSummary.IRRELEVANT
+            )
+        ) {
             assertThat(shard.refreshStats().getExternalTotal(), equalTo(externalRefreshCount));
             assertThat(shard.refreshStats().getExternalTotal(), equalTo(shard.refreshStats().getTotal() - 1 - extraInternalRefreshes));
         }
@@ -2924,7 +2934,9 @@ public class IndexShardTests extends IndexShardTestCase {
         indexDoc(shard, "_doc", "1", "{\"foobar\" : \"bar\"}");
         shard.refresh("test");
 
-        try (Engine.GetResult getResult = shard.get(new Engine.Get(false, false, "1"), SplitShardCountSummary.IRRELEVANT)) {
+        try (
+            Engine.GetResult getResult = shard.get(new Engine.Get(false, false, "1", Uid.encodeId("1")), SplitShardCountSummary.IRRELEVANT)
+        ) {
             assertTrue(getResult.exists());
             assertNotNull(getResult.searcher());
         }
@@ -2956,7 +2968,12 @@ public class IndexShardTests extends IndexShardTestCase {
             search = searcher.search(new TermQuery(new Term("foobar", "bar")), 10);
             assertEquals(search.totalHits.value(), 1);
         }
-        try (Engine.GetResult getResult = newShard.get(new Engine.Get(false, false, "1"), SplitShardCountSummary.IRRELEVANT)) {
+        try (
+            Engine.GetResult getResult = newShard.get(
+                new Engine.Get(false, false, "1", Uid.encodeId("1")),
+                SplitShardCountSummary.IRRELEVANT
+            )
+        ) {
             assertTrue(getResult.exists());
             assertNotNull(getResult.searcher()); // make sure get uses the wrapped reader
             assertTrue(getResult.searcher().getIndexReader() instanceof FieldMaskingReader);
@@ -5148,7 +5165,7 @@ public class IndexShardTests extends IndexShardTestCase {
         assertTrue(indexResult.isCreated());
 
         org.elasticsearch.index.engine.Engine.GetResult getResult = shard.get(
-            new Engine.Get(true, true, "0"),
+            new Engine.Get(true, true, "0", Uid.encodeId("0")),
             SplitShardCountSummary.IRRELEVANT
         );
         assertTrue(getResult.exists());
@@ -5178,7 +5195,7 @@ public class IndexShardTests extends IndexShardTestCase {
 
         indexDoc(shard, "_doc", "test");
         // first realtime get to start tracking translog location
-        try (var result = shard.get(new Engine.Get(true, true, "test"), SplitShardCountSummary.IRRELEVANT)) {
+        try (var result = shard.get(new Engine.Get(true, true, "test", Uid.encodeId("test")), SplitShardCountSummary.IRRELEVANT)) {
             assertTrue(result.exists());
         }
         indexDoc(shard, "_doc", "1");
@@ -5194,28 +5211,38 @@ public class IndexShardTests extends IndexShardTestCase {
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
             }
-            try (var result = mget.get(new Engine.Get(randomBoolean(), randomBoolean(), "1"), SplitShardCountSummary.IRRELEVANT)) {
+            try (
+                var result = mget.get(
+                    new Engine.Get(randomBoolean(), randomBoolean(), "1", Uid.encodeId("1")),
+                    SplitShardCountSummary.IRRELEVANT
+                )
+            ) {
                 assertTrue(result.exists());
                 assertThat(wrappedWithKeys.get(), equalTo(1));
                 assertThat(wrappedWithoutKeys.get(), equalTo(0));
             }
-            try (var result = mget.get(new Engine.Get(false, false, "2"), SplitShardCountSummary.IRRELEVANT)) {
+            try (var result = mget.get(new Engine.Get(false, false, "2", Uid.encodeId("2")), SplitShardCountSummary.IRRELEVANT)) {
                 assertFalse(result.exists());
                 assertThat(wrappedWithKeys.get(), equalTo(1));
                 assertThat(wrappedWithoutKeys.get(), equalTo(0));
             }
-            try (var result = mget.get(new Engine.Get(true, true, "2"), SplitShardCountSummary.IRRELEVANT)) {
+            try (var result = mget.get(new Engine.Get(true, true, "2", Uid.encodeId("2")), SplitShardCountSummary.IRRELEVANT)) {
                 assertTrue(result.exists());
                 assertThat(wrappedWithKeys.get(), equalTo(1));
                 assertThat(wrappedWithoutKeys.get(), equalTo(1));
             }
-            try (var result = mget.get(new Engine.Get(randomBoolean(), randomBoolean(), "3"), SplitShardCountSummary.IRRELEVANT)) {
+            try (
+                var result = mget.get(
+                    new Engine.Get(randomBoolean(), randomBoolean(), "3", Uid.encodeId("3")),
+                    SplitShardCountSummary.IRRELEVANT
+                )
+            ) {
                 assertTrue(result.exists());
                 assertThat(wrappedWithKeys.get(), equalTo(1));
                 assertThat(wrappedWithoutKeys.get(), equalTo(1));
             }
 
-            try (var result = mget.get(new Engine.Get(true, true, "4"), SplitShardCountSummary.IRRELEVANT)) {
+            try (var result = mget.get(new Engine.Get(true, true, "4", Uid.encodeId("4")), SplitShardCountSummary.IRRELEVANT)) {
                 assertTrue(result.exists());
                 assertThat(wrappedWithKeys.get(), equalTo(1));
                 assertThat(wrappedWithoutKeys.get(), equalTo(2));
@@ -5225,7 +5252,7 @@ public class IndexShardTests extends IndexShardTestCase {
             for (int i = 0; i < 5; i++) {
                 try (
                     var result = mget.get(
-                        new Engine.Get(randomBoolean(), randomBoolean(), Integer.toString(i)),
+                        new Engine.Get(randomBoolean(), randomBoolean(), Integer.toString(i), Uid.encodeId(Integer.toString(i))),
                         SplitShardCountSummary.IRRELEVANT
                     )
                 ) {
@@ -5237,7 +5264,7 @@ public class IndexShardTests extends IndexShardTestCase {
             for (int i = 10; i < 15; i++) {
                 try (
                     var result = mget.get(
-                        new Engine.Get(randomBoolean(), randomBoolean(), Integer.toString(i)),
+                        new Engine.Get(randomBoolean(), randomBoolean(), Integer.toString(i), Uid.encodeId(Integer.toString(i))),
                         SplitShardCountSummary.IRRELEVANT
                     )
                 ) {
@@ -5688,7 +5715,7 @@ public class IndexShardTests extends IndexShardTestCase {
                     try (
                         // Will block on the refresh lock
                         var getResult = engine.get(
-                            new Engine.Get(true, false, index.getId()),
+                            new Engine.Get(true, false, index.getId(), Uid.encodeId(index.getId())),
                             shard.mapperService().mappingLookup(),
                             shard.mapperService().documentParser(),
                             SplitShardCountSummary.IRRELEVANT,

@@ -108,7 +108,6 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
     private void fetchRange(
         FileCacheKey cacheKey,
         ByteRange byteRange,
-        long blobLength,
         CacheBlobReader cacheBlobReader,
         Object initiator,
         Supplier<ByteBuffer> writeBufferSupplier,
@@ -133,7 +132,7 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
                     cacheKey,
                     region,
                     adjustedByteRange,
-                    blobLength,
+                    byteRange.length(),
                     new LazyRangeMissingHandler<>(
                         () -> new SequentialRangeMissingHandler(
                             initiator,
@@ -167,7 +166,6 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
         fetchRange(
             cacheKey,
             byteRange,
-            byteRange.length(),
             cacheBlobReader,
             initiator,
             writeBufferSupplier,

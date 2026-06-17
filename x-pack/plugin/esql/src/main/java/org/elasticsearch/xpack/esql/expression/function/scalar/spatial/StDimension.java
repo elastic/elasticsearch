@@ -75,6 +75,7 @@ public class StDimension extends SpatialUnaryDocValuesFunction {
         returnType = "integer",
         preview = true,
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.4.0") },
+        briefSummary = "Returns the topological dimension of the supplied geometry.",
         description = "Returns the topological dimension of the supplied geometry.\n"
             + "Points and multi-points return `0`, lines and multi-lines return `1`, "
             + "polygons and multi-polygons return `2`, and geometry collections return the maximum dimension of their components.",

@@ -18,7 +18,9 @@ import org.elasticsearch.index.IndexSortConfig;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 
+import java.util.Collection;
 import java.util.List;
+import java.util.Set;
 
 public class DocumentMapper {
     private final String type;
@@ -149,7 +151,7 @@ public class DocumentMapper {
             );
         }
 
-        settings.getMode().validateMapping(mappingLookup);
+        settings.getMode().validateMapping(mappingLookup, settings.getSettings());
         /*
          * Build an empty source loader to validate that the mapping is compatible
          * with the source loading strategy declared on the source field mapper.
@@ -172,6 +174,22 @@ public class DocumentMapper {
                     throw new IllegalArgumentException(
                         "cannot apply index sort to field [" + field + "] under nested object [" + nestedParent + "]"
                     );
+                }
+            }
+        }
+        if (settings.getIndexSortConfig().hasIndexSort()) {
+            Set<String> sortFields = Set.copyOf(settings.getValue(IndexSortConfig.INDEX_SORT_FIELD_SETTING));
+            Collection<RuntimeField> runtimeFields = mapping().getRoot().runtimeFields();
+            for (RuntimeField rf : runtimeFields) {
+                for (MappedFieldType ft : rf.asMappedFieldTypes().toList()) {
+                    if (sortFields.contains(ft.name())) {
+                        throw new MapperParsingException(
+                            "runtime field ["
+                                + ft.name()
+                                + "] shadows an index sort field, "
+                                + "which would prevent shards from being allocated"
+                        );
+                    }
                 }
             }
         }

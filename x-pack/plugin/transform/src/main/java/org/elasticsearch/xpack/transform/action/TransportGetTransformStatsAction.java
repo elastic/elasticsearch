@@ -180,7 +180,7 @@ public class TransportGetTransformStatsAction extends TransportTasksAction<Trans
     protected void doExecute(Task task, Request request, ActionListener<Response> finalListener) {
         final TaskId parentTaskId = new TaskId(clusterService.localNode().getId(), task.getId());
         final ClusterState clusterState = clusterService.state();
-        TransformNodes.warnIfNoTransformNodes(clusterState);
+        TransformNodes.warnIfNoTransformNodes(projectResolver.getProjectMetadata(clusterState), clusterState.getNodes());
 
         transformConfigManager.expandTransformIds(
             request.getId(),

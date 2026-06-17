@@ -49,7 +49,10 @@ import static org.elasticsearch.xpack.esql.expression.Foldables.resolveTypeLimit
 
 public class Sample extends AggregateFunction implements ToAggregator, PostOptimizationVerificationAware {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Sample", Sample::new);
-    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Sample.class).binary(Sample::new).name("sample");
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Sample.class)
+        .binary(Sample::new)
+        .capabilities("flattened")
+        .name("sample");
 
     @FunctionInfo(
         returnType = {
@@ -59,6 +62,7 @@ public class Sample extends AggregateFunction implements ToAggregator, PostOptim
             "date",
             "date_nanos",
             "double",
+            "flattened",
             "geo_point",
             "geo_shape",
             "geohash",
@@ -70,6 +74,7 @@ public class Sample extends AggregateFunction implements ToAggregator, PostOptim
             "long",
             "unsigned_long",
             "version" },
+        briefSummary = "Collects sample values for a field.",
         description = "Collects sample values for a field.",
         type = FunctionType.AGGREGATE,
         examples = {
@@ -95,6 +100,7 @@ public class Sample extends AggregateFunction implements ToAggregator, PostOptim
                 "date",
                 "date_nanos",
                 "double",
+                "flattened",
                 "geo_point",
                 "geo_shape",
                 "geohash",

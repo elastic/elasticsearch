@@ -1,15 +1,17 @@
 {
   "name": "buildkite-pipelines",
   "type": "module",
-  "devDependencies": {
-    "@types/node": "^20.6.0",
-    "bun-types": "latest",
-    "yaml": "^2.3.2"
+  "scripts": {
+    "test": "vitest run"
   },
-  "peerDependencies": {
-    "typescript": "^5.0.0"
+  "devDependencies": {
+    "@tsconfig/node24": "^24.0.4",
+    "@types/node": "^25.8.0",
+    "@types/sax": "^1.2.7",
+    "vitest": "^4.1.7"
   },
   "dependencies": {
-    "fast-xml-parser": "^5.8.0"
+    "yaml": "^2.3.2",
+    "sax": "^1.6.0"
   }
 }

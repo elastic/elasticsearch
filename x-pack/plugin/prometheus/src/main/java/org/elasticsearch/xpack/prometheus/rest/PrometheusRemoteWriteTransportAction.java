@@ -27,6 +27,8 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -47,13 +49,15 @@ import org.elasticsearch.xpack.prometheus.proto.RemoteWrite.TimeSeries;
 
 import java.io.IOException;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Transport action for handling Prometheus Remote Write requests.
  * This action processes incoming metrics data in Prometheus remote write format.
+ * <p>
+ * If a time series repeats routing labels, behavior is undefined; the implementation applies updates in label
+ * order so the last non-empty value observed wins in practice.
  *
  * @see <a href="https://prometheus.io/docs/concepts/remote_write_spec/">Prometheus Remote Write Specification</a>
  */
@@ -68,6 +72,9 @@ public class PrometheusRemoteWriteTransportAction extends HandledTransportAction
 
     private static final String METRIC_NAME_LABEL = "__name__";
     private static final String METRICS_DATA_STREAM_PREFIX = "metrics-";
+    private static final String DATA_STREAM_DATASET_LABEL = "data_stream_dataset";
+    private static final String DATA_STREAM_NAMESPACE_LABEL = "data_stream_namespace";
+    private static final String PROMETHEUS_DATASET_SUFFIX = ".prometheus";
 
     private final Client client;
 
@@ -88,10 +95,43 @@ public class PrometheusRemoteWriteTransportAction extends HandledTransportAction
             RemoteWrite.WriteRequest writeRequest = RemoteWrite.WriteRequest.parseFrom(request.remoteWriteRequest.streamInput());
             request.releaseBody();
 
-            int totalSamples = countTotalSamples(writeRequest);
-            if (totalSamples == 0) {
-                listener.onResponse(new RemoteWriteResponse());
-                return;
+            BulkRequestBuilder bulkRequestBuilder = client.prepareBulk();
+
+            int totalSamples = 0;
+            int droppedMissingName = 0;
+            for (TimeSeries timeSeries : writeRequest.getTimeseriesList()) {
+                int seriesSamples = timeSeries.getSamplesCount();
+                totalSamples += seriesSamples;
+
+                String metricName = null;
+                String dataset = request.dataset;
+                String namespace = request.namespace;
+                for (Label label : timeSeries.getLabelsList()) {
+                    String labelValue = label.getValue();
+                    if (Strings.hasText(labelValue) == false) {
+                        continue;
+                    }
+                    String labelName = label.getName();
+                    if (METRIC_NAME_LABEL.equals(labelName)) {
+                        metricName = labelValue;
+                    } else if (DATA_STREAM_DATASET_LABEL.equals(labelName)) {
+                        dataset = DataStream.sanitizeDataset(labelValue);
+                    } else if (DATA_STREAM_NAMESPACE_LABEL.equals(labelName)) {
+                        namespace = DataStream.sanitizeNamespace(labelValue);
+                    }
+                }
+
+                if (metricName == null) {
+                    droppedMissingName += seriesSamples;
+                    continue;
+                }
+
+                for (Sample sample : timeSeries.getSamplesList()) {
+                    if (Double.isFinite(sample.getValue()) == false) {
+                        continue;
+                    }
+                    bulkRequestBuilder.add(buildIndexRequest(timeSeries, sample, metricName, dataset, namespace));
+                }
             }
 
             logger.debug(
@@ -100,23 +140,9 @@ public class PrometheusRemoteWriteTransportAction extends HandledTransportAction
                 totalSamples
             );
 
-            BulkRequestBuilder bulkRequestBuilder = client.prepareBulk();
-
-            int droppedMissingName = 0;
-            for (TimeSeries timeSeries : writeRequest.getTimeseriesList()) {
-                String metricName = extractMetricName(timeSeries.getLabelsList());
-                if (metricName == null) {
-                    droppedMissingName += timeSeries.getSamplesCount();
-                    continue;
-                }
-
-                for (Sample sample : timeSeries.getSamplesList()) {
-                    if (Double.isFinite(sample.getValue()) == false) {
-                        continue;
-                    }
-                    IndexRequest indexRequest = buildIndexRequest(timeSeries, sample, metricName, request.dataset, request.namespace);
-                    bulkRequestBuilder.add(indexRequest);
-                }
+            if (totalSamples == 0) {
+                listener.onResponse(new RemoteWriteResponse());
+                return;
             }
 
             if (bulkRequestBuilder.numberOfActions() == 0) {
@@ -130,10 +156,11 @@ public class PrometheusRemoteWriteTransportAction extends HandledTransportAction
                 return;
             }
 
+            final int finalTotalSamples = totalSamples;
             final int finalDroppedMissingName = droppedMissingName;
             bulkRequestBuilder.execute(listener.delegateFailure((delegate, bulkResponse) -> {
                 if (bulkResponse.hasFailures() || finalDroppedMissingName > 0) {
-                    delegate.onFailure(buildPartialFailureException(bulkResponse, totalSamples, finalDroppedMissingName));
+                    delegate.onFailure(buildPartialFailureException(bulkResponse, finalTotalSamples, finalDroppedMissingName));
                 } else {
                     delegate.onResponse(new RemoteWriteResponse());
                 }
@@ -148,24 +175,14 @@ public class PrometheusRemoteWriteTransportAction extends HandledTransportAction
         }
     }
 
-    private static int countTotalSamples(RemoteWrite.WriteRequest writeRequest) {
-        int count = 0;
-        for (TimeSeries ts : writeRequest.getTimeseriesList()) {
-            count += ts.getSamplesCount();
-        }
-        return count;
+    /*
+     * Routing control labels are not stored, similar to OTLP TargetIndex attributes
+     */
+    private static boolean isIgnoredLabel(String labelName) {
+        return DATA_STREAM_DATASET_LABEL.equals(labelName) || DATA_STREAM_NAMESPACE_LABEL.equals(labelName);
     }
 
-    private static String extractMetricName(List<Label> labels) {
-        for (Label label : labels) {
-            if (METRIC_NAME_LABEL.equals(label.getName())) {
-                return label.getValue();
-            }
-        }
-        return null;
-    }
-
-    private IndexRequest buildIndexRequest(TimeSeries timeSeries, Sample sample, String metricName, String dataset, String namespace)
+    private static IndexRequest buildIndexRequest(TimeSeries timeSeries, Sample sample, String metricName, String dataset, String namespace)
         throws IOException {
         try (XContentBuilder builder = XContentFactory.cborBuilder(new BytesStreamOutput())) {
             builder.startObject();
@@ -174,7 +191,7 @@ public class PrometheusRemoteWriteTransportAction extends HandledTransportAction
             builder.field("@timestamp", sample.getTimestamp());
 
             // data_stream fields
-            String fullDataset = dataset + ".prometheus";
+            String fullDataset = dataset + PROMETHEUS_DATASET_SUFFIX;
             builder.startObject("data_stream");
             builder.field("type", "metrics");
             builder.field("dataset", fullDataset);
@@ -184,7 +201,9 @@ public class PrometheusRemoteWriteTransportAction extends HandledTransportAction
             // labels - all labels including __name__
             builder.startObject("labels");
             for (Label label : timeSeries.getLabelsList()) {
-                builder.field(label.getName(), label.getValue());
+                if (isIgnoredLabel(label.getName()) == false) {
+                    builder.field(label.getName(), label.getValue());
+                }
             }
             builder.endObject();
             builder.startObject("metrics");

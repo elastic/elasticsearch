@@ -22,6 +22,7 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.ReachabilityChecker;
+import org.elasticsearch.transport.LeakTracker;
 import org.hamcrest.Matcher;
 
 import java.io.IOException;
@@ -375,6 +376,10 @@ public class ActionListenerTests extends ESTestCase {
             System.gc();
             assertLeakDetected();
         });
+        // The GC-based mechanism fired above. Drain the intentional leak from the synchronous collector
+        // so @After's verifyNoOutstandingLeakTrackerLeaks doesn't double-report it.
+        LeakTracker.clearTestLeakCollector();
+        LeakTracker.installTestLeakCollector();
     }
 
     public void testAssertAtLeastOnceWillNotLogWhenResolvedOrFailed() {
@@ -744,8 +749,7 @@ public class ActionListenerTests extends ESTestCase {
                         assertThat(deterministicTaskQueue.getCurrentTimeMillis(), lessThan(timeout.millis()));
                     }
                 }
-            },
-            () -> fail("should not clean up")
+            }
         );
         final Runnable completer = expectException
             ? () -> listenerDoesNotTimeOut.onFailure(expectedOutcome)
@@ -761,7 +765,6 @@ public class ActionListenerTests extends ESTestCase {
         }
 
         final var listenerTimesOutComplete = new AtomicBoolean();
-        final var listenerTimesOutCleansUp = new AtomicBoolean();
         final var listenerTimesOut = ActionListener.addTimeout(
             timeout,
             threadpool,
@@ -778,8 +781,7 @@ public class ActionListenerTests extends ESTestCase {
                     assertTrue(listenerTimesOutComplete.compareAndSet(false, true));
                     assertEquals(timeout.millis(), deterministicTaskQueue.getCurrentTimeMillis());
                 }
-            },
-            () -> assertTrue(listenerTimesOutCleansUp.compareAndSet(false, true))
+            }
         );
 
         if (randomBoolean()) {
@@ -792,6 +794,5 @@ public class ActionListenerTests extends ESTestCase {
         deterministicTaskQueue.runAllTasksInTimeOrder();
         assertTrue(listenerDoesNotTimeOutComplete.get());
         assertTrue(listenerTimesOutComplete.get());
-        assertTrue(listenerTimesOutCleansUp.get());
     }
 }

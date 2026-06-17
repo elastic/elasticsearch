@@ -9,6 +9,7 @@
 
 package org.elasticsearch.simdvec;
 
+import org.apache.lucene.codecs.hnsw.FlatVectorsScorer;
 import org.apache.lucene.index.ByteVectorValues;
 import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.VectorSimilarityFunction;
@@ -17,14 +18,50 @@ import org.apache.lucene.util.hnsw.RandomVectorScorer;
 import org.apache.lucene.util.hnsw.RandomVectorScorerSupplier;
 import org.apache.lucene.util.quantization.QuantizedByteVectorValues;
 
+import java.io.IOException;
 import java.util.Optional;
 
-/** A factory of quantized vector scorers. */
 public interface VectorScorerFactory {
 
-    static Optional<VectorScorerFactory> instance() {
-        return Optional.ofNullable(VectorScorerFactoryImpl.INSTANCE);
-    }
+    /**
+     * {@code true} if this factory uses native code anywhere.
+     */
+    boolean usesNative();
+
+    /** Create a new {@link ES91OSQVectorsScorer} for the given {@link IndexInput}. */
+    ES91OSQVectorsScorer newES91OSQVectorsScorer(IndexInput input, int dimension, int bulkSize) throws IOException;
+
+    /**
+     * Create a new {@link ES940OSQVectorsScorer} for the given {@link IndexInput} and explicit packed-vs-striped disk layout.
+     * The input should be unwrapped before calling this method. If the input is
+     * still a {@code FilterIndexInput} that does not implement
+     * {@code MemorySegmentAccessInput} or {@code DirectAccessInput}, an
+     * {@link IllegalArgumentException} is thrown. Non-wrapper inputs (e.g.
+     * {@code ByteBuffersIndexInput}) are accepted and use a heap-copy fallback.
+     */
+    ES940OSQVectorsScorer newES940OSQVectorsScorer(
+        IndexInput input,
+        byte queryBits,
+        byte indexBits,
+        int dimension,
+        int dataLength,
+        int bulkSize,
+        ES940OSQVectorsScorer.BitEncoding bitEncoding
+    ) throws IOException;
+
+    /**
+     * Create a new {@link ES92Int7VectorsScorer} for the given {@link IndexInput}.
+     * See {@link #newES940OSQVectorsScorer} for input type requirements.
+     */
+    ES92Int7VectorsScorer newES92Int7VectorsScorer(IndexInput input, int dimension, int bulkSize) throws IOException;
+
+    ES93BinaryQuantizedVectorScorer newES93BinaryQuantizedVectorScorer(IndexInput input, int dimensions, int vectorLengthInBytes)
+        throws IOException;
+
+    /**
+     * Create a new {@code FlatVectorsScorer} for scoring arbitrary flat vectors.
+     */
+    FlatVectorsScorer newFlatVectorsScorer();
 
     /**
      * Returns an optional containing a float vector score supplier

@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.planner;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.Build;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -20,6 +19,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.compute.Describable;
+import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.ElementType;
@@ -59,6 +59,7 @@ import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.operator.SourceOperator.SourceOperatorFactory;
 import org.elasticsearch.compute.operator.SparklineGenerateEmptyBucketsOperator;
 import org.elasticsearch.compute.operator.StringExtractOperator;
+import org.elasticsearch.compute.operator.TimeSeriesCollapseOperator;
 import org.elasticsearch.compute.operator.TsInfoOperator;
 import org.elasticsearch.compute.operator.exchange.ExchangeSink;
 import org.elasticsearch.compute.operator.exchange.ExchangeSinkOperator.ExchangeSinkOperatorFactory;
@@ -69,13 +70,17 @@ import org.elasticsearch.compute.operator.fuse.LinearScoreEvalOperator;
 import org.elasticsearch.compute.operator.fuse.RrfConfig;
 import org.elasticsearch.compute.operator.fuse.RrfScoreEvalOperator;
 import org.elasticsearch.compute.operator.topn.GroupedTopNOperator;
+import org.elasticsearch.compute.operator.topn.NumericTopNOperator;
+import org.elasticsearch.compute.operator.topn.SharedNumericThreshold;
 import org.elasticsearch.compute.operator.topn.TopNEncoder;
 import org.elasticsearch.compute.operator.topn.TopNOperator;
 import org.elasticsearch.compute.operator.topn.TopNOperator.TopNOperatorFactory;
 import org.elasticsearch.core.Assertions;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
@@ -107,9 +112,14 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.FunctionEsField;
 import org.elasticsearch.xpack.esql.core.util.Holder;
+import org.elasticsearch.xpack.esql.datasources.AsyncExternalSourceOperatorFactory;
+import org.elasticsearch.xpack.esql.datasources.DeferredExtractionCapable;
+import org.elasticsearch.xpack.esql.datasources.ExternalFieldExtractOperator;
 import org.elasticsearch.xpack.esql.datasources.ExternalSliceQueue;
+import org.elasticsearch.xpack.esql.datasources.FileMetadataColumns;
 import org.elasticsearch.xpack.esql.datasources.OperatorFactoryRegistry;
 import org.elasticsearch.xpack.esql.datasources.PartitionMetadata;
+import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceOperatorContext;
@@ -128,6 +138,7 @@ import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.inference.InferenceService;
 import org.elasticsearch.xpack.esql.inference.completion.CompletionOperator;
 import org.elasticsearch.xpack.esql.inference.rerank.RerankOperator;
+import org.elasticsearch.xpack.esql.optimizer.rules.physical.ProjectAwayColumns;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
@@ -141,6 +152,7 @@ import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSourceExec;
+import org.elasticsearch.xpack.esql.plan.physical.ExternalFieldExtractExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExternalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
 import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
@@ -163,14 +175,17 @@ import org.elasticsearch.xpack.esql.plan.physical.SampleExec;
 import org.elasticsearch.xpack.esql.plan.physical.ShowExec;
 import org.elasticsearch.xpack.esql.plan.physical.SparklineGenerateEmptyBucketsExec;
 import org.elasticsearch.xpack.esql.plan.physical.TimeSeriesAggregateExec;
+import org.elasticsearch.xpack.esql.plan.physical.TimeSeriesCollapseExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNByExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.plan.physical.TsInfoExec;
+import org.elasticsearch.xpack.esql.plan.physical.UnaryExec;
 import org.elasticsearch.xpack.esql.plan.physical.UriPartsExec;
 import org.elasticsearch.xpack.esql.plan.physical.UserAgentExec;
 import org.elasticsearch.xpack.esql.plan.physical.inference.CompletionExec;
 import org.elasticsearch.xpack.esql.plan.physical.inference.RerankExec;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders.ShardContext;
+import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.score.ScoreMapper;
 import org.elasticsearch.xpack.esql.session.Configuration;
@@ -178,6 +193,7 @@ import org.elasticsearch.xpack.esql.session.EsqlCCSUtils;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -220,7 +236,7 @@ public class LocalExecutionPlanner {
     private final LookupFromIndexService lookupFromIndexService;
     private final InferenceService inferenceService;
     private final UserAgentParserRegistry userAgentParserRegistry;
-    private final PhysicalOperationProviders physicalOperationProviders;
+    private final AbstractPhysicalOperationProviders physicalOperationProviders;
     private final OperatorFactoryRegistry operatorFactoryRegistry;
 
     public LocalExecutionPlanner(
@@ -237,7 +253,7 @@ public class LocalExecutionPlanner {
         LookupFromIndexService lookupFromIndexService,
         InferenceService inferenceService,
         UserAgentParserRegistry userAgentParserRegistry,
-        PhysicalOperationProviders physicalOperationProviders,
+        AbstractPhysicalOperationProviders physicalOperationProviders,
         OperatorFactoryRegistry operatorFactoryRegistry
     ) {
 
@@ -280,7 +296,8 @@ public class LocalExecutionPlanner {
             plannerSettings,
             timeSeries,
             settings,
-            shardContexts
+            shardContexts,
+            physicalOperationProviders.analysisRegistry()
         );
 
         // workaround for https://github.com/elastic/elasticsearch/issues/99782
@@ -316,6 +333,8 @@ public class LocalExecutionPlanner {
             return planAggregation(aggregate, context);
         } else if (node instanceof FieldExtractExec fieldExtractExec) {
             return planFieldExtractNode(fieldExtractExec, context);
+        } else if (node instanceof ExternalFieldExtractExec extExtract) {
+            return planExternalFieldExtract(extExtract, context);
         } else if (node instanceof ExchangeExec exchangeExec) {
             return planExchange(exchangeExec, context);
         } else if (node instanceof TopNExec topNExec) {
@@ -338,6 +357,8 @@ public class LocalExecutionPlanner {
             return planLimit(limit, context);
         } else if (node instanceof MvExpandExec mvExpand) {
             return planMvExpand(mvExpand, context);
+        } else if (node instanceof TimeSeriesCollapseExec tsCollapse) {
+            return planTimeSeriesCollapse(tsCollapse, context);
         } else if (node instanceof RerankExec rerank) {
             return planRerank(rerank, context);
         } else if (node instanceof ChangePointExec changePoint) {
@@ -457,7 +478,7 @@ public class LocalExecutionPlanner {
         source = source.with(
             new ColumnExtractOperator.Factory(
                 types,
-                EvalMapper.toEvaluator(context.foldCtx(), coe.input(), layout),
+                EvalMapper.toEvaluator(context.foldCtx(), coe.input(), layout, context.analysisRegistry()),
                 new CompoundOutputEvaluator.Factory(coe.input().dataType(), coe.source(), provider)
             ),
             layout
@@ -470,7 +491,12 @@ public class LocalExecutionPlanner {
         String inferenceId = BytesRefs.toString(completion.inferenceId().fold(context.foldCtx()));
         Map<String, Object> taskSettings = completion.taskSettings().toFoldedMap(context.foldCtx());
         Layout outputLayout = source.layout.builder().append(completion.targetField()).build();
-        ExpressionEvaluator.Factory promptEvaluatorFactory = EvalMapper.toEvaluator(context.foldCtx(), completion.prompt(), source.layout);
+        ExpressionEvaluator.Factory promptEvaluatorFactory = EvalMapper.toEvaluator(
+            context.foldCtx(),
+            completion.prompt(),
+            source.layout,
+            context.analysisRegistry()
+        );
 
         return source.with(
             new CompletionOperator.Factory(inferenceService, inferenceId, promptEvaluatorFactory, taskSettings, completion.timeout()),
@@ -532,6 +558,80 @@ public class LocalExecutionPlanner {
 
     private PhysicalOperation planFieldExtractNode(FieldExtractExec fieldExtractExec, LocalExecutionPlannerContext context) {
         return physicalOperationProviders.fieldExtractPhysicalOperation(fieldExtractExec, plan(fieldExtractExec.child(), context), context);
+    }
+
+    /**
+     * Plan an {@link ExternalFieldExtractExec} (inserted by {@code InsertExternalFieldExtraction})
+     * by appending an {@link ExternalFieldExtractOperator} above the upstream operator chain.
+     * <p>
+     * The upstream source factory must implement {@link DeferredExtractionCapable} so the new
+     * operator can resolve the per-driver {@link org.elasticsearch.xpack.esql.datasources.SourceExtractors
+     * SourceExtractors} registry; otherwise we fail loudly because the optimizer rule should never
+     * have inserted us above an incapable source. The pairing is invariant because
+     * {@code FileSourceFactory} flips the deferred-extraction switch on the underlying
+     * {@code AsyncExternalSourceOperatorFactory} based on the very same
+     * {@link org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor#ROW_POSITION_COLUMN
+     * _rowPosition} column the rule injected.
+     * <p>
+     * Layout: the upstream layout is rewritten to drop the {@code _rowPosition} channel and
+     * append channels for every {@code attributesToExtract}. The
+     * {@link ExternalFieldExtractOperator} mirrors that channel reshaping at runtime.
+     */
+    private PhysicalOperation planExternalFieldExtract(ExternalFieldExtractExec exec, LocalExecutionPlannerContext context) {
+        PhysicalOperation source = plan(exec.child(), context);
+
+        if ((source.sourceOperatorFactory instanceof DeferredExtractionCapable) == false) {
+            throw new IllegalStateException(
+                "ExternalFieldExtractExec planned above source factory ["
+                    + source.sourceOperatorFactory.getClass().getName()
+                    + "] which does not implement DeferredExtractionCapable; "
+                    + "InsertExternalFieldExtraction must only fire above ColumnExtractorAware sources"
+            );
+        }
+        DeferredExtractionCapable capable = (DeferredExtractionCapable) source.sourceOperatorFactory;
+
+        Attribute rowPosition = exec.rowPositionAttribute();
+        Layout.ChannelAndType rpEntry = source.layout.get(rowPosition.id());
+        if (rpEntry == null) {
+            throw new IllegalStateException(
+                "_rowPosition attribute ["
+                    + rowPosition
+                    + "] is not present in upstream layout; "
+                    + "InsertExternalFieldExtraction must include it in the narrowed source projection"
+            );
+        }
+        int rowPositionChannel = rpEntry.channel();
+
+        // Pass-through channels: every channel from the upstream layout except the row-position
+        // channel, in increasing channel order. The output layout below is built from the
+        // upstream layout's inverse list using the same skip-rule, then has the deferred
+        // attributes appended; channel indices line up with the operator's output assembly.
+        List<Layout.ChannelSet> inverse = source.layout.inverse();
+        int upstreamChannels = source.layout.numberOfChannels();
+        List<Integer> passThroughChannels = new ArrayList<>(upstreamChannels - 1);
+        Layout.Builder layoutBuilder = new Layout.Builder();
+        for (int ch = 0; ch < upstreamChannels; ch++) {
+            if (ch == rowPositionChannel) {
+                continue;
+            }
+            passThroughChannels.add(ch);
+            layoutBuilder.append(inverse.get(ch));
+        }
+        layoutBuilder.append(exec.attributesToExtract());
+        Layout newLayout = layoutBuilder.build();
+
+        List<String> deferredColumnNames = new ArrayList<>(exec.attributesToExtract().size());
+        for (Attribute a : exec.attributesToExtract()) {
+            deferredColumnNames.add(a.name());
+        }
+
+        ExternalFieldExtractOperator.Factory factory = new ExternalFieldExtractOperator.Factory(
+            rowPositionChannel,
+            passThroughChannels,
+            deferredColumnNames,
+            capable::sourceExtractorsFor
+        );
+        return source.with(factory, newLayout);
     }
 
     private PhysicalOperation planOutput(OutputExec outputExec, LocalExecutionPlannerContext context) {
@@ -605,6 +705,18 @@ public class LocalExecutionPlanner {
     private PhysicalOperation planTopN(TopNExec topNExec, LocalExecutionPlannerContext context) {
         final Integer rowSize = topNExec.estimatedRowSize();
         PhysicalOperation source = plan(topNExec.child(), context);
+        // Specialisation: a single-key sort over an ExternalSourceExec narrowed by
+        // InsertExternalFieldExtraction to {@code [sortKey, _rowPosition]} can run on the
+        // primitive {@link NumericTopNOperator} instead of the generic byte-encoding one. We
+        // make the decision here — rather than as a separate plan node + optimizer rule — because
+        // the choice is purely an implementation detail (same TopN semantics, different operator)
+        // and every input we need is already on hand at translation time. If the predicate
+        // doesn't match we fall through to the generic factory below; the rule predicate and the
+        // generic fallback share the same plan node.
+        NumericTopNOperator.NumericTopNOperatorFactory numericFactory = tryBuildNumericTopN(topNExec, source, context);
+        if (numericFactory != null) {
+            return source.with(numericFactory, source.layout);
+        }
         var common = topNCommon(rowSize, topNExec.order(), topNExec.limit(), topNExec.docValuesAttributes(), source, context);
         return source.with(
             new TopNOperatorFactory(
@@ -619,6 +731,181 @@ public class LocalExecutionPlanner {
             ),
             source.layout
         );
+    }
+
+    /**
+     * Decide whether the {@code TopNExec} qualifies for the specialised {@link NumericTopNOperator}
+     * and, if so, return its factory; otherwise {@code null} and the caller falls back to the
+     * generic operator. The predicate is intentionally narrow — every check has a documented
+     * reason — so any plan that fails to qualify gets the functionally-correct generic path.
+     *
+     * <p>Preconditions, all checked here:
+     * <ul>
+     *     <li>Exactly one sort {@link Order} (Tier 1 is single-key).</li>
+     *     <li>The sort attribute is a plain {@link Attribute} (no expressions over the field) of
+     *         a fixed-width numeric type — currently LONG, INTEGER, DOUBLE, BOOLEAN, DATETIME, or
+     *         DATE_NANOS. FLOAT, UNSIGNED_LONG, HALF_FLOAT, and SCALED_FLOAT are deferred to a
+     *         follow-up PR; they need a tiny encoding addition but no operator surface change.</li>
+     *     <li>The limit is a literal foldable to a positive {@code int}. Non-literal limits go
+     *         to the generic operator (the bytes-encoding path doesn't need a literal).</li>
+     *     <li>The {@code TopNExec} sits directly above (or via a {@link UnaryExec} spine ending
+     *         in) an {@link ExternalSourceExec}.</li>
+     *     <li>The source's narrowed output is exactly {@code [sortKey, _rowPosition]} — two
+     *         channels, sort key at channel 0, synthetic row-position column at channel 1.
+     *         {@code InsertExternalFieldExtraction} produces this shape; any extra eager column
+     *         (pushed-filter input, virtual {@code _file.*}) leaves more than two channels and
+     *         disqualifies the substitution because the specialised operator's 2-channel layout
+     *         cannot pass extra columns through.</li>
+     *     <li>The source carries no {@code pushedTopN} hint. If
+     *         {@code PushTopNIntoExternalSource} already annotated the source, the BlockHash will
+     *         prune during aggregation and the generic TopN above must remain as the safety net
+     *         (replacing it would double-count the budget).</li>
+     *     <li>If the source operator factory is an {@link AsyncExternalSourceOperatorFactory},
+     *         the planner shares the live threshold with external format readers.</li>
+     * </ul>
+     *
+     * <p>No plan-time multi-value exclude: the operator supports multi-valued sort keys natively
+     * via {@code NumericSortKeyExtractor} (MV-min for ASC, MV-max for DESC, empty MV slot treated
+     * as null). This matches the generic {@code TopNOperator}'s behaviour through its
+     * {@code KeyExtractorForX} family, so the substitution is semantics-preserving on MV input.
+     */
+    private NumericTopNOperator.NumericTopNOperatorFactory tryBuildNumericTopN(
+        TopNExec topNExec,
+        PhysicalOperation source,
+        LocalExecutionPlannerContext context
+    ) {
+        List<Order> orders = topNExec.order();
+        if (orders.size() != 1) {
+            return null;
+        }
+        Order sortOrder = orders.get(0);
+        Attribute sortAttribute = Expressions.attribute(sortOrder.child());
+        if (sortAttribute == null) {
+            return null;
+        }
+        if (isNumericTopNSupportedSortType(sortAttribute.dataType()) == false) {
+            return null;
+        }
+        // Two guards, working at different layers. The first one (the layout check) is the real
+        // gate on what {@link NumericTopNOperator#addInput} actually sees: if any intervening
+        // {@link UnaryExec} on the spine — pushed filter, residual evaluator, future plan-node
+        // insertion — adds a column, it shows up in {@code source.layout} and disqualifies the
+        // rewrite. The second one (the source-output check below) is a belt-and-braces guard
+        // against an ExternalSourceExec that was never narrowed in the first place (e.g. the
+        // rule didn't run, or kept extras). Together they reject everything that isn't the exact
+        // narrowed shape the operator expects: [sortKey, _rowPosition] with sortKey at channel 0.
+        if (source.layout.numberOfChannels() != 2) {
+            return null;
+        }
+        Layout.ChannelAndType sortEntry = source.layout.get(sortAttribute.id());
+        if (sortEntry == null || sortEntry.channel() != NumericTopNOperator.SORT_KEY_CHANNEL) {
+            return null;
+        }
+        // Walk down the UnaryExec spine to confirm we're sitting over a narrowed ExternalSourceExec
+        // and to inspect its pushedTopN hint. Same traversal {@code InsertExternalFieldExtraction}
+        // uses (inlined here to keep the planner from depending on an optimizer-rule class).
+        ExternalSourceExec externalSource = findExternalSourceBelow(topNExec.child());
+        if (externalSource == null) {
+            return null;
+        }
+        List<Attribute> sourceOutput = externalSource.output();
+        if (sourceOutput.size() != 2) {
+            return null;
+        }
+        if (ColumnExtractor.ROW_POSITION_COLUMN.equals(sourceOutput.get(1).name()) == false) {
+            return null;
+        }
+        if (externalSource.pushedTopN() != null) {
+            return null;
+        }
+        // Limit must be a positive integer literal. We re-fold here (rather than carrying a
+        // rule-folded value) so the planner remains the single source of truth for the literal's
+        // primitive form.
+        Expression limitExpr = topNExec.limit();
+        if (limitExpr.foldable() == false) {
+            return null;
+        }
+        Object folded = limitExpr.fold(context.foldCtx());
+        Integer limit = numericTopNFoldedLimit(folded);
+        if (limit == null || limit <= 0) {
+            return null;
+        }
+        ElementType keyElementType = PlannerUtils.toElementType(sortAttribute.dataType());
+        boolean asc = sortOrder.direction() == Order.OrderDirection.ASC;
+        boolean nullsFirst = sortOrder.nullsPosition() == Order.NullsPosition.FIRST;
+        SharedNumericThreshold.Supplier thresholdSupplier = null;
+        if (source.sourceOperatorFactory instanceof AsyncExternalSourceOperatorFactory externalSourceFactory) {
+            thresholdSupplier = new SharedNumericThreshold.Supplier(asc, nullsFirst);
+            externalSourceFactory.setNumericThresholdSupplier(thresholdSupplier, sortAttribute.name(), keyElementType, asc, nullsFirst);
+        }
+        return new NumericTopNOperator.NumericTopNOperatorFactory(limit, keyElementType, asc, nullsFirst, thresholdSupplier);
+    }
+
+    /**
+     * Sort-key element types the specialised {@link NumericTopNOperator} can rank. Mirrors the
+     * operator's own {@code assertSupportedType} — DATETIME and DATE_NANOS collapse to
+     * {@link ElementType#LONG} at planning time (see {@link PlannerUtils#toElementType}), so they
+     * go through the LONG path. Keeping the predicate here rather than on the operator lets the
+     * planner cleanly skip the optimisation without instantiating the factory.
+     *
+     * <p>Deliberately excluded:
+     * <ul>
+     *     <li>{@code UNSIGNED_LONG}: maps to {@link ElementType#LONG} but the operator's
+     *         {@code ~raw} encoding does not preserve unsigned ordering. Supporting it needs a
+     *         different encoding ({@code raw ^ Long.MIN_VALUE}, sign-bit flip) and is parked for
+     *         a follow-up.</li>
+     *     <li>{@code FLOAT}, {@code HALF_FLOAT}, {@code SCALED_FLOAT}: ESQL widens these to
+     *         {@link DataType#DOUBLE} at load time, so a sort attribute with one of these data
+     *         types never reaches this predicate in practice — {@link PlannerUtils#toElementType}
+     *         throws on them outright. Listing them here as "rejected" would be misleading; the
+     *         load-time widening already routes them through the DOUBLE branch.</li>
+     * </ul>
+     */
+    private static boolean isNumericTopNSupportedSortType(DataType dataType) {
+        return dataType == DataType.LONG
+            || dataType == DataType.INTEGER
+            || dataType == DataType.DOUBLE
+            || dataType == DataType.BOOLEAN
+            || dataType == DataType.DATETIME
+            || dataType == DataType.DATE_NANOS;
+    }
+
+    /**
+     * Folds a TopN limit expression to a positive {@link Integer}, returning {@code null} when
+     * the limit is non-integral, negative, or out of {@code int} range.
+     */
+    private static Integer numericTopNFoldedLimit(Object folded) {
+        if (folded instanceof Integer i) {
+            return i;
+        }
+        if (folded instanceof Number n) {
+            long l = n.longValue();
+            if (l < 0 || l > Integer.MAX_VALUE) {
+                return null;
+            }
+            return (int) l;
+        }
+        return null;
+    }
+
+    /**
+     * Walk down a {@link UnaryExec} spine looking for an {@link ExternalSourceExec}; returns
+     * {@code null} when the spine ends in any other leaf. Mirrors the traversal used by
+     * {@code InsertExternalFieldExtraction#findExternalSource} (inlined here so the planner does
+     * not depend on an optimizer-rule class).
+     */
+    private static ExternalSourceExec findExternalSourceBelow(PhysicalPlan start) {
+        PhysicalPlan p = start;
+        while (true) {
+            if (p instanceof ExternalSourceExec es) {
+                return es;
+            }
+            if (p instanceof UnaryExec u) {
+                p = u.child();
+                continue;
+            }
+            return null;
+        }
     }
 
     private PhysicalOperation planTopNBy(TopNByExec topNByExec, LocalExecutionPlannerContext context) {
@@ -709,7 +996,13 @@ public class LocalExecutionPlanner {
         PhysicalOperation source = plan(eval.child(), context);
 
         for (Alias field : eval.fields()) {
-            var evaluatorSupplier = EvalMapper.toEvaluator(context.foldCtx(), field.child(), source.layout, context.shardContexts);
+            var evaluatorSupplier = EvalMapper.toEvaluator(
+                context.foldCtx(),
+                field.child(),
+                source.layout,
+                context.shardContexts,
+                context.analysisRegistry()
+            );
             Layout.Builder layout = source.layout.builder();
             layout.append(field.toAttribute());
             source = source.with(new EvalOperatorFactory(evaluatorSupplier), layout.build());
@@ -730,7 +1023,7 @@ public class LocalExecutionPlanner {
         source = source.with(
             new StringExtractOperator.StringExtractOperatorFactory(
                 patternNames,
-                EvalMapper.toEvaluator(context.foldCtx(), expr, layout),
+                EvalMapper.toEvaluator(context.foldCtx(), expr, layout, context.analysisRegistry()),
                 () -> (input) -> dissect.parser().parser().parse(input)
             ),
             layout
@@ -762,7 +1055,7 @@ public class LocalExecutionPlanner {
         source = source.with(
             new ColumnExtractOperator.Factory(
                 types,
-                EvalMapper.toEvaluator(context.foldCtx(), grok.inputExpression(), layout),
+                EvalMapper.toEvaluator(context.foldCtx(), grok.inputExpression(), layout, context.analysisRegistry()),
                 new GrokEvaluatorExtracter.Factory(grok.pattern().grok(), grok.pattern().pattern(), fieldToPos, fieldToType)
             ),
             layout
@@ -803,7 +1096,7 @@ public class LocalExecutionPlanner {
 
         List<ExpressionEvaluator.Factory> rerankFieldsEvaluators = rerank.rerankFields()
             .stream()
-            .map(rerankField -> EvalMapper.toEvaluator(context.foldCtx(), rerankField.child(), source.layout))
+            .map(rerankField -> EvalMapper.toEvaluator(context.foldCtx(), rerankField.child(), source.layout, context.analysisRegistry()))
             .toList();
 
         assert rerankFieldsEvaluators.size() > 0 : "rerank expression evaluators must not be empty";
@@ -919,7 +1212,7 @@ public class LocalExecutionPlanner {
             var maybeEntry = esRelation.indexNameWithModes()
                 .entrySet()
                 .stream()
-                .filter(e -> RemoteClusterAware.parseClusterAlias(e.getKey()).equals(clusterAlias))
+                .filter(e -> RemoteClusterAware.splitIndexName(e.getKey()).getClusterGroupingKey().equals(clusterAlias))
                 .findFirst();
             entry = maybeEntry.orElseThrow(
                 () -> new IllegalStateException(
@@ -931,14 +1224,14 @@ public class LocalExecutionPlanner {
         if (entry.getValue() != IndexMode.LOOKUP) {
             throw new IllegalStateException("can't plan [" + join + "], found index with mode [" + entry.getValue() + "]");
         }
-        String[] indexSplit = RemoteClusterAware.splitIndexName(entry.getKey());
+        var indexSplit = RemoteClusterAware.splitIndexName(entry.getKey());
         // No prefix is ok, prefix with this cluster is ok, something else is not
-        if (indexSplit[0] != null && clusterAlias.equals(indexSplit[0]) == false) {
+        if (indexSplit.clusterAlias() != null && clusterAlias.equals(indexSplit.clusterAlias()) == false) {
             throw new IllegalStateException(
                 "can't plan [" + join + "]: no matching index found " + EsqlCCSUtils.inClusterName(clusterAlias)
             );
         }
-        String indexName = indexSplit[1];
+        String indexName = indexSplit.indexExpression();
         if (join.leftFields().size() != join.rightFields().size()) {
             throw new IllegalArgumentException("can't plan [" + join + "]: mismatching left and right field count");
         }
@@ -997,17 +1290,16 @@ public class LocalExecutionPlanner {
     private static final TransportVersion ESQL_LOOKUP_PLANNING = TransportVersion.fromName("esql_lookup_planning");
 
     /**
-     * Determines whether streaming lookup should be used based on the target node's transport version.
+     * Determines whether streaming lookup should be used based on the {@link EsqlPlugin#LOOKUP_JOIN_STREAMING}
+     * setting and the target nodes' transport versions.
      * Streaming lookup requires all target nodes to support the streaming protocol.
-     * Currently only enabled in snapshot builds.
      */
     private boolean shouldUseStreamingOperator(LookupFromIndexService service, String indexName) {
-        // Streaming lookup is only enabled in snapshot builds
-        if (Build.current().isSnapshot() == false) {
-            return false;
-        }
-
         try {
+            if (service.getClusterService().getClusterSettings().get(EsqlPlugin.LOOKUP_JOIN_STREAMING) == false) {
+                return false;
+            }
+
             ClusterState clusterState = service.getClusterService().state();
 
             // Resolve target nodes for the lookup index
@@ -1287,7 +1579,7 @@ public class LocalExecutionPlanner {
         }
 
         return (indexName, fieldName) -> {
-            String localIndexName = RemoteClusterAware.getLocalIndexName(RemoteClusterAware.splitIndexName(indexName));
+            String localIndexName = RemoteClusterAware.splitIndexName(indexName).indexExpression();
             MappingLookup mappingLookup = mappingsByIndex.get(localIndexName);
             if (mappingLookup == null) {
                 return null;
@@ -1342,6 +1634,12 @@ public class LocalExecutionPlanner {
             projectedColumns.add(attr.name());
         }
 
+        // ProjectAwayColumns inserts a single synthetic attribute when all real columns are pruned.
+        // Treat it the same as empty, so the decoder takes the row-count-only fast path.
+        if (projectedColumns.size() == 1 && ProjectAwayColumns.ALL_FIELDS_PROJECTED.equals(projectedColumns.getFirst())) {
+            projectedColumns = List.of();
+        }
+
         int pushedLimit = externalSource.pushedLimit();
 
         // Shrink buffer for small limits
@@ -1356,12 +1654,15 @@ public class LocalExecutionPlanner {
         int instanceCount = 1;
 
         /*
-         * Data nodes don't have a resolved FileList (it isn't serialized), so they must rely on explicit splits.
-         * If we received a single coalesced split, we still need to route execution through the slice queue so
-         * the operator can expand it into its leaf FileSplits. Otherwise we'd fall back to opening the original
-         * (potentially globbed) source path as a single object.
+         * Whenever explicit splits are assigned to this instance, route execution through the slice queue so
+         * the operator reads exactly those splits (expanding a single coalesced split into its leaf
+         * FileSplits). This must hold even when a resolved FileList is also present — the coordinator keeps
+         * one, but a data node does not (it isn't serialized). Falling through to the resolved-FileList
+         * multi-file read when splits are assigned would re-read the entire glob behind the assigned splits,
+         * double-counting the rows the slice-queue instances also read. The multi-file read path is therefore
+         * only for the no-splits case, where this instance owns the whole resolved FileList.
          */
-        boolean useSliceQueue = splitCount > 0 && (splitCount > 1 || fileList == null || fileList.isResolved() == false);
+        boolean useSliceQueue = splitCount > 0;
         if (useSliceQueue) {
             sliceQueue = new ExternalSliceQueue(externalSource.splits());
         }
@@ -1376,11 +1677,19 @@ public class LocalExecutionPlanner {
                 instanceCount = Math.min(splitCount, maxParallelism);
             }
         }
-        Set<String> partitionColumnNames = Set.of();
+        // Carries every name VirtualColumnIterator should materialise: Hive-style partition columns
+        // plus always-on _file.* metadata. Passed through SourceOperatorContext.partitionColumnNames
+        // (legacy method name kept to avoid an SPI rename on this PR).
+        Set<String> virtualColumnNames = new LinkedHashSet<>();
         if (fileList != null) {
             PartitionMetadata pm = fileList.partitionMetadata();
             if (pm != null && pm.isEmpty() == false) {
-                partitionColumnNames = pm.partitionColumns().keySet();
+                virtualColumnNames.addAll(pm.partitionColumns().keySet());
+            }
+        }
+        for (Attribute attr : externalSource.output()) {
+            if (FileMetadataColumns.isFileMetadataColumn(attr.name())) {
+                virtualColumnNames.add(attr.name());
             }
         }
 
@@ -1399,9 +1708,13 @@ public class LocalExecutionPlanner {
             .pushedFilter(externalSource.pushedFilter())
             .pushedExpressions(externalSource.pushedExpressions())
             .fileList(fileList)
-            .partitionColumnNames(partitionColumnNames)
+            .schemaMap(externalSource.schemaMap())
+            .partitionColumnNames(virtualColumnNames)
             .sliceQueue(sliceQueue)
             .parsingParallelism(context.queryPragmas().parsingParallelism())
+            .maxConcurrentOpenSegments(context.queryPragmas().maxConcurrentOpenSegments())
+            .maxRecordBytes(Math.toIntExact(context.queryPragmas().maxRecordSize().getBytes()))
+            .parallelism(instanceCount)
             .build();
 
         SourceOperator.SourceOperatorFactory factory = operatorFactoryRegistry.factory(operatorContext);
@@ -1442,7 +1755,15 @@ public class LocalExecutionPlanner {
         PhysicalOperation source = plan(filter.child(), context);
         // TODO: should this be extracted into a separate eval block?
         PhysicalOperation filterOperation = source.with(
-            new FilterOperatorFactory(EvalMapper.toEvaluator(context.foldCtx(), filter.condition(), source.layout, context.shardContexts)),
+            new FilterOperatorFactory(
+                EvalMapper.toEvaluator(
+                    context.foldCtx(),
+                    filter.condition(),
+                    source.layout,
+                    context.shardContexts,
+                    context.analysisRegistry()
+                )
+            ),
             source.layout
         );
         // Add ScoreOperator only on data nodes. Data nodes are able to calculate scores running queries on the resulting docs.
@@ -1498,10 +1819,39 @@ public class LocalExecutionPlanner {
         );
     }
 
+    private PhysicalOperation planTimeSeriesCollapse(TimeSeriesCollapseExec collapse, LocalExecutionPlannerContext context) {
+        PhysicalOperation source = plan(collapse.child(), context);
+        Layout layout = source.layout;
+
+        List<BlockHash.GroupSpec> groups = collapse.dimensions().stream().map(attribute -> {
+            Layout.ChannelAndType input = layout.get(attribute.id());
+            return new BlockHash.GroupSpec(input.channel(), PlannerUtils.toElementType(input.type()));
+        }).toList();
+        int valueChannel = layout.get(collapse.value().id()).channel();
+        int stepChannel = layout.get(collapse.step().id()).channel();
+
+        return source.with(
+            new TimeSeriesCollapseOperator.Factory(
+                groups,
+                valueChannel,
+                stepChannel,
+                collapse.start(),
+                collapse.end(),
+                collapse.stepMillis()
+            ),
+            layout
+        );
+    }
+
     private PhysicalOperation planChangePoint(ChangePointExec changePoint, LocalExecutionPlannerContext context) {
         PhysicalOperation source = plan(changePoint.child(), context);
         Layout layout = source.layout.builder().append(changePoint.targetType()).append(changePoint.targetPvalue()).build();
-        return source.with(new ChangePointOperator.Factory(layout.get(changePoint.value().id()).channel(), changePoint.source()), layout);
+        int valueChannel = layout.get(changePoint.value().id()).channel();
+        List<Integer> groupingChannels = changePoint.groupings()
+            .stream()
+            .map(g -> getAttributeChannel(g, layout, "CHANGE_POINT BY expression must be an attribute"))
+            .toList();
+        return source.with(new ChangePointOperator.Factory(valueChannel, groupingChannels, changePoint.source()), layout);
     }
 
     private PhysicalOperation planSample(SampleExec rsx, LocalExecutionPlannerContext context) {
@@ -1680,7 +2030,8 @@ public class LocalExecutionPlanner {
         PlannerSettings plannerSettings,
         boolean timeSeries,
         Settings settings,
-        IndexedByShardId<? extends ShardContext> shardContexts
+        IndexedByShardId<? extends ShardContext> shardContexts,
+        @Nullable AnalysisRegistry analysisRegistry
     ) {
         void addDriverFactory(DriverFactory driverFactory) {
             driverFactories.add(driverFactory);

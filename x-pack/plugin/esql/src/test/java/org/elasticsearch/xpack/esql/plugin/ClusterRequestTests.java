@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.esql.SerializationTestUtils;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.EsIndexGenerator;
 import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
@@ -180,6 +181,7 @@ public class ClusterRequestTests extends AbstractWireSerializingTestCase<Cluster
             new AnalyzerContext(
                 EsqlTestUtils.TEST_CFG,
                 TEST_FUNCTION_REGISTRY,
+                PromqlFunctionRegistry.INSTANCE,
                 indexResolutions(test),
                 Map.of(),
                 emptyPolicyResolution(),

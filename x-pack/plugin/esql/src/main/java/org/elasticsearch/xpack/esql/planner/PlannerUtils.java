@@ -38,6 +38,7 @@ import org.elasticsearch.xpack.esql.datasources.FormatReaderRegistry;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamWrapperQueryBuilder;
+import org.elasticsearch.xpack.esql.optimizer.ExternalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.LocalLogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.LocalLogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
@@ -330,7 +331,14 @@ public class PlannerUtils {
     ) {
         final var logicalOptimizer = new LocalLogicalPlanOptimizer(new LocalLogicalOptimizerContext(configuration, foldCtx, searchStats));
         var physicalOptimizer = new LocalPhysicalPlanOptimizer(
-            new LocalPhysicalOptimizerContext(plannerSettings, flags, configuration, foldCtx, searchStats, formatReaderRegistry)
+            new LocalPhysicalOptimizerContext(
+                plannerSettings,
+                flags,
+                configuration,
+                foldCtx,
+                searchStats,
+                new ExternalOptimizerContext(formatReaderRegistry)
+            )
         );
 
         return localPlan(plan, logicalOptimizer, physicalOptimizer, externalSplits, planTimeProfile);
@@ -539,7 +547,7 @@ public class PlannerUtils {
             case INTEGER, COUNTER_INTEGER -> ElementType.INT;
             case DOUBLE, COUNTER_DOUBLE -> ElementType.DOUBLE;
             // unsupported fields are passed through as a BytesRef
-            case KEYWORD, TEXT, IP, SOURCE, VERSION, HISTOGRAM, UNSUPPORTED -> ElementType.BYTES_REF;
+            case KEYWORD, TEXT, IP, SOURCE, VERSION, HISTOGRAM, UNSUPPORTED, FLATTENED -> ElementType.BYTES_REF;
             case NULL -> ElementType.NULL;
             case BOOLEAN -> ElementType.BOOLEAN;
             case DOC_DATA_TYPE -> ElementType.DOC;

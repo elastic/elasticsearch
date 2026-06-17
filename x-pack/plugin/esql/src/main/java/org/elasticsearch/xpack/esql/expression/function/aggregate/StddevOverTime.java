@@ -13,7 +13,6 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.expression.OnlySurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
@@ -32,7 +31,7 @@ import static java.util.Collections.emptyList;
 /**
  * Similar to {@link StdDev}, but it is used to calculate the standard deviation over a time series of values from the given field.
  */
-public class StddevOverTime extends TimeSeriesAggregateFunction implements OnlySurrogateExpression, ToAggregator {
+public class StddevOverTime extends TimeSeriesAggregateFunction implements ToAggregator {
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(StddevOverTime.class)
         .binary(StddevOverTime::new)
         .name("stddev_over_time");
@@ -44,6 +43,7 @@ public class StddevOverTime extends TimeSeriesAggregateFunction implements OnlyS
 
     @FunctionInfo(
         returnType = "double",
+        briefSummary = "Calculates the population standard deviation over time of a numeric field.",
         description = "Calculates the population standard deviation over time of a numeric field.",
         type = FunctionType.TIME_SERIES_AGGREGATE,
         appliesTo = {
@@ -100,11 +100,6 @@ public class StddevOverTime extends TimeSeriesAggregateFunction implements OnlyS
     @Override
     public StddevOverTime withFilter(Expression filter) {
         return new StddevOverTime(source(), field(), filter, window());
-    }
-
-    @Override
-    public Expression surrogate() {
-        return perTimeSeriesAggregation();
     }
 
     @Override

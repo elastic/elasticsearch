@@ -6,5 +6,5 @@ mapped_pages:
 
 # {{esql}} `WITHOUT` function [esql-without]
 
-:::{include} ../../_snippets/functions/layout/without.md
+:::{include} ../../_snippets/generated/x-pack-esql/functions/layout/without.md
 :::

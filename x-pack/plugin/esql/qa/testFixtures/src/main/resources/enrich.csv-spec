@@ -386,6 +386,7 @@ emp_no:integer | x:keyword | language_name:keyword
 
 
 nullInput
+skip_flattened_rewrite: enrich_on_rejects_flattened
 required_capability: enrich_load
 
 from employees  | where emp_no == 10017 | keep emp_no, gender
@@ -549,6 +550,7 @@ null              | 1980          | null                | Radical Eighties   | 4
 
 
 spatialEnrichmentKeywordMatch#[skip:-8.13.99, reason:ENRICH extended in 8.14.0]
+skip_flattened_rewrite: enrich_on_rejects_flattened
 required_capability: enrich_load
 
 FROM airports
@@ -648,11 +650,12 @@ IDR       |  Indore       |  POINT(75.8472 22.7167)  |  India      |  POINT(75.8
 // We had wrong layouts from ReplaceMissingFieldsWithNull in case of indices that had relevant fields for the query,
 // but were **missing the field we enrich on**.
 fieldsInOtherIndicesBug
+skip_flattened_rewrite: field_extract_multivalue_null
 required_capability: enrich_load
 required_capability: fix_replace_missing_field_with_null_duplicate_name_id_in_layout
 required_capability: dense_vector_agg_metric_double_if_fns
 
-from *,-addresses_*
+from *,-addresses_*,-keyword_languages_lookup
 | keep author.keyword, book_no, scalerank, street, bytes_in, @timestamp, abbrev, city_location, distance, description, birth_date, language_code, intersects, client_ip, event_duration, version
 | enrich languages_policy on author.keyword
 | sort book_no
@@ -665,6 +668,7 @@ Fyodor Dostoevsky     |1211           |null             |null          |null    
 
 
 statsAfterRemoteEnrich
+skip_flattened_rewrite: enrich_output_type_mismatch
 required_capability: enrich_load
 
 FROM sample_data
@@ -681,6 +685,7 @@ messages:long | language_name:keyword
 
 
 enrichAfterRemoteEnrich
+skip_flattened_rewrite: enrich_output_type_mismatch
 required_capability: enrich_load
 
 FROM sample_data
@@ -698,6 +703,7 @@ Connected to 10.1.0.1 | 1                     | English                     | En
 
 
 coordinatorEnrichAfterRemoteEnrich
+skip_flattened_rewrite: enrich_output_type_mismatch
 required_capability: enrich_load
 
 FROM sample_data
@@ -715,6 +721,7 @@ Connected to 10.1.0.1 | 1                     | English                     | En
 
 
 doubleRemoteEnrich
+skip_flattened_rewrite: enrich_output_type_mismatch
 required_capability: enrich_load
 
 FROM sample_data
@@ -732,6 +739,7 @@ Connected to 10.1.0.1 | 1                     | English                     | En
 
 
 enrichAfterCoordinatorEnrich
+skip_flattened_rewrite: enrich_output_type_mismatch
 required_capability: enrich_load
 
 FROM sample_data
@@ -749,6 +757,7 @@ Connected to 10.1.0.1 | 1                     | English                     | En
 
 
 doubleCoordinatorEnrich
+skip_flattened_rewrite: enrich_output_type_mismatch
 required_capability: enrich_load
 
 FROM sample_data
@@ -878,4 +887,52 @@ FROM languages_lookup
 
 a:long  | b:long
 4       | 4
+;
+
+
+// Tests for ENRICH on a NULL-typed match field without using SET unmapped_fields="nullify".
+// See https://github.com/elastic/elasticsearch/pull/145743#discussion_r3148119074
+enrichOnEvalNull
+required_capability: optional_fields_fix_null_match_field_in_join_and_enrich
+
+ROW x = 1
+| EVAL y = null
+| ENRICH languages_policy ON y
+;
+
+x:integer | y:null | language_name:keyword
+1         | null   | null
+;
+
+
+enrichOnRowNull
+required_capability: optional_fields_fix_null_match_field_in_join_and_enrich
+
+ROW x = 1, y = null
+| ENRICH languages_policy ON y
+;
+
+x:integer | y:null | language_name:keyword
+1         | null   | null
+;
+
+// An unmapped field in _source is loaded from the primary index downstream of ENRICH.
+// Rows from sample_data have no unmapped_message in _source (null);
+// the row from partial_mapping_sample_data has it (real value).
+loadUnmappedFieldAfterEnrich
+required_capability: optional_fields_v5
+
+SET unmapped_fields="load"\;
+FROM sample_data, partial_mapping_sample_data
+| EVAL client_ip_str = TO_STRING(client_ip)
+| ENRICH clientip_policy ON client_ip_str WITH env
+| WHERE TO_STRING(client_ip) IN ("172.21.2.162", "172.21.2.113", "173.21.2.162")
+| KEEP @timestamp, env, unmapped_message
+| SORT @timestamp ASC
+;
+
+@timestamp:date          | env:keyword | unmapped_message:keyword
+2023-10-23T12:15:03.360Z | QA          | null
+2023-10-23T12:27:28.948Z | QA          | null
+2024-10-23T12:15:03.360Z | null        | Disconnected from 10.1.0.3
 ;

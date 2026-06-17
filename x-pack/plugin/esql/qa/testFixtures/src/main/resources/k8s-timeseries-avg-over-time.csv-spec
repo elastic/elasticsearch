@@ -22,23 +22,24 @@ cost:double       | time_bucket:datetime
 
 avg_over_time_of_double_no_grouping_promql
 required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
 PROMQL index=k8s step=1m cost=(sum(avg_over_time(network.cost[1m])))
 | EVAL cost = round(cost, 4)
 | KEEP cost, step
 | SORT cost DESC, step DESC 
 | LIMIT 10;
 
-cost:double       | step:datetime
-69.6875           | 2024-05-10T00:09:00.000Z
-56.5625           | 2024-05-10T00:08:00.000Z
-49.5              | 2024-05-10T00:17:00.000Z
-48.3125           | 2024-05-10T00:22:00.000Z
-45.8125           | 2024-05-10T00:15:00.000Z
-40.4375           | 2024-05-10T00:06:00.000Z
-39.5417           | 2024-05-10T00:13:00.000Z
-37.9375           | 2024-05-10T00:12:00.000Z
-36.6875           | 2024-05-10T00:19:00.000Z
-36.375            | 2024-05-10T00:11:00.000Z
+cost:double | step:datetime
+69.6875     | 2024-05-10T00:10:00.000Z
+49.5        | 2024-05-10T00:18:00.000Z
+48.3125     | 2024-05-10T00:23:00.000Z
+47.125      | 2024-05-10T00:16:00.000Z
+46.4375     | 2024-05-10T00:20:00.000Z
+45.875      | 2024-05-10T00:09:00.000Z
+40.4375     | 2024-05-10T00:07:00.000Z
+39.5417     | 2024-05-10T00:14:00.000Z
+37.9375     | 2024-05-10T00:13:00.000Z
+36.375      | 2024-05-10T00:12:00.000Z
 ;
 
 avg_over_time_of_double_no_grouping_single_bucket
@@ -55,12 +56,41 @@ cost:double       | time_bucket:datetime
 
 avg_over_time_of_double_no_grouping_single_bucket_promql
 required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
 PROMQL index=k8s step=1h cost=(sum(avg_over_time(network.cost[1h])))
 | EVAL cost = round(cost, 4)
 | KEEP cost, step;
 
-cost:double       | step:datetime
-56.3225           | 2024-05-10T00:00:00.000Z
+cost:double | step:datetime
+56.3225     | 2024-05-10T01:00:00.000Z
+;
+
+avg_over_time_of_double_no_grouping_promql_expanded
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: fix_tstep_bucket_rounding
+
+PROMQL index=k8s step=1m start="2024-05-10T00:11:00.000Z" end="2024-05-10T00:14:00.000Z" cost=(round(sum(avg_over_time(network.cost[1m])), 0.0001))
+| SORT step;
+
+cost:double | step:datetime
+13.25       | 2024-05-10T00:11:00.000Z
+36.375      | 2024-05-10T00:12:00.000Z
+37.9375     | 2024-05-10T00:13:00.000Z
+39.5417     | 2024-05-10T00:14:00.000Z
+;
+
+avg_over_time_of_double_no_grouping_promql_collapsed
+required_capability: promql_command_v0
+required_capability: ts_collapse
+required_capability: fix_promql_time_bucket_v2
+required_capability: fix_tstep_bucket_rounding
+
+PROMQL index=k8s step=1m start="2024-05-10T00:11:00.000Z" end="2024-05-10T00:14:00.000Z" cost=(round(sum(avg_over_time(network.cost[1m])), 0.0001))
+| TS_COLLAPSE;
+
+cost:double                      | step:datetime
+[13.25, 36.375, 37.9375, 39.5417] | [2024-05-10T00:11:00.000Z, 2024-05-10T00:12:00.000Z, 2024-05-10T00:13:00.000Z, 2024-05-10T00:14:00.000Z]
 ;
 
 avg_over_time_of_integer
@@ -112,6 +142,48 @@ required_capability: ts_command_v0
 required_capability: aggregate_metric_double_v0
 TS k8s-downsampled
 | STATS tx = sum(avg_over_time(network.eth0.tx)) BY time_bucket = bucket(@timestamp, 10minute)
+| EVAL tx = round(tx, 6)
+| KEEP tx, time_bucket
+| SORT time_bucket
+| LIMIT 10
+;
+
+tx:double   | time_bucket:datetime
+4362.2      | 2024-05-09T23:30:00.000Z
+5643.666667 | 2024-05-09T23:40:00.000Z
+4574.5      | 2024-05-09T23:50:00.000Z
+;
+
+// Verify that ::gauge is a no-op on aggregate_metric_double — network.eth0.tx in k8s-downsampled
+// is already aggregate_metric_double, so ::gauge does not change the value or the type.
+// Results must be identical to avg_over_time_of_aggregate_metric_double (same query, no cast).
+avgOverTimeOnAggregateMetricDoubleToGaugeCastNoop
+required_capability: ts_command_v0
+required_capability: aggregate_metric_double_v0
+required_capability: to_gauge
+
+TS k8s-downsampled
+| STATS tx = sum(avg_over_time(network.eth0.tx::gauge)) BY time_bucket = bucket(@timestamp, 10minute)
+| EVAL tx = round(tx, 6)
+| KEEP tx, time_bucket
+| SORT time_bucket
+| LIMIT 10
+;
+
+tx:double   | time_bucket:datetime
+4362.2      | 2024-05-09T23:30:00.000Z
+5643.666667 | 2024-05-09T23:40:00.000Z
+4574.5      | 2024-05-09T23:50:00.000Z
+;
+
+// Same as above using the to_gauge() function form.
+avgOverTimeOnAggregateMetricDoubleToGaugeFunctionNoop
+required_capability: ts_command_v0
+required_capability: aggregate_metric_double_v0
+required_capability: to_gauge
+
+TS k8s-downsampled
+| STATS tx = sum(avg_over_time(to_gauge(network.eth0.tx))) BY time_bucket = bucket(@timestamp, 10minute)
 | EVAL tx = round(tx, 6)
 | KEEP tx, time_bucket
 | SORT time_bucket
@@ -300,6 +372,7 @@ events:double | pod:keyword | time_bucket:datetime
 avg_over_time_with_window
 required_capability: ts_command_v0
 required_capability: time_series_window_v1
+required_capability: fix_time_series_window_backward
 // tag::avg_over_time_with_window[]
 TS k8s
 | STATS events = sum(avg_over_time(events_received, 10minute)) by pod, time_bucket = tbucket(5minute)
@@ -311,16 +384,16 @@ TS k8s
 
 // tag::avg_over_time_with_window-result[]
 events:double | pod:keyword | time_bucket:datetime
-15.7465       | one         | 2024-05-10T00:00:00.000Z
-15.3963       | three       | 2024-05-10T00:00:00.000Z
-14.1999       | two         | 2024-05-10T00:00:00.000Z
-17.7114       | one         | 2024-05-10T00:05:00.000Z
-14.6257       | three       | 2024-05-10T00:05:00.000Z
-15.6058       | two         | 2024-05-10T00:05:00.000Z
-19.0101       | one         | 2024-05-10T00:10:00.000Z
-15.0455       | three       | 2024-05-10T00:10:00.000Z
-16.9444       | two         | 2024-05-10T00:10:00.000Z
-16.4857       | one         | 2024-05-10T00:15:00.000Z
+14.1667       | one         | 2024-05-10T00:00:00.000Z
+15.25         | three       | 2024-05-10T00:00:00.000Z
+15.9667       | two         | 2024-05-10T00:00:00.000Z
+15.7465       | one         | 2024-05-10T00:05:00.000Z
+15.3963       | three       | 2024-05-10T00:05:00.000Z
+14.1999       | two         | 2024-05-10T00:05:00.000Z
+17.7114       | one         | 2024-05-10T00:10:00.000Z
+14.6257       | three       | 2024-05-10T00:10:00.000Z
+15.6058       | two         | 2024-05-10T00:10:00.000Z
+19.0101       | one         | 2024-05-10T00:15:00.000Z
 // end::avg_over_time_with_window-result[]
 ;
 
@@ -329,6 +402,30 @@ required_capability: ts_command_v0
 required_capability: aggregate_metric_double_v0
 TS k8s,k8s-downsampled
 | STATS bytes = sum(avg_over_time(network.eth0.rx)) by time_bucket = bucket(@timestamp, 10minute)
+| SORT bytes desc, time_bucket
+| LIMIT 10
+| EVAL bytes = round(bytes, 6)
+| KEEP bytes, time_bucket
+;
+
+bytes:double | time_bucket:datetime
+8785.733333  | 2024-05-10T00:20:00.000Z
+6398.744877  | 2024-05-10T00:10:00.000Z
+5693.833333  | 2024-05-09T23:50:00.000Z
+4827.833333  | 2024-05-09T23:30:00.000Z
+4306.366667  | 2024-05-09T23:40:00.000Z
+2382.518001  | 2024-05-10T00:00:00.000Z
+;
+
+// Defensive ::gauge on a union of plain numeric (k8s) and aggregate_metric_double (k8s-downsampled) gauge
+// fields is stripped at analysis time; results must match avg_over_time_aggregate_metric_double_implicit_casting.
+avg_over_time_aggregate_metric_double_implicit_casting_with_to_gauge
+required_capability: ts_command_v0
+required_capability: aggregate_metric_double_v0
+required_capability: to_gauge
+
+TS k8s,k8s-downsampled
+| STATS bytes = sum(avg_over_time(network.eth0.rx::gauge)) by time_bucket = bucket(@timestamp, 10minute)
 | SORT bytes desc, time_bucket
 | LIMIT 10
 | EVAL bytes = round(bytes, 6)
@@ -401,3 +498,283 @@ min:double | time_bucket:datetime
 174.2      | 2024-05-10T00:20:00.000Z
 
 ;
+
+// Verify that ::gauge is a no-op on a plain numeric (long) field — network.bytes_in is already a
+// long with no counter annotation, so ::gauge does not change the value or the type.
+// Results must be identical to the eval_on_avg_over_time test (same query, no cast).
+avgOverTimeOnToGaugeCastNoop
+required_capability: ts_command_v0
+required_capability: to_gauge
+
+//tag::toGauge[]
+TS k8s
+| STATS bytes_in = avg(avg_over_time(network.bytes_in::gauge)) BY cluster, time_bucket = bucket(@timestamp, 10minute)
+| EVAL bytes_in = round(bytes_in, 4)
+| KEEP bytes_in, cluster, time_bucket
+| SORT time_bucket, cluster
+| LIMIT 10;
+//end::toGauge[]
+
+//tag::toGauge-result[]
+bytes_in:double | cluster:keyword | time_bucket:datetime
+402.05          | prod            | 2024-05-10T00:00:00.000Z
+499.9387        | qa              | 2024-05-10T00:00:00.000Z
+497.1889        | staging         | 2024-05-10T00:00:00.000Z
+552.5219        | prod            | 2024-05-10T00:10:00.000Z
+495.0368        | qa              | 2024-05-10T00:10:00.000Z
+445.2519        | staging         | 2024-05-10T00:10:00.000Z
+718.6667        | prod            | 2024-05-10T00:20:00.000Z
+778.8333        | qa              | 2024-05-10T00:20:00.000Z
+400.4556        | staging         | 2024-05-10T00:20:00.000Z
+;
+//end::toGauge-result[]
+
+// Convert network.total_bytes_in (counter_long) to a gauge via ::gauge so that
+// avg_over_time() — which rejects counter types — can consume it.
+avgOverTimeOnCounterToGaugeCast
+required_capability: ts_command_v0
+required_capability: to_gauge
+
+TS k8s
+| STATS total_bytes = avg(avg_over_time(network.total_bytes_in::gauge)) BY cluster, time_bucket = bucket(@timestamp, 10minute)
+| EVAL total_bytes = round(total_bytes, 4)
+| KEEP total_bytes, cluster, time_bucket
+| SORT time_bucket, cluster
+| LIMIT 10;
+
+total_bytes:double | cluster:keyword | time_bucket:datetime
+2166.213           | prod            | 2024-05-10T00:00:00.000Z
+3375.4729          | qa              | 2024-05-10T00:00:00.000Z
+1787.2306          | staging         | 2024-05-10T00:00:00.000Z
+6082.3906          | prod            | 2024-05-10T00:10:00.000Z
+4635.0996          | qa              | 2024-05-10T00:10:00.000Z
+3647.0             | staging         | 2024-05-10T00:10:00.000Z
+7725.3333          | prod            | 2024-05-10T00:20:00.000Z
+8654.0             | qa              | 2024-05-10T00:20:00.000Z
+6222.2222          | staging         | 2024-05-10T00:20:00.000Z
+;
+
+// Convert network.total_cost (counter_double) to a gauge via ::gauge.
+// Exercises the counter_double→double path of TO_GAUGE.
+avgOverTimeOnCounterDoubleToGaugeCast
+required_capability: ts_command_v0
+required_capability: to_gauge
+
+TS k8s
+| STATS total_cost = avg(avg_over_time(network.total_cost::gauge)) BY cluster, time_bucket = bucket(@timestamp, 10minute)
+| EVAL total_cost = round(total_cost, 4)
+| KEEP total_cost, cluster, time_bucket
+| SORT time_bucket, cluster
+| LIMIT 10;
+
+total_cost:double | cluster:keyword | time_bucket:datetime
+21.2412           | prod            | 2024-05-10T00:00:00.000Z
+44.4937           | qa              | 2024-05-10T00:00:00.000Z
+24.3299           | staging         | 2024-05-10T00:00:00.000Z
+44.0875           | prod            | 2024-05-10T00:10:00.000Z
+73.2936           | qa              | 2024-05-10T00:10:00.000Z
+71.197            | staging         | 2024-05-10T00:10:00.000Z
+33.4722           | prod            | 2024-05-10T00:20:00.000Z
+60.3125           | qa              | 2024-05-10T00:20:00.000Z
+88.6611           | staging         | 2024-05-10T00:20:00.000Z
+;
+
+// Same as above using the to_gauge() function form, grouped by cluster.
+// network.bytes_in is a plain long, so to_gauge() is a no-op here.
+avgOverTimeOnToGaugeFunctionNoop
+required_capability: ts_command_v0
+required_capability: to_gauge
+
+TS k8s
+| STATS bytes_in = avg(avg_over_time(to_gauge(network.bytes_in))) BY cluster, time_bucket = bucket(@timestamp, 10minute)
+| EVAL bytes_in = round(bytes_in, 4)
+| KEEP bytes_in, cluster, time_bucket
+| SORT time_bucket, cluster
+| LIMIT 10;
+
+bytes_in:double | cluster:keyword | time_bucket:datetime
+402.05          | prod            | 2024-05-10T00:00:00.000Z
+499.9387        | qa              | 2024-05-10T00:00:00.000Z
+497.1889        | staging         | 2024-05-10T00:00:00.000Z
+552.5219        | prod            | 2024-05-10T00:10:00.000Z
+495.0368        | qa              | 2024-05-10T00:10:00.000Z
+445.2519        | staging         | 2024-05-10T00:10:00.000Z
+718.6667        | prod            | 2024-05-10T00:20:00.000Z
+778.8333        | qa              | 2024-05-10T00:20:00.000Z
+400.4556        | staging         | 2024-05-10T00:20:00.000Z
+;
+
+// ::gauge on a plain double (network.cost) is a no-op — exercises the double pass-through path.
+avgOverTimeOnGaugeDoubleNoop
+required_capability: ts_command_v0
+required_capability: to_gauge
+
+TS k8s
+| STATS cost = avg(avg_over_time(network.cost::gauge)) BY cluster, time_bucket = bucket(@timestamp, 10minute)
+| EVAL cost = round(cost, 4)
+| KEEP cost, cluster, time_bucket
+| SORT time_bucket, cluster
+| LIMIT 10;
+
+cost:double | cluster:keyword | time_bucket:datetime
+6.7213      | prod            | 2024-05-10T00:00:00.000Z
+7.32        | qa              | 2024-05-10T00:00:00.000Z
+6.5233      | staging         | 2024-05-10T00:00:00.000Z
+5.6982      | prod            | 2024-05-10T00:10:00.000Z
+6.3512      | qa              | 2024-05-10T00:10:00.000Z
+5.465       | staging         | 2024-05-10T00:10:00.000Z
+3.7778      | prod            | 2024-05-10T00:20:00.000Z
+8.6319      | qa              | 2024-05-10T00:20:00.000Z
+4.3403      | staging         | 2024-05-10T00:20:00.000Z
+;
+
+// ::gauge on a plain integer (network.eth0.tx) is a no-op — exercises the integer pass-through path.
+avgOverTimeOnGaugeIntegerNoop
+required_capability: ts_command_v0
+required_capability: to_gauge
+
+TS k8s
+| STATS tx = avg(avg_over_time(network.eth0.tx::gauge)) BY cluster, time_bucket = bucket(@timestamp, 10minute)
+| EVAL tx = round(tx, 4)
+| KEEP tx, cluster, time_bucket
+| SORT time_bucket, cluster
+| LIMIT 10;
+
+tx:double  | cluster:keyword | time_bucket:datetime
+195.6556   | prod            | 2024-05-10T00:00:00.000Z
+353.3077   | qa              | 2024-05-10T00:00:00.000Z
+257.8028   | staging         | 2024-05-10T00:00:00.000Z
+653.0842   | prod            | 2024-05-10T00:10:00.000Z
+1052.5195  | qa              | 2024-05-10T00:10:00.000Z
+648.8987   | staging         | 2024-05-10T00:10:00.000Z
+973.5556   | prod            | 2024-05-10T00:20:00.000Z
+1433.1667  | qa              | 2024-05-10T00:20:00.000Z
+892.4333   | staging         | 2024-05-10T00:20:00.000Z
+;
+
+// Round-trip: strip counter semantics with to_long(), then pass through ::gauge (no-op on plain long).
+// Results must be identical to avgOverTimeOnCounterToGaugeCast (same underlying data).
+avgOverTimeOnCounterToGaugeRoundTrip
+required_capability: ts_command_v0
+required_capability: to_gauge
+
+TS k8s
+| STATS total_bytes = avg(avg_over_time(to_long(network.total_bytes_in)::gauge)) BY cluster, time_bucket = bucket(@timestamp, 10minute)
+| EVAL total_bytes = round(total_bytes, 4)
+| KEEP total_bytes, cluster, time_bucket
+| SORT time_bucket, cluster
+| LIMIT 10;
+
+total_bytes:double | cluster:keyword | time_bucket:datetime
+2166.213           | prod            | 2024-05-10T00:00:00.000Z
+3375.4729          | qa              | 2024-05-10T00:00:00.000Z
+1787.2306          | staging         | 2024-05-10T00:00:00.000Z
+6082.3906          | prod            | 2024-05-10T00:10:00.000Z
+4635.0996          | qa              | 2024-05-10T00:10:00.000Z
+3647.0             | staging         | 2024-05-10T00:10:00.000Z
+7725.3333          | prod            | 2024-05-10T00:20:00.000Z
+8654.0             | qa              | 2024-05-10T00:20:00.000Z
+6222.2222          | staging         | 2024-05-10T00:20:00.000Z
+;
+
+// Same as avgOverTimeOnCounterToGaugeCast using the to_gauge() function form, grouped by cluster.
+avgOverTimeOnCounterToGaugeFunction
+required_capability: ts_command_v0
+required_capability: to_gauge
+
+TS k8s
+| STATS total_bytes = avg(avg_over_time(to_gauge(network.total_bytes_in))) BY cluster, time_bucket = bucket(@timestamp, 10minute)
+| EVAL total_bytes = round(total_bytes, 4)
+| KEEP total_bytes, cluster, time_bucket
+| SORT time_bucket, cluster
+| LIMIT 10;
+
+total_bytes:double | cluster:keyword | time_bucket:datetime
+2166.213           | prod            | 2024-05-10T00:00:00.000Z
+3375.4729          | qa              | 2024-05-10T00:00:00.000Z
+1787.2306          | staging         | 2024-05-10T00:00:00.000Z
+6082.3906          | prod            | 2024-05-10T00:10:00.000Z
+4635.0996          | qa              | 2024-05-10T00:10:00.000Z
+3647.0             | staging         | 2024-05-10T00:10:00.000Z
+7725.3333          | prod            | 2024-05-10T00:20:00.000Z
+8654.0             | qa              | 2024-05-10T00:20:00.000Z
+6222.2222          | staging         | 2024-05-10T00:20:00.000Z
+;
+
+// Same round-trip using the to_gauge() function form, grouped by cluster.
+// Results must be identical to avgOverTimeOnCounterToGaugeCast (same underlying data).
+avgOverTimeOnCounterToGaugeFunctionRoundTripGrouped
+required_capability: ts_command_v0
+required_capability: to_gauge
+
+TS k8s
+| STATS total_bytes = avg(avg_over_time(to_gauge(to_long(network.total_bytes_in)))) BY cluster, time_bucket = bucket(@timestamp, 10minute)
+| EVAL total_bytes = round(total_bytes, 4)
+| KEEP total_bytes, cluster, time_bucket
+| SORT time_bucket, cluster
+| LIMIT 10;
+
+total_bytes:double | cluster:keyword | time_bucket:datetime
+2166.213           | prod            | 2024-05-10T00:00:00.000Z
+3375.4729          | qa              | 2024-05-10T00:00:00.000Z
+1787.2306          | staging         | 2024-05-10T00:00:00.000Z
+6082.3906          | prod            | 2024-05-10T00:10:00.000Z
+4635.0996          | qa              | 2024-05-10T00:10:00.000Z
+3647.0             | staging         | 2024-05-10T00:10:00.000Z
+7725.3333          | prod            | 2024-05-10T00:20:00.000Z
+8654.0             | qa              | 2024-05-10T00:20:00.000Z
+6222.2222          | staging         | 2024-05-10T00:20:00.000Z
+;
+
+// Round-trip for double: strip counter_double with to_double(), then re-apply with to_gauge().
+// Results must be identical to avgOverTimeOnCounterDoubleToGaugeCast (same underlying data).
+avgOverTimeOnCounterDoubleToGaugeFunctionRoundTrip
+required_capability: ts_command_v0
+required_capability: to_gauge
+
+TS k8s
+| STATS total_cost = avg(avg_over_time(to_gauge(to_double(network.total_cost)))) BY cluster, time_bucket = bucket(@timestamp, 10minute)
+| EVAL total_cost = round(total_cost, 4)
+| KEEP total_cost, cluster, time_bucket
+| SORT time_bucket, cluster
+| LIMIT 10;
+
+total_cost:double | cluster:keyword | time_bucket:datetime
+21.2412           | prod            | 2024-05-10T00:00:00.000Z
+44.4937           | qa              | 2024-05-10T00:00:00.000Z
+24.3299           | staging         | 2024-05-10T00:00:00.000Z
+44.0875           | prod            | 2024-05-10T00:10:00.000Z
+73.2936           | qa              | 2024-05-10T00:10:00.000Z
+71.197            | staging         | 2024-05-10T00:10:00.000Z
+33.4722           | prod            | 2024-05-10T00:20:00.000Z
+60.3125           | qa              | 2024-05-10T00:20:00.000Z
+88.6611           | staging         | 2024-05-10T00:20:00.000Z
+;
+
+// Round-trip for integer: counter_long → long → integer → gauge, testing the integer input path of to_gauge.
+// Test data values fit in int32, so avg_over_time is identical to the long round-trip.
+// Results must be identical to avgOverTimeOnCounterToGaugeCast (same underlying data, no overflow).
+avgOverTimeOnCounterToGaugeCastRoundTripInteger
+required_capability: ts_command_v0
+required_capability: to_gauge
+
+TS k8s
+| STATS total_bytes = avg(avg_over_time(to_integer(to_long(network.total_bytes_in))::gauge)) BY cluster, time_bucket = bucket(@timestamp, 10minute)
+| EVAL total_bytes = round(total_bytes, 4)
+| KEEP total_bytes, cluster, time_bucket
+| SORT time_bucket, cluster
+| LIMIT 10;
+
+total_bytes:double | cluster:keyword | time_bucket:datetime
+2166.213           | prod            | 2024-05-10T00:00:00.000Z
+3375.4729          | qa              | 2024-05-10T00:00:00.000Z
+1787.2306          | staging         | 2024-05-10T00:00:00.000Z
+6082.3906          | prod            | 2024-05-10T00:10:00.000Z
+4635.0996          | qa              | 2024-05-10T00:10:00.000Z
+3647.0             | staging         | 2024-05-10T00:10:00.000Z
+7725.3333          | prod            | 2024-05-10T00:20:00.000Z
+8654.0             | qa              | 2024-05-10T00:20:00.000Z
+6222.2222          | staging         | 2024-05-10T00:20:00.000Z
+;
+
+

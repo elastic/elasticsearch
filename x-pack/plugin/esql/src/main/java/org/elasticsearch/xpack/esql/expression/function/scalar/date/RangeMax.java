@@ -9,14 +9,13 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.date;
 
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.data.LongRangeBlockBuilder;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper.ToEvaluator;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
@@ -40,6 +39,7 @@ public class RangeMax extends UnaryScalarFunction {
         returnType = "date",
         preview = true,
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW) },
+        briefSummary = "Returns the end value of a date range.",
         description = "Returns the maximum (end) value of a date_range. For a date_range [x, y), it returns y.",
         examples = @Example(file = "date_range", tag = "range_max")
     )
@@ -87,16 +87,8 @@ public class RangeMax extends UnaryScalarFunction {
         return NodeInfo.create(this, RangeMax::new, field());
     }
 
-    @Override
-    public Object fold(FoldContext ctx) {
-        if (field().foldable() == false) {
-            return super.fold(ctx);
-        }
-        Object rangeValue = field().fold(ctx);
-        if (rangeValue == null) {
-            return null;
-        }
-        LongRangeBlockBuilder.LongRange range = (LongRangeBlockBuilder.LongRange) rangeValue;
+    @Evaluator
+    static long process(LongRangeBlockBuilder.LongRange range) {
         return range.to();
     }
 

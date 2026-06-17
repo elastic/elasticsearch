@@ -15,26 +15,35 @@ import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SegmentReader;
 import org.apache.lucene.search.AcceptDocs;
+import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.TopDocs;
+import org.apache.lucene.search.TopDocsCollector;
+import org.apache.lucene.search.Weight;
+import org.apache.lucene.util.Bits;
+import org.apache.lucene.util.IOSupplier;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.index.codec.vectors.diskbbq.IvfQueryConfigResolver;
 import org.elasticsearch.index.codec.vectors.diskbbq.Preconditioner;
 import org.elasticsearch.index.codec.vectors.diskbbq.VectorPreconditioner;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.function.LongSupplier;
 
 /** A {@link IVFKnnFloatVectorQuery} that uses the IVF search strategy. */
 public class IVFKnnFloatVectorQuery extends AbstractIVFKnnVectorQuery {
 
     private boolean isQueryPreconditioned = false;
-    private float[] query;
+    protected float[] query;
 
     /**
      * Creates a new {@link IVFKnnFloatVectorQuery} with the given parameters.
      * @param field the field to search
      * @param query the query vector
-     * @param k the number of nearest neighbors to return
+     * @param k the number of nearest neighbors to return (possibly oversampled)
      * @param numCands the number of nearest neighbors to gather per shard
      * @param filter the filter to apply to the results
      * @param visitRatio the ratio of vectors to score for the IVF search strategy
@@ -46,9 +55,9 @@ public class IVFKnnFloatVectorQuery extends AbstractIVFKnnVectorQuery {
         int numCands,
         Query filter,
         float visitRatio,
-        boolean doPrecondition
+        IvfQueryConfigResolver queryConfigResolver
     ) {
-        super(field, visitRatio, k, numCands, filter, doPrecondition);
+        super(field, visitRatio, k, numCands, filter, queryConfigResolver);
         this.query = query;
     }
 
@@ -120,7 +129,39 @@ public class IVFKnnFloatVectorQuery extends AbstractIVFKnnVectorQuery {
     }
 
     @Override
-    protected TopDocs approximateSearch(
+    TopDocs getLeafResults(LeafReaderContext ctx, Weight filterWeight, IVFCollectorManager knnCollectorManager, float visitRatio)
+        throws IOException {
+        final LeafReader reader = ctx.reader();
+        final Bits liveDocs = reader.getLiveDocs();
+        final int maxDoc = reader.maxDoc();
+
+        if (filterWeight == null) {
+            return approximateSearch(
+                ctx,
+                liveDocs == null ? new ESAcceptDocs.ESAcceptDocsAll() : new ESAcceptDocs.BitsAcceptDocs(liveDocs, maxDoc),
+                Integer.MAX_VALUE,
+                knnCollectorManager,
+                visitRatio
+            );
+        }
+
+        ScorerSupplier supplier = filterWeight.scorerSupplier(ctx);
+        if (supplier == null) {
+            return TopDocsCollector.EMPTY_TOPDOCS;
+        }
+        // no need to cache iterator as we are calling it once
+        IOSupplier<DocIdSetIterator> docIdIteratorSupplier = () -> supplier.get(Long.MAX_VALUE).iterator();
+        LongSupplier costSupplier = () -> supplier.cost();
+        return approximateSearch(
+            ctx,
+            new ESAcceptDocs.ScorerSupplierAcceptDocs(docIdIteratorSupplier, costSupplier, liveDocs, maxDoc),
+            Integer.MAX_VALUE,
+            knnCollectorManager,
+            visitRatio
+        );
+    }
+
+    private TopDocs approximateSearch(
         LeafReaderContext context,
         AcceptDocs acceptDocs,
         int visitedLimit,
@@ -139,5 +180,11 @@ public class IVFKnnFloatVectorQuery extends AbstractIVFKnnVectorQuery {
             ? bulkKnnCollector.unsortedTopK()
             : knnCollector.topDocs();
         return results != null ? results : NO_RESULTS;
+    }
+
+    @Override
+    Query getAutoRescoreQuery(IndexSearcher indexSearcher, TopDocs topOversampled, int effectiveK) {
+        Query topDocsQuery = new KnnScoreDocQuery(topOversampled.scoreDocs, indexSearcher.getIndexReader());
+        return RescoreKnnVectorQuery.fromInnerQuery(field, query, k, effectiveK, topDocsQuery);
     }
 }

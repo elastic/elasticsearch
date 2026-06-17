@@ -19,17 +19,17 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
-import org.elasticsearch.test.cluster.FeatureFlag;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.ObjectPath;
-import org.junit.After;
 import org.junit.Before;
 import org.junit.ClassRule;
 
 import java.io.IOException;
+import java.util.Map;
 
 import static io.opentelemetry.api.common.AttributeKey.stringKey;
+import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.equalTo;
 
 public abstract class AbstractOTLPIndexingRestIT extends ESRestTestCase {
@@ -48,8 +48,6 @@ public abstract class AbstractOTLPIndexingRestIT extends ESRestTestCase {
         .setting("xpack.license.self_generated.type", "trial")
         .setting("xpack.ml.enabled", "false")
         .setting("xpack.watcher.enabled", "false")
-        .feature(FeatureFlag.OTLP_TRACES)
-        .feature(FeatureFlag.OTLP_LOGS)
         .build();
 
     @Override
@@ -66,18 +64,10 @@ public abstract class AbstractOTLPIndexingRestIT extends ESRestTestCase {
     protected abstract String otlpEndpointPath();
 
     @Before
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    public void waitForOtlpTemplates() throws Exception {
         assertBusy(() -> assertOK(client().performRequest(new Request("GET", "_index_template/metrics-otel@template"))));
         assertBusy(() -> assertOK(client().performRequest(new Request("GET", "_index_template/traces-otel@template"))));
         assertBusy(() -> assertOK(client().performRequest(new Request("GET", "_index_template/logs-otel@template"))));
-    }
-
-    @After
-    @Override
-    public void tearDown() throws Exception {
-        super.tearDown();
     }
 
     /**
@@ -130,5 +120,20 @@ public abstract class AbstractOTLPIndexingRestIT extends ESRestTestCase {
         var response = client().performRequest(new Request("GET", target + "/_search"));
         assertOK(response);
         return ObjectPath.createFromResponse(response);
+    }
+
+    protected ObjectPath search(String target, String body) throws IOException {
+        Request request = new Request("GET", target + "/_search");
+        request.setJsonEntity(body);
+        var response = client().performRequest(request);
+        assertOK(response);
+        return ObjectPath.createFromResponse(response);
+    }
+
+    protected static ObjectPath getIndexMappingPath(String target) throws IOException {
+        Map<String, Object> mappings = ObjectPath.createFromResponse(client().performRequest(new Request("GET", target + "/_mapping")))
+            .evaluate("");
+        assertThat(mappings, aMapWithSize(1));
+        return new ObjectPath(new ObjectPath(mappings.values().iterator().next()).evaluate("mappings"));
     }
 }

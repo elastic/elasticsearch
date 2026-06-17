@@ -36,7 +36,6 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -53,7 +52,7 @@ public class EsqlCCSUtils {
     static Map<String, List<FieldCapabilitiesFailure>> groupFailuresPerCluster(List<FieldCapabilitiesFailure> failures) {
         Map<String, List<FieldCapabilitiesFailure>> perCluster = new HashMap<>();
         for (FieldCapabilitiesFailure failure : failures) {
-            String cluster = RemoteClusterAware.parseClusterAlias(failure.getIndices()[0]);
+            String cluster = RemoteClusterAware.splitIndexName(failure.getIndices()[0]).getClusterGroupingKey();
             perCluster.computeIfAbsent(cluster, k -> new ArrayList<>()).add(failure);
         }
         return perCluster;
@@ -98,7 +97,7 @@ public class EsqlCCSUtils {
                 updateExecutionInfoToReturnEmptyResult(executionInfo, e);
                 listener.onResponse(
                     new Versioned<>(
-                        new Result(Analyzer.NO_FIELDS, Collections.emptyList(), configuration, DriverCompletionInfo.EMPTY, executionInfo),
+                        new Result(Analyzer.NO_FIELDS, List.of(), Map.of(), configuration, DriverCompletionInfo.EMPTY, executionInfo),
                         TransportVersion.current()
                     )
                 );
@@ -227,6 +226,7 @@ public class EsqlCCSUtils {
     static void updateExecutionInfoWithClustersWithNoMatchingIndices(
         EsqlExecutionInfo executionInfo,
         Collection<IndexResolution> indexResolutions,
+        Collection<IndexResolution> linkedResolution,
         boolean usedFilter
     ) {
         if (executionInfo.clusterInfo.isEmpty()) {
@@ -237,7 +237,12 @@ public class EsqlCCSUtils {
         final Set<String> clustersWithNoMatchingIndices = executionInfo.getRunningClusterAliases().collect(toSet());
         for (IndexResolution indexResolution : indexResolutions) {
             for (String indexName : indexResolution.resolvedIndices()) {
-                clustersWithNoMatchingIndices.remove(RemoteClusterAware.parseClusterAlias(indexName));
+                clustersWithNoMatchingIndices.remove(RemoteClusterAware.splitIndexName(indexName).getClusterGroupingKey());
+            }
+        }
+        for (IndexResolution indexResolution : linkedResolution) {
+            for (String indexName : indexResolution.resolvedIndices()) {
+                clustersWithNoMatchingIndices.remove(RemoteClusterAware.splitIndexName(indexName).getClusterGroupingKey());
             }
         }
         /*
@@ -300,7 +305,7 @@ public class EsqlCCSUtils {
             if (indexResolution.isValid()
                 && indexResolution.resolvedIndices().isEmpty()
                 && concreteIndexRequested(indexResolution.get().name())) {
-                String clusterAlias = RemoteClusterAware.parseClusterAlias(indexResolution.get().name());
+                String clusterAlias = RemoteClusterAware.splitIndexName(indexResolution.get().name()).getClusterGroupingKey();
                 // Already handled
                 if (clustersWithNoMatchingIndices.contains(clusterAlias) || executionInfo.getCluster(clusterAlias) == null) {
                     continue;
@@ -319,14 +324,6 @@ public class EsqlCCSUtils {
         if (fatalErrorMessage != null) {
             throw new VerificationException(fatalErrorMessage.toString());
         }
-    }
-
-    // Filter-less version, mainly for testing where we don't need filter support
-    static void updateExecutionInfoWithClustersWithNoMatchingIndices(
-        EsqlExecutionInfo executionInfo,
-        Set<IndexResolution> indexResolutions
-    ) {
-        updateExecutionInfoWithClustersWithNoMatchingIndices(executionInfo, indexResolutions, false);
     }
 
     // visible for testing

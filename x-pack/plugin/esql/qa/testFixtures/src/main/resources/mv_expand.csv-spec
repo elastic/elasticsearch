@@ -100,6 +100,7 @@ sum_a:long    | b:integer
 ;
 
 expandAfterSort1
+skip_flattened_rewrite: bare_attribute_command_on_flattened
 request_stored: skip
 
 from employees | keep job_positions, emp_no | sort emp_no | mv_expand job_positions | limit 10 | sort job_positions;
@@ -118,6 +119,7 @@ null                      |10003
 ;
 
 expandAfterSort2
+skip_flattened_rewrite: bare_attribute_command_on_flattened
 request_stored: skip
 
 from employees | sort emp_no | mv_expand job_positions | keep job_positions, emp_no | limit 5;
@@ -131,6 +133,7 @@ Head Human Resources   |10004
 ;
 
 expandWithMultiSort
+skip_flattened_rewrite: bare_attribute_command_on_flattened
 request_stored: skip
 
 from employees | keep emp_no, job_positions | sort emp_no | mv_expand job_positions | limit 10 | where emp_no <= 10006 | sort job_positions nulls first;
@@ -149,6 +152,7 @@ emp_no:integer |  job_positions:keyword
 ;
 
 filterMvExpanded
+skip_flattened_rewrite: bare_attribute_command_on_flattened
 from employees | keep emp_no, job_positions | mv_expand job_positions | where job_positions like "A*" | sort job_positions, emp_no;
 
 emp_no:integer |  job_positions:keyword     
@@ -186,6 +190,7 @@ emp_no:integer |  job_positions:keyword
 ;
 
 doubleSort_OnDifferentThan_MvExpandedFields
+skip_flattened_rewrite: bare_attribute_command_on_flattened
 from employees | sort emp_no | mv_expand job_positions | keep emp_no, job_positions, salary | sort salary, job_positions | limit 5;
 
 emp_no:integer |  job_positions:keyword   |salary:integer
@@ -197,6 +202,7 @@ emp_no:integer |  job_positions:keyword   |salary:integer
 ;
 
 doubleLimit_expandLimitLowerThanAvailable
+skip_flattened_rewrite: bare_attribute_command_on_flattened
 request_stored: skip
 
 from employees | where emp_no == 10004 | limit 1 | keep emp_no, job_positions | mv_expand job_positions | limit 2;
@@ -207,6 +213,7 @@ emp_no:integer |  job_positions:keyword
 ;
 
 doubleLimit_expandLimitGreaterThanAvailable
+skip_flattened_rewrite: bare_attribute_command_on_flattened
 request_stored: ignore_order
 
 from employees | where emp_no == 10004 | limit 1 | keep emp_no, job_positions | mv_expand job_positions | limit 5;
@@ -219,6 +226,7 @@ emp_no:integer |  job_positions:keyword
 ;
 
 doubleLimitWithSort
+skip_flattened_rewrite: bare_attribute_command_on_flattened
 from employees | where emp_no == 10004 | limit 1 | keep emp_no, job_positions | mv_expand job_positions | limit 5 | sort job_positions desc;
 
 emp_no:integer |  job_positions:keyword
@@ -229,6 +237,7 @@ emp_no:integer |  job_positions:keyword
 ;
 
 tripleLimit_WithWhere_InBetween_MvExpand_And_Limit
+skip_flattened_rewrite: bare_attribute_command_on_flattened
 request_stored: skip
 
 from employees | where emp_no == 10004 | limit 1 | keep emp_no, job_positions | mv_expand job_positions | where job_positions LIKE "*a*" | limit 2 | where job_positions LIKE "*a*" | limit 3;
@@ -245,6 +254,120 @@ row a = "foobar", b = ["foo", "bar"], c = 12 | mv_expand b | where b LIKE "fo*";
 a:keyword   | b:keyword | c:integer
 foobar      | foo       | 12
 ;
+
+
+filterAfterMvExpandOnUnexpandedField
+ROW a = [1, 2, 3], b = 2
+| MV_EXPAND a
+| WHERE b == 2
+| SORT a;
+
+a:integer | b:integer
+1         | 2
+2         | 2
+3         | 2
+;
+
+
+filterAfterMvExpandOnExpandedAndUnexpandedFields
+ROW a = [1, 2, 3], b = 2
+| MV_EXPAND a
+| WHERE b == 2 AND a > 1
+| SORT a;
+
+a:integer | b:integer
+2         | 2
+3         | 2
+;
+
+
+pushDownFilterPastMvExpand
+ROW emp_no = 11, languages = [1, 2]
+| MV_EXPAND languages
+| WHERE emp_no > 10 AND languages == 1
+| SORT languages;
+
+emp_no:integer | languages:integer
+11             | 1
+;
+
+
+pushDownFilterPastSequentialMvExpands
+ROW emp_no = 11, languages = [1, 2], first_name = ["John", "Jane"]
+| MV_EXPAND languages
+| MV_EXPAND first_name
+| WHERE emp_no > 10 AND languages == 1 AND first_name == "John"
+| SORT languages, first_name;
+
+emp_no:integer | languages:integer | first_name:keyword
+11             | 1                 | John
+;
+
+
+dontPushDownOrFilterPastMvExpand
+ROW emp_no = 9, languages = [1, 2]
+| MV_EXPAND languages
+| WHERE emp_no > 10 OR languages == 1
+| SORT languages;
+
+emp_no:integer | languages:integer
+9              | 1
+;
+
+
+pushDownFilterPastMvExpandWithEval
+ROW emp_no = 11, languages = [1, 2]
+| EVAL double_emp = emp_no * 2
+| MV_EXPAND languages
+| WHERE double_emp > 20 AND languages == 1
+| SORT languages;
+
+emp_no:integer | languages:integer | double_emp:integer
+11             | 1                 | 22
+;
+
+
+pushDownChainedWherePastMvExpand
+ROW emp_no = 11, languages = [1, 2], salary = 60000
+| MV_EXPAND languages
+| WHERE emp_no > 10
+| WHERE languages == 1
+| WHERE salary > 50000
+| SORT languages;
+
+emp_no:integer | languages:integer | salary:integer
+11             | 1                 | 60000
+;
+
+
+filterAfterMvExpandOnUnexpandedFieldFromSource
+skip_flattened_rewrite: bare_attribute_command_on_flattened
+FROM employees
+| KEEP emp_no, job_positions
+| MV_EXPAND job_positions
+| WHERE emp_no == 10004
+| SORT job_positions;
+
+emp_no:integer | job_positions:keyword
+10004          |Head Human Resources
+10004          |Reporting Analyst
+10004          |Support Engineer
+10004          |Tech Lead
+;
+
+
+filterAfterMvExpandOnExpandedAndUnexpandedFieldsFromSource
+skip_flattened_rewrite: bare_attribute_command_on_flattened
+FROM employees
+| KEEP emp_no, job_positions
+| MV_EXPAND job_positions
+| WHERE emp_no == 10004 AND job_positions LIKE "*Lead"
+| SORT job_positions;
+
+emp_no:integer | job_positions:keyword
+10004          |Tech Lead
+;
+
 
 expandEvalFoldable
 from employees | sort emp_no | limit 2 | eval foldable = "foo,bar" | eval generate_mv = split(foldable,",") | mv_expand generate_mv | keep emp_no, first_name, generate_mv | sort emp_no asc, generate_mv desc;
@@ -331,6 +454,7 @@ a         | a
 
 //see https://github.com/elastic/elasticsearch/issues/103331
 keepStarMvExpand#[skip:-8.12.99]
+skip_flattened_rewrite: bare_attribute_command_on_flattened
 required_capability: fix_precision_of_scaled_float_fields
 from employees | where emp_no == 10001 | keep * |  mv_expand first_name;
 
@@ -420,6 +544,7 @@ Parto
 
 
 sortBeforeAndAfterMvExpand
+skip_flattened_rewrite: bare_attribute_command_on_flattened
 from employees 
 | sort first_name 
 | mv_expand job_positions 
@@ -494,6 +619,7 @@ Success      | false                 | true            | -1            | 1      
 ;
 
 returnMultiValueFieldsWithoutExpansion
+skip_flattened_rewrite: bare_attribute_command_on_flattened
 FROM employees
 | WHERE emp_no == 10008
 | KEEP emp_no, job_positions, is_rehired, salary_change
@@ -504,6 +630,7 @@ emp_no:integer | job_positions:keyword                                          
 ;
 
 returnMultiValueFieldsWithMultivalueTypeConversions
+skip_flattened_rewrite: bare_attribute_command_on_flattened
 FROM employees
 | WHERE emp_no == 10008
 | EVAL job_positions = TO_STRING(job_positions)

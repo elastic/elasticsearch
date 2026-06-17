@@ -83,6 +83,11 @@ final class BytesRefArrayVector extends AbstractVector implements BytesRefVector
     }
 
     @Override
+    public int valueMaxByteSize() {
+        return values.valueMaxByteSize();
+    }
+
+    @Override
     public ElementType elementType() {
         return ElementType.BYTES_REF;
     }
@@ -93,10 +98,11 @@ final class BytesRefArrayVector extends AbstractVector implements BytesRefVector
     }
 
     @Override
-    public BytesRefVector filter(boolean mayContainDuplicates, int... positions) {
+    public BytesRefVector filter(boolean mayContainDuplicates, int[] positions, int offset, int length) {
         final var scratch = new BytesRef();
-        try (BytesRefVector.Builder builder = blockFactory().newBytesRefVectorBuilder(positions.length)) {
-            for (int pos : positions) {
+        try (BytesRefVector.Builder builder = blockFactory().newBytesRefVectorBuilder(length)) {
+            for (int i = offset, end = offset + length; i < end; i++) {
+                int pos = positions[i];
                 builder.appendBytesRef(values.get(pos, scratch));
             }
             return builder.build();

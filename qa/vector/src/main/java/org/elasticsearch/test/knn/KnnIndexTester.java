@@ -88,8 +88,6 @@ public class KnnIndexTester {
     public static final Logger logger;
 
     static {
-        LogConfigurator.loadLog4jPlugins();
-
         // necessary otherwise the es.logger.level system configuration in build.gradle is ignored
         ProcessInfo pinfo = ProcessInfo.fromSystem();
         Map<String, String> sysprops = pinfo.sysprops();
@@ -150,39 +148,15 @@ public class KnnIndexTester {
         }
     }
 
-    private static final Map<String, DirectoryTypeConfig> directoryTypeRegistry = new ConcurrentHashMap<>();
+    private static final Map<String, DirectoryTypeConfig> directoryTypeRegistry = new ConcurrentHashMap<>(3);
 
     static {
         directoryTypeRegistry.put("default", new DirectoryTypeConfig(KnnIndexer::getDirectory, false, false));
         directoryTypeRegistry.put("frozen", new DirectoryTypeConfig(KnnIndexer::openFrozenDirectory, false, true));
-    }
-
-    /**
-     * Registers a custom directory type that can be referenced via {@code "directory_type"}
-     * in the test configuration JSON.
-     *
-     * @param name    the name used in configuration (e.g. "serverless")
-     * @param factory creates a Directory for the given index path
-     * @param shared  if true, a single directory instance is used for both write and read phases
-     * @param preWarm if true, the directory is pre-warmed before search
-     */
-    static void registerDirectoryType(String name, DirectoryFactory factory, boolean shared, boolean preWarm) {
-        directoryTypeRegistry.put(name, new DirectoryTypeConfig(factory, shared, preWarm));
-    }
-
-    /**
-     * Registers a custom directory type with an optional diagnostic logger.
-     *
-     * @param diagnosticLogger called with (directory, label) at key points (before/after prewarm, after search)
-     */
-    static void registerDirectoryType(
-        String name,
-        DirectoryFactory factory,
-        boolean shared,
-        boolean preWarm,
-        BiConsumer<Directory, String> diagnosticLogger
-    ) {
-        directoryTypeRegistry.put(name, new DirectoryTypeConfig(factory, shared, preWarm, diagnosticLogger));
+        directoryTypeRegistry.put(
+            "stateless",
+            new DirectoryTypeConfig(KnnIndexer::openStatelessDirectory, true, true, KnnIndexer::logStatelessCacheStats)
+        );
     }
 
     static DirectoryTypeConfig getDirectoryTypeConfig(String name) {
@@ -209,6 +183,9 @@ public class KnnIndexTester {
                     )
                 );
                 suffix.add(Integer.toString(args.quantizeBits()));
+                if (args.queryQuantizeBits() != null && args.queryQuantizeBits() != defaultQueryQuantizeBits(args.quantizeBits())) {
+                    suffix.add("q" + args.queryQuantizeBits());
+                }
             }
             case HNSW -> {
                 suffix.add(Integer.toString(args.hnswM()));
@@ -230,7 +207,7 @@ public class KnnIndexTester {
 
         format = switch (args.indexType()) {
             case IVF -> {
-                var encoding = ESNextDiskBBQVectorsFormat.QuantEncoding.fromBits(quantizeBits.byteValue());
+                var encoding = resolveQuantEncoding(quantizeBits, args.queryQuantizeBits());
                 // Use flatVectorThreshold from config, or default to -1 (dynamic) if not specified
                 int flatVectorThreshold = args.flatVectorThreshold() >= 0 ? args.flatVectorThreshold() : -1;
                 yield new ESNextDiskBBQVectorsFormat(
@@ -246,7 +223,7 @@ public class KnnIndexTester {
                     args.doPrecondition(),
                     args.preconditioningBlockDims(),
                     flatVectorThreshold,
-                    null
+                    args.datasetConfig().isSliced() ? KnnIndexer.PARTITION_ID_FIELD : null
                 );
             }
             case GPU_HNSW -> switch (quantizeBits) {
@@ -542,7 +519,7 @@ public class KnnIndexTester {
             }
             numSegments(indexPath, indexResults, sharedDir);
 
-            boolean hasQueries = testConfiguration.numQueries() > 0 && dataGenerator.hasQueries();
+            boolean hasQueries = testConfiguration.numQueries() > 0 && dataGenerator.numQueries() > 0;
             if (hasQueries) {
                 Directory readDir = sharedDir != null ? sharedDir : dirConfig.factory().create(indexPath);
                 try {
@@ -610,14 +587,30 @@ public class KnnIndexTester {
                 var ignoreResults = new Results(indexPathName, indexType, testConfiguration.numDocs());
                 KnnSearcher knnSearcher = new KnnSearcher(indexPath, testConfiguration);
                 var setup = dataGenerator.createSearchSetup(knnSearcher, testConfiguration.searchParams().get(i));
-                knnSearcher.search(ignoreResults, testConfiguration.searchParams().get(i), dir, setup);
+                knnSearcher.search(ignoreResults, testConfiguration.searchParams().get(i), dir, setup, testConfiguration);
             }
         }
         for (int i = 0; i < results.length; i++) {
             KnnSearcher knnSearcher = new KnnSearcher(indexPath, testConfiguration);
             var setup = dataGenerator.createSearchSetup(knnSearcher, testConfiguration.searchParams().get(i));
-            knnSearcher.search(results[i], testConfiguration.searchParams().get(i), dir, setup);
+            knnSearcher.search(results[i], testConfiguration.searchParams().get(i), dir, setup, testConfiguration);
         }
+    }
+
+    private static int defaultQueryQuantizeBits(int docQuantizeBits) {
+        return switch (docQuantizeBits) {
+            case 1, 2 -> 4;
+            case 4 -> 4;
+            case 7 -> 7;
+            default -> throw new IllegalArgumentException("Unsupported document quantize bits: " + docQuantizeBits);
+        };
+    }
+
+    private static ESNextDiskBBQVectorsFormat.QuantEncoding resolveQuantEncoding(int docQuantizeBits, @Nullable Integer queryQuantizeBits) {
+        if (queryQuantizeBits == null) {
+            return ESNextDiskBBQVectorsFormat.QuantEncoding.fromBits((byte) docQuantizeBits);
+        }
+        return ESNextDiskBBQVectorsFormat.QuantEncoding.fromDocAndQueryBits((byte) docQuantizeBits, queryQuantizeBits.byteValue());
     }
 
     private static void checkQuantizeBits(TestConfiguration args) {
@@ -627,6 +620,32 @@ public class KnnIndexTester {
                     throw new IllegalArgumentException(
                         "IVF index type only supports 1, 2, 4 or 7 bits quantization, but got: " + args.quantizeBits()
                     );
+                }
+                if (args.queryQuantizeBits() != null) {
+                    int docBits = args.quantizeBits();
+                    int queryBits = args.queryQuantizeBits();
+                    if (docBits == 1 && !Set.of(1, 4).contains(queryBits)) {
+                        throw new IllegalArgumentException(
+                            "IVF with 1-bit document quantization supports query_quantize_bits 1 or 4, but got: " + queryBits
+                        );
+                    }
+                    if (docBits == 2 && queryBits != 4) {
+                        throw new IllegalArgumentException(
+                            "IVF with 2-bit document quantization requires query_quantize_bits 4, but got: " + queryBits
+                        );
+                    }
+                    if ((docBits == 4 || docBits == 7) && queryBits != docBits) {
+                        throw new IllegalArgumentException(
+                            "IVF with "
+                                + docBits
+                                + "-bit document quantization requires query_quantize_bits "
+                                + docBits
+                                + ", but got: "
+                                + queryBits
+                        );
+                    }
+                    // validate the combination is supported by the codec
+                    resolveQuantEncoding(docBits, queryBits);
                 }
                 break;
             case GPU_HNSW: {
@@ -971,6 +990,7 @@ public class KnnIndexTester {
         "num_docs",
         "num_segments",
         "quantize_bits",
+        "query_quantize_bits",
         "vector_encoding",
         "vector_space",
         "hnsw_m",
@@ -1081,6 +1101,7 @@ public class KnnIndexTester {
                             Integer.toString(qr.numDocs),
                             Integer.toString(qr.numSegments),
                             config.quantizeBits() != null ? Integer.toString(config.quantizeBits()) : "",
+                            config.queryQuantizeBits() != null ? Integer.toString(config.queryQuantizeBits()) : "",
                             config.vectorEncoding().name().toLowerCase(Locale.ROOT),
                             config.vectorSpace() != null ? config.vectorSpace().name().toLowerCase(Locale.ROOT) : "",
                             Integer.toString(config.hnswM()),

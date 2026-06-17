@@ -20,6 +20,7 @@ import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
+import org.elasticsearch.inference.RerankRequest;
 import org.elasticsearch.inference.RerankingInferenceService;
 import org.elasticsearch.inference.SettingsConfiguration;
 import org.elasticsearch.inference.SimilarityMeasure;
@@ -40,13 +41,16 @@ import org.elasticsearch.xpack.inference.services.voyageai.action.VoyageAIAction
 import org.elasticsearch.xpack.inference.services.voyageai.embeddings.VoyageAIEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.voyageai.embeddings.VoyageAIEmbeddingsModelCreator;
 import org.elasticsearch.xpack.inference.services.voyageai.embeddings.VoyageAIEmbeddingsServiceSettings;
+import org.elasticsearch.xpack.inference.services.voyageai.rerank.VoyageAIRerankModel;
 import org.elasticsearch.xpack.inference.services.voyageai.rerank.VoyageAIRerankModelCreator;
 
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
+import static org.elasticsearch.xpack.inference.external.http.sender.QueryAndDocsInputs.fromRerankRequest;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MODEL_ID;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInvalidModelException;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwUnsupportedUnifiedCompletionOperation;
@@ -169,6 +173,18 @@ public class VoyageAIService extends SenderService<VoyageAIModel> implements Rer
     }
 
     @Override
+    protected void doRerankInfer(Model model, RerankRequest request, TimeValue timeout, ActionListener<InferenceServiceResults> listener) {
+        if (!(model instanceof VoyageAIRerankModel voyageAIRerankModel)) {
+            listener.onFailure(createInvalidModelException(model));
+            return;
+        }
+        var actionCreator = new VoyageAIActionCreator(getSender(), getServiceComponents());
+
+        var action = voyageAIRerankModel.accept(actionCreator, request.taskSettings());
+        action.execute(fromRerankRequest(request), timeout, listener);
+    }
+
+    @Override
     protected void doChunkedInfer(
         Model model,
         List<ChunkInferenceInput> inputs,
@@ -205,17 +221,17 @@ public class VoyageAIService extends SenderService<VoyageAIModel> implements Rer
     public Model updateModelWithEmbeddingDetails(Model model, int embeddingSize) {
         if (model instanceof VoyageAIEmbeddingsModel embeddingsModel) {
             var serviceSettings = embeddingsModel.getServiceSettings();
-            var similarityFromModel = serviceSettings.similarity();
-            var similarityToUse = similarityFromModel == null ? defaultSimilarity() : similarityFromModel;
+
+            var modelId = serviceSettings.modelId();
+            var rateLimitSettings = serviceSettings.rateLimitSettings();
+            var embeddingType = serviceSettings.embeddingType();
+            var similarityToUse = Objects.requireNonNullElse(serviceSettings.similarity(), defaultSimilarity());
             var maxInputTokens = serviceSettings.maxInputTokens();
             var dimensionSetByUser = serviceSettings.dimensionsSetByUser();
-
             var updatedServiceSettings = new VoyageAIEmbeddingsServiceSettings(
-                new VoyageAIServiceSettings(
-                    serviceSettings.getCommonSettings().modelId(),
-                    serviceSettings.getCommonSettings().rateLimitSettings()
-                ),
-                serviceSettings.getEmbeddingType(),
+                modelId,
+                rateLimitSettings,
+                embeddingType,
                 similarityToUse,
                 embeddingSize,
                 maxInputTokens,

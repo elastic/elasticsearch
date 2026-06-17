@@ -1,0 +1,6 @@
+area: Search
+issues:
+ - 112680
+pr: 147552
+summary: Add diagnostic fields to reader context lifecycle logs
+type: enhancement

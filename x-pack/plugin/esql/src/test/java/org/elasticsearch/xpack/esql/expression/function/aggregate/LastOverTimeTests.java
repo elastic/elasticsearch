@@ -54,7 +54,8 @@ public class LastOverTimeTests extends AbstractAggregationTestCase {
             MultiRowTestCaseSupplier.dateNanosCases(1, 1000),
             MultiRowTestCaseSupplier.ipCases(1, 1000),
             MultiRowTestCaseSupplier.stringCases(1, 1000, DataType.KEYWORD),
-            MultiRowTestCaseSupplier.stringCases(1, 1000, DataType.TEXT)
+            MultiRowTestCaseSupplier.stringCases(1, 1000, DataType.TEXT),
+            MultiRowTestCaseSupplier.flattenedCases(1, 1000)
         );
         for (List<TestCaseSupplier.TypedDataSupplier> valuesSupplier : valuesSuppliers) {
             for (TestCaseSupplier.TypedDataSupplier fieldSupplier : valuesSupplier) {

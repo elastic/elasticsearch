@@ -25,7 +25,9 @@ public sealed interface ReceivedTelemetry {
     /**
      * A set of metrics from a single instrumentation scope (e.g. "elasticsearch").
      */
-    record ReceivedMetricSet(String instrumentationScopeName, Map<String, ReceivedMetricValue> samples) implements ReceivedTelemetry {
+    record ReceivedMetricSet(String instrumentationScopeName, Map<String, ReceivedMetricValue> samples, long collectionTime)
+        implements
+            ReceivedTelemetry {
         public ReceivedMetricSet {
             requireNonNull(instrumentationScopeName);
             requireNonNull(samples);
@@ -58,6 +60,22 @@ public sealed interface ReceivedTelemetry {
     }
 
     /**
+     * Protocol-neutral representation of the resource (telemetry source) that emitted spans.
+     * Populated from the APM intake {@code metadata} NDJSON event (service/agent/system/process/labels)
+     * and from {@code ExportTraceServiceRequest.resource_spans[].resource} on the OTLP path.
+     * <p>
+     * Attribute keys are passed through verbatim from each protocol — no translation. The
+     * cross-path contract therefore asserts on the keys downstream consumers actually observe,
+     * so an exporter that drops a legacy APM key (or fails to emit an OTel-side counterpart)
+     * fails the assertion rather than being silently normalised away.
+     */
+    record ReceivedResource(Map<String, Object> attributes) implements ReceivedTelemetry {
+        public ReceivedResource {
+            attributes = Map.copyOf(requireNonNull(attributes));
+        }
+    }
+
+    /**
      * Value of a single metric sample: either a scalar or histogram counts.
      */
     sealed interface ReceivedMetricValue {}
@@ -80,6 +98,28 @@ public sealed interface ReceivedTelemetry {
         public HistogramSample {
             requireNonNull(counts);
             counts.forEach(Objects::requireNonNull);
+        }
+    }
+
+    /**
+     * A single OTLP log record, as emitted by the OTel SDK audit-log export path.
+     * {@code attributes} is a flat map of OTLP log record attributes; the keys currently include
+     * a {@code log4j.map_message.} prefix, which will be removed (tracked in #4183) when the raw
+     * {@code OpenTelemetryAppender} is replaced with a custom one that applies the audit field
+     * rename.
+     */
+    record ReceivedLog(
+        long timeUnixNano,
+        int severityNumber,
+        String severityText,
+        String body,
+        Map<String, Object> attributes,
+        Optional<String> traceId
+    ) implements ReceivedTelemetry {
+        public ReceivedLog {
+            requireNonNull(attributes);
+            attributes = Map.copyOf(attributes);
+            requireNonNull(traceId);
         }
     }
 }

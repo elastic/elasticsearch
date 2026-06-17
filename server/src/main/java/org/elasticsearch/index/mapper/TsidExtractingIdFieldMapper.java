@@ -64,7 +64,13 @@ public class TsidExtractingIdFieldMapper extends IdFieldMapper {
             var indexRouting = (IndexRouting.ExtractFromSource.ForRoutingPath) context.indexSettings().getIndexRouting();
             assert context.getDynamicMappers().isEmpty() == false
                 || context.getDynamicRuntimeFields().isEmpty() == false
-                || id.equals(indexRouting.createId(context.sourceToParse().getXContentType(), context.sourceToParse().source(), suffix));
+                || id.equals(
+                    indexRouting.createId(
+                        context.sourceToParse().source().xContentType(),
+                        context.sourceToParse().source().originalBytes(),
+                        suffix
+                    )
+                );
         } else if (context.sourceToParse().routing() != null) {
             int routingHash = TimeSeriesRoutingHashFieldMapper.decode(context.sourceToParse().routing());
             if (context.indexSettings().useTimeSeriesSyntheticId()) {
@@ -213,11 +219,17 @@ public class TsidExtractingIdFieldMapper extends IdFieldMapper {
         return Strings.BASE_64_NO_PADDING_URL_ENCODER.encodeToString(id.bytes);
     }
 
+    // See #createSyntheticId
     public static BytesRef extractTimeSeriesIdFromSyntheticId(BytesRef id) {
         assert id.length > Long.BYTES + Integer.BYTES;
-        // See #createSyntheticId
-        byte[] tsId = new byte[Math.toIntExact(id.length - Long.BYTES - Integer.BYTES)];
-        System.arraycopy(id.bytes, id.offset, tsId, 0, tsId.length);
+        int len = Math.toIntExact(id.length - Long.BYTES - Integer.BYTES);
+        int offset = id.offset;
+        if (Byte.toUnsignedInt(id.bytes[offset]) >= Uid.BASE64_ESCAPE) {
+            offset++;
+            --len;
+        }
+        byte[] tsId = new byte[len];
+        System.arraycopy(id.bytes, offset, tsId, 0, tsId.length);
         return new BytesRef(tsId);
     }
 
@@ -281,9 +293,4 @@ public class TsidExtractingIdFieldMapper extends IdFieldMapper {
         return tsid.substring(0, DESCRIPTION_TSID_LIMIT) + "...}";
     }
 
-    @Override
-    public String reindexId(String id) {
-        // null the _id so we recalculate it on write
-        return null;
-    }
 }

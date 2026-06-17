@@ -22,8 +22,8 @@ import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.index.reindex.BulkByScrollResponse;
-import org.elasticsearch.index.reindex.BulkByScrollTask;
+import org.elasticsearch.index.reindex.BulkByPaginatedSearchResponse;
+import org.elasticsearch.index.reindex.BulkByPaginatedSearchTask;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
@@ -47,6 +47,7 @@ import org.elasticsearch.xpack.core.transform.transforms.TransformState;
 import org.elasticsearch.xpack.core.transform.transforms.TransformTaskState;
 import org.elasticsearch.xpack.transform.TransformNode;
 import org.elasticsearch.xpack.transform.TransformServices;
+import org.elasticsearch.xpack.transform.action.TransformCloudCredentialManager;
 import org.elasticsearch.xpack.transform.checkpoint.CheckpointProvider;
 import org.elasticsearch.xpack.transform.checkpoint.MockTimebasedCheckpointProvider;
 import org.elasticsearch.xpack.transform.checkpoint.TransformCheckpointService;
@@ -56,6 +57,7 @@ import org.elasticsearch.xpack.transform.persistence.InMemoryTransformConfigMana
 import org.elasticsearch.xpack.transform.persistence.TransformConfigManager;
 import org.elasticsearch.xpack.transform.transforms.scheduling.TransformScheduler;
 import org.junit.After;
+import org.junit.AfterClass;
 import org.junit.Before;
 
 import java.time.Clock;
@@ -87,9 +89,19 @@ import static org.mockito.Mockito.verify;
 
 public class TransformIndexerStateTests extends ESTestCase {
 
-    private static final SearchResponse ONE_HIT_SEARCH_RESPONSE = SearchResponseUtils.successfulResponse(
-        SearchHits.unpooled(new SearchHit[] { SearchHit.unpooled(1) }, new TotalHits(1L, TotalHits.Relation.EQUAL_TO), 1.0f)
-    );
+    private static SearchResponse ONE_HIT_SEARCH_RESPONSE;
+
+    static {
+        SearchHits hits = new SearchHits(new SearchHit[] { new SearchHit(1) }, new TotalHits(1L, TotalHits.Relation.EQUAL_TO), 1.0f);
+        ONE_HIT_SEARCH_RESPONSE = SearchResponseUtils.successfulResponse(hits);
+        hits.decRef(); // transfer ownership to ONE_HIT_SEARCH_RESPONSE
+    }
+
+    @AfterClass
+    public static void releaseStaticResources() {
+        ONE_HIT_SEARCH_RESPONSE.decRef();
+        ONE_HIT_SEARCH_RESPONSE = null;
+    }
 
     private Client client;
     private ThreadPool threadPool;
@@ -170,11 +182,11 @@ public class TransformIndexerStateTests extends ESTestCase {
         }
 
         @Override
-        void doDeleteByQuery(DeleteByQueryRequest deleteByQueryRequest, ActionListener<BulkByScrollResponse> responseListener) {
+        void doDeleteByQuery(DeleteByQueryRequest deleteByQueryRequest, ActionListener<BulkByPaginatedSearchResponse> responseListener) {
             responseListener.onResponse(
-                new BulkByScrollResponse(
+                new BulkByPaginatedSearchResponse(
                     TimeValue.ZERO,
-                    new BulkByScrollTask.Status(Collections.emptyList(), null),
+                    new BulkByPaginatedSearchTask.Status(Collections.emptyList(), null, 0f),
                     Collections.emptyList(),
                     Collections.emptyList(),
                     false
@@ -257,6 +269,11 @@ public class TransformIndexerStateTests extends ESTestCase {
 
         @Override
         void doMaybeCreateDestIndex(Map<String, String> deducedDestIndexMappings, ActionListener<Boolean> listener) {
+            listener.onResponse(null);
+        }
+
+        @Override
+        protected void doMaybeRefreshCloudToken(TransformConfig priorConfig, TransformConfig newConfig, ActionListener<Void> listener) {
             listener.onResponse(null);
         }
 
@@ -370,11 +387,16 @@ public class TransformIndexerStateTests extends ESTestCase {
         }
 
         @Override
-        void doDeleteByQuery(DeleteByQueryRequest deleteByQueryRequest, ActionListener<BulkByScrollResponse> responseListener) {
+        protected void doMaybeRefreshCloudToken(TransformConfig priorConfig, TransformConfig newConfig, ActionListener<Void> listener) {
+            listener.onResponse(null);
+        }
+
+        @Override
+        void doDeleteByQuery(DeleteByQueryRequest deleteByQueryRequest, ActionListener<BulkByPaginatedSearchResponse> responseListener) {
             responseListener.onResponse(
-                new BulkByScrollResponse(
+                new BulkByPaginatedSearchResponse(
                     TimeValue.ZERO,
-                    new BulkByScrollTask.Status(Collections.emptyList(), null),
+                    new BulkByPaginatedSearchTask.Status(Collections.emptyList(), null, 0f),
                     Collections.emptyList(),
                     Collections.emptyList(),
                     false
@@ -842,7 +864,8 @@ public class TransformIndexerStateTests extends ESTestCase {
                 mock(TransformNode.class),
                 mock(CrossProjectModeDecider.class),
                 projectId -> false,
-                mock(ProjectResolver.class)
+                mock(ProjectResolver.class),
+                mock(TransformCloudCredentialManager.class)
             ),
             new MockTimebasedCheckpointProvider(config),
             config,
@@ -1063,7 +1086,8 @@ public class TransformIndexerStateTests extends ESTestCase {
             mock(TransformNode.class),
             mock(CrossProjectModeDecider.class),
             projectId -> false,
-            mock(ProjectResolver.class)
+            mock(ProjectResolver.class),
+            mock(TransformCloudCredentialManager.class)
         );
 
         MockedTransformIndexer indexer = new MockedTransformIndexer(
@@ -1101,7 +1125,8 @@ public class TransformIndexerStateTests extends ESTestCase {
             mock(TransformNode.class),
             mock(CrossProjectModeDecider.class),
             projectId -> false,
-            mock(ProjectResolver.class)
+            mock(ProjectResolver.class),
+            mock(TransformCloudCredentialManager.class)
         );
 
         MockedTransformIndexerForStatePersistenceTesting indexer = new MockedTransformIndexerForStatePersistenceTesting(

@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.esql.core.type.DataTypeConverter;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
 import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.DimensionValues;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Kql;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.MatchPhrase;
@@ -81,6 +82,21 @@ public class VerifierTests extends ESTestCase {
 
     private final List<String> TIME_DURATIONS = List.of("millisecond", "second", "minute", "hour");
     private final List<String> DATE_PERIODS = List.of("day", "week", "month", "year");
+    private final List<DataType> SORTABLE_TYPES = List.of(
+        BOOLEAN,
+        DOUBLE,
+        DATE_NANOS,
+        DATETIME,
+        INTEGER,
+        IP,
+        KEYWORD,
+        LONG,
+        UNSIGNED_LONG,
+        VERSION
+    );
+    private final List<DataType> UNSORTABLE_TYPES = EsqlCapabilities.Cap.SPATIAL_GRID_TYPES.isEnabled()
+        ? List.of(CARTESIAN_POINT, CARTESIAN_SHAPE, GEO_POINT, GEO_SHAPE, GEOHASH, GEOTILE, GEOHEX)
+        : List.of(CARTESIAN_POINT, CARTESIAN_SHAPE, GEO_POINT, GEO_SHAPE);
 
     public void testIncompatibleTypesInMathOperation() {
         defaultAnalyzer().error(
@@ -93,6 +109,41 @@ public class VerifierTests extends ESTestCase {
             "row a = 1, b = 2, c = \"xxx\" | eval y = a - c",
             equalTo(
                 "1:40: second argument of [a - c] must be [date_nanos, datetime, numeric or dense_vector], found value [c] type [keyword]"
+            )
+        );
+    }
+
+    public void testEnrichOnByteLongConflictedMatchField() {
+        LinkedHashMap<String, Set<String>> typesToIndices = new LinkedHashMap<>();
+        typesToIndices.put("byte", Set.of("test1"));
+        typesToIndices.put("long", Set.of("test2"));
+
+        Map<String, EsField> mapping = Map.of("multi_typed_int", new InvalidMappedField("multi_typed_int", typesToIndices));
+        TestAnalyzer analyzer = analyzer().addIndex("test*", IndexResolution.valid(EsIndexGenerator.esIndex("test*", mapping)))
+            .addEnrichPolicy(EnrichPolicy.RANGE_TYPE, "ages_policy", "age_range", "ages", "mapping-ages.json")
+            .stripErrorPrefix(true);
+
+        analyzer.error(
+            "from test* | enrich ages_policy on multi_typed_int",
+            equalTo(
+                "1:36: Cannot use field [multi_typed_int] due to ambiguities being mapped as [2] incompatible types:"
+                    + " [byte] in [test1], [long] in [test2]"
+            )
+        );
+    }
+
+    public void testEnrichOnDateNanosConflictedMatchField() {
+        EsField field = new InvalidMappedField("multi_typed_date", Map.of("date", Set.of("test1"), "date_nanos", Set.of("test2")));
+        Map<String, EsField> mapping = Map.of("multi_typed_date", field);
+        TestAnalyzer analyzer = analyzer().addIndex("test*", IndexResolution.valid(EsIndexGenerator.esIndex("test*", mapping)))
+            .addEnrichPolicy(EnrichPolicy.RANGE_TYPE, "decades_policy", "date_range", "decades", "mapping-decades.json")
+            .stripErrorPrefix(true);
+
+        analyzer.error(
+            "from test* | enrich decades_policy on multi_typed_date",
+            equalTo(
+                "1:39: Unsupported type [date_nanos] for enrich matching field [multi_typed_date];"
+                    + " only [keyword, text, ip, long, integer, float, double, datetime] allowed for type [range]"
             )
         );
     }
@@ -157,8 +208,8 @@ public class VerifierTests extends ESTestCase {
         analyzer.error(
             "from test* | enrich client_cidr on multi_typed",
             equalTo(
-                "1:36: Unsupported type [unsupported] for enrich matching field [multi_typed];"
-                    + " only [keyword, text, ip, long, integer, float, double, datetime] allowed for type [range]"
+                "1:36: Cannot use field [multi_typed] due to ambiguities being mapped as [2] incompatible types:"
+                    + " [ip] in [test1, test2, test3] and [2] other indices, [keyword] in [test6]"
             )
         );
 
@@ -435,6 +486,10 @@ public class VerifierTests extends ESTestCase {
         defaultAnalyzer().error(
             "from test | stats max(max(salary)) by first_name",
             equalTo("1:23: nested aggregations [max(salary)] not allowed inside other aggregations [max(max(salary))]")
+        );
+        defaultAnalyzer().error(
+            "from test | stats w_avg = weighted_avg(salary, count(*)) by first_name",
+            equalTo("1:48: nested aggregations [count(*)] not allowed inside other aggregations " + "[weighted_avg(salary, count(*))]")
         );
         defaultAnalyzer().error(
             "from test | stats count(avg(first_name)) by first_name",
@@ -776,6 +831,82 @@ public class VerifierTests extends ESTestCase {
         );
     }
 
+    public void testUnsupportedGroupKeyTypesNotAllowedInLimitBy() {
+        analyzer().addK8sDownsampled()
+            .stripErrorPrefix(true)
+            .error(
+                "FROM k8s | LIMIT 1 BY network.eth0.tx",
+                equalTo("1:23: cannot group by on [aggregate_metric_double] type for grouping [network.eth0.tx]")
+            );
+        analyzer().addIndex("exp_histo_sample", "exp_histo_sample-mappings.json")
+            .stripErrorPrefix(true)
+            .error(
+                "FROM exp_histo_sample | LIMIT 1 BY responseTime",
+                equalTo("1:36: cannot group by on [exponential_histogram] type for grouping [responseTime]")
+            );
+        analyzer().addIndex("decades", "mapping-decades.json")
+            .stripErrorPrefix(true)
+            .error(
+                "FROM decades | LIMIT 1 BY date_range",
+                equalTo(
+                    EsqlCapabilities.Cap.DATE_RANGE_FIELD_TYPE_V6.isEnabled()
+                        ? "1:27: cannot group by on [date_range] type for grouping [date_range]"
+                        : "1:27: Cannot use field [date_range] with unsupported type [date_range]"
+                )
+            );
+        tsdb().error(
+            "FROM test | LIMIT 1 BY network.bytes_in",
+            equalTo("1:24: cannot group by on [counter_long] type for grouping [network.bytes_in]")
+        );
+    }
+
+    public void testUnsupportedGroupKeyTypesNotAllowedInStatsBy() {
+        analyzer().addK8sDownsampled()
+            .stripErrorPrefix(true)
+            .error(
+                "FROM k8s | STATS count(*) BY network.eth0.tx",
+                equalTo("1:30: cannot group by on [aggregate_metric_double] type for grouping [network.eth0.tx]")
+            );
+        analyzer().addIndex("exp_histo_sample", "exp_histo_sample-mappings.json")
+            .stripErrorPrefix(true)
+            .error(
+                "FROM exp_histo_sample | STATS count(*) BY responseTime",
+                equalTo("1:43: cannot group by on [exponential_histogram] type for grouping [responseTime]")
+            );
+        analyzer().addIndex("decades", "mapping-decades.json")
+            .stripErrorPrefix(true)
+            .error(
+                "FROM decades | STATS count(*) BY date_range",
+                equalTo(
+                    EsqlCapabilities.Cap.DATE_RANGE_FIELD_TYPE_V6.isEnabled()
+                        ? "1:34: cannot group by on [date_range] type for grouping [date_range]"
+                        : "1:34: Cannot use field [date_range] with unsupported type [date_range]"
+                )
+            );
+        analyzer().addIndex("test", "mapping-all-types.json")
+            .stripErrorPrefix(true)
+            .error(
+                "FROM test | STATS count(*) BY dense_vector",
+                equalTo("1:31: cannot group by on [dense_vector] type for grouping [dense_vector]")
+            );
+    }
+
+    public void testFlattenedAllowedInLimitBy() {
+        assumeTrue("requires GROUP_BY_FLATTENED capability", EsqlCapabilities.Cap.GROUP_BY_FLATTENED.isEnabled());
+        analyzer().addIndex("flattened_otel_logs", "mapping-flattened_otel_logs.json")
+            .query("FROM flattened_otel_logs | LIMIT 1 BY resource.attributes");
+        analyzer().addIndex("flattened_otel_logs", "mapping-flattened_otel_logs.json")
+            .query("FROM flattened_otel_logs | LIMIT 1 BY attributes");
+    }
+
+    public void testFlattenedAllowedInStatsBy() {
+        assumeTrue("requires GROUP_BY_FLATTENED capability", EsqlCapabilities.Cap.GROUP_BY_FLATTENED.isEnabled());
+        analyzer().addIndex("flattened_otel_logs", "mapping-flattened_otel_logs.json")
+            .query("FROM flattened_otel_logs | STATS count(*) BY attributes");
+        analyzer().addIndex("flattened_otel_logs", "mapping-flattened_otel_logs.json")
+            .query("FROM flattened_otel_logs | STATS count(*) BY resource.attributes");
+    }
+
     public void testDoubleRenamingField() {
         defaultAnalyzer().error(
             "from test | rename emp_no as r1, r1 as r2, emp_no as r3 | keep r3",
@@ -1063,6 +1194,11 @@ public class VerifierTests extends ESTestCase {
                 equalTo("1:9: cannot use [to_dateperiod(\"1 " + unit + "\")] directly in a row assignment")
             );
         }
+        defaultAnalyzer().error(
+            "ROW a = NULL::time_duration",
+            equalTo("1:9: cannot use [NULL::time_duration] directly in a row assignment")
+        );
+        defaultAnalyzer().error("ROW a = NULL::date_period", equalTo("1:9: cannot use [NULL::date_period] directly in a row assignment"));
     }
 
     public void testSubtractDateTimeFromTemporal() {
@@ -1231,6 +1367,101 @@ public class VerifierTests extends ESTestCase {
                 )
             );
         }
+        defaultAnalyzer().error(
+            "ROW x = 1 | EVAL y = NULL::time_duration",
+            equalTo("1:18: EVAL does not support type [time_duration] as the return data type of expression [NULL::time_duration]")
+        );
+        defaultAnalyzer().error(
+            "ROW x = 1 | EVAL y = NULL::date_period",
+            equalTo("1:18: EVAL does not support type [date_period] as the return data type of expression [NULL::date_period]")
+        );
+    }
+
+    public void testPeriodAndDurationInStats() {
+        for (var unit : TIME_DURATIONS) {
+            defaultAnalyzer().error(
+                "ROW x = 1 | STATS COUNT(*) BY 1 " + unit,
+                equalTo("1:31: cannot group by on [time_duration] type for grouping [1 " + unit + "]")
+            );
+        }
+        for (var unit : DATE_PERIODS) {
+            defaultAnalyzer().error(
+                "ROW x = 1 | STATS COUNT(*) BY 1 " + unit,
+                equalTo("1:31: cannot group by on [date_period] type for grouping [1 " + unit + "]")
+            );
+        }
+    }
+
+    public void testPeriodAndDurationInSort() {
+        for (var unit : TIME_DURATIONS) {
+            defaultAnalyzer().error("ROW x = 1 | SORT 1 " + unit, equalTo("1:18: cannot sort on time_duration"));
+        }
+        for (var unit : DATE_PERIODS) {
+            defaultAnalyzer().error("ROW x = 1 | SORT 1 " + unit, equalTo("1:18: cannot sort on date_period"));
+        }
+    }
+
+    public void testPeriodAndDurationInLimitBy() {
+        for (var unit : TIME_DURATIONS) {
+            defaultAnalyzer().error(
+                "ROW x = 1 | LIMIT 1 BY 1 " + unit,
+                equalTo("1:24: cannot group by on [time_duration] type for grouping [1 " + unit + "]")
+            );
+        }
+        for (var unit : DATE_PERIODS) {
+            defaultAnalyzer().error(
+                "ROW x = 1 | LIMIT 1 BY 1 " + unit,
+                equalTo("1:24: cannot group by on [date_period] type for grouping [1 " + unit + "]")
+            );
+        }
+    }
+
+    public void testPeriodAndDurationInInlineStats() {
+        assumeTrue("INLINE STATS must be enabled", EsqlCapabilities.Cap.INLINE_STATS.isEnabled());
+        for (var unit : TIME_DURATIONS) {
+            defaultAnalyzer().error(
+                "ROW x = 1 | INLINE STATS COUNT(*) BY 1 " + unit,
+                equalTo("1:38: cannot group by on [time_duration] type for grouping [1 " + unit + "]")
+            );
+        }
+        for (var unit : DATE_PERIODS) {
+            defaultAnalyzer().error(
+                "ROW x = 1 | INLINE STATS COUNT(*) BY 1 " + unit,
+                equalTo("1:38: cannot group by on [date_period] type for grouping [1 " + unit + "]")
+            );
+        }
+    }
+
+    public void testPeriodAndDurationInChangePoint() {
+        assumeTrue("change_point must be enabled", EsqlCapabilities.Cap.CHANGE_POINT.isEnabled());
+        assumeTrue("change_point_by must be enabled", EsqlCapabilities.Cap.CHANGE_POINT_BY.isEnabled());
+        // Keys are qualifiedNames so we can't use literals; test via columns. The ROW assignment also
+        // fires an error but the CHANGE_POINT key error still appears in the output.
+        defaultAnalyzer().error(
+            """
+                ROW key = NULL::time_duration, value = 0
+                | CHANGE_POINT value ON key""",
+            containsString("CHANGE_POINT only supports sortable keys, found expression [key] type [TIME_DURATION]")
+        );
+        defaultAnalyzer().error(
+            """
+                ROW key = NULL::date_period, value = 0
+                | CHANGE_POINT value ON key""",
+            containsString("CHANGE_POINT only supports sortable keys, found expression [key] type [DATE_PERIOD]")
+        );
+        // BY groupings accept expressions, so literals work directly.
+        for (var unit : TIME_DURATIONS) {
+            defaultAnalyzer().error(
+                "ROW key = 0, value = 0 | CHANGE_POINT value ON key BY 1 " + unit,
+                equalTo("1:55: CHANGE_POINT grouping only supports sortable values, found expression [1 " + unit + "] type [TIME_DURATION]")
+            );
+        }
+        for (var unit : DATE_PERIODS) {
+            defaultAnalyzer().error(
+                "ROW key = 0, value = 0 | CHANGE_POINT value ON key BY 1 " + unit,
+                equalTo("1:55: CHANGE_POINT grouping only supports sortable values, found expression [1 " + unit + "] type [DATE_PERIOD]")
+            );
+        }
     }
 
     public void testFilterNonBoolField() {
@@ -1347,6 +1578,32 @@ public class VerifierTests extends ESTestCase {
 
     public void testSourceSorting() {
         defaultAnalyzer().error("from test metadata _source | sort _source", equalTo("1:35: cannot sort on _source"));
+    }
+
+    public void testFlattenedSorting() {
+        assumeTrue("Requires FLATTENED_DATATYPE capability", EsqlCapabilities.Cap.FLATTENED_DATATYPE.isEnabled());
+        var index = analyzer().addIndex("flattened_otel_logs", "mapping-flattened_otel_logs.json").stripErrorPrefix(true);
+        index.error("FROM flattened_otel_logs | SORT attributes | LIMIT 3", equalTo("1:33: cannot sort on flattened"));
+        index.error("FROM flattened_otel_logs | SORT resource.attributes | LIMIT 3", equalTo("1:33: cannot sort on flattened"));
+    }
+
+    public void testDateRangeSorting() {
+        assumeTrue("Requires DATE_RANGE_FIELD_TYPE_V6 capability", EsqlCapabilities.Cap.DATE_RANGE_FIELD_TYPE_V6.isEnabled());
+        analyzer().addIndex("decades", "mapping-decades.json")
+            .stripErrorPrefix(true)
+            .error("FROM decades | SORT date_range", equalTo("1:21: cannot sort on date_range"));
+    }
+
+    public void testFieldExtractFirstArgumentMustBeFlattened() {
+        assumeTrue("Requires FIELD_EXTRACT_FUNCTION capability", EsqlCapabilities.Cap.FIELD_EXTRACT_FUNCTION.isEnabled());
+        var index = analyzer().addIndex("flattened_otel_logs", "mapping-flattened_otel_logs.json").stripErrorPrefix(true);
+        index.error(
+            "FROM flattened_otel_logs | EVAL x = field_extract(@timestamp, \"a\")",
+            equalTo(
+                "1:37: first argument of [field_extract(@timestamp, \"a\")] must be [flattened], "
+                    + "found value [@timestamp] type [datetime]"
+            )
+        );
     }
 
     public void testCountersSorting() {
@@ -1500,13 +1757,13 @@ public class VerifierTests extends ESTestCase {
 
     public void testRenameOrDropTimestampWithTBucket() {
         k8s().error(
-            "TS k8s | RENAME @timestamp AS newTs | STATS max(max_over_time(network.eth0.tx))  BY tbucket = tbucket(1hour)",
-            equalTo("1:95: [tbucket(1hour)] " + UnresolvedTimestamp.UNRESOLVED_SUFFIX)
+            "TS k8s | RENAME @timestamp AS newTs | STATS max(variance_over_time(network.eth0.tx))  BY tbucket = tbucket(1hour)",
+            equalTo("1:100: [tbucket(1hour)] " + UnresolvedTimestamp.UNRESOLVED_SUFFIX)
         );
 
         k8s().error(
-            "TS k8s | DROP @timestamp | STATS max(max_over_time(network.eth0.tx)) BY tbucket = tbucket(1hour)",
-            equalTo("1:83: [tbucket(1hour)] " + UnresolvedTimestamp.UNRESOLVED_SUFFIX)
+            "TS k8s | DROP @timestamp | STATS max(variance_over_time(network.eth0.tx)) BY tbucket = tbucket(1hour)",
+            equalTo("1:88: [tbucket(1hour)] " + UnresolvedTimestamp.UNRESOLVED_SUFFIX)
         );
     }
 
@@ -1558,20 +1815,58 @@ public class VerifierTests extends ESTestCase {
 
     public void testTimeseriesAggregate() {
         tsdb().error("TS test  | STATS max(avg(rate(network.bytes_in)))", equalTo("""
-            1:22: nested aggregations [avg(rate(network.bytes_in))] \
-            not allowed inside other aggregations [max(avg(rate(network.bytes_in)))]
-            line 1:12: cannot use aggregate function [avg(rate(network.bytes_in))] \
-            inside over-time aggregation function [rate(network.bytes_in)]"""));
+            1:12: cannot use aggregate function [avg(rate(network.bytes_in))] \
+            inside aggregation function [max(avg(rate(network.bytes_in)))];\
+            only time-series aggregation function can be used inside another aggregation function"""));
 
-        tsdb().error("TS test  | STATS max(avg(rate(network.bytes_in)))", equalTo("""
-            1:22: nested aggregations [avg(rate(network.bytes_in))] \
-            not allowed inside other aggregations [max(avg(rate(network.bytes_in)))]
-            line 1:12: cannot use aggregate function [avg(rate(network.bytes_in))] \
-            inside over-time aggregation function [rate(network.bytes_in)]"""));
+        tsdb().error("TS test  | STATS max(avg_over_time(rate(network.bytes_in)))", equalTo("""
+            1:12: cannot use aggregate function [rate(network.bytes_in)] \
+            inside over-time aggregation function [avg_over_time(rate(network.bytes_in))]"""));
+
+        tsdb().error("TS test  | STATS avg_over_time(rate(network.bytes_in))", equalTo("""
+            1:12: cannot use aggregate function [rate(network.bytes_in)] \
+            inside over-time aggregation function [avg_over_time(rate(network.bytes_in))]"""));
 
         tsdb().error(
             "TS test  | STATS COUNT(*)",
             equalTo("1:18: count_star [COUNT(*)] can't be used with TS command; use count on a field instead")
+        );
+
+        tsdb().error(
+            "TS test  | STATS SPARKLINE(COUNT(*), @timestamp, 10, \"2024-01-01\", \"2024-02-01\")",
+            equalTo(
+                "1:18: sparkline [SPARKLINE(COUNT(*), @timestamp, 10, \"2024-01-01\", \"2024-02-01\")] can't be used with TS command\n"
+                    + "line 1:12: cannot use aggregate function [COUNT(*)] inside aggregation function "
+                    + "[SPARKLINE(COUNT(*), @timestamp, 10, \"2024-01-01\", \"2024-02-01\")];"
+                    + "only time-series aggregation function can be used inside another aggregation function"
+            )
+        );
+
+        // should not throw
+        tsdb().addK8s().query("""
+            TS k8s
+            | STATS `event_shape` = count_distinct(network.eth0.currently_connected_clients)
+            BY event_log, fMGjtTxPiPQV = bucket(@timestamp,1hour)""");
+    }
+
+    public void testSparklineRejectsMultiValuedAggs() {
+        String sparklineArgs = "hire_date, 10, \"2024-01-01\", \"2024-02-01\"";
+        defaultAnalyzer().error(
+            "from test | stats s = SPARKLINE(TOP(avg_worked_seconds, 3, \"asc\"), " + sparklineArgs + ")",
+            containsString(
+                "first argument of [SPARKLINE(TOP(avg_worked_seconds, 3, \"asc\"), "
+                    + sparklineArgs
+                    + ")] "
+                    + "must be a single-valued aggregate function, found [TOP(avg_worked_seconds, 3, \"asc\")]"
+            )
+        );
+        defaultAnalyzer().error(
+            "from test | stats s = SPARKLINE(SAMPLE(avg_worked_seconds, 3), " + sparklineArgs + ")",
+            containsString("must be a single-valued aggregate function, found [SAMPLE(avg_worked_seconds, 3)]")
+        );
+        defaultAnalyzer().error(
+            "from test | stats s = SPARKLINE(VALUES(avg_worked_seconds), " + sparklineArgs + ")",
+            containsString("must be a single-valued aggregate function, found [VALUES(avg_worked_seconds)]")
         );
     }
 
@@ -1644,6 +1939,65 @@ public class VerifierTests extends ESTestCase {
             "from test | mv_expand id | where " + functionInvocation,
             containsString("[" + functionName + "] " + functionType + " cannot be used after MV_EXPAND")
         );
+        fullText().error(
+            "from test | limit 1 by id | where " + functionInvocation,
+            containsString("[" + functionName + "] " + functionType + " cannot be used after LIMIT")
+        );
+        fullText().error(
+            "from test | sort id | limit 1 by id | where " + functionInvocation,
+            containsString("[" + functionName + "] " + functionType + " cannot be used after LIMIT")
+        );
+        fullText().stripErrorPrefix(false)
+            .error(
+                "from test | mv_expand " + fieldName + " | where " + functionInvocation,
+                allOf(
+                    containsString("Found 1 problem"),
+                    containsString("[" + functionName + "] " + functionType + " cannot be used after MV_EXPAND")
+                )
+            );
+        if (EsqlCapabilities.Cap.DEDUP_COMMAND.isEnabled()) {
+            fullText().error(
+                "from test | dedup | where " + functionInvocation,
+                containsString("[" + functionName + "] " + functionType + " cannot be used after DEDUP")
+            );
+        }
+
+    }
+
+    public void testFullTextFunctionsAfterFork() {
+        fullText().error(
+            "from test metadata _id, _index, _score | fork (where true) (where true) | keep title | where title : \"data\"",
+            containsString("[:] operator cannot be used after FORK")
+        );
+        fullText().error(
+            "from test metadata _id, _index, _score | fork (where true) (where true) | keep title | where match(title, \"data\")",
+            containsString("[MATCH] function cannot be used after FORK")
+        );
+        fullText().error(
+            "from test metadata _id, _index, _score | fork (where true) (where true) | keep title | where match_phrase(title, \"data\")",
+            containsString("[MatchPhrase] function cannot be used after FORK")
+        );
+        fullText().stripErrorPrefix(false)
+            .error(
+                "from test metadata _id, _index, _score | fork (where true) (where true) | keep title | where match(title, \"data\")",
+                allOf(containsString("Found 1 problem"), containsString("[MATCH] function cannot be used after FORK"))
+            );
+    }
+
+    public void testFullTextFunctionsAfterForkWithEvalInBranch() {
+        fullText().stripErrorPrefix(false)
+            .error(
+                "from test metadata _id, _index, _score "
+                    + "| fork (where true) (where true | EVAL title = \"abc\") "
+                    + "| keep title "
+                    + "| where title : \"data\"",
+                allOf(
+                    containsString("Found 3 problems"),
+                    containsString("[:] operator cannot be used after FORK"),
+                    containsString("[:] operator cannot operate on [title], which is not a field from an index mapping"),
+                    containsString("Column [title] has conflicting data types in FORK branches: [KEYWORD] and [TEXT]")
+                )
+            );
     }
 
     // These should pass eventually once we lift some restrictions on match function
@@ -2259,8 +2613,8 @@ public class VerifierTests extends ESTestCase {
             "row x = \"3 days\" | where \"3 days\"::date_period == to_dateperiod(\"3 days\")",
             equalTo(
                 "1:26: first argument of [\"3 days\"::date_period == to_dateperiod(\"3 days\")] must be "
-                    + "[boolean, cartesian_point, cartesian_shape, date_nanos, datetime, dense_vector, double, geo_point, geo_shape, "
-                    + "geohash, geohex, geotile, integer, ip, keyword, "
+                    + "[boolean, cartesian_point, cartesian_shape, date_nanos, date_range, datetime, dense_vector, double, flattened, "
+                    + "geo_point, geo_shape, geohash, geohex, geotile, integer, ip, keyword, "
                     + "long, text, unsigned_long or version], found value [\"3 days\"::date_period] type [date_period]"
             )
         );
@@ -2555,6 +2909,34 @@ public class VerifierTests extends ESTestCase {
         );
     }
 
+    public void testStBufferInvalidOptions() {
+        assumeTrue("st_buffer options must be enabled", EsqlCapabilities.Cap.ST_BUFFER_OPTIONS.isEnabled());
+
+        // Unknown option name is rejected at analysis time and lists the accepted keys.
+        defaultAnalyzer().error(
+            "ROW geom = TO_GEOSHAPE(\"POINT(0 0)\") | EVAL b = ST_BUFFER(geom, 1, { \"foo\": 42 })",
+            equalTo(
+                "1:49: Invalid option [foo] in [ST_BUFFER(geom, 1, { \"foo\": 42 })], "
+                    + "expected one of [endcap, join, mitre_limit, quad_segs]"
+            )
+        );
+        // Wrong value type for a known option is rejected at analysis time.
+        defaultAnalyzer().error(
+            "ROW geom = TO_GEOSHAPE(\"POINT(0 0)\") | EVAL b = ST_BUFFER(geom, 1, { \"quad_segs\": \"eight\" })",
+            equalTo(
+                "1:49: Invalid option [quad_segs] in [ST_BUFFER(geom, 1, { \"quad_segs\": \"eight\" })], "
+                    + "cannot cast [eight] to [integer]"
+            )
+        );
+        defaultAnalyzer().error(
+            "ROW geom = TO_GEOSHAPE(\"POINT(0 0)\") | EVAL b = ST_BUFFER(geom, 1, { \"mitre_limit\": \"big\" })",
+            equalTo(
+                "1:49: Invalid option [mitre_limit] in [ST_BUFFER(geom, 1, { \"mitre_limit\": \"big\" })], "
+                    + "cannot cast [big] to [double]"
+            )
+        );
+    }
+
     public void testCategorizeWithInlineStats() {
         assumeTrue("CATEGORIZE must be enabled", EsqlCapabilities.Cap.CATEGORIZE_V6.isEnabled());
         assumeTrue("INLINE STATS must be enabled", EsqlCapabilities.Cap.INLINE_STATS.isEnabled());
@@ -2588,16 +2970,18 @@ public class VerifierTests extends ESTestCase {
         airports.error("FROM airports | CHANGE_POINT scalerank", equalTo("1:17: Unknown column [@timestamp]"));
     }
 
-    public void testChangePoint_keySortable() {
+    public void testChangePointByUnknownColumn() {
+        assumeTrue("change_point_by must be enabled", EsqlCapabilities.Cap.CHANGE_POINT_BY.isEnabled());
+        var airports = analyzer().addAirports().stripErrorPrefix(true);
+        airports.error("FROM airports | CHANGE_POINT scalerank ON scalerank BY blahblah", equalTo("1:56: Unknown column [blahblah]"));
+    }
+
+    public void testChangePointKeySortable() {
         assumeTrue("change_point must be enabled", EsqlCapabilities.Cap.CHANGE_POINT.isEnabled());
-        List<DataType> sortableTypes = List.of(BOOLEAN, DOUBLE, DATE_NANOS, DATETIME, INTEGER, IP, KEYWORD, LONG, UNSIGNED_LONG, VERSION);
-        List<DataType> unsortableTypes = EsqlCapabilities.Cap.SPATIAL_GRID_TYPES.isEnabled()
-            ? List.of(CARTESIAN_POINT, CARTESIAN_SHAPE, GEO_POINT, GEO_SHAPE, GEOHASH, GEOTILE, GEOHEX)
-            : List.of(CARTESIAN_POINT, CARTESIAN_SHAPE, GEO_POINT, GEO_SHAPE);
-        for (DataType type : sortableTypes) {
+        for (DataType type : SORTABLE_TYPES) {
             defaultAnalyzer().query(Strings.format("ROW key=NULL::%s, value=0\n | CHANGE_POINT value ON key", type));
         }
-        for (DataType type : unsortableTypes) {
+        for (DataType type : UNSORTABLE_TYPES) {
             defaultAnalyzer().error(
                 Strings.format("ROW key=NULL::%s, value=0\n | CHANGE_POINT value ON key", type),
                 equalTo("2:26: CHANGE_POINT only supports sortable keys, found expression [key] type [" + type + "]")
@@ -2605,7 +2989,20 @@ public class VerifierTests extends ESTestCase {
         }
     }
 
-    public void testChangePoint_valueNumeric() {
+    public void testChangePointByGroupingSortable() {
+        assumeTrue("change_point_by must be enabled", EsqlCapabilities.Cap.CHANGE_POINT_BY.isEnabled());
+        for (DataType type : SORTABLE_TYPES) {
+            defaultAnalyzer().query(Strings.format("ROW key=0, value=0, grp=NULL::%s\n | CHANGE_POINT value ON key BY grp", type));
+        }
+        for (DataType type : UNSORTABLE_TYPES) {
+            defaultAnalyzer().error(
+                Strings.format("ROW key=0, value=0, grp=NULL::%s\n | CHANGE_POINT value ON key BY grp", type),
+                equalTo("2:33: CHANGE_POINT grouping only supports sortable values, found expression [grp] type [" + type + "]")
+            );
+        }
+    }
+
+    public void testChangePointValueNumeric() {
         assumeTrue("change_point must be enabled", EsqlCapabilities.Cap.CHANGE_POINT.isEnabled());
         List<DataType> numericTypes = List.of(DOUBLE, INTEGER, LONG, UNSIGNED_LONG);
         List<DataType> nonNumericTypes = EsqlCapabilities.Cap.SPATIAL_GRID_TYPES.isEnabled()
@@ -3323,7 +3720,10 @@ public class VerifierTests extends ESTestCase {
         );
         tsdb().error(
             "TS test | STATS avg(rate(network.bytes_in)) BY bucket(@timestamp, 1 minute), host, network.bytes_in",
-            equalTo("1:84: cannot group by on [counter_long] type for grouping [network.bytes_in]")
+            equalTo(
+                "1:84: cannot group by a metric field [network.bytes_in] in a time-series aggregation. "
+                    + "If you want to group by a metric field, use the FROM command instead of the TS command."
+            )
         );
         tsdb().error(
             "TS test | STATS avg(rate(network.bytes_in)) BY bucket(@timestamp, 1 minute), host, to_long(network.bytes_in)",
@@ -3579,6 +3979,14 @@ public class VerifierTests extends ESTestCase {
         );
 
         defaultAnalyzer().error(
+            randomFrom(sourceCommands) + "LIMIT 5 BY gender | INLINE STATS max(salary) BY gender",
+            containsString(
+                "INLINE STATS cannot be used after an explicit or implicit LIMIT command, "
+                    + "but was [INLINE STATS max(salary) BY gender] after [LIMIT 5 BY gender] [@"
+            )
+        );
+
+        defaultAnalyzer().error(
             randomFrom(sourceCommands) + "SORT languages | LIMIT 5 | INLINE STATS max(salary) BY gender",
             containsString(
                 "INLINE STATS cannot be used after an explicit or implicit LIMIT command, "
@@ -3827,6 +4235,18 @@ public class VerifierTests extends ESTestCase {
                     + "cannot cast [true] to [integer]"
             )
         );
+        fullText().error(
+            "from test | EVAL snippets = TOP_SNIPPETS(body, \"query\", {\"order\": \"invalid\"})",
+            equalTo("1:29: 'order' option must be 'score' or 'none', found [invalid]")
+        );
+        fullText().error(
+            "from test | EVAL snippets = TOP_SNIPPETS(body, \"query\", {\"analyzer\": \"\"})",
+            equalTo("1:29: 'analyzer' option must be a non-empty string")
+        );
+        fullText().error(
+            "from test | EVAL snippets = TOP_SNIPPETS(body, \"query\", {\"analyzer\": \"  \"})",
+            equalTo("1:29: 'analyzer' option must be a non-empty string")
+        );
     }
 
     public void testTimeSeriesWithUnsupportedDataType() {
@@ -3921,7 +4341,7 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testMetricsInfoCannotBeUsedAfterStats() {
-        k8s().error("TS k8s | STATS c = count(*) | METRICS_INFO", containsString("METRICS_INFO cannot be used after STATS command"));
+        k8s().error("TS k8s | STATS c = count(1) | METRICS_INFO", containsString("METRICS_INFO cannot be used after STATS command"));
     }
 
     public void testMetricsInfoCannotBeUsedAfterLimit() {
@@ -3941,7 +4361,7 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testTsInfoCannotBeUsedAfterStats() {
-        k8s().error("TS k8s | STATS c = count(*) | TS_INFO", containsString("TS_INFO cannot be used after STATS command"));
+        k8s().error("TS k8s | STATS c = count(1) | TS_INFO", containsString("TS_INFO cannot be used after STATS command"));
     }
 
     public void testTsInfoCannotBeUsedAfterLimit() {
@@ -3950,6 +4370,19 @@ public class VerifierTests extends ESTestCase {
 
     public void testTsInfoCannotBeUsedAfterSort() {
         k8s().error("TS k8s | SORT @timestamp | TS_INFO", containsString("TS_INFO cannot be used after SORT command"));
+    }
+
+    public void testDedupRejectsAggregateMetricDouble() {
+        assumeTrue("requires DEDUP", EsqlCapabilities.Cap.DEDUP_COMMAND.isEnabled());
+        k8sDownsampled().error(
+            "FROM k8s | KEEP network.eth0.tx | DEDUP",
+            containsString("cannot group by on [aggregate_metric_double] type for grouping [network.eth0.tx]")
+        );
+    }
+
+    public void testDedupRejectsAggregateMetricDoubleWhenInSchema() {
+        assumeTrue("requires DEDUP", EsqlCapabilities.Cap.DEDUP_COMMAND.isEnabled());
+        k8sDownsampled().error("FROM k8s | DEDUP", containsString("cannot group by on [aggregate_metric_double] type for grouping"));
     }
 
     private void checkVectorFunctionsNullArgs(String functionInvocation) throws Exception {
@@ -4096,11 +4529,17 @@ public class VerifierTests extends ESTestCase {
     }
 
     private static TestAnalyzer tsdb() {
-        return analyzer().addIndex("test", "tsdb-mapping.json").stripErrorPrefix(true);
+        return analyzer().addIndex("test", "tsdb-mapping.json")
+            .stripErrorPrefix(true)
+            .minimumTransportVersion(DimensionValues.DIMENSION_VALUES_VERSION);
     }
 
     private static TestAnalyzer k8s() {
         return analyzer().addK8s().stripErrorPrefix(true);
+    }
+
+    private static TestAnalyzer k8sDownsampled() {
+        return analyzer().addK8sDownsampled().stripErrorPrefix(true);
     }
 
     private static TestAnalyzer lookupJoinFullText() {

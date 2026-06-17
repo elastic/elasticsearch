@@ -63,6 +63,7 @@ import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.plugins.internal.DocumentParsingProvider;
 import org.elasticsearch.plugins.internal.XContentMeteringParserDecorator;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
@@ -154,11 +155,12 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
 
     @Override
     protected void shardOperationOnPrimary(
+        Task task,
         BulkShardRequest request,
         IndexShard primary,
         ActionListener<PrimaryResult<BulkShardRequest, BulkShardResponse>> listener
     ) {
-        primary.ensureMutable(listener.delegateFailure((l, ignored) -> super.shardOperationOnPrimary(request, primary, l)), true);
+        primary.ensureMutable(listener.delegateFailure((l, ignored) -> super.shardOperationOnPrimary(task, request, primary, l)), true);
     }
 
     @Override
@@ -181,15 +183,13 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         IndexShard primary,
         ActionListener<PrimaryResult<BulkShardRequest, BulkShardResponse>> outerListener
     ) {
-        var listener = ActionListener.releaseBefore(
-            indexingPressure.trackPrimaryOperationExpansion(
-                primaryOperationCount(request),
-                getMaxOperationMemoryOverhead(request),
-                force(request)
-            ),
-            outerListener
+        var pressureExpansionTracker = indexingPressure.trackPrimaryOperationExpansion(
+            primaryOperationCount(request),
+            getMaxOperationMemoryOverhead(request),
+            force(request)
         );
-        final BulkPrimaryExecutionContext context = new BulkPrimaryExecutionContext(request, primary);
+        var listener = ActionListener.releaseBefore(pressureExpansionTracker, outerListener);
+        final BulkPrimaryExecutionContext context = new BulkPrimaryExecutionContext(request, primary, pressureExpansionTracker);
         long startBatchTime = System.nanoTime();
         if (ShardBatchIndexer.canUseBatchIndexing(request, batchIndexingEnabled)) {
             ShardBatchIndexer.performBatchIndexOnPrimary(
@@ -779,7 +779,8 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         });
     }
 
-    private static long getMaxOperationMemoryOverhead(BulkShardRequest request) {
+    // visible for testing
+    public static long getMaxOperationMemoryOverhead(BulkShardRequest request) {
         return request.maxOperationSizeInBytes() * MAX_EXPANDED_OPERATION_MEMORY_OVERHEAD_FACTOR;
     }
 

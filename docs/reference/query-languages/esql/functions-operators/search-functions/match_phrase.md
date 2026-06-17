@@ -6,5 +6,5 @@ mapped_pages:
 
 # ES|QL `MATCH_PHRASE` function [esql-match_phrase]
 
-:::{include} ../../_snippets/functions/layout/match_phrase.md
+:::{include} ../../_snippets/generated/x-pack-esql/functions/layout/match_phrase.md
 :::

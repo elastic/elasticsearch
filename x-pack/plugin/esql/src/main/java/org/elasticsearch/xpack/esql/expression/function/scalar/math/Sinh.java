@@ -37,6 +37,7 @@ public class Sinh extends AbstractTrigonometricFunction {
 
     @FunctionInfo(
         returnType = "double",
+        briefSummary = "Returns the hyperbolic sine of a number.",
         description = "Returns the {wikipedia}/Hyperbolic_functions[hyperbolic sine] of a number.",
         examples = @Example(file = "floats", tag = "sinh")
     )

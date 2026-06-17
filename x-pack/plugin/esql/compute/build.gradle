@@ -4,6 +4,11 @@ apply plugin: 'elasticsearch.build'
 apply plugin: 'elasticsearch.string-templates'
 apply plugin: 'elasticsearch.publish'
 apply plugin: 'elasticsearch.transport-version-references'
+apply plugin: 'elasticsearch.esql-release'
+
+subprojects {
+  apply plugin: 'elasticsearch.esql-release'
+}
 
 base {
   archivesName = 'x-pack-esql-compute'
@@ -16,6 +21,7 @@ dependencies {
   compileOnly project(xpackModule('ml'))
   annotationProcessor project('gen')
   implementation 'com.carrotsearch:hppc:0.8.1'
+  implementation 'org.ow2.asm:asm:9.9'  // ConstantMethodResultSpecializer: runtime bytecode generation for @Fixed(jitConstant=true) evaluators
   api project(':libs:arrow')
   api project(':libs:exponential-histogram')
   implementation project(':libs:swisshash')
@@ -49,6 +55,10 @@ tasks.named('checkstyleMain').configure {
 tasks.named("test").configure {
   // Needed for Arrow tests
   jvmArgs('--add-opens=java.base/java.nio=ALL-UNNAMED')
+  // Run Arrow-using tests under Arrow's debug allocator so any use-after-free, double-free, or
+  // unreleased ArrowBuf fails deterministically with a stack trace at the offending allocation.
+  // Only affects tests that actually create an Arrow allocator; others are unchanged.
+  systemProperty 'arrow.memory.debug.allocator', 'true'
 }
 
 tasks.named("spotlessJava") { dependsOn "stringTemplates" }
@@ -608,6 +618,23 @@ tasks.named('stringTemplates').configure {
 
   generateTwoStateFiles(file("src/main/java/org/elasticsearch/compute/aggregation/X-2State.java.st"))
   generateTwoStateFiles(file("src/main/java/org/elasticsearch/compute/aggregation/X-All2State.java.st"), true, true, "All")
+
+  File legacyIrateAggregatorInputFile = file("src/main/java/org/elasticsearch/compute/aggregation/X-LegacyIrateAggregator.java.st")
+  template {
+    it.properties = intProperties
+    it.inputFile = legacyIrateAggregatorInputFile
+    it.outputFile = "org/elasticsearch/compute/aggregation/LegacyIrateIntAggregator.java"
+  }
+  template {
+    it.properties = longProperties
+    it.inputFile = legacyIrateAggregatorInputFile
+    it.outputFile = "org/elasticsearch/compute/aggregation/LegacyIrateLongAggregator.java"
+  }
+  template {
+    it.properties = doubleProperties
+    it.inputFile = legacyIrateAggregatorInputFile
+    it.outputFile = "org/elasticsearch/compute/aggregation/LegacyIrateDoubleAggregator.java"
+  }
 
   File irateAggregatorInputFile = file("src/main/java/org/elasticsearch/compute/aggregation/X-IrateAggregator.java.st")
   template {
@@ -1244,6 +1271,7 @@ tasks.named('stringTemplates').configure {
     props.forEach { p ->
       def properties = [:]
       p.forEach { k, v -> properties["v_" + k] = v }
+      properties["v_TailArray"] = properties["v_boolean"] ? "ByteArray" : properties["v_Array"]
       template {
         it.properties = properties
         it.inputFile = inputFile
@@ -1253,21 +1281,4 @@ tasks.named('stringTemplates').configure {
   }
 
   generateAggregatorClassesOnConstantType("src/main/java/org/elasticsearch/compute/aggregation/X-AnyValueAggregator.java.st")
-
-  File rateAggregatorInputFile = file("src/main/java/org/elasticsearch/compute/aggregation/X-RateGroupingAggregatorFunction.java.st")
-  template {
-    it.properties = intProperties
-    it.inputFile = rateAggregatorInputFile
-    it.outputFile = "org/elasticsearch/compute/aggregation/RateIntGroupingAggregatorFunction.java"
-  }
-  template {
-    it.properties = doubleProperties
-    it.inputFile = rateAggregatorInputFile
-    it.outputFile = "org/elasticsearch/compute/aggregation/RateDoubleGroupingAggregatorFunction.java"
-  }
-  template {
-    it.properties = longProperties
-    it.inputFile = rateAggregatorInputFile
-    it.outputFile = "org/elasticsearch/compute/aggregation/RateLongGroupingAggregatorFunction.java"
-  }
 }

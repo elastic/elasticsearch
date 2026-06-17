@@ -34,11 +34,12 @@ import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
-import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
+import org.elasticsearch.xpack.esql.plan.logical.Filter;
+import org.elasticsearch.xpack.esql.plan.logical.Project;
+import org.elasticsearch.xpack.esql.plan.logical.RemoteFetchSource;
+import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
-import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
-import org.elasticsearch.xpack.esql.plan.physical.RemoteFetchSourceExec;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.util.ArrayDeque;
@@ -456,7 +457,7 @@ public class RemoteFetchOperatorTests extends ESTestCase {
         ReferenceAttribute positionAttribute = new ReferenceAttribute(Source.EMPTY, null, "_remote_fetch_position", DataType.INTEGER);
         PhysicalPlan unsupportedPushdown = new LimitExec(
             Source.EMPTY,
-            new RemoteFetchSourceExec(Source.EMPTY, List.of(outputField, positionAttribute)),
+            new FragmentExec(new RemoteFetchSource(Source.EMPTY, List.of(outputField, positionAttribute))),
             new Literal(Source.EMPTY, 10, DataType.INTEGER),
             null
         );
@@ -743,20 +744,24 @@ public class RemoteFetchOperatorTests extends ESTestCase {
     private static PhysicalPlan pushdownPlan() {
         ReferenceAttribute fetchedAttribute = new ReferenceAttribute(Source.EMPTY, null, "salary", DataType.INTEGER);
         ReferenceAttribute positionAttribute = new ReferenceAttribute(Source.EMPTY, null, "_remote_fetch_position", DataType.INTEGER);
-        return new FilterExec(
-            Source.EMPTY,
-            new RemoteFetchSourceExec(Source.EMPTY, List.of(fetchedAttribute, positionAttribute)),
-            new GreaterThan(Source.EMPTY, fetchedAttribute, new Literal(Source.EMPTY, 0, DataType.INTEGER))
+        return new FragmentExec(
+            new Filter(
+                Source.EMPTY,
+                new RemoteFetchSource(Source.EMPTY, List.of(fetchedAttribute, positionAttribute)),
+                new GreaterThan(Source.EMPTY, fetchedAttribute, new Literal(Source.EMPTY, 0, DataType.INTEGER))
+            )
         );
     }
 
     private static PhysicalPlan nonFilteringPushdownPlan() {
         ReferenceAttribute fetchedAttribute = new ReferenceAttribute(Source.EMPTY, null, "salary", DataType.INTEGER);
         ReferenceAttribute positionAttribute = new ReferenceAttribute(Source.EMPTY, null, "_remote_fetch_position", DataType.INTEGER);
-        return new ProjectExec(
-            Source.EMPTY,
-            new RemoteFetchSourceExec(Source.EMPTY, List.of(fetchedAttribute, positionAttribute)),
-            List.of(fetchedAttribute)
+        return new FragmentExec(
+            new Project(
+                Source.EMPTY,
+                new RemoteFetchSource(Source.EMPTY, List.of(fetchedAttribute, positionAttribute)),
+                List.of(fetchedAttribute)
+            )
         );
     }
 

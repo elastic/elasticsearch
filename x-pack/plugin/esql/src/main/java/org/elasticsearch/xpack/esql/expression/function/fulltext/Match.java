@@ -497,7 +497,9 @@ public class Match extends SingleFieldFullTextFunction implements OptionalArgume
                         : ((Number) queryObject).longValue();
                 }
 
-                assert queryObject instanceof Long;
+                if (false == queryObject instanceof Long) {
+                    throw EsqlIllegalArgumentException.illegalDataType(query().dataType());
+                }
                 yield new MatchLongEvaluator.Factory(source(), toEvaluator.apply(field()), (Long) queryObject);
             }
             case INT -> new MatchIntegerEvaluator.Factory(

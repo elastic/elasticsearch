@@ -167,6 +167,7 @@ public class LogsdbRestIT extends ESRestTestCase {
     }
 
     public void testEsqlRuntimeFields() throws IOException {
+        assumeFalse("mapping-level runtime fields are not allowed in logsdb_columnar mode", columnarEnabled);
         String dataStreamName = "logs-test-esql-runtime-foo";
         var templateRequest = new Request("PUT", "/_index_template/logs-test-esql-runtime-template");
         templateRequest.setJsonEntity("""
@@ -469,6 +470,7 @@ public class LogsdbRestIT extends ESRestTestCase {
     }
 
     public void testSyntheticSourceRuntimeFieldQueries() throws IOException {
+        assumeFalse("mapping-level runtime fields are not allowed in logsdb_columnar mode", columnarEnabled);
         String dataStreamName = "logs-test-esql-synthetic-foo";
         var templateRequest = new Request("PUT", "/_index_template/logs-test-esql-synthetic-template");
         templateRequest.setJsonEntity("""

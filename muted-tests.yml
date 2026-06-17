@@ -620,12 +620,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
   method: test {csv-spec:date_nanos.implicit casting to nanos, date plus time to millis, equality test}
   issue: https://github.com/elastic/elasticsearch/issues/151536
-- class: org.elasticsearch.xpack.logsdb.LogsdbRestIT
-  method: testSyntheticSourceRuntimeFieldQueries
-  issue: https://github.com/elastic/elasticsearch/issues/151546
-- class: org.elasticsearch.xpack.logsdb.LogsdbRestIT
-  method: testEsqlRuntimeFields
-  issue: https://github.com/elastic/elasticsearch/issues/151547
 - class: org.elasticsearch.xpack.stateless.commits.StatelessFileDeletionIT
   method: testCommitsOfScrollAreDeletedAfterIndexIsClosedAndOpened
   issue: https://github.com/elastic/elasticsearch/issues/151558

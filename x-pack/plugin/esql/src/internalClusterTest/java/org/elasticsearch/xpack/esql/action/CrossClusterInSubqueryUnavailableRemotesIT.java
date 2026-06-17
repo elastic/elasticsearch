@@ -12,10 +12,14 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.cluster.metadata.View;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.xpack.esql.view.PutViewAction;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.action.CrossClusterSubqueryIT.assertClusterEsqlExecutionInfo;
@@ -42,6 +46,8 @@ public class CrossClusterInSubqueryUnavailableRemotesIT extends AbstractCrossClu
         assumeTrue("Requires IN subquery support", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITHOUT_VIEW.isEnabled());
         setupClusters(3);
         setupInSubqueryIndices();
+        // Local view whose body spans all remote clusters — used by the view+skip_unavailable tests.
+        createViewOnCluster(LOCAL_CLUSTER, "remote_events_red", "FROM *:events | WHERE color == \"red\"");
     }
 
     /**
@@ -109,7 +115,79 @@ public class CrossClusterInSubqueryUnavailableRemotesIT extends AbstractCrossClu
         }
     }
 
+    // ---- view + skip_unavailable ----
+
+    /**
+     * The outer {@code FROM} uses the local view {@code remote_events_red}, whose body is
+     * {@code FROM *:events | WHERE color == "red"} — this expands to a CCS query spanning all
+     * configured remote clusters. When {@code cluster-a} is disconnected and
+     * {@code skip_unavailable=true}, it is marked {@code SKIPPED} and the remaining clusters
+     * continue normally.
+     *
+     * <p>The IN subquery runs on the local cluster and is unaffected by the remote disconnect.
+     */
+    public void testViewInOuterFromWithDisconnectedRemoteClusterSkipUnavailableTrue() throws IOException {
+        setSkipUnavailable(REMOTE_CLUSTER_1, true);
+        setSkipUnavailable(REMOTE_CLUSTER_2, true);
+
+        try {
+            cluster(REMOTE_CLUSTER_1).close();
+
+            try (EsqlQueryResponse resp = runQuery("""
+                FROM remote_events_red
+                | WHERE id IN (FROM events | WHERE id <= 4 | KEEP id)
+                | STATS c = COUNT(*) BY tag
+                | SORT tag
+                """, randomBoolean())) {
+                EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
+                assertClusterEsqlExecutionInfo(executionInfo, LOCAL_CLUSTER, EsqlExecutionInfo.Cluster.Status.SUCCESSFUL);
+                assertClusterEsqlExecutionInfo(executionInfo, REMOTE_CLUSTER_1, EsqlExecutionInfo.Cluster.Status.SKIPPED);
+                assertClusterEsqlExecutionInfo(executionInfo, REMOTE_CLUSTER_2, EsqlExecutionInfo.Cluster.Status.SUCCESSFUL);
+                assertClusterEsqlExecutionInfoFailureReason(
+                    executionInfo,
+                    REMOTE_CLUSTER_1,
+                    "Remote cluster [cluster-a] (with setting skip_unavailable=true) is not available"
+                );
+            }
+        } finally {
+            clearSkipUnavailable(3);
+        }
+    }
+
+    /**
+     * Same setup as {@link #testViewInOuterFromWithDisconnectedRemoteClusterSkipUnavailableTrue},
+     * but with {@code skip_unavailable=false}: the query must fail with a remote-unavailable
+     * exception when {@code cluster-a} is disconnected.
+     */
+    public void testViewInOuterFromWithDisconnectedRemoteClusterSkipUnavailableFalse() throws IOException {
+        setSkipUnavailable(REMOTE_CLUSTER_1, false);
+        setSkipUnavailable(REMOTE_CLUSTER_2, false);
+
+        try {
+            cluster(REMOTE_CLUSTER_1).close();
+
+            Exception ex = expectThrows(ElasticsearchException.class, () -> runQuery("""
+                FROM remote_events_red
+                | WHERE id IN (FROM events | WHERE id <= 4 | KEEP id)
+                | STATS c = COUNT(*) BY tag
+                | SORT tag
+                """, randomBoolean()));
+            assertTrue(ExceptionsHelper.isRemoteUnavailableException(ex));
+        } finally {
+            clearSkipUnavailable(3);
+        }
+    }
+
     // ---- helpers ----
+
+    private void createViewOnCluster(String clusterAlias, String viewName, String query) {
+        assertAcked(
+            client(clusterAlias).execute(
+                PutViewAction.INSTANCE,
+                new PutViewAction.Request(TimeValue.THIRTY_SECONDS, TimeValue.THIRTY_SECONDS, new View(viewName, query))
+            ).actionGet(30, TimeUnit.SECONDS)
+        );
+    }
 
     /**
      * Creates the {@code events} index on each cluster with schema

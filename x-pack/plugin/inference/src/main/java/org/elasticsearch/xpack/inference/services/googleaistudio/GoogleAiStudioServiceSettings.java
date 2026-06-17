@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.inference.services.googleaistudio;
 
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
-public interface GoogleAiStudioRateLimitServiceSettings {
+public interface GoogleAiStudioServiceSettings {
 
     String modelId();
 

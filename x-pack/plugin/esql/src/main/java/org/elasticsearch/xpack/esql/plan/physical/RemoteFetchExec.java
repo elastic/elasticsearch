@@ -17,12 +17,21 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
+import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputAttributes;
+
 /**
  * Fetches deferred fields on the coordinator from remote shard owners using a transport-safe handle.
+ * <p>
+ * Remote fetch keeps two attribute lists because they represent different contracts:
+ * <ul>
+ *     <li>{@code attributesToFetch}: remote request schema (what the data node must load to execute fetch/pushdown)</li>
+ *     <li>{@code fetchedOutputAttributes}: coordinator output schema (what this node appends to its child output)</li>
+ * </ul>
+ * In simple fetch-only plans these lists can be identical. They diverge when pushdown requires extra internal attributes
+ * (for example position-mapping metadata) that should not appear in the final coordinator output.
  */
 public class RemoteFetchExec extends UnaryExec implements EstimatesRowSize {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
@@ -32,7 +41,13 @@ public class RemoteFetchExec extends UnaryExec implements EstimatesRowSize {
     );
 
     private final Attribute handleAttribute;
+    /**
+     * Attributes requested from remote shard owners. This list drives fetch request construction.
+     */
     private final List<Attribute> attributesToFetch;
+    /**
+     * Attributes appended to this node's output on the coordinator.
+     */
     private final List<Attribute> fetchedOutputAttributes;
     private final PhysicalPlan pushdownPlan;
     private List<Attribute> lazyOutput;
@@ -120,11 +135,7 @@ public class RemoteFetchExec extends UnaryExec implements EstimatesRowSize {
     @Override
     public List<Attribute> output() {
         if (lazyOutput == null) {
-            List<Attribute> childOutput = child().output();
-            List<Attribute> fetchedOutput = fetchedOutputAttributes();
-            lazyOutput = new ArrayList<>(childOutput.size() + fetchedOutput.size());
-            lazyOutput.addAll(childOutput);
-            lazyOutput.addAll(fetchedOutput);
+            lazyOutput = mergeOutputAttributes(fetchedOutputAttributes, child().output());
         }
         return lazyOutput;
     }
@@ -137,20 +148,16 @@ public class RemoteFetchExec extends UnaryExec implements EstimatesRowSize {
 
     @Override
     public int hashCode() {
-        return Objects.hash(child(), handleAttribute, attributesToFetch, fetchedOutputAttributes, pushdownPlan);
+        return Objects.hash(super.hashCode(), handleAttribute, attributesToFetch, fetchedOutputAttributes, pushdownPlan);
     }
 
     @Override
     public boolean equals(Object obj) {
-        if (this == obj) {
-            return true;
-        }
-        if (obj == null || getClass() != obj.getClass()) {
+        if (super.equals(obj) == false) {
             return false;
         }
         RemoteFetchExec other = (RemoteFetchExec) obj;
-        return Objects.equals(child(), other.child())
-            && Objects.equals(handleAttribute, other.handleAttribute)
+        return Objects.equals(handleAttribute, other.handleAttribute)
             && Objects.equals(attributesToFetch, other.attributesToFetch)
             && Objects.equals(fetchedOutputAttributes, other.fetchedOutputAttributes)
             && Objects.equals(pushdownPlan, other.pushdownPlan);

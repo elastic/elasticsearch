@@ -44,7 +44,10 @@ public class LibraryProcessor extends AbstractProcessor {
 
     @Override
     public SourceVersion getSupportedSourceVersion() {
-        return SourceVersion.RELEASE_21;
+        // We only inspect annotations, not language constructs, so we can claim support for whatever
+        // source version the toolchain compiles us against. The minimum bytecode target for *generated*
+        // classes is controlled separately by the -AjavaVersion processor option.
+        return SourceVersion.latestSupported();
     }
 
     @Override

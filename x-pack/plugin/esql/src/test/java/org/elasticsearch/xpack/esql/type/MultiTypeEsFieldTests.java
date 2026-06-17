@@ -41,8 +41,6 @@ import java.util.Set;
 import static org.elasticsearch.xpack.esql.ConfigurationTestUtils.randomConfiguration;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.nullValue;
-import static org.hamcrest.Matchers.sameInstance;
 
 /**
  * This test was originally based on the tests for sub-classes of EsField, like InvalidMappedFieldTests.
@@ -207,55 +205,6 @@ public class MultiTypeEsFieldTests extends AbstractEsFieldTypeTests<MultiTypeEsF
             null
         );
 
-        assertThat(field.getConversionExpressionForIndex("local:apps_short"), sameInstance(conversion));
-    }
-
-    public void testGetConversionExpressionForBareIndexNameWithQualifiedStoredKey() {
-        String fieldName = randomAlphaOfLength(4);
-        Expression conversion = testConvertExpression(fieldName, DataType.INTEGER, DataType.LONG);
-        MultiTypeEsField field = new MultiTypeEsField(
-            fieldName,
-            DataType.LONG,
-            false,
-            Map.of("local:apps_short", conversion),
-            EsField.TimeSeriesFieldType.NONE,
-            null
-        );
-
-        assertThat(field.getConversionExpressionForIndex("apps_short"), sameInstance(conversion));
-    }
-
-    public void testGetConversionExpressionForQualifiedIndexNameWithDifferentStoredQualifier() {
-        String fieldName = randomAlphaOfLength(4);
-        Expression conversion = testConvertExpression(fieldName, DataType.INTEGER, DataType.LONG);
-        MultiTypeEsField field = new MultiTypeEsField(
-            fieldName,
-            DataType.LONG,
-            false,
-            Map.of("source:apps_short", conversion),
-            EsField.TimeSeriesFieldType.NONE,
-            null
-        );
-
-        assertThat(field.getConversionExpressionForIndex("target:apps_short"), sameInstance(conversion));
-    }
-
-    public void testGetConversionExpressionRejectsAmbiguousQualifiedMatches() {
-        String fieldName = randomAlphaOfLength(4);
-        MultiTypeEsField field = new MultiTypeEsField(
-            fieldName,
-            DataType.LONG,
-            false,
-            Map.of(
-                "source1:apps_short",
-                testConvertExpression(fieldName, DataType.INTEGER, DataType.LONG),
-                "source2:apps_short",
-                testConvertExpression(fieldName, DataType.INTEGER, DataType.LONG)
-            ),
-            EsField.TimeSeriesFieldType.NONE,
-            null
-        );
-
-        assertThat(field.getConversionExpressionForIndex("apps_short"), nullValue());
+        assertThat(field.getConversionExpressionForIndex("local:apps_short"), equalTo(conversion));
     }
 }

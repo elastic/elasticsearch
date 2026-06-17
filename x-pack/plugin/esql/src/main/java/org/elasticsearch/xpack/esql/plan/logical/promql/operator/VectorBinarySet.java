@@ -7,9 +7,15 @@
 
 package org.elasticsearch.xpack.esql.plan.logical.promql.operator;
 
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
 
 public final class VectorBinarySet extends VectorBinaryOperator {
 
@@ -27,12 +33,36 @@ public final class VectorBinarySet extends VectorBinaryOperator {
     private final SetOp op;
 
     public VectorBinarySet(Source source, LogicalPlan left, LogicalPlan right, VectorMatch match, SetOp op) {
-        super(source, left, right, match, true, op);
+        // Set operators preserve the metric name (__name__); unlike arithmetic/comparison operators they do not drop it.
+        super(source, left, right, match, false, op);
         this.op = op;
     }
 
     public SetOp op() {
         return op;
+    }
+
+    /**
+     * A set operator combines series from both operands, so its output schema is the union of both label sets
+     * (deduplicated by name, left operand first). This differs from arithmetic/comparison operators, which
+     * require matching label sets. Only {@code or} (UNION) is currently translated; {@code and}/{@code unless}
+     * are rejected by the verifier before reaching translation.
+     */
+    @Override
+    public List<Attribute> output() {
+        List<Attribute> result = new ArrayList<>();
+        Set<String> names = new HashSet<>();
+        for (Attribute attr : left().output()) {
+            if (names.add(attr.name())) {
+                result.add(attr);
+            }
+        }
+        for (Attribute attr : right().output()) {
+            if (names.add(attr.name())) {
+                result.add(attr);
+            }
+        }
+        return result;
     }
 
     @Override

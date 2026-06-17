@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.esql.expression.function.TimestampAware;
 import org.elasticsearch.xpack.esql.expression.function.TimestampBoundsAware;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
 import org.elasticsearch.xpack.esql.parser.promql.PromqlLogicalPlanBuilder;
+import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinaryComparison;
@@ -42,6 +43,7 @@ import org.elasticsearch.xpack.esql.plan.logical.promql.selector.Selector;
 import java.io.IOException;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
@@ -405,6 +407,18 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
         }
 
         // Validate entire plan
+        // UNION set operators that form a contiguous chain from the root (e.g. `(a or b) or c`) are all
+        // considered "top-level": they are flattened into a single UnionAll during translation.
+        Set<VectorBinarySet> topLevelUnions = collectTopLevelUnionChain(p);
+        if (topLevelUnions.isEmpty() == false) {
+            // A connected chain of U union nodes has U+1 leaf operands (branches), which the translator combines
+            // into a single UnionAll. Reject chains exceeding the UnionAll branch limit with a clear message here
+            // rather than failing later during translation.
+            int branchCount = topLevelUnions.size() + 1;
+            if (Fork.exceedsMaxBranches(branchCount)) {
+                failures.add(fail(p, "PromQL set operator [or] supports up to [{}] operands, got [{}]", Fork.MAX_BRANCHES, branchCount));
+            }
+        }
         Holder<Boolean> root = new Holder<>(true);
         p.forEachDown(lp -> {
             switch (lp) {
@@ -487,8 +501,8 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
                             failures.add(fail(comp, "Comparisons [{}] between scalars must use the BOOL modifier", comp.op()));
                         }
                     }
-                    if (binaryOperator instanceof VectorBinarySet) {
-                        failures.add(fail(lp, "set operators are not supported at this time [{}]", lp.sourceText()));
+                    if (binaryOperator instanceof VectorBinarySet setOp) {
+                        verifySetOperator(failures, setOp, topLevelUnions.contains(setOp));
                     }
                     if (usesWithoutGrouping(binaryOperator.left()) || usesWithoutGrouping(binaryOperator.right())) {
                         failures.add(fail(lp, "binary expressions with WITHOUT are not supported at this time [{}]", lp.sourceText()));
@@ -503,6 +517,46 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
             }
             root.set(false);
         });
+    }
+
+    /**
+     * Set operators ({@code and}/{@code or}/{@code unless}) are only partially supported. Phase 1 allows the
+     * {@code or} (UNION) operator when it appears at the top level of the expression and both operands are
+     * instant vectors. Everything else ({@code and}/{@code unless}, non-top-level unions, scalar operands) is
+     * rejected here so the unsupported shapes fail with a clear message during analysis.
+     */
+    private static void verifySetOperator(Failures failures, VectorBinarySet setOp, boolean isTopLevelUnion) {
+        if (setOp.op() != VectorBinarySet.SetOp.UNION) {
+            failures.add(fail(setOp, "set operators are not supported at this time [{}]", setOp.sourceText()));
+            return;
+        }
+        if (isTopLevelUnion == false) {
+            failures.add(fail(setOp, "set operators are only supported at the top-level at this time [{}]", setOp.sourceText()));
+            return;
+        }
+        if (PromqlPlan.returnsScalar(setOp.left()) || PromqlPlan.returnsScalar(setOp.right())) {
+            failures.add(fail(setOp, "set operators are not supported at this time [{}]", setOp.sourceText()));
+        }
+    }
+
+    /**
+     * Collects the {@link VectorBinarySet} UNION nodes that form a contiguous chain starting at the plan root.
+     * PromQL {@code or} is left-associative, so {@code a or b or c} parses to {@code (a or b) or c}; explicit
+     * parentheses can also produce right-nested chains. All such union nodes are flattened into a single
+     * {@code UnionAll} during translation, so the verifier treats them all as top-level.
+     */
+    private static Set<VectorBinarySet> collectTopLevelUnionChain(LogicalPlan p) {
+        Set<VectorBinarySet> chain = new HashSet<>();
+        collectTopLevelUnionChain(p, chain);
+        return chain;
+    }
+
+    private static void collectTopLevelUnionChain(LogicalPlan p, Set<VectorBinarySet> chain) {
+        if (p instanceof VectorBinarySet setOp && setOp.op() == VectorBinarySet.SetOp.UNION) {
+            chain.add(setOp);
+            collectTopLevelUnionChain(setOp.left(), chain);
+            collectTopLevelUnionChain(setOp.right(), chain);
+        }
     }
 
     private static boolean usesWithoutGrouping(LogicalPlan plan) {

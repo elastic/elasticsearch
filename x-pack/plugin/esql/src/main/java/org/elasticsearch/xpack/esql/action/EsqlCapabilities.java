@@ -3077,6 +3077,11 @@ public class EsqlCapabilities {
          */
         PROMQL_HISTOGRAM_QUANTILE,
 
+        /**
+         * Support for the top-level PromQL {@code or} (UNION) set operator between two instant vectors.
+         */
+        PROMQL_SET_OPERATOR_UNION,
+
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
         ;

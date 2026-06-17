@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.Collections;
 import java.util.List;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.analyzer;
@@ -97,7 +98,8 @@ public class PromqlVerifierTests extends ESTestCase {
     }
 
     public void testLogicalSetBinaryOperators() {
-        List.of("and", "or", "unless").forEach(op -> {
+        // and/unless (INTERSECT/SUBTRACT) are not supported yet, regardless of operand types.
+        List.of("and", "unless").forEach(op -> {
             // metric op metric
             tsdb.error("PROMQL index=test step=5m foo " + op + " bar", containsString("set operators are not supported at this time"));
             // scalar op scalar
@@ -112,6 +114,45 @@ public class PromqlVerifierTests extends ESTestCase {
                 containsString("set operators are not supported at this time")
             );
         });
+    }
+
+    public void testUnionBetweenInstantVectorsIsSupported() {
+        // Top-level `or` (UNION) between two instant vectors is supported.
+        assertTrue(tsdb.query("PROMQL index=test step=5m network.bytes_in or network.connections").resolved());
+        // Left-associative chain of unions is also supported.
+        assertTrue(tsdb.query("PROMQL index=test step=5m network.bytes_in or network.bytes_out or network.connections").resolved());
+        // Common fallback idioms.
+        assertTrue(tsdb.query("PROMQL index=test step=5m rate(network.bytes_in[5m]) or irate(network.bytes_in[5m])").resolved());
+        assertTrue(tsdb.query("PROMQL index=test step=5m sum(rate(network.bytes_in[5m])) or vector(0)").resolved());
+    }
+
+    public void testUnionWithScalarOperandIsRejected() {
+        // Prometheus rejects set operators with scalar operands; so do we.
+        tsdb.error("PROMQL index=test step=5m 1 or 1", containsString("set operators are not supported at this time"));
+        tsdb.error("PROMQL index=test step=5m network.bytes_in or 1", containsString("set operators are not supported at this time"));
+        tsdb.error("PROMQL index=test step=5m 1 or network.bytes_in", containsString("set operators are not supported at this time"));
+        // expr or 0 must still fail (0 is a scalar), while expr or vector(0) is allowed.
+        tsdb.error("PROMQL index=test step=5m network.bytes_in or 0", containsString("set operators are not supported at this time"));
+    }
+
+    public void testNestedUnionIsRejected() {
+        // `or` is only supported at the top level; nested inside an aggregation it is rejected.
+        tsdb.error(
+            "PROMQL index=test step=5m sum(network.bytes_in or network.connections)",
+            containsString("set operators are only supported at the top-level at this time")
+        );
+    }
+
+    public void testUnionBranchLimit() {
+        // A union chain is translated into a single UnionAll, which supports up to Fork.MAX_BRANCHES (8) branches.
+        String maxOperands = String.join(" or ", Collections.nCopies(8, "network.bytes_in"));
+        assertTrue(tsdb.query("PROMQL index=test step=5m " + maxOperands).resolved());
+
+        String tooManyOperands = String.join(" or ", Collections.nCopies(9, "network.bytes_in"));
+        tsdb.error(
+            "PROMQL index=test step=5m " + tooManyOperands,
+            containsString("PromQL set operator [or] supports up to [8] operands, got [9]")
+        );
     }
 
     public void testPromqlInstantQuery() {

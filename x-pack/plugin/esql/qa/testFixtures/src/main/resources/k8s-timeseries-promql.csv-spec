@@ -1438,3 +1438,85 @@ value:double       | step:datetime
 37.69321892075542  | 2024-05-10T00:20:00.000Z
 38.29379072289092  | 2024-05-10T00:30:00.000Z
 ;
+
+// Set operator: top-level `or` (UNION).
+// Combines the series from both operands. The left operand wins where label sets overlap.
+set_operator_union_combines_series
+required_capability: promql_set_operator_union
+required_capability: fix_promql_time_bucket_v2
+PROMQL index=k8s step=1h set_union=(max by (cluster) (network.total_bytes_in{cluster="prod"}) or max by (cluster) (network.total_bytes_in))
+| SORT cluster;
+
+set_union:double | step:datetime            | cluster:keyword
+10277.0          | 2024-05-10T01:00:00.000Z | prod
+10797.0          | 2024-05-10T01:00:00.000Z | qa
+7403.0           | 2024-05-10T01:00:00.000Z | staging
+;
+
+// Left precedence: prod appears in both operands with the same grouping, so the left (max) value wins
+// over the right (sum) value.
+set_operator_union_left_precedence
+required_capability: promql_set_operator_union
+required_capability: fix_promql_time_bucket_v2
+PROMQL index=k8s step=1h set_union=(max by (cluster) (network.total_bytes_in{cluster="prod"}) or sum by (cluster) (network.total_bytes_in{cluster="prod"}))
+| SORT cluster;
+
+set_union:double | step:datetime            | cluster:keyword
+10277.0          | 2024-05-10T01:00:00.000Z | prod
+;
+
+// Fallback to zero: the left operand matches no series, so the right operand vector(0) provides a value.
+set_operator_union_vector_zero_fallback
+required_capability: promql_set_operator_union
+required_capability: fix_promql_time_bucket_v2
+PROMQL index=k8s step=1h set_union=(max by (cluster) (network.total_bytes_in{cluster="does_not_exist"}) or vector(0));
+
+set_union:double | step:datetime            | cluster:keyword
+0.0              | 2024-05-10T01:00:00.000Z | null
+;
+
+// rate(...) or irate(...) fallback idiom: both operands share the same (empty) label set, so the left
+// operand (rate) wins at every step where it has a value; irate fills steps where rate is absent.
+set_operator_union_rate_or_irate
+required_capability: promql_set_operator_union
+required_capability: fix_promql_time_bucket_v2
+required_capability: rate_with_interpolation_v3
+PROMQL index=k8s step=1m rate_or_irate=(round(avg(rate(network.bytes_in[1m])), 0.001) or round(avg(irate(network.bytes_in[1m])), 0.001))
+| SORT step | LIMIT 5;
+
+rate_or_irate:double | step:datetime
+11.636               | 2024-05-10T00:01:00.000Z
+5.938                | 2024-05-10T00:02:00.000Z
+7.434                | 2024-05-10T00:03:00.000Z
+5.03                 | 2024-05-10T00:04:00.000Z
+14.16                | 2024-05-10T00:05:00.000Z
+;
+
+// Heterogeneous groupings: the operands group by different labels (cluster vs pod), so their label sets never
+// overlap. Every series from both operands is kept; missing label columns are null-filled per branch.
+set_operator_union_heterogeneous_groupings
+required_capability: promql_set_operator_union
+required_capability: fix_promql_time_bucket_v2
+PROMQL index=k8s step=1h set_union=(max by (cluster) (network.total_bytes_in{cluster="prod"}) or max by (pod) (network.total_bytes_in{cluster="prod"}))
+| SORT cluster, pod;
+
+set_union:double | step:datetime            | cluster:keyword | pod:keyword
+10277.0          | 2024-05-10T01:00:00.000Z | prod            | null
+947.0            | 2024-05-10T01:00:00.000Z | null            | one
+9969.0           | 2024-05-10T01:00:00.000Z | null            | three
+10277.0          | 2024-05-10T01:00:00.000Z | null            | two
+;
+
+// Three-branch left-associative chain `a or b or c`. Each branch contributes its own cluster with left
+// precedence: prod from branch 0, qa from branch 1, and staging from the catch-all branch 2.
+set_operator_union_three_branch_chain
+required_capability: promql_set_operator_union
+required_capability: fix_promql_time_bucket_v2
+PROMQL index=k8s step=1h set_union=(max by (cluster) (network.total_bytes_in{cluster="prod"}) or max by (cluster) (network.total_bytes_in{cluster="qa"}) or sum by (cluster) (network.total_bytes_in))
+| SORT cluster;
+
+set_union:double | step:datetime            | cluster:keyword
+10277.0          | 2024-05-10T01:00:00.000Z | prod
+10797.0          | 2024-05-10T01:00:00.000Z | qa
+19227.0          | 2024-05-10T01:00:00.000Z | staging
+;

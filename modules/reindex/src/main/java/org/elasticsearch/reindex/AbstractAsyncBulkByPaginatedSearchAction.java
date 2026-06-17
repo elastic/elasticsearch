@@ -126,7 +126,7 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
     private final BiFunction<RequestWrapper<?>, PaginatedHitSource.Hit, RequestWrapper<?>> scriptApplier;
     private int lastBatchSize;
     /**
-     * The current scroll response being processed. Set atomically so that either {@link #prepareBulkRequest} or
+     * The current paginated search response being processed. Set atomically so that either {@link #prepareBulkRequest} or
      * {@link #finishHim(Exception, List, List, boolean)} can claim exclusive ownership of the remaining hits and release them exactly once.
      */
     private final AtomicReference<PaginatedSearchConsumableHitsResponse> currentPaginatedSearchResponse = new AtomicReference<>();

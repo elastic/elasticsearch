@@ -9,13 +9,17 @@ package org.elasticsearch.xpack.esql.expression.function.aggregate;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.elasticsearch.compute.data.HistogramBlock;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.AbstractAggregationTestCase;
 import org.elasticsearch.xpack.esql.expression.function.DocsV3Support;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
+import org.elasticsearch.xpack.esql.expression.function.scalar.histogram.ExtractHistogramComponent;
 
 import java.util.List;
 import java.util.function.Supplier;
@@ -30,6 +34,11 @@ public class MinOverTimeTests extends AbstractAggregationTestCase {
         }
     }
 
+    @Override
+    protected boolean canSerialize() {
+        return false;
+    }
+
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
         return MinTests.parameters();
@@ -37,7 +46,7 @@ public class MinOverTimeTests extends AbstractAggregationTestCase {
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        return new MinOverTime(source, args.get(0), AggregateFunction.NO_WINDOW);
+        return new MinOverTime(source, args.get(0), AggregateFunction.NO_WINDOW, Literal.NULL);
     }
 
     @Override
@@ -53,6 +62,38 @@ public class MinOverTimeTests extends AbstractAggregationTestCase {
     @Override
     public void testAggregateIntermediate() {
         assumeTrue("time-series aggregation doesn't support ungrouped", false);
+    }
+
+    @Override
+    public void testGroupingAggregate() {
+        if (testCase.getData().getFirst().type() == DataType.EXPONENTIAL_HISTOGRAM) {
+            // Can't execute the aggregator because additional inputs (e.g. timestamp) are missing; verify the surrogate structure instead.
+            assertExpHistogramSurrogate(buildFieldExpression(testCase));
+            return;
+        }
+        super.testGroupingAggregate();
+    }
+
+    private void assertExpHistogramSurrogate(Expression expression) {
+        assumeTrue("expression should have no type errors", expression.typeResolved().resolved());
+        Expression surrogate = ((SurrogateExpression) expression).surrogate();
+        assertNotNull(surrogate);
+        assertTrue(
+            "expected ExtractHistogramComponent, got: " + surrogate.getClass().getSimpleName(),
+            surrogate instanceof ExtractHistogramComponent
+        );
+        ExtractHistogramComponent extract = (ExtractHistogramComponent) surrogate;
+        assertTrue("expected HistogramMergeOverTime", extract.field() instanceof HistogramMergeOverTime);
+        assertEquals(HistogramBlock.Component.MIN.ordinal(), ((Literal) extract.componentOrdinal()).value());
+    }
+
+    @Override
+    public void testFold() {
+        assumeFalse(
+            "exponential histogram fold tested via HistogramMergeOverTimeTests",
+            testCase.getData().getFirst().type() == DataType.EXPONENTIAL_HISTOGRAM
+        );
+        super.testFold();
     }
 
     public static List<DocsV3Support.Param> signatureTypes(List<DocsV3Support.Param> params) {

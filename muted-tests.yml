@@ -1,4 +1,7 @@
 tests:
+- class: org.elasticsearch.simdvec.ESVectorUtilTests
+  method: testLogSumExpNQT
+  issue: https://github.com/elastic/elasticsearch/issues/151487
 - class: org.elasticsearch.packaging.test.PackagesSecurityAutoConfigurationTests
   method: test20SecurityNotAutoConfiguredOnReInstallation
   issue: https://github.com/elastic/elasticsearch/issues/112635
@@ -572,9 +575,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.optimizer.promql.PromqlGoldenTests
   method: testBinaryWithDifferentSelectors
   issue: https://github.com/elastic/elasticsearch/issues/151327
-- class: org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQBFloat16VectorsFormatTests
-  method: testSparseVectors
-  issue: https://github.com/elastic/elasticsearch/issues/151328
 - class: org.elasticsearch.index.engine.ThreadPoolMergeExecutorServiceDiskSpaceTests
   method: testUnavailableBudgetBlocksNewMergeTasksFromStartingExecution
   issue: https://github.com/elastic/elasticsearch/issues/151330
@@ -602,9 +602,6 @@ tests:
 - class: org.elasticsearch.upgrades.MultiVersionRepositoryAccessIT
   method: testUpgradeMovesRepoToNewMetaVersion
   issue: https://github.com/elastic/elasticsearch/issues/151391
-- class: org.elasticsearch.index.store.BytesReadRankFeatureIT
-  method: testRankFeaturePhaseEmptyDocIdsStillReportsDirectoryMetrics
-  issue: https://github.com/elastic/elasticsearch/issues/151392
 - class: org.elasticsearch.xpack.stateless.cluster.coordination.TransportConsistentClusterStateReadIT
   method: testWaitsUntilTheNodeRejoinsTheClusterToReturnAValidClusterState
   issue: https://github.com/elastic/elasticsearch/issues/151402
@@ -617,12 +614,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
   method: test {p0=esql/160_union_types/load four indices with single conversion function TO_IP}
   issue: https://github.com/elastic/elasticsearch/issues/151413
-- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
-  method: test {p0=search.vectors/40_knn_search/Vector rescoring has no effect for non-quantized vectors and provides same results as non-rescored knn}
-  issue: https://github.com/elastic/elasticsearch/issues/151418
-- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
-  method: test {p0=search.vectors/42_knn_search_flat/Vector rescoring has no effect for non-quantized vectors and provides same results as non-rescored knn}
-  issue: https://github.com/elastic/elasticsearch/issues/151453
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
+  method: test {feature:SUBQUERIES}
+  issue: https://github.com/elastic/elasticsearch/issues/149681
+- class: org.elasticsearch.xpack.esql.qa.multi_node.GenerativeIT
   method: test {feature:SUBQUERIES}
   issue: https://github.com/elastic/elasticsearch/issues/149681

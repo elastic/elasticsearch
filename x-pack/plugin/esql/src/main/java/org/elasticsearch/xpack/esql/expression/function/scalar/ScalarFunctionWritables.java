@@ -112,7 +112,6 @@ public class ScalarFunctionWritables {
         entries.add(MonthName.ENTRY);
         entries.add(RangeMax.ENTRY);
         entries.add(RangeMin.ENTRY);
-        entries.add(RemoteFetchHandleFunction.ENTRY);
         entries.add(IpPrefix.ENTRY);
         entries.add(Least.ENTRY);
         entries.add(ClampMax.ENTRY);

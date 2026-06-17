@@ -266,7 +266,7 @@ public abstract class GoldenTestCase extends ESTestCase {
 
         /**
          * Registers external datasets (a {@link ProjectMetadata} carrying the data-source / dataset definitions) so that
-         * {@code FROM <dataset>} references in the query are rewritten into external relations by @link DatasetRewriter}, mirroring
+         * {@code FROM <dataset>} references in the query are rewritten into external relations by {@link DatasetRewriter}, mirroring
          * {@code EsqlSession}. Must be paired with {@link #externalSourceResolution} so the analyzer can resolve those relations' schemas.
          */
         public TestBuilder datasetMetadata(ProjectMetadata datasetMetadata) {

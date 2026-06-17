@@ -354,16 +354,16 @@ public abstract class FullTextFunction extends Function
 
             plan.forEachDown(LogicalPlan.class, lp -> {
                 if (commandCheck.test(lp) == false) {
-                    if (lp instanceof ExternalRelation) {
-                        failures.add(fail(plan, "{} cannot be used after [{}]", typeErrorMsgProvider.apply(exp), lp.sourceText()));
-                        return;
-                    }
                     String sourceText = lp.sourceText();
-                    String errorMessage = sourceText.split(" ")[0].toUpperCase(Locale.ROOT);
-                    if (lp instanceof UnionAll) {
+                    String errorMessage;
+                    if (lp instanceof ExternalRelation) {
+                        errorMessage = "[" + sourceText + "]";
+                    } else if (lp instanceof UnionAll) {
                         errorMessage = sourceText.length() > Node.TO_STRING_MAX_WIDTH
                             ? sourceText.substring(0, Node.TO_STRING_MAX_WIDTH) + "..."
                             : sourceText;
+                    } else {
+                        errorMessage = sourceText.split(" ")[0].toUpperCase(Locale.ROOT);
                     }
                     failures.add(fail(plan, "{} cannot be used after {}", typeErrorMsgProvider.apply(exp), errorMessage));
                 }

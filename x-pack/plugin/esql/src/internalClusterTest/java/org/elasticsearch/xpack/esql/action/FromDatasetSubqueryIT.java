@@ -169,7 +169,7 @@ public class FromDatasetSubqueryIT extends AbstractEsqlIntegTestCase {
     public void cleanupRegistry() {
         for (String ds : CREATED_DATASETS) {
             try {
-                client().execute(DeleteDatasetAction.INSTANCE, deleteDatasetRequest(ds)).get(30, java.util.concurrent.TimeUnit.SECONDS);
+                client().execute(DeleteDatasetAction.INSTANCE, deleteDatasetRequest(ds)).actionGet(TIMEOUT);
             } catch (ResourceNotFoundException ignored) {
                 // already deleted by the test itself
             } catch (Exception e) {
@@ -177,8 +177,7 @@ public class FromDatasetSubqueryIT extends AbstractEsqlIntegTestCase {
             }
         }
         try {
-            client().execute(DeleteDataSourceAction.INSTANCE, deleteDataSourceRequest("local_ds"))
-                .get(30, java.util.concurrent.TimeUnit.SECONDS);
+            client().execute(DeleteDataSourceAction.INSTANCE, deleteDataSourceRequest("local_ds")).actionGet(TIMEOUT);
         } catch (ResourceNotFoundException ignored) {
             // already deleted by the test itself
         } catch (Exception e) {

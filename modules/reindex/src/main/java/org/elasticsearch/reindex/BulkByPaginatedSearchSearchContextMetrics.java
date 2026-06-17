@@ -17,14 +17,14 @@ import java.util.Locale;
 import java.util.Map;
 
 /**
- * Telemetry when bulk-by-scroll tasks fail because the keep-alive of the underlying search contexts expire
+ * Telemetry when bulk-by-paginated-search tasks fail because the keep-alive of the underlying search contexts expire
  */
-public class BulkByScrollSearchContextMetrics {
+public class BulkByPaginatedSearchSearchContextMetrics {
 
     public static final String SEARCH_CONTEXT_KEEPALIVE_EXPIRED_COUNTER = "es.bulk_by_scroll.search_context.keepalive_expired.total";
 
     /**
-     * The kind of async bulk-by-scroll operation running
+     * The kind of async bulk-by-paginated-search operation running
      */
     public static final String ATTRIBUTE_NAME_TASK_KIND = "es_bulk_by_scroll_task_kind";
 
@@ -37,7 +37,7 @@ public class BulkByScrollSearchContextMetrics {
 
     private final LongCounter searchContextKeepaliveExpiredCounter;
 
-    public BulkByScrollSearchContextMetrics(MeterRegistry meterRegistry) {
+    public BulkByPaginatedSearchSearchContextMetrics(MeterRegistry meterRegistry) {
         this.searchContextKeepaliveExpiredCounter = meterRegistry.registerLongCounter(
             SEARCH_CONTEXT_KEEPALIVE_EXPIRED_COUNTER,
             "Bulk-by-scroll tasks whose missing scroll/PIT contexts expired before the next refresh (heuristic)",
@@ -45,7 +45,7 @@ public class BulkByScrollSearchContextMetrics {
         );
     }
 
-    /** Which API started the bulk-by-scroll worker */
+    /** Which API started the bulk-by-paginated-search worker */
     public enum TaskKind {
         REINDEX,
         UPDATE_BY_QUERY,

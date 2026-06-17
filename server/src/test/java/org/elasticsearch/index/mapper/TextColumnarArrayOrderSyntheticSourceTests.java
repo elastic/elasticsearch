@@ -10,14 +10,14 @@
 package org.elasticsearch.index.mapper;
 
 /**
- * Round-trips synthetic {@code _source} for high-cardinality keyword fields in strictly columnar mode, which store their values in
- * document order with inline nulls ({@link MultiValuedBinaryDocValuesField.ArrayOrderInlineNull}) instead of a sidecar {@code .offsets}
- * field.
+ * Round-trips synthetic {@code _source} for high-cardinality text fields in strictly columnar mode, which store their values in document
+ * order with inline nulls ({@link MultiValuedBinaryDocValuesField.ArrayOrderInlineNull}) instead of a sidecar {@code .offsets} field. The
+ * value-exceeding-max-term-length case is covered by {@code TextFieldMapperTests#testColumnarArrayOrderWithValueExceedMaxTermLength}.
  */
-public class KeywordColumnarArrayOrderSyntheticSourceTests extends AbstractColumnarArrayOrderSyntheticSourceTestCase {
+public class TextColumnarArrayOrderSyntheticSourceTests extends AbstractColumnarArrayOrderSyntheticSourceTestCase {
 
     @Override
     protected String fieldTypeName() {
-        return "keyword";
+        return "text";
     }
 }

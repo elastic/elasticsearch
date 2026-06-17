@@ -446,10 +446,7 @@ public class PassThroughObjectMapperTests extends MapperServiceTestCase {
             );
 
             // The root-level alias "env" must resolve via the dotted passthrough prefix
-            assertNotNull(
-                "root alias 'env' should exist via dotted passthrough [" + indexMode + "]",
-                mapperService.fieldType("env")
-            );
+            assertNotNull("root alias 'env' should exist via dotted passthrough [" + indexMode + "]", mapperService.fieldType("env"));
         }
     }
 }

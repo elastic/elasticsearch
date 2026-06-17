@@ -634,13 +634,7 @@ public class FieldTypeLookupTests extends ESTestCase {
         // empty stub — no children registered directly on the PassThrough node
         PassThroughObjectMapper stub = createPassThroughMapper("attributes", Map.of(), 1);
 
-        FieldTypeLookup lookup = new FieldTypeLookup(
-            List.of(envField, serviceField),
-            List.of(),
-            List.of(stub),
-            List.of(),
-            true
-        );
+        FieldTypeLookup lookup = new FieldTypeLookup(List.of(envField, serviceField), List.of(), List.of(stub), List.of(), true);
 
         assertSame(envField.fieldType(), lookup.get("env"));
         assertSame(serviceField.fieldType(), lookup.get("service"));
@@ -658,13 +652,7 @@ public class FieldTypeLookupTests extends ESTestCase {
         MockFieldMapper deepField = new MockFieldMapper("path.to.my.field");
         PassThroughObjectMapper stub = createPassThroughMapper("path.to", Map.of(), 0);
 
-        FieldTypeLookup lookup = new FieldTypeLookup(
-            List.of(deepField),
-            List.of(),
-            List.of(stub),
-            List.of(),
-            true
-        );
+        FieldTypeLookup lookup = new FieldTypeLookup(List.of(deepField), List.of(), List.of(stub), List.of(), true);
 
         // alias is everything after "path.to." — so "my.field", not just "field"
         assertSame(deepField.fieldType(), lookup.get("my.field"));
@@ -719,13 +707,7 @@ public class FieldTypeLookupTests extends ESTestCase {
         MockFieldMapper rootEnv = new MockFieldMapper("env");  // concrete root field
         PassThroughObjectMapper stub = createPassThroughMapper("attributes", Map.of(), 1);
 
-        FieldTypeLookup lookup = new FieldTypeLookup(
-            randomizedList(envField, rootEnv),
-            List.of(),
-            List.of(stub),
-            List.of(),
-            true
-        );
+        FieldTypeLookup lookup = new FieldTypeLookup(randomizedList(envField, rootEnv), List.of(), List.of(stub), List.of(), true);
 
         assertSame(rootEnv.fieldType(), lookup.get("env"));
     }

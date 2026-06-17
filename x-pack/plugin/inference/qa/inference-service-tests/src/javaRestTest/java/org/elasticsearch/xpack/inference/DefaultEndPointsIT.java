@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.inference;
 
+import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseListener;
 import org.elasticsearch.common.Strings;

@@ -35,6 +35,7 @@ public class PromqlBuiltinFunctionDefinitions {
         .counterSupport(PromqlFunctionDefinition.CounterSupport.SUPPORTED)
         .description("Returns the scalar as a vector with no labels.")
         .example("vector(1)")
+        .stack(PromqlFunctionDefinition.STACK_PREVIEW_9_4_GA_9_5)
         .name("vector");
 
     static final PromqlFunctionDefinition SCALAR = PromqlFunctionDefinition.def()
@@ -44,23 +45,24 @@ public class PromqlBuiltinFunctionDefinitions {
             Returns the sample value of a single-element instant vector as a scalar. \
             If the input vector does not have exactly one element, scalar returns NaN.""")
         .example("scalar(sum(http_requests_total))")
+        .stack(PromqlFunctionDefinition.STACK_PREVIEW_9_4_GA_9_5)
         .name("scalar");
 
     static final PromqlFunctionDefinition YEAR = dateExtraction(ChronoField.YEAR).description(
         "Returns the year for each of the input timestamps (in UTC)."
-    ).example("year()").name("year");
+    ).example("year()").stack(PromqlFunctionDefinition.STACK_GA_9_5).name("year");
 
     static final PromqlFunctionDefinition MONTH = dateExtraction(ChronoField.MONTH_OF_YEAR).description(
         "Returns the month of the year for each of the input timestamps (in UTC). Returned values are from 1 to 12."
-    ).example("month()").name("month");
+    ).example("month()").stack(PromqlFunctionDefinition.STACK_GA_9_5).name("month");
 
     static final PromqlFunctionDefinition DAY_OF_MONTH = dateExtraction(ChronoField.DAY_OF_MONTH).description(
         "Returns the day of the month for each of the input timestamps (in UTC). Returned values are from 1 to 31."
-    ).example("day_of_month()").name("day_of_month");
+    ).example("day_of_month()").stack(PromqlFunctionDefinition.STACK_GA_9_5).name("day_of_month");
 
     static final PromqlFunctionDefinition DAY_OF_YEAR = dateExtraction(ChronoField.DAY_OF_YEAR).description(
         "Returns the day of the year for each of the input timestamps (in UTC). Returned values are from 1 to 366."
-    ).example("day_of_year()").name("day_of_year");
+    ).example("day_of_year()").stack(PromqlFunctionDefinition.STACK_GA_9_5).name("day_of_year");
 
     // DateExtract(DAY_OF_WEEK) returns 1=Mon..7=Sun; PromQL expects 0=Sun..6=Sat, so we apply % 7.
     static final PromqlFunctionDefinition DAY_OF_WEEK = PromqlFunctionDefinition.def()
@@ -84,15 +86,16 @@ public class PromqlBuiltinFunctionDefinitions {
             "Returns the day of the week for each of the input timestamps (in UTC). Returned values are from 0 to 6, where 0 means Sunday."
         )
         .example("day_of_week()")
+        .stack(PromqlFunctionDefinition.STACK_GA_9_5)
         .name("day_of_week");
 
     static final PromqlFunctionDefinition HOUR = dateExtraction(ChronoField.HOUR_OF_DAY).description(
         "Returns the hour of the day for each of the input timestamps (in UTC). Returned values are from 0 to 23."
-    ).example("hour()").name("hour");
+    ).example("hour()").stack(PromqlFunctionDefinition.STACK_GA_9_5).name("hour");
 
     static final PromqlFunctionDefinition MINUTE = dateExtraction(ChronoField.MINUTE_OF_HOUR).description(
         "Returns the minute of the hour for each of the input timestamps (in UTC). Returned values are from 0 to 59."
-    ).example("minute()").name("minute");
+    ).example("minute()").stack(PromqlFunctionDefinition.STACK_GA_9_5).name("minute");
 
     static final PromqlFunctionDefinition DAYS_IN_MONTH = PromqlFunctionDefinition.def()
         .dateTime(
@@ -112,6 +115,7 @@ public class PromqlBuiltinFunctionDefinitions {
             "Returns the number of days in the month for each of the input timestamps (in UTC). Returned values are from 28 to 31."
         )
         .example("days_in_month()")
+        .stack(PromqlFunctionDefinition.STACK_GA_9_5)
         .name("days_in_month");
 
     static final PromqlFunctionDefinition TIME = PromqlFunctionDefinition.def()
@@ -121,6 +125,7 @@ public class PromqlBuiltinFunctionDefinitions {
             Returns the number of seconds since January 1, 1970 UTC. \
             Note that this does not actually return the current time, but the time at which the expression is being evaluated.""")
         .example("time()")
+        .stack(PromqlFunctionDefinition.STACK_PREVIEW_9_4_GA_9_5)
         .name("time");
 
     static final PromqlFunctionDefinition ROUND = PromqlFunctionDefinition.def()
@@ -137,6 +142,7 @@ public class PromqlBuiltinFunctionDefinitions {
             "With a `to_nearest` argument, ties round up, matching Prometheus. Called with a single argument, a `NaN` input "
                 + "returns `0` instead of `NaN`."
         )
+        .stack(PromqlFunctionDefinition.STACK_PREVIEW_9_4_GA_9_5)
         .name("round");
 
     /**

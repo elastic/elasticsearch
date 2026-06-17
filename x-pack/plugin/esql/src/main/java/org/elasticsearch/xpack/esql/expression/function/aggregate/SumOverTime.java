@@ -57,6 +57,7 @@ public class SumOverTime extends TimeSeriesAggregateFunction
         .withinSeriesOverTime(SumOverTime::new)
         .description("Returns the sum of all values in the specified time range.")
         .example("sum_over_time(http_requests_total[5m])")
+        .stack(PromqlFunctionDefinition.STACK_PREVIEW_9_4_GA_9_5)
         .name("sum_over_time");
 
     @FunctionInfo(

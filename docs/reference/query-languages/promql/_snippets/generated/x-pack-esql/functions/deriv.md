@@ -2,7 +2,7 @@
 
 ## `deriv` [promql-fn-deriv]
 
-{applies_to}`stack: preview 9.4, ga 9.5` {applies_to}`serverless: ga`
+{applies_to}`stack: preview 9.4, ga 9.5`
 
 Calculates the per-second derivative of the time series using simple linear regression.
 

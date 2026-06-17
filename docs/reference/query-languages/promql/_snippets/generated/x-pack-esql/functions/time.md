@@ -2,7 +2,7 @@
 
 ## `time` [promql-fn-time]
 
-{applies_to}`stack: preview 9.4, ga 9.5` {applies_to}`serverless: ga`
+{applies_to}`stack: preview 9.4, ga 9.5`
 
 Returns the number of seconds since January 1, 1970 UTC. Note that this does not actually return the current time, but the time at which the expression is being evaluated.
 

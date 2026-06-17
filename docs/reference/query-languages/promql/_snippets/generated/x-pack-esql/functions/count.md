@@ -2,7 +2,7 @@
 
 ## `count` [promql-fn-count]
 
-{applies_to}`stack: preview 9.4, ga 9.5` {applies_to}`serverless: ga`
+{applies_to}`stack: preview 9.4, ga 9.5`
 
 Counts the number of elements in the input vector.
 

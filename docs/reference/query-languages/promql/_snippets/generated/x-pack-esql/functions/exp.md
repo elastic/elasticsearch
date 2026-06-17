@@ -2,7 +2,7 @@
 
 ## `exp` [promql-fn-exp]
 
-{applies_to}`stack: preview 9.4, ga 9.5` {applies_to}`serverless: ga`
+{applies_to}`stack: preview 9.4, ga 9.5`
 
 Calculates the exponential function for all elements in the input vector.
 

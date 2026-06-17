@@ -57,6 +57,7 @@ public class MaxOverTime extends TimeSeriesAggregateFunction
         .withinSeriesOverTime(MaxOverTime::new)
         .description("Returns the maximum value of all points in the specified time range.")
         .example("max_over_time(http_requests_total[5m])")
+        .stack(PromqlFunctionDefinition.STACK_PREVIEW_9_4_GA_9_5)
         .name("max_over_time");
 
     @FunctionInfo(

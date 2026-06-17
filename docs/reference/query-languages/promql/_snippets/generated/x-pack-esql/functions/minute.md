@@ -2,7 +2,7 @@
 
 ## `minute` [promql-fn-minute]
 
-{applies_to}`stack: preview 9.4, ga 9.5` {applies_to}`serverless: ga`
+{applies_to}`stack: ga 9.5`
 
 Returns the minute of the hour for each of the input timestamps (in UTC). Returned values are from 0 to 59.
 

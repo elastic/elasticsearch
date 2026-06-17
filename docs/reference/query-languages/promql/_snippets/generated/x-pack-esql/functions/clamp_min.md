@@ -2,7 +2,7 @@
 
 ## `clamp_min` [promql-fn-clamp_min]
 
-{applies_to}`stack: preview 9.4, ga 9.5` {applies_to}`serverless: ga`
+{applies_to}`stack: preview 9.4, ga 9.5`
 
 Clamps the sample values of all elements to have a lower limit of min.
 

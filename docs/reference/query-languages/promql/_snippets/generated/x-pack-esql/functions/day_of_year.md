@@ -2,7 +2,7 @@
 
 ## `day_of_year` [promql-fn-day_of_year]
 
-{applies_to}`stack: preview 9.4, ga 9.5` {applies_to}`serverless: ga`
+{applies_to}`stack: ga 9.5`
 
 Returns the day of the year for each of the input timestamps (in UTC). Returned values are from 1 to 366.
 

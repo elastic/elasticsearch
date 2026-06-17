@@ -2,7 +2,7 @@
 
 ## `rad` [promql-fn-rad]
 
-{applies_to}`stack: preview 9.4, ga 9.5` {applies_to}`serverless: ga`
+{applies_to}`stack: preview 9.4, ga 9.5`
 
 Converts input values from degrees to radians for all elements in the input vector.
 

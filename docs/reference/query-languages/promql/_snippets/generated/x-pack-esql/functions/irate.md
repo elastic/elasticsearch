@@ -2,7 +2,7 @@
 
 ## `irate` [promql-fn-irate]
 
-{applies_to}`stack: preview 9.4, ga 9.5` {applies_to}`serverless: ga`
+{applies_to}`stack: preview 9.4, ga 9.5`
 
 Calculates the per-second instant rate of increase based on the last two data points.
 

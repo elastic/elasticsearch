@@ -52,6 +52,7 @@ public class Rate extends TimeSeriesAggregateFunction implements OptionalArgumen
         .counterSupport(PromqlFunctionDefinition.CounterSupport.REQUIRED)
         .description("Calculates the per-second average rate of increase of the time series in the range vector.")
         .example("rate(http_requests_total[5m])")
+        .stack(PromqlFunctionDefinition.STACK_PREVIEW_9_4_GA_9_5)
         .differenceFromPrometheus(PromqlFunctionDefinition.RATE_FAMILY_NOTE)
         .name("rate");
 

@@ -61,6 +61,7 @@ public class Increase extends TimeSeriesAggregateFunction implements OptionalArg
         .counterSupport(PromqlFunctionDefinition.CounterSupport.REQUIRED)
         .description("Calculates the increase in the time series in the range vector, adjusting for counter resets.")
         .example("increase(http_requests_total[5m])")
+        .stack(PromqlFunctionDefinition.STACK_PREVIEW_9_4_GA_9_5)
         .differenceFromPrometheus(PromqlFunctionDefinition.RATE_FAMILY_NOTE)
         .name("increase");
 

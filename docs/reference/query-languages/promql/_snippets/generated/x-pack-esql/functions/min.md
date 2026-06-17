@@ -2,7 +2,7 @@
 
 ## `min` [promql-fn-min]
 
-{applies_to}`stack: preview 9.4, ga 9.5` {applies_to}`serverless: ga`
+{applies_to}`stack: preview 9.4, ga 9.5`
 
 Returns the minimum value across the input vector.
 

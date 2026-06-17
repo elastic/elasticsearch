@@ -47,6 +47,7 @@ public class Delta extends TimeSeriesAggregateFunction implements OptionalArgume
         .withinSeries(Delta::new)
         .description("Calculates the difference between the first and last value of each time series in a range vector.")
         .example("delta(cpu_temp_celsius[2h])")
+        .stack(PromqlFunctionDefinition.STACK_PREVIEW_9_4_GA_9_5)
         .differenceFromPrometheus(PromqlFunctionDefinition.GAUGE_FAMILY_NOTE)
         .name("delta");
 

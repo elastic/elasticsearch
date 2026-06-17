@@ -2,7 +2,7 @@
 
 ## `vector` [promql-fn-vector]
 
-{applies_to}`stack: preview 9.4, ga 9.5` {applies_to}`serverless: ga`
+{applies_to}`stack: preview 9.4, ga 9.5`
 
 Returns the scalar as a vector with no labels.
 

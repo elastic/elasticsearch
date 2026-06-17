@@ -2,7 +2,7 @@
 
 ## `stddev` [promql-fn-stddev]
 
-{applies_to}`stack: preview 9.4, ga 9.5` {applies_to}`serverless: ga`
+{applies_to}`stack: preview 9.4, ga 9.5`
 
 Calculates the population standard deviation across the input vector.
 

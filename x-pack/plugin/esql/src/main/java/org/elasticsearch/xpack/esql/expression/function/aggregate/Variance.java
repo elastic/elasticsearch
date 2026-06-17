@@ -43,6 +43,7 @@ public class Variance extends AggregateFunction implements ToAggregator {
         .acrossSeries(Variance::new)
         .description("Calculates the population variance across the input vector.")
         .example("stdvar(http_requests_total)")
+        .stack(PromqlFunctionDefinition.STACK_PREVIEW_9_4_GA_9_5)
         .name("stdvar");
 
     @FunctionInfo(

@@ -2,7 +2,7 @@
 
 ## `ceil` [promql-fn-ceil]
 
-{applies_to}`stack: preview 9.4, ga 9.5` {applies_to}`serverless: ga`
+{applies_to}`stack: preview 9.4, ga 9.5`
 
 Rounds the sample values of all elements up to the nearest integer.
 

@@ -2,7 +2,7 @@
 
 ## `quantile_over_time` [promql-fn-quantile_over_time]
 
-{applies_to}`stack: preview 9.4, ga 9.5` {applies_to}`serverless: ga`
+{applies_to}`stack: preview 9.4, ga 9.5`
 
 Returns the φ-quantile (0 ≤ φ ≤ 1) of the values in the specified time range.
 

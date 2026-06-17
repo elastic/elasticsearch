@@ -39,6 +39,7 @@ public class Abs extends UnaryScalarFunction {
         .unaryValueTransformation(Abs::new)
         .description("Returns the input vector with all sample values converted to their absolute value.")
         .example("abs(rate(http_requests_total[5m]))")
+        .stack(PromqlFunctionDefinition.STACK_PREVIEW_9_4_GA_9_5)
         .differenceFromPrometheus(
             "Preserves the input's integer or floating-point type instead of always returning a float. For the minimum "
                 + "`integer` or `long` value, whose absolute value cannot be represented, {{es}} returns `null` and "

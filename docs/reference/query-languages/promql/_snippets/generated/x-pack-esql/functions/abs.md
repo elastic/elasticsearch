@@ -2,7 +2,7 @@
 
 ## `abs` [promql-fn-abs]
 
-{applies_to}`stack: preview 9.4, ga 9.5` {applies_to}`serverless: ga`
+{applies_to}`stack: preview 9.4, ga 9.5`
 
 Returns the input vector with all sample values converted to their absolute value.
 

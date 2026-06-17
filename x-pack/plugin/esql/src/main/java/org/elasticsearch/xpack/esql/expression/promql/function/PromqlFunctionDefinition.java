@@ -7,9 +7,11 @@
 
 package org.elasticsearch.xpack.esql.expression.promql.function;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDatetime;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
@@ -43,6 +45,7 @@ public final class PromqlFunctionDefinition {
     private final List<String> examples;
     private final CounterSupport counterSupport;
     private final String differenceFromPrometheus;
+    private final List<StackAvailability> stack;
 
     @FunctionalInterface
     public interface FunctionBuilder {
@@ -145,7 +148,8 @@ public final class PromqlFunctionDefinition {
         List<PromqlParamInfo> params,
         List<String> examples,
         CounterSupport counterSupport,
-        String differenceFromPrometheus
+        String differenceFromPrometheus,
+        List<StackAvailability> stack
     ) {
         Objects.requireNonNull(name, "name cannot be null");
         Objects.requireNonNull(functionType, "functionType cannot be null");
@@ -179,6 +183,9 @@ public final class PromqlFunctionDefinition {
         this.counterSupport = counterSupport;
         // Optional: only set for functions whose Elasticsearch behavior diverges from the Prometheus reference.
         this.differenceFromPrometheus = differenceFromPrometheus;
+        // Stack availability rendered into the docs applies_to badge. Empty until declared; the docs generator rejects
+        // any registered function that leaves this unset.
+        this.stack = stack;
     }
 
     public String name() {
@@ -219,6 +226,15 @@ public final class PromqlFunctionDefinition {
      */
     public String differenceFromPrometheus() {
         return differenceFromPrometheus;
+    }
+
+    /**
+     * The {@code stack} availability entries rendered into this function's docs {@code applies_to} badge (for example
+     * {@code preview 9.4, ga 9.5}). Empty when the function has not declared its availability, which the docs generator
+     * treats as an error so every registered function must declare one.
+     */
+    public List<StackAvailability> stack() {
+        return stack;
     }
 
     @Override
@@ -277,6 +293,67 @@ public final class PromqlFunctionDefinition {
             + "from Prometheus's exact linear interpolation, particularly for small sample sets.";
 
     /**
+     * Stack (versioned Elasticsearch) releases that PromQL function documentation can reference. Kept as a small closed
+     * set so individual function definitions cannot introduce free-text version strings; add a constant here when a new
+     * release starts shipping PromQL functions. The rendered label is derived from {@link Version} so it cannot drift.
+     */
+    public enum PromqlDocsVersion {
+        V_9_4(Version.V_9_4_0),
+        V_9_5(Version.V_9_5_0);
+
+        private final Version version;
+
+        PromqlDocsVersion(Version version) {
+            this.version = version;
+        }
+
+        /** Major.minor label used inside an {@code applies_to} badge, for example {@code "9.4"}. */
+        String docsLabel() {
+            return version.major + "." + version.minor;
+        }
+    }
+
+    /**
+     * A single {@code stack} availability entry for a function's docs badge: a lifecycle state and the release it
+     * applies from, for example {@code preview 9.4} or {@code ga 9.5}.
+     */
+    public record StackAvailability(FunctionAppliesToLifecycle lifecycle, PromqlDocsVersion since) {
+        /**
+         * Renders this entry as it appears inside a {@code stack:} badge, for example {@code "preview 9.4"}.
+         * */
+        String appliesTo() {
+            return lifecycle.name().toLowerCase(Locale.ROOT) + " " + since.docsLabel();
+        }
+    }
+
+    /**
+     * Convenience factory for a {@code preview} stack availability entry.
+     */
+    public static StackAvailability preview(PromqlDocsVersion version) {
+        return new StackAvailability(FunctionAppliesToLifecycle.PREVIEW, version);
+    }
+
+    /**
+     * Convenience factory for a {@code ga} stack availability entry.
+     */
+    public static StackAvailability ga(PromqlDocsVersion version) {
+        return new StackAvailability(FunctionAppliesToLifecycle.GA, version);
+    }
+
+    /**
+     * Stack availability for PromQL functions that shipped as a preview in 9.4 and became generally available in 9.5.
+     */
+    public static final List<StackAvailability> STACK_PREVIEW_9_4_GA_9_5 = List.of(
+        preview(PromqlDocsVersion.V_9_4),
+        ga(PromqlDocsVersion.V_9_5)
+    );
+
+    /**
+     * Stack availability for PromQL functions first implemented (and generally available) in 9.5.
+     */
+    public static final List<StackAvailability> STACK_GA_9_5 = List.of(ga(PromqlDocsVersion.V_9_5));
+
+    /**
      * Scales a PromQL quantile φ (in the range [0, 1]) to the percentile value (in the range [0, 100]) expected by
      * the ES|QL {@code PERCENTILE} aggregation that PromQL {@code quantile} and {@code quantile_over_time} translate
      * into. Without this scaling, e.g. {@code quantile(1.0, x)} would collapse to the 0.01th percentile (≈ the
@@ -305,6 +382,7 @@ public final class PromqlFunctionDefinition {
         private List<PromqlParamInfo> params;
         private CounterSupport counterSupport = CounterSupport.UNSUPPORTED;
         private String differenceFromPrometheus;
+        private List<StackAvailability> stack = List.of();
 
         public PromqlFunctionDefinition.Builder counterSupport(CounterSupport counterSupport) {
             this.counterSupport = counterSupport;
@@ -322,6 +400,18 @@ public final class PromqlFunctionDefinition {
          */
         public PromqlFunctionDefinition.Builder differenceFromPrometheus(String differenceFromPrometheus) {
             this.differenceFromPrometheus = differenceFromPrometheus;
+            return this;
+        }
+
+        /**
+         * Declares the {@code stack} availability rendered into the function's docs {@code applies_to} badge. Use the
+         * {@link PromqlFunctionDefinition#STACK_PREVIEW_9_4_GA_9_5} / {@link PromqlFunctionDefinition#STACK_GA_9_5}
+         * presets for the common cases. Serverless availability is intentionally not declared here: implemented PromQL
+         * functions are generally available in serverless, which is stated once at the docs page level rather than
+         * repeated per function. (When a function first ships as a serverless preview, add a serverless entry here.)
+         */
+        public PromqlFunctionDefinition.Builder stack(List<StackAvailability> stack) {
+            this.stack = stack;
             return this;
         }
 
@@ -524,7 +614,8 @@ public final class PromqlFunctionDefinition {
                 params,
                 examples,
                 counterSupport,
-                differenceFromPrometheus
+                differenceFromPrometheus,
+                stack
             );
         }
     }

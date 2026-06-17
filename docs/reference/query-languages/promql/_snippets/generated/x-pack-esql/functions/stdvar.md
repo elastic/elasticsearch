@@ -2,7 +2,7 @@
 
 ## `stdvar` [promql-fn-stdvar]
 
-{applies_to}`stack: preview 9.4, ga 9.5` {applies_to}`serverless: ga`
+{applies_to}`stack: preview 9.4, ga 9.5`
 
 Calculates the population variance across the input vector.
 

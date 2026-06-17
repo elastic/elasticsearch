@@ -2,7 +2,7 @@
 
 ## `scalar` [promql-fn-scalar]
 
-{applies_to}`stack: preview 9.4, ga 9.5` {applies_to}`serverless: ga`
+{applies_to}`stack: preview 9.4, ga 9.5`
 
 Returns the sample value of a single-element instant vector as a scalar. If the input vector does not have exactly one element, scalar returns NaN.
 

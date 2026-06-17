@@ -45,6 +45,7 @@ public class AbsentOverTime extends TimeSeriesAggregateFunction implements Aggre
         .counterSupport(PromqlFunctionDefinition.CounterSupport.SUPPORTED)
         .description("Returns true if the range vector has no elements.")
         .example("absent_over_time(nonexistent_metric[5m])")
+        .stack(PromqlFunctionDefinition.STACK_PREVIEW_9_4_GA_9_5)
         .differenceFromPrometheus(
             "Evaluated per series and per time bucket: returns `true` (PromQL `1`) when the bucket has no samples and "
                 + "`false` (PromQL `0`) otherwise. This differs from Prometheus in two ways: Prometheus returns an empty "

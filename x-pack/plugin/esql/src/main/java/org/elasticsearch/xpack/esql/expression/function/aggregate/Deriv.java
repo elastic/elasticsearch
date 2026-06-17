@@ -48,6 +48,7 @@ public class Deriv extends TimeSeriesAggregateFunction implements ToAggregator, 
         .withinSeries(Deriv::new)
         .description("Calculates the per-second derivative of the time series using simple linear regression.")
         .example("deriv(node_memory_free_bytes[5m])")
+        .stack(PromqlFunctionDefinition.STACK_PREVIEW_9_4_GA_9_5)
         .differenceFromPrometheus(
             PromqlFunctionDefinition.GAUGE_FAMILY_NOTE
                 + " When fewer than two samples are available or the regression slope is undefined, the result is "

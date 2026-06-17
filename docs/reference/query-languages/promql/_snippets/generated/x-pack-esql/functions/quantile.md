@@ -2,7 +2,7 @@
 
 ## `quantile` [promql-fn-quantile]
 
-{applies_to}`stack: preview 9.4, ga 9.5` {applies_to}`serverless: ga`
+{applies_to}`stack: preview 9.4, ga 9.5`
 
 Returns the φ-quantile (0 ≤ φ ≤ 1) of the values across the input vector.
 

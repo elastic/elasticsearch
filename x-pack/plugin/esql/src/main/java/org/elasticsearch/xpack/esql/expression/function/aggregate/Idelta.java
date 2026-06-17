@@ -47,6 +47,7 @@ public class Idelta extends TimeSeriesAggregateFunction implements OptionalArgum
         .withinSeries(Idelta::new)
         .description("Calculates the difference between the last two samples of each time series in a range vector.")
         .example("idelta(cpu_temp_celsius[5m])")
+        .stack(PromqlFunctionDefinition.STACK_PREVIEW_9_4_GA_9_5)
         .differenceFromPrometheus(PromqlFunctionDefinition.GAUGE_FAMILY_NOTE)
         .name("idelta");
 

@@ -2,7 +2,7 @@
 
 ## `round` [promql-fn-round]
 
-{applies_to}`stack: preview 9.4, ga 9.5` {applies_to}`serverless: ga`
+{applies_to}`stack: preview 9.4, ga 9.5`
 
 Rounds the sample values to the nearest integer, or to the nearest multiple of the optional argument.
 

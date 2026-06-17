@@ -2,7 +2,7 @@
 
 ## `days_in_month` [promql-fn-days_in_month]
 
-{applies_to}`stack: preview 9.4, ga 9.5` {applies_to}`serverless: ga`
+{applies_to}`stack: ga 9.5`
 
 Returns the number of days in the month for each of the input timestamps (in UTC). Returned values are from 28 to 31.
 

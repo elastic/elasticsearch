@@ -2,7 +2,7 @@
 
 ## `delta` [promql-fn-delta]
 
-{applies_to}`stack: preview 9.4, ga 9.5` {applies_to}`serverless: ga`
+{applies_to}`stack: preview 9.4, ga 9.5`
 
 Calculates the difference between the first and last value of each time series in a range vector.
 

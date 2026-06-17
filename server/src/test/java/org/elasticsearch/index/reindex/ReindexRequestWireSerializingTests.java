@@ -27,18 +27,18 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Objects;
 
-import static org.elasticsearch.index.reindex.BulkByScrollWireSerializingTestUtils.fillRandomBulkFields;
-import static org.elasticsearch.index.reindex.BulkByScrollWireSerializingTestUtils.mutateAbstractBulkByScrollRequest;
-import static org.elasticsearch.index.reindex.BulkByScrollWireSerializingTestUtils.randomRemoteInfo;
-import static org.elasticsearch.index.reindex.BulkByScrollWireSerializingTestUtils.randomResumeInfo;
-import static org.elasticsearch.index.reindex.BulkByScrollWireSerializingTestUtils.reindexRequestsEqual;
-import static org.elasticsearch.index.reindex.BulkByScrollWireSerializingTestUtils.resumeInfoOptionalContentHashCode;
+import static org.elasticsearch.index.reindex.BulkByPaginatedSearchWireSerializingTestUtils.fillRandomBulkFields;
+import static org.elasticsearch.index.reindex.BulkByPaginatedSearchWireSerializingTestUtils.mutateAbstractBulkByScrollRequest;
+import static org.elasticsearch.index.reindex.BulkByPaginatedSearchWireSerializingTestUtils.randomRemoteInfo;
+import static org.elasticsearch.index.reindex.BulkByPaginatedSearchWireSerializingTestUtils.randomResumeInfo;
+import static org.elasticsearch.index.reindex.BulkByPaginatedSearchWireSerializingTestUtils.reindexRequestsEqual;
+import static org.elasticsearch.index.reindex.BulkByPaginatedSearchWireSerializingTestUtils.resumeInfoOptionalContentHashCode;
 
 public class ReindexRequestWireSerializingTests extends AbstractWireSerializingTestCase<ReindexRequestWireSerializingTests.Wrapper> {
 
     @Override
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
-        return BulkByScrollWireSerializingTestUtils.bulkScrollRequestNamedWriteableRegistry();
+        return BulkByPaginatedSearchWireSerializingTestUtils.bulkScrollRequestNamedWriteableRegistry();
     }
 
     @Override

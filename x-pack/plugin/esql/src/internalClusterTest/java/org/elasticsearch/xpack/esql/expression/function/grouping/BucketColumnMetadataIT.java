@@ -14,6 +14,7 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.xpack.esql.action.AbstractEsqlIntegTestCase;
 import org.elasticsearch.xpack.esql.action.ColumnInfoImpl;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
@@ -30,6 +31,8 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoTimeout;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 public class BucketColumnMetadataIT extends AbstractEsqlIntegTestCase {
@@ -49,6 +52,15 @@ public class BucketColumnMetadataIT extends AbstractEsqlIntegTestCase {
         assumeTrue("requires column_metadata_bucket capability", EsqlCapabilities.Cap.COLUMN_METADATA_BUCKET.isEnabled());
     }
 
+    /**
+     * Builds the expected bucket metadata map for a date BUCKET with the given range and interval/unit.
+     */
+    private static Map<String, Object> dateRangeMeta(String fromStr, String toStr, long interval, String unit) {
+        long start = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis(fromStr);
+        long end = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis(toStr);
+        return Map.of("bucket", Map.of("interval", interval, "unit", unit, "start", start, "end", end));
+    }
+
     public void testBucketColumnMetadata() {
         client().prepareIndex("dates")
             .setSource("date", "1985-07-09T00:00:00.000Z")
@@ -60,7 +72,10 @@ public class BucketColumnMetadataIT extends AbstractEsqlIntegTestCase {
         try (var response = run(syncEsqlQueryRequest("""
             FROM dates | STATS date=VALUES(date) BY bucket=BUCKET(date, 20, "1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z")
             """))) {
-            assertThat(findColumn(response, "bucket").meta(), equalTo(Map.of("bucket", Map.of("interval", 1L, "unit", "month"))));
+            assertThat(
+                findColumn(response, "bucket").meta(),
+                equalTo(dateRangeMeta("1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z", 1L, "month"))
+            );
         }
     }
 
@@ -77,7 +92,7 @@ public class BucketColumnMetadataIT extends AbstractEsqlIntegTestCase {
             """))) {
             assertThat(
                 findColumn(response, "BUCKET(date, 20, \"1985-01-01T00:00:00Z\", \"1986-01-01T00:00:00Z\")").meta(),
-                equalTo(Map.of("bucket", Map.of("interval", 1L, "unit", "month")))
+                equalTo(dateRangeMeta("1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z", 1L, "month"))
             );
         }
     }
@@ -95,7 +110,10 @@ public class BucketColumnMetadataIT extends AbstractEsqlIntegTestCase {
             | STATS date=VALUES(date) BY bucket=BUCKET(date, 20, "1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z")
             | KEEP date, bucket
             """))) {
-            assertThat(findColumn(response, "bucket").meta(), equalTo(Map.of("bucket", Map.of("interval", 1L, "unit", "month"))));
+            assertThat(
+                findColumn(response, "bucket").meta(),
+                equalTo(dateRangeMeta("1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z", 1L, "month"))
+            );
         }
     }
 
@@ -112,7 +130,10 @@ public class BucketColumnMetadataIT extends AbstractEsqlIntegTestCase {
             | STATS date=VALUES(date) BY bucket=BUCKET(date, 20, "1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z")
             | EVAL bucket_renamed = bucket
             """))) {
-            assertThat(response.columns().get(1).meta(), equalTo(Map.of("bucket", Map.of("interval", 1L, "unit", "month"))));
+            assertThat(
+                response.columns().get(1).meta(),
+                equalTo(dateRangeMeta("1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z", 1L, "month"))
+            );
             assertThat(findColumn(response, "bucket_renamed").meta(), nullValue());
         }
     }
@@ -176,7 +197,10 @@ public class BucketColumnMetadataIT extends AbstractEsqlIntegTestCase {
             FROM
                 (FROM dates | STATS date=VALUES(date) BY date_bucket=BUCKET(date, 20, "1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z"))
             """))) {
-            assertThat(findColumn(response, "date_bucket").meta(), equalTo(Map.of("bucket", Map.of("interval", 1L, "unit", "month"))));
+            assertThat(
+                findColumn(response, "date_bucket").meta(),
+                equalTo(dateRangeMeta("1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z", 1L, "month"))
+            );
         }
     }
 
@@ -211,7 +235,10 @@ public class BucketColumnMetadataIT extends AbstractEsqlIntegTestCase {
             assertThat(findColumn(response, "number_bucket").meta(), nullValue());
         }
         try (var response = run(syncEsqlQueryRequest("FROM date-stats"))) {
-            assertThat(findColumn(response, "date_bucket").meta(), equalTo(Map.of("bucket", Map.of("interval", 1L, "unit", "month"))));
+            assertThat(
+                findColumn(response, "date_bucket").meta(),
+                equalTo(dateRangeMeta("1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z", 1L, "month"))
+            );
         }
 
         client().execute(
@@ -244,7 +271,10 @@ public class BucketColumnMetadataIT extends AbstractEsqlIntegTestCase {
             | SORT number
             | STATS count() BY date_bucket
             """))) {
-            assertThat(findColumn(response, "date_bucket").meta(), equalTo(Map.of("bucket", Map.of("interval", 1L, "unit", "month"))));
+            assertThat(
+                findColumn(response, "date_bucket").meta(),
+                equalTo(dateRangeMeta("1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z", 1L, "month"))
+            );
         }
         // introducing bucket in subsequent aggregation
         try (var response = run(syncEsqlQueryRequest("""
@@ -253,7 +283,10 @@ public class BucketColumnMetadataIT extends AbstractEsqlIntegTestCase {
             | SORT number
             | STATS count() BY date_bucket=BUCKET(date, 20, "1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z")
             """))) {
-            assertThat(findColumn(response, "date_bucket").meta(), equalTo(Map.of("bucket", Map.of("interval", 1L, "unit", "month"))));
+            assertThat(
+                findColumn(response, "date_bucket").meta(),
+                equalTo(dateRangeMeta("1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z", 1L, "month"))
+            );
         }
     }
 
@@ -271,7 +304,10 @@ public class BucketColumnMetadataIT extends AbstractEsqlIntegTestCase {
                 date_bucket=BUCKET(date, 20, "1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z"),
                 number_bucket=BUCKET(number, 10)
             """))) {
-            assertThat(findColumn(response, "date_bucket").meta(), equalTo(Map.of("bucket", Map.of("interval", 1L, "unit", "month"))));
+            assertThat(
+                findColumn(response, "date_bucket").meta(),
+                equalTo(dateRangeMeta("1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z", 1L, "month"))
+            );
             assertThat(findColumn(response, "number_bucket").meta(), equalTo(Map.of("bucket", Map.of("interval", 10.0))));
         }
     }
@@ -290,7 +326,10 @@ public class BucketColumnMetadataIT extends AbstractEsqlIntegTestCase {
                 BY date_bucket=BUCKET(date, 20, "1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z")
              | STATS count() BY date_bucket, number_bucket=BUCKET(number, 10)
             """))) {
-            assertThat(findColumn(response, "date_bucket").meta(), equalTo(Map.of("bucket", Map.of("interval", 1L, "unit", "month"))));
+            assertThat(
+                findColumn(response, "date_bucket").meta(),
+                equalTo(dateRangeMeta("1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z", 1L, "month"))
+            );
             assertThat(findColumn(response, "number_bucket").meta(), equalTo(Map.of("bucket", Map.of("interval", 10.0))));
         }
         try (var response = run(syncEsqlQueryRequest("""
@@ -362,7 +401,10 @@ public class BucketColumnMetadataIT extends AbstractEsqlIntegTestCase {
             FROM dates
             | INLINE STATS c=COUNT(*) BY bucket=BUCKET(date, 20, "1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z")
             """))) {
-            assertThat(findColumn(response, "bucket").meta(), equalTo(Map.of("bucket", Map.of("interval", 1L, "unit", "month"))));
+            assertThat(
+                findColumn(response, "bucket").meta(),
+                equalTo(dateRangeMeta("1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z", 1L, "month"))
+            );
         }
     }
 
@@ -380,7 +422,7 @@ public class BucketColumnMetadataIT extends AbstractEsqlIntegTestCase {
             """))) {
             assertThat(
                 findColumn(response, "BUCKET(date, 20, \"1985-01-01T00:00:00Z\", \"1986-01-01T00:00:00Z\")").meta(),
-                equalTo(Map.of("bucket", Map.of("interval", 1L, "unit", "month")))
+                equalTo(dateRangeMeta("1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z", 1L, "month"))
             );
         }
     }
@@ -393,6 +435,7 @@ public class BucketColumnMetadataIT extends AbstractEsqlIntegTestCase {
 
         waitForAllTasks();
 
+        long knownStart = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("1999-01-01T00:00:00.000Z");
         try (var response = run(syncEsqlQueryRequest("""
             FROM test
             | EVAL bucket_start = TO_DATETIME("1999-01-01T00:00:00.000Z")
@@ -400,7 +443,41 @@ public class BucketColumnMetadataIT extends AbstractEsqlIntegTestCase {
             | STATS COUNT(*) BY bucket = BUCKET(date, 5, bucket_start, bucket_end)
             | SORT bucket
             """))) {
-            assertThat(findColumn(response, "bucket").meta(), equalTo(Map.of("bucket", Map.of("interval", 1L, "unit", "year"))));
+            Map<String, Object> meta = findColumn(response, "bucket").meta();
+            assertThat(meta, notNullValue());
+            @SuppressWarnings("unchecked")
+            Map<String, Object> inner = (Map<String, Object>) meta.get("bucket");
+            assertThat(inner.get("interval"), equalTo(1L));
+            assertThat(inner.get("unit"), equalTo("year"));
+            assertThat(inner.get("start"), equalTo(knownStart));
+            assertThat(inner.get("end"), instanceOf(Long.class));
+            assertThat(inner.get("end"), notNullValue());
+        }
+    }
+
+    public void testBucketColumnMetadataStartEndPresentAndCorrect() {
+        // Documents the contract: the 4-arg date BUCKET always surfaces "start" and "end" epoch-millis
+        // in addition to "interval" and "unit". Verifies the exact parsed values so they can't drift.
+        client().prepareIndex("dates")
+            .setSource("date", "1985-07-09T00:00:00.000Z")
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .get();
+
+        waitForAllTasks();
+
+        long expectedStart = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("1985-01-01T00:00:00Z");
+        long expectedEnd = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("1986-01-01T00:00:00Z");
+        try (var response = run(syncEsqlQueryRequest("""
+            FROM dates | STATS c=COUNT(*) BY b=BUCKET(date, 20, "1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z")
+            """))) {
+            Map<String, Object> meta = findColumn(response, "b").meta();
+            assertThat(meta, notNullValue());
+            @SuppressWarnings("unchecked")
+            Map<String, Object> inner = (Map<String, Object>) meta.get("bucket");
+            assertThat(inner.get("interval"), equalTo(1L));
+            assertThat(inner.get("unit"), equalTo("month"));
+            assertThat(inner.get("start"), equalTo(expectedStart));
+            assertThat(inner.get("end"), equalTo(expectedEnd));
         }
     }
 

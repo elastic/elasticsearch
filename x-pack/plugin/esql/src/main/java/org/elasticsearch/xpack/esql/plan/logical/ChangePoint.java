@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.esql.plan.logical;
 
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.operator.ChangePointOperator;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.esql.LicenseAware;
 import org.elasticsearch.xpack.esql.SupportsObservabilityTier;
@@ -18,17 +19,20 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.NamedExpressions;
 import org.elasticsearch.xpack.esql.expression.Order;
+import org.elasticsearch.xpack.esql.expression.function.grouping.BucketColumnMetadata;
 import org.elasticsearch.xpack.ml.MachineLearning;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.xpack.esql.SupportsObservabilityTier.ObservabilityTier.COMPLETE;
@@ -215,5 +219,15 @@ public class ChangePoint extends UnaryPlan
     @Override
     public boolean licenseCheck(XPackLicenseState state) {
         return MachineLearning.CHANGE_POINT_AGG_FEATURE.check(state);
+    }
+
+    /**
+     * If the {@link #key} column is produced by a {@link org.elasticsearch.xpack.esql.expression.function.grouping.Bucket} function
+     * upstream, returns that bucket's metadata (interval, unit, and — for the 4-arg date form — start and end epoch millis).
+     * Returns {@code null} if the key is not backed by a BUCKET or the BUCKET's parameters are not foldable.
+     */
+    @Nullable
+    public Map<String, Object> keyBucketMetadata(FoldContext foldContext) {
+        return BucketColumnMetadata.findBucketMetadataForAttribute(child(), key.id(), foldContext);
     }
 }

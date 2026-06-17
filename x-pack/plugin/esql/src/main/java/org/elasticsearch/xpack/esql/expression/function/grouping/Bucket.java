@@ -637,7 +637,7 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
         return configuration.equals(other.configuration) && offset == other.offset && roundingConvention == other.roundingConvention;
     }
 
-    protected Map<String, Object> getIntervalMetadata(FoldContext foldContext) {
+    public Map<String, Object> getIntervalMetadata(FoldContext foldContext) {
         if ((buckets.foldable() && (from == null || from.foldable()) && (to == null || to.foldable())) == false) {
             return null;
         }
@@ -652,6 +652,11 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
             }
             Rounding rounding = getDateRounding(foldContext).getUnprepared();
             Rounding.Interval interval = rounding.getInterval();
+            if (from != null && to != null) {
+                long start = foldToLong(foldContext, from);
+                long end = foldToLong(foldContext, to);
+                return Map.of("bucket", Map.of("interval", interval.size(), "unit", interval.unit(), "start", start, "end", end));
+            }
             return Map.of("bucket", Map.of("interval", interval.size(), "unit", interval.unit()));
         }
         if (fieldType.isNumeric()) {

@@ -135,6 +135,7 @@ import org.elasticsearch.xpack.esql.evaluator.command.GrokEvaluatorExtracter;
 import org.elasticsearch.xpack.esql.evaluator.command.UserAgentFunctionBridge;
 import org.elasticsearch.xpack.esql.expression.Foldables;
 import org.elasticsearch.xpack.esql.expression.Order;
+import org.elasticsearch.xpack.esql.expression.function.grouping.BucketColumnMetadata;
 import org.elasticsearch.xpack.esql.inference.InferenceService;
 import org.elasticsearch.xpack.esql.inference.completion.CompletionOperator;
 import org.elasticsearch.xpack.esql.inference.rerank.RerankOperator;
@@ -1854,7 +1855,12 @@ public class LocalExecutionPlanner {
             .stream()
             .map(g -> getAttributeChannel(g, layout, "CHANGE_POINT BY expression must be an attribute"))
             .toList();
-        return source.with(new ChangePointOperator.Factory(valueChannel, groupingChannels, changePoint.source()), layout);
+        Map<String, Object> keyBucketMeta = BucketColumnMetadata.findBucketMetadataForAttribute(
+            changePoint.child(),
+            changePoint.key().id(),
+            context.foldCtx()
+        );
+        return source.with(new ChangePointOperator.Factory(valueChannel, groupingChannels, changePoint.source(), keyBucketMeta), layout);
     }
 
     private PhysicalOperation planSample(SampleExec rsx, LocalExecutionPlannerContext context) {

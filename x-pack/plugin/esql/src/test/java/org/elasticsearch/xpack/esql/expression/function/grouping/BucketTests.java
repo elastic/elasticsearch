@@ -251,7 +251,8 @@ public class BucketTests extends AbstractConfigurationFunctionTestCase {
                             + "rounding=Rounding[DAY_OF_MONTH in Z][fixed to midnight]]",
                         DataType.DATETIME,
                         resultsMatcher(args)
-                    ).withConfiguration(TEST_SOURCE, configurationForTimezone(ZoneOffset.UTC)).withExtra(META_DAY_1);
+                    ).withConfiguration(TEST_SOURCE, configurationForTimezone(ZoneOffset.UTC))
+                        .withExtra(expectedDateMetadataForRange("2023-02-01T00:00:00.00Z", "2023-03-01T09:00:00.00Z", 1L, "day"));
                 }));
                 // same as above, but a low bucket count and datetime bounds that match it (at hour span)
                 suppliers.add(new TestCaseSupplier(name, List.of(DataType.DATETIME, DataType.INTEGER, fromType, toType), () -> {
@@ -265,7 +266,8 @@ public class BucketTests extends AbstractConfigurationFunctionTestCase {
                         "DateTruncDatetimeEvaluator[fieldVal=Attribute[channel=0], rounding=Rounding[3600000 in Z][fixed]]",
                         DataType.DATETIME,
                         equalTo(Rounding.builder(Rounding.DateTimeUnit.HOUR_OF_DAY).build().prepareForUnknown().round(date.getAsLong()))
-                    ).withConfiguration(TEST_SOURCE, configurationForTimezone(ZoneOffset.UTC)).withExtra(META_HOUR_1);
+                    ).withConfiguration(TEST_SOURCE, configurationForTimezone(ZoneOffset.UTC))
+                        .withExtra(expectedDateMetadataForRange("2023-02-17T09:00:00Z", "2023-02-17T12:00:00Z", 1L, "hour"));
                 }));
             }
         }
@@ -288,7 +290,8 @@ public class BucketTests extends AbstractConfigurationFunctionTestCase {
                         Matchers.containsString("rounding=Rounding[WEEK_OF_WEEKYEAR in Z][fixed to midnight]"),
                         DataType.DATETIME,
                         equalTo(Rounding.builder(Rounding.DateTimeUnit.WEEK_OF_WEEKYEAR).build().prepareForUnknown().round(date))
-                    ).withConfiguration(TEST_SOURCE, configurationForTimezone(ZoneOffset.UTC)).withExtra(META_WEEK_1);
+                    ).withConfiguration(TEST_SOURCE, configurationForTimezone(ZoneOffset.UTC))
+                        .withExtra(expectedDateMetadataForRange("2024-01-31T00:00:00Z", "2024-02-02T00:00:00Z", 1L, "week"));
                 }
             )
         );
@@ -309,7 +312,8 @@ public class BucketTests extends AbstractConfigurationFunctionTestCase {
                         Matchers.containsString("rounding=Rounding[MONTH_OF_YEAR in Z][fixed to midnight]"),
                         DataType.DATETIME,
                         equalTo(Rounding.builder(Rounding.DateTimeUnit.MONTH_OF_YEAR).build().prepareForUnknown().round(date))
-                    ).withConfiguration(TEST_SOURCE, configurationForTimezone(ZoneOffset.UTC)).withExtra(META_MONTH_1);
+                    ).withConfiguration(TEST_SOURCE, configurationForTimezone(ZoneOffset.UTC))
+                        .withExtra(expectedDateMetadataForRange("2024-01-07T00:00:00Z", "2024-01-09T00:00:00Z", 1L, "month"));
                 }
             )
         );
@@ -537,7 +541,8 @@ public class BucketTests extends AbstractConfigurationFunctionTestCase {
                             + "rounding=Rounding[DAY_OF_MONTH in Z][fixed to midnight]]",
                         DataType.DATE_NANOS,
                         resultsMatcher(args)
-                    ).withConfiguration(TEST_SOURCE, configurationForTimezone(ZoneOffset.UTC)).withExtra(META_DAY_1);
+                    ).withConfiguration(TEST_SOURCE, configurationForTimezone(ZoneOffset.UTC))
+                        .withExtra(expectedDateMetadataForRange("2023-02-01T00:00:00.00Z", "2023-03-01T09:00:00.00Z", 1L, "day"));
                 }));
                 // same as above, but a low bucket count and datetime bounds that match it (at hour span)
                 suppliers.add(new TestCaseSupplier(name, List.of(DataType.DATE_NANOS, DataType.INTEGER, fromType, toType), () -> {
@@ -551,7 +556,8 @@ public class BucketTests extends AbstractConfigurationFunctionTestCase {
                         "DateTruncDateNanosEvaluator[fieldVal=Attribute[channel=0], rounding=Rounding[3600000 in Z][fixed]]",
                         DataType.DATE_NANOS,
                         equalTo(Rounding.builder(Rounding.DateTimeUnit.HOUR_OF_DAY).build().prepareForUnknown().round(date.getAsLong()))
-                    ).withConfiguration(TEST_SOURCE, configurationForTimezone(ZoneOffset.UTC)).withExtra(META_HOUR_1);
+                    ).withConfiguration(TEST_SOURCE, configurationForTimezone(ZoneOffset.UTC))
+                        .withExtra(expectedDateMetadataForRange("2023-02-17T09:00:00Z", "2023-02-17T12:00:00Z", 1L, "hour"));
                 }));
             }
         }
@@ -658,6 +664,16 @@ public class BucketTests extends AbstractConfigurationFunctionTestCase {
         return equalTo(((Number) typedData.get(0).data()).doubleValue());
     }
 
+    /**
+     * Returns the full metadata map for a date BUCKET with a specific range, including
+     * {@code "start"} and {@code "end"} epoch-millis.
+     */
+    private static Map<String, Object> expectedDateMetadataForRange(String fromStr, String toStr, long interval, String unit) {
+        long start = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis(fromStr);
+        long end = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis(toStr);
+        return Map.of("bucket", Map.of("interval", interval, "unit", unit, "start", start, "end", end));
+    }
+
     @Override
     protected Expression buildWithConfiguration(Source source, List<Expression> args, Configuration configuration) {
         Expression from = null;
@@ -722,6 +738,15 @@ public class BucketTests extends AbstractConfigurationFunctionTestCase {
             assertThat(inner.get("interval"), instanceOf(Long.class));
             assertThat(inner, hasKey("unit"));
             assertThat(inner.get("unit"), instanceOf(String.class));
+            if (bucket.from() != null) {
+                assertThat(inner, hasKey("start"));
+                assertThat(inner.get("start"), instanceOf(Long.class));
+                assertThat(inner, hasKey("end"));
+                assertThat(inner.get("end"), instanceOf(Long.class));
+            } else {
+                assertThat(inner.containsKey("start"), equalTo(false));
+                assertThat(inner.containsKey("end"), equalTo(false));
+            }
         } else if (fieldType.isNumeric()) {
             assertThat(inner.get("interval"), instanceOf(Double.class));
             assertThat(inner.containsKey("unit"), equalTo(false));

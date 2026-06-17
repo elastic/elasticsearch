@@ -77,7 +77,7 @@ public class ChangePointOperatorTests extends OperatorTestCase {
 
     @Override
     protected Operator.OperatorFactory simple(SimpleOptions options) {
-        return new ChangePointOperator.Factory(0, List.of(), new TestWarningsSource(null));
+        return new ChangePointOperator.Factory(0, List.of(), new TestWarningsSource(null), null);
     }
 
     @Override
@@ -103,7 +103,7 @@ public class ChangePointOperatorTests extends OperatorTestCase {
     public void testGroupedFactoryDescribe() {
         // The OperatorTestCase-driven simple() above exercises the ungrouped form (groupingChannels=[]).
         // This asserts that grouping channels round-trip into the factory's describe() output.
-        var factory = new ChangePointOperator.Factory(0, List.of(1, 2), new TestWarningsSource(null));
+        var factory = new ChangePointOperator.Factory(0, List.of(1, 2), new TestWarningsSource(null), null);
         assertThat(factory.describe(), equalTo("ChangePointOperator[channel=0, groupingChannels=[1, 2]]"));
     }
 

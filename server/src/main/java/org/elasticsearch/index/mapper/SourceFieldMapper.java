@@ -529,6 +529,11 @@ public class SourceFieldMapper extends MetadataFieldMapper {
      *
      */
     private static boolean isRedundantInColumnarStoredSource(String fieldName) {
+        // A less expense check to avoid more string comparison:
+        if (fieldName.indexOf('_') == -1) {
+            return false;
+        }
+
         String counts = MultiValuedBinaryDocValuesField.SeparateCount.COUNT_FIELD_SUFFIX;
         return IgnoredSourceFieldMapper.NAME.equals(fieldName)
             || (IgnoredSourceFieldMapper.NAME + counts).equals(fieldName)

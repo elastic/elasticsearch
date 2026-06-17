@@ -56,7 +56,7 @@ final class ColumnarSourceWriter {
     private static final int[] DOC_IDS = new int[] { DOC_ID };
 
     private final SourceFilter sourceFilter;
-    private final ThreadLocal<ColumnarPerThread> cachedColumnarPerThread;
+    private final ThreadLocal<PerThreadResources> cachedColumnarPerThread;
 
     ColumnarSourceWriter(SourceFilter sourceFilter) {
         this.sourceFilter = sourceFilter;
@@ -66,7 +66,7 @@ final class ColumnarSourceWriter {
     void write(DocumentParserContext context, XContentBuilder builder) throws IOException {
         // It is safe to reuse synthetic loader and leaf loader for each thread per index.
         // Because a new mapping will result into a new instance of this class and otherwise materialized mappings stay immutable.
-        ColumnarPerThread perThread = cachedColumnarPerThread.get();
+        PerThreadResources perThread = cachedColumnarPerThread.get();
         if (perThread == null) {
             final Mapping mapping = context.mappingLookup().getMapping();
             SourceLoader.SyntheticFieldLoader fieldLoader = mapping.syntheticFieldLoader(sourceFilter);
@@ -75,18 +75,17 @@ final class ColumnarSourceWriter {
                 return fieldLoader;
             }, SourceFieldMetrics.NOOP, mapping.ignoredSourceFormat());
 
-            ReusableColumnarStoredLeafReader reader = new ReusableColumnarStoredLeafReader();
-            LeafReaderContext leafCtx = reader.getContext();
-            SourceLoader.Leaf leaf = sourceLoader.leaf(reader, DOC_IDS);
-            perThread = new ColumnarPerThread(sourceLoader, reader, leafCtx, fieldLoader, leaf);
+            ReusableColumnarStoredLeafReader leafReader = new ReusableColumnarStoredLeafReader();
+            SourceLoader.Leaf leaf = sourceLoader.leaf(leafReader, DOC_IDS);
+            perThread = new PerThreadResources(sourceLoader, fieldLoader, leaf, leafReader);
             cachedColumnarPerThread.set(perThread);
         }
 
-        perThread.reader().repopulate(context.doc());
-        perThread.loader().reset();
+        perThread.leafReader().repopulate(context.doc());
+        perThread.fieldLoader().reset();
         final SourceLoader.Synthetic sourceLoader = perThread.sourceLoader;
-        final SourceLoader.Leaf leaf = perThread.leaf();
-        final LeafReaderContext leafCtx = perThread.leafCtx();
+        final SourceLoader.Leaf leaf = perThread.sourceLoaderLeaf();
+        final LeafReaderContext leafCtx = perThread.leafReader.getContext();
 
         // TODO: in columnar there shouldn't exist any store fields and so we can use StoredFieldLoader.empty() here.
         var storedFieldLoader = StoredFieldLoader.create(false, sourceLoader.requiredStoredFields()).getLoader(leafCtx, DOC_IDS);
@@ -94,13 +93,12 @@ final class ColumnarSourceWriter {
         leaf.write(storedFieldLoader, DOC_ID, builder);
     }
 
-    private record ColumnarPerThread(
+    private record PerThreadResources(
         SourceLoader.Synthetic sourceLoader,
-        ReusableColumnarStoredLeafReader reader,
-        LeafReaderContext leafCtx,
-        SourceLoader.SyntheticFieldLoader loader,
-        SourceLoader.Leaf leaf
-    ) {}
+        SourceLoader.SyntheticFieldLoader fieldLoader,
+        SourceLoader.Leaf sourceLoaderLeaf,
+        ReusableColumnarStoredLeafReader leafReader
+        ) {}
 
     static class ReusableColumnarStoredLeafReader extends LeafReader {
 

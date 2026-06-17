@@ -176,7 +176,7 @@ public class S3AnonymousAccessTests extends ESTestCase {
         S3Configuration config = S3Configuration.fromFields(null, null, null, "us-east-1", "workload_identity");
         assertNotNull(config);
         assertTrue(config.isWorkloadIdentity());
-        var provider = new S3StorageProvider(null, null).credentialsProvider(config);
+        var provider = S3StorageProvider.forTesting(null, null).credentialsProvider(config);
         assertThat(provider, instanceOf(software.amazon.awssdk.auth.credentials.AwsCredentialsProviderChain.class));
     }
 
@@ -189,7 +189,7 @@ public class S3AnonymousAccessTests extends ESTestCase {
         var injected = software.amazon.awssdk.auth.credentials.StaticCredentialsProvider.create(
             software.amazon.awssdk.auth.credentials.AwsBasicCredentials.create("test-key", "test-secret")
         );
-        var provider = new S3StorageProvider(null, null) {
+        var provider = new S3StorageProvider(null, null, null) {
             @Override
             protected software.amazon.awssdk.auth.credentials.AwsCredentialsProvider buildWorkloadIdentityCredentialsProvider() {
                 return injected;

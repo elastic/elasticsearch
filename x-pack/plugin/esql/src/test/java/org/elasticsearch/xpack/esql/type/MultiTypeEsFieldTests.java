@@ -41,6 +41,7 @@ import java.util.Set;
 import static org.elasticsearch.xpack.esql.ConfigurationTestUtils.randomConfiguration;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.sameInstance;
 
 /**
  * This test was originally based on the tests for sub-classes of EsField, like InvalidMappedFieldTests.
@@ -205,6 +206,6 @@ public class MultiTypeEsFieldTests extends AbstractEsFieldTypeTests<MultiTypeEsF
             null
         );
 
-        assertThat(field.getConversionExpressionForIndex("local:apps_short"), equalTo(conversion));
+        assertThat(field.getConversionExpressionForIndex("local:apps_short"), sameInstance(conversion));
     }
 }

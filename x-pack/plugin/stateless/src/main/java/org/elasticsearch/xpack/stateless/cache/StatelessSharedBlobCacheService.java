@@ -62,7 +62,7 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
     public static final Setting<TimeValue> STATELESS_CACHE_BOOST_PREFERENCE_PINNED_WINDOW_DURATION_SETTING = Setting.timeSetting(
         "stateless.cache_boost_preference.pinned_window.duration",
         TimeValue.timeValueDays(1),
-        TimeValue.timeValueHours(1),
+        TimeValue.timeValueSeconds(1),
         Setting.Property.OperatorDynamic,
         Setting.Property.NodeScope
     );

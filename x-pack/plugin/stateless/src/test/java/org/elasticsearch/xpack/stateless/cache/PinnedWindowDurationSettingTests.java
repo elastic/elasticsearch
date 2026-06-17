@@ -31,7 +31,9 @@ import static org.hamcrest.Matchers.equalTo;
 public class PinnedWindowDurationSettingTests extends ESTestCase {
 
     public void testDurationBelowMinimumRejected() {
-        Settings settings = Settings.builder().put(STATELESS_CACHE_BOOST_PREFERENCE_PINNED_WINDOW_DURATION_SETTING.getKey(), "30m").build();
+        Settings settings = Settings.builder()
+            .put(STATELESS_CACHE_BOOST_PREFERENCE_PINNED_WINDOW_DURATION_SETTING.getKey(), "10ms")
+            .build();
         expectThrows(IllegalArgumentException.class, () -> STATELESS_CACHE_BOOST_PREFERENCE_PINNED_WINDOW_DURATION_SETTING.get(settings));
     }
 

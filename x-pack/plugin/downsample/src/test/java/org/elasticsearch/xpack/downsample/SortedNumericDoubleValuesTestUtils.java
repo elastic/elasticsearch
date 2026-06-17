@@ -160,4 +160,9 @@ final class SortedNumericDoubleValuesTestUtils {
             return advanceExactCalls[0];
         }
     }
+
+    public enum DocValuesType {
+        WITH_ITERATOR,
+        WITHOUT_ITERATOR
+    }
 }

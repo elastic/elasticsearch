@@ -383,7 +383,8 @@ public class DataSourceModuleTests extends ESTestCase {
             settings,
             blockFactory,
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
-            new DataSourceCredentials()
+            new DataSourceCredentials(),
+            () -> false
         );
     }
 

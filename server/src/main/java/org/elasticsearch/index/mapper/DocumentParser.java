@@ -51,7 +51,6 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Consumer;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.MAX_DIMS_COUNT;
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.MIN_DIMS_FOR_DYNAMIC_FLOAT_MAPPING;
@@ -103,8 +102,7 @@ public final class DocumentParser {
             context = ctx;
             validateStart(context.parser());
             MetadataFieldMapper[] metadataFieldsMappers = mappingLookup.getMapping().getSortedMetadataMappers();
-            Set<FieldMapper> nonNullableMappers = nonNullableMappers(mappingLookup);
-            internalParseDocument(metadataFieldsMappers, nonNullableMappers, context);
+            internalParseDocument(metadataFieldsMappers, context);
             validateEnd(context.parser());
         } catch (XContentParseException e) {
             throw new DocumentParsingException(e.getLocation(), e.getMessage(), e);
@@ -153,11 +151,7 @@ public final class DocumentParser {
         context.path().setWithinLeafObject(withinLeafObject);
     }
 
-    private void internalParseDocument(
-        MetadataFieldMapper[] metadataFieldsMappers,
-        Set<FieldMapper> nonNullableMappers,
-        DocumentParserContext context
-    ) {
+    private void internalParseDocument(MetadataFieldMapper[] metadataFieldsMappers, DocumentParserContext context) {
         try {
             final boolean emptyDoc = isEmptyDoc(context.root(), context.parser());
 
@@ -190,18 +184,29 @@ public final class DocumentParser {
                 metadataMapper.postParse(context);
             }
             for (Mapper mapper : context.mappingLookup().fieldMappers()) {
-                mapper.postParse(context, nonNullableMappers);
-            }
-            if (nonNullableMappers.isEmpty() == false) {
-                throw new IllegalArgumentException(
-                    "Field(s) ["
-                        + nonNullableMappers.stream().map(FieldMapper::fullPath).collect(Collectors.joining(","))
-                        + "] are configured with [nullability=false] but were missing"
-                );
+                if (mapper instanceof FieldMapper fieldMapper && fieldMapper.isNonNullValueEnforced()) {
+                    enforceNonNull(fieldMapper, context);
+                }
             }
         } catch (Exception e) {
             throw wrapInDocumentParsingException(context, e);
         }
+    }
+
+    private static void enforceNonNull(FieldMapper fieldMapper, DocumentParserContext context) {
+        var fullPath = fieldMapper.fullPath();
+        if (context.getIgnoredFields().contains(fullPath)) {
+            return;
+        }
+        if (context.doc().getField(fullPath) != null) {
+            return;
+        }
+        for (var doc : context.nonRootDocuments()) {
+            if (doc.getField(fullPath) != null) {
+                return;
+            }
+        }
+        throw new IllegalArgumentException("Field [" + fullPath + "] is configured with [nullability=false] but encountered a null value");
     }
 
     private static void executeIndexTimeScripts(DocumentParserContext context) {

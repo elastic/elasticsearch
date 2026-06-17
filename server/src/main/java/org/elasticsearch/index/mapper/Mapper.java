@@ -27,7 +27,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 
@@ -340,12 +339,5 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
      */
     public String getOffsetFieldName() {
         return null;
-    }
-
-    /**
-     * Called after {@link FieldMapper#parse(DocumentParserContext)} on the {@link RootObjectMapper}.
-     */
-    public void postParse(DocumentParserContext context, Set<FieldMapper> nonNullableMappers) {
-        // do nothing
     }
 }

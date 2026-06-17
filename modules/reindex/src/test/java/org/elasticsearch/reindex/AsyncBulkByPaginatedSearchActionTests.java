@@ -1180,13 +1180,20 @@ public class AsyncBulkByPaginatedSearchActionTests extends ESTestCase {
 
     public void testCancelBeforeSendBulkRequest() throws Exception {
         cancelTaskCase(
-            (DummyAsyncBulkByPaginatedSearchAction action) -> action.sendBulkRequest(new BulkRequest(), NO_OP_RELEASE_BATCH_HITS, Assert::fail)
+            (DummyAsyncBulkByPaginatedSearchAction action) -> action.sendBulkRequest(
+                new BulkRequest(),
+                NO_OP_RELEASE_BATCH_HITS,
+                Assert::fail
+            )
         );
     }
 
     public void testCancelBeforeOnBulkResponse() throws Exception {
         cancelTaskCase(
-            (DummyAsyncBulkByPaginatedSearchAction action) -> action.onBulkResponse(new BulkResponse(new BulkItemResponse[0], 0), Assert::fail)
+            (DummyAsyncBulkByPaginatedSearchAction action) -> action.onBulkResponse(
+                new BulkResponse(new BulkItemResponse[0], 0),
+                Assert::fail
+            )
         );
     }
 

@@ -19,11 +19,7 @@ import org.elasticsearch.compute.operator.IsBlockedResult;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
-import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
-import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
-import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
-import org.elasticsearch.xpack.esql.plan.physical.RemoteFetchSourceExec;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
@@ -543,16 +539,7 @@ public final class RemoteFetchOperator implements Operator {
     }
 
     static void validatePushdownPlan(PhysicalPlan plan) {
-        if (plan == null || plan instanceof RemoteFetchSourceExec) {
-            return;
-        }
-        if (plan instanceof EvalExec || plan instanceof FilterExec || plan instanceof ProjectExec) {
-            for (PhysicalPlan child : plan.children()) {
-                validatePushdownPlan(child);
-            }
-            return;
-        }
-        throw new IllegalArgumentException("unsupported remote fetch pushdown plan [" + plan.getClass().getSimpleName() + "]");
+        RemoteFetchPushdownPlanValidator.validate(plan);
     }
 
     private Page mergeFetchedPage(Page inputPage, int[] groupByPosition, int[] offsetByPosition, List<GroupPages> pagesByGroup) {

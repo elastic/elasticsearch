@@ -85,8 +85,7 @@ abstract class BalancedOTKMeansLocal<V> extends KMeansLocal<V> {
             }
         }
 
-        // Apply the k scaling and update — each centroid is accessed exactly once,
-        // so the single-buffer MutationContext naturally flushes on each transition.
+        // Apply the k scaling and update
         for (int c = 0; c < k; c++) {
             if (batchWeights[c] > 0) {
                 float scaledBatchWeight = batchWeights[c] * k;
@@ -97,7 +96,6 @@ abstract class BalancedOTKMeansLocal<V> extends KMeansLocal<V> {
             }
         }
 
-        // Flush the last centroid's float buffer back to native representation
         sgdContext.syncToNative();
     }
 
@@ -149,8 +147,8 @@ abstract class BalancedOTKMeansLocal<V> extends KMeansLocal<V> {
         ops.deepCopy(centroids, oldCentroids);
 
         // Scoped float-precision mutation context for SGD updates.
-        // For float centroids this is zero-cost (direct array access); for byte centroids it
-        // maintains a single reusable float buffer that is loaded/flushed one centroid at a time.
+        // For float centroids this is zero-cost; for byte centroids it maintains a float shadow
+        // that is synced back to native on each call to syncToNative() and released on close().
         try (var sgdContext = ops.newMutationContext(centroids, vectors.dimension())) {
             int t = 0;
             for (int epoch = 0; epoch < maxIterations; epoch++) {

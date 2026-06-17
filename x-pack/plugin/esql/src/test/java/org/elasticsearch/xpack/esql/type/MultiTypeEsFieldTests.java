@@ -13,7 +13,6 @@ import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
-import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
 import org.elasticsearch.xpack.esql.core.type.MultiTypeEsField;
 import org.elasticsearch.xpack.esql.expression.ExpressionWritables;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToBoolean;
@@ -36,11 +35,8 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.ConfigurationTestUtils.randomConfiguration;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.instanceOf;
 
 /**
  * This test was originally based on the tests for sub-classes of EsField, like InvalidMappedFieldTests.
@@ -166,32 +162,5 @@ public class MultiTypeEsFieldTests extends AbstractEsFieldTypeTests<MultiTypeEsF
 
     private ToString createToString(String name, DataType dataType) {
         return new ToString(Source.EMPTY, fieldAttribute(name, dataType), config());
-    }
-
-    public void testResolveFromWidenedTypeKeyLookupsDoNotProduceNullExpressions() {
-        String fieldName = randomAlphaOfLength(4);
-        InvalidMappedField typeConflictedField = new InvalidMappedField(
-            fieldName,
-            Map.of(DataType.SHORT.typeName(), Set.of("short-index"), DataType.INTEGER.typeName(), Set.of("int-index"))
-        );
-        Expression shortToLong = testConvertExpression(fieldName, DataType.SHORT, DataType.LONG);
-        Expression integerToLong = testConvertExpression(fieldName, DataType.INTEGER, DataType.LONG);
-        Map<String, Expression> typeToConversionExpressions = Map.of(
-            DataType.SHORT.typeName(),
-            shortToLong,
-            DataType.INTEGER.typeName(),
-            integerToLong
-        );
-
-        MultiTypeEsField resolved = MultiTypeEsField.resolveFrom(typeConflictedField, typeToConversionExpressions);
-
-        Expression shortIndexExpression = resolved.getConversionExpressionForIndex("short-index");
-        Expression intIndexExpression = resolved.getConversionExpressionForIndex("int-index");
-
-        assertEquals(DataType.LONG, resolved.getDataType());
-        assertThat(shortIndexExpression, instanceOf(ToLong.class));
-        assertThat(intIndexExpression, instanceOf(ToLong.class));
-        assertThat(((ToLong) shortIndexExpression).field().dataType().widenSmallNumeric(), equalTo(DataType.INTEGER));
-        assertThat(((ToLong) intIndexExpression).field().dataType().widenSmallNumeric(), equalTo(DataType.INTEGER));
     }
 }

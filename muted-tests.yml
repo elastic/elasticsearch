@@ -614,12 +614,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
   method: test {p0=esql/160_union_types/load four indices with single conversion function TO_IP}
   issue: https://github.com/elastic/elasticsearch/issues/151413
-- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
-  method: test {p0=search.vectors/40_knn_search/Vector rescoring has no effect for non-quantized vectors and provides same results as non-rescored knn}
-  issue: https://github.com/elastic/elasticsearch/issues/151418
-- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
-  method: test {p0=search.vectors/42_knn_search_flat/Vector rescoring has no effect for non-quantized vectors and provides same results as non-rescored knn}
-  issue: https://github.com/elastic/elasticsearch/issues/151453
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
   method: test {feature:SUBQUERIES}
   issue: https://github.com/elastic/elasticsearch/issues/149681

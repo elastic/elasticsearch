@@ -5,8 +5,7 @@
 ///////////////////////////////////////////////////////////////////////////////
 
 histogram_count_exp_histo_single_instance
-required_capability: promql_command_v0
-required_capability: exponential_histogram_tech_preview
+required_capability: promql_histogram_sum_count_avg
 PROMQL index=exp_histo_sample step=2m start="2025-09-25T00:02:00.000Z" end="2025-09-25T00:02:00.000Z" result=(histogram_count(responseTime{instance="instance-1"}));
 
 result:double | step:datetime            | _timeseries:keyword
@@ -14,8 +13,7 @@ result:double | step:datetime            | _timeseries:keyword
 ;
 
 histogram_count_exp_histo_all_instances
-required_capability: promql_command_v0
-required_capability: exponential_histogram_tech_preview
+required_capability: promql_histogram_sum_count_avg
 PROMQL index=exp_histo_sample step=2m start="2025-09-25T00:02:00.000Z" end="2025-09-25T00:02:00.000Z" result=(histogram_count(responseTime{instance=~"instance-.*"}))
 | SORT _timeseries;
 
@@ -26,8 +24,7 @@ result:double | step:datetime            | _timeseries:keyword
 ;
 
 histogram_count_exp_histo_multi_step
-required_capability: promql_command_v0
-required_capability: exponential_histogram_tech_preview
+required_capability: promql_histogram_sum_count_avg
 PROMQL index=exp_histo_sample step=2m start="2025-09-25T00:02:00.000Z" end="2025-09-25T00:04:00.000Z" result=(histogram_count(responseTime{instance="instance-1"}))
 | SORT step;
 
@@ -37,8 +34,7 @@ result:double | step:datetime            | _timeseries:keyword
 ;
 
 histogram_count_exp_histo_sum_across_series
-required_capability: promql_command_v0
-required_capability: exponential_histogram_tech_preview
+required_capability: promql_histogram_sum_count_avg
 PROMQL index=exp_histo_sample step=2m start="2025-09-25T00:02:00.000Z" end="2025-09-25T00:02:00.000Z" result=(sum(histogram_count(responseTime{instance=~"instance-.*"})));
 
 result:double | step:datetime
@@ -50,8 +46,7 @@ result:double | step:datetime
 ///////////////////////////////////////////////////////////////////////////////
 
 histogram_sum_exp_histo_single_instance
-required_capability: promql_command_v0
-required_capability: exponential_histogram_tech_preview
+required_capability: promql_histogram_sum_count_avg
 PROMQL index=exp_histo_sample step=2m start="2025-09-25T00:02:00.000Z" end="2025-09-25T00:02:00.000Z" result=(histogram_sum(responseTime{instance="instance-1"}));
 
 result:double        | step:datetime            | _timeseries:keyword
@@ -59,8 +54,7 @@ result:double        | step:datetime            | _timeseries:keyword
 ;
 
 histogram_sum_exp_histo_all_instances
-required_capability: promql_command_v0
-required_capability: exponential_histogram_tech_preview
+required_capability: promql_histogram_sum_count_avg
 PROMQL index=exp_histo_sample step=2m start="2025-09-25T00:02:00.000Z" end="2025-09-25T00:02:00.000Z" result=(histogram_sum(responseTime{instance=~"instance-.*"}))
 | SORT _timeseries;
 
@@ -75,8 +69,7 @@ result:double        | step:datetime            | _timeseries:keyword
 ///////////////////////////////////////////////////////////////////////////////
 
 histogram_avg_exp_histo_single_instance
-required_capability: promql_command_v0
-required_capability: exponential_histogram_tech_preview
+required_capability: promql_histogram_sum_count_avg
 PROMQL index=exp_histo_sample step=2m start="2025-09-25T00:02:00.000Z" end="2025-09-25T00:02:00.000Z" result=(histogram_avg(responseTime{instance="instance-1"}));
 
 result:double         | step:datetime            | _timeseries:keyword
@@ -84,8 +77,7 @@ result:double         | step:datetime            | _timeseries:keyword
 ;
 
 histogram_avg_exp_histo_all_instances
-required_capability: promql_command_v0
-required_capability: exponential_histogram_tech_preview
+required_capability: promql_histogram_sum_count_avg
 PROMQL index=exp_histo_sample step=2m start="2025-09-25T00:02:00.000Z" end="2025-09-25T00:02:00.000Z" result=(histogram_avg(responseTime{instance=~"instance-.*"}))
 | SORT _timeseries;
 

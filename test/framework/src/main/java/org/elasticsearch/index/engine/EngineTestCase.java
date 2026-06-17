@@ -692,7 +692,6 @@ public abstract class EngineTestCase extends ESTestCase {
                 }
             };
         }
-
     }
 
     public EngineConfig config(IndexSettings indexSettings, Store store, Path translogPath, MergePolicy mergePolicy) {

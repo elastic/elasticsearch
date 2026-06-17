@@ -26,7 +26,6 @@ import org.elasticsearch.action.datastreams.lifecycle.ExplainDataStreamLifecycle
 import org.elasticsearch.action.datastreams.lifecycle.GetDataStreamLifecycleAction;
 import org.elasticsearch.action.datastreams.lifecycle.PutDataStreamLifecycleAction;
 import org.elasticsearch.client.internal.OriginSettingClient;
-import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -102,9 +101,10 @@ import static org.elasticsearch.cluster.metadata.DataStreamLifecycle.DATA_STREAM
 
 public class DataStreamsPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin, HealthPlugin {
 
+    public static final int TIME_SERIES_POLL_INTERVAL_DEFAULT = 3;
     public static final Setting<TimeValue> TIME_SERIES_POLL_INTERVAL = Setting.timeSetting(
         "time_series.poll_interval",
-        TimeValue.timeValueMinutes(5),
+        TimeValue.timeValueMinutes(TIME_SERIES_POLL_INTERVAL_DEFAULT),
         TimeValue.timeValueMinutes(1),
         TimeValue.timeValueMinutes(10),
         Setting.Property.NodeScope,
@@ -112,9 +112,10 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin, Extensibl
     );
 
     private static final TimeValue MAX_LOOK_AHEAD_TIME = TimeValue.timeValueHours(2);
+    public static final int LOOK_AHEAD_TIME_DEFAULT = 9;
     public static final Setting<TimeValue> LOOK_AHEAD_TIME = Setting.timeSetting(
         "index.look_ahead_time",
-        TimeValue.timeValueMinutes(30),
+        TimeValue.timeValueMinutes(LOOK_AHEAD_TIME_DEFAULT),
         TimeValue.timeValueMinutes(1),
         TimeValue.timeValueDays(7), // is effectively 2h now.
         Setting.Property.IndexScope,
@@ -148,9 +149,23 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin, Extensibl
     private final SetOnce<DataStreamLifecycleHealthInfoPublisher> dataStreamLifecycleErrorsPublisher = new SetOnce<>();
     private final SetOnce<DataStreamLifecycleHealthIndicatorService> dataStreamLifecycleHealthIndicatorService = new SetOnce<>();
     private final Settings settings;
+    private DownsamplingOperations downsamplingOperations = DownsamplingOperations.noop();
 
     public DataStreamsPlugin(Settings settings) {
         this.settings = settings;
+    }
+
+    @Override
+    public void loadExtensions(ExtensionLoader loader) {
+        List<DownsamplingOperations> extensions = loader.loadExtensions(DownsamplingOperations.class);
+        if (extensions.size() > 1) {
+            throw new IllegalStateException(
+                "Expected at most one DownsamplingOperations implementation, found: " + extensions.stream().map(Object::getClass).toList()
+            );
+        }
+        if (extensions.isEmpty() == false) {
+            downsamplingOperations = extensions.get(0);
+        }
     }
 
     protected Clock getClock() {
@@ -183,6 +198,7 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin, Extensibl
         pluginSettings.add(DataStreamLifecycleService.DATA_STREAM_LIFECYCLE_POLL_INTERVAL_SETTING);
         pluginSettings.add(DataStreamLifecycleService.DATA_STREAM_MERGE_POLICY_TARGET_FLOOR_SEGMENT_SETTING);
         pluginSettings.add(DataStreamLifecycleService.DATA_STREAM_MERGE_POLICY_TARGET_FACTOR_SETTING);
+        pluginSettings.add(DataStreamLifecycleService.DLM_CREATED_SETTING);
         return pluginSettings;
     }
 
@@ -249,9 +265,7 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin, Extensibl
         actions.add(new ActionHandler(UpdateDataStreamSettingsAction.INSTANCE, TransportUpdateDataStreamSettingsAction.class));
         actions.add(new ActionHandler(GetDataStreamMappingsAction.INSTANCE, TransportGetDataStreamMappingsAction.class));
         actions.add(new ActionHandler(UpdateDataStreamMappingsAction.INSTANCE, TransportUpdateDataStreamMappingsAction.class));
-        if (DataStreamLifecycle.DLM_SEARCHABLE_SNAPSHOTS_FEATURE_FLAG.isEnabled()) {
-            actions.add(new ActionHandler(MarkIndexForDLMForceMergeAction.TYPE, TransportMarkIndexForDLMForceMergeAction.class));
-        }
+        actions.add(new ActionHandler(MarkIndexForDLMForceMergeAction.TYPE, TransportMarkIndexForDLMForceMergeAction.class));
         return actions;
     }
 

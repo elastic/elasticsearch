@@ -1,5 +1,7 @@
 #!/bin/bash
 
+set -euo pipefail
+
 if [[ "${USE_IPV6_TESTING:-}" == "true" ]]; then
   # Ensure that `localhost` resolves to only `::1`
   sudo bash -c 'echo "::1   localhost" | cat - /etc/hosts > temp_file && mv temp_file /etc/hosts'
@@ -34,6 +36,9 @@ export $(cat .ci/java-versions.properties | grep '=' | xargs)
 JAVA_HOME="$HOME/.java/$ES_BUILD_JAVA"
 export JAVA_HOME
 
+PATH="$JAVA_HOME/bin:$PATH"
+export PATH
+
 JAVA11_HOME="$HOME/.java/java11"
 export JAVA11_HOME
 
@@ -45,22 +50,41 @@ if [[ "${ES_RUNTIME_JAVA:-}" ]]; then
   export RUNTIME_JAVA_HOME
 fi
 
-GRADLE_BUILD_CACHE_USERNAME=$(vault read -field=username secret/ci/elastic-elasticsearch/migrated/gradle-build-cache)
+export GCP_PREEMPTION_EXIT_CODE=47
+
+source .buildkite/scripts/setup_node.sh
+
+vault_with_retry() {
+  local attempt delays=(1 5 10)
+  for attempt in 0 1 2 3; do
+    if vault "$@"; then
+      return 0
+    fi
+    if [[ $attempt -lt 3 ]]; then
+      echo "Vault command failed (attempt $((attempt + 1))/4), retrying in ${delays[$attempt]}s..." >&2
+      sleep "${delays[$attempt]}"
+    fi
+  done
+  echo "Vault command failed after 4 attempts" >&2
+  return 1
+}
+
+GRADLE_BUILD_CACHE_USERNAME=$(vault_with_retry read -field=username secret/ci/elastic-elasticsearch/migrated/gradle-build-cache)
 export GRADLE_BUILD_CACHE_USERNAME
 
-GRADLE_BUILD_CACHE_PASSWORD=$(vault read -field=password secret/ci/elastic-elasticsearch/migrated/gradle-build-cache)
+GRADLE_BUILD_CACHE_PASSWORD=$(vault_with_retry read -field=password secret/ci/elastic-elasticsearch/migrated/gradle-build-cache)
 export GRADLE_BUILD_CACHE_PASSWORD
 
-DEVELOCITY_API_ACCESS_KEY=$(vault read -field=accesskey secret/ci/elastic-elasticsearch/migrated/gradle-build-cache)
+DEVELOCITY_API_ACCESS_KEY=$(vault_with_retry read -field=accesskey secret/ci/elastic-elasticsearch/migrated/gradle-build-cache)
 export DEVELOCITY_API_ACCESS_KEY
 
 DEVELOCITY_ACCESS_KEY="gradle-enterprise.elastic.co=$DEVELOCITY_API_ACCESS_KEY"
 export DEVELOCITY_ACCESS_KEY
 
-BUILDKITE_API_TOKEN=$(vault read -field=token secret/ci/elastic-elasticsearch/buildkite-api-token)
+BUILDKITE_API_TOKEN=$(vault_with_retry read -field=token secret/ci/elastic-elasticsearch/buildkite-api-token)
 export BUILDKITE_API_TOKEN
 
-export GH_TOKEN="$VAULT_GITHUB_TOKEN"
+export GH_TOKEN="${VAULT_GITHUB_TOKEN:-}"
 
 if [[ "${USE_LUCENE_SNAPSHOT_CREDS:-}" == "true" ]]; then
   data=$(.buildkite/scripts/get-legacy-secret.sh aws-elastic/creds/lucene-snapshots)
@@ -76,17 +100,17 @@ fi
 
 if [[ "${USE_MAVEN_GPG:-}" == "true" ]]; then
   vault_path="kv/ci-shared/release-eng/team-release-secrets/es-delivery/gpg"
-  ORG_GRADLE_PROJECT_signingKey=$(vault kv get --field="private_key" $vault_path)
-  ORG_GRADLE_PROJECT_signingPassword=$(vault kv get --field="passphase" $vault_path)
+  ORG_GRADLE_PROJECT_signingKey=$(vault_with_retry kv get --field="private_key" $vault_path)
+  ORG_GRADLE_PROJECT_signingPassword=$(vault_with_retry kv get --field="passphase" $vault_path)
   export ORG_GRADLE_PROJECT_signingKey
   export ORG_GRADLE_PROJECT_signingPassword
 fi
 
 if [[ "${USE_DRA_CREDENTIALS:-}" == "true" ]]; then
-  DRA_VAULT_ROLE_ID_SECRET=$(vault read -field=role-id secret/ci/elastic-elasticsearch/legacy-vault-credentials)
+  DRA_VAULT_ROLE_ID_SECRET=$(vault_with_retry read -field=role-id secret/ci/elastic-elasticsearch/legacy-vault-credentials)
   export DRA_VAULT_ROLE_ID_SECRET
 
-  DRA_VAULT_SECRET_ID_SECRET=$(vault read -field=secret-id secret/ci/elastic-elasticsearch/legacy-vault-credentials)
+  DRA_VAULT_SECRET_ID_SECRET=$(vault_with_retry read -field=secret-id secret/ci/elastic-elasticsearch/legacy-vault-credentials)
   export DRA_VAULT_SECRET_ID_SECRET
 
   DRA_VAULT_ADDR=https://secrets.elastic.co:8200
@@ -96,16 +120,16 @@ fi
 source .buildkite/scripts/third-party-test-credentials.sh
 
 if [[ "${USE_SNYK_CREDENTIALS:-}" == "true" ]]; then
-  SNYK_TOKEN=$(vault read -field=token secret/ci/elastic-elasticsearch/migrated/snyk)
+  SNYK_TOKEN=$(vault_with_retry read -field=token secret/ci/elastic-elasticsearch/migrated/snyk)
   export SNYK_TOKEN
 fi
 
 if [[ "${USE_PROD_DOCKER_CREDENTIALS:-}" == "true" ]]; then
   if which docker > /dev/null 2>&1; then
-    DOCKER_REGISTRY_USERNAME="$(vault read -field=username secret/ci/elastic-elasticsearch/migrated/prod_docker_registry_credentials)"
+    DOCKER_REGISTRY_USERNAME="$(vault_with_retry read -field=username secret/ci/elastic-elasticsearch/migrated/prod_docker_registry_credentials)"
     export DOCKER_REGISTRY_USERNAME
 
-    DOCKER_REGISTRY_PASSWORD="$(vault read -field=password secret/ci/elastic-elasticsearch/migrated/prod_docker_registry_credentials)"
+    DOCKER_REGISTRY_PASSWORD="$(vault_with_retry read -field=password secret/ci/elastic-elasticsearch/migrated/prod_docker_registry_credentials)"
     export DOCKER_REGISTRY_PASSWORD
 
     docker login --username "$DOCKER_REGISTRY_USERNAME" --password "$DOCKER_REGISTRY_PASSWORD" docker.elastic.co
@@ -113,9 +137,9 @@ if [[ "${USE_PROD_DOCKER_CREDENTIALS:-}" == "true" ]]; then
 fi
 
 if [[ "${USE_PERF_CREDENTIALS:-}" == "true" ]]; then
-  PERF_METRICS_HOST=$(vault read -field=es_host /secret/ci/elastic-elasticsearch/microbenchmarks-metrics)
-  PERF_METRICS_USERNAME=$(vault read -field=es_user /secret/ci/elastic-elasticsearch/microbenchmarks-metrics)
-  PERF_METRICS_PASSWORD=$(vault read -field=es_password /secret/ci/elastic-elasticsearch/microbenchmarks-metrics)
+  PERF_METRICS_HOST=$(vault_with_retry read -field=es_host /secret/ci/elastic-elasticsearch/microbenchmarks-metrics)
+  PERF_METRICS_USERNAME=$(vault_with_retry read -field=es_user /secret/ci/elastic-elasticsearch/microbenchmarks-metrics)
+  PERF_METRICS_PASSWORD=$(vault_with_retry read -field=es_password /secret/ci/elastic-elasticsearch/microbenchmarks-metrics)
 
   export PERF_METRICS_HOST
   export PERF_METRICS_USERNAME
@@ -125,15 +149,18 @@ fi
 
 # Authenticate to the Docker Hub public read-only registry
 if which docker > /dev/null 2>&1; then
-  DOCKERHUB_REGISTRY_USERNAME="$(vault read -field=username secret/ci/elastic-elasticsearch/docker_hub_public_ro_credentials)"
-  DOCKERHUB_REGISTRY_PASSWORD="$(vault read -field=password secret/ci/elastic-elasticsearch/docker_hub_public_ro_credentials)"
+  DOCKERHUB_REGISTRY_USERNAME="$(vault_with_retry read -field=username secret/ci/elastic-elasticsearch/docker_hub_public_ro_credentials)"
+  DOCKERHUB_REGISTRY_PASSWORD="$(vault_with_retry read -field=password secret/ci/elastic-elasticsearch/docker_hub_public_ro_credentials)"
 
   echo "$DOCKERHUB_REGISTRY_PASSWORD" | docker login --username "$DOCKERHUB_REGISTRY_USERNAME" --password-stdin docker.io
 fi
 
-if [[ "$BUILDKITE_AGENT_META_DATA_PROVIDER" != *"k8s"* ]]; then
+if [[ "${BUILDKITE_AGENT_META_DATA_PROVIDER:-}" != *"k8s"* ]]; then
   # Run in the background, while the job continues
   nohup .buildkite/scripts/setup-monitoring.sh </dev/null >/dev/null 2>&1 &
+
+  export GCP_PREEMPTION_WATCHDOG=true
+  # export GCP_PREEMPTION_SIMULATE_AFTER_SECONDS=300 # Uncomment to force a fake preemption after that many seconds
 fi
 
 # Initialize the build scan and gobld annotations with empty/open <details> tags
@@ -162,8 +189,6 @@ fi
 # Initialize variables that may be reused by smart retry logic below
 BUILD_JSON=""
 ORIGIN_JOB_ID=""
-BUILD_SCAN_ID=""
-BUILD_SCAN_URL=""
 TESTS_SEED=""
 
 if [[ "${BUILDKITE_RETRY_COUNT:-0}" -gt 0 ]]; then
@@ -183,10 +208,6 @@ if [[ "${BUILDKITE_RETRY_COUNT:-0}" -gt 0 ]]; then
 
       # Retrieve test seed from Buildkite metadata
       TESTS_SEED=$(printf '%s\n' "$BUILD_JSON" | jq -r --arg job_id "$ORIGIN_JOB_ID" '.meta_data["tests-seed-" + $job_id]' 2>/dev/null)
-
-      # Retrieve build scan URL and ID for smart retry (reused in Part 2)
-      BUILD_SCAN_URL=$(printf '%s\n' "$BUILD_JSON" | jq -r --arg job_id "$ORIGIN_JOB_ID" '.meta_data["build-scan-" + $job_id]' 2>/dev/null)
-      BUILD_SCAN_ID=$(printf '%s\n' "$BUILD_JSON" | jq -r --arg job_id "$ORIGIN_JOB_ID" '.meta_data["build-scan-id-" + $job_id]' 2>/dev/null)
 
       if [[ -n "$TESTS_SEED" ]] && [[ "$TESTS_SEED" != "null" ]]; then
         echo "Using test seed $TESTS_SEED from original job $ORIGIN_JOB_ID"
@@ -209,10 +230,10 @@ fi
 # =============================================================================
 # PART 2: Smart retry test filtering
 # =============================================================================
-# Extracted to .buildkite/scripts/smart-retry.sh for single responsibility.
-# The script is sourced (not executed) so it can read BUILD_JSON, ORIGIN_JOB_ID,
-# BUILD_SCAN_ID, BUILD_SCAN_URL, and TESTS_SEED set by PART 1 above, and export
-# SMART_RETRY_STATUS, FILTERED_WORK_UNITS, etc. back to the caller.
+# Runs .buildkite/scripts/smart-retry/main.ts via a thin shell wrapper.
+# Reads ORIGIN_JOB_ID and TESTS_SEED (exported above), plus BUILDKITE_*
+# env vars. Writes .failed-test-history.json, buildkite-agent metadata,
+# and annotations.
 # =============================================================================
 if [[ "${BUILDKITE_RETRY_COUNT:-0}" -gt 0 ]]; then
   source .buildkite/scripts/smart-retry.sh

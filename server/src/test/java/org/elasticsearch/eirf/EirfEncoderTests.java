@@ -353,10 +353,10 @@ public class EirfEncoderTests extends ESTestCase {
 
     public void testIncrementalEncoding() throws IOException {
         try (EirfEncoder encoder = new EirfEncoder()) {
-            encoder.addDocument(new BytesArray("{\"name\":\"alice\",\"age\":30}"), XContentType.JSON);
-            encoder.addDocument(new BytesArray("{\"name\":\"bob\",\"age\":25}"), XContentType.JSON);
+            encoder.addDocument(new BytesArray("{\"name\":\"alice\",\"age\":30}"), XContentType.JSON, 0);
+            encoder.addDocument(new BytesArray("{\"name\":\"bob\",\"age\":25}"), XContentType.JSON, 0);
 
-            EirfBatch batch = encoder.build();
+            EirfBatch batch = encoder.buildPartition(0);
             assertEquals(2, batch.docCount());
             assertEquals("alice", batch.getRowReader(0).getStringValue(0).string());
             assertEquals("bob", batch.getRowReader(1).getStringValue(0).string());

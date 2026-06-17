@@ -26,6 +26,35 @@ The repository is organized into several key directories:
 *   `x-pack`: Additional code modules and plugins under Elastic License.
 *   `build-conventions`, `build-tools`, `build-tools-internal`: Gradle build logic. Refer to BUILDING.md for details on how these are structured and used.
 
+## Stateless Elasticsearch
+
+Stateless Elasticsearch is a distribution where shard data is stored in an **object store** (e.g., S3, GCS, Azure) rather than local disk. Nodes carry no durable local state. The cluster distinguishes two node roles: **indexing nodes** (`index` role, write path + translog replication to object store) and **search nodes** (`search` role, read-only via shared blob cache). The `DiscoveryNode.STATELESS_ENABLED_SETTING` gates stateless behavior at runtime.
+
+### Plugin `deploymentTarget`
+
+Plugins can set `deploymentTarget` in `build.gradle`. That value tells the node **whether to load the plugin**: **`STATEFUL_ONLY`** (stateful clusters only), **`STATELESS_ONLY`** (stateless mode on only), or **`ALL`** (always loaded; this is the default when the property is omitted).
+
+### Plugin locations
+
+| Plugin | Gradle path | Purpose |
+|---|---|---|
+| `stateless` | `:x-pack:plugin:stateless` | Core stateless — engines, allocation, cache, object store, recovery |
+| `stateless-sigterm` | `:x-pack:plugin:stateless-sigterm` | Clean SIGTERM shutdown for Kubernetes |
+| `stateless-master-failover` | `:x-pack:plugin:stateless-master-failover` | Master failover behavior |
+| `stateless-no-wait-for-active-shards` | `:x-pack:plugin:stateless-no-wait-for-active-shards` | Suppresses wait-for-active-shards |
+| `stateless-health-shards-availability` | `:x-pack:plugin:stateless-health-shards-availability` | Shard availability health indicators |
+
+**Package**: `org.elasticsearch.xpack.stateless.*` throughout.
+
+### Key subsystems
+
+- **Object store** (`objectstore/`): `ObjectStoreService`, bucket config, GC tasks for stale indices and translogs.
+- **Commits** (`commits/`): `StatelessCommitService` manages shard commits to blob store; `HollowShardsService` manages hollow indexing shards.
+- **Cache & prewarming** (`cache/`): `StatelessSharedBlobCacheService`, online prewarming, `SearchCommitPrefetcher`.
+- **Engines** (`engine/`): `IndexEngine` (write path) and `SearchEngine` (read-only); `TranslogReplicator` replicates translog to object store.
+- **Allocation** (`allocation/`): `StatelessExistingShardsAllocator`, separate balancing weights per tier, heap-usage-aware allocation decisions.
+- **Recovery** (`recovery/`): custom primary relocation and unpromotable shard relocation protocols.
+
 ## Testing Cheatsheet
 - Standard suite: `./gradlew test` (respects cached results; add `-Dtests.timestamp=$(date +%s)` to bypass caches when reusing seeds).
 - Single project: `./gradlew :server:test` (or other subproject path).
@@ -48,11 +77,20 @@ The repository is organized into several key directories:
 - Integration: Extend `ESIntegTestCase`.
 - REST API: Extend `ESRestTestCase` or `ESClientYamlSuiteTestCase`. **YAML based REST tests are preferred** for integration/API testing.
 
+### Distribution selection for external-module tests
+- Prefer the OSS/minimal distribution over `usesDefaultDistribution` whenever possible. `usesDefaultDistribution` packages the full default distribution, which is significantly more expensive to build and run.
+- Only use `usesDefaultDistribution` when the test genuinely requires a feature that is only available in the default distribution and cannot be replicated with a custom cluster configuration that includes just the needed plugins. Always document the reason in the `usesDefaultDistribution(...)` message.
+
 ## Dependency Hygiene
 - Never add a dependency without checking for existing alternatives in the repo.
 
+## Entitlement Policy
+- Never add an entitlement speculatively. Each entry in `entitlement-policy.yaml` must have a specific justification — ideally a concrete `NotEntitledException` that was observed, or at minimum a clear explanation of why the library requires that capability. Entitlements are a least-privilege mechanism; granting one "just in case" defeats the purpose.
+- Every use of `ESTestCase.WithoutEntitlements` must be accompanied by a comment explaining why the entitlement failure is spurious in the test context and would not occur in production.
+
 ## Formatting & Imports
 - Absolutely no wildcard imports; keep existing import order and avoid reordering untouched lines.
+- In `switch` statements, do not use `default` as a branch for valid or expected options. Enumerate those cases explicitly and reserve `default` for throwing an exception for unexpected values, or an assertion error if this code branch is unreachable.
 
 ## Types, Generics, and Suppressions
 - Prefer type-safe constructs; avoid raw types and unchecked casts.
@@ -92,6 +130,13 @@ The repository is organized into several key directories:
 - ANTLR-generated files can be regenerated by running the `regen` task on the relevant subproject.
 - Other generated files are regenerated by compiling the project.
 
+## Debugging Missing Tests
+
+When expected test methods are absent from results (not failed, not skipped — simply not present in the XML or binary event stream), check `muted-tests.yml` first. The build translates every entry into a Gradle `TestFilter.excludePattern`, which silently drops matching tests before the randomized runner receives them. A muted test fires no `testStarted` event and leaves no trace in `results-generic.bin`.
+   ```bash
+   grep 'ClassName\|methodName' muted-tests.yml
+   ```
+
 ## Best Practices for Automation Agents
 - Never edit unrelated files; keep diffs tightly scoped to the task at hand.
 - Prefer Gradle tasks over ad-hoc scripts.
@@ -104,8 +149,13 @@ If you encounter any of the following methods, you must go and read their javado
 * `fullyLoadedAnalyzer`
 * `TestAnalyzer.statementError`
 * `TestAnalyzer.error`
+* `forciblyCast`
 
 ## Backwards compatibility
 - For changes to a `Writeable` implementation (`writeTo` and constructor from `StreamInput`), add a new `public static final <UNIQUE_DESCRIPTIVE_NAME> = TransportVersion.fromName("<unique_descriptive_name>")` and use it in the new code paths. Confirm the backport branches and then generate a new version file with `./gradlew generateTransportVersion`.
+- Never hand-edit transport version resource files; always use the Gradle tasks. See `docs/internal/Versioning.md` for the full workflow.
 
 Stay aligned with `CONTRIBUTING.md`, `BUILDING.md`, and `TESTING.asciidoc`; this AGENTS guide summarizes—but does not replace—those authoritative docs.
+
+## Documentation
+When building or editing docs, read `docs/AGENTS.md` first.

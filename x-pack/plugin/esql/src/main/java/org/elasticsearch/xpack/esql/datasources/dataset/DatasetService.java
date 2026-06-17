@@ -7,32 +7,38 @@
 
 package org.elasticsearch.xpack.esql.datasources.dataset;
 
+import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.SequentialAckingBatchedTaskExecutor;
-import org.elasticsearch.cluster.metadata.DataSource;
-import org.elasticsearch.cluster.metadata.DataSourceMetadata;
 import org.elasticsearch.cluster.metadata.DataSourceReference;
 import org.elasticsearch.cluster.metadata.Dataset;
 import org.elasticsearch.cluster.metadata.DatasetMetadata;
+import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.xpack.esql.datasources.metadata.DataSource;
+import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceMetadata;
+import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceSetting;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourceValidator;
 
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 /** Orchestrates create / replace / delete of datasets in cluster state. */
 public class DatasetService {
@@ -75,20 +81,43 @@ public class DatasetService {
      * from inside the CAS task (authoritative, against master's current state). Throws cleanly on
      * missing parent, unknown validator, or validation failure.
      */
-    public Dataset validatePutDataset(ProjectMetadata projectMetadata, PutDatasetAction.Request request) {
+    Dataset validatePutDataset(ProjectMetadata projectMetadata, PutDatasetAction.Request request) {
         final DataSource parent = DataSourceMetadata.get(projectMetadata).get(request.dataSource());
         if (parent == null) {
             throw new ResourceNotFoundException("data source [{}] not found", request.dataSource());
+        }
+        final IndexAbstraction existing = projectMetadata.getIndicesLookup().get(request.name());
+        if (existing != null && existing.getType() != IndexAbstraction.Type.DATASET) {
+            throw new ResourceAlreadyExistsException(
+                "dataset [{}] cannot be created, an existing {} with that name is present",
+                request.name(),
+                existing.getType().getDisplayName()
+            );
         }
         final DataSourceValidator validator = validatorsByType.get(parent.type());
         if (validator == null) {
             throw new IllegalStateException("no validator registered for data source type [" + parent.type() + "]");
         }
         final Map<String, Object> validatedSettings = validator.validateDataset(
-            parent.settings(),
+            parent.settings().asMap(),
             request.resource(),
             request.rawSettings()
         );
+        // Reject dataset settings that shadow a parent secret-keyed setting. Check both pre- and
+        // post-validator keys: a validator that strips the key before returning would otherwise mask
+        // the shadow attempt at the wire boundary.
+        Set<String> shadowCandidates = new HashSet<>(validatedSettings.keySet());
+        if (request.rawSettings() != null) {
+            shadowCandidates.addAll(request.rawSettings().keySet());
+        }
+        for (String key : shadowCandidates) {
+            DataSourceSetting parentSetting = parent.settings().get(key);
+            if (parentSetting != null && parentSetting.secret()) {
+                ValidationException ex = new ValidationException();
+                ex.addValidationError("dataset setting [" + key + "] shadows a secret data-source setting; remove from dataset settings");
+                throw ex;
+            }
+        }
         return new Dataset(
             request.name(),
             new DataSourceReference(request.dataSource()),

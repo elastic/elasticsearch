@@ -116,6 +116,11 @@ public final class CompositeBlock extends AbstractNonThreadSafeRefCounted implem
     }
 
     @Override
+    public int valueMaxByteSize() {
+        throw new UnsupportedOperationException("composite blocks do not have a single value byte size");
+    }
+
+    @Override
     public BlockFactory blockFactory() {
         return blocks[0].blockFactory();
     }
@@ -172,12 +177,12 @@ public final class CompositeBlock extends AbstractNonThreadSafeRefCounted implem
     }
 
     @Override
-    public CompositeBlock filter(boolean mayContainDuplicates, int... positions) {
+    public CompositeBlock filter(boolean mayContainDuplicates, int[] positions, int offset, int length) {
         CompositeBlock result = null;
         final Block[] filteredBlocks = new Block[blocks.length];
         try {
             for (int i = 0; i < blocks.length; i++) {
-                filteredBlocks[i] = blocks[i].filter(mayContainDuplicates, positions);
+                filteredBlocks[i] = blocks[i].filter(mayContainDuplicates, positions, offset, length);
             }
             result = new CompositeBlock(filteredBlocks);
             return result;
@@ -186,6 +191,11 @@ public final class CompositeBlock extends AbstractNonThreadSafeRefCounted implem
                 Releasables.close(filteredBlocks);
             }
         }
+    }
+
+    @Override
+    public CompositeBlock filter(boolean mayContainDuplicates, int... positions) {
+        return filter(mayContainDuplicates, positions, 0, positions.length);
     }
 
     @Override

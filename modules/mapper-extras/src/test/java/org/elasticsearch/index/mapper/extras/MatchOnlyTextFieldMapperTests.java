@@ -30,11 +30,11 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.FieldStorageVerifier;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
@@ -118,6 +118,9 @@ public class MatchOnlyTextFieldMapperTests extends MapperTestCase {
         );
         if (FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled()) {
             checker.registerConflictCheck("doc_values", b -> b.field("doc_values", true));
+        }
+        if (IndexSettings.INDEX_DISABLED_BY_DEFAULT_FEATURE_FLAG.isEnabled()) {
+            checker.registerConflictCheck("index", b -> b.field("index", false));
         }
     }
 
@@ -694,6 +697,17 @@ public class MatchOnlyTextFieldMapperTests extends MapperTestCase {
         return false;
     }
 
+    @Override
+    protected boolean supportsMultiValueParameter() {
+        return true;
+    }
+
+    @Override
+    protected DocValuesType expectedSingleValuedDocValuesType() {
+        // match_only_text defaults to HIGH cardinality, which uses binary doc values
+        return DocValuesType.BINARY;
+    }
+
     public void testDocValuesDisabledByDefault() throws IOException {
         MapperService mapperService = createMapperService(fieldMapping(b -> b.field("type", "match_only_text")));
         MappedFieldType fieldType = mapperService.fieldType("field");
@@ -708,6 +722,29 @@ public class MatchOnlyTextFieldMapperTests extends MapperTestCase {
         MapperService mapperService = createMapperService(fieldMapping(b -> b.field("type", "match_only_text").field("doc_values", true)));
         MappedFieldType fieldType = mapperService.fieldType("field");
         assertTrue("doc_values should be enabled", fieldType.hasDocValues());
+    }
+
+    public void testColumnarArrayOrderRoundTrip() throws IOException {
+        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        assumeTrue(
+            "match_only_text field doc_values feature must be enabled",
+            FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled()
+        );
+        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
+        DocumentMapper mapper = createMapperService(
+            settings,
+            mapping(b -> b.startObject("field").field("type", "match_only_text").field("doc_values", true).endObject())
+        ).documentMapper();
+
+        String v1 = randomAlphanumericOfLength(4);
+        String v2 = randomAlphanumericOfLength(4);
+        String v3 = randomAlphanumericOfLength(4);
+        // Duplicate v2 and an interleaved null: sorted-deduped doc-values order would reorder/collapse them and drop the null; the offsets
+        // sidecar must restore arrival order, the duplicate, and the null position.
+        assertThat(
+            syntheticSource(mapper, b -> b.array("field", v2, v1, null, v3, v2)),
+            containsString("\"field\":[\"" + v2 + "\",\"" + v1 + "\",null,\"" + v3 + "\",\"" + v2 + "\"]")
+        );
     }
 
     /**
@@ -818,26 +855,8 @@ public class MatchOnlyTextFieldMapperTests extends MapperTestCase {
         }
     }
 
-    public void testSingleValueIsAcceptedWhenMultiValueNo() throws IOException {
-        assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
-        DocumentMapper mapper = createDocumentMapper(
-            fieldMapping(b -> b.field("type", "match_only_text").startObject("doc_values").field("multi_value", "no").endObject())
-        );
-        mapper.parse(source(b -> b.field("field", randomAlphanumericOfLength(5))));
-    }
-
-    public void testSecondValueIsRejectedWhenMultiValueNo() throws IOException {
-        assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
-        DocumentMapper mapper = createDocumentMapper(
-            fieldMapping(b -> b.field("type", "match_only_text").startObject("doc_values").field("multi_value", "no").endObject())
-        );
-        DocumentParsingException e = expectThrows(
-            DocumentParsingException.class,
-            () -> mapper.parse(source(b -> b.array("field", randomAlphanumericOfLength(3), randomAlphanumericOfLength(4))))
-        );
-        assertThat(
-            e.getCause().getMessage(),
-            containsString("configured with [multi_value=no] but encountered multiple values in the same document")
-        );
+    @Override
+    protected IndexOptions defaultDisabledIndexOption() {
+        return IndexOptions.DOCS;
     }
 }

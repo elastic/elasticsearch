@@ -7,14 +7,20 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar.date;
 
+import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.data.LongRangeBlockBuilder;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
+import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.expression.TypedAttribute;
+import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
+import org.elasticsearch.xpack.esql.core.querydsl.query.RangeQuery;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -26,6 +32,8 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
+import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
 
 import java.io.IOException;
 import java.util.List;
@@ -35,6 +43,9 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.Param
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_RANGE;
+import static org.elasticsearch.xpack.esql.expression.Foldables.literalValueOf;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.DEFAULT_DATE_TIME_FORMATTER;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateTimeToString;
 
 /**
  * RANGE_WITHIN(value, range) -> boolean
@@ -46,7 +57,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_RANGE;
  * </ul>
  * (date_range, date) and (date, date) are not supported; they do not match "value within range" semantics.
  */
-public class RangeWithin extends EsqlScalarFunction {
+public class RangeWithin extends EsqlScalarFunction implements TranslationAware {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "RangeWithin",
@@ -63,6 +74,7 @@ public class RangeWithin extends EsqlScalarFunction {
         returnType = "boolean",
         preview = true,
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW) },
+        briefSummary = "Returns true if a date or date range falls within another date range.",
         description = "Returns true if the first argument is "
             + "[within](https://www.elastic.co/docs/reference/query-languages/query-dsl/query-dsl-range-query) "
             + "the second argument. "
@@ -126,25 +138,21 @@ public class RangeWithin extends EsqlScalarFunction {
             return null;
         }
 
-        return rangeWithin(leftValue, rightValue, left.dataType(), right.dataType());
+        if (left.dataType() == DATE_RANGE) {
+            return processRange((LongRangeBlockBuilder.LongRange) leftValue, (LongRangeBlockBuilder.LongRange) rightValue);
+        }
+        return processPoint((Long) leftValue, (LongRangeBlockBuilder.LongRange) rightValue);
     }
 
-    /**
-     * Returns true if the left value is within the right range.
-     * - (date_range, date_range): first within second (first fully contained by second).
-     * - (date, date_range): point within range.
-     */
-    static boolean rangeWithin(Object leftVal, Object rightVal, DataType leftType, DataType rightType) {
-        if (leftType == DATE_RANGE && rightType == DATE_RANGE) {
-            LongRangeBlockBuilder.LongRange a = (LongRangeBlockBuilder.LongRange) leftVal;
-            LongRangeBlockBuilder.LongRange b = (LongRangeBlockBuilder.LongRange) rightVal;
-            return a.from() >= b.from() && a.to() <= b.to();
-        }
-        // (date, date_range): point in range
-        assert leftType == DATETIME && rightType == DATE_RANGE;
-        long point = (Long) leftVal;
-        LongRangeBlockBuilder.LongRange r = (LongRangeBlockBuilder.LongRange) rightVal;
-        return point >= r.from() && point < r.to();
+    @Evaluator(extraName = "Point")
+    static boolean processPoint(long point, LongRangeBlockBuilder.LongRange range) {
+        // Range is [from, to); to is exclusive.
+        return point >= range.from() && point < range.to();
+    }
+
+    @Evaluator(extraName = "Range")
+    static boolean processRange(LongRangeBlockBuilder.LongRange a, LongRangeBlockBuilder.LongRange b) {
+        return a.from() >= b.from() && a.to() <= b.to();
     }
 
     @Override
@@ -161,8 +169,79 @@ public class RangeWithin extends EsqlScalarFunction {
     @Override
     public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         var leftEvaluator = toEvaluator.apply(left);
-        var rangeEvaluator = toEvaluator.apply(right);
-        return new RangeWithinEvaluator.Factory(source(), left.dataType(), right.dataType(), leftEvaluator, rangeEvaluator);
+        var rightEvaluator = toEvaluator.apply(right);
+        if (left.dataType() == DATE_RANGE) {
+            return new RangeWithinRangeEvaluator.Factory(source(), leftEvaluator, rightEvaluator);
+        }
+        return new RangeWithinPointEvaluator.Factory(source(), leftEvaluator, rightEvaluator);
+    }
+
+    @Override
+    public Translatable translatable(LucenePushdownPredicates pushdownPredicates) {
+        if (isPushable(left, right, pushdownPredicates) || isPushable(right, left, pushdownPredicates)) {
+            // date_range MVs are represented as a single BinaryDocValues, so SingleValueQuery does not detect that it's MV.
+            // We have to recheck and filter out MVs
+            return Translatable.RECHECK;
+        }
+        return Translatable.NO;
+    }
+
+    private static boolean isPushable(Expression maybeField, Expression maybeLiteral, LucenePushdownPredicates pushdownPredicates) {
+        return pushdownPredicates.isPushableFieldAttribute(maybeField) && maybeLiteral.foldable();
+    }
+
+    @Override
+    public Query asQuery(LucenePushdownPredicates pushdownPredicates, TranslatorHandler handler) {
+        Expression fieldExp;
+        Expression literalExp;
+        boolean fieldIsLeft;
+        if (pushdownPredicates.isPushableFieldAttribute(left)) {
+            fieldExp = left;
+            literalExp = right;
+            fieldIsLeft = true;
+        } else {
+            fieldExp = right;
+            literalExp = left;
+            fieldIsLeft = false;
+        }
+        TypedAttribute attribute = LucenePushdownPredicates.checkIsPushableAttribute(fieldExp);
+        String name = handler.nameOf(attribute);
+        Object value = literalValueOf(literalExp);
+        String format = DEFAULT_DATE_TIME_FORMATTER.pattern();
+
+        if (attribute.dataType() == DATETIME) {
+            // Field is a date; the function shape forces the other side to be a date_range.
+            LongRangeBlockBuilder.LongRange r = (LongRangeBlockBuilder.LongRange) value;
+            return new RangeQuery(source(), name, dateTimeToString(r.from()), true, dateTimeToString(r.to()), false, format, null);
+        }
+        // Field is a date_range. Pick CONTAINS or WITHIN based on which side the field is on.
+        ShapeRelation relation;
+        Object lower;
+        Object upper;
+        boolean includeUpper;
+        if (fieldIsLeft) {
+            // RANGE_WITHIN(field_range, literal_range) — field_range is fully contained in literal_range.
+            LongRangeBlockBuilder.LongRange r = (LongRangeBlockBuilder.LongRange) value;
+            lower = dateTimeToString(r.from());
+            upper = dateTimeToString(r.to());
+            includeUpper = false;
+            relation = ShapeRelation.WITHIN;
+        } else if (literalExp.dataType() == DATETIME) {
+            // RANGE_WITHIN(literal_date, field_range) — field_range contains the literal date.
+            String date = dateTimeToString((Long) value);
+            lower = date;
+            upper = date;
+            includeUpper = true;
+            relation = ShapeRelation.CONTAINS;
+        } else {
+            // RANGE_WITHIN(literal_range, field_range) — field_range fully contains the literal range.
+            LongRangeBlockBuilder.LongRange r = (LongRangeBlockBuilder.LongRange) value;
+            lower = dateTimeToString(r.from());
+            upper = dateTimeToString(r.to());
+            includeUpper = false;
+            relation = ShapeRelation.CONTAINS;
+        }
+        return new RangeQuery(source(), name, lower, true, upper, includeUpper, format, null, relation);
     }
 
     @Override

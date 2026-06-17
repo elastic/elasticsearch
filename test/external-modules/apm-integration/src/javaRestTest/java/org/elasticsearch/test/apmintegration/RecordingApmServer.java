@@ -9,6 +9,16 @@
 
 package org.elasticsearch.test.apmintegration;
 
+import io.grpc.Server;
+import io.grpc.ServerBuilder;
+import io.grpc.stub.StreamObserver;
+import io.opentelemetry.proto.collector.logs.v1.ExportLogsServiceRequest;
+import io.opentelemetry.proto.collector.logs.v1.ExportLogsServiceResponse;
+import io.opentelemetry.proto.collector.logs.v1.LogsServiceGrpc;
+import io.opentelemetry.proto.logs.v1.LogRecord;
+import io.opentelemetry.proto.logs.v1.ResourceLogs;
+import io.opentelemetry.proto.logs.v1.ScopeLogs;
+
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 
@@ -25,20 +35,30 @@ import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
-import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
 @SuppressForbidden(reason = "Uses an HTTP server for testing")
 public class RecordingApmServer extends ExternalResource {
     private static final Logger logger = LogManager.getLogger(RecordingApmServer.class);
 
-    final ArrayBlockingQueue<ReceivedTelemetry> received = new ArrayBlockingQueue<>(1000);
+    private final BlockingQueue<ReceivedTelemetry> received = new LinkedBlockingQueue<>();
 
-    private static HttpServer server;
+    /**
+     * The "Resource" (telemetry source identity) observed by this server. The test JVM emits
+     * a single Resource, so we record the first one and ignore the rest.
+     */
+    private final AtomicReference<ReceivedTelemetry.ReceivedResource> resource = new AtomicReference<>();
+
+    private HttpServer server;
+    private Server grpcServer;
     private final Thread messageConsumerThread = consumerThread();
     private volatile Consumer<ReceivedTelemetry> consumer;
     private volatile boolean running = true;
+    private volatile int responseCode = 201;
 
     @Override
     protected void before() throws Throwable {
@@ -46,6 +66,8 @@ public class RecordingApmServer extends ExternalResource {
         server.bind(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
         server.createContext("/", this::handle);
         server.start();
+
+        grpcServer = ServerBuilder.forPort(0).addService(new LogsServiceImpl()).build().start();
 
         messageConsumerThread.start();
     }
@@ -75,7 +97,15 @@ public class RecordingApmServer extends ExternalResource {
         running = false;
         messageConsumerThread.interrupt();
         if (server != null) {
-            server.stop(1);
+            server.stop(30);
+        }
+        if (grpcServer != null) {
+            grpcServer.shutdown();
+            try {
+                grpcServer.awaitTermination(30, TimeUnit.SECONDS);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
         }
         consumer = null;
         try {
@@ -85,39 +115,66 @@ public class RecordingApmServer extends ExternalResource {
         }
     }
 
+    /**
+     * Override the HTTP response code for all subsequent responses. Codes {@code >= 400}
+     * short-circuit telemetry parsing to simulate APM server failures.
+     * Call {@link #clearResponseCode()} to restore default.
+     */
+    public void setResponseCode(int code) {
+        this.responseCode = code;
+    }
+
+    /** Restore the default response (201) for subsequent requests. */
+    public void clearResponseCode() {
+        this.responseCode = 201;
+    }
+
     private void handle(HttpExchange exchange) throws IOException {
         try (exchange) {
+            int responseCode = this.responseCode;
+            if (responseCode >= 400) {
+                exchange.getRequestBody().readAllBytes();
+                exchange.sendResponseHeaders(responseCode, 0);
+                return;
+            }
+
             String path = exchange.getRequestURI().getPath();
             if (running) {
                 try (InputStream requestBody = exchange.getRequestBody()) {
                     if (requestBody != null) {
                         switch (path) {
-                            case "/v1/metrics" -> received.addAll(OtlpMetricsParser.parse(requestBody));
-                            case "/v1/traces" -> received.addAll(OtlpTracesParser.parse(requestBody));
+                            case "/v1/metrics" -> OtlpMetricsParser.parse(requestBody).forEach(this::route);
+                            case "/v1/traces" -> OtlpTracesParser.parse(requestBody).forEach(this::route);
+                            case "/v1/logs" -> OtlpLogsParser.parse(requestBody).forEach(this::route);
                             case "/intake/v2/events" -> {
                                 List<String> lines = readJsonMessages(requestBody);
                                 for (String line : lines) {
-                                    ApmIntakeMessageParser.parseLine(line).ifPresent(msg -> {
-                                        logger.debug("APM telemetry received: {}", msg);
-                                        received.add(msg);
-                                    });
+                                    ApmIntakeMessageParser.parseLine(line).ifPresent(this::route);
                                 }
                             }
                             default -> logger.debug("ignoring request to unhandled path [{}]", path);
                         }
                     }
-                } catch (Throwable t) {
-                    // The lifetime of HttpServer makes message handling "brittle": we need to start handling and recording received
-                    // messages before the test starts running. We should also stop handling them before the test ends (and the test
-                    // cluster is torn down), or we may run into IOException as the communication channel is interrupted.
-                    // Coordinating the lifecycle of the mock HttpServer and of the test ES cluster is difficult and error-prone, so
-                    // we just handle Throwable and don't care (log, but don't care): if we have an error in communicating to/from
-                    // the mock server while the test is running, the test would fail anyway as the expected messages will not arrive, and
-                    // if we have an error outside the test scope (before or after) that is OK.
-                    logger.warn("failed to parse request", t);
                 }
             }
-            exchange.sendResponseHeaders(201, 0);
+            exchange.sendResponseHeaders(responseCode, 0);
+        } catch (Throwable t) {
+            logger.error("Unexpected error caught when serving HTTP request", t);
+            throw t;
+        }
+    }
+
+    /**
+     * Route a parsed event: {@link ReceivedTelemetry.ReceivedResource} goes to the
+     * {@link #resource} reference (we just need one since the test JVM emits a single
+     * Resource); everything else is queued for consumers.
+     */
+    private void route(ReceivedTelemetry msg) {
+        logger.debug("telemetry received: {}", msg);
+        if (msg instanceof ReceivedTelemetry.ReceivedResource r) {
+            resource.compareAndSet(null, r);
+        } else {
+            received.add(msg);
         }
     }
 
@@ -142,8 +199,71 @@ public class RecordingApmServer extends ExternalResource {
         return host + ":" + getPort();
     }
 
+    /**
+     * Returns the gRPC endpoint URL the OTLP/gRPC exporter expects: {@code http://host:port}
+     * (no path component, unlike the HTTP endpoint which includes {@code /v1/logs}).
+     */
+    public String getGrpcEndpoint() {
+        String host = InetAddress.getLoopbackAddress().getHostAddress();
+        if (host.contains(":")) {
+            host = "[" + host + "]";
+        }
+        return "http://" + host + ":" + grpcServer.getPort();
+    }
+
+    /**
+     * Receives OTLP/gRPC log export requests, converts each {@link LogRecord} to a
+     * {@link ReceivedTelemetry.ReceivedLog}, and feeds them into the shared {@link #received} queue.
+     */
+    private final class LogsServiceImpl extends LogsServiceGrpc.LogsServiceImplBase {
+        @Override
+        public void export(ExportLogsServiceRequest request, StreamObserver<ExportLogsServiceResponse> responseObserver) {
+            if (running) {
+                try {
+                    for (ResourceLogs resourceLogs : request.getResourceLogsList()) {
+                        for (ScopeLogs scopeLogs : resourceLogs.getScopeLogsList()) {
+                            for (LogRecord record : scopeLogs.getLogRecordsList()) {
+                                received.add(OtlpLogsParser.toReceivedLog(record));
+                            }
+                        }
+                    }
+                } catch (Throwable t) {
+                    logger.warn("failed to handle gRPC ExportLogsServiceRequest", t);
+                }
+            }
+            responseObserver.onNext(ExportLogsServiceResponse.getDefaultInstance());
+            responseObserver.onCompleted();
+        }
+
+    }
+
     public void addMessageConsumer(Consumer<ReceivedTelemetry> messageConsumer) {
         this.consumer = messageConsumer;
+    }
+
+    /**
+     * Clears any recorded telemetry to leave the server in a clean state.
+     * <p>
+     * This server's lifetime coincides with that of the cluster it's attached to,
+     * but that same cluster (and hence this server) may be used for multiple tests.
+     * This method is intended to be used in a test class's {@code @Before}
+     * and/or {@code @After} methods to prevent tests from interfering with each other.
+     * <p>
+     * Tests are advised to flush their telemetry, or else buffered telemetry from
+     * one test may be exported during a subsequent test.
+     */
+    public void reset() {
+        consumer = null;
+        received.clear();
+        clearResponseCode();
+    }
+
+    /**
+     * @return the first {@link ReceivedTelemetry.ReceivedResource} observed in this server's
+     *         lifetime, or {@code null} if no resource event has arrived yet
+     */
+    public ReceivedTelemetry.ReceivedResource resource() {
+        return resource.get();
     }
 
 }

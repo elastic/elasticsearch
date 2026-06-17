@@ -14,6 +14,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
@@ -47,6 +48,7 @@ import java.nio.channels.SeekableByteChannel;
 import java.nio.file.AccessDeniedException;
 import java.nio.file.DirectoryStream;
 import java.nio.file.FileAlreadyExistsException;
+import java.nio.file.FileSystemException;
 import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
@@ -403,20 +405,58 @@ public class FsBlobContainer extends AbstractBlobContainer {
     ) throws IOException {
         final Path sourceBlobPath = path.resolve(sourceBlobName);
         final Path targetBlobPath = path.resolve(targetBlobName);
-        try {
-            if (failIfAlreadyExists && Files.exists(targetBlobPath)) {
-                throw new FileAlreadyExistsException("blob [" + targetBlobPath + "] already exists, cannot overwrite");
+        if (failIfAlreadyExists) {
+            moveAtomicallyUsingHardLink(targetBlobPath, sourceBlobPath, FsBlobContainer::fallbackMoveFileWithNoHardLinkSupported);
+        } else {
+            try {
+                Files.move(sourceBlobPath, targetBlobPath, StandardCopyOption.ATOMIC_MOVE);
+            } catch (IOException e) {
+                // If the target file exists then Files.move() behaviour is implementation-specific
+                // the existing file might be replaced or this method fails by throwing an IOException so we retry in a non-atomic
+                // way by deleting and then writing.
+                moveBlobNonAtomic(purpose, targetBlobName, sourceBlobPath, targetBlobPath, e);
             }
-            Files.move(sourceBlobPath, targetBlobPath, StandardCopyOption.ATOMIC_MOVE);
-        } catch (IOException e) {
-            // If the target file exists then Files.move() behaviour is implementation specific
-            // the existing file might be replaced or this method fails by throwing an IOException so we retry in a non-atomic
-            // way by deleting and then writing.
-            if (failIfAlreadyExists) {
+        }
+    }
+
+    /// Use a hard link to atomically fail if the target already exists. A plain Files.move with ATOMIC_MOVE uses rename(2) on
+    /// POSIX which silently replaces an existing target, so a separate Files.exists check beforehand is racy under concurrent
+    /// writers. Files.createLink uses link(2) which atomically fails with FileAlreadyExistsException when the target exists.
+    private static void moveAtomicallyUsingHardLink(
+        Path targetBlobPath,
+        Path sourceBlobPath,
+        CheckedBiConsumer<Path, Path, IOException> fallbackMoveAtomically
+    ) throws IOException {
+        try {
+            Files.createLink(targetBlobPath, sourceBlobPath);
+        } catch (UnsupportedOperationException e) {
+            fallbackMoveAtomically.accept(targetBlobPath, sourceBlobPath);
+            return;
+        } catch (FileSystemException e) {
+            // In some filesystems (e.g., CIFS) the Files.createLink() does not throw UnsupportedOperationException (as Javadoc says) but
+            // FileSystemException instead. To handle this, we fall back to the no-hard-link operation. This is an indirect check
+            // that assumes that direct FileSystemExceptions instance creation is rare, and it indicates a lack of support for hard links.
+            if (e.getClass() != FileSystemException.class) {
                 throw e;
             }
-            moveBlobNonAtomic(purpose, targetBlobName, sourceBlobPath, targetBlobPath, e);
+            fallbackMoveAtomically.accept(targetBlobPath, sourceBlobPath);
+            return;
         }
+        try {
+            Files.delete(sourceBlobPath);
+        } catch (IOException e) {
+            // The link succeeded, so the data is at the target path; the temp file is orphaned but not harmful.
+            logger.warn("failed to delete temporary blob [{}] after hard-linking to [{}]", sourceBlobPath, targetBlobPath);
+        }
+    }
+
+    /// Fall back for filesystems that do not support hard links (e.g., some network mounts).
+    /// This operation is not concurrency safe.
+    private static void fallbackMoveFileWithNoHardLinkSupported(Path targetBlobPath, Path sourceBlobPath) throws IOException {
+        if (Files.exists(targetBlobPath)) {
+            throw new FileAlreadyExistsException("blob [" + targetBlobPath + "] already exists, cannot overwrite");
+        }
+        Files.move(sourceBlobPath, targetBlobPath, StandardCopyOption.ATOMIC_MOVE);
     }
 
     private void moveBlobNonAtomic(OperationPurpose purpose, String targetBlobName, Path sourceBlobPath, Path targetBlobPath, IOException e)

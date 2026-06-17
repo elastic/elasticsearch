@@ -51,7 +51,7 @@ public class TransformNoTransformNodeIT extends TransformSingleNodeTestCase {
         GetTransformStatsAction.Response response = client().execute(GetTransformStatsAction.INSTANCE, request).actionGet();
         assertThat(response.getTransformsStats(), is(empty()));
 
-        assertCriticalWarnings("Transform requires the transform node role for at least 1 node, found no transform nodes");
+        assertWarnings("Transform requires the transform node role for at least 1 node, found no transform nodes");
     }
 
     public void testGetTransform() {
@@ -59,7 +59,7 @@ public class TransformNoTransformNodeIT extends TransformSingleNodeTestCase {
         GetTransformAction.Response response = client().execute(GetTransformAction.INSTANCE, request).actionGet();
         assertThat(response.getTransformConfigurations(), is(empty()));
 
-        assertCriticalWarnings("Transform requires the transform node role for at least 1 node, found no transform nodes");
+        assertWarnings("Transform requires the transform node role for at least 1 node, found no transform nodes");
     }
 
     public void testPreviewTransform() {
@@ -87,7 +87,7 @@ public class TransformNoTransformNodeIT extends TransformSingleNodeTestCase {
             is(true)
         );
 
-        assertCriticalWarnings("Transform requires the transform node role for at least 1 node, found no transform nodes");
+        assertWarnings("Transform requires the transform node role for at least 1 node, found no transform nodes");
 
         deleteTransform(transformId);
     }
@@ -130,7 +130,7 @@ public class TransformNoTransformNodeIT extends TransformSingleNodeTestCase {
         );
         client().execute(UpdateTransformAction.INSTANCE, request).actionGet();
 
-        assertCriticalWarnings("Transform requires the transform node role for at least 1 node, found no transform nodes");
+        assertWarnings("Transform requires the transform node role for at least 1 node, found no transform nodes");
 
         deleteTransform(transformId);
     }
@@ -142,7 +142,7 @@ public class TransformNoTransformNodeIT extends TransformSingleNodeTestCase {
             PutTransformAction.Request request = new PutTransformAction.Request(config, true, AcknowledgedRequest.DEFAULT_ACK_TIMEOUT);
             AcknowledgedResponse response = client().execute(PutTransformAction.INSTANCE, request).actionGet();
             assertThat(response.isAcknowledged(), is(true));
-            assertCriticalWarnings("Transform requires the transform node role for at least 1 node, found no transform nodes");
+            assertWarnings("Transform requires the transform node role for at least 1 node, found no transform nodes");
         }
 
         TransformConfigUpdate update = new TransformConfigUpdate(

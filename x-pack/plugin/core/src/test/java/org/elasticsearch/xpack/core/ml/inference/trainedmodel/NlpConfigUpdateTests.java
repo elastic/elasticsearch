@@ -74,7 +74,8 @@ public class NlpConfigUpdateTests extends ESTestCase {
         assertThat(
             e.getMessage(),
             containsString(
-                "unknown tokenization type expecting one of [bert, bert_ja, deberta_v2, mpnet, roberta, xlm_roberta] got [not_bert]"
+                "unknown tokenization type expecting one of [bert, bert_ja, byte_level_bpe, deberta_v2, mpnet, "
+                    + "roberta, xlm_roberta] got [not_bert]"
             )
         );
     }
@@ -127,5 +128,36 @@ public class NlpConfigUpdateTests extends ESTestCase {
             }
         };
         assertThat(NlpConfigUpdate.tokenizationFromMap(config), equalTo(new RobertaTokenizationUpdate(Tokenization.Truncate.FIRST, 0)));
+    }
+
+    public void testTokenizationFromMap_ByteLevelBpe() {
+        Map<String, Object> config = new HashMap<>() {
+            {
+                Map<String, Object> truncate = new HashMap<>();
+                truncate.put("truncate", "first");
+                Map<String, Object> tokenizer = new HashMap<>();
+                tokenizer.put("byte_level_bpe", truncate);
+                put("tokenization", tokenizer);
+            }
+        };
+        assertThat(
+            NlpConfigUpdate.tokenizationFromMap(config),
+            equalTo(new ByteLevelBpeTokenizationUpdate(Tokenization.Truncate.FIRST, null))
+        );
+
+        config = new HashMap<>() {
+            {
+                Map<String, Object> truncate = new HashMap<>();
+                truncate.put("truncate", "first");
+                truncate.put("span", 0);
+                Map<String, Object> tokenizer = new HashMap<>();
+                tokenizer.put("byte_level_bpe", truncate);
+                put("tokenization", tokenizer);
+            }
+        };
+        assertThat(
+            NlpConfigUpdate.tokenizationFromMap(config),
+            equalTo(new ByteLevelBpeTokenizationUpdate(Tokenization.Truncate.FIRST, 0))
+        );
     }
 }

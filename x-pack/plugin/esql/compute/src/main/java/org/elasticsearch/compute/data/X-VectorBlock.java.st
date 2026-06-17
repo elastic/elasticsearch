@@ -72,6 +72,11 @@ $endif$
     }
 
     @Override
+    public int valueMaxByteSize() {
+        return vector.valueMaxByteSize();
+    }
+
+    @Override
     public int getPositionCount() {
         return vector.getPositionCount();
     }
@@ -87,8 +92,8 @@ $endif$
     }
 
     @Override
-    public $Type$Block filter(boolean mayContainDuplicates, int... positions) {
-        return vector.filter(mayContainDuplicates, positions).asBlock();
+    public $Type$Block filter(boolean mayContainDuplicates, int[] positions, int offset, int length) {
+        return vector.filter(mayContainDuplicates, positions, offset, length).asBlock();
     }
 
     @Override

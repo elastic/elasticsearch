@@ -15,12 +15,13 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.reindex.AbstractBulkByScrollRequest;
-import org.elasticsearch.index.reindex.BulkByScrollResponse;
+import org.elasticsearch.index.reindex.AbstractBulkByPaginatedSearchRequest;
+import org.elasticsearch.index.reindex.BulkByPaginatedSearchResponse;
 import org.elasticsearch.index.reindex.ReindexAction;
 import org.elasticsearch.index.reindex.ReindexRequest;
 import org.elasticsearch.index.reindex.ReindexRequestBuilder;
 import org.elasticsearch.indices.IndexClosedException;
+import org.elasticsearch.search.internal.SearchContext;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -88,7 +89,7 @@ public class ReindexBasicTests extends ReindexTestCase {
         ReindexRequestBuilder copy = reindex().source("source").destination("dest").refresh(true);
         // Use a small batch size so we have to use more than one batch
         copy.source().setSize(5);
-        assertThat(copy.get(), matcher().created(max).batches(max, 5));
+        assertThat(copy.get(), matcher().created(max).total(max).batches(max, 5));
         assertHitCount(prepareSearch("dest").setSize(0), max);
 
         // Copy some of the docs
@@ -97,8 +98,43 @@ public class ReindexBasicTests extends ReindexTestCase {
         // Use a small batch size so we have to use more than one batch
         copy.source().setSize(5);
         copy.maxDocs(half);
-        assertThat(copy.get(), matcher().created(half).batches(half, 5));
+        assertThat(copy.get(), matcher().created(half).total(half).batches(half, 5));
         assertHitCount(prepareSearch("dest_half").setSize(0), half);
+    }
+
+    public void testTotalIsAccurateWhenSourceExceedsDefaultTrackTotalHits() {
+        int numDocs = SearchContext.DEFAULT_TRACK_TOTAL_HITS_UP_TO + randomIntBetween(1, SearchContext.DEFAULT_TRACK_TOTAL_HITS_UP_TO);
+
+        indexRandom(true, "source", numDocs);
+        // The verification searches must opt into accurate total tracking themselves; otherwise they hit the same default
+        // we are testing reindex's behaviour around.
+        assertHitCount(prepareSearch("source").setTrackTotalHits(true).setSize(0), numDocs);
+
+        BulkByPaginatedSearchResponse response = reindex().source("source").destination("dest").refresh(true).get();
+        assertThat(response, matcher().created(numDocs).total(numDocs));
+        assertHitCount(prepareSearch("dest").setTrackTotalHits(true).setSize(0), numDocs);
+    }
+
+    /// Sliced variant of [#testTotalIsAccurateWhenSourceExceedsDefaultTrackTotalHits]. Each slice caches its
+    /// first-batch total independently; the aggregated leader total must still equal the true doc count.
+    public void testTotalIsAccurateWhenSourceExceedsDefaultTrackTotalHitsSliced() {
+        int slices = randomIntBetween(2, 5);
+        int numDocs = SearchContext.DEFAULT_TRACK_TOTAL_HITS_UP_TO + randomIntBetween(1, SearchContext.DEFAULT_TRACK_TOTAL_HITS_UP_TO);
+        indexRandom(true, "source", numDocs);
+        assertHitCount(prepareSearch("source").setTrackTotalHits(true).setSize(0), numDocs);
+
+        // Small batch size so every slice paginates multiple times and the disable-on-follow-up path runs.
+        int batchSize = 100;
+        ReindexRequestBuilder copy = reindex().source("source").destination("dest").refresh(true).setSlices(slices);
+        copy.source().setSize(batchSize);
+        assertThat(
+            copy.get(),
+            matcher().created(numDocs)
+                .total(numDocs)
+                .batches(greaterThanOrEqualTo(numDocs / batchSize))
+                .slices(hasSize(expectedSliceStatuses(slices, "source")))
+        );
+        assertHitCount(prepareSearch("dest").setTrackTotalHits(true).setSize(0), numDocs);
     }
 
     /**
@@ -156,7 +192,7 @@ public class ReindexBasicTests extends ReindexTestCase {
         copy.source().setSize(5);
         copy.setRequestsPerSecond(4.0f);
 
-        BulkByScrollResponse response = copy.get();
+        BulkByPaginatedSearchResponse response = copy.get();
         assertThat(response, matcher().created(numDocs));
         assertThat(response.getSearchFailures(), empty());
         assertHitCount(prepareSearch(dest).setSize(0), numDocs);
@@ -183,21 +219,21 @@ public class ReindexBasicTests extends ReindexTestCase {
         indexRandom(true, docs);
         assertHitCount(prepareSearch(source).setSize(0), max);
 
-        int expectedStatuses = expectedSliceStatuses(AbstractBulkByScrollRequest.AUTO_SLICES, source);
+        int expectedStatuses = expectedSliceStatuses(AbstractBulkByPaginatedSearchRequest.AUTO_SLICES, source);
 
         ReindexRequestBuilder copy = reindex().source(source)
             .destination(dest)
             .refresh(true)
-            .setSlices(AbstractBulkByScrollRequest.AUTO_SLICES);
+            .setSlices(AbstractBulkByPaginatedSearchRequest.AUTO_SLICES);
         copy.source().setSize(5);
         assertThat(copy.get(), matcher().created(max).batches(greaterThanOrEqualTo(max / 5)).slices(hasSize(expectedStatuses)));
         assertHitCount(prepareSearch(dest).setSize(0), max);
 
         int half = max / 2;
-        copy = reindex().source(source).destination(destHalf).refresh(true).setSlices(AbstractBulkByScrollRequest.AUTO_SLICES);
+        copy = reindex().source(source).destination(destHalf).refresh(true).setSlices(AbstractBulkByPaginatedSearchRequest.AUTO_SLICES);
         copy.source().setSize(5);
         copy.maxDocs(half);
-        BulkByScrollResponse response = copy.get();
+        BulkByPaginatedSearchResponse response = copy.get();
         assertThat(response, matcher().created(lessThanOrEqualTo((long) half)).slices(hasSize(expectedStatuses)));
         assertHitCount(prepareSearch(destHalf).setSize(0), response.getCreated());
     }
@@ -236,7 +272,7 @@ public class ReindexBasicTests extends ReindexTestCase {
         copy = reindex().source(source).destination(destHalf).refresh(true).setSlices(slices);
         copy.source().setSize(5);
         copy.maxDocs(half);
-        BulkByScrollResponse response = copy.get();
+        BulkByPaginatedSearchResponse response = copy.get();
         assertThat(response, matcher().created(lessThanOrEqualTo((long) half)).slices(hasSize(expectedStatuses)));
         assertHitCount(prepareSearch(destHalf).setSize(0), response.getCreated());
     }
@@ -269,17 +305,17 @@ public class ReindexBasicTests extends ReindexTestCase {
             assertHitCount(prepareSearch(entry.getKey()).setSize(0), entry.getValue().size());
         }
 
-        int expectedStatuses = expectedSliceStatuses(AbstractBulkByScrollRequest.AUTO_SLICES, docs.keySet());
+        int expectedStatuses = expectedSliceStatuses(AbstractBulkByPaginatedSearchRequest.AUTO_SLICES, docs.keySet());
 
         String dest = prefix + "_dest";
         String[] sourceNames = docs.keySet().toArray(new String[0]);
         ReindexRequestBuilder request = reindex().source(sourceNames)
             .destination(dest)
             .refresh(true)
-            .setSlices(AbstractBulkByScrollRequest.AUTO_SLICES);
+            .setSlices(AbstractBulkByPaginatedSearchRequest.AUTO_SLICES);
         request.source().setSize(5);
 
-        BulkByScrollResponse response = request.get();
+        BulkByPaginatedSearchResponse response = request.get();
         int totalDocs = allDocs.size();
         assertThat(response, matcher().created(totalDocs).batches(greaterThanOrEqualTo(totalDocs / 5)).slices(hasSize(expectedStatuses)));
         assertHitCount(prepareSearch(dest).setSize(0), totalDocs);
@@ -320,16 +356,16 @@ public class ReindexBasicTests extends ReindexTestCase {
         ReindexRequestBuilder request = reindex().source(sourceNames).destination(dest).refresh(true).setSlices(slices);
         request.source().setSize(5);
 
-        BulkByScrollResponse response = request.get();
+        BulkByPaginatedSearchResponse response = request.get();
         int totalDocs = allDocs.size();
         assertThat(response, matcher().created(totalDocs).batches(greaterThanOrEqualTo(totalDocs / 5)).slices(hasSize(expectedStatuses)));
         assertHitCount(prepareSearch(dest).setSize(0), totalDocs);
     }
 
     public void testMissingSources() {
-        BulkByScrollResponse response = updateByQuery().source("missing-index-*")
+        BulkByPaginatedSearchResponse response = updateByQuery().source("missing-index-*")
             .refresh(true)
-            .setSlices(AbstractBulkByScrollRequest.AUTO_SLICES)
+            .setSlices(AbstractBulkByPaginatedSearchRequest.AUTO_SLICES)
             .get();
         assertThat(response, matcher().created(0).slices(hasSize(0)));
     }
@@ -416,6 +452,7 @@ public class ReindexBasicTests extends ReindexTestCase {
         String sourceIndex = "source";
         String destIndex = "dest";
         createIndex(sourceIndex);
+        ensureGreen(sourceIndex);
         indexRandom(true, prepareIndex(sourceIndex).setId("1").setSource("foo", "bar"));
         indicesAdmin().prepareClose(sourceIndex).get();
 

@@ -28,6 +28,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.injection.guice.Inject;
@@ -222,7 +223,7 @@ public class TransportFetchPhaseCoordinationAction extends HandledTransportActio
                 try (StreamInput in = new NamedWriteableAwareStreamInput(lastChunkBytes.streamInput(), namedWriteableRegistry)) {
                     for (int i = 0; i < hitCount; i++) {
                         int position = in.readVInt();
-                        SearchHit hit = SearchHit.readFrom(in, false);
+                        SearchHit hit = SearchHit.readFrom(in);
                         responseStream.addHitWithSequence(hit, position);
                     }
                 }
@@ -234,12 +235,10 @@ public class TransportFetchPhaseCoordinationAction extends HandledTransportActio
                 dataNodeResult.getSearchShardTarget(),
                 dataNodeResult.profileResult()
             );
+            finalResult.setDirectoryMetrics(dataNodeResult.getDirectoryMetrics());
 
             ActionListener.respondAndRelease(listener.map(Response::new), finalResult);
-        }, listener::onFailure), () -> {
-            registration.close();
-            responseStream.decRef();
-        });
+        }, listener::onFailure), () -> Releasables.close(registration, responseStream::decRef));
 
         final ThreadContext threadContext = transportService.getThreadPool().getThreadContext();
         try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {

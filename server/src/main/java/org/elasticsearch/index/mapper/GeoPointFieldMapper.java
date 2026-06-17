@@ -108,6 +108,7 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
         final Parameter<Map<String, String>> meta = Parameter.metaParam();
         private final Parameter<TimeSeriesParams.MetricType> metric;  // either null, or POSITION if this is a time series metric
         private final Parameter<Boolean> dimension; // can only support time_series_dimension: false
+        private final boolean indexDisabledByDefault;
 
         private final ScriptCompiler scriptCompiler;
         private final IndexSettings indexSettings;
@@ -127,10 +128,14 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
             this.scriptCompiler = Objects.requireNonNull(scriptCompiler);
             this.indexSettings = Objects.requireNonNull(indexSettings);
             this.script.precludesParameters(nullValue, ignoreMalformed, ignoreZValue);
-            this.indexed = Parameter.indexParam(
-                m -> toType(m).indexed,
-                () -> indexSettings.getMode() != IndexMode.TIME_SERIES || getMetric().getValue() != TimeSeriesParams.MetricType.POSITION
-            );
+            this.indexDisabledByDefault = indexSettings.isIndexDisabledByDefault();
+            this.indexed = Parameter.indexParam(m -> toType(m).indexed, () -> {
+                if (indexDisabledByDefault) {
+                    return false;
+                }
+
+                return indexSettings.getMode() != IndexMode.TIME_SERIES || getMetric().getValue() != TimeSeriesParams.MetricType.POSITION;
+            });
             addScriptValidation(script, indexed, hasDocValues);
 
             this.metric = TimeSeriesParams.metricParam(m -> toType(m).metricType, TimeSeriesParams.MetricType.POSITION).addValidator(v -> {
@@ -553,8 +558,12 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
                 // if we got here, then either synthetic source is not enabled or the preference prohibits us from using doc_values
             }
 
-            // doc_values are disabled, fallback to ignored_source, except for multi fields since then don't have fallback synthetic source
-            if (isSyntheticSource && hasDocValues() == false && blContext.parentField(name()) == null) {
+            // doc_values are disabled, fallback to ignored_source, except for multi fields since then don't have fallback synthetic source.
+            // columnar_stored pre-builds _source as a single blob; skip the per-field fallback loader.
+            if (isSyntheticSource
+                && hasDocValues() == false
+                && blContext.mappingLookup().isSourceColumnarStored() == false
+                && blContext.parentField(name()) == null) {
                 return blockLoaderFromFallbackSyntheticSource(blContext);
             }
 

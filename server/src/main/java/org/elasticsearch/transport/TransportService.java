@@ -657,7 +657,7 @@ public class TransportService extends AbstractLifecycleComponent
                     } else {
                         l.onResponse(response);
                     }
-                }), () -> {/* cannot cancel handshake, no cleanup to do */}),
+                })),
                 HandshakeResponse::new,
                 threadPool.generic()
             )

@@ -26,6 +26,7 @@ import org.elasticsearch.test.MapMatcher;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.TestFeatureService;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.esql.CsvAssert;
 import org.elasticsearch.xpack.esql.CsvSpecReader.CsvTestCase;
 import org.elasticsearch.xpack.esql.CsvTestUtils;
 import org.elasticsearch.xpack.esql.CsvTestsDataLoader;
@@ -196,7 +197,7 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         if (shouldLoadViews()) {
             VIEWS.protectedBlock(() -> {
                 if (supportsViews()) {
-                    loadViewsIntoEs(adminClient());
+                    loadViewsIntoEs(adminClient(), this::clusterHasCapability);
                 }
                 return null;
             });
@@ -263,7 +264,7 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
 
     // Only load views for tests in the "views" group (from views.csv-spec)
     protected boolean shouldLoadViews() {
-        return "views".equals(groupName);
+        return "views".equals(groupName) || "approximation".equals(groupName);
     }
 
     /**
@@ -300,6 +301,7 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         CsvTestCase testCase
     ) {
         checkCapabilities(client, testFeatureService, testName, testCase.requiredCapabilities);
+        checkCapabilities(client, testFeatureService, testName, testCase.requiredCapabilitiesLocalCluster);
     }
 
     protected static void checkCapabilities(
@@ -403,6 +405,32 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
 
     protected final void doTest(String query) throws Throwable {
         if (query.trim().toUpperCase(Locale.ROOT).contains("EXTERNAL \"{{")) {
+            // Multi-file glob templates ({{x_multifile}}, {{x_multifile_split}}, {{x_multifile_ubn}},
+            // {{x_multifile_type_drift}}), hive-partitioned templates ({{x_hive}}), and ClickBench
+            // templates ({{clickbench}}) are resolved by specialised subclasses against their own
+            // fixtures. Plain EsqlSpecTestCase subclasses (mixed-cluster, multi-cluster,
+            // single/multi-node, flight) share the same csv-spec files via the testFixtures classpath
+            // but have no resolver for these templates, so skip such tests here.
+            assumeFalseLogging(
+                "specialised EXTERNAL templates require dedicated test subclass",
+                query.contains("_multifile}}")
+                    || query.contains("_multifile_split}}")
+                    || query.contains("_multifile_ubn}}")
+                    || query.contains("_multifile_type_drift}}")
+                    || query.contains("_hive}}")
+                    || query.contains("{{clickbench}}")
+            );
+            // external-multivalue.csv-spec exercises native multi-value reads for non-CSV/TSV format
+            // ITs (Parquet/ORC/NDJSON/multi-node) which decode arrays from their format's native
+            // representation. Its queries use {{employees}} without a multi_value_syntax opt-in
+            // (the non-CSV format readers reject the unknown key via ConfigKeyValidator). On the
+            // EsqlSpecTestCase cluster the local CSV reader defaults to multi_value_syntax: none
+            // and would misalign columns on the bracket-MV employees.csv. CSV-side bracket-syntax
+            // coverage lives in csv-multivalue.csv-spec with the explicit "brackets" opt-in.
+            assumeFalseLogging(
+                "external-multivalue requires AbstractExternalSourceSpecTestCase (native multi-value formats)",
+                fileName.equals("external-multivalue.csv-spec")
+            );
             Path path = getCsvDataPath();
             if (path != null) {
                 query = substituteTemplates(query, csvFileTemplateResolver(path));
@@ -452,6 +480,7 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         List<List<Object>> actualValues = (List<List<Object>>) values;
 
         assertResults(expectedColumnsWithValues, actualColumns, actualValues, logger);
+        CsvAssert.assertDocumentsFound(testCase.expectedDocumentsFound, (int) answer.get("documents_found"));
 
         if (checkTook) {
             LOGGER.info("checking took incremented from {}", prevTooks);
@@ -468,6 +497,7 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
             pragmaBuilder.put(QueryPragmas.FIELD_EXTRACT_PREFERENCE.getKey(), preference.toString()).build();
         }
         addRandomPragma(pragmaBuilder);
+        testCase.pragmas.forEach(pragmaBuilder::put);
 
         Settings pragma = pragmaBuilder.build();
         if (pragma.isEmpty() == false) {

@@ -10,6 +10,8 @@ package org.elasticsearch.xpack.esql;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Booleans;
@@ -44,6 +46,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoTimeout;
 import static org.elasticsearch.xpack.esql.CsvSpecReader.specParser;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.classpathResources;
 
@@ -895,6 +898,13 @@ public class CsvFlattenedKeywordIT extends CsvIT {
                 return expected;
             }
             return new CsvTestUtils.ExpectedResults(expected.columnNames(), expected.columnTypes(), newValues);
+        }
+
+        @Override
+        public void afterIndexLoaded(CsvTestsDataLoader.TestDataset dataset, Client client) {
+            // Workaround for https://github.com/elastic/elasticsearch/issues/151369
+            // See BucketColumnMetadataIT#waitForAllTasks for additional context
+            assertNoTimeout(client.admin().cluster().prepareHealth(CsvIT.TEST_REQUEST_TIMEOUT).setWaitForEvents(Priority.LANGUID).get());
         }
 
         /**

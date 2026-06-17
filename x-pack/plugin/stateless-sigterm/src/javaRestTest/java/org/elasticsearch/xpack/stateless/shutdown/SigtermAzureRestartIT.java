@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.stateless.shutdown;
 
-import org.apache.http.HttpHost;
-import org.elasticsearch.client.Node;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -21,7 +19,6 @@ import org.elasticsearch.test.rest.ESRestTestCase;
 import org.junit.ClassRule;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;

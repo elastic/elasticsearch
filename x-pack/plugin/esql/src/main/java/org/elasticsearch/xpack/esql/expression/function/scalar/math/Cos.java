@@ -37,6 +37,7 @@ public class Cos extends AbstractTrigonometricFunction {
 
     @FunctionInfo(
         returnType = "double",
+        briefSummary = "Returns the cosine of an angle.",
         description = "Returns the {wikipedia}/Sine_and_cosine[cosine] of an angle.",
         examples = @Example(file = "floats", tag = "cos")
     )

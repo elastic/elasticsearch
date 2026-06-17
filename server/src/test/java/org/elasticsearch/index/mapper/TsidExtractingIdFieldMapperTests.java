@@ -19,6 +19,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.ByteUtils;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
@@ -862,8 +863,16 @@ public class TsidExtractingIdFieldMapperTests extends MetadataMapperTestCase {
         this.testCase = testCase;
         this.useSyntheticId = useSyntheticId;
         this.blockLoaderTestRunner = new BlockLoaderTestRunner(
-            new BlockLoaderTestCase.Params(false, randomFrom(MappedFieldType.FieldExtractPreference.values()))
+            new BlockLoaderTestCase.Params(
+                IndexMode.STANDARD,
+                SourceFieldMapper.Mode.STORED,
+                randomFrom(MappedFieldType.FieldExtractPreference.values())
+            )
         ).breaker(newLimitedBreaker(ByteSizeValue.ofMb(1)));
+    }
+
+    protected String notConfigurableErrorMessage() {
+        return "Failed to parse mapping: " + fieldName() + " is not configurable if index mode is time_series";
     }
 
     public void testExpectedIdWithRoutingPath() throws IOException {
@@ -1195,6 +1204,11 @@ public class TsidExtractingIdFieldMapperTests extends MetadataMapperTestCase {
             assertThat(TsidExtractingIdFieldMapper.extractTimestampFromSyntheticId(uid), equalTo(timestamp));
             assertThat(TsidExtractingIdFieldMapper.extractRoutingHashFromSyntheticId(uid), equalTo(routingHash));
         }
+    }
+
+    @Override
+    protected Settings getIndexSettings() {
+        return indexSettings(IndexVersion.current(), true, false);
     }
 
     private void verifyIdFromBlockLoader(String expectedId) throws IOException {

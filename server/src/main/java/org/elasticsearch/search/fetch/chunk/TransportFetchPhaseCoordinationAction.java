@@ -235,6 +235,7 @@ public class TransportFetchPhaseCoordinationAction extends HandledTransportActio
                 dataNodeResult.getSearchShardTarget(),
                 dataNodeResult.profileResult()
             );
+            finalResult.setDirectoryMetrics(dataNodeResult.getDirectoryMetrics());
 
             // Release the birth ref after passing ownership to the listener via consumeResult's incRef.
             try {

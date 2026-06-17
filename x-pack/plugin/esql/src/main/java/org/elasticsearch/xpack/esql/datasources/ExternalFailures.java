@@ -18,11 +18,17 @@ import java.util.Set;
 
 /**
  * Classifies a failure raised while reading an external data source into the exception the
- * {@code AsyncExternalSourceOperator} should surface, so that it maps to the right HTTP status.
+ * {@code AsyncExternalSourceOperator} should surface, so that it maps to the right HTTP status. The
+ * companion {@link #surface} helper is used at the worker rethrow sites inside parallel coordinators and
+ * page iterators to pre-type the failure: it wraps a raw {@link IOException} in an already-classified
+ * {@link ExternalClientException} (400) so the read boundary's {@link #classify} sees a status-typed
+ * exception. {@code surface} cannot rescue a status signal already buried under a status-neutral
+ * {@link RuntimeException} wrapper; callers must therefore pass the <em>raw</em> stored throwable, not a
+ * pre-wrapped one.
  * <p>
- * This is the single boundary where external-source reads turn into a user-visible error, and it is
- * reached only for external-source queries (the operator exists only for them), so index queries are
- * unaffected. It runs co-located with the throw, on the node that reads the external source, before
+ * {@link #classify} is the single boundary where external-source reads turn into a user-visible error,
+ * and it is reached only for external-source queries (the operator exists only for them), so index queries
+ * are unaffected. It runs co-located with the throw, on the node that reads the external source, before
  * the failure is serialized back to the coordinator — so classification relies on the concrete
  * exception type while it is still available, and only the resulting {@code status()} needs to cross
  * the wire (see {@link org.elasticsearch.xpack.esql.datasources.spi.ExternalException}). The policy:
@@ -87,7 +93,68 @@ public final class ExternalFailures {
         return new ExternalServerException(t, "Unexpected failure reading external source: {}", t.getMessage());
     }
 
+    /**
+     * Surfaces a worker-side stored failure as a typed ES|QL exception that already carries the right HTTP
+     * status, instead of a status-neutral {@link RuntimeException} wrapper. Called at the throw site inside
+     * parallel parsing coordinators and page iterators (the boundary between the worker that stored the
+     * failure and the consumer pulling from the iterator). Companion to {@link #classify}: where
+     * {@code classify} runs at the read boundary and maps a freshly raised failure to a status-typed
+     * exception, {@code surface} runs at the worker rethrow site and pins the status carried by the
+     * underlying type while preserving a context prefix ({@code fallbackMessage}, e.g.
+     * {@code "Streaming parallel parsing failed"}) so the coordinator/iterator origin stays visible in logs
+     * and the user-facing message:
+     * <ul>
+     *     <li>An {@link Error} is rethrown unchanged — a JVM/programming fault must stay fatal.</li>
+     *     <li>A {@link RuntimeException} is returned as-is. This covers status carriers
+     *     ({@link ElasticsearchException} family, {@link IllegalArgumentException}) which already pin
+     *     their own status, and any other unchecked cause raised by the worker. <strong>Note:</strong> a
+     *     bare {@link RuntimeException} that buries an {@link IOException} cause is <em>not</em> rescued
+     *     here — the wrapper has already destroyed the type signal. Callers must therefore pass the raw
+     *     stored throwable, not a pre-wrapped one.</li>
+     *     <li>An {@link IOException} or {@link UncheckedIOException} becomes an
+     *     {@link ExternalClientException} (400) — undecodable input is a client-class error, not a server
+     *     fault. The {@code fallbackMessage} prefix is kept either way, so the context survives whether
+     *     the worker raised checked or unchecked I/O.</li>
+     *     <li>Anything else (a checked, non-IO exception — typically {@link InterruptedException} stored
+     *     after a worker thread was interrupted) becomes an {@link ExternalServerException} (500): we have
+     *     no evidence it is the caller's fault, so we keep the bug visible.</li>
+     * </ul>
+     * Calling {@code surface} at the worker rethrow site lets {@code AsyncExternalSourceOperator}'s
+     * {@link #classify} compose cleanly on the result: an {@link ExternalException} returned here passes
+     * straight through {@code classify} unchanged; a non-classified {@link RuntimeException} is the only
+     * shape {@code classify} still actively re-wraps (into {@link ExternalServerException}, the same status
+     * {@code surface} would have produced for an unrecognized worker fault).
+     *
+     * @param failure the raw stored worker-side throwable; <em>not</em> a status-neutral wrapper around it
+     * @param fallbackMessage non-null context prefix (e.g. the coordinator/iterator name); included in
+     *                        every wrapped result so the throw-site origin survives classification
+     */
+    public static RuntimeException surface(Throwable failure, String fallbackMessage) {
+        if (failure instanceof Error error) {
+            throw error;
+        }
+        // UncheckedIOException is checked before the generic RuntimeException branch so its IO origin is
+        // typed as 400 with the coordinator's context prefix, instead of falling through unchanged and
+        // letting classify() re-wrap it with the boundary's generic message.
+        if (failure instanceof IOException || failure instanceof UncheckedIOException) {
+            return new ExternalClientException(failure, "{}: {}", fallbackMessage, detail(failure));
+        }
+        if (failure instanceof RuntimeException re) {
+            return re;
+        }
+        return new ExternalServerException(failure, "{}: {}", fallbackMessage, detail(failure));
+    }
+
     private static boolean isMalformedDataException(Throwable t) {
         return MALFORMED_DATA_EXCEPTIONS.contains(t.getClass().getName());
+    }
+
+    /**
+     * Best-effort short description of a failure for inclusion in a typed exception's message: the
+     * {@code getMessage()} if set, otherwise the class's simple name (so a null-message
+     * {@link InterruptedException} reads as {@code "InterruptedException"} rather than {@code "null"}).
+     */
+    private static String detail(Throwable failure) {
+        return failure.getMessage() != null ? failure.getMessage() : failure.getClass().getSimpleName();
     }
 }

@@ -164,11 +164,11 @@ public abstract class MultiValuedBinaryDocValuesField extends CustomDocValuesFie
         }
 
         private static void addToDoc(LuceneDocument doc, String fieldName, BytesRef value, ValueOrdering ordering) {
-            var field = (IntegratedCount) doc.getByKey(fieldName);
-            if (field == null) {
-                field = new IntegratedCount(fieldName, ordering);
-                doc.addWithKey(fieldName, field);
-            }
+            var field = (IntegratedCount) doc.getOrAddWithKey(fieldName, key -> {
+                var newField = new IntegratedCount(fieldName, ordering);
+                doc.add(newField);
+                return newField;
+            });
             field.add(value);
         }
 
@@ -221,23 +221,28 @@ public abstract class MultiValuedBinaryDocValuesField extends CustomDocValuesFie
 
         public static final String COUNT_FIELD_SUFFIX = ".counts";
 
+        // Held here so addToDoc can update the count on each value without a second keyedFields lookup.
+        NumericDocValuesField countField;
+
+        public NumericDocValuesField countField() {
+            return countField;
+        }
+
         public SeparateCount(String name, ValueOrdering ordering) {
             super(name, ordering);
         }
 
         private static void addToDoc(LuceneDocument doc, String fieldName, BytesRef value, ValueOrdering ordering) {
-            var field = (SeparateCount) doc.getByKey(fieldName);
-            final NumericDocValuesField countField;
-            if (field == null) {
-                field = new SeparateCount(fieldName, ordering);
-                countField = NumericDocValuesField.indexedField(field.countFieldName(), -1);
-                doc.addWithKey(field.name(), field);
-                doc.addWithKey(countField.name(), countField);
-            } else {
-                countField = (NumericDocValuesField) doc.getByKey(fieldName + COUNT_FIELD_SUFFIX);
-            }
+            var field = (SeparateCount) doc.getOrAddWithKey(fieldName, key -> {
+                var newField = new SeparateCount(fieldName, ordering);
+                newField.countField = NumericDocValuesField.indexedField(newField.countFieldName(), -1);
+                // use doc.addAll() instead of doc.add(), because later is backed by ArrayList and invoking doc.add() twice can trigger
+                // growing the array twice. ArrayLists grows with length + 1.
+                doc.addAll(List.of(newField, newField.countField));
+                return newField;
+            });
             field.add(value);
-            countField.setLongValue(field.count());
+            field.countField.setLongValue(field.count());
         }
 
         @Override

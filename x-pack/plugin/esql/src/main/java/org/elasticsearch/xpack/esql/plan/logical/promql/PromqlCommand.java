@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.plan.logical.promql;
 
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.xpack.esql.capabilities.ConfigurationAware;
 import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
@@ -21,12 +20,12 @@ import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
+import org.elasticsearch.xpack.esql.core.tree.NodeStringMapper;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.function.TimestampAware;
 import org.elasticsearch.xpack.esql.expression.function.TimestampBoundsAware;
-import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
 import org.elasticsearch.xpack.esql.parser.promql.PromqlLogicalPlanBuilder;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
@@ -344,17 +343,23 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
     }
 
     @Override
-    public void nodeString(StringBuilder sb, NodeStringFormat format) {
+    public void nodeString(StringBuilder sb, NodeStringFormat format, NodeStringMapper mapper) {
         sb.append(nodeName());
-        sb.append(" start=[").append(start);
-        sb.append("] end=[").append(end);
-        sb.append("] step=[").append(step);
-        sb.append("] buckets=[").append(buckets);
-        sb.append("] scrape_interval=[").append(scrapeInterval);
-        sb.append("] valueColumnName=[").append(valueColumnName);
+        sb.append(" start=[").append(renderLiteral(start, mapper));
+        sb.append("] end=[").append(renderLiteral(end, mapper));
+        sb.append("] step=[").append(renderLiteral(step, mapper));
+        sb.append("] buckets=[").append(renderLiteral(buckets, mapper));
+        sb.append("] scrape_interval=[").append(renderLiteral(scrapeInterval, mapper));
+        sb.append("] valueColumnName=[").append(valueColumnName == null ? "null" : mapper.column(valueColumnName));
         sb.append("] promql=[<>\n");
-        sb.append(promqlPlan.toString(format));
+        sb.append(promqlPlan.toString(format, mapper));
         sb.append("\n<>]]");
+    }
+
+    // Route the literal value through the mapper rather than appending it raw: identity is the raw
+    // value (matching the prior rendering), anonymization an interned token. No identity branch.
+    private static String renderLiteral(Literal lit, NodeStringMapper mapper) {
+        return lit == null ? "null" : mapper.literal(lit.value(), lit.dataType());
     }
 
     @Override
@@ -526,6 +531,23 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
         return window.isZero() ? DEFAULT_LOOKBACK : window;
     }
 
+    /**
+     * Resolves the implicit range placeholder to a concrete duration based on step and scrape interval.
+     * The implicit window is calculated as {@code max(step, scrape_interval)}.
+     */
+    public Literal resolveImplicitRangeWindow() {
+        Duration step = foldDuration(resolveTimeBucketSize(), STEP);
+        Duration scrapeInterval = foldDuration(scrapeInterval(), SCRAPE_INTERVAL);
+        return Literal.timeDuration(source(), step.compareTo(scrapeInterval) >= 0 ? step : scrapeInterval);
+    }
+
+    public Expression resolveTimeBucketSize() {
+        if (isRangeQuery()) {
+            return Literal.timeDuration(source(), PromqlLogicalPlanBuilder.foldStep(timestamp(), start(), end(), step(), buckets()));
+        }
+        return Literal.timeDuration(source(), DEFAULT_LOOKBACK);
+    }
+
     private Duration maxRangeSelectorWindow() {
         Duration window = Duration.ZERO;
         for (var selector : promqlPlan().collect(RangeSelector.class)) {
@@ -557,39 +579,4 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
         }
         throw new QlIllegalArgumentException("Expected [{}] to be a duration literal, got [{}]", paramName, expression);
     }
-
-    /**
-     * Resolves the implicit range placeholder to a concrete duration based on step and scrape interval.
-     * The implicit window is calculated as {@code max(step, scrape_interval)}.
-     */
-    public Literal resolveImplicitRangeWindow() {
-        Duration step = foldDuration(resolveTimeBucketSize(), STEP);
-        Duration scrapeInterval = foldDuration(scrapeInterval(), SCRAPE_INTERVAL);
-        return Literal.timeDuration(source(), step.compareTo(scrapeInterval) >= 0 ? step : scrapeInterval);
-    }
-
-    public Expression resolveTimeBucketSize() {
-        if (isRangeQuery()) {
-            if (step().value() != null) {
-                return step();
-            }
-            Bucket autoBucket = new Bucket(
-                buckets().source(),
-                timestamp(),
-                buckets(),
-                start(),
-                end(),
-                ConfigurationAware.CONFIGURATION_MARKER
-            );
-            long rangeStart = ((Number) start().value()).longValue();
-            long rangeEnd = ((Number) end().value()).longValue();
-            var rounding = autoBucket.getDateRounding(FoldContext.small(), rangeStart, rangeEnd);
-            long roundedStart = rounding.round(rangeStart);
-            long nextRoundedValue = rounding.nextRoundingValue(roundedStart);
-            return Literal.timeDuration(source(), Duration.ofMillis(Math.max(1L, nextRoundedValue - roundedStart)));
-        }
-        // use default lookback for instant queries
-        return Literal.timeDuration(source(), DEFAULT_LOOKBACK);
-    }
-
 }

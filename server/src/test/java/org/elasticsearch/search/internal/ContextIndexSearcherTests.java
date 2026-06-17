@@ -14,6 +14,7 @@ import org.apache.lucene.codecs.StoredFieldsReader;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.IntPoint;
+import org.apache.lucene.document.KnnFloatVectorField;
 import org.apache.lucene.document.LongField;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.SortedNumericDocValuesField;
@@ -78,8 +79,14 @@ import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.store.ByteSizeDirectory;
+import org.elasticsearch.index.store.Store;
+import org.elasticsearch.index.store.StoreMetrics;
+import org.elasticsearch.index.store.StoreMetricsDirectory;
+import org.elasticsearch.index.store.ThreadLocalDirectoryMetricHolder;
 import org.elasticsearch.lucene.util.CombinedBits;
 import org.elasticsearch.lucene.util.MatchAllBitSet;
+import org.elasticsearch.search.StoreMetricsAwareExecutor;
 import org.elasticsearch.search.aggregations.BucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.dfs.AggregatedDfs;
@@ -105,6 +112,7 @@ import static org.elasticsearch.search.internal.ExitableDirectoryReader.Exitable
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
@@ -740,6 +748,150 @@ public class ContextIndexSearcherTests extends ESTestCase {
                     maxClauseCount
                 );
             }
+        }
+    }
+
+    public void testConcurrentRewriteCapturesWorkerBytes() throws Exception {
+        assumeTrue("directory metrics must be enabled", Store.DIRECTORY_METRICS_FEATURE_FLAG.isEnabled());
+        ThreadPoolExecutor executor = (ThreadPoolExecutor) Executors.newFixedThreadPool(randomIntBetween(2, 5));
+        ThreadLocalDirectoryMetricHolder<StoreMetrics> holder = new ThreadLocalDirectoryMetricHolder<>(StoreMetrics::new);
+        StoreMetricsAwareExecutor wrapped = new StoreMetricsAwareExecutor(executor, holder::instance);
+        boolean wrapWithExitableDirectoryReader = randomBoolean();
+
+        try (Directory directory = newRecordingDirectory(holder)) {
+            indexDocsWithVectors(directory);
+            long totalBytesSequential;
+            KnnFloatVectorQuery vectorQuery = new KnnFloatVectorQuery("float_vector", new float[] { 0.5f, 0.5f, 0.5f }, 10, null);
+
+            try (DirectoryReader directoryReader = DirectoryReader.open(directory)) {
+                ContextIndexSearcher sequentialSearcher = new ContextIndexSearcher(
+                    directoryReader,
+                    IndexSearcher.getDefaultSimilarity(),
+                    IndexSearcher.getDefaultQueryCache(),
+                    IndexSearcher.getDefaultQueryCachingPolicy(),
+                    wrapWithExitableDirectoryReader
+                );
+
+                StoreMetrics caller = holder.instance();
+                long callerBytesBefore = caller.getBytesRead();
+                vectorQuery.rewrite(sequentialSearcher);
+                totalBytesSequential = (caller.getBytesRead() - callerBytesBefore);
+            }
+
+            try (DirectoryReader directoryReader = DirectoryReader.open(directory)) {
+                ContextIndexSearcher searcher = new ContextIndexSearcher(
+                    directoryReader,
+                    IndexSearcher.getDefaultSimilarity(),
+                    IndexSearcher.getDefaultQueryCache(),
+                    IndexSearcher.getDefaultQueryCachingPolicy(),
+                    wrapWithExitableDirectoryReader,
+                    wrapped,
+                    Integer.MAX_VALUE,
+                    1
+                );
+
+                StoreMetrics caller = holder.instance();
+                long callerBytesBefore = caller.getBytesRead();
+                assertThat(wrapped.workerBytesRead(), equalTo(0L));
+                vectorQuery.rewrite(searcher);
+
+                assertBusy(() -> {
+                    long parallelBytes = (caller.getBytesRead() - callerBytesBefore) + wrapped.workerBytesRead();
+                    assertThat(parallelBytes, greaterThan(0L));
+                    assertEquals(parallelBytes, totalBytesSequential);
+                });
+            }
+        } finally {
+            terminate(executor);
+        }
+    }
+
+    public void testConcurrentSearchMatchesSequentialBytesRead() throws Exception {
+        assumeTrue("directory metrics must be enabled", Store.DIRECTORY_METRICS_FEATURE_FLAG.isEnabled());
+        ThreadLocalDirectoryMetricHolder<StoreMetrics> holder = new ThreadLocalDirectoryMetricHolder<>(StoreMetrics::new);
+        ThreadPoolExecutor executor = (ThreadPoolExecutor) Executors.newFixedThreadPool(randomIntBetween(2, 5));
+        TermQuery termQuery = new TermQuery(new Term("field", "value"));
+        boolean wrapWithExitableDirectoryReader = randomBoolean();
+
+        try (Directory directory = newRecordingDirectory(holder)) {
+            indexDocs(directory);
+
+            long sequentialBytes;
+            try (DirectoryReader directoryReader = DirectoryReader.open(directory)) {
+                ContextIndexSearcher searcher = new ContextIndexSearcher(
+                    directoryReader,
+                    IndexSearcher.getDefaultSimilarity(),
+                    IndexSearcher.getDefaultQueryCache(),
+                    IndexSearcher.getDefaultQueryCachingPolicy(),
+                    wrapWithExitableDirectoryReader
+                );
+
+                StoreMetrics caller = holder.instance();
+                long before = caller.getBytesRead();
+                searcher.search(termQuery, new TotalHitCountCollectorManager(searcher.getSlices()));
+                sequentialBytes = caller.getBytesRead() - before;
+            }
+            assertThat("sequential search must read bytes", sequentialBytes, greaterThan(0L));
+
+            try (DirectoryReader directoryReader = DirectoryReader.open(directory)) {
+                var storeMetricsAwareExecutor = new StoreMetricsAwareExecutor(executor, holder::instance);
+                ContextIndexSearcher searcher = new ContextIndexSearcher(
+                    directoryReader,
+                    IndexSearcher.getDefaultSimilarity(),
+                    IndexSearcher.getDefaultQueryCache(),
+                    IndexSearcher.getDefaultQueryCachingPolicy(),
+                    wrapWithExitableDirectoryReader,
+                    storeMetricsAwareExecutor,
+                    Integer.MAX_VALUE,
+                    1
+                );
+
+                StoreMetrics caller = holder.instance();
+                long before = caller.getBytesRead();
+                searcher.search(termQuery, new TotalHitCountCollectorManager(searcher.getSlices()));
+
+                assertBusy(() -> {
+                    long parallelBytes = (caller.getBytesRead() - before) + storeMetricsAwareExecutor.workerBytesRead();
+                    assertThat(parallelBytes, greaterThan(0L));
+                    assertEquals(parallelBytes, sequentialBytes);
+                });
+            }
+        } finally {
+            terminate(executor);
+        }
+    }
+
+    private Directory newRecordingDirectory(ThreadLocalDirectoryMetricHolder<StoreMetrics> holder) {
+        return new StoreMetricsDirectory(new TestByteSizeDirectory(newDirectory()), holder);
+    }
+
+    private static final class TestByteSizeDirectory extends ByteSizeDirectory {
+        TestByteSizeDirectory(Directory in) {
+            super(in);
+        }
+
+        @Override
+        public long estimateSizeInBytes() throws IOException {
+            return estimateSizeInBytes(getDelegate());
+        }
+
+        @Override
+        public long estimateDataSetSizeInBytes() throws IOException {
+            return estimateSizeInBytes(getDelegate());
+        }
+    }
+
+    private void indexDocsWithVectors(Directory directory) throws IOException {
+        try (RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
+            final int numDocs = randomIntBetween(800, 1000);
+            for (int i = 0; i < numDocs; i++) {
+                Document document = new Document();
+                document.add(new StringField("field", "value", Field.Store.NO));
+                document.add(new TextField("p_field", "value", Field.Store.NO));
+                document.add(new KnnFloatVectorField("float_vector", new float[] { randomFloat(), randomFloat(), randomFloat() }));
+                iw.addDocument(document);
+            }
+            iw.commit();
         }
     }
 

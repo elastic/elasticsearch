@@ -2151,7 +2151,7 @@ A list of allowed JWT audiences that {es} should verify. {es} will only consume
 JWTs that were intended for any of these audiences, as denoted by the `aud`
 claim in the JWT).
 The audiences are compared with exact string matches and do not support wildcards or regex.
-Examples of `aud` claim are `<example-url>/client1`
+Examples of `aud` claim are `https://example.com/client1`
 and `other_service,elasticsearch`. When `token_type` is `access_token`, the audiences can
 be optionally denoted by a different claim in the JWT if `aud` does not exist.
 See also <<security-settings-jwt-fallback-claims-aud,`fallback_claims.aud`>>.
@@ -2173,7 +2173,7 @@ scheme, host, and optionally, port number and path components and no query or
 fragment components. However, it can be any string. The value for this setting
 should be provided by your JWT Issuer.
 The issuer is compared with exact string matches and do not support wildcards or regex.
-Examples of `iss` claim are `<example-url>:8443/jwt` and `issuer123`.
+Examples of `iss` claim are `https://example.com:8443/jwt` and `issuer123`.
 // end::jwt-allowed-issuer-tag[]
 
 // tag::jwt-allowed-subjects-tag[]
@@ -2183,7 +2183,7 @@ A list of allowed JWT subjects that {es} should verify. {es} will only consume
 JWTs that were issued for any of these subjects, as denoted by the `sub`
 claim in the JWT.
 The subjects are compared with exact string matches and do not support wildcards or regex.
-Examples of `sub` claim are `<example-url>/user1`
+Examples of `sub` claim are `https://example.com/user1`
 and `user_1,user2`.
 When `token_type` is `access_token`, this setting is mandatory and the subject can be
 optionally denoted by a different claim in the JWT if `sub` does not exist.

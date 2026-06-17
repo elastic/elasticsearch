@@ -65,7 +65,7 @@ public abstract sealed class UnionTypeEsField extends EsField permits MultiTypeE
             } else if (resolvedDataType != convertExpr.dataType()) {
                 throw new IllegalArgumentException("Resolved data type mismatch: " + resolvedDataType + " != " + convertExpr.dataType());
             }
-            typeToExpr.put(DataType.fromTypeName(typeName).widenSmallNumeric(), convertExpr);
+            typeToExpr.put(DataType.fromTypeName(typeName), convertExpr);
         }
         return new Resolution(resolvedDataType, typeToExpr);
     }

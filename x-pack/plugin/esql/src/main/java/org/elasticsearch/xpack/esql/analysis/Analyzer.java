@@ -2960,8 +2960,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 return esRelation.transformExpressionsOnly(FieldAttribute.class, fa -> {
                     // We're looking for partially unmapped fields with exactly one mapped type, i.e.: two-legged PUNKs
                     if (fa.field() instanceof TypeConflictedField tcf && tcf.isPotentiallyUnmapped() && tcf.types().size() == 1) {
-                        DataType mappedType = tcf.types().iterator().next();
-
+                        DataType mappedType = tcf.types().iterator().next().widenSmallNumeric();
                         var convertFactory = EsqlDataTypeConverter.converterFunctionFactory(mappedType);
                         if (convertFactory == null) {
                             // Skip implicit casting: no such converter function exists

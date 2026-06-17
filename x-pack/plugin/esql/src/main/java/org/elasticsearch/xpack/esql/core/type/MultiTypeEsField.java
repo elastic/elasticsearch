@@ -146,7 +146,7 @@ public final class MultiTypeEsField extends UnionTypeEsField {
         UnionTypeEsField.Resolution resolution = UnionTypeEsField.resolve(typeConflictedField, typesToConversionExpressions);
         Map<String, Expression> indexToConversionExpressions = new HashMap<>();
         typeConflictedField.getTypesToIndices().forEach((typeName, indices) -> {
-            Expression convertExpr = resolution.typeToExpr().get(DataType.fromTypeName(typeName));
+            Expression convertExpr = resolution.typeToExpr().get(DataType.fromTypeName(typeName).widenSmallNumeric());
             for (String indexName : indices) {
                 indexToConversionExpressions.put(indexName, convertExpr);
             }

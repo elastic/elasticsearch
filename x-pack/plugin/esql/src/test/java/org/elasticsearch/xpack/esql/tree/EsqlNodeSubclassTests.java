@@ -521,7 +521,7 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
             return randomGeoDistanceSort();
         } else if (toBuildClass == Pow.class && Expression.class.isAssignableFrom(argClass)) {
             return randomResolvedExpression(randomBoolean() ? FieldAttribute.class : Literal.class);
-         } else if (toBuildClass == RemoteFetchHandleFunction.class && argClass == Attribute.class) {
+        } else if (toBuildClass == RemoteFetchHandleFunction.class && argClass == Attribute.class) {
             // RemoteFetchHandleFunction requires a metadata _doc attribute.
             return new MetadataAttribute(Source.EMPTY, MetadataAttribute.DOC, DataType.DOC_DATA_TYPE, false);
         } else if (toBuildClass == RemoteFetchExec.class && argClass == PhysicalPlan.class) {

@@ -18,6 +18,8 @@ import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -25,8 +27,14 @@ import org.elasticsearch.xpack.esql.evaluator.EvalMapper;
 import org.elasticsearch.xpack.esql.planner.Layout;
 import org.elasticsearch.xpack.esql.plugin.RemoteFetchHandle;
 
-import static org.elasticsearch.xpack.esql.SerializationTestUtils.assertSerialization;
+import java.util.List;
 
+import static org.hamcrest.Matchers.containsString;
+
+/**
+ * Keeps evaluator-level checks hand-rolled because generic scalar-function fixtures build rows via
+ * {@code BlockUtils.fromListRow}, which does not support DOC blocks.
+ */
 public class RemoteFetchHandleFunctionTests extends ESTestCase {
     public void testEncodesDocColumnIntoRemoteFetchHandles() {
         DriverContext driverContext = new DriverContext(BigArrays.NON_RECYCLING_INSTANCE, TestBlockFactory.getNonBreakingInstance(), null);
@@ -77,9 +85,31 @@ public class RemoteFetchHandleFunctionTests extends ESTestCase {
         }
     }
 
-    public void testSerialization() {
-        ReferenceAttribute doc = new ReferenceAttribute(Source.EMPTY, null, "_doc", DataType.DOC_DATA_TYPE);
-        assertSerialization(new RemoteFetchHandleFunction(Source.EMPTY, doc, "node-a", "session-a"));
+    public void testRejectsNonDocAttribute() {
+        IllegalStateException e = expectThrows(
+            IllegalStateException.class,
+            () -> new RemoteFetchHandleFunction(
+                Source.EMPTY,
+                new ReferenceAttribute(Source.EMPTY, null, "not_doc", DataType.KEYWORD),
+                "node-a",
+                "session-a"
+            )
+        );
+        assertThat(e.getMessage(), containsString("requires _doc input"));
+    }
+
+    public void testRejectsNonAttributeExpressionOnReplaceChildren() {
+        RemoteFetchHandleFunction function = new RemoteFetchHandleFunction(
+            Source.EMPTY,
+            new MetadataAttribute(Source.EMPTY, MetadataAttribute.DOC, DataType.DOC_DATA_TYPE, false),
+            "node-a",
+            "session-a"
+        );
+        IllegalStateException e = expectThrows(
+            IllegalStateException.class,
+            () -> function.replaceChildren(List.of(new Literal(Source.EMPTY, null, DataType.NULL)))
+        );
+        assertThat(e.getMessage(), containsString("requires _doc attribute input"));
     }
 
     private static RemoteFetchHandle decode(BytesRefBlock handles, int position) {

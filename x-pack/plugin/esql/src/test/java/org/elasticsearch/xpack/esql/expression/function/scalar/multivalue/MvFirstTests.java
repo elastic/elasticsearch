@@ -10,6 +10,8 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.multivalue;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.elasticsearch.compute.data.LongRangeBlockBuilder;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -46,7 +48,31 @@ public class MvFirstTests extends AbstractMultivalueFunctionTestCase {
         geohashGrid(cases, "mv_first", "MvFirst", DataType.GEOHASH, (size, values) -> equalTo(values.findFirst().get()));
         geotileGrid(cases, "mv_first", "MvFirst", DataType.GEOTILE, (size, values) -> equalTo(values.findFirst().get()));
         geohexGrid(cases, "mv_first", "MvFirst", DataType.GEOHEX, (size, values) -> equalTo(values.findFirst().get()));
+        if (EsqlCapabilities.Cap.MV_FIRST_LAST_DATE_RANGE.isEnabled()) {
+            dateRanges(cases);
+        }
         return parameterSuppliersFromTypedDataWithDefaultChecks(false, cases);
+    }
+
+    private static void dateRanges(List<TestCaseSupplier> cases) {
+        cases.add(new TestCaseSupplier("mv_first(date_range)", List.of(DataType.DATE_RANGE), () -> {
+            LongRangeBlockBuilder.LongRange value = TestCaseSupplier.randomDateRange();
+            return new TestCaseSupplier.TestCase(
+                List.of(new TestCaseSupplier.TypedData(List.of(value), DataType.DATE_RANGE, "field")),
+                "MvFirst[field=Attribute[channel=0]]",
+                DataType.DATE_RANGE,
+                equalTo(value)
+            );
+        }));
+        cases.add(new TestCaseSupplier("mv_first(date_ranges)", List.of(DataType.DATE_RANGE), () -> {
+            List<LongRangeBlockBuilder.LongRange> values = randomList(1, 10, () -> TestCaseSupplier.randomDateRange());
+            return new TestCaseSupplier.TestCase(
+                List.of(new TestCaseSupplier.TypedData(values, DataType.DATE_RANGE, "field")),
+                "MvFirst[field=Attribute[channel=0]]",
+                DataType.DATE_RANGE,
+                equalTo(values.get(0))
+            );
+        }));
     }
 
     @Override

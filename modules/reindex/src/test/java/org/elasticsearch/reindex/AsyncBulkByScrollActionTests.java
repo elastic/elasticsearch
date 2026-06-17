@@ -2311,7 +2311,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
                 null,
                 null,
                 null,
-                randomFrom(BulkByScrollSearchContextMetrics.TaskKind.values()),
+                randomFrom(BulkByPaginatedSearchSearchContextMetrics.TaskKind.values()),
                 false,
                 maxTaskShutdownGracePeriod,
                 new ReindexSettings(),

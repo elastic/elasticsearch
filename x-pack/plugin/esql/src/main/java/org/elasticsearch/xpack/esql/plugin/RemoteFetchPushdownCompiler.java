@@ -27,11 +27,13 @@ import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.evaluator.EvalMapper;
-import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
-import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
+import org.elasticsearch.xpack.esql.plan.logical.Eval;
+import org.elasticsearch.xpack.esql.plan.logical.Filter;
+import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.Project;
+import org.elasticsearch.xpack.esql.plan.logical.RemoteFetchSource;
+import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
-import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
-import org.elasticsearch.xpack.esql.plan.physical.RemoteFetchSourceExec;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders;
 import org.elasticsearch.xpack.esql.planner.Layout;
 
@@ -182,15 +184,27 @@ final class RemoteFetchPushdownCompiler {
         IndexedByShardId<? extends EsPhysicalOperationProviders.ShardContext> shardContexts,
         FoldContext foldContext
     ) {
-        if (plan instanceof RemoteFetchSourceExec sourceExec) {
+        if (plan instanceof FragmentExec fragmentExec) {
+            return compileFragment(fragmentExec.fragment(), factories, shardContexts, foldContext);
+        }
+        throw new IllegalStateException("unsupported remote fetch pushdown plan [" + plan.getClass().getSimpleName() + "]");
+    }
+
+    private CompiledPlan compileFragment(
+        LogicalPlan plan,
+        List<Operator.OperatorFactory> factories,
+        IndexedByShardId<? extends EsPhysicalOperationProviders.ShardContext> shardContexts,
+        FoldContext foldContext
+    ) {
+        if (plan instanceof RemoteFetchSource sourceExec) {
             Layout.Builder builder = new Layout.Builder();
             builder.append(sourceExec.output());
             List<Attribute> output = sourceExec.output();
             NameId positionAttributeId = output.isEmpty() ? null : output.getLast().id();
             return new CompiledPlan(builder.build(), positionAttributeId);
         }
-        if (plan instanceof EvalExec evalExec) {
-            CompiledPlan child = compile(evalExec.child(), factories, shardContexts, foldContext);
+        if (plan instanceof Eval evalExec) {
+            CompiledPlan child = compileFragment(evalExec.child(), factories, shardContexts, foldContext);
             Layout childLayout = child.layout();
             Layout.Builder builder = childLayout.builder();
             for (Alias field : evalExec.fields()) {
@@ -199,16 +213,16 @@ final class RemoteFetchPushdownCompiler {
             }
             return new CompiledPlan(builder.build(), child.positionAttributeId());
         }
-        if (plan instanceof FilterExec filterExec) {
-            CompiledPlan child = compile(filterExec.child(), factories, shardContexts, foldContext);
+        if (plan instanceof Filter filterExec) {
+            CompiledPlan child = compileFragment(filterExec.child(), factories, shardContexts, foldContext);
             Layout childLayout = child.layout();
             factories.add(
                 new FilterOperatorFactory(EvalMapper.toEvaluator(foldContext, filterExec.condition(), childLayout, shardContexts))
             );
             return child;
         }
-        if (plan instanceof ProjectExec projectExec) {
-            CompiledPlan child = compile(projectExec.child(), factories, shardContexts, foldContext);
+        if (plan instanceof Project projectExec) {
+            CompiledPlan child = compileFragment(projectExec.child(), factories, shardContexts, foldContext);
             Layout childLayout = child.layout();
             List<Integer> projectionList = new ArrayList<>(projectExec.projections().size() + 1);
             Layout.Builder builder = new Layout.Builder();

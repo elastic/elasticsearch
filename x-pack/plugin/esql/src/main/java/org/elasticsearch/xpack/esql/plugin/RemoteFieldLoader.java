@@ -123,7 +123,8 @@ final class RemoteFieldLoader {
             fieldInfos.size() <= plannerSettings.reuseColumnLoadersThreshold(),
             0,
             plannerSettings.sourceReservationFactor(),
-            plannerSettings.docSequenceBytesRefFieldThreshold()
+            plannerSettings.docSequenceBytesRefFieldThreshold(),
+            () -> 0L
         ).get(driverContext);
         final int[] projection = new int[fieldInfos.size()];
         for (int i = 0; i < projection.length; i++) {

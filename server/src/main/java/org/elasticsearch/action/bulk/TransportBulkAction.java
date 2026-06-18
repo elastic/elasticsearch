@@ -162,7 +162,7 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
             indexingPressure,
             systemIndices,
             projectResolver,
-            threadPool.relativeTimeInMillisSupplier(),
+            threadPool::relativeTimeInNanos,
             failureStoreMetrics,
             dataStreamFailureStoreSettings,
             featureService,

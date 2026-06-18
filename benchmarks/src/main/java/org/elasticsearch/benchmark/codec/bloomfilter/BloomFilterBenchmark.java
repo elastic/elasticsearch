@@ -187,7 +187,13 @@ public class BloomFilterBenchmark {
     public long popcountDirectAccessThenSimd() throws IOException {
         long offset = pageOffset();
         int len = pageSize;
-        return RandomAccessInputUtils.withByteBufferSlice(randomAccessInput, offset, len, n -> scratch, buf -> ESVectorUtil.popcount(buf, len));
+        return RandomAccessInputUtils.withByteBufferSlice(
+            randomAccessInput,
+            offset,
+            len,
+            n -> scratch,
+            buf -> ESVectorUtil.popcount(buf, len)
+        );
     }
 
     // --- OR benchmarks ---

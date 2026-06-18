@@ -9,7 +9,6 @@
 
 package org.elasticsearch.script.field.vectors;
 
-
 import org.elasticsearch.simdvec.ESVectorUtil;
 
 import java.util.List;

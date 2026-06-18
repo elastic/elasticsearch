@@ -71,7 +71,7 @@ public class ExternalSourceResolver {
 
     private static final Logger LOGGER = LogManager.getLogger(ExternalSourceResolver.class);
 
-    static final String CONFIG_SCHEMA_RESOLUTION = "schema_resolution";
+    public static final String CONFIG_SCHEMA_RESOLUTION = "schema_resolution";
 
     /**
      * Config key under which {@link DatasetRewriter} stores data-source-level settings
@@ -755,14 +755,7 @@ public class ExternalSourceResolver {
         if (value == null) {
             return FormatReader.DEFAULT_SCHEMA_RESOLUTION;
         }
-        return switch (value.toString().toLowerCase(Locale.ROOT)) {
-            case "first_file_wins" -> FormatReader.SchemaResolution.FIRST_FILE_WINS;
-            case "strict" -> FormatReader.SchemaResolution.STRICT;
-            case "union_by_name" -> FormatReader.SchemaResolution.UNION_BY_NAME;
-            default -> throw new IllegalArgumentException(
-                "Unknown schema_resolution value [" + value + "]. Valid values are: first_file_wins, strict, union_by_name"
-            );
-        };
+        return FormatReader.SchemaResolution.parse(value.toString());
     }
 
     private static Map<String, Object> mergeConfigs(

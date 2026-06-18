@@ -209,7 +209,10 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
 
     @Override
     protected LogicalPlan rule(PromqlCommand cmd, AnalyzerContext context) {
-        // PromQL `or` (UNION) is left-associative; flatten the top-level chain into independent branches.
+        // `or` is special-cased here because it is the only set operator that adds rows (more series), which
+        // requires a top-level multi-branch UnionAll that cannot compose as a single-value sub-expression. The
+        // row-filtering operators `and`/`unless` will instead translate as joins inside translateNode.
+        // PromQL `or` is left-associative, so flatten the top-level chain into independent branches.
         List<LogicalPlan> branches = flattenTopLevelUnion(cmd.promqlPlan());
 
         if (branches.size() == 1) {
@@ -289,13 +292,9 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
      * only contributes series whose labelset is absent from {@code a}.
      */
     private LogicalPlan translateUnion(PromqlCommand cmd, AnalyzerContext context, List<LogicalPlan> branches) {
-        if (Fork.exceedsMaxBranches(branches.size())) {
-            throw new QlIllegalArgumentException(
-                "PromQL set operator [or] supports up to [{}] operands, got [{}]",
-                Fork.MAX_BRANCHES,
-                branches.size()
-            );
-        }
+        // Already validated against Fork.MAX_BRANCHES by PromqlCommand.verify; asserted here against regressions.
+        assert Fork.exceedsMaxBranches(branches.size()) == false
+            : "union branch count [" + branches.size() + "] exceeds Fork.MAX_BRANCHES [" + Fork.MAX_BRANCHES + "]";
 
         Source source = cmd.source();
         List<LogicalPlan> branchPlans = new ArrayList<>(branches.size());

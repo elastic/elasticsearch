@@ -398,11 +398,15 @@ public class RootObjectMapper extends ObjectMapper {
 
         if (dynamicByPrefix.isEmpty() == false) {
             // Keys are sorted for deterministic serialization: the mapping source is byte-compared
-            // across nodes, so output order must be stable.
-            builder.startObject("dynamic_by_prefix");
+            // across nodes, so output order must be stable. Grouped under "prefix_properties" so
+            // future per-prefix facets (disabled, passthrough) can be added without a stored-format
+            // migration.
+            builder.startObject("prefix_properties");
+            builder.startObject("dynamic");
             for (Map.Entry<String, Dynamic> entry : new TreeMap<>(dynamicByPrefix).entrySet()) {
                 builder.field(entry.getKey(), entry.getValue().name().toLowerCase(Locale.ROOT));
             }
+            builder.endObject();
             builder.endObject();
         }
     }
@@ -605,12 +609,18 @@ public class RootObjectMapper extends ObjectMapper {
             } else {
                 throw new ElasticsearchParseException("runtime must be a map type");
             }
-        } else if (fieldName.equals("dynamic_by_prefix")) {
+        } else if (fieldName.equals("prefix_properties")) {
             if ((fieldNode instanceof Map) == false) {
-                throw new MapperParsingException("[dynamic_by_prefix] must be an object");
+                throw new MapperParsingException("[prefix_properties] must be an object");
             }
-            for (Map.Entry<String, Object> entry : ((Map<String, Object>) fieldNode).entrySet()) {
-                builder.dynamicByPrefix.put(entry.getKey(), parsePrefixDynamic(entry.getValue()));
+            Object dynamicNode = ((Map<String, Object>) fieldNode).get("dynamic");
+            if (dynamicNode != null) {
+                if ((dynamicNode instanceof Map) == false) {
+                    throw new MapperParsingException("[prefix_properties.dynamic] must be an object");
+                }
+                for (Map.Entry<String, Object> entry : ((Map<String, Object>) dynamicNode).entrySet()) {
+                    builder.dynamicByPrefix.put(entry.getKey(), parsePrefixDynamic(entry.getValue()));
+                }
             }
             return true;
         }
@@ -618,19 +628,19 @@ public class RootObjectMapper extends ObjectMapper {
     }
 
     /**
-     * Parses a {@code dynamic} value for use in {@code dynamic_by_prefix}.
+     * Parses a {@code dynamic} value for use in {@code prefix_properties.dynamic}.
      * Accepts {@code true}, {@code false}, and {@code strict} (case-insensitive).
      * {@code runtime} is explicitly rejected because it is not supported in strict columnar mode.
      */
     private static Dynamic parsePrefixDynamic(Object value) {
         String str = value.toString();
         if (str.equalsIgnoreCase("runtime")) {
-            throw new MapperParsingException("[dynamic_by_prefix] does not support [runtime]");
+            throw new MapperParsingException("[prefix_properties.dynamic] does not support [runtime]");
         }
         try {
             return Dynamic.valueOf(str.toUpperCase(Locale.ROOT));
         } catch (IllegalArgumentException e) {
-            throw new MapperParsingException("unknown [dynamic_by_prefix] value: [" + str + "]");
+            throw new MapperParsingException("unknown [prefix_properties.dynamic] value: [" + str + "]");
         }
     }
 

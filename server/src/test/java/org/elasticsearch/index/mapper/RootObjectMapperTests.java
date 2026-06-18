@@ -735,10 +735,11 @@ public class RootObjectMapperTests extends MapperServiceTestCase {
             // Re-parse and re-serialize — must be identical (idempotence)
             MapperService mapperService2 = createMapperService(settings, mappingJson1);
             String mappingJson2 = Strings.toString(mapperService2.documentMapper().mapping());
-            assertEquals("dynamic_by_prefix must survive round-trip serialization for " + indexMode, mappingJson1, mappingJson2);
+            assertEquals("prefix_properties must survive round-trip serialization for " + indexMode, mappingJson1, mappingJson2);
 
-            // The stored mapping must contain dynamic_by_prefix
-            assertThat(mappingJson1, containsString("dynamic_by_prefix"));
+            // The stored mapping must contain prefix_properties.dynamic in the expected nested shape
+            assertThat(mappingJson1, containsString("prefix_properties"));
+            assertThat(mappingJson1, containsString("\"prefix_properties\":{\"dynamic\":{"));
             assertThat(mappingJson1, containsString("\"attributes\":\"false\""));
             assertThat(mappingJson1, containsString("\"resource\":\"strict\""));
 

@@ -167,6 +167,19 @@ public class InlineStats extends UnaryPlan
     }
 
     @Override
+    public UnmappedFieldsPattern unmappedFieldsToKeep() {
+        UnmappedFieldsPattern childPattern = child().unmappedFieldsToKeep();
+        if (childPattern.includes().isEmpty()) {
+            return childPattern;
+        }
+        List<String> newExcludes = new ArrayList<>(childPattern.excludes());
+        for (Attribute a : aggregate.output()) {
+            newExcludes.add(a.name());
+        }
+        return new UnmappedFieldsPattern(childPattern.includes(), newExcludes);
+    }
+
+    @Override
     public BiConsumer<LogicalPlan, Failures> postAnalysisPlanVerification() {
         return (p, failures) -> {
             // Allow inline stats to be used with TS command if it follows a STATS command

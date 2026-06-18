@@ -1713,6 +1713,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     includes.add("*");
                 } else if (proj instanceof UnresolvedNamePattern up) {
                     includes.add(up.pattern());
+                } else if (UnmappedFieldsAttribute.ATTRIBUTE_NAME.equals(proj.name())) {
+                    // _unmapped_fields in KEEP means "retain all surviving unmapped source fields";
+                    // translate to "*" so the block loader includes any field not otherwise excluded.
+                    includes.add("*");
                 } else {
                     includes.add(proj.name());
                 }
@@ -2230,7 +2234,25 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 newChildren.add(newChild);
                 changed |= (newChild != child);
             }
-            return changed ? plan.replaceChildren(newChildren) : plan;
+            if (changed == false) {
+                return plan;
+            }
+            // Fork plans (UnionAll, ViewUnionAll) carry a fixed output attribute list that does not
+            // automatically reflect changes in their children. When a branch gains _unmapped_fields,
+            // add it to the fork's output so the enclosing plan (e.g. a KEEP or a Sort) can see it.
+            if (plan instanceof Fork fork) {
+                List<Attribute> newOutput = new ArrayList<>(fork.output());
+                if (newOutput.stream().noneMatch(a -> a instanceof UnmappedFieldsAttribute)) {
+                    for (LogicalPlan newChild : newChildren) {
+                        if (newChild.output().stream().anyMatch(a -> a instanceof UnmappedFieldsAttribute)) {
+                            newOutput.add(attr);
+                            break;
+                        }
+                    }
+                }
+                return fork.replaceSubPlansAndOutput(newChildren, newOutput);
+            }
+            return plan.replaceChildren(newChildren);
         }
     }
 

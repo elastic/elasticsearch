@@ -18,8 +18,12 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.SurrogateLogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsPattern;
 
+import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.common.Failure.fail;
 import static org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes.LEFT;
@@ -59,6 +63,28 @@ public class LookupJoin extends Join implements SurrogateLogicalPlan, TelemetryA
 
     public LookupJoin(Source source, LogicalPlan left, LogicalPlan right, JoinConfig joinConfig, boolean isRemote) {
         super(source, left, right, joinConfig, isRemote);
+    }
+
+    @Override
+    public UnmappedFieldsPattern unmappedFieldsToKeep() {
+        UnmappedFieldsPattern leftPattern = left().unmappedFieldsToKeep();
+        if (leftPattern.includes().isEmpty()) {
+            return leftPattern;
+        }
+        // Columns added by the lookup (non-key right-side columns) shadow any unmapped source field
+        // with the same name. Add those column names to the exclude list so the source field does
+        // not also appear inside _unmapped_fields.
+        Set<String> leftNames = new HashSet<>();
+        for (Attribute a : left().output()) {
+            leftNames.add(a.name());
+        }
+        List<String> newExcludes = new ArrayList<>(leftPattern.excludes());
+        for (Attribute a : output()) {
+            if (leftNames.contains(a.name()) == false) {
+                newExcludes.add(a.name());
+            }
+        }
+        return new UnmappedFieldsPattern(leftPattern.includes(), newExcludes);
     }
 
     /**

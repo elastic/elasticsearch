@@ -9,8 +9,8 @@
 
 package org.elasticsearch.indices.recovery;
 
-/// The role a data node plays in a recovery `SOURCE` for a node sending shard data in a peer recovery,
-/// `TARGET` for the node on which the shard is recovering.
+/// The role a data node plays in a shard recovery. `SOURCE` is for a node sending shard data in a peer recovery,
+/// `TARGET` for a node on which the shard is recovering.
 public enum RecoveryRole {
     SOURCE,
     TARGET

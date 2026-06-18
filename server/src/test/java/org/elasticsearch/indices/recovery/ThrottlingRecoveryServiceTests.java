@@ -121,7 +121,6 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         final var service = new ThrottlingRecoveryService(threadPool.generic(), newClusterService(1));
         final var consumerReturned = new CountDownLatch(1);
         final var recoveryDone = new CountDownLatch(1);
-        final var stats = new RecoveryStats();
         final var expectedStats = new RecoveryStats();
         final var userListener = new RecoveryListener() {
             @Override

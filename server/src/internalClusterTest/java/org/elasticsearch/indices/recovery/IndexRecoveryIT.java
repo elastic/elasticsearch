@@ -1700,8 +1700,8 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         indicesAdmin().prepareDelete(INDEX_NAME).get();
 
         allowRecoveryToCompleteLatch.countDown();
-        awaitRecoveryCountStats(Map.of(node, stats -> stats.currentAsSource() == 0));
-        assertThat(primaryShard.recoveryStats().currentAsSource(), equalTo(0));
+        // awaitRecoveryCountStats only aggregates live shards from IndicesService
+        assertBusy(() -> assertThat(primaryShard.recoveryStats().currentAsSource(), equalTo(0)));
         transportService.clearAllRules();
     }
 

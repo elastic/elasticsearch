@@ -649,6 +649,8 @@ public class SnapshotResiliencyTestHelper {
                 );
                 final MapperRegistry mapperRegistry = new IndicesModule(Collections.emptyList()).getMapperRegistry();
 
+                throttlingRecoveryService = new ThrottlingRecoveryService(threadPool.generic(), clusterService);
+
                 indicesService = new IndicesServiceBuilder().settings(settings)
                     .pluginsService(pluginsService)
                     .nodeEnvironment(nodeEnv)
@@ -777,8 +779,6 @@ public class SnapshotResiliencyTestHelper {
                     SearchExecutionStatsCollector.makeWrapper(responseCollectorService)
                 );
                 searchTransportService.setSearchService(searchService);
-
-                throttlingRecoveryService = new ThrottlingRecoveryService(threadPool.generic(), clusterService);
 
                 indicesClusterStateService = new IndicesClusterStateService(
                     settings,

@@ -654,9 +654,15 @@ public class NodeStatsTests extends ESTestCase {
 
         RecoveryStats recoveryStats = new RecoveryStats();
         recoveryStats.sourceRecoveryQueued();
-        recoveryStats.sourceRecoveryDequeuedAndStarted();
+        recoveryStats.sourceRecoveryStarted();
+        recoveryStats.sourceRecoveryQueued();
         recoveryStats.targetRecoveryQueued(RecoverySource.Type.PEER);
         recoveryStats.targetRecoveryDequeuedAndStarted(RecoverySource.Type.PEER);
+        recoveryStats.targetRecoveryQueued(RecoverySource.Type.PEER);
+        recoveryStats.targetRecoveryQueued(RecoverySource.Type.EMPTY_STORE);
+        recoveryStats.targetRecoveryQueued(RecoverySource.Type.EXISTING_STORE);
+        recoveryStats.targetRecoveryDequeuedAndStarted(RecoverySource.Type.EXISTING_STORE);
+        recoveryStats.targetRecoveryQueued(RecoverySource.Type.EMPTY_STORE);
         recoveryStats.addThrottleTime(++iota);
         indicesCommonStats.getRecoveryStats().add(recoveryStats);
 

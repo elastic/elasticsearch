@@ -271,25 +271,29 @@ public final class LuceneSyntheticSourceChangesSnapshot extends SearchBasedChang
         int segmentDocID,
         LeafReaderContext context
     ) throws IOException {
-        // Resolve _id. A slice index stores the plain encodeId(id) on a live doc and the compound identity term on a
-        // tombstone: read the raw bytes so a tombstone's compound term is used as-is for the Delete (routing-free), and
-        // decode the plain id (via the field loader) only for a live doc's Index op. A columnar index reads _id from doc
-        // values; otherwise it comes from stored fields. A noop tombstone has no _id at all.
-        final BytesRef sliceIdBytes;
+        // Resolve the raw _id bytes: from binary doc values in columnar mode, otherwise from stored fields (via
+        // readRawId for a slice index, since a slice tombstone's _id is the compound term, not a valid plain encodeId).
+        // A slice index stores the plain encodeId(id) on a live doc and the compound identity term on a tombstone, so
+        // only a live doc's plain id is decoded; the compound is used as-is for the Delete. A noop tombstone has no _id.
+        final BytesRef idBytes;
+        if (columnarId) {
+            idBytes = leafIdDocValues.advanceExact(segmentDocID) ? BytesRef.deepCopyOf(leafIdDocValues.binaryValue()) : null;
+        } else if (sliceEnabled) {
+            idBytes = readRawId(context, segmentDocID);
+        } else {
+            idBytes = null;
+        }
         final String id;
         if (sliceEnabled) {
-            sliceIdBytes = readRawId(context, segmentDocID);
-            id = docRecord.isTombstone() ? null : fieldLoader.id();
+            id = (docRecord.isTombstone() || idBytes == null) ? null : Uid.decodeId(idBytes);
         } else if (columnarId) {
             assert fieldLoader.id() == null : "id shouldn't exist in stored fields if id mode is columnar";
-            sliceIdBytes = null;
-            id = leafIdDocValues.advanceExact(segmentDocID) ? Uid.decodeId(leafIdDocValues.binaryValue()) : null;
+            id = idBytes == null ? null : Uid.decodeId(idBytes);
         } else {
             assert leafIdDocValues == null : "id shouldn't exist in doc values if id mode is document";
-            sliceIdBytes = null;
             id = fieldLoader.id();
         }
-        final boolean noId = sliceEnabled ? sliceIdBytes == null : id == null;
+        final boolean noId = sliceEnabled ? idBytes == null : id == null;
         if (docRecord.isTombstone() && noId) {
             assert docRecord.version() == 1L : "Noop tombstone should have version 1L; actual version [" + docRecord.version() + "]";
             assert assertDocSoftDeleted(context.reader(), segmentDocID) : "Noop but soft_deletes field is not set [" + docRecord + "]";
@@ -299,7 +303,7 @@ public final class LuceneSyntheticSourceChangesSnapshot extends SearchBasedChang
             // For a slice index the tombstone _id IS the compound identity term, used as-is (routing-free); otherwise the
             // plain id reproduces it.
             return sliceEnabled
-                ? new Translog.Delete(sliceIdBytes, docRecord.seqNo(), docRecord.primaryTerm(), docRecord.version())
+                ? new Translog.Delete(idBytes, docRecord.seqNo(), docRecord.primaryTerm(), docRecord.version())
                 : new Translog.Delete(id, docRecord.seqNo(), docRecord.primaryTerm(), docRecord.version());
         } else {
             if (docRecord.hasRecoverySourceSize() == false) {

@@ -74,13 +74,11 @@ public sealed interface IdLoader permits IdLoader.TsIdLoader, IdLoader.StoredIdL
             }
             return createTsIdLoader(indexRouting, routingPaths, indexSettings.useTimeSeriesSyntheticId());
         }
-        if (indexSettings.isSliceEnabled()) {
-            // Slice-enabled indices store the plain encodeId(id) as the _id stored field (never columnar doc-values),
-            // so the standard stored-field loader returns the user-visible id directly.
-            return fromLeafStoredFieldLoader();
-        }
-        ProvidedIdFieldMapper idFieldMapper = mappingLookup.getMapping().getMetadataMapperByClass(ProvidedIdFieldMapper.class);
-        if (idFieldMapper != null && idFieldMapper.isColumnarMode()) {
+        // Columnar _id (binary doc values) applies to both ProvidedIdFieldMapper and a slice-enabled SliceIdFieldMapper,
+        // so resolve the _id mapper by name and ask it. Columnar -> read from doc values; otherwise from stored fields
+        // (a slice-enabled index in document mode stores the plain encodeId(id) there).
+        var idFieldMapper = mappingLookup.getMapping().getMetadataMapperByName(IdFieldMapper.NAME);
+        if (idFieldMapper instanceof IdFieldMapper id && id.isColumnarMode()) {
             return fromDocValues();
         }
         return fromLeafStoredFieldLoader();

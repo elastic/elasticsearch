@@ -252,9 +252,12 @@ public final class LuceneChangesSnapshot extends SearchBasedChangesSnapshot {
         final String sourceField = parallelArray.hasRecoverySource[docIndex]
             ? SourceFieldMapper.RECOVERY_SOURCE_NAME
             : SourceFieldMapper.NAME;
-        // In a slice index the tombstone _id is the compound term (not a valid plain encodeId), so capture the raw _id
-        // bytes rather than eagerly decoding them; live docs still store the plain _id.
-        final FieldsVisitor fields = sliceEnabled ? new SliceAwareFieldsVisitor(true, sourceField) : new FieldsVisitor(true, sourceField);
+        // In a slice index (document mode) the tombstone _id is the compound term (not a valid plain encodeId), so
+        // capture the raw _id bytes rather than eagerly decoding them; live docs still store the plain _id. In columnar
+        // mode the _id isn't stored at all (it's read from doc values below), so the plain visitor suffices.
+        final FieldsVisitor fields = (sliceEnabled && columnarId == false)
+            ? new SliceAwareFieldsVisitor(true, sourceField)
+            : new FieldsVisitor(true, sourceField);
 
         if (parallelArray.useSequentialStoredFieldsReader) {
             if (storedFieldsReaderOrd != leaf.ord) {
@@ -291,28 +294,33 @@ public final class LuceneChangesSnapshot extends SearchBasedChangesSnapshot {
             routing = fields.routing();
         }
 
-        // Resolve _id. For a slice index the raw _id bytes are the compound term on tombstones and the plain
-        // encodeId(id) on live docs (the plain user id, for the noop check and the Index op, decodes from a live doc's
-        // plain _id). For a columnar index the _id is read from doc values; otherwise from stored fields. NoOp
-        // tombstones have no _id at all (neither stored nor doc values); id stays null for them.
+        // Resolve the raw _id bytes: from binary doc values in columnar mode, otherwise from stored fields. A slice
+        // index stores the plain encodeId(id) on a live doc and the compound identity term on a tombstone, so capture
+        // the raw bytes (via doc values / SliceAwareFieldsVisitor) rather than eagerly decoding a compound term.
         final BytesRef idBytes;
-        final String id;
-        if (sliceEnabled) {
-            idBytes = ((SliceAwareFieldsVisitor) fields).idBytes();
-            id = idBytes == null ? null : Uid.decodeId(idBytes);
-        } else if (parallelArray.columnarIds != null) {
+        if (parallelArray.columnarIds != null) {
             assert fields.id() == null : "id shouldn't exist in stored fields if doc_values is enabled for _id field";
-            idBytes = null;
-            BytesRef encoded = parallelArray.columnarIds[docIndex];
-            id = encoded == null ? null : Uid.decodeId(encoded);
+            idBytes = parallelArray.columnarIds[docIndex];
+        } else if (sliceEnabled) {
+            idBytes = ((SliceAwareFieldsVisitor) fields).idBytes();
         } else {
             idBytes = null;
+        }
+        final boolean isTombstone = parallelArray.isTombStone[docIndex];
+        // The plain user id, for the noop check and the Index op. For a slice index only a live doc's plain _id is
+        // decoded; a slice tombstone's compound bytes are used as-is for the Delete below. A NoOp tombstone has no _id.
+        final String id;
+        if (sliceEnabled) {
+            id = (isTombstone || idBytes == null) ? null : Uid.decodeId(idBytes);
+        } else if (idBytes != null) {
+            id = Uid.decodeId(idBytes);
+        } else {
             id = fields.id();
         }
+        final boolean noId = sliceEnabled ? idBytes == null : id == null;
 
         final Translog.Operation op;
-        final boolean isTombstone = parallelArray.isTombStone[docIndex];
-        if (isTombstone && id == null) {
+        if (isTombstone && noId) {
             op = new Translog.NoOp(seqNo, primaryTerm, fields.source().utf8ToString());
             assert version == 1L : "Noop tombstone should have version 1L; actual version [" + version + "]";
             assert assertDocSoftDeleted(leaf.reader(), segmentDocID) : "Noop but soft_deletes field is not set [" + op + "]";

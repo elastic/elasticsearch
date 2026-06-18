@@ -372,6 +372,14 @@ public class ProvidedIdFieldMapper extends IdFieldMapper {
         return new ColumnarIdField(NAME, encoded);
     }
 
+    /**
+     * Columnar {@code _id} field for an already-encoded uid. Used by slice-enabled indices, whose identity term is the
+     * compound {@code (slice, id)} uid rather than a plain {@link Uid#encodeId(String)}.
+     */
+    public static IndexableField columnarIdField(BytesRef uid) {
+        return new ColumnarIdField(NAME, uid);
+    }
+
     static final class ColumnarIdField extends Field {
 
         static final FieldType TYPE = new FieldType();

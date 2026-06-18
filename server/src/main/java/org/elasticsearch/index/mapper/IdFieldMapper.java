@@ -41,7 +41,11 @@ public abstract class IdFieldMapper extends MetadataFieldMapper {
         if (indexSettings.getMode() == IndexMode.TIME_SERIES) {
             return new ConstantBuilder(TsidExtractingIdFieldMapper.INSTANCE);
         } else if (indexSettings.isSliceEnabled()) {
-            return new ConstantBuilder(SliceIdFieldMapper.INSTANCE);
+            // A slice-enabled index composes with columnar _id: follow the index's columnar default for where the plain
+            // id lives (binary doc values vs a stored field). The slice search/compound terms are indexed either way.
+            return new ConstantBuilder(
+                indexSettings.isUseColumnarIdByDefault() ? SliceIdFieldMapper.COLUMNAR : SliceIdFieldMapper.DOCUMENT
+            );
         } else {
             boolean useColumnarIdByDefault = mappingParserContext.getIndexSettings().isUseColumnarIdByDefault();
             return new ProvidedIdFieldMapper.Builder(useColumnarIdByDefault);

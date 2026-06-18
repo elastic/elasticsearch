@@ -248,8 +248,10 @@ public final class MappingLookup {
         this.isSourceSynthetic = sfm != null && sfm.isSynthetic();
         this.isSourceColumnarStored = sfm != null && sfm.isColumnarStored();
 
-        var idFieldMapper = mapping.getMetadataMapperByClass(ProvidedIdFieldMapper.class);
-        this.isColumnarId = idFieldMapper != null && idFieldMapper.isColumnarMode();
+        // Any _id mapper may be columnar (ProvidedIdFieldMapper, or SliceIdFieldMapper on a slice-enabled index), so
+        // resolve the _id mapper by name and ask it, rather than keying on a single concrete class.
+        var idFieldMapper = mapping.getMetadataMapperByName(IdFieldMapper.NAME);
+        this.isColumnarId = idFieldMapper instanceof IdFieldMapper id && id.isColumnarMode();
     }
 
     private static boolean assertMapperNamesInterned(Map<String, Mapper> mappers, Map<String, ObjectMapper> objectMappers) {

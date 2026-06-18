@@ -9,6 +9,7 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.document.StringField;
@@ -27,21 +28,35 @@ import java.util.List;
  * A mapper for the {@code _id} field of a slice-enabled index. Each document indexes two terms into {@code _id} —
  * a slice-free <em>search</em> term {@code encodeId(id) ++ [0x00]} (drives {@code ids}/{@code term} search) and a
  * <em>compound</em> term {@code encodeId(id) ++ slice ++ [len]} (the engine identity term: uniqueness/versioning/
- * GET/delete). The stored {@code _id} value stays the plain {@code encodeId(id)}, so the user-visible id is plain.
- * See {@link Uid#encodeCompoundId(String, String)} / {@link Uid#searchTerm(String)} for the layout and why the two
- * term-spaces are structurally disjoint.
+ * GET/delete). The user-visible id stays the plain {@code encodeId(id)}: in {@link #DOCUMENT} mode it is a stored field,
+ * and in {@link #COLUMNAR} mode it is binary doc values (no stored field), mirroring {@link ProvidedIdFieldMapper} so a
+ * slice-enabled index composes with columnar {@code _id}. See {@link Uid#encodeCompoundId(String, String)} /
+ * {@link Uid#searchTerm(String)} for the layout and why the two term-spaces are structurally disjoint.
  */
 public class SliceIdFieldMapper extends IdFieldMapper {
 
-    public static final SliceIdFieldMapper INSTANCE = new SliceIdFieldMapper();
+    /** The plain id is kept in a stored field (with an inverted index of the search/compound terms). */
+    public static final SliceIdFieldMapper DOCUMENT = new SliceIdFieldMapper(false);
+    /** The plain id is kept in binary doc values (no stored field), for use with columnar {@code _id} mode. */
+    public static final SliceIdFieldMapper COLUMNAR = new SliceIdFieldMapper(true);
 
-    private SliceIdFieldMapper() {
-        super(new SliceIdFieldType());
+    private final boolean columnar;
+
+    private SliceIdFieldMapper(boolean columnar) {
+        super(new SliceIdFieldType(columnar));
+        this.columnar = columnar;
+    }
+
+    @Override
+    public boolean isColumnarMode() {
+        return columnar;
     }
 
     static final class SliceIdFieldType extends AbstractIdFieldType {
 
-        SliceIdFieldType() {}
+        SliceIdFieldType(boolean columnar) {
+            super(columnar /* hasDocValues */);
+        }
 
         @Override
         public boolean mayExistInIndex(SearchExecutionContext context) {
@@ -88,12 +103,34 @@ public class SliceIdFieldMapper extends IdFieldMapper {
         String slice = context.sourceToParse().routing();
         assert slice != null : "_slice (routing) must be set for slice-enabled indices";
         final String id = context.id();
-        // Stored _id stays plain so GET/_source/synthetic-source surface the user id unchanged.
-        context.doc().add(new StoredField(NAME, Uid.encodeId(id)));
         // Slice-free search term drives ids/term search; the compound term (== Engine.Operation.uid()) scopes
-        // uniqueness/versioning/GET/delete by (slice, id). Both are indexed-only (not stored).
+        // uniqueness/versioning/GET/delete by (slice, id). Both are indexed-only (not stored), in both modes.
         context.doc().add(new StringField(NAME, Uid.searchTerm(id), Field.Store.NO));
         context.doc().add(new StringField(NAME, Uid.encodeCompoundId(id, slice), Field.Store.NO));
+        // The plain id is surfaced unchanged by GET/_source/synthetic-source. In document mode it is a stored field; in
+        // columnar mode it is binary doc values (read back by the doc-values IdLoader / columnar ops-recovery).
+        final BytesRef encoded = Uid.encodeId(id);
+        if (columnar) {
+            context.doc().add(new BinaryDocValuesField(NAME, encoded));
+        } else {
+            context.doc().add(new StoredField(NAME, encoded));
+        }
+    }
+
+    @Override
+    public void postParse(DocumentParserContext context) {
+        if (columnar) {
+            // Nested child documents share the root's Lucene updateDocuments batch, and Lucene requires a consistent
+            // field schema across the batch, so children must also carry the _id binary doc values field. Mirrors
+            // ProvidedIdFieldMapper#postParse.
+            var iterator = context.nonRootDocuments().iterator();
+            if (iterator.hasNext()) {
+                final BytesRef encoded = Uid.encodeId(context.id());
+                while (iterator.hasNext()) {
+                    iterator.next().add(new BinaryDocValuesField(NAME, encoded));
+                }
+            }
+        }
     }
 
     @Override

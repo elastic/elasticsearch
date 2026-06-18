@@ -205,11 +205,11 @@ public class RootObjectMapper extends ObjectMapper {
     private final RootObjectMapperNamespaceValidator namespaceValidator;
     /**
      * Per-prefix {@code dynamic} settings captured during auto-flattening in strict columnar mode.
-     * Keys are the full dotted paths of dec    lared object mappers (e.g. {@code "attributes"},
-     * {@code "resource.sub"}); values are their explicit {@code dynamic} setting.
-     * Empty for non-strict-columnar indices.
+     * Keys are the full dotted paths of declared object mappers (e.g. {@code "attributes"},
+     * {@code "resource.sub"}); values are their explicit {@code dynamic} setting. Kept in sorted key
+     * order for longest-prefix resolution and deterministic serialization. Empty for
+     * non-strict-columnar indices.
      */
-    /** Per-prefix dynamic settings, kept in sorted key order for longest-prefix resolution and deterministic serialization. */
     private final NavigableMap<String, Dynamic> dynamicByPrefix;
 
     RootObjectMapper(
@@ -383,8 +383,18 @@ public class RootObjectMapper extends ObjectMapper {
         if (dynamicByPrefix.isEmpty() == false) {
             // Keys are in sorted order (guaranteed by the NavigableMap field type) for deterministic
             // serialization: the mapping source is byte-compared across nodes, so output order must
-            // be stable. Grouped under "prefix_properties" so future per-prefix facets (disabled,
-            // passthrough) can be added without a stored-format migration.
+            // be stable.
+            //
+            // "prefix_properties" is an umbrella for per-prefix object settings in strict columnar
+            // mode. Only "dynamic" is implemented today. To add a facet (e.g. "enabled",
+            // "passthrough") without a stored-format migration: add a Builder collector (mirroring
+            // Builder.dynamicByPrefix in ObjectMapper), capture it during auto-flattening in
+            // ObjectMapper#asFlattenedFieldBuilders (gated on isStrictColumnar), store it as a
+            // NavigableMap on RootObjectMapper, serialize/parse it under prefix_properties.<facet>,
+            // copy it in Builder#merge via putAll, and resolve it by longest prefix (see
+            // resolveDynamic). For the "enabled" facet, ObjectMapper#ensureBuilderFlattenable must
+            // turn its enabled=false throw into a capture, just as it stopped throwing for
+            // heterogeneous dynamic. Follow-ups tracked in #151524.
             builder.startObject("prefix_properties");
             builder.startObject("dynamic");
             for (Map.Entry<String, Dynamic> entry : dynamicByPrefix.entrySet()) {

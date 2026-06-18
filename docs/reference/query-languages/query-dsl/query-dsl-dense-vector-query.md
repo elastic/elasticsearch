@@ -16,9 +16,9 @@ structure or a `k`/`num_candidates` cutoff: every matching document is scored. T
 exact scores, want to combine exact vector scoring with other queries, or want to score a `dense_vector`
 field that is not indexed for approximate search (`index: false`).
 
-By default, scoring uses the original, full-precision vectors, so a quantized index (`int8_*`, `int4_*`,
-`bbq_*`) still produces raw scores. See [`quantized`](#dense-vector-query-params) to score against the
-quantized representation instead.
+By default, scoring uses the original, full-precision vectors, so a [quantized](/reference/elasticsearch/mapping-reference/dense-vector.md#dense-vector-quantization)
+index still produces full-precision scores. See [`quantized`](#dense-vector-query-params) to score against
+the quantized representation instead.
 
 ## Example request [dense-vector-query-ex-request]
 
@@ -93,11 +93,15 @@ similarity. For `bit` fields, only `l2_norm` is supported. Cannot be combined wi
     When `false` (the default), scoring iterates the preserved full-precision vectors, producing raw scores
     regardless of the field's `index_options`.
 
-    When `true`, scoring uses the codec's scorer, which on a quantized index (`int8_*`, `int4_*`, `bbq_*`)
-    scores against the lossy quantized representation (faster, lower fidelity). On a field that has no
-    quantized representation — a non-quantized index (`flat`, `hnsw`), a `byte` or `bit` field, or a
-    non-indexed (`index: false`) field — there is nothing to quantize against, so `quantized: true` has no
-    effect and scoring is raw. It cannot be combined with `similarity_function`.
+    When `true`, scoring uses the codec's scorer, which on a [quantized](/reference/elasticsearch/mapping-reference/dense-vector.md#dense-vector-quantization)
+    index scores against the lossy quantized representation (faster, lower fidelity). It cannot be combined
+    with `similarity_function`.
+
+    ::::{note}
+    `quantized: true` only makes sense for [quantized](/reference/elasticsearch/mapping-reference/dense-vector.md#dense-vector-quantization)
+    fields. For non-quantized `dense_vector` fields, the setting is ignored and the original vectors are used
+    for scoring.
+    ::::
 
 `boost`
 :   (Optional, float) Floating point number used to multiply the scores of the query. Defaults to `1.0`.

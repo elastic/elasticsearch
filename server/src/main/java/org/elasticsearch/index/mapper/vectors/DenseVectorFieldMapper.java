@@ -3149,10 +3149,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             final VectorSimilarityFunction function;
             if (useQuantized) {
                 // On a codec with no quantized representation (flat/hnsw, byte, bit) the codec scorer reads the
-                // raw values, so quantized:true is a silent no-op there.
-                // TODO(reviewers): we could make that explicit with a HeaderWarning ("[quantized] has no effect:
-                // field [x] has no quantized representation"), but to stay consistent it must fire for every such
-                // case or none. Proposing as a follow-up.
+                // raw values, so quantized:true is ignored.
                 function = null;
             } else if (similarityOverride != null) {
                 function = similarityOverride.rawVectorSimilarityFunction();

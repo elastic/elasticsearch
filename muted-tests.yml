@@ -647,3 +647,6 @@ tests:
 - class: org.elasticsearch.datastreams.lifecycle.ExplainDataStreamLifecycleIT
   method: testExplainFailuresLifecycle
   issue: https://github.com/elastic/elasticsearch/issues/151602
+- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
+  method: test {csv-spec:metric_temporality.tdigestAggsByTBucket}
+  issue: https://github.com/elastic/elasticsearch/issues/151613

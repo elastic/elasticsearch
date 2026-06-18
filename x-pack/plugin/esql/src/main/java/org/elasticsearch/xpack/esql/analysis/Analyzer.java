@@ -2687,7 +2687,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
                         if (unmappedExpr instanceof AbstractConvertFunction existingConvert) {
                             Expression keywordField = existingConvert.field();
-                            Expression rewrappedUnmapped = convertExpression.replaceChildren(singletonList(keywordField));
+                            Expression rewrappedUnmapped = resolvedConvertExpression.replaceChildren(singletonList(keywordField));
                             rewrapped = rewrapped.withPotentiallyUnmappedExpression(rewrappedUnmapped);
                         } else if (unmappedExpr != null) {
                             throw new IllegalStateException("Unexpected potentially unmapped expression for [" + fa.fieldName() + "]");

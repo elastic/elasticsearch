@@ -1,6 +1,6 @@
 ```yaml {applies_to}
-serverless: ga
-stack: ga 9.5
+serverless: preview
+stack: preview 9.2.0
 ```
 
 The `FUSE` [processing command](/reference/query-languages/esql/commands/processing-commands.md) merges rows from multiple result sets and assigns
@@ -37,7 +37,6 @@ However, as a best practice and to avoid issues when upgrading to newer versions
 ::::
 
 :::{note}
-:applies_to: {"serverless": "ga", "stack": "ga 9.5"}
 Previously, `FUSE` collected all values for each passthrough column across fork branches. `FUSE` now picks the first non-null value from the earliest fork branch, or null in the absence of a value.
 Since all `FORK` branches read the same underlying document, any non-null value for a passthrough column is that document's actual field value. Note that natively multi-valued fields (for example, `tags: ["a", "b"]`) are preserved intact, while the runtime-generated cross-branch union is dropped.
 When different `FORK` branches compute different derived values for the same column, the value from the first (lowest-numbered) branch is picked.

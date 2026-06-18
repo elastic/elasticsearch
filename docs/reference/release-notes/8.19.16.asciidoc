@@ -63,6 +63,9 @@ Watcher::
 Infra/Logging::
 * Upgrade to log4j 2.26.0 {es-pull}132166[#132166] (issue: {es-issue}132035[#132035])
 
+Packaging::
+* Update bundled JDK to Java 26.0.1 {es-pull}147424[#147424]
+
 Security::
 * Update elastic-apm-agent-java8 to 1.55.6 {es-pull}148271[#148271]
 

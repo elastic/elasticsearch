@@ -1110,7 +1110,9 @@ class NodeConstruction {
         final IncrementalBulkService incrementalBulkService = new IncrementalBulkService(
             client,
             indexingLimits,
-            telemetryProvider.getMeterRegistry()
+            telemetryProvider.getMeterRegistry(),
+            taskManager,
+            threadPool
         );
 
         final ResponseCollectorService responseCollectorService = new ResponseCollectorService(clusterService);

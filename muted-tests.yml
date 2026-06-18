@@ -638,3 +638,15 @@ tests:
 - class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
   method: test {csv-spec:approximation.Approximate stats by with zero variance}
   issue: https://github.com/elastic/elasticsearch/issues/151577
+- class: org.elasticsearch.index.store.BytesReadHeaderIT
+  method: testMultiSearchSetsBytesReadHeader
+  issue: https://github.com/elastic/elasticsearch/issues/151595
+- class: org.elasticsearch.blobcache.common.SparseFileTrackerTests
+  method: testThreadSafety
+  issue: https://github.com/elastic/elasticsearch/issues/151599
+- class: org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingServiceIT
+  method: testCacheIsWarmedOnUnhollowing
+  issue: https://github.com/elastic/elasticsearch/issues/151600
+- class: org.elasticsearch.datastreams.lifecycle.ExplainDataStreamLifecycleIT
+  method: testExplainFailuresLifecycle
+  issue: https://github.com/elastic/elasticsearch/issues/151602

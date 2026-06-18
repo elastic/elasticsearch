@@ -60,6 +60,7 @@ public class Count extends AggregateFunction implements ToAggregator, SurrogateE
 
     @FunctionInfo(
         returnType = "long",
+        briefSummary = "Returns the total number of input values.",
         description = "Returns the total number (count) of input values.",
         type = FunctionType.AGGREGATE,
         examples = {

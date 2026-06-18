@@ -83,6 +83,7 @@ FROM partial_mapping_sample_data
 ;
 
 doesNotLoadUnmappedFieldsEnrich
+skip_flattened_rewrite: enrich_output_type_mismatch
 required_capability: optional_fields_v5
 required_capability: enrich_load
 
@@ -99,11 +100,10 @@ FROM partial_mapping_sample_data
 2024-10-23T13:52:55.015Z | 173.21.3.15  | 8268152             | Connection error?      | 1                     | English
 ;
 
-doesNotLoadUnmappedFieldsLookupJoin-Ignore
-// temporarily forbidding "load" with LOOKUP JOIN
-required_capability: optional_fields_v5
-required_capability: join_lookup_v12
+loadLookupJoin_mappedKeyViaEval
+required_capability: optional_fields_load_with_lookup_join
 
+SET unmapped_fields="load"\;
 FROM partial_mapping_sample_data
 | EVAL language_code = 1
 | LOOKUP JOIN languages_lookup ON language_code
@@ -115,6 +115,42 @@ FROM partial_mapping_sample_data
 2024-10-23T13:55:01.543Z | 173.21.3.15  | 1756466             | Connected to 10.1.0.1! | 1                     | English
 2024-10-23T13:53:55.832Z | 173.21.3.15  | 5033754             | Connection error?      | 1                     | English
 2024-10-23T13:52:55.015Z | 173.21.3.15  | 8268152             | Connection error?      | 1                     | English
+;
+
+loadLookupJoin_unmappedKeyMatchesKeywordLookup
+required_capability: optional_fields_load_with_lookup_join
+
+// In load mode, language_code (unmapped in primary) is read from _source as keyword and matches the lookup key.
+SET unmapped_fields="load"\;
+FROM partial_mapping_sample_data
+| LOOKUP JOIN keyword_languages_lookup ON language_code
+| KEEP @timestamp, language_code, language_name
+| SORT @timestamp DESC
+| LIMIT 3
+;
+
+@timestamp:datetime      | language_code:keyword | language_name:keyword
+2024-10-23T13:55:01.543Z | 1                     | English
+2024-10-23T13:53:55.832Z | 2                     | French
+2024-10-23T13:52:55.015Z | 3                     | Spanish
+;
+
+loadLookupJoin_keepBeforeJoin_unmappedKey
+required_capability: optional_fields_load_with_lookup_join
+
+// In load mode, KEEP before the join binds the unmapped key to the primary, not the lookup output.
+SET unmapped_fields="load"\;
+FROM partial_mapping_sample_data
+| KEEP language_code
+| LOOKUP JOIN keyword_languages_lookup ON language_code
+| SORT language_code
+| LIMIT 3
+;
+
+language_code:keyword | language_name:keyword
+1                     | English
+1                     | English
+2                     | French
 ;
 
 ######################

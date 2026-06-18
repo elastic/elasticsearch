@@ -38,6 +38,7 @@ public class Asinh extends AbstractTrigonometricFunction {
 
     @FunctionInfo(
         returnType = "double",
+        briefSummary = "Returns the inverse hyperbolic sine of a number.",
         description = "Returns the {wikipedia}/Inverse_trigonometric_functions[inverse hyperbolic sine] of a number.",
         examples = @Example(file = "floats", tag = "asinh")
     )

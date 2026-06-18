@@ -57,6 +57,7 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
@@ -541,6 +542,53 @@ public class TextFieldMapperTests extends MapperTestCase {
         TextFieldMapper textMapper = (TextFieldMapper) mapper.mappers().getMapper("field");
         assertTrue(textMapper.fieldType().hasDocValues());
         assertTrue(textMapper.fieldType().usesBinaryDocValues());
+    }
+
+    public void testColumnarArrayOrderRoundTrip() throws IOException {
+        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        assumeTrue(
+            "text field doc_values feature must be enabled",
+            FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled()
+        );
+        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
+        DocumentMapper mapper = createMapperService(
+            settings,
+            mapping(b -> b.startObject("field").field("type", "text").field("doc_values", true).endObject())
+        ).documentMapper();
+
+        String v1 = randomAlphanumericOfLength(4);
+        String v2 = randomAlphanumericOfLength(4);
+        String v3 = randomAlphanumericOfLength(4);
+        // Duplicate v2 and an interleaved null: sorted-deduped doc-values order would reorder/collapse them and drop the null; the offsets
+        // sidecar must restore arrival order, the duplicate, and the null position.
+        assertThat(
+            syntheticSource(mapper, b -> b.array("field", v2, v1, null, v3, v2)),
+            containsString("\"field\":[\"" + v2 + "\",\"" + v1 + "\",null,\"" + v3 + "\",\"" + v2 + "\"]")
+        );
+    }
+
+    /**
+     * A value longer than Lucene's max term length is stored directly in the binary doc values in columnar mode rather than spilling to the
+     * fallback field, so it keeps its position in the array (alongside a null) instead of being reordered relative to the shorter values.
+     */
+    public void testColumnarArrayOrderWithValueExceedMaxTermLength() throws IOException {
+        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        assumeTrue(
+            "text field doc_values feature must be enabled",
+            FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled()
+        );
+        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
+        DocumentMapper mapper = createMapperService(
+            settings,
+            mapping(b -> b.startObject("field").field("type", "text").field("doc_values", true).endObject())
+        ).documentMapper();
+
+        String shortValue = randomAlphanumericOfLength(4);
+        String longValue = randomAlphanumericOfLength(40000); // exceeds IndexWriter.MAX_TERM_LENGTH (32766)
+        assertThat(
+            syntheticSource(mapper, b -> b.array("field", longValue, null, shortValue)),
+            containsString("\"field\":[\"" + longValue + "\",null,\"" + shortValue + "\"]")
+        );
     }
 
     public void testDocValuesEnabledWithoutIndexing() throws IOException {
@@ -2553,6 +2601,100 @@ public class TextFieldMapperTests extends MapperTestCase {
 
         // then
         assertThat(fieldType.omitNorms(), is(true));
+    }
+
+    public void testDocValuesEnabledByDefaultWhenIndexModeIsColumnar() throws IOException {
+        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        assertDocValuesEnabledByDefaultInColumnarMode(IndexMode.COLUMNAR);
+    }
+
+    public void testDocValuesEnabledByDefaultWhenIndexModeIsColumnarLogsdb() throws IOException {
+        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        assertDocValuesEnabledByDefaultInColumnarMode(IndexMode.LOGSDB_COLUMNAR);
+    }
+
+    private void assertDocValuesEnabledByDefaultInColumnarMode(IndexMode indexMode) throws IOException {
+        Settings.Builder indexSettingsBuilder = getIndexSettingsBuilder();
+        indexSettingsBuilder.put(IndexSettings.MODE.getKey(), indexMode.getName());
+        Settings indexSettings = indexSettingsBuilder.build();
+
+        XContentBuilder mapping = mapping(b -> b.startObject("field").field("type", "text").endObject());
+
+        DocumentMapper mapper = createMapperService(indexSettings, mapping).documentMapper();
+        TextFieldMapper textMapper = (TextFieldMapper) mapper.mappers().getMapper("field");
+
+        // Strictly columnar indices read field values from doc values, so doc values are on by default even without an explicit doc_values.
+        assertTrue(textMapper.fieldType().hasDocValues());
+
+        var source = source(b -> {
+            b.field("@timestamp", Instant.now());
+            b.field("field", randomAlphanumericOfLength(10));
+        });
+        ParsedDocument doc = mapper.parse(source);
+        boolean hasDocValuesField = false;
+        for (IndexableField field : doc.rootDoc().getFields("field")) {
+            if (field.fieldType().docValuesType() == DocValuesType.BINARY) {
+                hasDocValuesField = true;
+            }
+        }
+        assertTrue("Should have a doc_values field in columnar mode by default", hasDocValuesField);
+    }
+
+    public void testDocValuesDedupedAgainstPlainKeywordDelegateInColumnarMode() throws IOException {
+        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+
+        // A plain keyword multi-field (dv-backed, no normalizer/ignore_above/null_value) is a complete copy of the raw values, so the text
+        // field skips its own doc values (and offsets) and loads through the delegate; the keyword's doc values are the only copy written.
+        assertTextDocValuesDedup(b -> {}, false);
+        // null_value on the keyword delegate substitutes values, so the keyword copy is not byte-identical and the text field keeps its
+        // own.
+        assertTextDocValuesDedup(b -> b.field("null_value", "NULL"), true);
+        // ignore_above on the keyword delegate omits long values, so the keyword copy is incomplete and the text field keeps its own.
+        assertTextDocValuesDedup(b -> b.field("ignore_above", 10), true);
+        // A keyword delegate with doc values disabled is not a copy at all, so the text field keeps its own doc values.
+        assertTextDocValuesDedup(b -> b.field("doc_values", false), true);
+    }
+
+    private void assertTextDocValuesDedup(CheckedConsumer<XContentBuilder, IOException> keywordConfig, boolean expectsOwnDocValues)
+        throws IOException {
+        Settings.Builder indexSettingsBuilder = getIndexSettingsBuilder();
+        indexSettingsBuilder.put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName());
+        Settings indexSettings = indexSettingsBuilder.build();
+
+        XContentBuilder mapping = mapping(b -> {
+            b.startObject("field");
+            b.field("type", "text");
+            b.startObject("fields");
+            b.startObject("keyword");
+            b.field("type", "keyword");
+            keywordConfig.accept(b);
+            b.endObject();
+            b.endObject();
+            b.endObject();
+        });
+
+        DocumentMapper mapper = createMapperService(indexSettings, mapping).documentMapper();
+        TextFieldMapper textMapper = (TextFieldMapper) mapper.mappers().getMapper("field");
+        assertThat(textMapper.fieldType().hasDocValues(), equalTo(expectsOwnDocValues));
+
+        var source = source(b -> {
+            b.field("@timestamp", Instant.now());
+            b.array("field", randomAlphanumericOfLength(8), randomAlphanumericOfLength(8));
+        });
+        ParsedDocument doc = mapper.parse(source);
+
+        boolean hasOwnBinaryDocValues = false;
+        boolean hasOwnOffsets = false;
+        for (IndexableField field : doc.rootDoc().getFields()) {
+            if (field.name().equals("field") && field.fieldType().docValuesType() == DocValuesType.BINARY) {
+                hasOwnBinaryDocValues = true;
+            }
+            if (field.name().equals("field.offsets")) {
+                hasOwnOffsets = true;
+            }
+        }
+        assertThat("text field's own binary doc values", hasOwnBinaryDocValues, equalTo(expectsOwnDocValues));
+        assertThat("text field's own offsets sidecar", hasOwnOffsets, equalTo(expectsOwnDocValues));
     }
 
     public void testConditionalBlockLoader() throws IOException {

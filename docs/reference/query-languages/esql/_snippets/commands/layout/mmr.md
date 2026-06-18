@@ -41,6 +41,10 @@ This is useful when you want to maximize diversity by preventing similar documen
 The command uses [MMR (Maximum Marginal Relevance)](https://www.cs.cmu.edu/~jgc/publication/The_Use_MMR_Diversity_Based_LTMIR_1998.pdf) diversification to discard results that are too similar to each other.
 Similarity is determined based on the `field` parameter and the optionally provided `query_vector`.
 
+:::{tip}
+Learn more about using [ES|QL for search use cases](docs-content://solutions/search/esql-for-search.md).
+:::
+
 :::{note}
 The ordering of results returned from the input rows is preserved.
 :::

@@ -62,6 +62,7 @@ public final class DfsSearchResult extends SearchPhaseResult {
         if (in.getTransportVersion().supports(DFS_SEARCH_TIMED_OUT)) {
             searchTimedOut = in.readBoolean();
         }
+        readDirectoryMetrics(in);
     }
 
     public DfsSearchResult(ShardSearchContextId contextId, SearchShardTarget shardTarget, ShardSearchRequest shardSearchRequest) {
@@ -144,6 +145,7 @@ public final class DfsSearchResult extends SearchPhaseResult {
         if (out.getTransportVersion().supports(DFS_SEARCH_TIMED_OUT)) {
             out.writeBoolean(searchTimedOut);
         }
+        writeDirectoryMetrics(out);
     }
 
     public static void writeFieldStats(StreamOutput out, Map<String, CollectionStatistics> fieldStatistics) throws IOException {

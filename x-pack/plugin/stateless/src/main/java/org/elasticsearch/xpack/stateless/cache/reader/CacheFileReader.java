@@ -62,7 +62,7 @@ public class CacheFileReader {
     );
     private static final Map<String, Object> PEER_POPULATION_SOURCE_ATTRIBUTES = Map.of(
         CACHE_POPULATION_SOURCE_ATTRIBUTE_KEY,
-        CachePopulationSource.BlobStore.name()
+        CachePopulationSource.Peer.name()
     );
 
     // On post-6.4 Linux kernels, MADV_RANDOM causes pages to not be marked as accessed,

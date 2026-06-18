@@ -1877,3 +1877,52 @@ a:unsigned_long
 [100, 200]
 [200, 300]
 ;
+
+matchOperatorFunctionOnLhsConcatKeyword
+required_capability: match_operator_colon
+required_capability: match_runtime_search
+
+pragma: runtime_lexical_search=true
+
+FROM employees
+| WHERE CONCAT(first_name, " ", last_name):"Anneke Preusig"
+| KEEP emp_no, first_name, last_name
+;
+
+emp_no:integer | first_name:keyword | last_name:keyword
+10006          | Anneke             | Preusig
+;
+
+matchOperatorFunctionOnLhsNestedFunctionCalls
+required_capability: match_operator_colon
+required_capability: match_runtime_search
+
+pragma: runtime_lexical_search=true
+
+FROM books
+| WHERE TO_TEXT(CONCAT(title, " ", description)):"Tolkien"
+| SORT book_no
+| LIMIT 3
+| KEEP book_no, title
+;
+
+book_no:keyword | title:text
+1463            | Realms of Tolkien: Images of Middle-earth
+2130            | The J. R. R. Tolkien Audio Collection
+2301            | Smith of Wootton Major & Farmer Giles of Ham
+;
+
+matchOperatorFunctionOnLhsWithInlineCast
+required_capability: match_operator_colon
+required_capability: match_runtime_search
+
+pragma: runtime_lexical_search=true
+
+FROM employees
+| WHERE CONCAT(first_name, " ", last_name)::text:"Anneke Preusig"
+| KEEP emp_no, first_name, last_name
+;
+
+emp_no:integer | first_name:keyword | last_name:keyword
+10006          | Anneke             | Preusig
+;

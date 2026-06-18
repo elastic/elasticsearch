@@ -2317,9 +2317,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
                 .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1))
         );
         safeAwait(fileChunkRequestReceived);
-        var recoveryStats = getRecoveryStats(targetNode);
-        assertThat("expected one running recovery", recoveryStats.currentAsTarget(), equalTo(1));
-        assertThat("expected no queued recovery yet", recoveryStats.currentAsTargetQueued(), equalTo(0));
+        awaitRecoveryCountStats(Map.of(targetNode, stats -> stats.currentAsTarget() == 1 && stats.currentAsTargetQueued() == 0));
 
         // We expect the new recovery to be enqueued on target
         assertAcked(
@@ -2415,7 +2413,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         // Release first recovery
         firstIndexBlock.countDown();
         safeAwait(secondIndexRecoveryStarted);
-        assertThat("expected no queued recoveries after dispatch", getRecoveryStats(node).currentFromStoreQueued(), equalTo(0));
+        awaitRecoveryCountStats(Map.of(node, stats -> stats.currentFromStoreQueued() == 0));
 
         ensureGreen(indexOne, indexTwo);
     }

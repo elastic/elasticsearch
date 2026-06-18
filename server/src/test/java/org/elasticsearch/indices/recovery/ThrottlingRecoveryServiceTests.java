@@ -117,11 +117,9 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
     /// Asynchronous task: consumer returns before the scheduling listener receives a terminal callback.
     public void testAsynchronousTaskListenerNotificationAfterConsumerReturns() {
         // Use real threads instead of DeterministicTaskQueue to be able to use safeAwait below
-        final var recoveryType = randomFrom(RecoverySource.Type.values());
         final var service = new ThrottlingRecoveryService(threadPool.generic(), newClusterService(1));
         final var consumerReturned = new CountDownLatch(1);
         final var recoveryDone = new CountDownLatch(1);
-        final var expectedStats = new RecoveryStats();
         final var userListener = new RecoveryListener() {
             @Override
             public void onRecoveryDone(
@@ -143,19 +141,14 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
                 fail("recovery aborted");
             }
         };
-        expectedStats.targetRecoveryQueued(recoveryType);
-        service.enqueue(userListener, newRecoveryState(recoveryType), stats, schedulingListener -> {
+        service.enqueue(userListener, newRecoveryState(), stats, schedulingListener -> {
             threadPool.generic().execute(() -> {
-                expectedStats.targetRecoveryDequeuedAndStarted(recoveryType);
-                assertThat(stats, equalTo(expectedStats));
                 safeAwait(consumerReturned);
                 schedulingListener.onRecoveryDone(null, ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY);
             });
             consumerReturned.countDown();
         });
         safeAwait(recoveryDone);
-        expectedStats.targetRecoveryCompleted(recoveryType);
-        assertThat(stats, equalTo(expectedStats));
         assertThat(service.currentQueueSize(), equalTo(0));
     }
 

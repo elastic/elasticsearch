@@ -10,11 +10,54 @@
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexSettings;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class DocValuesParameterTests extends MapperServiceTestCase {
+
+    // -----------------------------------------------------------------------
+    // Tests for disabling doc values
+    // -----------------------------------------------------------------------
+
+    public void testDisablingDocValuesAllowedInStandardMode() throws Exception {
+        var settings = Settings.builder().put(IndexSettings.MODE.getKey(), "standard").build();
+        MapperService mapperService = createMapperService(
+            settings,
+            fieldMapping(b -> b.field("type", "keyword").field("doc_values", false))
+        );
+        KeywordFieldMapper mapper = (KeywordFieldMapper) mapperService.documentMapper().mappers().getMapper("field");
+        assertThat(mapper.docValuesParameters(), equalTo(FieldMapper.DocValuesParameter.Values.DISABLED));
+    }
+
+    public void testDisablingDocValuesDisallowedInColumnar() throws Exception {
+        var settings = Settings.builder().put(IndexSettings.MODE.getKey(), "columnar").build();
+        var e = expectThrows(
+            MapperParsingException.class,
+            () -> createMapperService(settings, fieldMapping(b -> b.field("type", "keyword").field("doc_values", false)))
+        );
+        assertThat(e.getMessage(), containsString("Disabling doc_values in [columnar] index mode is not allowed"));
+    }
+
+    public void testDisablingDocValuesDisallowedInLogsdbColumnar() throws Exception {
+        var settings = Settings.builder().put(IndexSettings.MODE.getKey(), "logsdb_columnar").build();
+        var e = expectThrows(
+            MapperParsingException.class,
+            () -> createMapperService(settings, fieldMapping(b -> b.field("type", "keyword").field("doc_values", false)))
+        );
+        assertThat(e.getMessage(), containsString("Disabling doc_values in [logsdb_columnar] index mode is not allowed"));
+    }
+
+    public void testDisablingDocValuesAllowedInLogsdb() throws Exception {
+        var settings = Settings.builder().put(IndexSettings.MODE.getKey(), "logsdb").build();
+        MapperService mapperService = createMapperService(
+            settings,
+            fieldMapping(b -> b.field("type", "keyword").field("doc_values", false))
+        );
+        KeywordFieldMapper mapper = (KeywordFieldMapper) mapperService.documentMapper().mappers().getMapper("field");
+        assertThat(mapper.docValuesParameters(), equalTo(FieldMapper.DocValuesParameter.Values.DISABLED));
+    }
 
     // -----------------------------------------------------------------------
     // Null-fallback: omitting one sub-parameter falls back to the field-type default

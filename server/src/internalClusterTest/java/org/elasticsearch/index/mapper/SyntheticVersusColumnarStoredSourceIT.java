@@ -138,6 +138,8 @@ public class SyntheticVersusColumnarStoredSourceIT extends ESIntegTestCase {
                         mapping.remove(Mapper.SYNTHETIC_SOURCE_KEEP_PARAM);
                         mapping.remove("store");
                         mapping.remove("copy_to");
+                        // disabling doc_values not allowed in columnar index mode
+                        mapping.remove(FieldMapper.DocValuesParameter.PARAMETER_NAME);
                         return mapping;
                     });
                 }

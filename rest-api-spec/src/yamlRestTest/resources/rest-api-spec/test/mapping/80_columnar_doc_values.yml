@@ -1,0 +1,85 @@
+---
+"columnar rejects doc_values disabled":
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: PUT
+          path: /{index}
+          capabilities: [ columnar_index_modes ]
+      cluster_features: [ "mapper.columnar.rejects_doc_values_disabled" ]
+      reason: "columnar mode does not allow disabling doc_values"
+
+  - do:
+      catch: /Disabling doc_values in \[columnar\] index mode is not allowed/
+      indices.create:
+        index: test_columnar_doc_values_disabled
+        body:
+          settings:
+            index.mode: columnar
+          mappings:
+            properties:
+              kwd:
+                type: keyword
+                doc_values: false
+
+---
+"logsdb_columnar rejects doc_values disabled":
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: PUT
+          path: /{index}
+          capabilities: [ columnar_index_modes ]
+      cluster_features: [ "mapper.columnar.rejects_doc_values_disabled" ]
+      reason: "logsdb_columnar mode does not allow disabling doc_values"
+
+  - do:
+      catch: /Disabling doc_values in \[logsdb_columnar\] index mode is not allowed/
+      indices.create:
+        index: test_logsdb_columnar_doc_values_disabled
+        body:
+          settings:
+            index.mode: logsdb_columnar
+          mappings:
+            properties:
+              kwd:
+                type: keyword
+                doc_values: false
+
+---
+"standard allows doc_values disabled":
+  - requires:
+      cluster_features: [ "mapper.columnar.rejects_doc_values_disabled" ]
+      reason: "verify doc_values can still be disabled in non-columnar modes"
+
+  - do:
+      indices.create:
+        index: test_standard_doc_values_disabled
+        body:
+          settings:
+            index.mode: standard
+          mappings:
+            properties:
+              kwd:
+                type: keyword
+                doc_values: false
+  - match: { acknowledged: true }
+
+---
+"logsdb allows doc_values disabled":
+  - requires:
+      cluster_features: [ "mapper.columnar.rejects_doc_values_disabled" ]
+      reason: "verify doc_values can still be disabled in non-columnar modes"
+
+  - do:
+      indices.create:
+        index: test_logsdb_doc_values_disabled
+        body:
+          settings:
+            index.mode: logsdb
+          mappings:
+            properties:
+              kwd:
+                type: keyword
+                doc_values: false
+  - match: { acknowledged: true }

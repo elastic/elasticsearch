@@ -11,6 +11,8 @@ setup:
           priority: 1000
           data_stream: {}
           template:
+            settings:
+              mode: "logsdb"
             mappings:
               properties:
                 "@timestamp":
@@ -222,6 +224,8 @@ teardown:
           priority: 1001
           data_stream: {}
           template:
+            settings:
+              mode: "logsdb"
             mappings:
               properties:
                 "@timestamp":

@@ -481,6 +481,8 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
                         // synthetic_source_keep and store are forbidden on strict-columnar indices
                         mapping.remove(Mapper.SYNTHETIC_SOURCE_KEEP_PARAM);
                         mapping.remove("store");
+                        // doc_values not allowed to be disabled on strict-columnar indices
+                        mapping.remove(FieldMapper.DocValuesParameter.PARAMETER_NAME);
                         return mapping;
                     });
                 }

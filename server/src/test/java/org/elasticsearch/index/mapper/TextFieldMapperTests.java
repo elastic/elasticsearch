@@ -2652,8 +2652,6 @@ public class TextFieldMapperTests extends MapperTestCase {
         assertTextDocValuesDedup(b -> b.field("null_value", "NULL"), true);
         // ignore_above on the keyword delegate omits long values, so the keyword copy is incomplete and the text field keeps its own.
         assertTextDocValuesDedup(b -> b.field("ignore_above", 10), true);
-        // A keyword delegate with doc values disabled is not a copy at all, so the text field keeps its own doc values.
-        assertTextDocValuesDedup(b -> b.field("doc_values", false), true);
     }
 
     private void assertTextDocValuesDedup(CheckedConsumer<XContentBuilder, IOException> keywordConfig, boolean expectsOwnDocValues)

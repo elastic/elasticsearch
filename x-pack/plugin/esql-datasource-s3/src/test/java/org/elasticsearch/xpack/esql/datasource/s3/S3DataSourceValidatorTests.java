@@ -233,10 +233,7 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
     }
 
     public void testValidateDatasetRejectsUnknown() {
-        expectThrows(
-            ValidationException.class,
-            () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("format", "parquet"))
-        );
+        expectThrows(ValidationException.class, () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("format", "parquet")));
     }
 
     public void testValidateDatasetErrorModeAllValues() {
@@ -246,44 +243,26 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
     }
 
     public void testValidateDatasetErrorModeInvalid() {
-        expectThrows(
-            ValidationException.class,
-            () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("error_mode", "banana"))
-        );
+        expectThrows(ValidationException.class, () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("error_mode", "banana")));
     }
 
     public void testValidateDatasetErrorModeEmpty() {
-        expectThrows(
-            ValidationException.class,
-            () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("error_mode", ""))
-        );
+        expectThrows(ValidationException.class, () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("error_mode", "")));
     }
 
     public void testValidateDatasetPartitionDetectionEmpty() {
-        expectThrows(
-            ValidationException.class,
-            () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("partition_detection", ""))
-        );
+        expectThrows(ValidationException.class, () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("partition_detection", "")));
     }
 
     public void testValidateDatasetSchemaSampleSize() {
         assertEquals(50, validator.validateDataset(Map.of(), "s3://b/p", Map.of("schema_sample_size", 50)).get("schema_sample_size"));
-        expectThrows(
-            ValidationException.class,
-            () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("schema_sample_size", 0))
-        );
+        expectThrows(ValidationException.class, () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("schema_sample_size", 0)));
         // upper bound: SCHEMA_SAMPLE_SIZE_MAX = 1000
-        expectThrows(
-            ValidationException.class,
-            () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("schema_sample_size", 1001))
-        );
+        expectThrows(ValidationException.class, () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("schema_sample_size", 1001)));
     }
 
     public void testValidateDatasetSchemaSampleSizeNonNumber() {
-        expectThrows(
-            ValidationException.class,
-            () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("schema_sample_size", "abc"))
-        );
+        expectThrows(ValidationException.class, () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("schema_sample_size", "abc")));
     }
 
     public void testValidateDatasetAccumulatesResourceAndFieldErrors() {
@@ -314,10 +293,7 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
     }
 
     public void testValidateDatasetMaxErrorsNonNumber() {
-        expectThrows(
-            ValidationException.class,
-            () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("max_errors", "abc"))
-        );
+        expectThrows(ValidationException.class, () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("max_errors", "abc")));
     }
 
     public void testValidateDatasetMaxErrorRatio() {
@@ -325,10 +301,7 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
     }
 
     public void testValidateDatasetMaxErrorRatioOutOfRange() {
-        expectThrows(
-            ValidationException.class,
-            () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("max_error_ratio", "2.0"))
-        );
+        expectThrows(ValidationException.class, () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("max_error_ratio", "2.0")));
     }
 
     public void testValidateDatasetErrorBudgetConflictsWithFailFast() {
@@ -356,30 +329,18 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
     }
 
     public void testValidateDatasetTargetSplitSizeInvalid() {
-        expectThrows(
-            ValidationException.class,
-            () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("target_split_size", "abc"))
-        );
+        expectThrows(ValidationException.class, () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("target_split_size", "abc")));
     }
 
     public void testValidateDatasetTargetSplitSizeUnitlessRejected() {
         // ByteSizeValue requires a unit suffix; a bare number is rejected.
-        expectThrows(
-            ValidationException.class,
-            () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("target_split_size", "1024"))
-        );
+        expectThrows(ValidationException.class, () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("target_split_size", "1024")));
     }
 
     public void testValidateDatasetFormatStaysExternalOnly() {
         // format/reader remain EXTERNAL-only dev knobs: they are NOT accepted as dataset settings.
-        expectThrows(
-            ValidationException.class,
-            () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("format", "csv"))
-        );
-        expectThrows(
-            ValidationException.class,
-            () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("reader", "java"))
-        );
+        expectThrows(ValidationException.class, () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("format", "csv")));
+        expectThrows(ValidationException.class, () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("reader", "java")));
     }
 
     // --- Format-aware validation tests ---

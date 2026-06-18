@@ -92,10 +92,7 @@ public class GcsDataSourceValidatorTests extends AbstractDataSourceValidatorTest
     }
 
     public void testValidateDatasourceAccessTokenConflictsWithAuthNone() {
-        expectThrows(
-            ValidationException.class,
-            () -> validator.validateDatasource(Map.of("auth", "none", "access_token", "ya29.token"))
-        );
+        expectThrows(ValidationException.class, () -> validator.validateDatasource(Map.of("auth", "none", "access_token", "ya29.token")));
     }
 
     public void testValidateDatasourceRejectsWorkloadIdentityWhenDisabled() {
@@ -132,18 +129,12 @@ public class GcsDataSourceValidatorTests extends AbstractDataSourceValidatorTest
     }
 
     public void testValidateDatasetRejectsUnknown() {
-        expectThrows(
-            ValidationException.class,
-            () -> validator.validateDataset(Map.of(), "gs://b/p", Map.of("format", "parquet"))
-        );
+        expectThrows(ValidationException.class, () -> validator.validateDataset(Map.of(), "gs://b/p", Map.of("format", "parquet")));
     }
 
     public void testValidateDatasetSchemaSampleSize() {
         assertEquals(50, validator.validateDataset(Map.of(), "gs://b/p", Map.of("schema_sample_size", 50)).get("schema_sample_size"));
-        expectThrows(
-            ValidationException.class,
-            () -> validator.validateDataset(Map.of(), "gs://b/p", Map.of("schema_sample_size", 0))
-        );
+        expectThrows(ValidationException.class, () -> validator.validateDataset(Map.of(), "gs://b/p", Map.of("schema_sample_size", 0)));
     }
 
     public void testValidateDatasetSchemaResolution() {
@@ -167,10 +158,7 @@ public class GcsDataSourceValidatorTests extends AbstractDataSourceValidatorTest
 
     public void testValidateDatasetTargetSplitSize() {
         assertEquals("64mb", validator.validateDataset(Map.of(), "gs://b/p", Map.of("target_split_size", "64mb")).get("target_split_size"));
-        expectThrows(
-            ValidationException.class,
-            () -> validator.validateDataset(Map.of(), "gs://b/p", Map.of("target_split_size", "abc"))
-        );
+        expectThrows(ValidationException.class, () -> validator.validateDataset(Map.of(), "gs://b/p", Map.of("target_split_size", "abc")));
     }
 
     public void testValidateDatasourceSkipsNullValues() {

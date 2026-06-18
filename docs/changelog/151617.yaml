@@ -1,13 +1,13 @@
-area: Infra/Core
+area: Monitoring
 deprecation:
-  area: Infra/Core
+  area: Cluster and node setting
   details: |-
     Using the Elasticsearch Monitoring plugin to collect and ship monitoring data is deprecated since 7.16 and will
     finally be removed in 10.0.
   impact: |-
     If you previously configured legacy collection methods, you should migrate to using Elastic Agent or Metricbeat
     collection methods.
-    Corresponding settings will be removed as well. If such settings are still present after the removal,
+    Corresponding settings will be removed. If such settings are still present after the removal,
     nodes will fail to start.
   title: Using the Elasticsearch Monitoring plugin to collect and ship monitoring data is deprecated.
 issues: []

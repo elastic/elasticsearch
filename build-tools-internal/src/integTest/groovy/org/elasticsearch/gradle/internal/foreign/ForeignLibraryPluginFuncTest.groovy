@@ -90,6 +90,20 @@ class ForeignLibraryPluginFuncTest extends AbstractJavaGradleFuncTest {
         buildFile << """
             apply plugin: 'elasticsearch.foreign-library'
 
+            // The plugin pins processForeignAnnotations to JDK 25 because the real processor uses
+            // java.lang.classfile (finalized in JDK 24). The dummy processor in this test only uses
+            // basic javax.annotation.processing APIs, and CI agents only ship the project's minimum
+            // runtime, so override the toolchain to the current JVM. The JDK 25 pinning itself is
+            // verified by ForeignLibraryPluginSpec — here we just exercise the wiring.
+            def currentJavaVersion = JavaVersion.current().majorVersion
+            tasks.named('processForeignAnnotations').configure {
+                javaCompiler = javaToolchains.compilerFor {
+                    languageVersion = org.gradle.jvm.toolchain.JavaLanguageVersion.of(currentJavaVersion.toInteger())
+                }
+                sourceCompatibility = currentJavaVersion
+                targetCompatibility = currentJavaVersion
+            }
+
             dependencies {
                 // compileOnly so the @Marker annotation (SOURCE retention) is visible during compile
                 compileOnly project(':fakeprocessor')

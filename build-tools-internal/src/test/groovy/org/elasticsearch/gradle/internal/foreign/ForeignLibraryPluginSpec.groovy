@@ -74,6 +74,13 @@ class ForeignLibraryPluginSpec extends Specification {
         task.destinationDirectory.get().asFile == new File(consumer.layout.buildDirectory.get().asFile, "generated-foreign-library-classes")
         "-proc:only" in task.options.compilerArgs
         task.options.annotationProcessorPath == consumer.configurations.getByName(ForeignLibraryPlugin.PROCESSOR_CONFIGURATION_NAME)
+        // The processor library uses java.lang.classfile (JDK 24+) and may reference now-finalized
+        // preview APIs, so the plugin pins the toolchain to JDK 25 and leaves --release unset.
+        task.sourceCompatibility == "25"
+        task.targetCompatibility == "25"
+        task.options.release.isPresent() == false
+        // The plugin re-enables inferModulePath, which ElasticsearchJavaModulePathPlugin disables.
+        task.modularity.inferModulePath.get() == true
     }
 
     def "registers augmentForeignModuleInfo with the expected wiring"() {

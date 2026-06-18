@@ -404,11 +404,9 @@ public class EsqlTestUtilsTests extends ESTestCase {
         // ROW + IN subquery
         assertThat(
             EsqlTestUtils.convertSubqueryToRemoteIndices(
-                "ROW emp_no = 10007"
-                + " | WHERE emp_no IN (FROM employees | WHERE salary > 70000 | KEEP emp_no)"
+                "ROW emp_no = 10007" + " | WHERE emp_no IN (FROM employees | WHERE salary > 70000 | KEEP emp_no)"
             ),
-            equalTo("ROW emp_no = 10007"
-                + " | WHERE emp_no IN (FROM *:employees,employees | WHERE salary > 70000 | KEEP emp_no)")
+            equalTo("ROW emp_no = 10007" + " | WHERE emp_no IN (FROM *:employees,employees | WHERE salary > 70000 | KEEP emp_no)")
         );
     }
 
@@ -425,7 +423,6 @@ public class EsqlTestUtilsTests extends ESTestCase {
             )
         );
     }
-
 
     public void testConvertWhereInSubqueryMultiline() {
         // Multi-line formatting is handled: splitIgnoringParentheses joins the main pipe segments

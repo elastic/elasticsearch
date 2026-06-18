@@ -271,6 +271,15 @@ public interface IndexFieldData<FD extends LeafFieldData> {
         IndexFieldData<?> build(IndexFieldDataCache cache, CircuitBreakerService breakerService);
     }
 
+    /**
+     * Extension of {@link Builder} for field data implementations that can be told the field is
+     * single-valued (i.e. {@code doc_values.multi_value: false}), allowing a more efficient
+     * storage and access path.
+     */
+    interface SingleValuedBuilder extends Builder {
+        SingleValuedBuilder singleValued();
+    }
+
     interface Global<FD extends LeafFieldData> extends IndexFieldData<FD> {
 
         IndexFieldData<FD> loadGlobal(DirectoryReader indexReader);

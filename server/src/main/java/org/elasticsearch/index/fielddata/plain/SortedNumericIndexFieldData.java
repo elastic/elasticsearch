@@ -41,7 +41,7 @@ import java.util.Objects;
  * @see DocValuesType#SORTED_NUMERIC
  */
 public class SortedNumericIndexFieldData extends IndexNumericFieldData {
-    public static class Builder implements IndexFieldData.Builder {
+    public static class Builder implements IndexFieldData.SingleValuedBuilder {
         private final String name;
         private final NumericType numericType;
         private final ValuesSourceType valuesSourceType;
@@ -74,6 +74,7 @@ public class SortedNumericIndexFieldData extends IndexNumericFieldData {
         }
 
         /** Marks the field as single-valued ({@code doc_values.multi_value: false}). */
+        @Override
         public Builder singleValued() {
             this.multiValue = false;
             return this;
@@ -82,7 +83,7 @@ public class SortedNumericIndexFieldData extends IndexNumericFieldData {
         @Override
         public SortedNumericIndexFieldData build(IndexFieldDataCache cache, CircuitBreakerService breakerService) {
             if (multiValue == false) {
-                return new SingleValuedSortedNumericIndexFieldData(name, numericType, valuesSourceType, toScriptFieldFactory, indexType);
+                return new SingleValuedNumericIndexFieldData(name, numericType, valuesSourceType, toScriptFieldFactory, indexType);
             }
             return new SortedNumericIndexFieldData(name, numericType, valuesSourceType, toScriptFieldFactory, indexType);
         }

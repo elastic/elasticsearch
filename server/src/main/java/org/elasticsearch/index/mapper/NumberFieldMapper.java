@@ -2357,12 +2357,8 @@ public class NumberFieldMapper extends FieldMapper {
 
             if ((operation == FielddataOperation.SEARCH || operation == FielddataOperation.SCRIPT) && hasDocValues()) {
                 IndexFieldData.Builder builder = type.getFieldDataBuilder(this, valuesSourceType);
-                if (multiValue == false) {
-                    if (builder instanceof SortedNumericIndexFieldData.Builder snBuilder) {
-                        snBuilder.singleValued();
-                    } else if (builder instanceof SortedDoublesIndexFieldData.Builder sdBuilder) {
-                        sdBuilder.singleValued();
-                    }
+                if (multiValue == false && builder instanceof IndexFieldData.SingleValuedBuilder svBuilder) {
+                    svBuilder.singleValued();
                 }
                 return builder;
             }

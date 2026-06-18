@@ -10,27 +10,26 @@
 package org.elasticsearch.index.fielddata.plain;
 
 import org.apache.lucene.search.SortField;
-import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
-import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
+import org.elasticsearch.index.fielddata.SortedNumericLongValues;
 import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.script.field.ToScriptFieldFactory;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 /**
- * Field data for floating-point types backed by single-valued ({@code doc_values.multi_value: false})
+ * Field data for integral types backed by single-valued ({@code doc_values.multi_value: false})
  * NUMERIC doc values. Uses a plain {@link SortField} for index sorting rather than
  * {@link org.apache.lucene.search.SortedNumericSortField}, because Lucene validates that the
  * doc-values type matches the sort-field type at merge time.
  */
-final class SingleValuedSortedDoublesIndexFieldData extends SortedDoublesIndexFieldData {
+final class SingleValuedNumericIndexFieldData extends SortedNumericIndexFieldData {
 
-    SingleValuedSortedDoublesIndexFieldData(
+    SingleValuedNumericIndexFieldData(
         String fieldName,
         NumericType numericType,
         ValuesSourceType valuesSourceType,
-        ToScriptFieldFactory<SortedNumericDoubleValues> toScriptFieldFactory,
+        ToScriptFieldFactory<SortedNumericLongValues> toScriptFieldFactory,
         IndexType indexType
     ) {
         super(fieldName, numericType, valuesSourceType, toScriptFieldFactory, indexType);

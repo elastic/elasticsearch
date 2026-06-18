@@ -11,7 +11,6 @@ package org.elasticsearch.common.util.concurrent;
 
 import org.elasticsearch.common.metrics.ExponentialBucketHistogram;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.telemetry.InstrumentType;
 import org.elasticsearch.telemetry.Measurement;
 import org.elasticsearch.telemetry.RecordingMeterRegistry;
@@ -28,6 +27,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 
 import static org.elasticsearch.common.util.concurrent.EsExecutors.TaskTrackingConfig.DEFAULT_EXECUTION_TIME_EWMA_ALPHA_FOR_TEST;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -229,9 +229,9 @@ public class TaskExecutionTimeTrackingEsThreadPoolExecutorTests extends ESTestCa
     }
 
     public void testEwmrUtilizationTracking() throws Exception {
-        ThreadContext context = new ThreadContext(Settings.EMPTY);
-        int poolSize = randomIntBetween(1, 4);
-        TaskExecutionTimeTrackingEsThreadPoolExecutor executor = new TaskExecutionTimeTrackingEsThreadPoolExecutor(
+        final ThreadContext context = new ThreadContext(Settings.EMPTY);
+        final int poolSize = randomIntBetween(1, 4);
+        final TaskExecutionTimeTrackingEsThreadPoolExecutor executor = new TaskExecutionTimeTrackingEsThreadPoolExecutor(
             "test-threadpool",
             poolSize,
             poolSize,
@@ -242,22 +242,18 @@ public class TaskExecutionTimeTrackingEsThreadPoolExecutorTests extends ESTestCa
             TestEsExecutors.testOnlyDaemonThreadFactory("queuetest"),
             new EsAbortPolicy(),
             context,
-            EsExecutors.TaskTrackingConfig.builder()
-                .trackExecutionTime(DEFAULT_EXECUTION_TIME_EWMA_ALPHA_FOR_TEST)
-                .threadUtilizationEwmrHalfLife(TimeValue.timeValueSeconds(30))
-                .build(),
+            EsExecutors.TaskTrackingConfig.builder().threadUtilizationEwmrHalfLife(randomTimeValue(10, 100, TimeUnit.SECONDS)).build(),
             EsExecutors.HotThreadsOnLargeQueueConfig.DISABLED
         );
         try {
             assertThat(executor.getAverageActiveThreads(), equalTo(0.0));
-            assertThat(executor.getEwmrUtilization(), equalTo(0.0));
+            assertThat(executor.getAverageUtilization(), equalTo(0.0));
 
             executeTask(executor, poolSize * 5);
             assertBusy(() -> {
                 assertThat(executor.getCompletedTaskCount(), equalTo((long) poolSize * 5));
-                assertThat(executor.getAverageActiveThreads(), greaterThan(0.0));
-                assertThat(executor.getEwmrUtilization(), greaterThan(0.0));
-                assertThat(executor.getEwmrUtilization(), lessThanOrEqualTo((double) poolSize));
+                assertThat(executor.getAverageActiveThreads(), allOf(greaterThan(0.0), lessThanOrEqualTo((double) poolSize)));
+                assertThat(executor.getAverageUtilization(), allOf(greaterThan(0.0), lessThanOrEqualTo(1.0)));
             });
         } finally {
             ThreadPool.terminate(executor, 10, TimeUnit.SECONDS);

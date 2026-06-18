@@ -177,7 +177,7 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
      * divided by {@link #getMaximumPoolSize()}, giving a value in the range [0, 1] under normal load. Values above 1 are possible if
      * a task's reported execution time exceeds the elapsed wall time since it was recorded.
      */
-    public double getEwmrUtilization() {
+    public double getAverageUtilization() {
         return getAverageActiveThreads() / getMaximumPoolSize();
     }
 

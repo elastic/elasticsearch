@@ -582,19 +582,20 @@ public class EsExecutors {
         private final double executionTimeEwmaAlpha;
         private final double threadUtilizationEwmrLambda;
 
+        private static final double DISABLE_UTILIZATION_EWMR = 0.0;
         public static final TaskTrackingConfig DO_NOT_TRACK = new TaskTrackingConfig(
             false,
             false,
             false,
             DEFAULT_EXECUTION_TIME_EWMA_ALPHA_FOR_TEST,
-            0.0
+            DISABLE_UTILIZATION_EWMR
         );
         public static final TaskTrackingConfig DEFAULT = new TaskTrackingConfig(
             true,
             false,
             false,
             DEFAULT_EXECUTION_TIME_EWMA_ALPHA_FOR_TEST,
-            0.0
+            DISABLE_UTILIZATION_EWMR
         );
 
         /**
@@ -602,7 +603,7 @@ public class EsExecutors {
          * @param trackOngoingTasks Whether to track ongoing task execution time, not just finished tasks
          * @param trackMaxQueueLatency Whether to track max queue latency.
          * @param executionTimeEWMAAlpha The alpha seed for execution time EWMA (ExponentiallyWeightedMovingAverage).
-         * @param threadUtilizationEwmrLambda The lambda for the thread utilization EWMR, in inverse nanoseconds.
+         * @param threadUtilizationEwmrLambda The lambda for the thread utilization EWMR, in inverse nanoseconds, or zero for no tracking.
          */
         private TaskTrackingConfig(
             boolean trackExecutionTime,
@@ -647,7 +648,7 @@ public class EsExecutors {
             private boolean trackOngoingTasks = false;
             private boolean trackMaxQueueLatency = false;
             private double ewmaAlpha = DEFAULT_EXECUTION_TIME_EWMA_ALPHA_FOR_TEST;
-            private double threadUtilizationEwmrLambda = 0.0;
+            private double threadUtilizationEwmrLambda = DISABLE_UTILIZATION_EWMR;
 
             public Builder() {}
 
@@ -669,6 +670,9 @@ public class EsExecutors {
 
             /** Sets the half-life for thread utilization EWMR tracking. */
             public Builder threadUtilizationEwmrHalfLife(TimeValue halfLife) {
+                if (halfLife.nanos() <= 0) {
+                    throw new IllegalArgumentException("halfLife must be positive");
+                }
                 this.threadUtilizationEwmrLambda = Math.log(2.0) / halfLife.nanos();
                 return this;
             }

@@ -520,20 +520,26 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
     /**
      * Set operators ({@code and}/{@code or}/{@code unless}) are only partially supported. Phase 1 allows the
      * {@code or} (UNION) operator when it appears at the top level of the expression and both operands are
-     * instant vectors. Everything else ({@code and}/{@code unless}, non-top-level unions, scalar operands) is
-     * rejected here so the unsupported shapes fail with a clear message during analysis.
+     * instant vectors. The failures here fall into two categories:
+     * <ul>
+     *   <li>Scalar operands are illegal for set operators in PromQL itself, not just in our implementation. We
+     *       mirror Prometheus' wording ({@code set operator "or" not allowed in binary scalar expression}) and
+     *       check it first, so the message does not falsely imply the shape might be supported later.</li>
+     *   <li>Unsupported {@code and}/{@code unless} operators and non-top-level {@code or} are genuine current
+     *       implementation limitations, flagged with "at this time".</li>
+     * </ul>
      */
     private static void verifySetOperator(Failures failures, VectorBinarySet setOp, boolean isTopLevelUnion) {
+        if (PromqlPlan.returnsScalar(setOp.left()) || PromqlPlan.returnsScalar(setOp.right())) {
+            failures.add(fail(setOp, "set operator \"{}\" not allowed in binary scalar expression", setOp.op().keyword()));
+            return;
+        }
         if (setOp.op() != VectorBinarySet.SetOp.UNION) {
-            failures.add(fail(setOp, "set operators are not supported at this time [{}]", setOp.sourceText()));
+            failures.add(fail(setOp, "set operator [{}] is not supported at this time [{}]", setOp.op().keyword(), setOp.sourceText()));
             return;
         }
         if (isTopLevelUnion == false) {
-            failures.add(fail(setOp, "set operators are only supported at the top-level at this time [{}]", setOp.sourceText()));
-            return;
-        }
-        if (PromqlPlan.returnsScalar(setOp.left()) || PromqlPlan.returnsScalar(setOp.right())) {
-            failures.add(fail(setOp, "set operators are not supported at this time [{}]", setOp.sourceText()));
+            failures.add(fail(setOp, "set operator [or] is only supported at the top-level at this time [{}]", setOp.sourceText()));
         }
     }
 

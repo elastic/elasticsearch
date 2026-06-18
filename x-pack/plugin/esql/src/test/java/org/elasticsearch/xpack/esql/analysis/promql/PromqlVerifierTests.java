@@ -99,20 +99,26 @@ public class PromqlVerifierTests extends ESTestCase {
     }
 
     public void testLogicalSetBinaryOperators() {
-        // and/unless (INTERSECT/SUBTRACT) are not supported yet, regardless of operand types.
         List.of("and", "unless").forEach(op -> {
-            // metric op metric
-            tsdb.error("PROMQL index=test step=5m foo " + op + " bar", containsString("set operators are not supported at this time"));
+            // metric op metric: and/unless (INTERSECT/SUBTRACT) are not supported yet.
+            tsdb.error(
+                "PROMQL index=test step=5m foo " + op + " bar",
+                containsString("set operator [" + op + "] is not supported at this time")
+            );
+            // Any scalar operand is illegal in PromQL itself; this takes precedence over the unsupported-op message.
             // scalar op scalar
-            tsdb.error("PROMQL index=test step=5m 1 " + op + " 1", containsString("set operators are not supported at this time"));
+            tsdb.error(
+                "PROMQL index=test step=5m 1 " + op + " 1",
+                containsString("set operator \"" + op + "\" not allowed in binary scalar expression")
+            );
             // metric op scalar and scalar op metric
             tsdb.error(
                 "PROMQL index=test step=5m network.bytes_in " + op + " 1",
-                containsString("set operators are not supported at this time")
+                containsString("set operator \"" + op + "\" not allowed in binary scalar expression")
             );
             tsdb.error(
                 "PROMQL index=test step=5m 1 " + op + " network.bytes_in",
-                containsString("set operators are not supported at this time")
+                containsString("set operator \"" + op + "\" not allowed in binary scalar expression")
             );
         });
     }
@@ -128,19 +134,29 @@ public class PromqlVerifierTests extends ESTestCase {
     }
 
     public void testUnionWithScalarOperandIsRejected() {
-        // Prometheus rejects set operators with scalar operands; so do we.
-        tsdb.error("PROMQL index=test step=5m 1 or 1", containsString("set operators are not supported at this time"));
-        tsdb.error("PROMQL index=test step=5m network.bytes_in or 1", containsString("set operators are not supported at this time"));
-        tsdb.error("PROMQL index=test step=5m 1 or network.bytes_in", containsString("set operators are not supported at this time"));
+        // Scalar operands are illegal for set operators in PromQL itself (not just our implementation), so the
+        // message mirrors Prometheus and does not imply the shape might be supported later.
+        tsdb.error("PROMQL index=test step=5m 1 or 1", containsString("set operator \"or\" not allowed in binary scalar expression"));
+        tsdb.error(
+            "PROMQL index=test step=5m network.bytes_in or 1",
+            containsString("set operator \"or\" not allowed in binary scalar expression")
+        );
+        tsdb.error(
+            "PROMQL index=test step=5m 1 or network.bytes_in",
+            containsString("set operator \"or\" not allowed in binary scalar expression")
+        );
         // expr or 0 must still fail (0 is a scalar), while expr or vector(0) is allowed.
-        tsdb.error("PROMQL index=test step=5m network.bytes_in or 0", containsString("set operators are not supported at this time"));
+        tsdb.error(
+            "PROMQL index=test step=5m network.bytes_in or 0",
+            containsString("set operator \"or\" not allowed in binary scalar expression")
+        );
     }
 
     public void testNestedUnionIsRejected() {
         // `or` is only supported at the top level; nested inside an aggregation it is rejected.
         tsdb.error(
             "PROMQL index=test step=5m sum(network.bytes_in or network.connections)",
-            containsString("set operators are only supported at the top-level at this time")
+            containsString("set operator [or] is only supported at the top-level at this time")
         );
     }
 

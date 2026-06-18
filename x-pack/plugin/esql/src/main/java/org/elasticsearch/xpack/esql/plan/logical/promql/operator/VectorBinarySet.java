@@ -20,9 +20,20 @@ import java.util.Set;
 public final class VectorBinarySet extends VectorBinaryOperator {
 
     public enum SetOp implements BinaryOp {
-        INTERSECT,
-        SUBTRACT,
-        UNION;
+        INTERSECT("and"),
+        SUBTRACT("unless"),
+        UNION("or");
+
+        private final String keyword;
+
+        SetOp(String keyword) {
+            this.keyword = keyword;
+        }
+
+        /** The PromQL keyword for this operator ({@code and}/{@code unless}/{@code or}), as used in error messages. */
+        public String keyword() {
+            return keyword;
+        }
 
         @Override
         public ScalarFunctionFactory asFunction() {
@@ -50,16 +61,22 @@ public final class VectorBinarySet extends VectorBinaryOperator {
      */
     @Override
     public List<Attribute> output() {
+        return unionOutputByName(List.of(left(), right()));
+    }
+
+    /**
+     * Computes the combined output of the given plans as the union of their output attributes, deduplicated by
+     * name with the first occurrence winning. This is the output schema of a set operator (see {@link #output()})
+     * and is also used to compute the combined output of a flattened top-level {@code or} chain during translation.
+     */
+    public static List<Attribute> unionOutputByName(List<? extends LogicalPlan> plans) {
         List<Attribute> result = new ArrayList<>();
         Set<String> names = new HashSet<>();
-        for (Attribute attr : left().output()) {
-            if (names.add(attr.name())) {
-                result.add(attr);
-            }
-        }
-        for (Attribute attr : right().output()) {
-            if (names.add(attr.name())) {
-                result.add(attr);
+        for (LogicalPlan plan : plans) {
+            for (Attribute attr : plan.output()) {
+                if (names.add(attr.name())) {
+                    result.add(attr);
+                }
             }
         }
         return result;

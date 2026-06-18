@@ -310,11 +310,9 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
             branchPlans.add(branchPlan);
         }
 
-        // Compute the union output by name. We cannot use Fork.outputUnion here because this rule runs before
-        // field resolution, so branch outputs may still contain unresolved attributes (Fork.outputUnion inspects
-        // data types). The ids established here are preserved by name when the analyzer's resolveFork later
-        // recomputes the output, so the groupings/projection built below stay valid.
-        List<Attribute> unionOutput = unionOutputByName(branchPlans);
+        // The attribute ids chosen here are preserved by name when the analyzer later recomputes the UnionAll
+        // output, so the groupings and projection built below remain valid.
+        List<Attribute> unionOutput = VectorBinarySet.unionOutputByName(branchPlans);
         UnionAll union = new UnionAll(source, branchPlans, unionOutput);
 
         // Group by step + all label columns (everything except the value and the synthetic branch tag).
@@ -353,24 +351,6 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
         } else {
             branches.add(node);
         }
-    }
-
-    /**
-     * Collects the union of branch output attributes by name (first occurrence wins). Unlike
-     * {@link Fork#outputUnion(List)}, this does not inspect attribute data types, so it is safe to call before
-     * field resolution (when branch outputs may still contain unresolved attributes).
-     */
-    private static List<Attribute> unionOutputByName(List<LogicalPlan> branchPlans) {
-        List<Attribute> output = new ArrayList<>();
-        Set<String> names = new HashSet<>();
-        for (LogicalPlan branch : branchPlans) {
-            for (Attribute attr : branch.output()) {
-                if (names.add(attr.name())) {
-                    output.add(attr);
-                }
-            }
-        }
-        return output;
     }
 
     private static TranslationResult tryConstFoldPureScalar(TranslationResult result, PromqlCommand cmd, TranslationContext ctx) {

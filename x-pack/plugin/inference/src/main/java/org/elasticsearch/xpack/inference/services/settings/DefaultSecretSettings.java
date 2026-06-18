@@ -111,10 +111,14 @@ public record DefaultSecretSettings(SecureString apiKey) implements SecretSettin
         out.writeSecureString(apiKey);
     }
 
+    public static SecureString extractOptionalApiKey(Map<String, Object> map, String scope, ValidationException validationException) {
+        return extractOptionalSecureString(map, API_KEY, scope, validationException);
+    }
+
     @Override
     public SecretSettings newSecretSettings(Map<String, Object> newSecrets) {
         var validationException = new ValidationException();
-        var extractedApiKey = extractOptionalSecureString(newSecrets, API_KEY, SERVICE_SETTINGS, validationException);
+        var extractedApiKey = extractOptionalApiKey(newSecrets, SERVICE_SETTINGS, validationException);
         validationException.throwIfValidationErrorsExist();
 
         if (extractedApiKey == null || extractedApiKey.equals(apiKey)) {

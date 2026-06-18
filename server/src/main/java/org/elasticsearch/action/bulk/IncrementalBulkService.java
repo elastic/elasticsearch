@@ -21,12 +21,19 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexingPressure;
+import org.elasticsearch.tasks.CancellableTask;
+import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskAwareRequest;
+import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.telemetry.metric.LongHistogram;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -37,6 +44,8 @@ import static org.elasticsearch.common.settings.Setting.boolSetting;
 
 public class IncrementalBulkService {
     public static final String CHUNK_WAIT_TIME_HISTOGRAM_NAME = "es.rest.incremental_bulk.wait_for_next_chunk.duration.histogram";
+    public static final String BULK_SESSION_TASK_TYPE = "bulk_session_timeout_tracking";
+    public static final String BULK_SESSION_ACTION = "bulk_session_timeout_tracking_action";
 
     public static final Setting<Boolean> INCREMENTAL_BULK = boolSetting(
         "rest.incremental_bulk",
@@ -47,13 +56,23 @@ public class IncrementalBulkService {
     private final Client client;
     private final AtomicBoolean enabledForTests = new AtomicBoolean(true);
     private final IndexingPressure indexingPressure;
+    private final TaskManager taskManager;
+    private final ThreadPool threadPool;
 
     /* Capture in milliseconds because the APM histogram only has a range of 100,000 */
     private final LongHistogram chunkWaitTimeMillisHistogram;
 
-    public IncrementalBulkService(Client client, IndexingPressure indexingPressure, MeterRegistry meterRegistry) {
+    public IncrementalBulkService(
+        Client client,
+        IndexingPressure indexingPressure,
+        MeterRegistry meterRegistry,
+        TaskManager taskManager,
+        ThreadPool threadPool
+    ) {
         this.client = client;
         this.indexingPressure = indexingPressure;
+        this.taskManager = taskManager;
+        this.threadPool = threadPool;
         this.chunkWaitTimeMillisHistogram = meterRegistry.registerLongHistogram(
             CHUNK_WAIT_TIME_HISTOGRAM_NAME,
             "Total time in millis spent waiting for next chunk of a bulk request",
@@ -73,7 +92,17 @@ public class IncrementalBulkService {
         Set<String> paramsUsed
     ) {
         ensureEnabled();
-        return new Handler(client, indexingPressure, waitForActiveShards, timeout, refresh, chunkWaitTimeMillisHistogram, paramsUsed);
+        return new Handler(
+            client,
+            indexingPressure,
+            waitForActiveShards,
+            timeout,
+            refresh,
+            chunkWaitTimeMillisHistogram,
+            paramsUsed,
+            taskManager,
+            threadPool
+        );
     }
 
     private void ensureEnabled() {
@@ -125,6 +154,8 @@ public class IncrementalBulkService {
         private boolean bulkInProgress = false;
         private Exception bulkActionLevelFailure = null;
         private BulkRequest bulkRequest = null;
+        private final TaskManager taskManager;
+        private final CancellableTask bulkSessionTask;
 
         protected Handler(
             Client client,
@@ -133,8 +164,35 @@ public class IncrementalBulkService {
             @Nullable TimeValue timeout,
             @Nullable String refresh,
             LongHistogram chunkWaitTimeMillisHistogram,
-            Set<String> paramsUsed
+            Set<String> paramsUsed,
+            TaskManager taskManager,
+            ThreadPool threadPool
         ) {
+            this.taskManager = taskManager;
+            try (var ignored = threadPool.getThreadContext().newTraceContext()) {
+                bulkSessionTask = (CancellableTask) taskManager.register(
+                    BULK_SESSION_TASK_TYPE,
+                    BULK_SESSION_ACTION,
+                    new TaskAwareRequest() {
+                        @Override
+                        public void setParentTask(TaskId taskId) {}
+
+                        @Override
+                        public void setRequestId(long requestId) {}
+
+                        @Override
+                        public TaskId getParentTask() {
+                            return TaskId.EMPTY_TASK_ID;
+                        }
+
+                        @Override
+                        public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+                            return new CancellableTask(id, type, action, getDescription(), parentTaskId, headers);
+                        }
+                    }
+                );
+            }
+
             this.client = client;
             this.waitForActiveShards = waitForActiveShards != null ? ActiveShardCount.parseString(waitForActiveShards) : null;
             this.timeout = timeout;
@@ -143,6 +201,10 @@ public class IncrementalBulkService {
             this.incrementalOperation = indexingPressure.startIncrementalCoordinating(0, 0, false);
             this.chunkWaitTimeMillisHistogram = chunkWaitTimeMillisHistogram;
             createNewBulkRequest(EMPTY_STATE);
+        }
+
+        public void cancel(String reason, Runnable listener) {
+            taskManager.cancelTaskAndDescendants(bulkSessionTask, reason, false, ActionListener.running(listener));
         }
 
         public IndexingPressure.Incremental getIncrementalOperation() {
@@ -156,6 +218,7 @@ public class IncrementalBulkService {
         public void addItems(List<DocWriteRequest<?>> items, Releasable releasable, Runnable nextItems) {
             assert closed == false;
             assert bulkInProgress == false;
+
             if (bulkActionLevelFailure != null) {
                 shortCircuitDueToTopLevelFailure(items, releasable);
                 nextItems.run();
@@ -171,7 +234,6 @@ public class IncrementalBulkService {
                         releasables.clear();
                         bulkInProgress = true;
                         client.bulk(bulkRequest, ActionListener.runAfter(new ActionListener<>() {
-
                             @Override
                             public void onResponse(BulkResponse bulkResponse) {
                                 handleBulkSuccess(bulkResponse);
@@ -201,9 +263,10 @@ public class IncrementalBulkService {
 
         public void lastItems(List<DocWriteRequest<?>> items, Releasable releasable, ActionListener<BulkResponse> listener) {
             assert bulkInProgress == false;
+            ActionListener<BulkResponse> finalListener = ActionListener.runBefore(listener, () -> taskManager.unregister(bulkSessionTask));
             if (bulkActionLevelFailure != null) {
                 shortCircuitDueToTopLevelFailure(items, releasable);
-                errorResponse(listener);
+                errorResponse(finalListener);
             } else {
                 assert bulkRequest != null;
                 if (internalAddItems(items, releasable)) {
@@ -219,20 +282,20 @@ public class IncrementalBulkService {
                         @Override
                         public void onResponse(BulkResponse bulkResponse) {
                             handleBulkSuccess(bulkResponse);
-                            listener.onResponse(BulkResponse.combine(responses));
+                            finalListener.onResponse(BulkResponse.combine(responses));
                         }
 
                         @Override
                         public void onFailure(Exception e) {
                             handleBulkFailure(isFirstRequest, e);
-                            errorResponse(listener);
+                            errorResponse(finalListener);
                         }
                     }, () -> {
                         toRelease.forEach(Releasable::close);
                         coordinating.close();
                     }));
                 } else {
-                    errorResponse(listener);
+                    errorResponse(finalListener);
                 }
             }
         }
@@ -244,6 +307,14 @@ public class IncrementalBulkService {
                 incrementalOperation.close();
                 releasables.forEach(Releasable::close);
                 releasables.clear();
+                if (taskManager.getCancellableTask(bulkSessionTask.getId()) != null) {
+                    taskManager.cancelTaskAndDescendants(
+                        bulkSessionTask,
+                        "handler closed",
+                        false,
+                        ActionListener.running(() -> taskManager.unregister(bulkSessionTask))
+                    );
+                }
             }
         }
 
@@ -290,27 +361,39 @@ public class IncrementalBulkService {
         }
 
         private boolean internalAddItems(List<DocWriteRequest<?>> items, Releasable releasable) {
-            try {
-                bulkRequest.add(items);
-                releasables.add(releasable);
-                long ramBytesUsed = 0;
-                for (final var item : items) {
-                    ramBytesUsed += item.ramBytesUsed();
-                }
-                incrementalOperation.increment(items.size(), ramBytesUsed);
-                return true;
-            } catch (EsRejectedExecutionException e) {
-                handleBulkFailure(incrementalRequestSubmitted == false, e);
-                incrementalOperation.split().close();
-                releasables.forEach(Releasable::close);
-                releasables.clear();
+            bulkRequest.add(items);
+            releasables.add(releasable);
+            if (bulkSessionTask.isCancelled()) {
+                failAndRelease(bulkSessionTask.getTaskCancelledException());
                 return false;
+            } else {
+                try {
+                    long ramBytesUsed = 0;
+                    for (final var item : items) {
+                        ramBytesUsed += item.ramBytesUsed();
+                    }
+                    incrementalOperation.increment(items.size(), ramBytesUsed);
+                    return true;
+                } catch (EsRejectedExecutionException e) {
+                    failAndRelease(e);
+                    return false;
+                }
             }
+        }
+
+        private void failAndRelease(Exception e) {
+            handleBulkFailure(incrementalRequestSubmitted == false, e);
+            incrementalOperation.split().close();
+            releasables.forEach(Releasable::close);
+            releasables.clear();
         }
 
         private void createNewBulkRequest(BulkRequest.IncrementalState incrementalState) {
             assert bulkRequest == null;
+            assert bulkSessionTask != null;
+            assert taskManager != null;
             bulkRequest = new BulkRequest();
+            bulkRequest.setParentTask(new TaskId(taskManager.getNodeId(), bulkSessionTask.getId()));
             bulkRequest.incrementalState(incrementalState);
 
             if (waitForActiveShards != null) {

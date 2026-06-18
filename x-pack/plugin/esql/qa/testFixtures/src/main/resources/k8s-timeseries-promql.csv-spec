@@ -34,12 +34,14 @@ required_capability: promql_command_v0
 required_capability: promql_buckets_parameter
 required_capability: fix_promql_time_bucket_v2
 required_capability: fix_tstep_bucket_rounding
+required_capability: fix_promql_scalar_constant_results
 PROMQL index=k8s start="2024-05-10T00:00:00.000Z" end="2024-05-10T00:20:00.000Z" buckets=4 1
 | KEEP step
 | SORT step;
 
-// With TStep the first data point (00:00:29) maps to label 00:05, so no row at 00:00.
+// Const-folded literal bypasses the index; step grid includes the inclusive start timestamp.
 step:datetime
+2024-05-10T00:00:00.000Z
 2024-05-10T00:05:00.000Z
 2024-05-10T00:10:00.000Z
 2024-05-10T00:15:00.000Z
@@ -676,9 +678,11 @@ required_capability: promql_command_v0
 required_capability: promql_time
 required_capability: fix_promql_time_bucket_v2
 required_capability: fix_tstep_bucket_rounding
+required_capability: fix_promql_scalar_constant_results
 PROMQL index=k8s step=1h start="2024-05-10T00:00:00.000Z" end="2024-05-10T01:00:00.000Z" result=(time());
 
 result:double    | step:datetime
+1.7152992E9      | 2024-05-10T00:00:00.000Z
 1.7153028E9      | 2024-05-10T01:00:00.000Z
 ;
 
@@ -687,9 +691,11 @@ required_capability: promql_command_v0
 required_capability: promql_year
 required_capability: fix_promql_time_bucket_v2
 required_capability: fix_tstep_bucket_rounding
+required_capability: fix_promql_scalar_constant_results
 PROMQL index=k8s step=1h start="2024-05-10T00:00:00.000Z" end="2024-05-10T01:00:00.000Z" result=(year());
 
 result:double | step:datetime
+2024.0        | 2024-05-10T00:00:00.000Z
 2024.0        | 2024-05-10T01:00:00.000Z
 ;
 
@@ -698,9 +704,11 @@ required_capability: promql_command_v0
 required_capability: promql_year
 required_capability: fix_promql_time_bucket_v2
 required_capability: fix_tstep_bucket_rounding
+required_capability: fix_promql_scalar_constant_results
 PROMQL index=k8s step=1h start="2024-05-10T00:00:00.000Z" end="2024-05-10T01:00:00.000Z" result=(year(vector(1712574000)));
 
 result:double | step:datetime
+2024.0        | 2024-05-10T00:00:00.000Z
 2024.0        | 2024-05-10T01:00:00.000Z
 ;
 
@@ -709,9 +717,11 @@ required_capability: promql_command_v0
 required_capability: promql_time_functions
 required_capability: fix_promql_time_bucket_v2
 required_capability: fix_tstep_bucket_rounding
+required_capability: fix_promql_scalar_constant_results
 PROMQL index=k8s step=1h start="2024-05-10T00:00:00.000Z" end="2024-05-10T01:00:00.000Z" result=(month());
 
 result:double | step:datetime
+5.0           | 2024-05-10T00:00:00.000Z
 5.0           | 2024-05-10T01:00:00.000Z
 ;
 
@@ -720,9 +730,11 @@ required_capability: promql_command_v0
 required_capability: promql_time_functions
 required_capability: fix_promql_time_bucket_v2
 required_capability: fix_tstep_bucket_rounding
+required_capability: fix_promql_scalar_constant_results
 PROMQL index=k8s step=1h start="2024-05-10T00:00:00.000Z" end="2024-05-10T01:00:00.000Z" result=(day_of_month());
 
 result:double | step:datetime
+10.0          | 2024-05-10T00:00:00.000Z
 10.0          | 2024-05-10T01:00:00.000Z
 ;
 
@@ -731,9 +743,11 @@ required_capability: promql_command_v0
 required_capability: promql_time_functions
 required_capability: fix_promql_time_bucket_v2
 required_capability: fix_tstep_bucket_rounding
+required_capability: fix_promql_scalar_constant_results
 PROMQL index=k8s step=1h start="2024-05-10T00:00:00.000Z" end="2024-05-10T01:00:00.000Z" result=(day_of_week());
 
 result:double | step:datetime
+5.0           | 2024-05-10T00:00:00.000Z
 5.0           | 2024-05-10T01:00:00.000Z
 ;
 
@@ -742,9 +756,11 @@ required_capability: promql_command_v0
 required_capability: promql_time_functions
 required_capability: fix_promql_time_bucket_v2
 required_capability: fix_tstep_bucket_rounding
+required_capability: fix_promql_scalar_constant_results
 PROMQL index=k8s step=1h start="2024-05-10T00:00:00.000Z" end="2024-05-10T01:00:00.000Z" result=(day_of_week(vector(1715472000)));
 
 result:double | step:datetime
+0.0           | 2024-05-10T00:00:00.000Z
 0.0           | 2024-05-10T01:00:00.000Z
 ;
 
@@ -753,9 +769,11 @@ required_capability: promql_command_v0
 required_capability: promql_time_functions
 required_capability: fix_promql_time_bucket_v2
 required_capability: fix_tstep_bucket_rounding
+required_capability: fix_promql_scalar_constant_results
 PROMQL index=k8s step=1h start="2024-05-10T00:00:00.000Z" end="2024-05-10T01:00:00.000Z" result=(day_of_year());
 
 result:double | step:datetime
+131.0         | 2024-05-10T00:00:00.000Z
 131.0         | 2024-05-10T01:00:00.000Z
 ;
 
@@ -764,9 +782,11 @@ required_capability: promql_command_v0
 required_capability: promql_time_functions
 required_capability: fix_promql_time_bucket_v2
 required_capability: fix_tstep_bucket_rounding
+required_capability: fix_promql_scalar_constant_results
 PROMQL index=k8s step=1h start="2024-05-10T00:00:00.000Z" end="2024-05-10T01:00:00.000Z" result=(hour());
 
 result:double | step:datetime
+0.0           | 2024-05-10T00:00:00.000Z
 1.0           | 2024-05-10T01:00:00.000Z
 ;
 
@@ -775,9 +795,11 @@ required_capability: promql_command_v0
 required_capability: promql_time_functions
 required_capability: fix_promql_time_bucket_v2
 required_capability: fix_tstep_bucket_rounding
+required_capability: fix_promql_scalar_constant_results
 PROMQL index=k8s step=1h start="2024-05-10T00:00:00.000Z" end="2024-05-10T01:00:00.000Z" result=(minute());
 
 result:double | step:datetime
+0.0           | 2024-05-10T00:00:00.000Z
 0.0           | 2024-05-10T01:00:00.000Z
 ;
 
@@ -786,9 +808,11 @@ required_capability: promql_command_v0
 required_capability: promql_days_in_month
 required_capability: fix_promql_time_bucket_v2
 required_capability: fix_tstep_bucket_rounding
+required_capability: fix_promql_scalar_constant_results
 PROMQL index=k8s step=1h start="2024-05-10T00:00:00.000Z" end="2024-05-10T01:00:00.000Z" result=(days_in_month());
 
 result:double | step:datetime
+31.0          | 2024-05-10T00:00:00.000Z
 31.0          | 2024-05-10T01:00:00.000Z
 ;
 
@@ -797,9 +821,11 @@ required_capability: promql_command_v0
 required_capability: promql_days_in_month
 required_capability: fix_promql_time_bucket_v2
 required_capability: fix_tstep_bucket_rounding
+required_capability: fix_promql_scalar_constant_results
 PROMQL index=k8s step=1h start="2024-05-10T00:00:00.000Z" end="2024-05-10T01:00:00.000Z" result=(days_in_month(vector(1712574000)));
 
 result:double | step:datetime
+30.0          | 2024-05-10T00:00:00.000Z
 30.0          | 2024-05-10T01:00:00.000Z
 ;
 
@@ -808,10 +834,12 @@ required_capability: promql_command_v0
 required_capability: promql_days_in_month
 required_capability: fix_promql_time_bucket_v2
 required_capability: fix_tstep_bucket_rounding
+required_capability: fix_promql_scalar_constant_results
 // 1707955200 = 2024-02-15T00:00:00Z, leap year
 PROMQL index=k8s step=1h start="2024-05-10T00:00:00.000Z" end="2024-05-10T01:00:00.000Z" result=(days_in_month(vector(1707955200)));
 
 result:double | step:datetime
+29.0          | 2024-05-10T00:00:00.000Z
 29.0          | 2024-05-10T01:00:00.000Z
 ;
 
@@ -820,10 +848,12 @@ required_capability: promql_command_v0
 required_capability: promql_days_in_month
 required_capability: fix_promql_time_bucket_v2
 required_capability: fix_tstep_bucket_rounding
+required_capability: fix_promql_scalar_constant_results
 // 1676419200 = 2023-02-15T00:00:00Z, non-leap year
 PROMQL index=k8s step=1h start="2024-05-10T00:00:00.000Z" end="2024-05-10T01:00:00.000Z" result=(days_in_month(vector(1676419200)));
 
 result:double | step:datetime
+28.0          | 2024-05-10T00:00:00.000Z
 28.0          | 2024-05-10T01:00:00.000Z
 ;
 
@@ -832,10 +862,12 @@ required_capability: promql_command_v0
 required_capability: promql_days_in_month
 required_capability: fix_promql_time_bucket_v2
 required_capability: fix_tstep_bucket_rounding
+required_capability: fix_promql_scalar_constant_results
 // 1704067200 = 2024-01-01T00:00:00Z
 PROMQL index=k8s step=1h start="2024-05-10T00:00:00.000Z" end="2024-05-10T01:00:00.000Z" result=(days_in_month(vector(1704067200)));
 
 result:double | step:datetime
+31.0          | 2024-05-10T00:00:00.000Z
 31.0          | 2024-05-10T01:00:00.000Z
 ;
 
@@ -844,10 +876,12 @@ required_capability: promql_command_v0
 required_capability: promql_days_in_month
 required_capability: fix_promql_time_bucket_v2
 required_capability: fix_tstep_bucket_rounding
+required_capability: fix_promql_scalar_constant_results
 // 1717200000 = 2024-06-01T00:00:00Z
 PROMQL index=k8s step=1h start="2024-05-10T00:00:00.000Z" end="2024-05-10T01:00:00.000Z" result=(days_in_month(vector(1717200000)));
 
 result:double | step:datetime
+30.0          | 2024-05-10T00:00:00.000Z
 30.0          | 2024-05-10T01:00:00.000Z
 ;
 
@@ -856,9 +890,11 @@ required_capability: promql_command_v0
 required_capability: promql_time
 required_capability: fix_promql_time_bucket_v2
 required_capability: fix_tstep_bucket_rounding
+required_capability: fix_promql_scalar_constant_results
 PROMQL index=k8s step=1h start="2024-05-10T00:00:00.000Z" end="2024-05-10T01:00:00.000Z" result=(time() - 1715299200);
 
 result:double | step:datetime
+0.0           | 2024-05-10T00:00:00.000Z
 3600.0        | 2024-05-10T01:00:00.000Z
 ;
 
@@ -867,9 +903,11 @@ required_capability: promql_command_v0
 required_capability: promql_time
 required_capability: fix_promql_time_bucket_v2
 required_capability: fix_tstep_bucket_rounding
+required_capability: fix_promql_scalar_constant_results
 PROMQL index=k8s step=1h start="2024-05-10T00:00:00.000Z" end="2024-05-10T01:00:00.000Z" result=(vector(1) + time() - time());
 
 result:double | step:datetime
+1.0           | 2024-05-10T00:00:00.000Z
 1.0           | 2024-05-10T01:00:00.000Z
 ;
 
@@ -878,12 +916,13 @@ required_capability: promql_command_v0
 required_capability: promql_time
 required_capability: fix_promql_time_bucket_v2
 required_capability: fix_tstep_bucket_rounding
+required_capability: fix_promql_scalar_constant_results
 PROMQL index=k8s step=1m start="2024-05-10T00:00:00.000Z" end="2024-05-10T00:10:00.000Z" result=(time())
 | SORT step
 ;
 
-// With TStep: first data at 00:00:29 maps to label 00:01; 00:00 is empty; 00:10 is added.
 result:double      | step:datetime
+1.7152992E9        | 2024-05-10T00:00:00.000Z
 1.71529926E9       | 2024-05-10T00:01:00.000Z
 1.71529932E9       | 2024-05-10T00:02:00.000Z
 1.71529938E9       | 2024-05-10T00:03:00.000Z
@@ -1289,6 +1328,154 @@ result:double | step:datetime
 -6.333        | 2024-05-10T00:00:00.000Z
 ;
 
+scalar_constant_literal
+required_capability: promql_command_v0
+required_capability: fix_promql_scalar_constant_results
+// folded at planning time without reading the index.
+PROMQL index=k8s start="2025-01-01T00:00:00.000Z" end="2025-01-01T00:02:00.000Z" step=1m result=(42);
+
+result:double | step:datetime
+42.0          | 2025-01-01T00:00:00.000Z
+42.0          | 2025-01-01T00:01:00.000Z
+42.0          | 2025-01-01T00:02:00.000Z
+;
+
+scalar_constant_arithmetic
+required_capability: promql_command_v0
+required_capability: fix_promql_scalar_constant_results
+// folded at planning time without reading the index.
+PROMQL index=k8s start="2025-01-01T00:00:00.000Z" end="2025-01-01T00:02:00.000Z" step=1m result=(1 + 1);
+
+result:double | step:datetime
+2.0           | 2025-01-01T00:00:00.000Z
+2.0           | 2025-01-01T00:01:00.000Z
+2.0           | 2025-01-01T00:02:00.000Z
+;
+
+scalar_constant_multiplication
+required_capability: promql_command_v0
+required_capability: fix_promql_scalar_constant_results
+// folded at planning time without reading the index.
+PROMQL index=k8s start="2025-01-01T00:00:00.000Z" end="2025-01-01T00:02:00.000Z" step=1m result=(2 * 21);
+
+result:double | step:datetime
+42.0          | 2025-01-01T00:00:00.000Z
+42.0          | 2025-01-01T00:01:00.000Z
+42.0          | 2025-01-01T00:02:00.000Z
+;
+
+scalar_constant_subtraction
+required_capability: promql_command_v0
+required_capability: fix_promql_scalar_constant_results
+// folded at planning time without reading the index.
+PROMQL index=k8s start="2025-01-01T00:00:00.000Z" end="2025-01-01T00:02:00.000Z" step=1m result=(100 - 58);
+
+result:double | step:datetime
+42.0          | 2025-01-01T00:00:00.000Z
+42.0          | 2025-01-01T00:01:00.000Z
+42.0          | 2025-01-01T00:02:00.000Z
+;
+
+scalar_constant_division
+required_capability: promql_command_v0
+required_capability: fix_promql_scalar_constant_results
+// folded at planning time without reading the index.
+PROMQL index=k8s start="2025-01-01T00:00:00.000Z" end="2025-01-01T00:02:00.000Z" step=1m result=(84 / 2);
+
+result:double | step:datetime
+42.0          | 2025-01-01T00:00:00.000Z
+42.0          | 2025-01-01T00:01:00.000Z
+42.0          | 2025-01-01T00:02:00.000Z
+;
+
+scalar_constant_nested
+required_capability: promql_command_v0
+required_capability: fix_promql_scalar_constant_results
+// folded at planning time without reading the index.
+PROMQL index=k8s start="2025-01-01T00:00:00.000Z" end="2025-01-01T00:02:00.000Z" step=1m result=((1 + 2) * (3 + 4));
+
+result:double | step:datetime
+21.0          | 2025-01-01T00:00:00.000Z
+21.0          | 2025-01-01T00:01:00.000Z
+21.0          | 2025-01-01T00:02:00.000Z
+;
+
+scalar_constant_modulo
+required_capability: promql_command_v0
+required_capability: fix_promql_scalar_constant_results
+// folded at planning time without reading the index.
+PROMQL index=k8s start="2025-01-01T00:00:00.000Z" end="2025-01-01T00:02:00.000Z" step=1m result=(10 % 3);
+
+result:double | step:datetime
+1.0           | 2025-01-01T00:00:00.000Z
+1.0           | 2025-01-01T00:01:00.000Z
+1.0           | 2025-01-01T00:02:00.000Z
+;
+
+scalar_constant_power
+required_capability: promql_command_v0
+required_capability: fix_promql_scalar_constant_results
+// folded at planning time without reading the index.
+PROMQL index=k8s start="2025-01-01T00:00:00.000Z" end="2025-01-01T00:02:00.000Z" step=1m result=(2 ^ 10);
+
+result:double | step:datetime
+1024.0        | 2025-01-01T00:00:00.000Z
+1024.0        | 2025-01-01T00:01:00.000Z
+1024.0        | 2025-01-01T00:02:00.000Z
+;
+
+scalar_constant_time
+required_capability: promql_command_v0
+required_capability: promql_time
+required_capability: fix_promql_scalar_constant_results
+// time() on a non-empty index is const-folded without touching the index.
+PROMQL index=k8s start="2025-01-01T00:00:00.000Z" end="2025-01-01T00:02:00.000Z" step=1m result=(time());
+
+result:double    | step:datetime
+1.7356896E9      | 2025-01-01T00:00:00.000Z
+1.73568966E9     | 2025-01-01T00:01:00.000Z
+1.73568972E9     | 2025-01-01T00:02:00.000Z
+;
+
+scalar_constant_year
+required_capability: promql_command_v0
+required_capability: promql_year
+required_capability: fix_promql_scalar_constant_results
+// year() on a non-empty index is const-folded without touching the index.
+PROMQL index=k8s start="2025-01-01T00:00:00.000Z" end="2025-01-01T00:02:00.000Z" step=1m result=(year());
+
+result:double | step:datetime
+2025.0        | 2025-01-01T00:00:00.000Z
+2025.0        | 2025-01-01T00:01:00.000Z
+2025.0        | 2025-01-01T00:02:00.000Z
+;
+
+scalar_constant_minute
+required_capability: promql_command_v0
+required_capability: promql_time_functions
+required_capability: fix_promql_scalar_constant_results
+// minute() varies per step, const-folded without touching the index.
+PROMQL index=k8s start="2025-01-01T00:00:00.000Z" end="2025-01-01T00:02:00.000Z" step=1m result=(minute());
+
+result:double | step:datetime
+0.0           | 2025-01-01T00:00:00.000Z
+1.0           | 2025-01-01T00:01:00.000Z
+2.0           | 2025-01-01T00:02:00.000Z
+;
+
+scalar_constant_days_in_month
+required_capability: promql_command_v0
+required_capability: promql_days_in_month
+required_capability: fix_promql_scalar_constant_results
+// days_in_month() on a non-empty index is const-folded without touching the index.
+PROMQL index=k8s start="2025-01-01T00:00:00.000Z" end="2025-01-01T00:02:00.000Z" step=1m result=(days_in_month());
+
+result:double | step:datetime
+31.0          | 2025-01-01T00:00:00.000Z
+31.0          | 2025-01-01T00:01:00.000Z
+31.0          | 2025-01-01T00:02:00.000Z
+;
+
 // PromQL rate/increase/irate accept plain numeric range vectors. ES|QL wraps non-counter
 // inputs with to_counter() during translation so counter functions work on plain numerics.
 rate_on_plain_numeric_long
@@ -1494,4 +1681,92 @@ value:double       | step:datetime
 16.279099821524305 | 2024-05-10T00:10:00.000Z
 37.69321892075542  | 2024-05-10T00:20:00.000Z
 38.29379072289092  | 2024-05-10T00:30:00.000Z
+;
+
+// Set operator: top-level `or` (UNION).
+// Combines the series from both operands. The left operand wins where label sets overlap.
+set_operator_union_combines_series
+required_capability: promql_command_v0
+required_capability: promql_set_operator_union
+required_capability: fix_promql_time_bucket_v2
+PROMQL index=k8s step=1h set_union=(max by (cluster) (network.total_bytes_in{cluster="prod"}) or max by (cluster) (network.total_bytes_in))
+| SORT cluster;
+
+set_union:double | step:datetime            | cluster:keyword
+10277.0          | 2024-05-10T01:00:00.000Z | prod
+10797.0          | 2024-05-10T01:00:00.000Z | qa
+7403.0           | 2024-05-10T01:00:00.000Z | staging
+;
+
+// Left precedence: prod appears in both operands with the same grouping, so the left (max) value wins
+// over the right (sum) value.
+set_operator_union_left_precedence
+required_capability: promql_command_v0
+required_capability: promql_set_operator_union
+required_capability: fix_promql_time_bucket_v2
+PROMQL index=k8s step=1h set_union=(max by (cluster) (network.total_bytes_in{cluster="prod"}) or sum by (cluster) (network.total_bytes_in{cluster="prod"}))
+| SORT cluster;
+
+set_union:double | step:datetime            | cluster:keyword
+10277.0          | 2024-05-10T01:00:00.000Z | prod
+;
+
+// Fallback to zero: the left operand matches no series, so the right operand vector(0) provides a value.
+set_operator_union_vector_zero_fallback
+required_capability: promql_command_v0
+required_capability: promql_set_operator_union
+required_capability: fix_promql_time_bucket_v2
+PROMQL index=k8s step=1h set_union=(max by (cluster) (network.total_bytes_in{cluster="does_not_exist"}) or vector(0));
+
+set_union:double | step:datetime            | cluster:keyword
+0.0              | 2024-05-10T01:00:00.000Z | null
+;
+
+// rate(...) or irate(...) fallback idiom: both operands share the same (empty) label set, so the left
+// operand (rate) wins at every step where it has a value; irate fills steps where rate is absent.
+set_operator_union_rate_or_irate
+required_capability: promql_command_v0
+required_capability: promql_set_operator_union
+required_capability: fix_promql_time_bucket_v2
+required_capability: rate_with_interpolation_v3
+PROMQL index=k8s step=1m rate_or_irate=(round(avg(rate(network.bytes_in[1m])), 0.001) or round(avg(irate(network.bytes_in[1m])), 0.001))
+| SORT step | LIMIT 5;
+
+rate_or_irate:double | step:datetime
+11.636               | 2024-05-10T00:01:00.000Z
+5.938                | 2024-05-10T00:02:00.000Z
+7.434                | 2024-05-10T00:03:00.000Z
+5.03                 | 2024-05-10T00:04:00.000Z
+14.16                | 2024-05-10T00:05:00.000Z
+;
+
+// Heterogeneous groupings: the operands group by different labels (cluster vs pod), so their label sets never
+// overlap. Every series from both operands is kept; missing label columns are null-filled per branch.
+set_operator_union_heterogeneous_groupings
+required_capability: promql_command_v0
+required_capability: promql_set_operator_union
+required_capability: fix_promql_time_bucket_v2
+PROMQL index=k8s step=1h set_union=(max by (cluster) (network.total_bytes_in{cluster="prod"}) or max by (pod) (network.total_bytes_in{cluster="prod"}))
+| SORT cluster, pod;
+
+set_union:double | step:datetime            | cluster:keyword | pod:keyword
+10277.0          | 2024-05-10T01:00:00.000Z | prod            | null
+947.0            | 2024-05-10T01:00:00.000Z | null            | one
+9969.0           | 2024-05-10T01:00:00.000Z | null            | three
+10277.0          | 2024-05-10T01:00:00.000Z | null            | two
+;
+
+// Three-branch left-associative chain `a or b or c`. Each branch contributes its own cluster with left
+// precedence: prod from branch 0, qa from branch 1, and staging from the catch-all branch 2.
+set_operator_union_three_branch_chain
+required_capability: promql_command_v0
+required_capability: promql_set_operator_union
+required_capability: fix_promql_time_bucket_v2
+PROMQL index=k8s step=1h set_union=(max by (cluster) (network.total_bytes_in{cluster="prod"}) or max by (cluster) (network.total_bytes_in{cluster="qa"}) or sum by (cluster) (network.total_bytes_in))
+| SORT cluster;
+
+set_union:double | step:datetime            | cluster:keyword
+10277.0          | 2024-05-10T01:00:00.000Z | prod
+10797.0          | 2024-05-10T01:00:00.000Z | qa
+19227.0          | 2024-05-10T01:00:00.000Z | staging
 ;

@@ -60,6 +60,10 @@ public class ES92GpuHnswVectorsFormat extends KnnVectorsFormat {
         this(CuVSResourceManager::pooling, CuVSGPUSupport.instance().getTotalGpuMemory(), DEFAULT_MAX_CONN, DEFAULT_BEAM_WIDTH);
     }
 
+    public ES92GpuHnswVectorsFormat(int maxConn, int beamWidth) {
+        this(CuVSResourceManager::pooling, CuVSGPUSupport.instance().getTotalGpuMemory(), maxConn, beamWidth);
+    }
+
     public ES92GpuHnswVectorsFormat(long totalDeviceMemory, int maxConn, int beamWidth) {
         this(CuVSResourceManager::pooling, totalDeviceMemory, maxConn, beamWidth);
     }

@@ -293,7 +293,7 @@ public final class StreamingParallelParsingCoordinator {
             this.executor = executor;
 
             @SuppressWarnings("unchecked")
-            ArrayBlockingQueue<Page>[] queues = new ArrayBlockingQueue[pageQueueRingSize];
+            ArrayBlockingQueue<Page>[] queues = (ArrayBlockingQueue<Page>[]) new ArrayBlockingQueue<?>[pageQueueRingSize];
             this.pageQueues = queues;
             for (int i = 0; i < pageQueueRingSize; i++) {
                 pageQueues[i] = new ArrayBlockingQueue<>(16);

@@ -50,6 +50,7 @@ import org.elasticsearch.index.engine.ThreadPoolMergeExecutorService;
 import org.elasticsearch.index.engine.ThreadPoolMergeScheduler;
 import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
@@ -104,6 +105,7 @@ import org.elasticsearch.xpack.stateless.reshard.ReshardIndexService;
 import org.elasticsearch.xpack.stateless.reshard.ReshardSearchFilters;
 import org.elasticsearch.xpack.stateless.reshard.ReshardUnownedBitsetCache;
 import org.junit.Before;
+import org.mockito.Mockito;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -328,7 +330,9 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
 
     protected EngineConfig indexConfig(Settings settings, Settings nodeSettings, LongSupplier primaryTermSupplier, MergePolicy mergePolicy)
         throws IOException {
-        return indexConfig(settings, nodeSettings, primaryTermSupplier, mergePolicy, null);
+        MapperService mapperService = Mockito.mock(MapperService.class);
+        when(mapperService.mappingLookup()).thenReturn(MappingLookup.EMPTY);
+        return indexConfig(settings, nodeSettings, primaryTermSupplier, mergePolicy, mapperService);
     }
 
     protected EngineConfig indexConfig(

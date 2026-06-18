@@ -36,6 +36,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.indices.recovery.PeerRecoverySourceService.Actions.START_RECOVERY;
@@ -643,6 +644,32 @@ public class PeerRecoverySourceServiceTests extends IndexShardTestCase {
         assertEquals(1, service.ongoingRecoveries.queuedRecoveryCount());
 
         closeShards(primary1, primary2, primary3, primary4);
+    }
+
+    public void testDynamicLimitDecreaseDoesNotNotifySchedulingListeners() throws IOException {
+        final IndexShard primary1 = newStartedShard(true);
+        final IndexShard primary2 = newStartedShard(true);
+        final var serviceWithSettings = newPeerRecoverySourceServiceWithDynamicLimit(3);
+        final var service = serviceWithSettings.v1();
+        final var clusterSettings = serviceWithSettings.v2();
+        service.start();
+        final var task = newRecoveryTask();
+
+        service.ongoingRecoveries.addOrEnqueueNewRecovery(newStartRecoveryRequest(primary1), task, primary1, ActionListener.noop());
+        service.ongoingRecoveries.addOrEnqueueNewRecovery(newStartRecoveryRequest(primary2), task, primary2, ActionListener.noop());
+        assertEquals(2, service.ongoingRecoveries.activeRecoveryCount());
+
+        final var listenerCallCount = new AtomicInteger();
+        service.ongoingRecoveries.addRecoverySchedulingListener(listenerCallCount::incrementAndGet);
+
+        // Decreasing the limit dequeues nothing, so scheduling listeners must not be notified
+        clusterSettings.applySettings(
+            Settings.builder().put(INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING.getKey(), 1).build()
+        );
+
+        assertEquals(0, listenerCallCount.get());
+
+        closeShards(primary1, primary2);
     }
 
     public void testDynamicLimitIncreaseAllowsDirectStart() throws IOException {

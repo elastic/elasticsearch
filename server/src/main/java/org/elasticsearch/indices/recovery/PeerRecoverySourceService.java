@@ -104,7 +104,7 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
         clusterService.getClusterSettings()
             .initializeAndWatchIfRegistered(
                 INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING,
-                this::setMaxConcurrentOutgoingRecoveries
+                ongoingRecoveries::updateMaxConcurrentOutgoingRecoveries
             );
         this.metrics = recoveryMetricsCollector;
         // When the target node wants to start a peer recovery it sends a START_RECOVERY request to the source
@@ -162,10 +162,6 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
                 ongoingRecoveries.cancelOnNodeLeft(removedNode);
             }
         }
-    }
-
-    private void setMaxConcurrentOutgoingRecoveries(Integer maxConcurrentOutgoingRecoveries) {
-        ongoingRecoveries.updateMaxConcurrentOutgoingRecoveries(maxConcurrentOutgoingRecoveries);
     }
 
     private void recover(StartRecoveryRequest request, Task task, ActionListener<RecoveryResponse> listener) {
@@ -403,7 +399,10 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
                     ActionListener.runAfter(nextRecovery.listener(), () -> onRecoveryComplete(nextRecovery.shard(), nextHandler))
                 );
             }
-            notifyRecoverySchedulingListeners();
+
+            if (!eligibleRecoveries.isEmpty()) {
+                notifyRecoverySchedulingListeners();
+            }
         }
 
         /// Updates the concurrency limit and, if the new limit is higher, drains any newly eligible pending recoveries.

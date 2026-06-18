@@ -86,8 +86,7 @@ class ProjectEncryptionKeyHealthIndicatorService implements HealthIndicatorServi
     static final Diagnosis.Definition ENCRYPTION_OPT_OUT_MISCONFIGURED_DEFINITION = new Diagnosis.Definition(
         NAME,
         "encryption_opt_out_misconfigured",
-        "Cluster state encryption is misconfigured and cluster.state.encryption.required is false;"
-            + " secrets are stored unencrypted.",
+        "Cluster state encryption is misconfigured and cluster.state.encryption.required is false;" + " secrets are stored unencrypted.",
         "Fix the encryption configuration (the 'state' field in details describes the specific problem),"
             + " or set cluster.state.encryption.required: true to reject credential writes until encryption is restored.",
         HELP_URL

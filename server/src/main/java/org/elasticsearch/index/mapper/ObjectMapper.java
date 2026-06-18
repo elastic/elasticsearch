@@ -131,6 +131,12 @@ public class ObjectMapper extends Mapper {
         protected Optional<SourceKeepMode> sourceKeepMode = Optional.empty();
         protected Dynamic dynamic;
         protected final List<Mapper.Builder> mappersBuilders = new ArrayList<>();
+        /**
+         * Accumulates per-prefix {@code dynamic} values captured during auto-flattening in strict columnar mode.
+         * Populated by {@link #flattenBuildersIfNeeded} when {@link MapperBuilderContext#isStrictColumnar()} is true.
+         * Read by {@link RootObjectMapper.Builder#build} to persist the entries so they survive round-trips.
+         */
+        protected final Map<String, Dynamic> dynamicByPrefix = new HashMap<>();
 
         public Builder(String name) {
             this(name, Defaults.SUBOBJECTS);
@@ -351,7 +357,7 @@ public class ObjectMapper extends Mapper {
             Map<String, Mapper.Builder> map = new HashMap<>();
             for (Mapper.Builder builder : builders) {
                 if (subobjects.value() == Subobjects.DISABLED && builder instanceof ObjectMapper.Builder objectMapperBuilder) {
-                    objectMapperBuilder.asFlattenedFieldBuilders(builderContext, map, new ContentPath());
+                    objectMapperBuilder.asFlattenedFieldBuilders(builderContext, map, new ContentPath(), this.dynamicByPrefix);
                 } else {
                     Mapper.Builder existing = map.get(builder.leafName());
                     if (existing != null) {
@@ -368,17 +374,28 @@ public class ObjectMapper extends Mapper {
          * with dotted paths reflecting the hierarchy. Works entirely at the builder level,
          * avoiding the need to build an intermediate ObjectMapper.
          *
-         * @param parentContext the builder context of the parent object (used for full-path error messages)
-         * @param result       the map to collect flattened field builders into
-         * @param path         tracks the relative path for field renaming
+         * @param parentContext    the builder context of the parent object (used for full-path error messages)
+         * @param result           the map to collect flattened field builders into
+         * @param path             tracks the relative path for field renaming
+         * @param dynamicCollector accumulates per-prefix {@code dynamic} values in strict columnar mode;
+         *                         must be the root builder's {@code dynamicByPrefix} map so all entries
+         *                         from the full nested hierarchy land in one place
          */
-        private void asFlattenedFieldBuilders(MapperBuilderContext parentContext, Map<String, Mapper.Builder> result, ContentPath path) {
+        private void asFlattenedFieldBuilders(
+            MapperBuilderContext parentContext,
+            Map<String, Mapper.Builder> result,
+            ContentPath path,
+            Map<String, Dynamic> dynamicCollector
+        ) {
             String fullName = parentContext.buildFullName(path.pathAsText(leafName()));
             ensureBuilderFlattenable(parentContext, fullName);
+            if (parentContext.isStrictColumnar() && dynamic != null) {
+                dynamicCollector.put(fullName, dynamic);
+            }
             path.add(leafName());
             for (Mapper.Builder childBuilder : mappersBuilders) {
                 if (childBuilder instanceof ObjectMapper.Builder objectMapperBuilder) {
-                    objectMapperBuilder.asFlattenedFieldBuilders(parentContext, result, path);
+                    objectMapperBuilder.asFlattenedFieldBuilders(parentContext, result, path, dynamicCollector);
                 } else if (childBuilder instanceof FieldMapper.Builder fieldMapperBuilder) {
                     fieldMapperBuilder.setLeafName(path.pathAsText(fieldMapperBuilder.leafName()));
                     result.put(fieldMapperBuilder.leafName(), fieldMapperBuilder);
@@ -388,7 +405,9 @@ public class ObjectMapper extends Mapper {
         }
 
         private void ensureBuilderFlattenable(MapperBuilderContext context, String fullName) {
-            if (dynamic != null && context.getDynamic() != dynamic) {
+            // In strict columnar mode, objects with a different dynamic than the parent are allowed;
+            // their declared dynamic is captured in dynamicByPrefix for index-time resolution.
+            if (dynamic != null && context.getDynamic() != dynamic && context.isStrictColumnar() == false) {
                 throwAutoFlatteningException(
                     fullName,
                     "the value of [dynamic] ("

@@ -144,7 +144,7 @@ import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
-import java.util.function.ToLongBiFunction;
+import java.util.function.ToLongFunction;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.index.engine.Engine.Operation.Origin.PEER_RECOVERY;
@@ -152,7 +152,6 @@ import static org.elasticsearch.index.engine.Engine.Operation.Origin.PRIMARY;
 import static org.elasticsearch.index.engine.Engine.Operation.Origin.REPLICA;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -503,7 +502,7 @@ public abstract class EngineTestCase extends ESTestCase {
         Store store,
         Path translogPath,
         BiFunction<Long, Long, LocalCheckpointTracker> localCheckpointTrackerSupplier,
-        ToLongBiFunction<Engine, Engine.Operation> seqNoForOperation
+        ToLongFunction<Engine> seqNoForOperation
     ) throws IOException {
         return createEngine(
             defaultSettings,
@@ -563,7 +562,7 @@ public abstract class EngineTestCase extends ESTestCase {
         @Nullable IndexWriterFactory indexWriterFactory,
         @Nullable BiFunction<Long, Long, LocalCheckpointTracker> localCheckpointTrackerSupplier,
         @Nullable LongSupplier globalCheckpointSupplier,
-        @Nullable ToLongBiFunction<Engine, Engine.Operation> seqNoForOperation
+        @Nullable ToLongFunction<Engine> seqNoForOperation
     ) throws IOException {
         return createEngine(
             indexSettings,
@@ -585,7 +584,7 @@ public abstract class EngineTestCase extends ESTestCase {
         MergePolicy mergePolicy,
         @Nullable IndexWriterFactory indexWriterFactory,
         @Nullable BiFunction<Long, Long, LocalCheckpointTracker> localCheckpointTrackerSupplier,
-        @Nullable ToLongBiFunction<Engine, Engine.Operation> seqNoForOperation,
+        @Nullable ToLongFunction<Engine> seqNoForOperation,
         @Nullable Sort indexSort,
         @Nullable LongSupplier globalCheckpointSupplier
     ) throws IOException {
@@ -607,10 +606,10 @@ public abstract class EngineTestCase extends ESTestCase {
         return createEngine(null, null, null, config);
     }
 
-    protected InternalEngine createEngine(
+    private InternalEngine createEngine(
         @Nullable IndexWriterFactory indexWriterFactory,
         @Nullable BiFunction<Long, Long, LocalCheckpointTracker> localCheckpointTrackerSupplier,
-        @Nullable ToLongBiFunction<Engine, Engine.Operation> seqNoForOperation,
+        @Nullable ToLongFunction<Engine> seqNoForOperation,
         EngineConfig config
     ) throws IOException {
         final Store store = config.getStore();
@@ -653,10 +652,14 @@ public abstract class EngineTestCase extends ESTestCase {
         return internalEngine.getLocalCheckpointTracker().generateSeqNo();
     }
 
-    public static InternalEngine createInternalEngine(
+    public static InternalEngine createInternalEngine(@Nullable final IndexWriterFactory indexWriterFactory, final EngineConfig config) {
+        return createInternalEngine(indexWriterFactory, null, null, config);
+    }
+
+    private static InternalEngine createInternalEngine(
         @Nullable final IndexWriterFactory indexWriterFactory,
         @Nullable final BiFunction<Long, Long, LocalCheckpointTracker> localCheckpointTrackerSupplier,
-        @Nullable final ToLongBiFunction<Engine, Engine.Operation> seqNoForOperation,
+        @Nullable final ToLongFunction<Engine> seqNoForOperation,
         final EngineConfig config
     ) {
         if (localCheckpointTrackerSupplier == null) {
@@ -669,10 +672,8 @@ public abstract class EngineTestCase extends ESTestCase {
                 }
 
                 @Override
-                protected long doGenerateSeqNoForOperation(final Operation operation) {
-                    return seqNoForOperation != null
-                        ? seqNoForOperation.applyAsLong(this, operation)
-                        : super.doGenerateSeqNoForOperation(operation);
+                protected long doGenerateSeqNo() {
+                    return seqNoForOperation != null ? seqNoForOperation.applyAsLong(this) : super.doGenerateSeqNo();
                 }
             };
         } else {
@@ -685,14 +686,11 @@ public abstract class EngineTestCase extends ESTestCase {
                 }
 
                 @Override
-                protected long doGenerateSeqNoForOperation(final Operation operation) {
-                    return seqNoForOperation != null
-                        ? seqNoForOperation.applyAsLong(this, operation)
-                        : super.doGenerateSeqNoForOperation(operation);
+                protected long doGenerateSeqNo() {
+                    return seqNoForOperation != null ? seqNoForOperation.applyAsLong(this) : super.doGenerateSeqNo();
                 }
             };
         }
-
     }
 
     public EngineConfig config(IndexSettings indexSettings, Store store, Path translogPath, MergePolicy mergePolicy) {

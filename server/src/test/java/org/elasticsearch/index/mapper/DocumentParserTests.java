@@ -19,6 +19,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.plugins.MapperPlugin;
@@ -1007,6 +1008,152 @@ public class DocumentParserTests extends MapperServiceTestCase {
             "unmapped dynamic:false array must not be stored in _ignored_source in columnar mode",
             doc.rootDoc().getField(IgnoredSourceFieldMapper.NAME)
         );
+    }
+
+    // Per-prefix dynamic resolution in strict columnar mode.
+
+    private DocumentMapper createColumnarMapperWithPrefixDynamic(
+        IndexMode indexMode,
+        String prefix,
+        String prefixDynamic,
+        String leafField,
+        String leafType
+    ) throws Exception {
+        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), indexMode.getName()).build();
+        return createMapperService(settings, mapping(b -> {
+            // LOGSDB_COLUMNAR is a data-stream mode that requires @timestamp to be mapped.
+            b.startObject("@timestamp").field("type", "date").endObject();
+            b.startObject(prefix);
+            {
+                b.field("dynamic", prefixDynamic);
+                b.startObject("properties");
+                b.startObject(leafField).field("type", leafType).endObject();
+                b.endObject();
+            }
+            b.endObject();
+        })).documentMapper();
+    }
+
+    /**
+     * Builds a {@link SourceToParse} that always includes {@code @timestamp} so the document is valid
+     * for data-stream index modes (e.g. {@code LOGSDB_COLUMNAR}) as well as plain columnar modes.
+     */
+    private SourceToParse columnarSource(CheckedConsumer<XContentBuilder, IOException> build) throws IOException {
+        return source(b -> {
+            b.field("@timestamp", "2021-04-28T00:01:00Z");
+            build.accept(b);
+        });
+    }
+
+    public void testColumnarPerPrefixDynamicFalseDropsLeafDottedNotation() throws Exception {
+        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        for (IndexMode indexMode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
+            DocumentMapper mapper = createColumnarMapperWithPrefixDynamic(indexMode, "attributes", "false", "host", "keyword");
+            // dotted-notation unmapped field under attributes.* prefix
+            ParsedDocument doc = mapper.parse(columnarSource(b -> b.field("attributes.unknown", "value")));
+            assertTrue(doc.rootDoc().getFields("attributes.unknown").isEmpty());
+            assertNull(
+                "prefix dynamic:false must drop the field (not store to _ignored_source)",
+                doc.rootDoc().getField(IgnoredSourceFieldMapper.NAME)
+            );
+        }
+    }
+
+    public void testColumnarPerPrefixDynamicFalseDropsLeafObjectNotation() throws Exception {
+        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        for (IndexMode indexMode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
+            DocumentMapper mapper = createColumnarMapperWithPrefixDynamic(indexMode, "attributes", "false", "host", "keyword");
+            // object-notation unmapped field under attributes.* prefix
+            ParsedDocument doc = mapper.parse(columnarSource(b -> b.startObject("attributes").field("unknown", "value").endObject()));
+            assertTrue(doc.rootDoc().getFields("attributes.unknown").isEmpty());
+            assertNull(
+                "prefix dynamic:false must drop the field (not store to _ignored_source)",
+                doc.rootDoc().getField(IgnoredSourceFieldMapper.NAME)
+            );
+        }
+    }
+
+    public void testColumnarPerPrefixDynamicFalseDoesNotDropMappedField() throws Exception {
+        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        for (IndexMode indexMode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
+            DocumentMapper mapper = createColumnarMapperWithPrefixDynamic(indexMode, "attributes", "false", "host", "keyword");
+            // Mapped field under the prefix must still be indexed
+            ParsedDocument doc = mapper.parse(columnarSource(b -> b.field("attributes.host", "myhost")));
+            assertFalse(doc.rootDoc().getFields("attributes.host").isEmpty());
+        }
+    }
+
+    public void testColumnarPerPrefixDynamicStrictThrowsDottedNotation() throws Exception {
+        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        for (IndexMode indexMode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
+            DocumentMapper mapper = createColumnarMapperWithPrefixDynamic(indexMode, "resource", "strict", "service", "keyword");
+            StrictDynamicMappingException e = expectThrows(
+                StrictDynamicMappingException.class,
+                () -> mapper.parse(columnarSource(b -> b.field("resource.unknown", "value")))
+            );
+            assertThat(e.getMessage(), containsString("[resource.unknown]"));
+        }
+    }
+
+    public void testColumnarPerPrefixDynamicStrictThrowsObjectNotation() throws Exception {
+        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        for (IndexMode indexMode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
+            DocumentMapper mapper = createColumnarMapperWithPrefixDynamic(indexMode, "resource", "strict", "service", "keyword");
+            StrictDynamicMappingException e = expectThrows(
+                StrictDynamicMappingException.class,
+                () -> mapper.parse(columnarSource(b -> b.startObject("resource").field("unknown", "value").endObject()))
+            );
+            assertThat(e.getMessage(), containsString("[resource.unknown]"));
+        }
+    }
+
+    public void testColumnarPerPrefixDynamicFallbackToRootDynamic() throws Exception {
+        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        for (IndexMode indexMode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
+            // Root dynamic=true, attributes dynamic=false; field under a different prefix should still be created
+            DocumentMapper mapper = createColumnarMapperWithPrefixDynamic(indexMode, "attributes", "false", "host", "keyword");
+            ParsedDocument doc = mapper.parse(columnarSource(b -> b.field("other.unmapped", 42)));
+            // The field "other.unmapped" is under no registered prefix → root dynamic=true → field created
+            assertFalse(
+                "field outside any prefix should be created via root dynamic:true",
+                doc.rootDoc().getFields("other.unmapped").isEmpty()
+            );
+        }
+    }
+
+    public void testColumnarPerPrefixDynamicLongestPrefixWins() throws Exception {
+        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        for (IndexMode indexMode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
+            // foo dynamic=false, foo.bar dynamic=true — longer prefix wins
+            Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), indexMode.getName()).build();
+            DocumentMapper mapper = createMapperService(settings, mapping(b -> {
+                // LOGSDB_COLUMNAR is a data-stream mode that requires @timestamp to be mapped.
+                b.startObject("@timestamp").field("type", "date").endObject();
+                b.startObject("foo");
+                {
+                    b.field("dynamic", "false");
+                    b.startObject("properties");
+                    b.startObject("bar");
+                    {
+                        b.field("dynamic", "true");
+                        b.startObject("properties");
+                        b.startObject("x").field("type", "keyword").endObject();
+                        b.endObject();
+                    }
+                    b.endObject();
+                    b.endObject();
+                }
+                b.endObject();
+            })).documentMapper();
+
+            // foo.bar.unmapped → longest prefix foo.bar (true) → field created
+            ParsedDocument doc1 = mapper.parse(columnarSource(b -> b.field("foo.bar.unmapped", "value")));
+            assertFalse(doc1.rootDoc().getFields("foo.bar.unmapped").isEmpty());
+
+            // foo.other → prefix foo (false) → dropped
+            ParsedDocument doc2 = mapper.parse(columnarSource(b -> b.field("foo.other", "value")));
+            assertTrue(doc2.rootDoc().getFields("foo.other").isEmpty());
+        }
     }
 
     public void testDynamicStrictNull() throws Exception {

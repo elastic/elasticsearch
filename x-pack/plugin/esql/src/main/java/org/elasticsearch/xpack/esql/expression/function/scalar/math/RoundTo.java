@@ -180,6 +180,10 @@ public class RoundTo extends EsqlScalarFunction implements BlockLoaderExpression
         return points;
     }
 
+    public Rounding.RoundingConvention roundingConvention() {
+        return convention;
+    }
+
     @Override
     public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         DataType dataType = dataType();

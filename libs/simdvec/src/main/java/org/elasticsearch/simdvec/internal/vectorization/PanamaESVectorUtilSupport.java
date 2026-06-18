@@ -2330,27 +2330,8 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
     }
 
     @Override
-    public void orByteArrays(byte[] source, byte[] dest, int offset, int length) {
-        int i = offset;
-        final int upperBound = offset + BYTE_SPECIES.loopBound(length);
-        for (; i < upperBound; i += BYTE_SPECIES.length()) {
-            var s = ByteVector.fromArray(BYTE_SPECIES, source, i);
-            var d = ByteVector.fromArray(BYTE_SPECIES, dest, i);
-            d.or(s).intoArray(dest, i);
-        }
-        for (; i < offset + length; i++) {
-            dest[i] |= source[i];
-        }
-    }
-
-    @Override
     public long popcount(ByteBuffer buf, int length) {
         MemorySegment seg = MemorySegment.ofBuffer(buf);
-        return popcount(seg, length);
-    }
-
-    @Override
-    public long popcount(MemorySegment seg, int length) {
         long cnt = 0;
         final long upperBound = BYTE_SPECIES.loopBound(length);
         long i = 0;
@@ -2362,6 +2343,20 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
             cnt += Integer.bitCount(seg.get(java.lang.foreign.ValueLayout.JAVA_BYTE, i) & 0xFF);
         }
         return cnt;
+    }
+
+    @Override
+    public void orByteArrays(byte[] source, byte[] dest, int offset, int length) {
+        int i = offset;
+        final int upperBound = offset + BYTE_SPECIES.loopBound(length);
+        for (; i < upperBound; i += BYTE_SPECIES.length()) {
+            var s = ByteVector.fromArray(BYTE_SPECIES, source, i);
+            var d = ByteVector.fromArray(BYTE_SPECIES, dest, i);
+            d.or(s).intoArray(dest, i);
+        }
+        for (; i < offset + length; i++) {
+            dest[i] |= source[i];
+        }
     }
 
     @Override

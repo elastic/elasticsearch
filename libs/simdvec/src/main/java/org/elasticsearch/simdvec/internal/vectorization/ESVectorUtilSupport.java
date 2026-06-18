@@ -14,7 +14,6 @@ import org.elasticsearch.simdvec.MultiBFloat16VectorsSource;
 import org.elasticsearch.simdvec.MultiByteVectorsSource;
 import org.elasticsearch.simdvec.MultiFloatVectorsSource;
 
-import java.lang.foreign.MemorySegment;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 
@@ -197,9 +196,6 @@ public interface ESVectorUtilSupport {
 
     /** Counts the number of set bits in the first {@code length} bytes from the buffer's current position. */
     long popcount(ByteBuffer buf, int length);
-
-    /** Counts the number of set bits in the first {@code length} bytes of the memory segment. */
-    long popcount(MemorySegment seg, int length);
 
     /** Bitwise OR: {@code dest[offset+i] |= source[offset+i]} for {@code i} in {@code [0, length)}. */
     void orByteArrays(byte[] source, byte[] dest, int offset, int length);

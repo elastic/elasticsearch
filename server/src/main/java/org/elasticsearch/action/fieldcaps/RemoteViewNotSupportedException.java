@@ -48,8 +48,8 @@ public class RemoteViewNotSupportedException extends ElasticsearchException {
 
     private static String message(List<String> views) {
         String exclusions = views.stream().map(v -> {
-            String[] clusterAndIndex = RemoteClusterAware.splitIndexName(v);
-            return clusterAndIndex[0] + ":-" + clusterAndIndex[1];
+            var clusterAndIndex = RemoteClusterAware.splitIndexName(v);
+            return clusterAndIndex.clusterAlias() + ":-" + clusterAndIndex.indexExpression();
         }).collect(Collectors.joining(","));
         return "ES|QL queries with remote views are not supported. Matched "
             + views

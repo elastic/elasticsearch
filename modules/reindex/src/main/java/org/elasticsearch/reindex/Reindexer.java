@@ -65,7 +65,7 @@ import org.elasticsearch.index.reindex.ReindexRequest;
 import org.elasticsearch.index.reindex.RejectAwareActionListener;
 import org.elasticsearch.index.reindex.RemoteInfo;
 import org.elasticsearch.index.reindex.ResumeBulkByPaginatedSearchRequest;
-import org.elasticsearch.index.reindex.ResumeBulkByScrollResponse;
+import org.elasticsearch.index.reindex.ResumeBulkByPaginatedSearchResponse;
 import org.elasticsearch.index.reindex.ResumeInfo;
 import org.elasticsearch.index.reindex.ResumeReindexAction;
 import org.elasticsearch.index.reindex.TaskRelocatedException;
@@ -144,7 +144,7 @@ public class Reindexer {
     @Nullable
     private final ReindexMetrics reindexMetrics;
     @Nullable
-    private final BulkByScrollSearchContextMetrics bulkByScrollSearchContextMetrics;
+    private final BulkByPaginatedSearchSearchContextMetrics bulkByPaginatedSearchSearchContextMetrics;
     private final TaskManager taskManager;
     private final TransportService transportService;
     private final ReindexRelocationNodePicker relocationNodePicker;
@@ -162,7 +162,7 @@ public class Reindexer {
         ScriptService scriptService,
         ReindexSslConfig reindexSslConfig,
         @Nullable ReindexMetrics reindexMetrics,
-        @Nullable BulkByScrollSearchContextMetrics bulkByScrollSearchContextMetrics,
+        @Nullable BulkByPaginatedSearchSearchContextMetrics bulkByPaginatedSearchSearchContextMetrics,
         TransportService transportService,
         ReindexRelocationNodePicker relocationNodePicker,
         FeatureService featureService,
@@ -177,7 +177,7 @@ public class Reindexer {
         this.scriptService = scriptService;
         this.reindexSslConfig = reindexSslConfig;
         this.reindexMetrics = reindexMetrics;
-        this.bulkByScrollSearchContextMetrics = bulkByScrollSearchContextMetrics;
+        this.bulkByPaginatedSearchSearchContextMetrics = bulkByPaginatedSearchSearchContextMetrics;
         this.taskManager = transportService.getTaskManager(); // implicit null check
         this.transportService = transportService;
         this.relocationNodePicker = Objects.requireNonNull(relocationNodePicker);
@@ -314,7 +314,7 @@ public class Reindexer {
                 listener,
                 remoteVersion,
                 reindexShutdownGracePeriod,
-                bulkByScrollSearchContextMetrics,
+                bulkByPaginatedSearchSearchContextMetrics,
                 reindexSettings,
                 requestBreaker
             );
@@ -644,7 +644,7 @@ public class Reindexer {
     /// relocation), and the metrics agent stops publishing on SIGTERM — so any source-side metric would be dropped.
     ///
     /// Visible for testing.
-    static ActionListener<ResumeBulkByScrollResponse> relocationResponseLoggingListener(final BulkByPaginatedSearchTask task) {
+    static ActionListener<ResumeBulkByPaginatedSearchResponse> relocationResponseLoggingListener(final BulkByPaginatedSearchTask task) {
         return ActionListener.assertOnce(ActionListener.wrap(resp -> {
             logger.info("reindex task [{}] relocation succeeded on source node", task.getId());
         }, e -> {
@@ -746,7 +746,7 @@ public class Reindexer {
     ActionListener<BulkByPaginatedSearchResponse> listenerWithRelocations(
         final BulkByPaginatedSearchTask task,
         final ReindexRequest request,
-        final ActionListener<ResumeBulkByScrollResponse> onRelocationResponseListener,
+        final ActionListener<ResumeBulkByPaginatedSearchResponse> onRelocationResponseListener,
         final ActionListener<BulkByPaginatedSearchResponse> listener
     ) {
         final boolean isRelocationHandledByLeader = getReindexParent(task).isPresent();
@@ -799,7 +799,7 @@ public class Reindexer {
                 new ResumeInfo(resumeInfo.relocationOrigin(), resumeInfo.worker(), resumeInfo.slices(), sourceTaskResult)
             );
             final ResumeBulkByPaginatedSearchRequest resumeRequest = new ResumeBulkByPaginatedSearchRequest(request);
-            final ActionListener<ResumeBulkByScrollResponse> relocationListener = ActionListener.wrap(resp -> {
+            final ActionListener<ResumeBulkByPaginatedSearchResponse> relocationListener = ActionListener.wrap(resp -> {
                 onRelocationResponseListener.onResponse(resp);
                 l.onFailure(new TaskRelocatedException(resumeInfo.relocationOrigin().originalTaskId(), resp.getTaskId()));
             }, e -> {
@@ -820,7 +820,7 @@ public class Reindexer {
                 nodeToRelocateToNode,
                 ResumeReindexAction.NAME,
                 resumeRequest,
-                new ActionListenerResponseHandler<>(relocationListener, ResumeBulkByScrollResponse::new, threadPool.generic())
+                new ActionListenerResponseHandler<>(relocationListener, ResumeBulkByPaginatedSearchResponse::new, threadPool.generic())
             );
         });
     }
@@ -1000,7 +1000,7 @@ public class Reindexer {
             ActionListener<BulkByPaginatedSearchResponse> listener,
             @Nullable Version remoteVersion,
             TimeValue maxTaskShutdownGracePeriod,
-            @Nullable BulkByScrollSearchContextMetrics bulkByScrollSearchContextMetrics,
+            @Nullable BulkByPaginatedSearchSearchContextMetrics bulkByPaginatedSearchSearchContextMetrics,
             ReindexSettings reindexSettings,
             CircuitBreaker requestBreaker
         ) {
@@ -1022,8 +1022,8 @@ public class Reindexer {
                 scriptService,
                 sslConfig,
                 remoteVersion,
-                bulkByScrollSearchContextMetrics,
-                BulkByScrollSearchContextMetrics.TaskKind.REINDEX,
+                bulkByPaginatedSearchSearchContextMetrics,
+                BulkByPaginatedSearchSearchContextMetrics.TaskKind.REINDEX,
                 request.getRemoteInfo() != null,
                 maxTaskShutdownGracePeriod,
                 reindexSettings,

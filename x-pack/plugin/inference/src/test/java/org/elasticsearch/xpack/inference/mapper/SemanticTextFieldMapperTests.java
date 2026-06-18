@@ -184,6 +184,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
 
     private TestThreadPool threadPool;
 
+    @SuppressWarnings("this-escape")
     public SemanticTextFieldMapperTests(boolean useLegacyFormat, License.OperationMode operationMode) {
         this.useLegacyFormat = useLegacyFormat;
         this.operationMode = operationMode;

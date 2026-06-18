@@ -118,6 +118,7 @@ public class StGeohash extends SpatialGridFunction implements EvaluatorMapper {
         returnType = "geohash",
         preview = true,
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.2.0") },
+        briefSummary = "Calculates the geohash of the supplied geo_point at the specified precision.",
         description = """
             Calculates the `geohash` of the supplied geo_point at the specified precision.
             The result is long encoded.

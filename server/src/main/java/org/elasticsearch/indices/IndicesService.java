@@ -145,7 +145,9 @@ import org.elasticsearch.indices.cluster.IndexRemovalReason;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
+import org.elasticsearch.indices.recovery.RecoveryListener;
 import org.elasticsearch.indices.recovery.RecoveryState;
+import org.elasticsearch.indices.recovery.ThrottlingRecoveryService;
 import org.elasticsearch.indices.store.CompositeIndexFoldersDeletionListener;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.FieldPredicate;
@@ -293,6 +295,7 @@ public class IndicesService extends AbstractLifecycleComponent
     private final MergeMetrics mergeMetrics;
     private final PluggableDirectoryMetricsHolder<StoreMetrics> storeMetricHolder;
     private final Map<String, PluggableDirectoryMetricsHolder<?>> directoryMetricHolderMap;
+    private final ThrottlingRecoveryService throttlingRecoveryService;
 
     @Override
     protected void doStart() {
@@ -418,6 +421,7 @@ public class IndicesService extends AbstractLifecycleComponent
         this.searchStatsSettings = new SearchStatsSettings(clusterService.getClusterSettings());
         this.storeMetricHolder = builder.storeMetricsHolder;
         this.directoryMetricHolderMap = builder.directoryMetricHolderMap;
+        this.throttlingRecoveryService = new ThrottlingRecoveryService(threadPool.generic(), clusterService);
     }
 
     private static final String DANGLING_INDICES_UPDATE_THREAD_NAME = "DanglingIndices#updateTask";
@@ -431,6 +435,7 @@ public class IndicesService extends AbstractLifecycleComponent
         stopLatch.countDown();
         clusterService.removeApplier(timestampFieldMapperService);
         timestampFieldMapperService.doStop();
+        throttlingRecoveryService.close();
 
         ThreadPool.terminate(danglingIndicesThreadPoolExecutor, 10, TimeUnit.SECONDS);
 
@@ -974,7 +979,7 @@ public class IndicesService extends AbstractLifecycleComponent
         final ProjectId projectId,
         final ShardRouting shardRouting,
         final PeerRecoveryTargetService recoveryTargetService,
-        final PeerRecoveryTargetService.RecoveryListener recoveryListener,
+        final RecoveryListener recoveryListener,
         final RepositoriesService repositoriesService,
         final Consumer<IndexShard.ShardFailure> onShardFailure,
         final GlobalCheckpointSyncer globalCheckpointSyncer,
@@ -990,28 +995,32 @@ public class IndicesService extends AbstractLifecycleComponent
         RecoveryState recoveryState = indexService.createRecoveryState(shardRouting, targetNode, sourceNode);
         IndexShard indexShard = indexService.createShard(shardRouting, globalCheckpointSyncer, retentionLeaseSyncer);
         indexShard.addShardFailureCallback(onShardFailure);
-        projectResolver.executeOnProject(
-            projectId,
-            () -> indexShard.startRecovery(
-                recoveryState,
-                recoveryTargetService,
-                postRecoveryMerger.maybeMergeAfterRecovery(indexService.getMetadata(), shardRouting, recoveryListener),
-                repositoriesService,
-                (mapping, listener) -> {
-                    assert recoveryState.getRecoverySource().getType() == RecoverySource.Type.LOCAL_SHARDS
-                        : "mapping update consumer only required by local shards recovery";
-                    AcknowledgedRequest<PutMappingRequest> putMappingRequestAcknowledgedRequest = new PutMappingRequest()
-                        // concrete index - no name clash, it uses uuid
-                        .setConcreteIndex(shardRouting.index())
-                        .source(mapping.source().string(), XContentType.JSON);
-                    client.execute(
-                        TransportAutoPutMappingAction.TYPE,
-                        putMappingRequestAcknowledgedRequest.ackTimeout(TimeValue.MAX_VALUE).masterNodeTimeout(TimeValue.MAX_VALUE),
-                        new RefCountAwareThreadedActionListener<>(threadPool.generic(), listener.map(ignored -> null))
-                    );
-                },
-                this,
-                clusterStateVersion
+        throttlingRecoveryService.enqueue(
+            recoveryListener,
+            recoveryState,
+            listener -> projectResolver.executeOnProject(
+                projectId,
+                () -> indexShard.startRecovery(
+                    recoveryState,
+                    recoveryTargetService,
+                    postRecoveryMerger.maybeMergeAfterRecovery(indexService.getMetadata(), shardRouting, listener),
+                    repositoriesService,
+                    (mapping, l) -> {
+                        assert recoveryState.getRecoverySource().getType() == RecoverySource.Type.LOCAL_SHARDS
+                            : "mapping update consumer only required by local shards recovery";
+                        AcknowledgedRequest<PutMappingRequest> putMappingRequestAcknowledgedRequest = new PutMappingRequest()
+                            // concrete index - no name clash, it uses uuid
+                            .setConcreteIndex(shardRouting.index())
+                            .source(mapping.source().string(), XContentType.JSON);
+                        client.execute(
+                            TransportAutoPutMappingAction.TYPE,
+                            putMappingRequestAcknowledgedRequest.ackTimeout(TimeValue.MAX_VALUE).masterNodeTimeout(TimeValue.MAX_VALUE),
+                            new RefCountAwareThreadedActionListener<>(threadPool.generic(), l.map(ignored -> null))
+                        );
+                    },
+                    this,
+                    clusterStateVersion
+                )
             )
         );
     }
@@ -2039,15 +2048,46 @@ public class IndicesService extends AbstractLifecycleComponent
     }
 
     /**
+     * Cumulative bytes read from the store directory on the current thread, as tracked by store metrics
+     * when the {@code directory_metrics} feature flag is enabled.
+     */
+    public long currentStoreBytesRead() {
+        return storeMetricHolder.instance().getBytesRead();
+    }
+
+    /**
      * Start measuring directory level metrics in the current thread, returning the delta when the supplier is invoked.
      * This will be the amount consumed between calling this method and the supplier.
      * @return supplier to give the delta of all directory metrics. Must be called from the same thread as this method.
      */
     public Supplier<DirectoryMetrics> directoryMetricsDelta() {
+        return assertThread(buildDirectoryMetricsDelta());
+    }
+
+    /**
+     * Like {@link #directoryMetricsDelta()}, but without the same-thread assertion on the returned supplier.
+     *
+     * <p>The delta supplier closes over the calling thread's thread-local metric
+     * instances and snapshots their values, then subtracts that snapshot from those same instances when invoked. It
+     * therefore always measures the reads performed on the thread that called this method, no matter which thread later
+     * invokes the supplier; the only requirement is a happens-before edge between those reads and the invocation. The
+     * thread-local is read once, on the calling thread, at capture time, so there is no racy thread-local access when
+     * the supplier is later invoked.
+     *
+     * <p>This is needed only by the chunked/streaming fetch path, where the baseline is captured on the search thread before
+     * {@code fetchPhase.execute(...)} forks, while the delta is read in the fetch-completion callback, which may run on
+     * a different thread.
+     *
+     * Use directoryMetricsDelta() whenever the supplier is consumed on the capturing thread, which should be the default.
+     */
+    public Supplier<DirectoryMetrics> captureDirectoryMetrics() {
+        return buildDirectoryMetricsDelta();
+    }
+
+    private Supplier<DirectoryMetrics> buildDirectoryMetricsDelta() {
         DirectoryMetrics.Builder directoryMetricsBuilder = new DirectoryMetrics.Builder();
         directoryMetricHolderMap.forEach((s, m) -> directoryMetricsBuilder.add(s, m.instance()));
-        DirectoryMetrics metrics = directoryMetricsBuilder.build();
-        return assertThread(metrics.delta());
+        return directoryMetricsBuilder.build().delta();
     }
 
     private Supplier<DirectoryMetrics> assertThread(Supplier<DirectoryMetrics> delta) {
@@ -2072,5 +2112,12 @@ public class IndicesService extends AbstractLifecycleComponent
         var delta = directoryMetricsDelta();
         T result = block.get();
         return Tuple.tuple(result, delta.get());
+    }
+
+    /**
+     * Returns the store-level metrics instance for the current thread.
+     */
+    public StoreMetrics currentThreadStoreMetrics() {
+        return storeMetricHolder.instance();
     }
 }

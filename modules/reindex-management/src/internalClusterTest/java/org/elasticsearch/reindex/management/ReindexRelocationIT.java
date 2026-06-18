@@ -9,7 +9,6 @@
 
 package org.elasticsearch.reindex.management;
 
-import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
@@ -85,10 +84,8 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.OptionalInt;
-import java.util.Queue;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -138,7 +135,7 @@ public class ReindexRelocationIT extends ESIntegTestCase {
     }
 
     /// Collects the slicing configurations from all the searches performed while `capturingSearchSlices` is true.
-    private static final Queue<SliceBuilder> capturedSearchSlices = new ConcurrentLinkedQueue<>();
+    private static final List<SliceBuilder> capturedSearchSlices = Collections.synchronizedList(new ArrayList<>());
 
     private static final AtomicBoolean capturingSearchSlices = new AtomicBoolean();
 
@@ -680,7 +677,7 @@ public class ReindexRelocationIT extends ESIntegTestCase {
 
         // Wait for .tasks and replica to be created before stopping nodeB, otherwise the replica
         // on nodeA is stale and can't be promoted to primary when nodeB leaves
-        assertBusy(() -> assertTrue(indexExists(TaskResultsService.TASK_INDEX)), 30, TimeUnit.SECONDS);
+        awaitClusterState(state -> state.metadata().getProject().hasIndex(TaskResultsService.TASK_INDEX));
         ensureGreen(TaskResultsService.TASK_INDEX);
 
         internalCluster().stopNode(nodeName);
@@ -762,10 +759,7 @@ public class ReindexRelocationIT extends ESIntegTestCase {
         final int shards,
         OptionalInt manualSliceId
     ) throws Exception {
-        final SetOnce<TaskResult> finishedResult = new SetOnce<>();
-
-        assertBusy(() -> finishedResult.set(getCompletedTaskResult(taskId)), 30, TimeUnit.SECONDS);
-        final TaskResult result = finishedResult.get();
+        final TaskResult result = getCompletedTaskResult(taskId);
         assertThat("relocated task has no error", result.getError(), is(nullValue()));
         final Map<String, Object> innerResponse = result.getResponseAsMap();
         assertThat(innerResponse.get("timed_out"), is(false));
@@ -1035,7 +1029,10 @@ public class ReindexRelocationIT extends ESIntegTestCase {
     }
 
     private TaskResult getCompletedTaskResult(final TaskId taskId) {
-        final GetTaskResponse response = clusterAdmin().prepareGetTask(taskId).setWaitForCompletion(true).get();
+        final GetTaskResponse response = clusterAdmin().prepareGetTask(taskId)
+            .setWaitForCompletion(true)
+            .setTimeout(TimeValue.timeValueSeconds(60))
+            .get();
         final TaskResult task = response.getTask();
         assertNotNull(task);
         assertThat(task.isCompleted(), is(true));

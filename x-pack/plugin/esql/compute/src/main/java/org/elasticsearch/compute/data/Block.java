@@ -243,6 +243,13 @@ public interface Block extends Accountable, BlockLoader.Block, Writeable, RefCou
     boolean isReleased();
 
     /**
+     * Attaches a {@link Releasable} that is invoked exactly once when this block's reference count
+     * reaches zero, immediately after its resources are released. May be called at most once; throws
+     * {@link IllegalStateException} if called after release or a second time.
+     */
+    void attachReleasable(Releasable releasable);
+
+    /**
      * @param position the position
      * @return true if the value stored at the given position is null, false otherwise
      */
@@ -279,9 +286,21 @@ public interface Block extends Accountable, BlockLoader.Block, Writeable, RefCou
      * Creates a new block that only exposes the positions provided.
      * @param mayContainDuplicates may the positions array contain duplicate positions?
      * @param positions the positions to retain
+     * @param offset the start index in the positions array
+     * @param length the number of positions to use from the array
      * @return a filtered block
      */
-    Block filter(boolean mayContainDuplicates, int... positions);
+    Block filter(boolean mayContainDuplicates, int[] positions, int offset, int length);
+
+    /**
+     * Creates a new block that only exposes the positions provided.
+     * @param mayContainDuplicates may the positions array contain duplicate positions?
+     * @param positions the positions to retain
+     * @return a filtered block
+     */
+    default Block filter(boolean mayContainDuplicates, int... positions) {
+        return filter(mayContainDuplicates, positions, 0, positions.length);
+    }
 
     /**
      * Build a {@link Block} with the same values as this {@linkplain Block}, but replacing

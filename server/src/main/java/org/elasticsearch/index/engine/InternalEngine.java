@@ -76,6 +76,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.eirf.EirfBatch;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
@@ -1105,7 +1106,7 @@ public class InternalEngine extends Engine {
                         useTsdbSyntheticId
                     );
                 } else {
-                    return VersionsAndSeqNoResolver.timeSeriesLoadDocIdAndVersion(directoryReader, op.uid(), loadSeqNo);
+                    return VersionsAndSeqNoResolver.loadDocIdAndVersion(directoryReader, op.uid(), loadSeqNo);
                 }
             });
             if (docIdAndVersion != null) {
@@ -1357,7 +1358,9 @@ public class InternalEngine extends Engine {
     }
 
     @Override
-    public List<IndexResult> indexBatch(List<Index> operations) throws IOException {
+    public List<IndexResult> indexBatch(List<Index> operations, EirfBatch batch) throws IOException {
+        assert operations.size() == batch.docCount()
+            : "operations [" + operations.size() + "] must map 1:1 to batch rows [" + batch.docCount() + "]";
         try (var ignored = acquireEnsureOpenRef()) {
             // If the first operation is recovery they are all recovery
             boolean isRecovery = operations.getFirst().origin().isRecovery();
@@ -1387,7 +1390,7 @@ public class InternalEngine extends Engine {
                     }
 
                     assert assertNoDuplicateUidsInSubBatch(operations, idx, subBatchCount);
-                    processSubBatch(operations, idx, subBatchCount, allResults);
+                    processSubBatch(operations, idx, subBatchCount, batch, allResults);
                 } catch (RuntimeException | IOException e) {
                     failOnTragicEvent(idx, subBatchCount, operations, e);
                     throw e;
@@ -1435,7 +1438,8 @@ public class InternalEngine extends Engine {
         }
     }
 
-    private void processSubBatch(List<Index> operations, int subBatchIdx, int subBatchSize, IndexResult[] allResults) throws IOException {
+    private void processSubBatch(List<Index> operations, int subBatchIdx, int subBatchSize, EirfBatch batch, IndexResult[] allResults)
+        throws IOException {
         final boolean fromTranslog = operations.getFirst().origin().isFromTranslog();
         assert assertNoMixedRecoveryOperations(operations);
         final Index[] subBatchOps = new Index[subBatchSize];
@@ -1446,6 +1450,7 @@ public class InternalEngine extends Engine {
         long maxStartNanos = lastWriteNanos;
 
         final var origin = operations.get(subBatchIdx).origin(); // all origins must be uniform, so grab the first one as "the" origin
+        final var primaryTerm = operations.get(subBatchIdx).primaryTerm();
         for (int i = 0; i < subBatchSize; i++) {
             Index op = operations.get(subBatchIdx + i);
             if (origin != op.origin()) { // verify that origins are uniform
@@ -1453,6 +1458,13 @@ public class InternalEngine extends Engine {
                 assert false : message;
                 throw new IllegalStateException(message);
             }
+
+            if (primaryTerm != op.primaryTerm()) { // verify that primary terms are same
+                final var message = "mixed primary terms in sub-batch: " + primaryTerm + " vs " + op.primaryTerm();
+                assert false : message;
+                throw new IllegalStateException(message);
+            }
+
             if (op.startTime() - maxStartNanos > 0) {
                 maxStartNanos = op.startTime();
             }
@@ -1544,47 +1556,72 @@ public class InternalEngine extends Engine {
             }
 
             // Translog
+            final Translog.Location batchLocation;
             if (fromTranslog == false) {
+                final long batchPrimaryTerm = subBatchOps[0].primaryTerm();
+                final EirfBatch slicedBatch = batch.slice(subBatchIdx, subBatchIdx + subBatchSize);
+                final List<Translog.IndexBatch.Op> translogOps = new ArrayList<>(subBatchSize);
                 for (int i = 0; i < subBatchSize; i++) {
                     Index index = subBatchOps[i];
                     IndexResult result = allResults[subBatchIdx + i];
                     assert index.origin().isFromTranslog() == false;
-                    final Translog.Location location;
                     if (result.getResultType() == Result.Type.SUCCESS) {
-                        // TODO: Add new batch operation to Translog and add all in one go.
-                        location = translog.add(new Translog.Index(index, result));
-                    } else if (result.getSeqNo() != UNASSIGNED_SEQ_NO) {
-                        final NoOp noOp = new NoOp(
-                            result.getSeqNo(),
-                            index.primaryTerm(),
-                            index.origin(),
-                            index.startTime(),
-                            result.getFailure().toString()
+                        translogOps.add(
+                            new Translog.IndexBatch.IndexOp(
+                                result.getVersion(),
+                                result.getSeqNo(),
+                                index.getAutoGeneratedIdTimestamp(),
+                                i,
+                                index.parsedDoc().getXContentType(),
+                                index.uid(),
+                                index.routing()
+                            )
                         );
-                        location = innerNoOp(noOp).getTranslogLocation();
-                    } else {
-                        location = null;
+                    } else if (result.getSeqNo() != UNASSIGNED_SEQ_NO) {
+                        final long seqNo = result.getSeqNo();
+                        final String reason = result.getFailure().toString();
+                        try (Releasable ignored = noOpKeyedLock.acquire(seqNo)) {
+                            applyNoOpToLucene(new NoOp(seqNo, index.primaryTerm(), index.origin(), index.startTime(), reason));
+                        }
+                        translogOps.add(new Translog.IndexBatch.NoOpOp(seqNo, reason));
                     }
-                    result.setTranslogLocation(location);
+                    // else: preflight failure with UNASSIGNED_SEQ_NO -> no translog entry, matching single-op behaviour
                 }
+                batchLocation = translogOps.isEmpty()
+                    ? null
+                    : translog.add(new Translog.IndexBatch(slicedBatch.data(), batchPrimaryTerm, translogOps));
+            } else {
+                batchLocation = null;
             }
 
             // Update versionMap and checkpoint tracker
             for (int i = 0; i < subBatchSize; i++) {
-                IndexingStrategy plan = plans[i];
-                Index index = subBatchOps[i];
-                IndexResult result = allResults[subBatchIdx + i];
+                final IndexingStrategy plan = plans[i];
+                final Index index = subBatchOps[i];
+                final IndexResult result = allResults[subBatchIdx + i];
+                final boolean isSuccess = result.getResultType() == Result.Type.SUCCESS;
 
-                if (plan.indexIntoLucene && result.getResultType() == Result.Type.SUCCESS) {
-                    final Translog.Location translogLocation = trackTranslogLocation.get() ? result.getTranslogLocation() : null;
+                if (fromTranslog == false) {
+                    final boolean hasEntry = isSuccess || result.getSeqNo() != UNASSIGNED_SEQ_NO;
+                    result.setTranslogLocation(hasEntry ? batchLocation : null);
+                }
+
+                if (plan.indexIntoLucene && isSuccess) {
+                    // Store a null translog location: the result's location points at a Translog.IndexBatch record,
+                    // which Translog.readOperation(Location) cannot read as a single operation (it throws on BATCH).
+                    // A null location forces realtime GET to fall back to a refresh + Lucene read for batched docs.
+                    // TODO: record a row index alongside the batch location to support realtime GET from the batch.
+                    // final Translog.Location translogLocation = trackTranslogLocation.get() ? result.getTranslogLocation() : null;
                     versionMap.maybePutIndexUnderLock(
                         index.uid(),
-                        new IndexVersionValue(translogLocation, plan.versionForIndexing, index.seqNo(), index.primaryTerm())
+                        new IndexVersionValue(null, plan.versionForIndexing, index.seqNo(), index.primaryTerm())
                     );
                 }
                 // TODO: Batch Optimize the processed seqNo
                 localCheckpointTracker.markSeqNoAsProcessed(result.getSeqNo());
                 if (result.getTranslogLocation() == null) {
+                    // the op is coming from the translog (and is hence persisted already) or it does not have a sequence number
+                    assert index.origin().isFromTranslog() || result.getSeqNo() == UNASSIGNED_SEQ_NO;
                     // TODO: Batch Optimize the persisted seqNo
                     localCheckpointTracker.markSeqNoAsPersisted(result.getSeqNo());
                 }
@@ -1643,59 +1680,49 @@ public class InternalEngine extends Engine {
         }
 
         // Phase 2: single Lucene reader acquisition for all versionMap misses.
-        // For standard indices: collect misses into flat arrays and do a single sorted scan per segment.
-        // For time series indices: keep the per-UID path (timestamp-based segment skipping complicates batching).
+        // Collect misses into flat arrays and resolve them all in one sorted segment scan.
         if (anyNeedsLucene) {
             final boolean isTimeSeries = engineConfig.getIndexSettings().getMode() == IndexMode.TIME_SERIES;
-            if (isTimeSeries) {
-                performActionWithDirectoryReader(SearcherScope.INTERNAL, reader -> {
-                    for (int i = 0; i < count; i++) {
-                        if (needsLucene[i] == false) {
-                            continue;
-                        }
-                        final Index op = ops[i];
-                        final boolean loadSeqNo = op.getIfSeqNo() != UNASSIGNED_SEQ_NO;
-                        final DocIdAndVersion d = VersionsAndSeqNoResolver.timeSeriesLoadDocIdAndVersion(
-                            reader,
-                            op.uid(),
-                            op.id(),
-                            loadSeqNo,
-                            useTsdbSyntheticId
-                        );
-                        if (d != null) {
-                            resolvedVersions[i] = new IndexVersionValue(null, d.version, d.seqNo, d.primaryTerm);
-                        }
+            int luceneCount = 0;
+            for (int i = 0; i < count; i++) {
+                if (needsLucene[i]) luceneCount++;
+            }
+            final BytesRef[] luceneUids = new BytesRef[luceneCount];
+            final String[] luceneIds = isTimeSeries ? new String[luceneCount] : null;
+            final boolean[] luceneLoadSeqNo = new boolean[luceneCount];
+            final int[] luceneToSubBatch = new int[luceneCount];
+            for (int i = 0, k = 0; i < count; i++) {
+                if (needsLucene[i]) {
+                    luceneUids[k] = ops[i].uid();
+                    luceneLoadSeqNo[k] = ops[i].getIfSeqNo() != UNASSIGNED_SEQ_NO;
+                    luceneToSubBatch[k] = i;
+                    if (luceneIds != null) {
+                        luceneIds[k] = ops[i].id();
                     }
-                    return null;
-                });
-            } else {
-                // Collect the Lucene-miss UIDs into flat arrays, then resolve them all in one sorted
-                // segment scan via batchLoadDocIdAndVersion.
-                int luceneCount = 0;
-                for (int i = 0; i < count; i++) {
-                    if (needsLucene[i]) luceneCount++;
+                    k++;
                 }
-                final BytesRef[] luceneUids = new BytesRef[luceneCount];
-                final boolean[] luceneLoadSeqNo = new boolean[luceneCount];
-                final int[] luceneToSubBatch = new int[luceneCount];
-                for (int i = 0, k = 0; i < count; i++) {
-                    if (needsLucene[i]) {
-                        luceneUids[k] = ops[i].uid();
-                        luceneLoadSeqNo[k] = ops[i].getIfSeqNo() != UNASSIGNED_SEQ_NO;
-                        luceneToSubBatch[k] = i;
-                        k++;
-                    }
-                }
-                final DocIdAndVersion[] luceneResults = new DocIdAndVersion[luceneCount];
-                performActionWithDirectoryReader(SearcherScope.INTERNAL, reader -> {
+            }
+            final DocIdAndVersion[] luceneResults = new DocIdAndVersion[luceneCount];
+            performActionWithDirectoryReader(SearcherScope.INTERNAL, reader -> {
+                if (isTimeSeries) {
+                    assert engineConfig.getLeafSorter() == DataStream.TIMESERIES_LEAF_READERS_SORTER;
+                    VersionsAndSeqNoResolver.timeSeriesBatchLoadDocIdAndVersion(
+                        reader,
+                        luceneUids,
+                        luceneIds,
+                        useTsdbSyntheticId,
+                        luceneLoadSeqNo,
+                        luceneResults
+                    );
+                } else {
                     VersionsAndSeqNoResolver.batchLoadDocIdAndVersion(reader, luceneUids, luceneLoadSeqNo, luceneResults);
-                    return null;
-                });
-                for (int k = 0; k < luceneCount; k++) {
-                    final DocIdAndVersion d = luceneResults[k];
-                    if (d != null) {
-                        resolvedVersions[luceneToSubBatch[k]] = new IndexVersionValue(null, d.version, d.seqNo, d.primaryTerm);
-                    }
+                }
+                return null;
+            });
+            for (int k = 0; k < luceneCount; k++) {
+                final DocIdAndVersion d = luceneResults[k];
+                if (d != null) {
+                    resolvedVersions[luceneToSubBatch[k]] = new IndexVersionValue(null, d.version, d.seqNo, d.primaryTerm);
                 }
             }
         }
@@ -2299,6 +2326,7 @@ public class InternalEngine extends Engine {
                 engineConfig.getIndexSettings().seqNoIndexOptions(),
                 engineConfig.getIndexSettings().useDocValuesSkipper(),
                 useTsdbSyntheticId,
+                engineConfig.getMapperService().isUseColumnarId(),
                 delete.id(),
                 delete.uid()
             );
@@ -2462,46 +2490,10 @@ public class InternalEngine extends Engine {
         assert noOp.seqNo() > SequenceNumbers.NO_OPS_PERFORMED;
         final long seqNo = noOp.seqNo();
         try (Releasable ignored = noOpKeyedLock.acquire(seqNo)) {
-            final NoOpResult noOpResult;
-            final Optional<Exception> preFlightError = preFlightCheckForNoOp(noOp);
-            if (preFlightError.isPresent()) {
-                noOpResult = new NoOpResult(UNASSIGNED_PRIMARY_TERM, UNASSIGNED_SEQ_NO, preFlightError.get());
-            } else {
-                markSeqNoAsSeen(noOp.seqNo());
-                if (hasBeenProcessedBefore(noOp) == false) {
-                    try {
-                        final ParsedDocument tombstone = ParsedDocument.noopTombstone(
-                            engineConfig.getIndexSettings().seqNoIndexOptions(),
-                            noOp.reason()
-                        );
-                        tombstone.updateSeqID(noOp.seqNo(), noOp.primaryTerm());
-                        // A noop tombstone does not require a _version but it's added to have a fully dense docvalues for the version
-                        // field. 1L is selected to optimize the compression because it might probably be the most common value in
-                        // version field.
-                        tombstone.version().setLongValue(1L);
-                        assert tombstone.docs().size() == 1 : "Tombstone should have a single doc [" + tombstone + "]";
-                        final LuceneDocument doc = tombstone.docs().getFirst();
-                        assert doc.getField(SeqNoFieldMapper.TOMBSTONE_NAME) != null
-                            : "Noop tombstone document but _tombstone field is not set [" + doc + " ]";
-                        doc.add(softDeletesField);
-                        indexWriter.addDocument(doc);
-                    } catch (final Exception ex) {
-                        /*
-                         * Document level failures when adding a no-op are unexpected, we likely hit something fatal such as the Lucene
-                         * index being corrupt, or the Lucene document limit. We have already issued a sequence number here so this is
-                         * fatal, fail the engine.
-                         */
-                        if (ex instanceof AlreadyClosedException == false && indexWriter.getTragicException() == null) {
-                            failEngine("no-op origin[" + noOp.origin() + "] seq#[" + noOp.seqNo() + "] failed at document level", ex);
-                        }
-                        throw ex;
-                    }
-                }
-                noOpResult = new NoOpResult(noOp.primaryTerm(), noOp.seqNo());
-                if (noOp.origin().isFromTranslog() == false && noOpResult.getResultType() == Result.Type.SUCCESS) {
-                    final Translog.Location location = translog.add(new Translog.NoOp(noOp.seqNo(), noOp.primaryTerm(), noOp.reason()));
-                    noOpResult.setTranslogLocation(location);
-                }
+            final NoOpResult noOpResult = applyNoOpToLucene(noOp);
+            if (noOp.origin().isFromTranslog() == false && noOpResult.getResultType() == Result.Type.SUCCESS) {
+                final Translog.Location location = translog.add(new Translog.NoOp(noOp.seqNo(), noOp.primaryTerm(), noOp.reason()));
+                noOpResult.setTranslogLocation(location);
             }
             localCheckpointTracker.markSeqNoAsProcessed(noOpResult.getSeqNo());
             if (noOpResult.getTranslogLocation() == null) {
@@ -2515,6 +2507,53 @@ public class InternalEngine extends Engine {
         } finally {
             assert isDrainedForClose() == false;
         }
+    }
+
+    /**
+     * Applies a no-op to Lucene only: runs the pre-flight check, marks the seqNo as seen, and (unless the op was
+     * already processed) writes the tombstone document. It does <em>not</em> touch the translog or the checkpoint
+     * tracker — those are the caller's responsibility. The batch indexing path uses this so the no-op's translog
+     * entry can be folded into a single {@link Translog.IndexBatch}
+     * <p>
+     * The caller must hold the {@link #noOpKeyedLock} for {@code noOp.seqNo()}.
+     */
+    private NoOpResult applyNoOpToLucene(final NoOp noOp) throws IOException {
+        assert noOpKeyedLock.isHeldByCurrentThread(noOp.seqNo());
+        final Optional<Exception> preFlightError = preFlightCheckForNoOp(noOp);
+        if (preFlightError.isPresent()) {
+            return new NoOpResult(UNASSIGNED_PRIMARY_TERM, UNASSIGNED_SEQ_NO, preFlightError.get());
+        }
+        markSeqNoAsSeen(noOp.seqNo());
+        if (hasBeenProcessedBefore(noOp) == false) {
+            try {
+                final ParsedDocument tombstone = ParsedDocument.noopTombstone(
+                    engineConfig.getIndexSettings().seqNoIndexOptions(),
+                    noOp.reason()
+                );
+                tombstone.updateSeqID(noOp.seqNo(), noOp.primaryTerm());
+                // A noop tombstone does not require a _version but it's added to have a fully dense docvalues for the version
+                // field. 1L is selected to optimize the compression because it might probably be the most common value in
+                // version field.
+                tombstone.version().setLongValue(1L);
+                assert tombstone.docs().size() == 1 : "Tombstone should have a single doc [" + tombstone + "]";
+                final LuceneDocument doc = tombstone.docs().getFirst();
+                assert doc.getField(SeqNoFieldMapper.TOMBSTONE_NAME) != null
+                    : "Noop tombstone document but _tombstone field is not set [" + doc + " ]";
+                doc.add(softDeletesField);
+                indexWriter.addDocument(doc);
+            } catch (final Exception ex) {
+                /*
+                 * Document level failures when adding a no-op are unexpected, we likely hit something fatal such as the Lucene
+                 * index being corrupt, or the Lucene document limit. We have already issued a sequence number here so this is
+                 * fatal, fail the engine.
+                 */
+                if (ex instanceof AlreadyClosedException == false && indexWriter.getTragicException() == null) {
+                    failEngine("no-op origin[" + noOp.origin() + "] seq#[" + noOp.seqNo() + "] failed at document level", ex);
+                }
+                throw ex;
+            }
+        }
+        return new NoOpResult(noOp.primaryTerm(), noOp.seqNo());
     }
 
     /**

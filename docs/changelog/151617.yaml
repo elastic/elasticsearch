@@ -6,7 +6,13 @@ breaking:
   impact: Please describe the impact of this change to users
   notable: false
   title: Update deprecation of internal monitoring settings to critial
+deprecation:
+  area: Infra/Core
+  details: Please describe the details of this change for the release notes. You can
+    use asciidoc.
+  impact: Please describe the impact of this change to users
+  title: Update deprecation of internal monitoring settings to critial
 issues: []
 pr: 151617
 summary: Update deprecation of internal monitoring settings to critial
-type: breaking
+type: deprecation

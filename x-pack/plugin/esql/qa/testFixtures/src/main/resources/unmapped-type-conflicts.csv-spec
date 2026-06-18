@@ -2,7 +2,7 @@
 
 ######################################
 # Mapped and unmapped conflict tests #
-######################################  
+######################################
 
 typeConflictWithUnmappedJustFrom
 required_capability: optional_fields_v5
@@ -247,10 +247,7 @@ sample_data            | 5033755.0
 sample_data            | 8268153.0
 ;
 
-// Reproducer for #151525: short is mapped in all_types, unmapped (loaded from _source) in all_types_no_short. With an explicit
-// widening cast, the mapped (short) leg must resolve to the SHORT conversion at execution time instead of falling through to the
-// unmapped keyword loader (which threw ClassCastException). Both legs yield 10..50.
-typeConflictShortUnmappedCastToInteger
+// Reproducer for #151525.
 required_capability: optional_fields_v5
 
 SET unmapped_fields="load"\;

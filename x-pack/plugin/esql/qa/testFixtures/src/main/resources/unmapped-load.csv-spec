@@ -17,9 +17,7 @@ id:integer | name:keyword
 11         | kkkkk
 ;
 
-// Reproducer for #151525: explicit cast on a partially unmapped small numeric field must not CCE.
-// all_types maps `short` as short; all_types_no_short has `short` unmapped but with values in _source.
-// With unmapped_fields=load the field is a two-legged PUNK; short::integer must work on both legs.
+// Reproducer for #151525: explicit cast on a partially unmapped small numeric field should not throw a ClassCastException.
 partiallyUnmappedSmallNumericFieldExplicitCast
 required_capability: optional_fields_v5
 

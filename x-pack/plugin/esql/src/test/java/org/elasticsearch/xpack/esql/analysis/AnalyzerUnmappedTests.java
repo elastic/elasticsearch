@@ -9,12 +9,12 @@ package org.elasticsearch.xpack.esql.analysis;
 
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.common.collect.Iterators;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.TestAnalyzer;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
-import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
 import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
 import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
+import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.AbstractConvertFunction;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
@@ -42,6 +43,7 @@ import org.hamcrest.Matcher;
 import org.hamcrest.Matchers;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -1508,10 +1510,6 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
         return new EsField(name, DataType.DOUBLE, emptyMap(), true, EsField.TimeSeriesFieldType.NONE);
     }
 
-    private static EsField smallNumericField(String name, DataType dt) {
-        return new EsField(name, dt, emptyMap(), true, EsField.TimeSeriesFieldType.NONE);
-    }
-
     private static final List<DataType> SMALL_NUMERIC_TYPES = List.of(
         DataType.SHORT,
         DataType.BYTE,
@@ -1520,75 +1518,52 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
         DataType.SCALED_FLOAT
     );
 
-    /**
-     * Regression test for #151525. Via an explicit cast in the query (e.g. {@code to_integer(f)}),
-     * which goes through {@code ResolveUnionTypes}, the resulting {@link CompactMultiTypeEsField}
-     * must key the conversion expression by the <em>original</em> (pre-widening) type ΓÇö e.g.
-     * {@code SHORT}, not {@code INTEGER} ΓÇö so that the physical layer, which looks up by the actual
-     * mapped type reported by the shard, finds the correct expression.
-     */
+    /** Regression test for #151525. Verify we key by the unwidened type (e.g., {@code SHORT}), not the wide one (e.g., {@code INTEGER}). */
     public void testTwoLeggedPunkSmallNumericExplicitCastUsesOriginalTypeAsKey() {
         assumeTrue("Requires OPTIONAL_FIELDS_V5", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V5.isEnabled());
 
         for (DataType dt : SMALL_NUMERIC_TYPES) {
             DataType widened = dt.widenSmallNumeric();
-            String castFn = widened == DataType.INTEGER ? "to_integer" : "to_double";
+            String sortField = "sort_field";
+            String smallTypeField = "f";
             EsIndex esIndex = partialIndex(
                 Map.of(
-                    "sort_field",
-                    new EsField("sort_field", DataType.INTEGER, emptyMap(), true, EsField.TimeSeriesFieldType.NONE),
-                    "f",
-                    smallNumericField("f", dt)
+                    sortField,
+                    new EsField(sortField, DataType.INTEGER, emptyMap(), true, EsField.TimeSeriesFieldType.NONE),
+                    smallTypeField,
+                    new EsField(smallTypeField, dt, Collections.emptyMap(), true, EsField.TimeSeriesFieldType.NONE)
                 ),
-                Set.of("f")
+                Set.of(smallTypeField)
             );
+            String castFn = widened == DataType.INTEGER ? "to_integer" : "to_double";
             LogicalPlan plan = analyzer().minimumTransportVersion(CompactMultiTypeEsField.CompactMultiTypeEsField)
                 .addIndex(esIndex)
-                .statement(setUnmappedLoad("FROM idx* | EVAL x = " + castFn + "(f) | SORT sort_field"));
+                .statement(setUnmappedLoad(Strings.format("FROM idx* | EVAL x = %s(%s) | SORT sort_field", castFn, smallTypeField)));
 
-            CompactMultiTypeEsField compact = findCompactField(plan, "f");
-            assertNotNull("No CompactMultiTypeEsField found for 'f' with type " + dt + " (explicit cast)", compact);
+            Holder<CompactMultiTypeEsField> field = new Holder<>();
+            plan.forEachExpressionDown(FieldAttribute.class, fa -> {
+                if (fa.field().getName().equals(smallTypeField) && fa.field() instanceof CompactMultiTypeEsField c) {
+                    field.set(c);
+                }
+            });
+            CompactMultiTypeEsField compact = field.get();
             assertThat("Widened data type for " + dt + " (explicit cast)", compact.getDataType(), is(widened));
             assertThat(
                 "typeToConversionExpressions for explicitly-cast partially-unmapped " + dt + " must use the original type as key",
                 compact.getTypeToConversionExpressions().keySet(),
                 equalTo(Set.of(dt))
             );
-            Expression expr = compact.getTypeToConversionExpressions().get(dt);
-            assertThat(
-                "Conversion for " + dt + " (explicit cast) must be a convert function",
-                expr,
-                instanceOf(AbstractConvertFunction.class)
-            );
             assertThat(
                 "Inner field of the convert function for " + dt + " (explicit cast) must keep the original type",
-                ((AbstractConvertFunction) expr).field().dataType(),
+                ((AbstractConvertFunction) compact.getTypeToConversionExpressions().get(dt)).field().dataType(),
                 is(dt)
-            );
-            Expression unmapped = compact.getUnmappedConversionExpression();
-            assertNotNull("unmappedConversionExpression must be non-null for partially-unmapped " + dt + " (explicit cast)", unmapped);
-            assertThat(
-                "unmappedConversionExpression (explicit cast) must be a convert function",
-                unmapped,
-                instanceOf(AbstractConvertFunction.class)
             );
             assertThat(
                 "unmappedConversionExpression (explicit cast) inner field must be KEYWORD",
-                ((AbstractConvertFunction) unmapped).field().dataType(),
+                ((AbstractConvertFunction) compact.getUnmappedConversionExpression()).field().dataType(),
                 is(DataType.KEYWORD)
             );
         }
-    }
-
-    private static CompactMultiTypeEsField findCompactField(LogicalPlan plan, String name) {
-        CompactMultiTypeEsField[] found = { null };
-        plan.forEachExpressionDown(FieldAttribute.class, fa -> {
-            // Use field name, not attribute name: ResolveUnionTypes renames attributes to $name$converted_to$type
-            if (fa.field().getName().equals(name) && fa.field() instanceof CompactMultiTypeEsField c) {
-                found[0] = c;
-            }
-        });
-        return found[0];
     }
 
     /**

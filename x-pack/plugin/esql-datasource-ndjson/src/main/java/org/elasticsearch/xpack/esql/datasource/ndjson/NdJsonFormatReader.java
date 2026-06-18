@@ -62,7 +62,7 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
     /**
      * Node-level setting for the parallel-parsing segment size. Larger segments amortise the fixed
      * Java/Jackson per-segment setup cost; smaller segments enable parallelism on smaller files.
-     * Also overridable per-query via the {@code segment_size} key in {@code WITH (...)}.
+     * Also overridable per-query via the {@code segment_size} key in {@code WITH {...}}.
      */
     public static final String SEGMENT_SIZE_SETTING = "esql.datasource.ndjson.segment_size";
 
@@ -475,7 +475,7 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
 
     /**
      * Resolved per-reader from {@link #SEGMENT_SIZE_SETTING} (node-level) or the {@code segment_size}
-     * key in the per-query {@code WITH (...)} config. Defaults to {@link #DEFAULT_SEGMENT_SIZE}.
+     * key in the per-query {@code WITH {...}} config. Defaults to {@link #DEFAULT_SEGMENT_SIZE}.
      */
     @Override
     public long minimumSegmentSize() {

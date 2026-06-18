@@ -175,7 +175,7 @@ public class DefaultRestChannel extends AbstractRestChannel {
             // Per OTel semantic conventions for HTTP server spans: set span status to ERROR for 5xx
             // (server-side errors). 4xx responses are client errors and do not indicate a server failure.
             if (restResponse.status().getStatus() >= 500) {
-                tracer.setStatusToError(request, restResponse.status().toString());
+                tracer.setStatusToError(request, restResponse.status().getStatus() + " " + restResponse.status().name());
             }
             restResponse.getHeaders()
                 .forEach((key, values) -> tracer.setAttribute(request, "http.response.headers." + key, String.join("; ", values)));

@@ -506,11 +506,14 @@ public class DefaultRestChannelTests extends ESTestCase {
 
     /**
      * Check that a 5xx response sets the span status to ERROR, per OTel semantic conventions
-     * for HTTP server spans.
+     * for HTTP server spans. Tests both 500 and 502 to verify the {@code >= 500} boundary.
      */
     public void testTraceStatusErrorSetFor5xx() {
         sendResponseAndCapture(new RestResponse(RestStatus.INTERNAL_SERVER_ERROR, "server error"));
         verify(tracer).setStatusToError(argThat(id -> id.getSpanId().startsWith("rest-")), any(String.class));
+
+        sendResponseAndCapture(new RestResponse(RestStatus.BAD_GATEWAY, "bad gateway"));
+        verify(tracer, times(2)).setStatusToError(argThat(id -> id.getSpanId().startsWith("rest-")), any(String.class));
     }
 
     /**

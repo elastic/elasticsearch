@@ -17,6 +17,7 @@ import io.opentelemetry.api.trace.Span;
 import io.opentelemetry.api.trace.SpanBuilder;
 import io.opentelemetry.api.trace.SpanContext;
 import io.opentelemetry.api.trace.SpanKind;
+import io.opentelemetry.api.trace.StatusCode;
 import io.opentelemetry.api.trace.Tracer;
 import io.opentelemetry.api.trace.propagation.W3CTraceContextPropagator;
 import io.opentelemetry.context.Context;
@@ -183,6 +184,24 @@ public class APMTracerTests extends ESTestCase {
         apmTracer.stopTrace(TRACEABLE2); // stopping a non-existent trace is a noop
 
         assertThat(apmTracer.getSpans(), anEmptyMap());
+    }
+
+    /**
+     * Check that {@link APMTracer#setStatusToError} sets the OTel span's status to {@link StatusCode#ERROR},
+     * verifying the direct integration with the underlying OpenTelemetry span.
+     */
+    public void test_setStatusToError_setsSpanStatusToError() {
+        Settings settings = Settings.builder().put(APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING.getKey(), true).build();
+        APMTracer apmTracer = buildTracer(settings);
+
+        apmTracer.startTrace(new ThreadContext(settings), TRACEABLE1, "name1", null);
+        Span span = Span.fromContextOrNull(apmTracer.getSpans().get(TRACEABLE1.getSpanId()));
+        assertThat(span, notNullValue());
+
+        String description = "500 INTERNAL_SERVER_ERROR";
+        apmTracer.setStatusToError(TRACEABLE1, description);
+
+        Mockito.verify(span).setStatus(StatusCode.ERROR, description);
     }
 
     /**

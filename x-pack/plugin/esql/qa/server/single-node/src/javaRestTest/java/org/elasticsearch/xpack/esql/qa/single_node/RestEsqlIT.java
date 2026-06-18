@@ -352,6 +352,7 @@ public class RestEsqlIT extends RestEsqlTestCase {
                     sig,
                     matchesList().item("LuceneSourceOperator")
                         .item("ValuesSourceReaderOperator")
+                        .item("EvalOperator")
                         .item("AggregationOperator")
                         .item("ExchangeSinkOperator")
                 );
@@ -1444,10 +1445,12 @@ public class RestEsqlIT extends RestEsqlTestCase {
                 .entry("rows_emitted", greaterThan(0))
                 .entry("process_nanos", greaterThan(0))
                 .entry("processed_queries", List.of("*:*"))
+                .entry("bytes_read", greaterThanOrEqualTo(0))
                 .entry("partitioning_strategies", matchesMap().entry("rest-esql-test:0", "SHARD"));
             case "ValuesSourceReaderOperator" -> basicProfile().entry("pages_received", greaterThan(0))
                 .entry("pages_emitted", greaterThan(0))
                 .entry("values_loaded", greaterThanOrEqualTo(0))
+                .entry("bytes_read", greaterThanOrEqualTo(0))
                 .entry("readers_built", matchesMap().extraOk());
             case "AggregationOperator" -> matchesMap().entry("pages_processed", greaterThan(0))
                 .entry("rows_received", greaterThan(0))
@@ -1486,6 +1489,7 @@ public class RestEsqlIT extends RestEsqlTestCase {
                 .entry("process_nanos", greaterThan(0))
                 .entry("processed_queries", List.of("*:*"))
                 .entry("slice_index", 0)
+                .entry("bytes_read", greaterThanOrEqualTo(0))
                 .entry("partitioning_strategies", matchesMap().entry("rest-esql-test:0", "SHARD"));
             default -> throw new AssertionError("unexpected status: " + o);
         };

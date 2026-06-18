@@ -32,6 +32,7 @@ import org.elasticsearch.index.mapper.CompositeSyntheticFieldLoader;
 import org.elasticsearch.index.mapper.DocValuesFieldFactory;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FallbackSyntheticSourceBlockLoader;
+import org.elasticsearch.index.mapper.FieldArrayContext;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.IgnoreMalformedStoredValues;
 import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper;
@@ -233,6 +234,20 @@ public class ScaledFloatFieldMapper extends FieldMapper {
 
         @Override
         public ScaledFloatFieldMapper build(MapperBuilderContext context) {
+            String offsetsFieldName = getOffsetsFieldName(
+                context,
+                indexSettings.sourceKeepMode(),
+                docValuesParameters.getValue().enabled(),
+                stored.getValue(),
+                this,
+                indexSettings.getIndexVersionCreated(),
+                IndexVersions.SYNTHETIC_SOURCE_STORE_ARRAYS_NATIVELY_SCALED_FLOAT,
+                indexSettings.getMode().isStrictColumnar(),
+                docValuesParameters.getValue().multiValue()
+            );
+            boolean readInArrayOrder = offsetsFieldName != null
+                && docValuesParameters.getValue().multiValue()
+                && indexSettings.getMode().isStrictColumnar();
             ScaledFloatFieldType type = new ScaledFloatFieldType(
                 context.buildFullName(leafName()),
                 indexType(),
@@ -243,16 +258,8 @@ public class ScaledFloatFieldMapper extends FieldMapper {
                 metric.getValue(),
                 indexSettings.getMode(),
                 coerce.getValue().value(),
-                context.isSourceSynthetic()
-            );
-            String offsetsFieldName = getOffsetsFieldName(
-                context,
-                indexSettings.sourceKeepMode(),
-                docValuesParameters.getValue().enabled(),
-                stored.getValue(),
-                this,
-                indexSettings.getIndexVersionCreated(),
-                IndexVersions.SYNTHETIC_SOURCE_STORE_ARRAYS_NATIVELY_SCALED_FLOAT
+                context.isSourceSynthetic(),
+                readInArrayOrder
             );
             return new ScaledFloatFieldMapper(
                 leafName(),
@@ -275,6 +282,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
         private final IndexMode indexMode;
         private final boolean coerce;
         private final boolean isSyntheticSource;
+        private final boolean readInArrayOrder;
 
         public ScaledFloatFieldType(
             String name,
@@ -288,6 +296,22 @@ public class ScaledFloatFieldMapper extends FieldMapper {
             boolean coerce,
             boolean isSyntheticSource
         ) {
+            this(name, indexType, stored, meta, scalingFactor, nullValue, metricType, indexMode, coerce, isSyntheticSource, false);
+        }
+
+        public ScaledFloatFieldType(
+            String name,
+            IndexType indexType,
+            boolean stored,
+            Map<String, String> meta,
+            double scalingFactor,
+            Double nullValue,
+            TimeSeriesParams.MetricType metricType,
+            IndexMode indexMode,
+            boolean coerce,
+            boolean isSyntheticSource,
+            boolean readInArrayOrder
+        ) {
             super(name, indexType, stored, meta);
             this.scalingFactor = scalingFactor;
             this.nullValue = nullValue;
@@ -295,6 +319,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
             this.indexMode = indexMode;
             this.coerce = coerce;
             this.isSyntheticSource = isSyntheticSource;
+            this.readInArrayOrder = readInArrayOrder;
         }
 
         public ScaledFloatFieldType(String name, double scalingFactor) {
@@ -386,10 +411,11 @@ public class ScaledFloatFieldMapper extends FieldMapper {
                 return ConstantNull.INSTANCE;
             }
             if (hasDocValues() && (blContext.fieldExtractPreference() != FieldExtractPreference.STORED || isSyntheticSource)) {
-                return new DoublesBlockLoader(name(), l -> l / scalingFactor);
+                return new DoublesBlockLoader(name(), l -> l / scalingFactor, readInArrayOrder);
             }
+            // columnar_stored pre-builds _source as a single blob; skip the per-field fallback loader.
             // Multi fields don't have fallback synthetic source.
-            if (isSyntheticSource && blContext.parentField(name()) == null) {
+            if (isSyntheticSource && blContext.mappingLookup().isSourceColumnarStored() == false && blContext.parentField(name()) == null) {
                 return new FallbackSyntheticSourceBlockLoader(
                     fallbackSyntheticSourceBlockLoaderReader(),
                     name(),
@@ -695,7 +721,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
             value = numericValue;
         }
 
-        boolean shouldStoreOffsets = offsetsFieldName != null && context.isImmediateParentAnArray() && context.canAddIgnoredField();
+        boolean shouldStoreOffsets = FieldArrayContext.shouldRecordOffsets(context, offsetsFieldName, docValuesParameters.multiValue());
 
         if (value == null) {
             value = nullValue;

@@ -1555,18 +1555,16 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             | sort nullsum
             | limit 1
             """));
-        var topN = as(optimized, TopNExec.class);
-        var exchange = asRemoteExchange(topN.child());
+        // nullsum = emp_no + null folds to null → constant sort dropped; PushLimitToSource pushes limit=1
+        // into EsQueryExec (Lucene stops at one doc) instead of a TopN heap.
+        var eval = as(optimized, EvalExec.class);
+        var limit = as(eval.child(), LimitExec.class);
+        var exchange = asRemoteExchange(limit.child());
         var project = as(exchange.child(), ProjectExec.class);
         var extract = as(project.child(), FieldExtractExec.class);
-        var topNLocal = as(extract.child(), TopNExec.class);
-        // all fields plus nullsum and shards, segments, docs and two extra ints for forwards and backwards map
-        assertThat(topNLocal.estimatedRowSize(), equalTo(allFieldRowSize + Integer.BYTES + Integer.BYTES * 2 + Integer.BYTES * 3));
-
-        var eval = as(topNLocal.child(), EvalExec.class);
-        var source = source(eval.child());
-        // nullsum and doc id are ints. we don't actually load emp_no here because we know we don't need it.
-        assertThat(source.estimatedRowSize(), equalTo(Integer.BYTES * 2));
+        var source = source(extract.child());
+        assertThat(source.limit().fold(FoldContext.small()), is(1));
+        assertThat(source.estimatedRowSize(), equalTo(allFieldRowSize + Integer.BYTES * 2));
     }
 
     public void testProjectAfterTopN() throws Exception {
@@ -9056,7 +9054,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var e = expectThrows(ParsingException.class, () -> physicalPlan(query + "::long"));
         assertThat(
             e.getMessage(),
-            containsString("ESQL statement exceeded the maximum expression depth allowed (" + MAX_EXPRESSION_DEPTH + ")")
+            containsString("ES|QL statement exceeded the maximum expression depth allowed (" + MAX_EXPRESSION_DEPTH + ")")
         );
     }
 
@@ -9071,7 +9069,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var e = expectThrows(ParsingException.class, () -> physicalPlan(query + expression));
         assertThat(
             e.getMessage(),
-            containsString("ESQL statement exceeded the maximum expression depth allowed (" + MAX_EXPRESSION_DEPTH + ")")
+            containsString("ES|QL statement exceeded the maximum expression depth allowed (" + MAX_EXPRESSION_DEPTH + ")")
         );
     }
 
@@ -9086,7 +9084,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var e = expectThrows(ParsingException.class, () -> physicalPlan(query + expression));
         assertThat(
             e.getMessage(),
-            containsString("ESQL statement exceeded the maximum expression depth allowed (" + MAX_EXPRESSION_DEPTH + ")")
+            containsString("ES|QL statement exceeded the maximum expression depth allowed (" + MAX_EXPRESSION_DEPTH + ")")
         );
     }
 
@@ -9101,7 +9099,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var e = expectThrows(ParsingException.class, () -> physicalPlan(query + "(" + expression + ")"));
         assertThat(
             e.getMessage(),
-            containsString("ESQL statement exceeded the maximum expression depth allowed (" + MAX_EXPRESSION_DEPTH + ")")
+            containsString("ES|QL statement exceeded the maximum expression depth allowed (" + MAX_EXPRESSION_DEPTH + ")")
         );
     }
 
@@ -9122,7 +9120,38 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var e = expectThrows(ParsingException.class, () -> physicalPlan(from + prefix + expression + suffix));
         assertThat(
             e.getMessage(),
-            containsString("ESQL statement exceeded the maximum expression depth allowed (" + MAX_EXPRESSION_DEPTH + ")")
+            containsString("ES|QL statement exceeded the maximum expression depth allowed (" + MAX_EXPRESSION_DEPTH + ")")
+        );
+    }
+
+    public void testMaxExpressionDepth_nestedAbs() {
+        int depth = 20000;
+        String query = "ROW a = " + "abs(".repeat(depth) + "1" + ")".repeat(depth);
+        var e = expectThrows(ParsingException.class, () -> physicalPlan(query));
+        assertThat(
+            e.getMessage(),
+            containsString("ES|QL statement exceeded the maximum expression depth allowed (" + MAX_EXPRESSION_DEPTH + ")")
+        );
+    }
+
+    public void testMaxExpressionDepth_nestedAbs_maxAllowed() {
+        // Last depth that succeeds: each abs() adds 1 to the expression depth counter, plus a base
+        // overhead of 2 from the ROW field context (visitField -> expression() then
+        // visitOperatorExpressionDefault -> expression()). So for N calls: depth = N + 2.
+        // At N=MAX_EXPRESSION_DEPTH-2: depth = MAX_EXPRESSION_DEPTH, check is >, so false -> passes.
+        int depth = MAX_EXPRESSION_DEPTH - 2;
+        String query = "ROW a = " + "abs(".repeat(depth) + "1" + ")".repeat(depth);
+        physicalPlan(query); // must not throw
+    }
+
+    public void testMaxExpressionDepth_nestedAbs_minOverflow() {
+        // First depth at which the visitor rejects: at N=MAX_EXPRESSION_DEPTH-1, depth = MAX_EXPRESSION_DEPTH+1.
+        int depth = MAX_EXPRESSION_DEPTH - 1;
+        String query = "ROW a = " + "abs(".repeat(depth) + "1" + ")".repeat(depth);
+        var e = expectThrows(ParsingException.class, () -> physicalPlan(query));
+        assertThat(
+            e.getMessage(),
+            containsString("ES|QL statement exceeded the maximum expression depth allowed (" + MAX_EXPRESSION_DEPTH + ")")
         );
     }
 
@@ -9133,7 +9162,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         }
         physicalPlan(from.toString());
         var e = expectThrows(ParsingException.class, () -> physicalPlan(from + (randomBoolean() ? "| sort a" : " | eval c = 10")));
-        assertThat(e.getMessage(), containsString("ESQL statement exceeded the maximum query depth allowed (" + MAX_QUERY_DEPTH + ")"));
+        assertThat(e.getMessage(), containsString("ES|QL statement exceeded the maximum query depth allowed (" + MAX_QUERY_DEPTH + ")"));
     }
 
     public void testMaxQueryDepthPlusExpressionDepth() {
@@ -9151,11 +9180,11 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var e = expectThrows(ParsingException.class, () -> physicalPlan(mainQuery + cast + "::int"));
         assertThat(
             e.getMessage(),
-            containsString("ESQL statement exceeded the maximum expression depth allowed (" + MAX_EXPRESSION_DEPTH + ")")
+            containsString("ES|QL statement exceeded the maximum expression depth allowed (" + MAX_EXPRESSION_DEPTH + ")")
         );
 
         e = expectThrows(ParsingException.class, () -> physicalPlan(mainQuery + cast + " | eval x = 10"));
-        assertThat(e.getMessage(), containsString("ESQL statement exceeded the maximum query depth allowed (" + MAX_QUERY_DEPTH + ")"));
+        assertThat(e.getMessage(), containsString("ES|QL statement exceeded the maximum query depth allowed (" + MAX_QUERY_DEPTH + ")"));
     }
 
     @AwaitsFix(bugUrl = "lookup functionality is not yet implemented")
@@ -9630,7 +9659,13 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             null,
             null,
             null,
-            new EsPhysicalOperationProviders(FoldContext.small(), EmptyIndexedByShardId.instance(), null, PlannerSettings.DEFAULTS),
+            new EsPhysicalOperationProviders(
+                FoldContext.small(),
+                EmptyIndexedByShardId.instance(),
+                null,
+                PlannerSettings.DEFAULTS,
+                () -> 0L
+            ),
             null  // OperatorFactoryRegistry - not needed for these tests
         );
 
@@ -10473,12 +10508,12 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         branchProject = as(branchExchange.child(), ProjectExec.class);
         assertThat(names(branchProject.projections()), equalTo(List.of("x")));
 
-        branchTopN = as(branchProject.child(), TopNExec.class);
-        assertThat(branchTopN.limit(), is(l(10)));
-
-        var branchEval = as(branchTopN.child(), EvalExec.class);
+        // Below the exchange x is the constant 1 → sort pruned, limit pushed to source; above it x is opaque,
+        // so the coordinator TopN keeps its sort.
+        var branchEval = as(branchProject.child(), EvalExec.class);
         var branchEsQuery = as(branchEval.child(), EsQueryExec.class);
         assertThat(names(branchEsQuery.output()), equalTo(List.of("_doc")));
+        assertThat(branchEsQuery.limit(), is(l(10)));
     }
 
     /**

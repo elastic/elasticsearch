@@ -8,29 +8,26 @@
 package org.elasticsearch.xpack.esql.plan.logical.promql;
 
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.xpack.esql.capabilities.ConfigurationAware;
-import org.elasticsearch.xpack.esql.capabilities.PostAnalysisVerificationAware;
 import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
+import org.elasticsearch.xpack.esql.core.tree.NodeStringMapper;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.function.TimestampAware;
 import org.elasticsearch.xpack.esql.expression.function.TimestampBoundsAware;
-import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
-import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition;
 import org.elasticsearch.xpack.esql.parser.promql.PromqlLogicalPlanBuilder;
+import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinaryComparison;
@@ -44,6 +41,7 @@ import org.elasticsearch.xpack.esql.plan.logical.promql.selector.Selector;
 import java.io.IOException;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
@@ -54,13 +52,7 @@ import static org.elasticsearch.xpack.esql.common.Failure.fail;
  * Container plan for embedded PromQL queries.
  * Gets eliminated by the analyzer once the query is validated.
  */
-public class PromqlCommand extends UnaryPlan
-    implements
-        TelemetryAware,
-        PostAnalysisVerificationAware,
-        TimestampAware,
-        TimestampBoundsAware.OfLogicalPlan {
-
+public class PromqlCommand extends UnaryPlan implements TelemetryAware, TimestampAware, TimestampBoundsAware.OfLogicalPlan {
     /**
      * The name of the column containing the step value (aka time bucket) in range queries.
      */
@@ -353,17 +345,23 @@ public class PromqlCommand extends UnaryPlan
     }
 
     @Override
-    public void nodeString(StringBuilder sb, NodeStringFormat format) {
+    public void nodeString(StringBuilder sb, NodeStringFormat format, NodeStringMapper mapper) {
         sb.append(nodeName());
-        sb.append(" start=[").append(start);
-        sb.append("] end=[").append(end);
-        sb.append("] step=[").append(step);
-        sb.append("] buckets=[").append(buckets);
-        sb.append("] scrape_interval=[").append(scrapeInterval);
-        sb.append("] valueColumnName=[").append(valueColumnName);
+        sb.append(" start=[").append(renderLiteral(start, mapper));
+        sb.append("] end=[").append(renderLiteral(end, mapper));
+        sb.append("] step=[").append(renderLiteral(step, mapper));
+        sb.append("] buckets=[").append(renderLiteral(buckets, mapper));
+        sb.append("] scrape_interval=[").append(renderLiteral(scrapeInterval, mapper));
+        sb.append("] valueColumnName=[").append(valueColumnName == null ? "null" : mapper.column(valueColumnName));
         sb.append("] promql=[<>\n");
-        sb.append(promqlPlan.toString(format));
+        sb.append(promqlPlan.toString(format, mapper));
         sb.append("\n<>]]");
+    }
+
+    // Route the literal value through the mapper rather than appending it raw: identity is the raw
+    // value (matching the prior rendering), anonymization an interned token. No identity branch.
+    private static String renderLiteral(Literal lit, NodeStringMapper mapper) {
+        return lit == null ? "null" : mapper.literal(lit.value(), lit.dataType());
     }
 
     @Override
@@ -376,10 +374,16 @@ public class PromqlCommand extends UnaryPlan
 
     @Override
     public void postAnalysisVerification(Failures failures) {
+        throw new IllegalStateException(
+            "PromqlCommand verification and translation should already have been completed: [" + sourceText() + "]"
+        );
+    }
+
+    public void verify(Failures failures) {
         LogicalPlan p = promqlPlan();
         boolean hasStep = step.value() != null;
         boolean hasRangeAndBuckets = start.value() != null && end.value() != null && buckets.value() != null;
-        if (hasStep == false && hasRangeAndBuckets == false) {
+        if (isInstantQuery() == false && hasStep == false && hasRangeAndBuckets == false) {
             failures.add(
                 fail(
                     this,
@@ -393,11 +397,6 @@ public class PromqlCommand extends UnaryPlan
             );
             return;
         }
-        // TODO(sidosera): Remove once instant query support is added.
-        if (isInstantQuery()) {
-            failures.add(fail(p, "instant queries are not supported at this time [{}]", sourceText()));
-            return;
-        }
 
         if (p instanceof RangeSelector && isRangeQuery()) {
             failures.add(
@@ -406,6 +405,18 @@ public class PromqlCommand extends UnaryPlan
         }
 
         // Validate entire plan
+        // UNION set operators that form a contiguous chain from the root (e.g. `(a or b) or c`) are all
+        // considered "top-level": they are flattened into a single UnionAll during translation.
+        Set<VectorBinarySet> topLevelUnions = collectTopLevelUnionChain(p);
+        if (topLevelUnions.isEmpty() == false) {
+            // A connected chain of U union nodes has U+1 leaf operands (branches), which the translator combines
+            // into a single UnionAll. Reject chains exceeding the UnionAll branch limit with a clear message here
+            // rather than failing later during translation.
+            int branchCount = topLevelUnions.size() + 1;
+            if (Fork.exceedsMaxBranches(branchCount)) {
+                failures.add(fail(p, "PromQL set operator [or] supports up to [{}] operands, got [{}]", Fork.MAX_BRANCHES, branchCount));
+            }
+        }
         Holder<Boolean> root = new Holder<>(true);
         p.forEachDown(lp -> {
             switch (lp) {
@@ -415,18 +426,6 @@ public class PromqlCommand extends UnaryPlan
                     }
                     if (s.series() == null) {
                         failures.add(fail(s, "__name__ label selector is required at this time [{}]", s.sourceText()));
-                    } else if (s.series() instanceof FieldAttribute seriesField) {
-                        if (seriesField.isDimension()) {
-                            failures.add(
-                                fail(
-                                    s,
-                                    "field [{}] of type [{}] cannot be used as a metric; it is a dimension field [{}]",
-                                    seriesField.name(),
-                                    seriesField.dataType().typeName(),
-                                    s.sourceText()
-                                )
-                            );
-                        }
                     }
                     if (s.evaluation() != null) {
                         if (s.evaluation().offset().value() != null && s.evaluation().offsetDuration().isZero() == false) {
@@ -458,7 +457,7 @@ public class PromqlCommand extends UnaryPlan
                     }
                 }
                 case PromqlFunctionCall functionCall -> {
-                    validateCounterSupport(functionCall, failures);
+                    // ok — counter/gauge type mismatches are coerced during translation
                 }
                 case ScalarFunction scalarFunction -> {
                     // ok
@@ -500,8 +499,8 @@ public class PromqlCommand extends UnaryPlan
                             failures.add(fail(comp, "Comparisons [{}] between scalars must use the BOOL modifier", comp.op()));
                         }
                     }
-                    if (binaryOperator instanceof VectorBinarySet) {
-                        failures.add(fail(lp, "set operators are not supported at this time [{}]", lp.sourceText()));
+                    if (binaryOperator instanceof VectorBinarySet setOp) {
+                        verifySetOperator(failures, setOp, topLevelUnions.contains(setOp));
                     }
                     if (usesWithoutGrouping(binaryOperator.left()) || usesWithoutGrouping(binaryOperator.right())) {
                         failures.add(fail(lp, "binary expressions with WITHOUT are not supported at this time [{}]", lp.sourceText()));
@@ -518,56 +517,98 @@ public class PromqlCommand extends UnaryPlan
         });
     }
 
+    /**
+     * Set operators ({@code and}/{@code or}/{@code unless}) are only partially supported. Phase 1 allows the
+     * {@code or} (UNION) operator when it appears at the top level of the expression and both operands are
+     * instant vectors. The failures here fall into two categories:
+     * <ul>
+     *   <li>Scalar operands are illegal for set operators in PromQL itself, not just in our implementation. We
+     *       mirror Prometheus' wording ({@code set operator "or" not allowed in binary scalar expression}) and
+     *       check it first, so the message does not falsely imply the shape might be supported later.</li>
+     *   <li>Unsupported {@code and}/{@code unless} operators and non-top-level {@code or} are genuine current
+     *       implementation limitations, flagged with "at this time".</li>
+     * </ul>
+     */
+    private static void verifySetOperator(Failures failures, VectorBinarySet setOp, boolean isTopLevelUnion) {
+        if (PromqlPlan.returnsScalar(setOp.left()) || PromqlPlan.returnsScalar(setOp.right())) {
+            failures.add(fail(setOp, "set operator \"{}\" not allowed in binary scalar expression", setOp.op().keyword()));
+            return;
+        }
+        if (setOp.op() != VectorBinarySet.SetOp.UNION) {
+            failures.add(fail(setOp, "set operator [{}] is not supported at this time [{}]", setOp.op().keyword(), setOp.sourceText()));
+            return;
+        }
+        if (isTopLevelUnion == false) {
+            failures.add(fail(setOp, "set operator [or] is only supported at the top-level at this time [{}]", setOp.sourceText()));
+        }
+    }
+
+    /**
+     * Collects the {@link VectorBinarySet} UNION nodes that form a contiguous chain starting at the plan root.
+     * PromQL {@code or} is left-associative, so {@code a or b or c} parses to {@code (a or b) or c}; explicit
+     * parentheses can also produce right-nested chains. All such union nodes are flattened into a single
+     * {@code UnionAll} during translation, so the verifier treats them all as top-level.
+     */
+    private static Set<VectorBinarySet> collectTopLevelUnionChain(LogicalPlan p) {
+        Set<VectorBinarySet> chain = new HashSet<>();
+        collectTopLevelUnionChain(p, chain);
+        return chain;
+    }
+
+    private static void collectTopLevelUnionChain(LogicalPlan p, Set<VectorBinarySet> chain) {
+        if (p instanceof VectorBinarySet setOp && setOp.op() == VectorBinarySet.SetOp.UNION) {
+            chain.add(setOp);
+            collectTopLevelUnionChain(setOp.left(), chain);
+            collectTopLevelUnionChain(setOp.right(), chain);
+        }
+    }
+
     private static boolean usesWithoutGrouping(LogicalPlan plan) {
         return plan.anyMatch(p -> p instanceof AcrossSeriesAggregate agg && agg.grouping() == AcrossSeriesAggregate.Grouping.WITHOUT);
     }
 
     /**
-     * Validates that the metric field type is compatible with the function's counter support.
-     * Only checks when the function's direct child is a RangeSelector, because InstantSelectors
-     * are implicitly wrapped in LastOverTime during translation, which converts counter types
-     * to their numeric base types. RangeSelectors pass the raw field type through to the function.
+     * Returns the source-side timestamp lookback window.
+     * Explicit and implicit range selectors contribute their requested window.
+     * Instant queries extend that window to at least the Prometheus lookback delta.
      */
-    private static void validateCounterSupport(PromqlFunctionCall functionCall, Failures failures) {
-        if (functionCall.child() instanceof RangeSelector s && s.series() instanceof FieldAttribute seriesField) {
-            DataType seriesType = seriesField.dataType();
-            if (DataType.isNull(seriesType)) {
-                return;
-            }
-            var counterSupport = functionCall.definition().counterSupport();
-            if (DataType.isCounter(seriesType) && counterSupport == PromqlFunctionDefinition.CounterSupport.UNSUPPORTED) {
-                failures.add(
-                    fail(
-                        functionCall,
-                        "function [{}] does not support counter metric [{}] of type [{}];"
-                            + " use rate() or increase() to convert counters first [{}]",
-                        functionCall.functionName(),
-                        seriesField.name(),
-                        seriesType.typeName(),
-                        functionCall.sourceText()
-                    )
-                );
-            } else if (DataType.isCounter(seriesType) == false && counterSupport == PromqlFunctionDefinition.CounterSupport.REQUIRED) {
-                failures.add(
-                    fail(
-                        functionCall,
-                        "function [{}] requires a counter metric, but [{}] has type [{}] [{}]",
-                        functionCall.functionName(),
-                        seriesField.name(),
-                        seriesType.typeName(),
-                        functionCall.sourceText()
-                    )
-                );
-            }
+    public Duration sourceFilterWindow() {
+        Duration window = maxRangeSelectorWindow();
+        if (isInstantQuery() && DEFAULT_LOOKBACK.compareTo(window) > 0) {
+            window = DEFAULT_LOOKBACK;
         }
+        return window;
     }
 
     /**
-     * Returns the maximum explicit range-selector window across all function calls in the PromQL plan.
-     * Implicit placeholders are resolved to {@code max(step, scrape_interval)}.
-     * Returns {@link Duration#ZERO} when there are no range selectors.
+     * Returns the TSTEP bucket step for instant queries: the max range-selector window,
+     * falling back to {@link #DEFAULT_LOOKBACK} only when no range selectors are present.
+     * Unlike {@link #sourceFilterWindow()}, this does not floor explicit windows up to
+     * DEFAULT_LOOKBACK.
      */
-    public Duration maxRangeSelectorWindow() {
+    public Duration resolveInstantQueryWindow() {
+        Duration window = maxRangeSelectorWindow();
+        return window.isZero() ? DEFAULT_LOOKBACK : window;
+    }
+
+    /**
+     * Resolves the implicit range placeholder to a concrete duration based on step and scrape interval.
+     * The implicit window is calculated as {@code max(step, scrape_interval)}.
+     */
+    public Literal resolveImplicitRangeWindow() {
+        Duration step = foldDuration(resolveTimeBucketSize(), STEP);
+        Duration scrapeInterval = foldDuration(scrapeInterval(), SCRAPE_INTERVAL);
+        return Literal.timeDuration(source(), step.compareTo(scrapeInterval) >= 0 ? step : scrapeInterval);
+    }
+
+    public Expression resolveTimeBucketSize() {
+        if (isRangeQuery()) {
+            return Literal.timeDuration(source(), PromqlLogicalPlanBuilder.foldStep(timestamp(), start(), end(), step(), buckets()));
+        }
+        return Literal.timeDuration(source(), DEFAULT_LOOKBACK);
+    }
+
+    private Duration maxRangeSelectorWindow() {
         Duration window = Duration.ZERO;
         for (var selector : promqlPlan().collect(RangeSelector.class)) {
             var r = selector.range();
@@ -598,39 +639,4 @@ public class PromqlCommand extends UnaryPlan
         }
         throw new QlIllegalArgumentException("Expected [{}] to be a duration literal, got [{}]", paramName, expression);
     }
-
-    /**
-     * Resolves the implicit range placeholder to a concrete duration based on step and scrape interval.
-     * The implicit window is calculated as {@code max(step, scrape_interval)}.
-     */
-    public Literal resolveImplicitRangeWindow() {
-        Duration step = foldDuration(resolveTimeBucketSize(), STEP);
-        Duration scrapeInterval = foldDuration(scrapeInterval(), SCRAPE_INTERVAL);
-        return Literal.timeDuration(source(), step.compareTo(scrapeInterval) >= 0 ? step : scrapeInterval);
-    }
-
-    public Expression resolveTimeBucketSize() {
-        if (isRangeQuery()) {
-            if (step().value() != null) {
-                return step();
-            }
-            Bucket autoBucket = new Bucket(
-                buckets().source(),
-                timestamp(),
-                buckets(),
-                start(),
-                end(),
-                ConfigurationAware.CONFIGURATION_MARKER
-            );
-            long rangeStart = ((Number) start().value()).longValue();
-            long rangeEnd = ((Number) end().value()).longValue();
-            var rounding = autoBucket.getDateRounding(FoldContext.small(), rangeStart, rangeEnd);
-            long roundedStart = rounding.round(rangeStart);
-            long nextRoundedValue = rounding.nextRoundingValue(roundedStart);
-            return Literal.timeDuration(source(), Duration.ofMillis(Math.max(1L, nextRoundedValue - roundedStart)));
-        }
-        // use default lookback for instant queries
-        return Literal.timeDuration(source(), DEFAULT_LOOKBACK);
-    }
-
 }

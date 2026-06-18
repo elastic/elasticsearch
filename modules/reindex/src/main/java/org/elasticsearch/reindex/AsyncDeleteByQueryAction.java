@@ -16,8 +16,8 @@ import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.reindex.BulkByPaginatedSearchResponse;
 import org.elasticsearch.index.reindex.BulkByPaginatedSearchTask;
-import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -34,8 +34,8 @@ public class AsyncDeleteByQueryAction extends AbstractAsyncBulkByPaginatedSearch
         ThreadPool threadPool,
         DeleteByQueryRequest request,
         ScriptService scriptService,
-        ActionListener<BulkByScrollResponse> listener,
-        @Nullable BulkByScrollSearchContextMetrics bulkByScrollSearchContextMetrics,
+        ActionListener<BulkByPaginatedSearchResponse> listener,
+        @Nullable BulkByPaginatedSearchSearchContextMetrics bulkByPaginatedSearchSearchContextMetrics,
         TimeValue maxTaskShutdownGracePeriod,
         ReindexSettings reindexSettings,
         CircuitBreaker requestBreaker
@@ -52,8 +52,8 @@ public class AsyncDeleteByQueryAction extends AbstractAsyncBulkByPaginatedSearch
             listener,
             scriptService,
             null,
-            bulkByScrollSearchContextMetrics,
-            BulkByScrollSearchContextMetrics.TaskKind.DELETE_BY_QUERY,
+            bulkByPaginatedSearchSearchContextMetrics,
+            BulkByPaginatedSearchSearchContextMetrics.TaskKind.DELETE_BY_QUERY,
             false,
             maxTaskShutdownGracePeriod,
             reindexSettings,

@@ -41,8 +41,8 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.reindex.AbstractBulkByPaginatedSearchRequest;
+import org.elasticsearch.index.reindex.BulkByPaginatedSearchResponse;
 import org.elasticsearch.index.reindex.BulkByPaginatedSearchTask;
-import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.PaginatedSearchFailure;
 import org.elasticsearch.index.reindex.ResumeInfo;
 import org.elasticsearch.index.reindex.ResumeInfo.WorkerResumeInfo;
@@ -114,7 +114,7 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
 
     private final ParentTaskAssigningClient searchClient;
     private final ParentTaskAssigningClient bulkClient;
-    private final ActionListener<BulkByScrollResponse> listener;
+    private final ActionListener<BulkByPaginatedSearchResponse> listener;
     private final Retry bulkRetry;
     private final PaginatedHitSource paginatedHitSource;
 
@@ -159,8 +159,8 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
     protected final SearchContextKeepaliveDeadline searchContextKeepaliveDeadline;
 
     @Nullable
-    private final BulkByScrollSearchContextMetrics bulkByScrollSearchContextMetrics;
-    private final BulkByScrollSearchContextMetrics.TaskKind bulkByScrollTaskKind;
+    private final BulkByPaginatedSearchSearchContextMetrics bulkByPaginatedSearchSearchContextMetrics;
+    private final BulkByPaginatedSearchSearchContextMetrics.TaskKind bulkByPaginatedSearchTaskKind;
     private final boolean remoteBulkByScrollSearch;
 
     /**
@@ -185,11 +185,11 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
         ParentTaskAssigningClient client,
         ThreadPool threadPool,
         Request mainRequest,
-        ActionListener<BulkByScrollResponse> listener,
+        ActionListener<BulkByPaginatedSearchResponse> listener,
         @Nullable ScriptService scriptService,
         @Nullable ReindexSslConfig sslConfig,
-        @Nullable BulkByScrollSearchContextMetrics bulkByScrollSearchContextMetrics,
-        BulkByScrollSearchContextMetrics.TaskKind bulkByScrollTaskKind,
+        @Nullable BulkByPaginatedSearchSearchContextMetrics bulkByPaginatedSearchSearchContextMetrics,
+        BulkByPaginatedSearchSearchContextMetrics.TaskKind bulkByPaginatedSearchTaskKind,
         boolean remoteBulkByScrollSearch,
         TimeValue maxTaskShutdownGracePeriod,
         ReindexSettings reindexSettings,
@@ -210,8 +210,8 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
             scriptService,
             sslConfig,
             null,
-            bulkByScrollSearchContextMetrics,
-            bulkByScrollTaskKind,
+            bulkByPaginatedSearchSearchContextMetrics,
+            bulkByPaginatedSearchTaskKind,
             remoteBulkByScrollSearch,
             maxTaskShutdownGracePeriod,
             reindexSettings,
@@ -230,12 +230,12 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
         ParentTaskAssigningClient bulkClient,
         ThreadPool threadPool,
         Request mainRequest,
-        ActionListener<BulkByScrollResponse> listener,
+        ActionListener<BulkByPaginatedSearchResponse> listener,
         @Nullable ScriptService scriptService,
         @Nullable ReindexSslConfig sslConfig,
         @Nullable Version remoteVersion,
-        @Nullable BulkByScrollSearchContextMetrics bulkByScrollSearchContextMetrics,
-        BulkByScrollSearchContextMetrics.TaskKind bulkByScrollTaskKind,
+        @Nullable BulkByPaginatedSearchSearchContextMetrics bulkByPaginatedSearchSearchContextMetrics,
+        BulkByPaginatedSearchSearchContextMetrics.TaskKind bulkByPaginatedSearchTaskKind,
         boolean remoteBulkByScrollSearch,
         TimeValue maxTaskShutdownGracePeriod,
         ReindexSettings reindexSettings,
@@ -256,8 +256,8 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
         this.threadPool = threadPool;
         this.mainRequest = mainRequest;
         this.searchContextKeepaliveDeadline = new SearchContextKeepaliveDeadline(threadPool::absoluteTimeInMillis);
-        this.bulkByScrollSearchContextMetrics = bulkByScrollSearchContextMetrics;
-        this.bulkByScrollTaskKind = bulkByScrollTaskKind;
+        this.bulkByPaginatedSearchSearchContextMetrics = bulkByPaginatedSearchSearchContextMetrics;
+        this.bulkByPaginatedSearchTaskKind = bulkByPaginatedSearchTaskKind;
         this.remoteBulkByScrollSearch = remoteBulkByScrollSearch;
         this.relocationCooldownNanos = computeRelocationCooldownNanos(maxTaskShutdownGracePeriod);
         this.listener = listener;
@@ -473,14 +473,14 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
     /**
      * Build the response for reindex actions.
      */
-    protected BulkByScrollResponse buildResponse(
+    protected BulkByPaginatedSearchResponse buildResponse(
         TimeValue took,
         List<BulkItemResponse.Failure> indexingFailures,
         List<PaginatedSearchFailure> searchFailures,
         boolean timedOut
     ) {
         BytesReference pitId = paginatedHitSource instanceof PitPaginatedHitSource pit ? pit.getPitId() : null;
-        return new BulkByScrollResponse(took, task.getStatus(), indexingFailures, searchFailures, timedOut, null, pitId);
+        return new BulkByPaginatedSearchResponse(took, task.getStatus(), indexingFailures, searchFailures, timedOut, null, pitId);
     }
 
     /**
@@ -516,6 +516,7 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
     }
 
     void onScrollResponse(ScrollConsumableHitsResponse asyncResponse) {
+        // TODO - https://github.com/elastic/elasticsearch/issues/150875
         // lastBatchStartTime is essentially unused (see WorkerBulkByPaginatedSearchTaskState.throttleWaitTime).
         // Leaving it for now, since it seems like a bug?
         onScrollResponse(System.nanoTime(), this.lastBatchSize, asyncResponse);
@@ -811,7 +812,7 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
                     // its own combined status from it to serialize to .tasks index.
                     // For non-sliced, status is unused (comes from the worker state).
                     BytesReference pitId = paginatedHitSource instanceof PitPaginatedHitSource pit ? pit.getPitId() : null;
-                    final BulkByScrollResponse response = new BulkByScrollResponse(
+                    final BulkByPaginatedSearchResponse response = new BulkByPaginatedSearchResponse(
                         TimeValue.MINUS_ONE,
                         task.getStatus(),
                         List.of(),
@@ -938,16 +939,16 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
         boolean timedOut
     ) {
         logger.debug("[{}]: finishing without any catastrophic failures", task.getId());
-        if (bulkByScrollSearchContextMetrics != null
+        if (bulkByPaginatedSearchSearchContextMetrics != null
             && searchContextKeepaliveDeadline.shouldRecordKeepaliveExpiry(failure, searchFailures)) {
-            bulkByScrollSearchContextMetrics.recordKeepaliveExpiry(bulkByScrollTaskKind, remoteBulkByScrollSearch);
+            bulkByPaginatedSearchSearchContextMetrics.recordKeepaliveExpiry(bulkByPaginatedSearchTaskKind, remoteBulkByScrollSearch);
             logger.warn(
                 "[{}]: bulk-by-scroll [{}] ({}) likely failed because the {} keep-alive expired",
                 task.getId(),
-                bulkByScrollTaskKind.attributeValue(),
+                bulkByPaginatedSearchTaskKind.attributeValue(),
                 remoteBulkByScrollSearch
-                    ? BulkByScrollSearchContextMetrics.ATTRIBUTE_VALUE_SEARCH_SOURCE_REMOTE
-                    : BulkByScrollSearchContextMetrics.ATTRIBUTE_VALUE_SEARCH_SOURCE_LOCAL,
+                    ? BulkByPaginatedSearchSearchContextMetrics.ATTRIBUTE_VALUE_SEARCH_SOURCE_REMOTE
+                    : BulkByPaginatedSearchSearchContextMetrics.ATTRIBUTE_VALUE_SEARCH_SOURCE_LOCAL,
                 paginatedHitSource instanceof PitPaginatedHitSource ? "point-in-time" : "scroll"
             );
         }
@@ -969,7 +970,7 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
         }
         paginatedHitSource.close(threadPool.getThreadContext().preserveContext(() -> {
             if (resolvedFailure == null) {
-                BulkByScrollResponse response = buildResponse(
+                BulkByPaginatedSearchResponse response = buildResponse(
                     timeValueMillis(System.currentTimeMillis() - startTimeEpochMillis.get()),
                     indexingFailures,
                     resolvedSearchFailures,

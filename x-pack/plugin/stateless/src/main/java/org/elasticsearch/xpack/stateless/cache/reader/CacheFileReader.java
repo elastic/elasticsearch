@@ -55,7 +55,7 @@ public class CacheFileReader {
     );
     private static final Map<String, Object> PEER_POPULATION_SOURCE_ATTRIBUTES = Map.of(
         CACHE_POPULATION_SOURCE_ATTRIBUTE_KEY,
-        CachePopulationSource.BlobStore.name()
+        CachePopulationSource.Peer.name()
     );
 
     private final StatelessSharedBlobCacheService.CacheFile cacheFile;
@@ -63,36 +63,26 @@ public class CacheFileReader {
     private final BlobFileRanges blobFileRanges;
     private final BlobCacheMetrics blobCacheMetrics;
     private final LongSupplier relativeTimeInMillisSupplier;
-    private final boolean hasSearchRole;
 
     public CacheFileReader(
         StatelessSharedBlobCacheService.CacheFile cacheFile,
         CacheBlobReader cacheBlobReader,
         BlobFileRanges blobFileRanges,
         BlobCacheMetrics blobCacheMetrics,
-        LongSupplier relativeTimeInMillisSupplier,
-        boolean hasSearchRole
+        LongSupplier relativeTimeInMillisSupplier
     ) {
         this.cacheFile = Objects.requireNonNull(cacheFile);
         this.cacheBlobReader = Objects.requireNonNull(cacheBlobReader);
         this.blobFileRanges = Objects.requireNonNull(blobFileRanges);
         this.blobCacheMetrics = blobCacheMetrics;
         this.relativeTimeInMillisSupplier = relativeTimeInMillisSupplier;
-        this.hasSearchRole = hasSearchRole;
     }
 
     /**
      * @return a new instance that is a copy of the current instance
      */
     public CacheFileReader copy() {
-        return new CacheFileReader(
-            cacheFile.copy(),
-            cacheBlobReader,
-            blobFileRanges,
-            blobCacheMetrics,
-            relativeTimeInMillisSupplier,
-            hasSearchRole
-        );
+        return new CacheFileReader(cacheFile.copy(), cacheBlobReader, blobFileRanges, blobCacheMetrics, relativeTimeInMillisSupplier);
     }
 
     /**
@@ -124,37 +114,33 @@ public class CacheFileReader {
             blobCacheMetrics.recordPrefetch(PrefetchResult.AlreadyCached);
             return true;
         }
-        if (hasSearchRole) {
-            final int intLength = clampedLength < Integer.MAX_VALUE ? Math.toIntExact(clampedLength) : Integer.MAX_VALUE;
-            // same ranges cannot be passed to populate, as write range may extend beyond actually file length,
-            // however read range must stay within file length
-            final ByteRange rangeToWrite = cacheBlobReader.getRange(offset, intLength, remainingFileLength);
-            final ByteRange rangeToRead = ByteRange.of(offset, offset + clampedLength);
-            cacheFile.populate(rangeToWrite, rangeToRead, (channel, channelPos, relativePos, len) -> {
-                channel.prefetch(channelPos, len);
-                return len;
-            },
-                new SequentialRangeMissingHandler(
-                    "lucene-prefetch",
-                    cacheFile.getCacheKey().fileName(),
-                    rangeToWrite,
-                    cacheBlobReader,
-                    () -> writeBuffer.get().clear(),
-                    bytesCopied -> {},
-                    // IndexingShardCacheBlobReader.getRangeInputStream forbids running on SHARD_READ_THREAD_POOL because
-                    // it issues a transport call and completes the listener on a different pool.
-                    cacheBlobReader.executorName(),
-                    StatelessPlugin.FILL_VIRTUAL_BATCHED_COMPOUND_COMMIT_CACHE_THREAD_POOL
-                ),
-                "lucene-prefetch:" + cacheFile.getCacheKey().fileName(),
-                ActionListener.wrap(v -> {
-                    blobCacheMetrics.recordPrefetch(PrefetchResult.Fetched);
-                }, e -> {
-                    blobCacheMetrics.recordPrefetch(PrefetchResult.Failed);
-                    logger.debug(() -> "async prefetch failed for [" + cacheFile.getCacheKey() + "]", e);
-                })
-            );
-        }
+        final int intLength = clampedLength < Integer.MAX_VALUE ? Math.toIntExact(clampedLength) : Integer.MAX_VALUE;
+        // same ranges cannot be passed to populate, as write range may extend beyond actually file length,
+        // however read range must stay within file length
+        final ByteRange rangeToWrite = cacheBlobReader.getRange(offset, intLength, remainingFileLength);
+        final ByteRange rangeToRead = ByteRange.of(offset, offset + clampedLength);
+        cacheFile.populate(rangeToWrite, rangeToRead, (channel, channelPos, relativePos, len) -> {
+            channel.prefetch(channelPos, len);
+            return len;
+        },
+            new SequentialRangeMissingHandler(
+                "lucene-prefetch",
+                cacheFile.getCacheKey().fileName(),
+                rangeToWrite,
+                cacheBlobReader,
+                () -> writeBuffer.get().clear(),
+                bytesCopied -> {},
+                StatelessPlugin.SHARD_READ_THREAD_POOL,
+                StatelessPlugin.FILL_VIRTUAL_BATCHED_COMPOUND_COMMIT_CACHE_THREAD_POOL
+            ),
+            "lucene-prefetch:" + cacheFile.getCacheKey().fileName(),
+            ActionListener.wrap(v -> {
+                blobCacheMetrics.recordPrefetch(PrefetchResult.Fetched);
+            }, e -> {
+                blobCacheMetrics.recordPrefetch(PrefetchResult.Failed);
+                logger.debug(() -> "async prefetch failed for [" + cacheFile.getCacheKey() + "]", e);
+            })
+        );
         return false;
     }
 

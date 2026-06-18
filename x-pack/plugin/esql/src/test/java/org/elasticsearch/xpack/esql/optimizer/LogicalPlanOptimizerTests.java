@@ -56,6 +56,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.DeltaOnlyHistogramMergeOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.DimensionValues;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.HistogramMerge;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.HistogramMergeOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.LastOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Max;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
@@ -1442,6 +1443,82 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         as(filter.child(), Limit.class);
     }
 
+    public void testDoNotPruneConstantSortKeysInsideForkBranch() {
+        // Within a Fork branch, _fork = "fork1" is constant for all rows in that branch,
+        // but the rule must not prune it from pushed-down inner TopNs: those sort keys are
+        // required so that the outer coordinator TopN can correctly merge across branches.
+        LogicalPlan plan = optimizedPlan("""
+            from test
+            | fork (where emp_no > 100)
+                   (where emp_no < 10)
+            | sort _fork, emp_no
+            | limit 10
+            """);
+        var topN = as(plan, TopN.class);
+        assertThat(orderNames(topN), contains("_fork", "emp_no"));
+
+        var fork = as(topN.child(), Fork.class);
+        for (LogicalPlan branch : fork.children()) {
+            var project = as(branch, Project.class);
+            var innerTopN = as(project.child(), TopN.class);
+            assertThat(orderNames(innerTopN), contains("_fork", "emp_no"));
+        }
+    }
+
+    public void testDoNotPruneGroupByKeyAfterAggregate() {
+        // color is a foldable literal in the ROW below, but STATS BY re-uses the same attribute
+        // ID for its grouping output. Without the Aggregate boundary stop, the rule would see
+        // color as foldable and prune it from SORT color — producing wrong order. With the stop
+        // the foldables map contains nothing from below the Aggregate, so color is kept.
+        LogicalPlan plan = optimizedPlan("""
+            row price = 10, color = "blue"
+            | stats s = sum(price) by color
+            | sort color asc
+            | limit 5
+            """);
+        var topN = as(plan, TopN.class);
+        assertThat(orderNames(topN), contains("color"));
+    }
+
+    public void testPruneConstantSortKeysFromBothNestedTopNs() {
+        // Two stacked constant sorts (x, y = null) — each is simplified independently.
+        LogicalPlan plan = optimizedPlan("""
+            from test
+            | eval x = null
+            | sort x, emp_no
+            | limit 100
+            | eval y = null
+            | sort y, salary
+            | limit 10
+            """);
+        var outerTopN = as(plan, TopN.class);
+        assertThat(orderNames(outerTopN), contains("salary"));
+        assertThat(outerTopN.limit().fold(FoldContext.small()), equalTo(10));
+
+        var innerTopN = as(as(outerTopN.child(), Eval.class).child(), TopN.class);
+        assertThat(orderNames(innerTopN), contains("emp_no"));
+        assertThat(innerTopN.limit().fold(FoldContext.small()), equalTo(100));
+    }
+
+    public void testPruneConstantSortKeyFromTopNBy() {
+        // Pruning the raw OrderBy (before TopNBy forms) covers LIMIT n BY too — the old TopN rule didn't.
+        LogicalPlan plan = optimizedPlan("""
+            from test
+            | eval x = null
+            | sort x
+            | limit 10 by emp_no
+            """);
+        assertThat(plan.anyMatch(p -> p instanceof TopNBy), equalTo(false));
+        assertThat(plan.anyMatch(p -> p instanceof OrderBy), equalTo(false));
+
+        Holder<LimitBy> found = new Holder<>();
+        plan.forEachDown(LimitBy.class, found::set);
+        LimitBy limitBy = found.get();
+        assertThat(limitBy, not(equalTo(null)));
+        assertThat(limitBy.limitPerGroup().fold(FoldContext.small()), equalTo(10));
+        assertThat(Expressions.names(limitBy.groupings()), contains("emp_no"));
+    }
+
     public void testPruneSortBeforeStats() {
         LogicalPlan plan = optimizedPlan("""
             from test
@@ -2167,11 +2244,9 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var limit10kBefore = asLimit(plan, 10000, true);
         var mvExpand = as(limit10kBefore.child(), MvExpand.class);
         var project = as(mvExpand.child(), Project.class);
-        var topN = as(project.child(), TopN.class);
-        assertThat(topN.limit().fold(FoldContext.small()), equalTo(7300));
-        assertThat(orderNames(topN), contains("a"));
-        var limit7300Before = asLimit(topN.child(), 7300, true);
-        mvExpand = as(limit7300Before.child(), MvExpand.class);
+        // a=null is a constant sort, so it is dropped and no TopN forms.
+        var limit7300 = asLimit(project.child(), 7300, true);
+        mvExpand = as(limit7300.child(), MvExpand.class);
         var limit = asLimit(mvExpand.child(), 7300, false);
         as(limit.child(), LocalRelation.class);
     }
@@ -2183,14 +2258,13 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * Project[[c{r}#7 AS language_code#14, a{r}#3, language_name{f}#19]]
      * \_Limit[10000[INTEGER],true]
      *   \_Join[LEFT,[c{r}#7],[c{r}#7],[language_code{f}#18]]
-     *     |_TopN[[Order[a{r}#3,ASC,FIRST]],7300[INTEGER]]
-     *     | \_Limit[7300[INTEGER],true]
-     *     |   \_Join[LEFT,[language_code{r}#5],[language_code{r}#5],[language_code{f}#16]]
-     *     |     |_Limit[7300[INTEGER],false]
-     *     |     | \_LocalRelation[[a{r}#3, language_code{r}#5, c{r}#7],[ConstantNullBlock[positions=1],
-     *                                                                   IntVectorBlock[vector=ConstantIntVector[positions=1, value=123]],
-     *                                                                   IntVectorBlock[vector=ConstantIntVector[positions=1, value=234]]]]
-     *     |     \_EsRelation[languages_lookup][LOOKUP][language_code{f}#16]
+     *     |_Limit[7300[INTEGER],true]
+     *     | \_Join[LEFT,[language_code{r}#5],[language_code{r}#5],[language_code{f}#16]]
+     *     |   |_Limit[7300[INTEGER],false]
+     *     |   | \_LocalRelation[[a{r}#3, language_code{r}#5, c{r}#7],[ConstantNullBlock[positions=1],
+     *                                                                 IntVectorBlock[vector=ConstantIntVector[positions=1, value=123]],
+     *                                                                 IntVectorBlock[vector=ConstantIntVector[positions=1, value=234]]]]
+     *     |   \_EsRelation[languages_lookup][LOOKUP][language_code{f}#16]
      *     \_EsRelation[languages_lookup][LOOKUP][language_code{f}#18, language_name{f}#19]
      * }
      */
@@ -2208,17 +2282,12 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var project = as(plan, Project.class);
         var limit10kBefore = asLimit(project.child(), 10000, true);
         var join = as(limit10kBefore.child(), Join.class);
-        var topN = as(join.left(), TopN.class);
-        assertThat(topN.limit().fold(FoldContext.small()), equalTo(7300));
-        assertThat(orderNames(topN), contains("a"));
-        var limit7300Before = asLimit(topN.child(), 7300, true);
-        join = as(limit7300Before.child(), Join.class);
+        // a=null is a constant sort, so it is dropped and no TopN forms.
+        var limit7300 = asLimit(join.left(), 7300, true);
+        join = as(limit7300.child(), Join.class);
         var limit = asLimit(join.left(), 7300, false);
         as(limit.child(), LocalRelation.class);
-        assertWarnings(
-            "Line 5:3: SORT is followed by a LOOKUP JOIN which does not preserve order; "
-                + "add another SORT after the LOOKUP JOIN if order is required"
-        );
+        // the sort was on a=null (constant), so it is removed entirely; no "SORT before LOOKUP JOIN" warning
     }
 
     /**
@@ -2362,8 +2431,9 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
         var limit = asLimit(plan, 1000, true);
         var expand = as(limit.child(), MvExpand.class);
-        var topN = as(expand.child(), TopN.class);
-        var row = as(topN.child(), LocalRelation.class);
+        // sort on a constant (a=1) is a no-op; TopN replaced by Limit
+        var limit2 = asLimit(expand.child(), 1000, false);
+        var row = as(limit2.child(), LocalRelation.class);
     }
 
     /**
@@ -2371,7 +2441,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * {@snippet lang="text":
      * Limit[1000[INTEGER],true]
      * \_Join[LEFT,[language_code{r}#3],[language_code{r}#3],[language_code{f}#6]]
-     *   |_TopN[[Order[language_code{r}#3,ASC,LAST]],1000[INTEGER]]
+     *   |_Limit[1000[INTEGER],false]
      *   | \_LocalRelation[[language_code{r}#3],[IntVectorBlock[vector=ConstantIntVector[positions=1, value=1]]]]
      *   \_EsRelation[languages_lookup][LOOKUP][language_code{f}#6, language_name{f}#7]
      * }
@@ -2385,13 +2455,11 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
         var limit = asLimit(plan, 1000, true);
         var join = as(limit.child(), Join.class);
-        var topN = as(join.left(), TopN.class);
-        var row = as(topN.child(), LocalRelation.class);
-        assertWarnings(
-            "No limit defined, adding default limit of [1000]",
-            "Line 2:3: SORT is followed by a LOOKUP JOIN which does not preserve order; "
-                + "add another SORT after the LOOKUP JOIN if order is required"
-        );
+        // sort on a constant (language_code=1) is a no-op; TopN replaced by Limit
+        var limit2 = asLimit(join.left(), 1000, false);
+        var row = as(limit2.child(), LocalRelation.class);
+        // the sort was on language_code=1 (constant), so it is removed; no "SORT before LOOKUP JOIN" warning
+        assertWarnings("No limit defined, adding default limit of [1000]");
     }
 
     /**
@@ -2530,15 +2598,15 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     /**
      * Expects
      * {@snippet lang="text":
-     * TopN[[Order[language_code{r}#3,ASC,LAST]],1[INTEGER]]
-     * \_Limit[1[INTEGER],true]
-     *   \_Join[LEFT,[language_code{r}#3],[language_code{r}#3],[language_code{f}#6]]
-     *     |_Limit[1[INTEGER],false]
-     *     | \_LocalRelation[[language_code{r}#3],[IntVectorBlock[vector=ConstantIntVector[positions=1, value=1]]]]
-     *     \_EsRelation[languages_lookup][LOOKUP][language_code{f}#6, language_name{f}#7]
+     * Limit[1[INTEGER],true]
+     * \_Join[LEFT,[language_code{r}#3],[language_code{r}#3],[language_code{f}#6]]
+     *   |_Limit[1[INTEGER],false]
+     *   | \_LocalRelation[[language_code{r}#3],[IntVectorBlock[vector=ConstantIntVector[positions=1, value=1]]]]
+     *   \_EsRelation[languages_lookup][LOOKUP][language_code{f}#6, language_name{f}#7]
      * }
      *
-     * Notice that the `TopN` at the very top has limit 1, not 3!
+     * Notice that the top `Limit` has limit 1, not 3: the constant SORT is dropped before it becomes a TopN,
+     * and the outer LIMIT 3 then combines with the inner LIMIT 1 down to 1.
      */
     public void testDescendantLimitLookupJoin() {
         LogicalPlan plan = optimizedPlan("""
@@ -2549,11 +2617,11 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             | LIMIT 3
             """);
 
-        var topn = as(plan, TopN.class);
-        var limitAfter = asLimit(topn.child(), 1, true);
-        var join = as(limitAfter.child(), Join.class);
-        var limitBefore = asLimit(join.left(), 1, false);
-        var localRelation = as(limitBefore.child(), LocalRelation.class);
+        // language_code=1 is a constant sort → dropped; LIMIT 3 then combines with the inner LIMIT 1 → 1.
+        var limitOuter = asLimit(plan, 1, true);
+        var join = as(limitOuter.child(), Join.class);
+        var limitInner = asLimit(join.left(), 1, false);
+        var localRelation = as(limitInner.child(), LocalRelation.class);
     }
 
     /**
@@ -7565,7 +7633,8 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         assertNotNull(aggsByTsid.timeBucket());
         assertThat(aggsByTsid.timeBucket().buckets().fold(FoldContext.small()), equalTo(Duration.ofHours(1)));
         Eval evalBucket = as(aggsByTsid.child(), Eval.class);
-        assertThat(evalBucket.fields(), hasSize(1));
+        // bucket alias + ToDouble(network.bytes_in) extracted from Sum's nested expression
+        assertThat(evalBucket.fields(), hasSize(2));
         EsRelation relation = as(evalBucket.child(), EsRelation.class);
         assertThat(relation.indexMode(), equalTo(IndexMode.STANDARD));
 
@@ -7576,7 +7645,11 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
         Sum sumTs = as(Alias.unwrap(aggsByTsid.aggregates().get(0)), Sum.class);
         assertThat(sumTs.summationMode(), equalTo(SummationMode.LOSSY_LITERAL));
-        assertThat(Expressions.attribute(sumTs.field()).name(), equalTo("network.bytes_in"));
+        // Avg(long) surrogate casts to double; the cast is extracted into the eval below the time-series agg.
+        Alias toDoubleAlias = as(evalBucket.fields().get(1), Alias.class);
+        ToDouble toDouble = as(toDoubleAlias.child(), ToDouble.class);
+        assertThat(Expressions.attribute(toDouble.field()).name(), equalTo("network.bytes_in"));
+        assertThat(Expressions.attribute(sumTs.field()).id(), equalTo(toDoubleAlias.id()));
         Count countTs = as(Alias.unwrap(aggsByTsid.aggregates().get(1)), Count.class);
         assertThat(Expressions.attribute(countTs.field()).name(), equalTo("network.bytes_in"));
         assertThat(Expressions.attribute(aggsByTsid.groupings().get(1)).id(), equalTo(evalBucket.fields().get(0).id()));
@@ -7595,7 +7668,11 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var limit = as(eval.child(), Limit.class);
         Aggregate finalAgg = as(limit.child(), Aggregate.class);
         assertThat(finalAgg, not(instanceOf(TimeSeriesAggregate.class)));
-        TimeSeriesAggregate aggsByTsid = as(finalAgg.child(), TimeSeriesAggregate.class);
+        // Avg(long) surrogate wraps Sum's input in ToDouble; the cast is extracted into an Eval above the TimeSeriesAggregate.
+        Eval evalToDouble = as(finalAgg.child(), Eval.class);
+        assertThat(evalToDouble.fields(), hasSize(1));
+        as(Alias.unwrap(evalToDouble.fields().get(0)), ToDouble.class);
+        TimeSeriesAggregate aggsByTsid = as(evalToDouble.child(), TimeSeriesAggregate.class);
         assertNotNull(aggsByTsid.timeBucket());
         assertThat(aggsByTsid.timeBucket().buckets().fold(FoldContext.small()), equalTo(Duration.ofMinutes(1)));
         Eval evalBucket = as(aggsByTsid.child(), Eval.class);
@@ -7697,7 +7774,11 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var limit = as(eval.child(), Limit.class);
         Aggregate finalAgg = as(limit.child(), Aggregate.class);
         assertThat(finalAgg, not(instanceOf(TimeSeriesAggregate.class)));
-        TimeSeriesAggregate aggsByTsid = as(finalAgg.child(), TimeSeriesAggregate.class);
+        // Avg(long) surrogate wraps Sum's input in ToDouble; the cast is extracted into an Eval above the TimeSeriesAggregate.
+        Eval evalToDouble = as(finalAgg.child(), Eval.class);
+        assertThat(evalToDouble.fields(), hasSize(1));
+        as(Alias.unwrap(evalToDouble.fields().get(0)), ToDouble.class);
+        TimeSeriesAggregate aggsByTsid = as(evalToDouble.child(), TimeSeriesAggregate.class);
         assertNotNull(aggsByTsid.timeBucket());
         assertThat(aggsByTsid.timeBucket().buckets().fold(FoldContext.small()), equalTo(Duration.ofMinutes(1)));
         Eval evalBucket = as(aggsByTsid.child(), Eval.class);
@@ -7734,14 +7815,14 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         Eval evalBucket = as(aggsByTsid.child(), Eval.class);
         assertThat(evalBucket.fields(), hasSize(1));
         EsRelation relation = as(evalBucket.child(), EsRelation.class);
-        assertThat(relation.indexMode(), equalTo(IndexMode.STANDARD));
+        assertThat(relation.indexMode(), equalTo(IndexMode.TIME_SERIES));
 
         var crossSeriesSum = as(Alias.unwrap(finalAgg.aggregates().get(0)), Sum.class);
         assertFalse(crossSeriesSum.hasFilter());
 
         var sumExtraction = as(Alias.unwrap(sumExtractionEval.expressions().get(0)), ExtractHistogramComponent.class);
 
-        var mergePerSeries = as(Alias.unwrap(aggsByTsid.aggregates().get(0)), DeltaOnlyHistogramMergeOverTime.class);
+        var mergePerSeries = as(Alias.unwrap(aggsByTsid.aggregates().get(0)), HistogramMergeOverTime.class);
         assertFalse(mergePerSeries.hasFilter());
         assertThat(Expressions.attribute(mergePerSeries.field()).name(), equalTo("responseTime"));
 
@@ -7765,14 +7846,14 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         Eval evalBucket = as(aggsByTsid.child(), Eval.class);
         assertThat(evalBucket.fields(), hasSize(1));
         EsRelation relation = as(evalBucket.child(), EsRelation.class);
-        assertThat(relation.indexMode(), equalTo(IndexMode.STANDARD));
+        assertThat(relation.indexMode(), equalTo(IndexMode.TIME_SERIES));
 
         var crossSeriesSum = as(Alias.unwrap(finalAgg.aggregates().get(0)), Sum.class);
         assertFalse(crossSeriesSum.hasFilter());
 
         var sumExtraction = as(Alias.unwrap(sumExtractionEval.expressions().get(0)), ExtractHistogramComponent.class);
 
-        var mergePerSeries = as(Alias.unwrap(aggsByTsid.aggregates().get(0)), DeltaOnlyHistogramMergeOverTime.class);
+        var mergePerSeries = as(Alias.unwrap(aggsByTsid.aggregates().get(0)), HistogramMergeOverTime.class);
         assertTrue(mergePerSeries.hasFilter());
         assertThat(mergePerSeries.filter(), instanceOf(Equals.class));
         assertThat(Expressions.attribute(mergePerSeries.field()).name(), equalTo("responseTime"));
@@ -7798,14 +7879,14 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         Eval evalBucket = as(aggsByTsid.child(), Eval.class);
         assertThat(evalBucket.fields(), hasSize(1));
         EsRelation relation = as(evalBucket.child(), EsRelation.class);
-        assertThat(relation.indexMode(), equalTo(IndexMode.STANDARD));
+        assertThat(relation.indexMode(), equalTo(IndexMode.TIME_SERIES));
 
         var percentileExtraction = as(Alias.unwrap(percentileExtractionEval.expressions().get(0)), HistogramPercentile.class);
 
         var crossSeriesMerge = as(Alias.unwrap(finalAgg.aggregates().get(0)), HistogramMerge.class);
         assertFalse(crossSeriesMerge.hasFilter());
 
-        var mergePerSeries = as(Alias.unwrap(aggsByTsid.aggregates().get(0)), DeltaOnlyHistogramMergeOverTime.class);
+        var mergePerSeries = as(Alias.unwrap(aggsByTsid.aggregates().get(0)), HistogramMergeOverTime.class);
         assertFalse(mergePerSeries.hasFilter());
         assertThat(Expressions.attribute(mergePerSeries.field()).name(), equalTo("responseTime"));
 
@@ -7830,14 +7911,14 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         Eval evalBucket = as(aggsByTsid.child(), Eval.class);
         assertThat(evalBucket.fields(), hasSize(1));
         EsRelation relation = as(evalBucket.child(), EsRelation.class);
-        assertThat(relation.indexMode(), equalTo(IndexMode.STANDARD));
+        assertThat(relation.indexMode(), equalTo(IndexMode.TIME_SERIES));
 
         var percentileExtraction = as(Alias.unwrap(percentileExtractionEval.expressions().get(0)), HistogramPercentile.class);
 
         var crossSeriesMerge = as(Alias.unwrap(finalAgg.aggregates().get(0)), HistogramMerge.class);
         assertFalse(crossSeriesMerge.hasFilter());
 
-        var mergePerSeries = as(Alias.unwrap(aggsByTsid.aggregates().get(0)), DeltaOnlyHistogramMergeOverTime.class);
+        var mergePerSeries = as(Alias.unwrap(aggsByTsid.aggregates().get(0)), HistogramMergeOverTime.class);
         assertTrue(mergePerSeries.hasFilter());
         assertThat(mergePerSeries.filter(), instanceOf(Equals.class));
         assertThat(Expressions.attribute(mergePerSeries.field()).name(), equalTo("responseTime"));
@@ -7845,6 +7926,28 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         assertThat(Expressions.attribute(aggsByTsid.groupings().get(1)).id(), equalTo(evalBucket.fields().get(0).id()));
         Bucket bucket = as(Alias.unwrap(evalBucket.fields().get(0)), Bucket.class);
         assertThat(Expressions.attribute(bucket.field()).name(), equalTo("@timestamp"));
+    }
+
+    public void testTranslateHistogramAvgOverTime() {
+        var query = "TS exp_histo_sample | STATS sum(avg_over_time(responseTime))";
+        var plan = planMetrics(query);
+        var limit = as(plan, Limit.class);
+        Aggregate finalAgg = as(limit.child(), Aggregate.class);
+        assertThat(finalAgg, not(instanceOf(TimeSeriesAggregate.class)));
+        Eval avgExtractionEval = as(finalAgg.child(), Eval.class);
+        assertThat(avgExtractionEval.fields(), hasSize(1));
+        var div = as(Alias.unwrap(avgExtractionEval.fields().get(0)), Div.class);
+        as(div.left(), ExtractHistogramComponent.class);
+        as(div.right(), ExtractHistogramComponent.class);
+
+        TimeSeriesAggregate aggsByTsid = as(avgExtractionEval.child(), TimeSeriesAggregate.class);
+        assertNull(aggsByTsid.timeBucket());
+        as(aggsByTsid.child(), EsRelation.class);
+
+        var crossSeriesSum = as(Alias.unwrap(finalAgg.aggregates().get(0)), Sum.class);
+
+        var mergePerSeries = as(Alias.unwrap(aggsByTsid.aggregates().get(0)), HistogramMergeOverTime.class);
+        assertThat(Expressions.attribute(mergePerSeries.field()).name(), equalTo("responseTime"));
     }
 
     public void testTranslateTDigestSumWithImplicitMergeOverTime() {
@@ -7862,7 +7965,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         Eval evalBucket = as(aggsByTsid.child(), Eval.class);
         assertThat(evalBucket.fields(), hasSize(1));
         EsRelation relation = as(evalBucket.child(), EsRelation.class);
-        assertThat(relation.indexMode(), equalTo(IndexMode.STANDARD));
+        assertThat(relation.indexMode(), equalTo(IndexMode.TIME_SERIES));
 
         var crossSeriesSum = as(Alias.unwrap(finalAgg.aggregates().get(0)), Sum.class);
         assertFalse(crossSeriesSum.hasFilter());
@@ -7894,7 +7997,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         Eval evalBucket = as(aggsByTsid.child(), Eval.class);
         assertThat(evalBucket.fields(), hasSize(1));
         EsRelation relation = as(evalBucket.child(), EsRelation.class);
-        assertThat(relation.indexMode(), equalTo(IndexMode.STANDARD));
+        assertThat(relation.indexMode(), equalTo(IndexMode.TIME_SERIES));
 
         var percentileExtraction = as(Alias.unwrap(percentileExtractionEval.expressions().get(0)), HistogramPercentile.class);
 
@@ -7914,14 +8017,14 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var query = """
             TS exp_histo_sample | STATS SUM(responseTime) BY bucket(@timestamp, 1 minute) | LIMIT 10
             """;
-        // With current version, the per-series agg should remain DeltaOnlyHistogramMergeOverTime
+        // With current version, the per-series agg should remain HistogramMergeOverTime
         {
             var plan = planMetrics(query);
             var limit = as(plan, Limit.class);
             Aggregate finalAgg = as(limit.child(), Aggregate.class);
             Eval sumExtractionEval = as(finalAgg.child(), Eval.class);
             TimeSeriesAggregate aggsByTsid = as(sumExtractionEval.child(), TimeSeriesAggregate.class);
-            var mergePerSeries = as(Alias.unwrap(aggsByTsid.aggregates().get(0)), DeltaOnlyHistogramMergeOverTime.class);
+            var mergePerSeries = as(Alias.unwrap(aggsByTsid.aggregates().get(0)), HistogramMergeOverTime.class);
             assertThat(Expressions.attribute(mergePerSeries.field()).name(), equalTo("responseTime"));
         }
         // With an old version that doesn't support the new aggregator, the fix should replace it with HistogramMerge
@@ -9554,7 +9657,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             .map(a -> (TimeSeriesMetadataAttribute) a)
             .toList();
         assertThat(timeSeriesAttrs, hasSize(1));
-        assertThat(timeSeriesAttrs.get(0).withoutFields(), equalTo(Set.of("pod")));
+        assertThat(timeSeriesAttrs.get(0).excludedFields(), equalTo(Set.of("pod")));
     }
 
     public void testWithoutGroupingExcludesMultipleDimensions() {
@@ -9572,7 +9675,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             .map(a -> (TimeSeriesMetadataAttribute) a)
             .toList();
         assertThat(timeSeriesAttrs, hasSize(1));
-        assertThat(timeSeriesAttrs.get(0).withoutFields(), equalTo(Set.of("pod", "region")));
+        assertThat(timeSeriesAttrs.get(0).excludedFields(), equalTo(Set.of("pod", "region")));
     }
 
     public void testWithoutGroupingNoDuplicateWithTsAggFunction() {
@@ -9602,7 +9705,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             .map(a -> (TimeSeriesMetadataAttribute) a)
             .toList();
         assertThat(timeSeriesAttrs, hasSize(1));
-        assertThat(timeSeriesAttrs.get(0).withoutFields(), equalTo(Set.of()));
+        assertThat(timeSeriesAttrs.get(0).excludedFields(), equalTo(Set.of()));
     }
 
     public void testTimeSeriesBareFieldWithBucketAndLimitZeroDoesNotFailVerifier() {
@@ -10250,13 +10353,6 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             )
         ).getMessage();
         assertThat(errorMessage, containsString("count_star [count(*)] can't be used with TS command; use count on a field instead"));
-        assertThat(
-            errorMessage,
-            containsString(
-                "[STATS count(*)] requires the [@timestamp] field, which was either not present "
-                    + "in the source index, or has been dropped or renamed"
-            )
-        );
     }
 
     /**
@@ -10466,6 +10562,30 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      *           \_EsRelation[employees][_meta_field{f}#23, emp_no{f}#17, first_name{f}#18, ..]
      * }
      */
+    /**
+     * Mirrors the csv-spec approximation test "Fork with stats in just one branch" structurally:
+     * one Fork branch is a STATS, the other is a passthrough; the outer TopN sorts by _fork and
+     * another column. {@link org.elasticsearch.xpack.esql.optimizer.rules.logical.PruneConstantSortKeysFromOrderBy}
+     * must NOT fire here — its stop predicate stops at Fork boundaries, so {@code _fork} and
+     * {@code emp_no} should never be classified as foldable from the outer scope, and the
+     * TopN's two sort orders should survive into the optimized plan unchanged.
+     */
+    public void testTopNWithSortByForkAndColumnIsPreserved() {
+        var query = """
+            from employees
+             | fork (stats count = count())
+                    (keep emp_no)
+             | sort _fork, emp_no
+             | limit 5
+            """;
+        var plan = optimizedPlan(query);
+        var topN = as(plan, TopN.class);
+        assertThat(((Literal) topN.limit()).value(), equalTo(5));
+        assertThat(topN.order(), hasSize(2));
+        var fork = as(topN.child(), Fork.class);
+        assertThat(fork.children(), hasSize(2));
+    }
+
     public void testPushDownLimitInFork() {
         var query = """
             from employees

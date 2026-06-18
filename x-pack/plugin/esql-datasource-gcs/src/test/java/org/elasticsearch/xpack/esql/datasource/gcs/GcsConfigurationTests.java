@@ -200,6 +200,52 @@ public class GcsConfigurationTests extends ESTestCase {
         );
     }
 
+    public void testAuthNoneConflictsWithKeylessAuth() {
+        expectThrows(
+            ValidationException.class,
+            () -> GcsConfiguration.fromFields(null, null, "http://endpoint", null, "none", "jwt-audience", null, null)
+        );
+    }
+
+    public void testCredentialsConflictsWithKeylessAuth() {
+        ValidationException e = expectThrows(
+            ValidationException.class,
+            () -> GcsConfiguration.fromFields("{\"type\":\"service_account\"}", null, null, null, null, "jwt-audience", null, null)
+        );
+        assertThat(e.getMessage(), containsString("explicit credentials cannot be combined with keyless authentication settings"));
+    }
+
+    public void testHasKeylessAuth() {
+        GcsConfiguration config = GcsConfiguration.fromFields(
+            null,
+            "my-project",
+            null,
+            null,
+            null,
+            "jwt-audience",
+            "sts-audience",
+            "https://iamcredentials.googleapis.com/v1/projects/-/serviceAccounts/sa@project.iam.gserviceaccount.com:generateAccessToken"
+        );
+        assertTrue(config.hasKeylessAuth());
+        assertFalse(config.hasCredentials());
+    }
+
+    public void testPartialKeylessAuthRequiresBothAudiences() {
+        ValidationException e = expectThrows(
+            ValidationException.class,
+            () -> GcsConfiguration.fromFields(null, null, null, null, null, "jwt-audience", null, null)
+        );
+        assertThat(e.getMessage(), containsString("sts_audience is required"));
+    }
+
+    public void testKeylessAuthAllowsOmittingServiceAccountImpersonationUrl() {
+        GcsConfiguration config = GcsConfiguration.fromFields(null, null, null, null, null, "jwt-audience", "sts-audience", null);
+        assertTrue(config.hasKeylessAuth());
+        assertEquals("jwt-audience", config.jwtAudience());
+        assertEquals("sts-audience", config.stsAudience());
+        assertNull(config.serviceAccountImpersonationUrl());
+    }
+
     public void testAuthNoneAllowsProjectIdAndEndpoint() {
         GcsConfiguration config = GcsConfiguration.fromFields(null, "my-project", "http://ep", null, "none");
         assertTrue(config.isAnonymous());
@@ -257,5 +303,54 @@ public class GcsConfigurationTests extends ESTestCase {
         Configured<GcsConfiguration> result = GcsConfiguration.fromQueryConfig(null);
         assertNull(result.value());
         assertEquals(Set.of(), result.consumedKeys());
+    }
+
+    public void testAccessToken() {
+        GcsConfiguration config = GcsConfiguration.fromMap(Map.of("access_token", "ya29.token", "project_id", "my-project"));
+        assertNotNull(config);
+        assertEquals("ya29.token", config.accessToken());
+        assertNull(config.serviceAccountCredentials());
+        assertTrue(config.hasCredentials());
+        assertFalse(config.isAnonymous());
+    }
+
+    public void testAccessTokenAbsentByDefault() {
+        GcsConfiguration config = GcsConfiguration.fromFields("{\"type\":\"service_account\"}", null, null);
+        assertNotNull(config);
+        assertNull(config.accessToken());
+    }
+
+    public void testAccessTokenConflictsWithAuthNone() {
+        ValidationException e = expectThrows(
+            ValidationException.class,
+            () -> GcsConfiguration.fromMap(Map.of("access_token", "ya29.token", "auth", "none"))
+        );
+        assertThat(e.getMessage(), containsString("auth=none cannot be combined with explicit credentials"));
+    }
+
+    public void testFromQueryConfigWithAccessToken() {
+        Map<String, Object> raw = new HashMap<>();
+        raw.put("access_token", "ya29.token");
+        raw.put("project_id", "my-project");
+        raw.put("header_row", false);
+
+        Configured<GcsConfiguration> result = GcsConfiguration.fromQueryConfig(raw);
+        GcsConfiguration config = result.value();
+        assertNotNull(config);
+        assertEquals("ya29.token", config.accessToken());
+        assertThat(result.consumedKeys(), containsInAnyOrder("access_token", "project_id"));
+    }
+
+    public void testEqualsWithAccessToken() {
+        GcsConfiguration config1 = GcsConfiguration.fromMap(Map.of("access_token", "ya29.token"));
+        GcsConfiguration config2 = GcsConfiguration.fromMap(Map.of("access_token", "ya29.token"));
+        assertEquals(config1, config2);
+        assertEquals(config1.hashCode(), config2.hashCode());
+    }
+
+    public void testNotEqualsWithDifferentAccessToken() {
+        GcsConfiguration config1 = GcsConfiguration.fromMap(Map.of("access_token", "ya29.token1"));
+        GcsConfiguration config2 = GcsConfiguration.fromMap(Map.of("access_token", "ya29.token2"));
+        assertNotEquals(config1, config2);
     }
 }

@@ -337,6 +337,7 @@ HOD            | Al Ḩudaydah  | POINT (42.951100 14.802200) | Yemen           
 ;
 
 airportsLookupJoinViewAirports
+skip_flattened_rewrite: lookup_join_in_view_flattened_source
 required_capability: join_lookup_v12
 required_capability: lookup_join_on_boolean_expression
 required_capability: views_with_branching
@@ -353,6 +354,7 @@ LUH            | Ludhiāna     | POINT (75.850000 30.910000) | India           |
 ;
 
 airportsLookupJoinViewAirportsStats
+skip_flattened_rewrite: lookup_join_in_view_flattened_source
 required_capability: join_lookup_v12
 required_capability: lookup_join_on_boolean_expression
 required_capability: views_with_branching
@@ -375,6 +377,7 @@ count:long | duplications:long
 ;
 
 airportsLookupJoinViewAirportsStatsValues
+skip_flattened_rewrite: lookup_join_in_view_flattened_source
 required_capability: join_lookup_v12
 required_capability: lookup_join_on_boolean_expression
 required_capability: views_with_branching
@@ -670,7 +673,10 @@ required_capability: views_false_circular_reference_fix
 
 // Reproduces https://github.com/elastic/elasticsearch/issues/146208
 // FROM *,-employees* should not trigger a false circular view reference error.
-FROM *,-employees*, -view*row*
+// Use airports as a concrete non-employee index to keep total > 0, then use the employees* wildcard
+// to match all employee views and data. The -employees* exclusion removes them all, which is the
+// exact pattern that triggered the false circular-reference bug in issue #146208.
+FROM airports, employees*, -employees*
 | STATS total = COUNT(*)
 | EVAL at_least_one = total > 0
 | KEEP at_least_one
@@ -687,7 +693,11 @@ required_capability: views_false_circular_reference_fix
 
 // Reproduces https://github.com/elastic/elasticsearch/issues/146208
 // FROM *,-employees_extra,-employees_all should not trigger a false circular view reference error.
-FROM *,-employees_extra,-employees_all, -view*row*
+// Use airports as a concrete non-employee index, then use employees* wildcard to include all employee
+// views while excluding only employees_extra, employees_all, and employees_in_subquery*.
+// This verifies that partial wildcard exclusion of employees does not trigger a false circular
+// reference for the remaining employee views (employees_rehired, employees_not_rehired).
+FROM airports, employees*, -employees_extra, -employees_all, -employees_in_subquery*
 | STATS total = COUNT(*)
 | EVAL at_least_one = total > 0
 | KEEP at_least_one
@@ -761,7 +771,7 @@ required_capability: views_crud_as_index_actions
 required_capability: subquery_in_from_command
 required_capability: subquery_with_row
 
-FROM view_employees_row_subquery
+FROM view_row_employees_subquery
 ;
 
 emp_no:integer | languages:integer
@@ -770,7 +780,7 @@ emp_no:integer | languages:integer
 ;
 
 
-// The following tests exercise `view_employees_row_subquery` (whose body is
+// The following tests exercise `view_row_employees_subquery` (whose body is
 // `FROM employees, (ROW ...)`, combining an index pattern, a ROW source subquery and a
 // FROM source subquery) in queries that also reference index patterns via LOOKUP JOIN
 // or wrap the view in an outer `(FROM ...)` subquery. They cannot be expressed by
@@ -789,7 +799,7 @@ required_capability: join_lookup_v12
 // the outer pipeline LOOKUP JOINs against the `languages_lookup` index pattern. The
 // matching employee row (10001, languages=2) resolves to French; the synthesised ROW
 // row (99997, languages=77) has no matching lookup value, so its language_name is null.
-FROM view_employees_row_subquery
+FROM view_row_employees_subquery
 | EVAL language_code = languages
 | LOOKUP JOIN languages_lookup ON language_code
 | SORT emp_no
@@ -811,7 +821,7 @@ required_capability: subquery_with_row
 // Wrap the view in an outer `(FROM ...)` subquery so the query references the
 // row-subquery view, an index pattern (`employees`, expanded from the view body) and a
 // FROM subquery at the outer level.
-FROM (FROM view_employees_row_subquery | WHERE languages > 1)
+FROM (FROM view_row_employees_subquery | WHERE languages > 1)
 | SORT emp_no
 ;
 
@@ -830,7 +840,7 @@ required_capability: join_lookup_v12
 
 // Combine all three: a FROM subquery wraps the row-subquery view, and the outer
 // pipeline LOOKUP JOINs against an index pattern.
-FROM (FROM view_employees_row_subquery | EVAL language_code = languages)
+FROM (FROM view_row_employees_subquery | EVAL language_code = languages)
 | LOOKUP JOIN languages_lookup ON language_code
 | SORT emp_no
 | KEEP emp_no, languages, language_name
@@ -852,7 +862,7 @@ required_capability: join_lookup_v12
 // FROM subquery around the row-subquery view, LOOKUP JOIN against an index pattern,
 // then aggregate. The matching employee row contributes to the "French" bucket; the
 // synthesised ROW row falls into the null-language_name bucket.
-FROM (FROM view_employees_row_subquery | EVAL language_code = languages)
+FROM (FROM view_row_employees_subquery | EVAL language_code = languages)
 | LOOKUP JOIN languages_lookup ON language_code
 | STATS c = COUNT(*), max_emp = MAX(emp_no), max_lang = MAX(languages) BY language_name
 | SORT language_name NULLS LAST
@@ -974,4 +984,1243 @@ FROM (FROM sample_data, view_row_eval | WHERE multiplier IS NOT NULL OR client_i
 
 total:long | tr:long
 8          | 1
+;
+
+###############################################
+# Views whose body uses TS (time-series) as the source command.
+# The view body's TS pipeline is resolved like any other view body, so
+# `FROM <ts-view>` exposes the view's aggregated output as a regular relation.
+###############################################
+
+tsViewPlain
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: ts_command_v0
+required_capability: subquery_with_ts
+
+FROM view_k8s_max_bytes_by_cluster
+| SORT cluster
+;
+
+max_bytes:long | cluster:keyword
+10277          | prod
+10797          | qa
+7403           | staging
+;
+
+tsViewFiltered
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: ts_command_v0
+required_capability: subquery_with_ts
+
+FROM view_k8s_max_bytes_by_cluster
+| WHERE max_bytes > 10000
+| SORT cluster
+;
+
+max_bytes:long | cluster:keyword
+10277          | prod
+10797          | qa
+;
+
+tsViewMaxRate
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: ts_command_v0
+required_capability: subquery_with_ts
+
+FROM view_k8s_max_rate
+;
+
+max_rate:double
+13.173725
+;
+
+tsViewDownsampled
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: ts_command_v0
+required_capability: subquery_with_ts
+
+FROM view_k8s_downsampled_low_tx_count
+| SORT cluster
+;
+ignoreOrder:true
+
+count:long | cluster:keyword
+3          | prod
+2          | qa
+2          | staging
+;
+
+tsViewWildcard
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+required_capability: ts_command_v0
+required_capability: subquery_with_ts
+
+FROM view_k8s_max_*
+| SORT cluster NULLS FIRST
+| KEEP cluster, max_bytes, max_rate
+;
+
+cluster:keyword | max_bytes:long | max_rate:double
+null            | null           | 13.173725
+prod            | 10277          | null
+qa              | 10797          | null
+staging         | 7403           | null
+;
+
+tsViewBranching
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+required_capability: ts_command_v0
+required_capability: subquery_with_ts
+
+FROM view_k8s_max_bytes_by_cluster, view_k8s_downsampled_low_tx_count
+| SORT cluster, max_bytes NULLS LAST
+| KEEP cluster, max_bytes, count
+;
+
+cluster:keyword | max_bytes:long | count:long
+prod            | 10277          | null
+prod            | null           | 3
+qa              | 10797          | null
+qa              | null           | 2
+staging         | 7403           | null
+staging         | null           | 2
+;
+
+tsViewBranchingStats
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+required_capability: ts_command_v0
+required_capability: subquery_with_ts
+
+FROM view_k8s_max_bytes_by_cluster, view_k8s_downsampled_low_tx_count
+| STATS bytes=MAX(max_bytes), low_tx=SUM(count) BY cluster
+| SORT cluster
+;
+
+bytes:long | low_tx:long | cluster:keyword
+10277      | 3           | prod
+10797      | 2           | qa
+7403       | 2           | staging
+;
+
+tsViewInSubquery
+required_capability: subquery_in_from_command
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: ts_command_v0
+required_capability: subquery_with_ts
+
+FROM sample_data, (FROM view_k8s_max_bytes_by_cluster)
+| STATS sd = COUNT(client_ip), tv = COUNT(max_bytes), total = COUNT()
+;
+
+sd:long | tv:long | total:long
+7       | 3       | 10
+;
+
+tsViewInSubqueryMultipleRows
+required_capability: subquery_in_from_command
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: ts_command_v0
+required_capability: subquery_with_ts
+
+FROM sample_data, (FROM view_k8s_max_bytes_by_cluster)
+| STATS total = COUNT() BY cluster
+| SORT total DESC, cluster ASC
+;
+
+total:long | cluster:keyword
+7          | null
+1          | prod
+1          | qa
+1          | staging
+;
+
+tsViewMixedWithStandardView
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+required_capability: ts_command_v0
+required_capability: subquery_with_ts
+
+// Combines a standard FROM-based view (employees_all) with a TS-based view in
+// a subquery. The aggregate captures the row contribution of each branch.
+FROM employees_all, (FROM view_k8s_max_bytes_by_cluster)
+| STATS employees = COUNT(emp_no), clusters = COUNT(cluster), total = COUNT()
+;
+
+employees:long | clusters:long | total:long
+100            | 3             | 103
+;
+
+tsView
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: ts_command_v0
+required_capability: subquery_with_ts
+
+FROM view_k8s_early_window
+| KEEP @timestamp, cluster, network.bytes_in
+| SORT @timestamp, cluster
+;
+
+@timestamp:datetime      | cluster:keyword | network.bytes_in:long
+2024-05-10T00:00:29.000Z | staging         | 699
+2024-05-10T00:00:33.000Z | staging         | 473
+2024-05-10T00:00:51.000Z | prod            | 113
+2024-05-10T00:00:57.000Z | prod            | 677
+;
+
+tsViewWithFilterAndStats
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: ts_command_v0
+required_capability: subquery_with_ts
+
+FROM view_k8s_early_window
+| WHERE cluster == "staging"
+| STATS bytes = SUM(network.bytes_in)
+;
+
+bytes:long
+1172
+;
+
+tsViewWithStatsAndSort
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: ts_command_v0
+required_capability: subquery_with_ts
+
+FROM view_k8s_early_window
+| STATS c = COUNT(network.bytes_in) BY cluster
+| SORT cluster
+;
+
+c:long | cluster:keyword
+2      | prod
+2      | staging
+;
+
+tsViewDownsampledWithStatsAndSort
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: ts_command_v0
+required_capability: subquery_with_ts
+
+FROM view_k8s_downsampled_first_bucket
+| STATS c = COUNT(network.bytes_in) BY cluster
+| SORT cluster
+;
+
+c:long | cluster:keyword
+3      | prod
+3      | qa
+3      | staging
+;
+
+tsViewsWithStatsAndSort
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+required_capability: ts_command_v0
+required_capability: subquery_with_ts
+
+FROM view_k8s_early_window, view_k8s_downsampled_first_bucket
+| STATS c = COUNT(network.bytes_in) BY cluster
+| SORT cluster
+;
+
+c:long | cluster:keyword
+5      | prod
+3      | qa
+5      | staging
+;
+
+tsViewAndIndexPatternWithStats
+required_capability: subquery_in_from_command
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: ts_command_v0
+required_capability: subquery_with_ts
+
+FROM sample_data, (FROM view_k8s_early_window)
+| STATS sd = COUNT(client_ip), tv = COUNT(network.bytes_in), total = COUNT()
+;
+
+sd:long | tv:long | total:long
+7       | 4       | 11
+;
+
+tsViewAndIndexPatternWithStatsAndSort
+required_capability: subquery_in_from_command
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: ts_command_v0
+required_capability: subquery_with_ts
+
+FROM sample_data, (FROM view_k8s_early_window)
+| STATS total = COUNT() BY cluster
+| SORT cluster NULLS FIRST
+;
+
+total:long | cluster:keyword
+7          | null
+2          | prod
+2          | staging
+;
+
+mixedSubqueriesViewPlan
+required_capability: subquery_in_from_command
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+required_capability: ts_command_v0
+required_capability: subquery_with_ts
+required_capability: subquery_with_row
+
+FROM view_k8s_mixed_subqueries
+| SORT cluster, @timestamp
+| KEEP @timestamp, client_ip, cluster, max_bytes
+;
+
+@timestamp:datetime      | client_ip:ip | cluster:keyword | max_bytes:long
+null                     | null         | prod            | 10277
+null                     | null         | qa              | 10797
+null                     | null         | staging         | 7403
+null                     | null         | synthetic       | 99999
+2023-10-23T13:33:34.937Z | 172.21.0.5   | null            | null
+;
+
+mixedSubqueriesViewFiltered
+required_capability: subquery_in_from_command
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+required_capability: ts_command_v0
+required_capability: subquery_with_ts
+required_capability: subquery_with_row
+
+FROM view_k8s_mixed_subqueries
+| WHERE max_bytes > 8000
+| SORT cluster
+| KEEP cluster, max_bytes
+;
+
+cluster:keyword | max_bytes:long
+prod            | 10277
+qa              | 10797
+synthetic       | 99999
+;
+
+mixedSubqueriesViewStats
+required_capability: subquery_in_from_command
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+required_capability: ts_command_v0
+required_capability: subquery_with_ts
+required_capability: subquery_with_row
+
+FROM view_k8s_mixed_subqueries
+| STATS rows = COUNT(), clusters = COUNT(cluster), ips = COUNT(client_ip), max_b = MAX(max_bytes)
+;
+
+rows:long | clusters:long | ips:long | max_b:long
+5         | 4             | 1        | 99999
+;
+
+mixedSubqueriesViewInFromSubquery
+required_capability: subquery_in_from_command
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+required_capability: ts_command_v0
+required_capability: subquery_with_ts
+required_capability: subquery_with_row
+
+FROM (FROM view_k8s_mixed_subqueries | WHERE max_bytes IS NOT NULL)
+| SORT cluster
+| KEEP cluster, max_bytes
+;
+
+cluster:keyword | max_bytes:long
+prod            | 10277
+qa              | 10797
+staging         | 7403
+synthetic       | 99999
+;
+
+viewContainingInSubquery
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: where_in_subquery_without_view
+
+// employees_in_subquery is a view: FROM employees | WHERE emp_no IN (FROM employees | SORT emp_no ASC | LIMIT 3 | KEEP emp_no)
+// The view definition itself contains an IN subquery.
+FROM employees_in_subquery
+| SORT emp_no
+| KEEP emp_no, first_name
+;
+
+emp_no:integer | first_name:keyword
+10001          | Georgi
+10002          | Bezalel
+10003          | Parto
+;
+
+inSubqueryReferencingView
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: where_in_subquery_with_view
+
+FROM employees
+| WHERE emp_no IN (FROM employees_all | SORT emp_no | LIMIT 3 | KEEP emp_no)
+| SORT emp_no
+| KEEP emp_no, first_name
+;
+
+emp_no:integer | first_name:keyword
+10001          | Georgi
+10002          | Bezalel
+10003          | Parto
+;
+
+notInSubqueryReferencingView
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: where_in_subquery_with_view
+
+FROM employees
+| WHERE emp_no NOT IN (FROM employees_all | SORT emp_no | LIMIT 97 | KEEP emp_no)
+| SORT emp_no
+| KEEP emp_no, first_name
+;
+
+emp_no:integer | first_name:keyword
+10098          | Sreekrishna
+10099          | Valter
+10100          | Hironobu
+;
+
+inSubqueryReferencingViewWithInSubquery
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: where_in_subquery_with_view
+
+FROM employees
+| WHERE emp_no IN (FROM employees_in_subquery_stats | KEEP emp_no)
+| KEEP emp_no, first_name, salary
+;
+
+emp_no:integer | first_name:keyword | salary:integer
+10029          | Otmar              | 74999
+;
+
+notInSubqueryReferencingViewWithInSubquery
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: where_in_subquery_with_view
+
+FROM employees
+| WHERE emp_no NOT IN (FROM employees_in_subquery_stats | KEEP emp_no)
+| SORT emp_no
+| KEEP emp_no
+| LIMIT 3
+;
+
+emp_no:integer
+10001
+10002
+10003
+;
+
+inSubqueryReferencingViewWithInSubqueryAndFilter
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: where_in_subquery_with_view
+
+FROM employees
+| WHERE salary > 55000 AND emp_no IN (FROM employees_in_subquery | KEEP emp_no)
+| SORT emp_no
+| KEEP emp_no, first_name, salary
+;
+
+emp_no:integer | first_name:keyword | salary:integer
+10001          | Georgi             | 57305
+10002          | Bezalel            | 56371
+10003          | Parto              | 61805
+;
+
+inSubqueryReferencingViewDisjunctiveInSubqueries
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: where_in_subquery_with_view
+
+FROM employees
+| WHERE emp_no IN (FROM employees_all | SORT emp_no | LIMIT 3 | KEEP emp_no)
+    OR emp_no IN (FROM employees | SORT emp_no | LIMIT 2 | KEEP emp_no)
+| SORT emp_no
+| KEEP emp_no, first_name
+;
+
+emp_no:integer | first_name:keyword
+10001          | Georgi
+10002          | Bezalel
+10003          | Parto
+;
+
+notInSubqueryReferencingViewConjunctiveNotInSubqueries
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: where_in_subquery_with_view
+
+FROM employees
+| WHERE emp_no NOT IN (FROM employees_all | SORT emp_no | LIMIT 97 | KEEP emp_no)
+    AND emp_no NOT IN (FROM employees | SORT emp_no DESC | LIMIT 1 | KEEP emp_no)
+| SORT emp_no
+| KEEP emp_no, first_name
+;
+
+emp_no:integer | first_name:keyword
+10098          | Sreekrishna
+10099          | Valter
+;
+
+viewContainingInSubqueryWithAnotherInSubqueryReferencingView
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: where_in_subquery_with_view
+
+FROM employees_in_subquery
+| WHERE emp_no IN (FROM employees_all | SORT emp_no | LIMIT 2 | KEEP emp_no)
+| SORT emp_no
+| KEEP emp_no, first_name
+;
+
+emp_no:integer | first_name:keyword
+10001          | Georgi
+10002          | Bezalel
+;
+
+inSubqueryReferencingViewWithInSubqueryDisjunctiveInSubqueries
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: where_in_subquery_with_view
+
+FROM employees
+| WHERE emp_no IN (FROM employees_in_subquery_stats | KEEP emp_no)
+    OR emp_no IN (FROM employees | WHERE salary < 26000 | KEEP emp_no)
+| KEEP emp_no, first_name, salary
+| SORT emp_no
+;
+
+emp_no:integer | first_name:keyword | salary:integer
+10015          | Guoxiang           | 25324
+10029          | Otmar              | 74999
+10035          | null               | 25945
+10092          | Valdiodio          | 25976
+;
+
+notInSubqueryReferencingViewWithInSubqueryConjunctiveNotInSubqueries
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: where_in_subquery_with_view
+
+FROM employees
+| WHERE emp_no NOT IN (FROM employees_in_subquery_stats | KEEP emp_no)
+    AND emp_no NOT IN (FROM employees | SORT emp_no DESC | LIMIT 1 | KEEP emp_no)
+| SORT emp_no
+| KEEP emp_no
+| LIMIT 3
+;
+
+emp_no:integer
+10001
+10002
+10003
+;
+
+inSubqueryReferencingNestedInSubqueryView
+skip_flattened_rewrite: view_in_subquery_flattened
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: where_in_subquery_with_view
+
+FROM employees
+| WHERE emp_no IN (FROM employees_in_subquery_nested | SORT emp_no | KEEP emp_no)
+| SORT emp_no
+| KEEP emp_no, first_name
+;
+
+emp_no:integer | first_name:keyword
+10001          | Georgi
+10005          | Kyoichi
+10008          | Saniya
+10009          | Sumant
+10013          | Eberhardt
+10016          | Kazuhito
+10017          | Cristinel
+10018          | Kazuhide
+10019          | Lillian
+10033          | null
+;
+
+inSubqueryReferencingConjunctionView
+skip_flattened_rewrite: view_in_subquery_flattened
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: where_in_subquery_with_view
+
+FROM employees
+| WHERE emp_no IN (FROM employees_in_subquery_conjunction | KEEP emp_no)
+| SORT emp_no
+| KEEP emp_no, first_name
+;
+
+emp_no:integer | first_name:keyword
+10001          | Georgi
+;
+
+inSubqueryReferencingDisjunctionView
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: where_in_subquery_with_view
+
+FROM employees
+| WHERE emp_no IN (FROM employees_in_subquery_disjunction | KEEP emp_no)
+| STATS c = COUNT(emp_no)
+;
+
+c:long
+36
+;
+
+threeInSubqueriesIntersectNestedConjunctionDisjunctionViews
+skip_flattened_rewrite: view_in_subquery_flattened
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: where_in_subquery_with_view
+
+FROM employees
+| WHERE emp_no IN (FROM employees_in_subquery_nested | KEEP emp_no)
+    AND emp_no IN (FROM employees_in_subquery_conjunction | KEEP emp_no)
+    AND emp_no IN (FROM employees_in_subquery_disjunction | KEEP emp_no)
+| KEEP emp_no, first_name
+;
+
+emp_no:integer | first_name:keyword
+10001          | Georgi
+;
+
+inNestedAndDisjunctionNotInConjunctionViews
+skip_flattened_rewrite: view_in_subquery_flattened
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: where_in_subquery_with_view
+
+FROM employees
+| WHERE emp_no IN (FROM employees_in_subquery_nested | KEEP emp_no)
+    AND emp_no IN (FROM employees_in_subquery_disjunction | KEEP emp_no)
+    AND emp_no NOT IN (FROM employees_in_subquery_conjunction | KEEP emp_no)
+| SORT emp_no
+| KEEP emp_no, first_name
+;
+
+emp_no:integer | first_name:keyword
+10005          | Kyoichi
+10008          | Saniya
+10009          | Sumant
+10013          | Eberhardt
+10016          | Kazuhito
+10017          | Cristinel
+10018          | Kazuhide
+10019          | Lillian
+10033          | null
+;
+
+notInNestedInDisjunctionNotInConjunctionViews
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: where_in_subquery_with_view
+
+FROM employees
+| WHERE emp_no NOT IN (FROM employees_in_subquery_nested | KEEP emp_no)
+    AND emp_no IN (FROM employees_in_subquery_disjunction | KEEP emp_no)
+    AND emp_no NOT IN (FROM employees_in_subquery_conjunction | KEEP emp_no)
+| STATS c = COUNT(emp_no)
+;
+
+c:long
+26
+;
+
+viewContainingInSubqueryAlternateView
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: where_in_subquery_with_view
+
+FROM employees_in_subquery_view
+| SORT emp_no
+| KEEP emp_no, first_name
+;
+warningRegex: \(in view \[employees_rehired\]\): evaluation of \[is_rehired == true\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex: \(in view \[employees_rehired\]\): java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+emp_no:integer | first_name:keyword
+10004          | Chirstian
+10021          | Ramzi
+10029          | Otmar
+;
+
+inSubqueryReferencingViewWithInSubqueryAlternateView
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: where_in_subquery_with_view
+
+FROM employees
+| WHERE emp_no IN (FROM employees_in_subquery_stats_view | KEEP emp_no)
+| KEEP emp_no, first_name, salary
+;
+warningRegex: \(in view \[employees_not_rehired\]\): evaluation of \[is_rehired == false\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex: \(in view \[employees_not_rehired\]\): java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+emp_no:integer | first_name:keyword | salary:integer
+10027          | Divier             | 73851
+;
+
+notInSubqueryReferencingViewWithInSubqueryAlternateView
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: where_in_subquery_with_view
+
+FROM employees
+| WHERE emp_no NOT IN (FROM employees_in_subquery_stats_view | KEEP emp_no)
+| SORT emp_no
+| KEEP emp_no
+| LIMIT 3
+;
+warningRegex: \(in view \[employees_not_rehired\]\): evaluation of \[is_rehired == false\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex: \(in view \[employees_not_rehired\]\): java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+emp_no:integer
+10001
+10002
+10003
+;
+
+inSubqueryReferencingViewWithInSubqueryAndFilterAlternateView
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: where_in_subquery_with_view
+
+FROM employees
+| WHERE salary > 55000 AND emp_no IN (FROM employees_in_subquery_view | KEEP emp_no)
+| SORT emp_no
+| KEEP emp_no, first_name, salary
+;
+warningRegex: \(in view \[employees_rehired\]\): evaluation of \[is_rehired == true\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex: \(in view \[employees_rehired\]\): java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+ignoreOrder:true
+
+emp_no:integer | first_name:keyword | salary:integer
+10021          | Ramzi              | 60408
+10029          | Otmar              | 74999
+;
+
+viewContainingInSubqueryWithSecondInSubqueryAlternateView
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: where_in_subquery_with_view
+
+FROM employees_in_subquery_view
+| WHERE emp_no IN (FROM employees_all | SORT emp_no | LIMIT 2 | KEEP emp_no)
+| SORT emp_no
+| KEEP emp_no, first_name
+;
+warningRegex: \(in view \[employees_rehired\]\): evaluation of \[is_rehired == true\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex: \(in view \[employees_rehired\]\): java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+emp_no:integer | first_name:keyword
+;
+
+inSubqueryReferencingViewWithInSubqueryTwoInSubqueriesAlternateView
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: where_in_subquery_with_view
+
+FROM employees
+| WHERE emp_no IN (FROM employees_in_subquery_stats_view | KEEP emp_no)
+    OR emp_no IN (FROM employees | WHERE salary < 26000 | KEEP emp_no)
+| KEEP emp_no, first_name, salary
+;
+warningRegex: \(in view \[employees_not_rehired\]\): evaluation of \[is_rehired == false\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex: \(in view \[employees_not_rehired\]\): java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+ignoreOrder:true
+
+emp_no:integer | first_name:keyword | salary:integer
+10015          | Guoxiang           | 25324
+10027          | Divier             | 73851
+10035          | null               | 25945
+10092          | Valdiodio          | 25976
+;
+
+notInSubqueryReferencingViewWithInSubqueryTwoNotInSubqueriesAlternateView
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: where_in_subquery_with_view
+
+FROM employees
+| WHERE emp_no NOT IN (FROM employees_in_subquery_stats_view | KEEP emp_no)
+    AND emp_no NOT IN (FROM employees | SORT emp_no DESC | LIMIT 1 | KEEP emp_no)
+| SORT emp_no
+| KEEP emp_no
+| LIMIT 3
+;
+warningRegex: \(in view \[employees_not_rehired\]\): evaluation of \[is_rehired == false\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex: \(in view \[employees_not_rehired\]\): java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+emp_no:integer
+10001
+10002
+10003
+;
+
+inSubqueryReferencingNestedInSubqueryViewAlternateView
+skip_flattened_rewrite: view_in_subquery_flattened
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: where_in_subquery_with_view
+
+FROM employees
+| WHERE emp_no IN (FROM employees_in_subquery_nested_view | SORT emp_no | KEEP emp_no)
+| SORT emp_no
+| KEEP emp_no, first_name
+;
+
+emp_no:integer | first_name:keyword
+10001          | Georgi
+10005          | Kyoichi
+10008          | Saniya
+10009          | Sumant
+10013          | Eberhardt
+10016          | Kazuhito
+10017          | Cristinel
+10018          | Kazuhide
+10019          | Lillian
+10033          | null
+;
+
+inSubqueryReferencingConjunctionViewAlternateView
+skip_flattened_rewrite: view_in_subquery_flattened
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: where_in_subquery_with_view
+
+FROM employees
+| WHERE emp_no IN (FROM employees_in_subquery_conjunction_view | KEEP emp_no)
+| SORT emp_no
+| KEEP emp_no, first_name
+;
+warningRegex: \(in view \[employees_rehired\]\): evaluation of \[is_rehired == true\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex: \(in view \[employees_rehired\]\): java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+emp_no:integer | first_name:keyword
+;
+
+inSubqueryReferencingDisjunctionViewAlternateView
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: where_in_subquery_with_view
+
+FROM employees
+| WHERE emp_no IN (FROM employees_in_subquery_disjunction_view | KEEP emp_no)
+| STATS c = COUNT(emp_no)
+;
+warningRegex: \(in view \[employees_not_rehired\]\): evaluation of \[is_rehired == false\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex: \(in view \[employees_not_rehired\]\): java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+c:long
+98
+;
+
+threeInSubqueriesIntersectNestedConjunctionDisjunctionViewsAlternateView
+skip_flattened_rewrite: view_in_subquery_flattened
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: where_in_subquery_with_view
+
+FROM employees
+| WHERE emp_no IN (FROM employees_in_subquery_nested_view | KEEP emp_no)
+    AND emp_no IN (FROM employees_in_subquery_conjunction_view | KEEP emp_no)
+    AND emp_no IN (FROM employees_in_subquery_disjunction_view | KEEP emp_no)
+| KEEP emp_no, first_name
+;
+warningRegex: \(in view \[employees_not_rehired\]\): evaluation of \[is_rehired == false\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex: \(in view \[employees_rehired\]\): evaluation of \[is_rehired == true\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex: \(in view \[employees_not_rehired\]\): java.lang.IllegalArgumentException: single-value function encountered multi-value
+warningRegex: \(in view \[employees_rehired\]\): java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+emp_no:integer | first_name:keyword
+;
+
+inNestedAndDisjunctionNotInConjunctionViewsAlternateView
+skip_flattened_rewrite: view_in_subquery_flattened
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: where_in_subquery_with_view
+
+FROM employees
+| WHERE emp_no IN (FROM employees_in_subquery_nested_view | KEEP emp_no)
+    AND emp_no IN (FROM employees_in_subquery_disjunction_view | KEEP emp_no)
+    AND emp_no NOT IN (FROM employees_in_subquery_conjunction_view | KEEP emp_no)
+| SORT emp_no
+| KEEP emp_no, first_name
+;
+warningRegex: \(in view \[employees_not_rehired\]\): evaluation of \[is_rehired == false\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex: \(in view \[employees_rehired\]\): evaluation of \[is_rehired == true\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex: \(in view \[employees_not_rehired\]\): java.lang.IllegalArgumentException: single-value function encountered multi-value
+warningRegex: \(in view \[employees_rehired\]\): java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+emp_no:integer | first_name:keyword
+10001          | Georgi
+10005          | Kyoichi
+10008          | Saniya
+10009          | Sumant
+10013          | Eberhardt
+10016          | Kazuhito
+10017          | Cristinel
+10018          | Kazuhide
+10019          | Lillian
+10033          | null
+;
+
+notInNestedInDisjunctionNotInConjunctionViewsAlternateView
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: where_in_subquery_with_view
+
+FROM employees
+| WHERE emp_no NOT IN (FROM employees_in_subquery_nested_view | KEEP emp_no)
+    AND emp_no IN (FROM employees_in_subquery_disjunction_view | KEEP emp_no)
+    AND emp_no NOT IN (FROM employees_in_subquery_conjunction_view | KEEP emp_no)
+| STATS c = COUNT(emp_no)
+;
+warningRegex: \(in view \[employees_not_rehired\]\): evaluation of \[is_rehired == false\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex: \(in view \[employees_rehired\]\): evaluation of \[is_rehired == true\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex: \(in view \[employees_not_rehired\]\): java.lang.IllegalArgumentException: single-value function encountered multi-value
+warningRegex: \(in view \[employees_rehired\]\): java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+c:long
+88
+;
+
+inSubqueryReferencingRowConstantsView
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: where_in_subquery_with_view
+required_capability: subquery_with_row
+
+FROM employees
+| WHERE languages IN (FROM view_row_constants | KEEP seed)
+| STATS c = COUNT(*)
+;
+
+c:long
+15
+;
+
+inSubqueryReferencingRowEvalView
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: where_in_subquery_with_view
+required_capability: subquery_with_row
+
+FROM employees
+| WHERE languages IN (FROM view_row_eval | KEEP multiplier)
+| STATS c = COUNT(*)
+;
+
+c:long
+17
+;
+
+inSubqueryReferencingTsViewCluster
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: where_in_subquery_with_view
+required_capability: ts_command_v0
+required_capability: subquery_with_ts
+
+FROM view_k8s_max_bytes_by_cluster
+| WHERE cluster IN (FROM view_k8s_downsampled_low_tx_count | WHERE count > 2 | KEEP cluster)
+| SORT cluster
+| KEEP cluster, max_bytes
+;
+
+cluster:keyword | max_bytes:long
+prod            | 10277
+;
+
+notInSubqueryReferencingTsViewCluster
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: where_in_subquery_with_view
+required_capability: ts_command_v0
+required_capability: subquery_with_ts
+
+FROM view_k8s_max_bytes_by_cluster
+| WHERE cluster NOT IN (FROM view_k8s_downsampled_low_tx_count | WHERE count > 2 | KEEP cluster)
+| SORT cluster
+| KEEP cluster, max_bytes
+;
+
+cluster:keyword | max_bytes:long
+qa              | 10797
+staging         | 7403
+;
+
+inSubqueryReferencingMixedSourcesView
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+required_capability: where_in_subquery_with_view
+required_capability: subquery_in_from_command
+required_capability: ts_command_v0
+required_capability: subquery_with_ts
+required_capability: subquery_with_row
+
+FROM view_k8s_max_bytes_by_cluster
+| WHERE cluster IN (FROM view_k8s_mixed_subqueries | WHERE max_bytes > 8000 | KEEP cluster)
+| SORT cluster
+| KEEP cluster, max_bytes
+;
+
+cluster:keyword | max_bytes:long
+prod            | 10277
+qa              | 10797
+;
+
+tsMainQueryInSubqueryReferencingView
+skip_flattened_rewrite: view_in_subquery_flattened
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: where_in_subquery_with_view
+required_capability: ts_command_v0
+required_capability: subquery_with_ts
+
+TS k8s
+| STATS max_bytes = max(to_long(network.total_bytes_in)) BY cluster
+| WHERE cluster IN (FROM view_k8s_downsampled_low_tx_count | WHERE count > 2 | KEEP cluster)
+| SORT cluster
+| KEEP cluster, max_bytes
+;
+
+cluster:keyword | max_bytes:long
+prod            | 10277
+;
+
+tsMainQueryNotInSubqueryReferencingView
+skip_flattened_rewrite: view_in_subquery_flattened
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: where_in_subquery_with_view
+required_capability: ts_command_v0
+required_capability: subquery_with_ts
+
+TS k8s
+| STATS max_bytes = max(to_long(network.total_bytes_in)) BY cluster
+| WHERE cluster NOT IN (FROM view_k8s_downsampled_low_tx_count | WHERE count > 2 | KEEP cluster)
+| SORT cluster
+| KEEP cluster, max_bytes
+;
+
+cluster:keyword | max_bytes:long
+qa              | 10797
+staging         | 7403
+;
+
+tsMainQueryInSubqueryReferencingMaxBytesView
+skip_flattened_rewrite: view_in_subquery_flattened
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: where_in_subquery_with_view
+required_capability: ts_command_v0
+required_capability: subquery_with_ts
+
+TS k8s
+| STATS max_bytes = max(to_long(network.total_bytes_in)) BY cluster
+| WHERE cluster IN (FROM view_k8s_max_bytes_by_cluster | WHERE max_bytes > 10000 | KEEP cluster)
+| SORT cluster
+| KEEP cluster, max_bytes
+;
+
+cluster:keyword | max_bytes:long
+prod            | 10277
+qa              | 10797
+;
+
+rowMainQueryInSubqueryReferencingTsView
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: where_in_subquery_with_view
+required_capability: ts_command_v0
+required_capability: subquery_with_ts
+
+ROW cluster = "prod"
+| WHERE cluster IN (FROM view_k8s_max_bytes_by_cluster | KEEP cluster)
+;
+
+cluster:keyword
+prod
+;
+
+rowMainQueryNotInSubqueryReferencingTsView
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: where_in_subquery_with_view
+required_capability: ts_command_v0
+required_capability: subquery_with_ts
+
+ROW cluster = "synthetic"
+| WHERE cluster NOT IN (FROM view_k8s_max_bytes_by_cluster | KEEP cluster)
+;
+
+cluster:keyword
+synthetic
+;
+
+rowMainQueryInSubqueryReferencingRowView
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: where_in_subquery_with_view
+required_capability: subquery_with_row
+
+ROW seed = 1
+| WHERE seed IN (FROM view_row_constants | KEEP seed)
+;
+
+seed:integer
+1
+;
+
+rowMainQueryNotInSubqueryReferencingRowView
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: where_in_subquery_with_view
+required_capability: subquery_with_row
+
+ROW multiplier = 5
+| WHERE multiplier NOT IN (FROM view_row_eval | KEEP multiplier)
+;
+
+multiplier:integer
+5
+;
+
+inSubqueryReferencingRowSubqueryViewWithLimit
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+required_capability: where_in_subquery_with_view
+required_capability: subquery_in_from_command
+required_capability: subquery_with_row
+
+FROM employees
+| WHERE emp_no IN (FROM view_row_employees_subquery | LIMIT 10 | KEEP emp_no)
+| KEEP emp_no, first_name
+;
+
+emp_no:integer | first_name:keyword
+10001          | Georgi
+;
+
+viewDataSelector
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: index_component_selectors
+
+// view::data should behave the same as the plain view name
+FROM country_airports::data
+;
+ignoreOrder:true
+
+count:long | country:keyword
+129        | United States
+50         | India
+45         | Mexico
+41         | China
+37         | Canada
+31         | Brazil
+26         | Russia
+17         | Australia
+17         | United Kingdom
+13         | Argentina
+12         | France
+12         | Indonesia
+11         | Germany
+11         | Italy
+11         | Nigeria
+;
+
+viewDataSelectorSameAsView
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: index_component_selectors
+
+// Confirm view::data returns the same document count as the plain view
+FROM employees_all::data
+| STATS count = COUNT(emp_no)
+;
+
+count:long
+100
+;
+
+viewDataSelectorBranching
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+required_capability: index_component_selectors
+
+// Multiple views combined with ::data selectors should work like combining the plain view names
+FROM country_airports::data, country_addresses::data
+| STATS count=SUM(count) BY country
+| WHERE count > 11
+| SORT count DESC, country ASC
+;
+
+count:long | country:keyword
+130        | United States
+50         | India
+45         | Mexico
+41         | China
+37         | Canada
+31         | Brazil
+26         | Russia
+17         | Australia
+17         | United Kingdom
+13         | Argentina
+12         | France
+12         | Indonesia
+;
+
+mainFromAndInSubqueryEachReferenceMultipleViewSubqueries
+required_capability: subquery_in_from_command
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: where_in_subquery_with_view
+
+FROM (FROM employees_all | WHERE emp_no <= 10002 | KEEP emp_no, first_name),
+     (FROM employees_all | WHERE emp_no >= 10004 AND emp_no <= 10005 | KEEP emp_no, first_name)
+| WHERE emp_no IN (FROM (FROM employees_all | WHERE emp_no == 10002 | KEEP emp_no),
+                        (FROM employees_all | WHERE emp_no == 10005 | KEEP emp_no)
+                   | KEEP emp_no)
+| SORT emp_no
+| KEEP emp_no, first_name
+;
+
+emp_no:integer | first_name:keyword
+10002          | Bezalel
+10005          | Kyoichi
 ;

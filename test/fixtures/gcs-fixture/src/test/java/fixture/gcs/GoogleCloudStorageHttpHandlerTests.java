@@ -100,14 +100,14 @@ public class GoogleCloudStorageHttpHandlerTests extends ESTestCase {
 
         assertEquals(new TestHttpResponse(RestStatus.OK, body), getBlobContents(handler, bucket, blobName, null, null));
 
-        assertEquals(
+        assertJsonResponseBody(
             new TestHttpResponse(RestStatus.OK, Strings.format("""
                 {"kind":"storage#objects","items":[{"kind":"storage#object","bucket":"%s","name":"%s","id":"%s","size":"50",\
                 "generation":"1","updated":"2024-01-01T00:00:00.000Z"}],"prefixes":[]}""", bucket, blobName, blobName)),
             listBlobs(handler, bucket, null, null)
         );
 
-        assertEquals(
+        assertJsonResponseBody(
             new TestHttpResponse(RestStatus.OK, Strings.format("""
                 {"kind":"storage#objects","items":[{"kind":"storage#object","bucket":"%s","name":"%s","id":"%s","size":"50",\
                 "generation":"1","updated":"2024-01-01T00:00:00.000Z"}],"prefixes":[]}""", bucket, blobName, blobName)),
@@ -384,7 +384,7 @@ public class GoogleCloudStorageHttpHandlerTests extends ESTestCase {
         );
 
         // can see in listing
-        assertEquals(
+        assertJsonResponseBody(
             new TestHttpResponse(RestStatus.OK, Strings.format("""
                 {"kind":"storage#objects","items":[{"kind":"storage#object","bucket":"%s","name":"%s","id":"%s","size":"130",\
                 "generation":"1","updated":"2024-01-01T00:00:00.000Z"}],"prefixes":[]}""", bucket, blobName, blobName)),
@@ -392,7 +392,7 @@ public class GoogleCloudStorageHttpHandlerTests extends ESTestCase {
         );
 
         // can get metadata
-        assertEquals(
+        assertJsonResponseBody(
             new TestHttpResponse(RestStatus.OK, Strings.format("""
                 {"kind":"storage#object","bucket":"%s","name":"%s","id":"%s","size":"130","generation":"1",\
                 "updated":"2024-01-01T00:00:00.000Z"}""", bucket, blobName, blobName)),
@@ -794,6 +794,15 @@ public class GoogleCloudStorageHttpHandlerTests extends ESTestCase {
             "GET",
             "/storage/v1/b/" + bucket + "/o" + generateQueryString("prefix", prefix, "delimiter", delimiter)
         );
+    }
+
+    private static void assertJsonResponseBody(TestHttpResponse expected, TestHttpResponse actual) {
+        assertEquals(expected.status(), actual.status());
+        assertEquals(normalizeUpdated(expected.body().utf8ToString()), normalizeUpdated(actual.body().utf8ToString()));
+    }
+
+    private static String normalizeUpdated(String json) {
+        return json.replaceAll("\"updated\":\"[^\"]+\"", "\"updated\":\"*\"");
     }
 
     private record TestHttpResponse(int status, BytesReference body, Headers headers) {

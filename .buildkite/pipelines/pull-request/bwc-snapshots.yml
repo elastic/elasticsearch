@@ -8,7 +8,7 @@ steps:
     steps:
       - label: "{{matrix.BWC_VERSION}} / Part 1 / bwc-snapshots"
         key: "bwc-snapshots-part1"
-        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v{{matrix.BWC_VERSION}}#bwcTestPart1
+        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed -Dtests.bwc.mode=auto v{{matrix.BWC_VERSION}}#bwcTestPart1
         timeout_in_minutes: 300
         matrix:
           setup:
@@ -17,11 +17,13 @@ steps:
           provider: gcp
           image: family/elasticsearch-ubuntu-2404
           machineType: n4-standard-16
+          preemptible: true
+          spotZones: 'asia-south2-a,asia-south2-b,asia-south2-c,europe-west2-a,europe-west2-b,europe-west2-c,northamerica-northeast2-b,northamerica-northeast2-c,southamerica-east1-a,southamerica-east1-b,southamerica-east1-c'
           diskType: hyperdisk-balanced
           buildDirectory: /dev/shm/bk
       - label: "{{matrix.BWC_VERSION}} / Part 2 / bwc-snapshots"
         key: "bwc-snapshots-part2"
-        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v{{matrix.BWC_VERSION}}#bwcTestPart2
+        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed -Dtests.bwc.mode=auto v{{matrix.BWC_VERSION}}#bwcTestPart2
         timeout_in_minutes: 300
         matrix:
           setup:
@@ -30,11 +32,13 @@ steps:
           provider: gcp
           image: family/elasticsearch-ubuntu-2404
           machineType: n4-standard-16
+          preemptible: true
+          spotZones: 'asia-south2-a,asia-south2-b,asia-south2-c,europe-west2-a,europe-west2-b,europe-west2-c,northamerica-northeast2-b,northamerica-northeast2-c,southamerica-east1-a,southamerica-east1-b,southamerica-east1-c'
           diskType: hyperdisk-balanced
           buildDirectory: /dev/shm/bk
       - label: "{{matrix.BWC_VERSION}} / Part 3 / bwc-snapshots"
         key: "bwc-snapshots-part3"
-        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v{{matrix.BWC_VERSION}}#bwcTestPart3
+        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed -Dtests.bwc.mode=auto v{{matrix.BWC_VERSION}}#bwcTestPart3
         timeout_in_minutes: 300
         matrix:
           setup:
@@ -43,11 +47,13 @@ steps:
           provider: gcp
           image: family/elasticsearch-ubuntu-2404
           machineType: n4-standard-16
+          preemptible: true
+          spotZones: 'asia-south2-a,asia-south2-b,asia-south2-c,europe-west2-a,europe-west2-b,europe-west2-c,northamerica-northeast2-b,northamerica-northeast2-c,southamerica-east1-a,southamerica-east1-b,southamerica-east1-c'
           diskType: hyperdisk-balanced
           buildDirectory: /dev/shm/bk
       - label: "{{matrix.BWC_VERSION}} / Part 4 / bwc-snapshots"
         key: "bwc-snapshots-part4"
-        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v{{matrix.BWC_VERSION}}#bwcTestPart5
+        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed -Dtests.bwc.mode=auto v{{matrix.BWC_VERSION}}#bwcTestPart5
         timeout_in_minutes: 300
         matrix:
           setup:
@@ -56,11 +62,13 @@ steps:
           provider: gcp
           image: family/elasticsearch-ubuntu-2404
           machineType: n4-standard-16
+          preemptible: true
+          spotZones: 'asia-south2-a,asia-south2-b,asia-south2-c,europe-west2-a,europe-west2-b,europe-west2-c,northamerica-northeast2-b,northamerica-northeast2-c,southamerica-east1-a,southamerica-east1-b,southamerica-east1-c'
           diskType: hyperdisk-balanced
           buildDirectory: /dev/shm/bk
       - label: "{{matrix.BWC_VERSION}} / Part 5 / bwc-snapshots"
         key: "bwc-snapshots-part5"
-        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v{{matrix.BWC_VERSION}}#bwcTestPart5
+        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed -Dtests.bwc.mode=auto v{{matrix.BWC_VERSION}}#bwcTestPart5
         timeout_in_minutes: 300
         matrix:
           setup:
@@ -69,11 +77,13 @@ steps:
           provider: gcp
           image: family/elasticsearch-ubuntu-2404
           machineType: n4-standard-16
+          preemptible: true
+          spotZones: 'asia-south2-a,asia-south2-b,asia-south2-c,europe-west2-a,europe-west2-b,europe-west2-c,northamerica-northeast2-b,northamerica-northeast2-c,southamerica-east1-a,southamerica-east1-b,southamerica-east1-c'
           diskType: hyperdisk-balanced
           buildDirectory: /dev/shm/bk
       - label: "{{matrix.BWC_VERSION}} / Part 6 / bwc-snapshots"
         key: "bwc-snapshots-part6"
-        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v{{matrix.BWC_VERSION}}#bwcTestPart6
+        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed -Dtests.bwc.mode=auto v{{matrix.BWC_VERSION}}#bwcTestPart6
         timeout_in_minutes: 300
         matrix:
           setup:
@@ -82,5 +92,7 @@ steps:
           provider: gcp
           image: family/elasticsearch-ubuntu-2404
           machineType: n4-standard-16
+          preemptible: true
+          spotZones: 'asia-south2-a,asia-south2-b,asia-south2-c,europe-west2-a,europe-west2-b,europe-west2-c,northamerica-northeast2-b,northamerica-northeast2-c,southamerica-east1-a,southamerica-east1-b,southamerica-east1-c'
           diskType: hyperdisk-balanced
           buildDirectory: /dev/shm/bk

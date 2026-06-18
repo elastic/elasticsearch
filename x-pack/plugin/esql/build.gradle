@@ -28,7 +28,7 @@ esplugin {
   name = 'x-pack-esql'
   description = 'The plugin that powers ESQL for Elasticsearch'
   classname = 'org.elasticsearch.xpack.esql.plugin.EsqlPlugin'
-  extendedPlugins = ['x-pack-esql-core', 'lang-painless', 'x-pack-ml']
+  extendedPlugins = ['x-pack-esql-core', 'lang-painless', 'x-pack-ml', 'x-pack-encryption']
 }
 
 base {
@@ -38,6 +38,7 @@ base {
 dependencies {
   compileOnly project(':modules:lang-painless:spi')
   compileOnly project(xpackModule('ml'))
+  compileOnly project(':x-pack:plugin:encryption:spi')
   compileOnly project(path: xpackModule('mapper-aggregate-metric'))
   compileOnly project(path: xpackModule('downsample'))
   implementation project(xpackModule('kql'))
@@ -49,7 +50,6 @@ dependencies {
   api "org.apache.lucene:lucene-spatial3d:${versions.lucene}"
   api "org.antlr:antlr4-runtime:${versions.antlr4}"
   api project(":libs:h3")
-  implementation project('arrow')
   implementation "org.apache.commons:commons-math3:${versions.commons_math3}"
 
   testImplementation(project('qa:testFixtures')) {
@@ -100,6 +100,10 @@ dependencies {
   internalClusterTestImplementation project(xpackModule('mapper-aggregate-metric'))
   internalClusterTestImplementation project(path: xpackModule('esql-datasource-csv'))
   internalClusterTestImplementation project(path: xpackModule('esql-datasource-ndjson'))
+  internalClusterTestImplementation project(path: xpackModule('esql-datasource-s3'))
+  internalClusterTestImplementation project(path: xpackModule('esql-datasource-netty-commons'))
+  internalClusterTestImplementation project(':test:fixtures:s3-fixture')
+  internalClusterTestImplementation project(':test:fixtures:aws-fixture-utils')
   internalClusterTestImplementation project(path: xpackModule('esql-datasource-compression-libs'))
   internalClusterTestImplementation project(path: xpackModule('esql-datasource-bzip2'))
   internalClusterTestImplementation project(path: xpackModule('esql-datasource-gzip'))
@@ -108,6 +112,10 @@ dependencies {
   internalClusterTestImplementation "org.apache.parquet:parquet-hadoop-bundle:${versions.parquet}"
   internalClusterTestImplementation("org.apache.hadoop:hadoop-common:${versions.hadoop}") { transitive = false }
   internalClusterTestImplementation("org.apache.hadoop:hadoop-mapreduce-client-core:${versions.hadoop}") { transitive = false }
+}
+
+tasks.named('compileInternalClusterTestJava').configure {
+  options.compilerArgs << '-Xlint:-classfile'
 }
 
 tasks.named('splitPackagesAudit').configure {
@@ -127,6 +135,15 @@ tasks.named("forbiddenPatterns").configure {
   exclude '**/*.parquet'
   exclude '**/*.avro'
   exclude '**/.*.crc'
+}
+
+tasks.named("test").configure {
+  // Arrow debug allocator: catches use-after-free, double-free, and unreleased ArrowBufs
+  // with deterministic stack traces. Kept local rather than in ElasticsearchBaseTestPlugin
+  // so that future JMH / perf-smoke benchmarks in esql-datasource-* modules are not
+  // inadvertently affected — the per-buffer ledger overhead invalidates timing measurements
+  // (OptimizedReaderPerformanceTests is already excluded from the test task for this reason).
+  systemProperty 'arrow.memory.debug.allocator', 'true'
 }
 
 
@@ -153,6 +170,8 @@ tasks.named("internalClusterTest").configure {
    * in future we might have move tests that do this.
    */
   systemProperty 'es.esql_external_datasources_feature_flag_enabled', 'true'
+  // Data sources require the project encryption key feature (EsqlPlugin fails fast otherwise); pair the flags.
+  systemProperty 'es.project_encryption_key_feature_flag_enabled', 'true'
 
   def injected = project.objects.newInstance(Injected)
   File snippetsFolder = file("build/testrun/internalClusterTest/temp/esql/_snippets")
@@ -400,6 +419,7 @@ def prop(Name, Type, type, TYPE, BYTES, Array) {
     "boolean"    : type == "boolean" ? "true" : "",
     "nanosMillis": Name == "NanosMillis" ? "true" : "",
     "millisNanos": Name == "MillisNanos" ? "true" : "",
+    "LongRange"  : Name == "LongRange" ? "true" : "",
   ]
 }
 
@@ -451,6 +471,11 @@ tasks.named('stringTemplates').configure {
     it.properties = bytesRefProperties
     it.inputFile = inInputFile
     it.outputFile = "org/elasticsearch/xpack/esql/expression/predicate/operator/comparison/InBytesRefEvaluator.java"
+  }
+  template {
+    it.properties = longRangeProperties
+    it.inputFile = inInputFile
+    it.outputFile = "org/elasticsearch/xpack/esql/expression/predicate/operator/comparison/InLongRangeEvaluator.java"
   }
 
   File coalesceInputFile = file("src/main/java/org/elasticsearch/xpack/esql/expression/function/scalar/nulls/X-CoalesceEvaluator.java.st")

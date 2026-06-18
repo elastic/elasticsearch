@@ -103,10 +103,7 @@ public class BulkByPaginatedSearchTask extends CancellableTask {
 
     @Override
     public TaskResult result(DiscoveryNode node, Exception error) throws IOException {
-        var cause = error instanceof ElasticsearchException elasticsearchException
-            ? elasticsearchException.getCause()
-            : ExceptionsHelper.unwrapCause(error);
-        if (cause instanceof TaskCancelledException taskCancelledException) {
+        if (ExceptionsHelper.unwrap(error, TaskCancelledException.class) instanceof TaskCancelledException taskCancelledException) {
             TaskInfo taskInfo = taskInfo(node.getId(), true);
             // task might not actually be cancelled at this point, but rather be in the process of cancelling
             // make sure the task result is indeed serialized as cancelled
@@ -788,7 +785,7 @@ public class BulkByPaginatedSearchTask extends CancellableTask {
         @Override
         public String toString() {
             StringBuilder builder = new StringBuilder();
-            builder.append("BulkIndexByScrollResponse[");
+            builder.append("BulkIndexByPaginatedSearchResponse[");
             innerToString(builder);
             return builder.append(']').toString();
         }

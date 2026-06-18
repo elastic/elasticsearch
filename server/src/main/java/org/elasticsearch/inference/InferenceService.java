@@ -116,24 +116,18 @@ public interface InferenceService extends Closeable {
     /**
      * Perform inference on the model.
      *
-     * @param model           The model
-     * @param query           Inference query, mainly for re-ranking
-     * @param returnDocuments For re-ranking task type, whether to return documents
-     * @param topN            For re-ranking task type, how many docs to return
-     * @param input           Inference input
-     * @param stream          Stream inference results
-     * @param taskSettings    Settings in the request to override the model's defaults
-     * @param inputType       For search, ingest etc
-     * @param timeout         The timeout for the request. Callers should normally pass in a timeout.
-     *                        Passing in null is specifically for query-time inference, when the timeout is managed by the
-     *                        xpack.inference.query_timeout cluster setting.
-     * @param listener        Inference result listener
+     * @param model        The model
+     * @param input        Inference input
+     * @param stream       Stream inference results
+     * @param taskSettings Settings in the request to override the model's defaults
+     * @param inputType    For search, ingest etc
+     * @param timeout      The timeout for the request. Callers should normally pass in a timeout.
+     *                     Passing in null is specifically for query-time inference, when the timeout is managed by the
+     *                     xpack.inference.query_timeout cluster setting.
+     * @param listener     Inference result listener
      */
     void infer(
         Model model,
-        @Nullable String query,
-        @Nullable Boolean returnDocuments,
-        @Nullable Integer topN,
         List<String> input,
         boolean stream,
         Map<String, Object> taskSettings,
@@ -186,28 +180,17 @@ public interface InferenceService extends Closeable {
     void rerankInfer(Model model, RerankRequest request, TimeValue timeout, ActionListener<InferenceServiceResults> listener);
 
     /**
-     * Temporary method to allow implementations of this interface to be converted to support the new rerank code path one at a time.
-     * This should be overridden for each service that has been converted to support the new code path.
-     * @return true if the service supports the new rerank code path
-     */
-    default boolean supportsNewRerankCodePath() {
-        return false;
-    }
-
-    /**
      * Chunk long text.
      *
-     * @param model            The model
-     * @param query            Inference query, mainly for re-ranking
-     * @param input            Inference input
-     * @param taskSettings     Settings in the request to override the model's defaults
-     * @param inputType        For search, ingest etc
-     * @param timeout          The timeout for the request
-     * @param listener         Chunked Inference result listener
+     * @param model        The model
+     * @param input        Inference input
+     * @param taskSettings Settings in the request to override the model's defaults
+     * @param inputType    For search, ingest etc
+     * @param timeout      The timeout for the request
+     * @param listener     Chunked Inference result listener
      */
     void chunkedInfer(
         Model model,
-        @Nullable String query,
         List<ChunkInferenceInput> input,
         Map<String, Object> taskSettings,
         InputType inputType,
@@ -263,6 +246,15 @@ public interface InferenceService extends Closeable {
      */
     default void stop(Model model, ActionListener<Boolean> listener) {
         listener.onResponse(true);
+    }
+
+    /**
+     * Called by {@code TransportUpdateInferenceModelAction} after a successful update has been persisted.
+     * Default no-op. Services can override to invalidate any per-model caches (for example,
+     * credential caches) when relevant fields have changed.
+     */
+    default void onModelUpdated(Model oldModel, Model newModel, ActionListener<Void> listener) {
+        listener.onResponse(null);
     }
 
     /**

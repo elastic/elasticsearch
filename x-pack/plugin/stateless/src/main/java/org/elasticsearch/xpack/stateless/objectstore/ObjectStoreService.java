@@ -264,6 +264,17 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
         Setting.Property.NodeScope
     );
 
+    /**
+     * How often to capture hot threads while a batched compound commit (VBCC) upload is in flight. Set to {@code 0} to disable.
+     */
+    public static final Setting<TimeValue> OBJECT_STORE_UPLOAD_HOT_THREADS_LOG_INTERVAL = Setting.timeSetting(
+        "stateless.object_store.upload_hot_threads_log_interval",
+        TimeValue.ZERO,
+        TimeValue.ZERO,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
     private static final int UPLOAD_PERMITS = Integer.MAX_VALUE;
 
     private final Settings settings;
@@ -665,15 +676,15 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
     public void uploadBatchedCompoundCommitFile(
         long primaryTerm,
         Directory directory,
-        long commitStartNanos,
+        long enqueuedAtNanos,
         VirtualBatchedCompoundCommit pendingCommit,
-        ActionListener<Void> listener
+        ActionListener<BccUploadObjectStoreTiming> listener
     ) {
         enqueueTask(
             listener,
             uploadTaskRunner,
             l -> new BatchedCommitFileUploadTask(
-                commitStartNanos,
+                enqueuedAtNanos,
                 pendingCommit,
                 BlobStoreCacheDirectory.unwrapDirectory(directory).getBlobContainer(primaryTerm),
                 l
@@ -1556,14 +1567,14 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
     private class BatchedCommitFileUploadTask extends ObjectStoreTask {
         private final VirtualBatchedCompoundCommit virtualBatchedCompoundCommit;
         private final BlobContainer blobContainer;
-        private final ActionListener<Void> listener;
+        private final ActionListener<BccUploadObjectStoreTiming> listener;
         private final boolean isDebugEnabled;
 
         BatchedCommitFileUploadTask(
             long timeInNanos,
             VirtualBatchedCompoundCommit virtualBatchedCompoundCommit,
             BlobContainer blobContainer,
-            ActionListener<Void> listener
+            ActionListener<BccUploadObjectStoreTiming> listener
         ) {
             super(
                 virtualBatchedCompoundCommit.getShardId(),
@@ -1584,8 +1595,9 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
         @Override
         protected void doRun() {
             boolean success = false;
+            final long objectStoreQueueWaitMs = TimeValue.nsecToMSec(threadPool.relativeTimeInNanos() - timeInNanos);
+            final long uploadIoStartNanos = threadPool.relativeTimeInNanos();
             try {
-                long before = isDebugEnabled ? threadPool.rawRelativeTimeInMillis() : 0L;
                 final long totalSizeInBytes = virtualBatchedCompoundCommit.getTotalSizeInBytes();
                 if (concurrentMultipartUploads == false || blobContainer.supportsConcurrentMultipartUploads() == false) {
                     try (var vbccInputStream = virtualBatchedCompoundCommit.getFrozenInputStreamForUpload()) {
@@ -1614,15 +1626,17 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
                     }
                 }
                 if (isDebugEnabled) {
-                    long elapsedMillis = threadPool.rawRelativeTimeInMillis() - before;
+                    final long uploadIoMs = TimeValue.nsecToMSec(threadPool.relativeTimeInNanos() - uploadIoStartNanos);
                     logger.debug(
                         () -> format(
-                            "%s file %s of size [%s] bytes from batched compound commit [%s] uploaded in [%s] ms",
+                            "%s file %s of size [%s] bytes from batched compound commit [%s] uploaded in [%s] ms"
+                                + " (object store queue [%s] ms)",
                             shardId,
                             blobContainer.path().add(virtualBatchedCompoundCommit.getBlobName()),
                             totalSizeInBytes,
                             generation,
-                            elapsedMillis
+                            uploadIoMs,
+                            objectStoreQueueWaitMs
                         )
                     );
                 }
@@ -1635,7 +1649,8 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
                 onFailure(e);
             } finally {
                 if (success) {
-                    listener.onResponse(null);
+                    final long uploadIoMs = TimeValue.nsecToMSec(threadPool.relativeTimeInNanos() - uploadIoStartNanos);
+                    listener.onResponse(new BccUploadObjectStoreTiming(objectStoreQueueWaitMs, uploadIoMs));
                 }
             }
         }
@@ -1783,4 +1798,9 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
             return toDeleteInThisTask.values().stream().flatMap(this::blobPathStream);
         }
     }
+
+    /**
+     * Phase timings measured inside {@link ObjectStoreService} for a batched compound commit upload.
+     */
+    public record BccUploadObjectStoreTiming(long objectStoreQueueWaitMs, long uploadIoMs) {}
 }

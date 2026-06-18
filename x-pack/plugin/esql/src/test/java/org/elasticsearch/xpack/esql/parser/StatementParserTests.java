@@ -46,6 +46,7 @@ import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.FilteredExpression;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.MatchOperator;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToCounter;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToGauge;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToInteger;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.RLike;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLike;
@@ -71,6 +72,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Explain;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
+import org.elasticsearch.xpack.esql.plan.logical.Highlight;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.Keep;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
@@ -141,6 +143,8 @@ import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
 
 //@TestLogging(value = "org.elasticsearch.xpack.esql:TRACE", reason = "debug")
@@ -1244,6 +1248,75 @@ public class StatementParserTests extends AbstractStatementParserTests {
     public void testDedupNotInReleaseBuild() {
         assumeFalse("only runs on release build", Build.current().isSnapshot());
         expectThrows(ParsingException.class, containsString("mismatched input 'DEDUP'"), () -> query("FROM foo | DEDUP"));
+    }
+
+    public void testHighlightOnFields() {
+        assumeTrue("requires HIGHLIGHT_V0 capability", EsqlCapabilities.Cap.HIGHLIGHT_V0.isEnabled());
+        LogicalPlan plan = query("FROM foo | HIGHLIGHT \"elasticsearch\" ON title, body");
+        Highlight highlight = as(plan, Highlight.class);
+        assertThat(highlight.prefix(), equalTo("highlight_"));
+        Literal q = as(highlight.query(), Literal.class);
+        assertThat(BytesRefs.toString(q.value()), equalTo("elasticsearch"));
+        assertThat(highlight.fields().size(), equalTo(2));
+        assertThat(((UnresolvedAttribute) highlight.fields().get(0)).name(), equalTo("title"));
+        assertThat(((UnresolvedAttribute) highlight.fields().get(1)).name(), equalTo("body"));
+        assertThat(highlight.options(), nullValue());
+        UnresolvedRelation relation = as(highlight.child(), UnresolvedRelation.class);
+        assertThat(relation.indexPattern().indexPattern(), equalTo("foo"));
+    }
+
+    public void testHighlightRequiresQueryAndOnClause() {
+        assumeTrue("requires HIGHLIGHT_V0 capability", EsqlCapabilities.Cap.HIGHLIGHT_V0.isEnabled());
+        // Both query and ON are grammatically required in v1. The plan node keeps `query` nullable
+        // and `fields` allowed-empty so the bare form can be enabled later without serialization changes.
+        expectThrows(ParsingException.class, () -> query("FROM foo | HIGHLIGHT"));
+        expectThrows(ParsingException.class, () -> query("FROM foo | HIGHLIGHT \"elasticsearch\""));
+        expectThrows(ParsingException.class, () -> query("FROM foo | HIGHLIGHT ON title"));
+    }
+
+    public void testHighlightRejectsPrefixSyntax() {
+        assumeTrue("requires HIGHLIGHT_V0 capability", EsqlCapabilities.Cap.HIGHLIGHT_V0.isEnabled());
+        // The plan node still carries a prefix field (hard-coded to "highlight_") so a future
+        // grammar extension can flip it on without breaking serialization.
+        expectThrows(ParsingException.class, () -> query("FROM foo | HIGHLIGHT prefix = \"h_\" \"elasticsearch\" ON title"));
+    }
+
+    public void testHighlightWithOptions() {
+        assumeTrue("requires HIGHLIGHT_V0 capability", EsqlCapabilities.Cap.HIGHLIGHT_V0.isEnabled());
+        LogicalPlan plan = query(
+            "FROM foo | HIGHLIGHT \"elasticsearch\" ON title WITH { \"fragment_size\": 150, \"number_of_fragments\": 2 }"
+        );
+        Highlight highlight = as(plan, Highlight.class);
+        assertThat(highlight.options(), notNullValue());
+        assertThat(highlight.options().keyFoldedMap().keySet(), equalTo(Set.of("fragment_size", "number_of_fragments")));
+    }
+
+    public void testHighlightRejectsUnknownOption() {
+        assumeTrue("requires HIGHLIGHT_V0 capability", EsqlCapabilities.Cap.HIGHLIGHT_V0.isEnabled());
+        expectThrows(
+            ParsingException.class,
+            containsString("Invalid option [bogus] in HIGHLIGHT"),
+            () -> query("FROM foo | HIGHLIGHT \"elasticsearch\" ON title WITH { \"bogus\": 1 }")
+        );
+    }
+
+    public void testHighlightRejectsExpressionQuery() {
+        assumeTrue("requires HIGHLIGHT_V0 capability", EsqlCapabilities.Cap.HIGHLIGHT_V0.isEnabled());
+        expectThrows(ParsingException.class, () -> query("FROM foo | HIGHLIGHT MATCH(title, \"x\") ON title"));
+    }
+
+    public void testHighlightRejectsWildcardFields() {
+        assumeTrue("requires HIGHLIGHT_V0 capability", EsqlCapabilities.Cap.HIGHLIGHT_V0.isEnabled());
+        expectThrows(ParsingException.class, () -> query("FROM foo | HIGHLIGHT \"elasticsearch\" ON *"));
+    }
+
+    public void testHighlightNotInReleaseBuild() {
+        assumeFalse("only runs on release build", EsqlCapabilities.Cap.HIGHLIGHT_V0.isEnabled());
+        expectThrows(
+            ParsingException.class,
+            containsString("mismatched input 'HIGHLIGHT'"),
+            () -> query("FROM foo | HIGHLIGHT \"elasticsearch\" ON title")
+        );
     }
 
     public void testBasicSortCommand() {
@@ -4517,6 +4590,16 @@ public class StatementParserTests extends AbstractStatementParserTests {
                     (org.elasticsearch.xpack.esql.core.expression.function.Function) row.fields().get(0).child();
                 assertThat(functionCall, instanceOf(ToCounter.class));
                 report.field(DataType.COUNTER_CAST_NAME, ToCounter.DEFINITION.name());
+            }
+            if (EsqlCapabilities.Cap.TO_GAUGE.isEnabled()) {
+                // gauge is a virtual cast target — not a real DataType — so it is not in namesAndAliases()
+                LogicalPlan plan = TEST_PARSER.parseQuery("ROW a = 1::" + DataType.GAUGE_CAST_NAME);
+                Row row = as(plan, Row.class);
+                assertThat(row.fields(), hasSize(1));
+                org.elasticsearch.xpack.esql.core.expression.function.Function functionCall =
+                    (org.elasticsearch.xpack.esql.core.expression.function.Function) row.fields().get(0).child();
+                assertThat(functionCall, instanceOf(ToGauge.class));
+                report.field(DataType.GAUGE_CAST_NAME, ToGauge.DEFINITION.name());
             }
             report.endObject();
             String rendered = Strings.toString(report);

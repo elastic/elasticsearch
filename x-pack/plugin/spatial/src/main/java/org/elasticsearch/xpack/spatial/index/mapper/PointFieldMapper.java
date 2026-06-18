@@ -251,8 +251,9 @@ public class PointFieldMapper extends AbstractPointGeometryFieldMapper<Cartesian
                 return new LongsBlockLoader(name());
             }
 
-            // Multi fields don't have fallback synthetic source.s
-            if (isSyntheticSource && blContext.parentField(name()) == null) {
+            // columnar_stored pre-builds _source as a single blob; skip the per-field fallback loader.
+            // Multi fields don't have fallback synthetic source.
+            if (isSyntheticSource && blContext.mappingLookup().isSourceColumnarStored() == false && blContext.parentField(name()) == null) {
                 return blockLoaderFromFallbackSyntheticSource(blContext);
             }
 

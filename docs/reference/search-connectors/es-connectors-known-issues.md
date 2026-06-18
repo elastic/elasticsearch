@@ -141,6 +141,42 @@ The connector service has the following known issues:
     **Fix**: Tracked in [elastic/connectors#4014](https://github.com/elastic/connectors/issues/4014). The fix is to bump `python-tds` to `>=1.15.0`, where the `pkg_resources` import was removed.
 
 
+* **Content Connectors entry in Stack Management is visible to users without the `content_connectors` capability**
+
+    Even if a user did not have the `management.data.content_connectors` capability, they saw the **Content Connectors** entry in the Stack Management sidebar. Navigating to it returned a 403.
+
+    **Affected versions**: Kibana 9.1 through 9.4.
+
+    **Fix**: Resolved in [elastic/kibana#271709](https://github.com/elastic/kibana/pull/271709) and shipped in Kibana 9.3.6, 9.4.3, and 9.5.0
+
+
+* **Jira Server/Data Center syncs fail to fetch issues**
+
+    [elastic/connectors#3710](https://github.com/elastic/connectors/pull/3710) migrated the Jira issues endpoint to the cursor-based `rest/api/3/search/jql` endpoint. That endpoint is not available on Jira Server/Data Center pre-v10, so syncs against those instances fail when fetching issues.
+
+    **Affected versions**: 8.18.8+, 8.19.5-8.19.16, 9.0.8+, 9.1.5+, 9.2.0+, 9.3.0–9.3.5, and 9.4.0–9.4.2. Jira Cloud is not affected.
+
+    **Fix**: [elastic/connectors#4059](https://github.com/elastic/connectors/pull/4059), shipped in 8.19.17, 9.3.6, 9.4.3, and 9.5.0.
+
+
+* **Outlook connector fails to sync on non-English Exchange servers**
+
+    The connector resolved default folders by English display names (`Contacts`, `Archive`). On localized on-prem Exchange servers these names differ, raising `ErrorFolderNotFound` and aborting the sync.
+
+    **Affected versions**: 8.11.0–8.19.16, 9.0.0–9.3.5, and 9.4.0–9.4.2. Non-English on-prem Exchange servers only.
+
+    **Fix**: [elastic/connectors#4065](https://github.com/elastic/connectors/pull/4065), shipped in 8.19.17, 9.3.6, 9.4.3, and 9.5.0. Folders are now resolved by locale-agnostic distinguished folder IDs; the Archive leaf folder still has no distinguished ID in Exchange and is skipped on localized servers when absent.
+
+
+* **Outlook connector fails when Active Directory users lack a mail attribute**
+
+    On on-prem Exchange, the connector passed the raw LDAP `mail` attribute into `exchangelib.Account`. When the attribute is missing, `ldap3` returns `[]`, causing `ValueError: primary_smtp_address [] is not an email address` and aborting the sync.
+
+    **Affected versions**: 8.11.0–8.19.16, 9.0.0–9.3.5, and 9.4.0–9.4.2. On-prem Exchange with Active Directory only.
+
+    **Fix**: [elastic/connectors#4078](https://github.com/elastic/connectors/pull/4078), shipped in 8.19.17, 9.3.6, 9.4.3, and 9.5.0.
+
+
 ## Individual connector known issues [es-connectors-known-issues-specific]
 
 Individual connectors may have additional known issues. Refer to [each connector’s reference documentation](/reference/search-connectors/index.md) for connector-specific known issues.

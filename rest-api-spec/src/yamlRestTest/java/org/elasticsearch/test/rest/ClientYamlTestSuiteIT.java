@@ -39,6 +39,7 @@ public class ClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
         .feature(FeatureFlag.RANDOM_SAMPLING)
         .feature(FeatureFlag.EXTENDED_DOC_VALUES_PARAMS)
         .feature(FeatureFlag.COLUMNAR_INDEX_MODE_FEATURE_FLAG)
+        .feature(FeatureFlag.INDEX_DISABLED_BY_DEFAULT)
         .build();
 
     public ClientYamlTestSuiteIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {

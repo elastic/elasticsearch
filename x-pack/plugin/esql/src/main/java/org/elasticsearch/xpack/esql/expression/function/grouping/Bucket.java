@@ -181,6 +181,7 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
 
     @FunctionInfo(
         returnType = { "double", "date", "date_nanos" },
+        briefSummary = "Creates groups of values (buckets) from a datetime or numeric input.",
         description = """
             Creates groups of values - buckets - out of a datetime or numeric input.
             The size of the buckets can either be provided directly, or chosen based on a recommended count and values range.""",

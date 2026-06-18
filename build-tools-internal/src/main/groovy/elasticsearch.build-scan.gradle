@@ -26,9 +26,10 @@ develocity {
   buildScan {
 
     def onCI = System.getenv('CI') ? Boolean.parseBoolean(System.getenv('CI')) : false
+    def watchingForPreemption = System.getenv('GCP_PREEMPTION_WATCHDOG') ? Boolean.parseBoolean(System.getenv('GCP_PREEMPTION_WATCHDOG')) : false
 
-    // Disable async upload in CI to ensure scan upload completes before CI agent is terminated
-    uploadInBackground = onCI == false
+    // Disable async upload in CI to ensure scan upload completes before CI agent is terminated, or any time we are watching for preemption
+    uploadInBackground = onCI == false && watchingForPreemption == false
 
     // Automatically publish scans from Elasticsearch CI
     if (onCI) {
@@ -130,10 +131,58 @@ develocity {
           value 'Git Commit ID', gitRevision.get()
           link 'Source', "https://github.com/${repository}/tree/${gitRevision.get()}"
         }
+      } else {
+        tag 'LOCAL'
+        if (System.getProperty('idea.active') == 'true') {
+          tag 'IDEA'
+        }
+      }
 
-        def jobId = System.getenv('BUILDKITE_JOB_ID')
+      buildFinished { result ->
+        def wasPreempted = false
+        def failedBeforePreemption = false
 
-        buildFinished { result ->
+        // Check whether the GradleRunner detected GCP preemption by reading
+        // the marker file it writes before cancelling the build.
+        if (watchingForPreemption) {
+          def preemptionMarker = new File(projectDir, 'build/.preemption-marker.json')
+          def preemptionTime = null
+          if (preemptionMarker.exists()) {
+            try {
+              def markerText = preemptionMarker.text
+              wasPreempted = markerText.contains('"preempted" : true') || markerText.contains('"preempted": true')
+              def timeMatcher = markerText =~ /"preemptedAt"\s*:\s*"([^"]+)"/
+              if (timeMatcher.find()) {
+                preemptionTime = timeMatcher.group(1)
+              }
+            } catch (Exception e) {
+              logger.warn("Could not read preemption marker file", e)
+            }
+          }
+
+          if (wasPreempted) {
+            tag 'PREEMPTED'
+            if (preemptionTime != null) {
+              value 'Preemption Time', preemptionTime
+            }
+            // Check task-status.json for failures that occurred before preemption
+            try {
+              def taskStatusFile = new File(projectDir, 'build/task-status.json')
+              if (taskStatusFile.exists()) {
+                def statusText = taskStatusFile.text
+                if (statusText.contains('"outcome" : "FAILED"') || statusText.contains('"result" : "FAILURE"')) {
+                  tag 'FAILED_BEFORE_PREEMPTION'
+                  failedBeforePreemption = true
+                }
+              }
+            } catch (Exception e) {
+              logger.warn("Could not check for pre-preemption failures", e)
+            }
+          }
+        }
+
+        if (onCI) {
+          def jobId = System.getenv('BUILDKITE_JOB_ID')
           def resolvedTestSeed = testSeed.get()
           value 'tests.seed', resolvedTestSeed
 
@@ -147,8 +196,20 @@ develocity {
               "storing test seed in Buildkite metadata"
             )
           }
+        }
 
-          buildScanPublished { scan ->
+        buildScanPublished { scan ->
+          // Write build scan ID to a file for the GradleRunner to pick up
+          try {
+            def scanIdFile = new File(projectDir, 'build/.buildscan-id')
+            scanIdFile.text = scan.buildScanId
+          } catch (Exception e) {
+            logger.warn("Could not write build scan ID file", e)
+          }
+
+          if (onCI) {
+            def isRealFailure = result.failures && (!wasPreempted || failedBeforePreemption)
+
             // Attach build scan link as build metadata
             // See: https://buildkite.com/docs/pipelines/build-meta-data
             runBuildkiteAgent(
@@ -166,19 +227,14 @@ develocity {
             // See: https://buildkite.com/docs/agent/v3/cli-annotate
             def jobRetryLabel = Integer.parseInt(System.getenv('BUILDKITE_RETRY_COUNT') ?: "0") >
               0 ? " (retry #${System.getenv('BUILDKITE_RETRY_COUNT')})" : ""
-            def body = """<div class="mb3"><span class="p1 border rounded">${System.getenv('BUILDKITE_LABEL')}${jobRetryLabel}</span> :gradle: ${result.failures ? 'failed' : 'successful'} build: <a href="${scan.buildScanUri}"><code>gradle ${taskNames}</code></a></div>"""
+            def body = """<div class="mb3"><span class="p1 border rounded">${System.getenv('BUILDKITE_LABEL')}${jobRetryLabel}</span> :gradle: ${isRealFailure ? 'failed' : 'successful'} build: <a href="${scan.buildScanUri}"><code>gradle ${taskNames}</code></a></div>"""
             // passing the body in as an argument has issues on Windows, so let's use stdin of the process instead
             runBuildkiteAgent(
-              ['annotate', '--context', result.failures ? 'gradle-build-scans-failed' : 'gradle-build-scans', '--append', '--style', result.failures ? 'error' : 'info'],
+              ['annotate', '--context', isRealFailure ? 'gradle-build-scans-failed' : 'gradle-build-scans', '--append', '--style', isRealFailure ? 'error' : 'info'],
               "adding build annotation",
               { it.write(body) }
             )
           }
-        }
-      } else {
-        tag 'LOCAL'
-        if (System.getProperty('idea.active') == 'true') {
-          tag 'IDEA'
         }
       }
     }

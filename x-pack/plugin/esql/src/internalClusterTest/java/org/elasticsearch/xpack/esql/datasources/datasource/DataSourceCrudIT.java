@@ -16,8 +16,6 @@ import org.elasticsearch.action.admin.indices.create.TransportCreateIndexAction;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
-import org.elasticsearch.cluster.metadata.DataSource;
-import org.elasticsearch.cluster.metadata.DataSourceSetting;
 import org.elasticsearch.cluster.metadata.Dataset;
 import org.elasticsearch.cluster.metadata.View;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -31,9 +29,14 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
+import org.elasticsearch.xpack.encryption.spi.EncryptedData;
+import org.elasticsearch.xpack.encryption.spi.EncryptionService;
+import org.elasticsearch.xpack.esql.datasources.DataSourceCredentials;
 import org.elasticsearch.xpack.esql.datasources.dataset.DeleteDatasetAction;
 import org.elasticsearch.xpack.esql.datasources.dataset.GetDatasetAction;
 import org.elasticsearch.xpack.esql.datasources.dataset.PutDatasetAction;
+import org.elasticsearch.xpack.esql.datasources.metadata.DataSource;
+import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceSetting;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourceValidator;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
@@ -73,7 +76,7 @@ public class DataSourceCrudIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return List.of(LocalStateDataSource.class);
+        return List.of(LocalStateDataSource.class, TestEncryptionServicePlugin.class);
     }
 
     public void testFullLifecycle() throws Exception {
@@ -134,7 +137,31 @@ public class DataSourceCrudIT extends ESIntegTestCase {
         assertThat("plain setting value accessible", region.nonSecretValue(), equalTo("us-east-1"));
 
         assertThat("secret-prefixed setting marked secret", secret.secret(), equalTo(true));
-        assertThat("secret value must be accessible via secretValue()", secret.secretValue().toString(), equalTo("AKIAXYZ"));
+        assertThat("secret value must be stored as an encrypted carrier", secret.rawValue(), instanceOf(EncryptedData.class));
+        EncryptedData carrier = (EncryptedData) secret.rawValue();
+
+        // E2E round-trip through DataSourceCredentials.decryptInPlace — the connector-boundary decryption step.
+        // Proves: PUT encrypts → cluster state holds an EncryptedData carrier → projection forwards it by
+        // reference → consumer decrypts back to the canary. Forwarding the carrier as-is is exactly what
+        // DatasetRewriter.mergeSettings produces for an encrypted secret.
+        DataSourceCredentials credentials = new DataSourceCredentials();
+        credentials.setEncryptionService(new EncryptionService() {
+            @Override
+            public EncryptedData encrypt(byte[] bytes) {
+                return new EncryptedData(TestEncryptionServicePlugin.TEST_KEY_ID, bytes);
+            }
+
+            @Override
+            public byte[] decrypt(EncryptedData encryptedData) {
+                return encryptedData.payload();
+            }
+        });
+        Map<String, Object> connectorInput = new HashMap<>();
+        connectorInput.put("region", "us-east-1");
+        connectorInput.put("secret_access_key", carrier);
+        Map<String, Object> decrypted = credentials.decryptInPlace(connectorInput);
+        assertThat("decryptInPlace passes non-secrets through", decrypted.get("region"), equalTo("us-east-1"));
+        assertThat("decryptInPlace materialises the plaintext canary", decrypted.get("secret_access_key"), equalTo("AKIAXYZ"));
 
         assertAcked(client().execute(DeleteDataSourceAction.INSTANCE, deleteDataSourceRequest(dsName)));
     }
@@ -143,9 +170,7 @@ public class DataSourceCrudIT extends ESIntegTestCase {
         final String dsName = "persists_across_restart";
         assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest(dsName, Map.of("region", "us-west-2"))));
 
-        // Full-cluster restart. GATEWAY-only context ({@code org.elasticsearch.cluster.metadata.DataSourceMetadata.context() =
-        // EnumSet.of(GATEWAY)})
-        // means the metadata is persisted to disk via the gateway and survives restart.
+        // Full-cluster restart. DataSourceMetadata.context() is GATEWAY-only, so the metadata is persisted to disk and survives restart.
         internalCluster().fullRestart();
         ensureYellow();
 
@@ -215,9 +240,9 @@ public class DataSourceCrudIT extends ESIntegTestCase {
         final CountDownLatch startGate = new CountDownLatch(1);
         final CountDownLatch doneGate = new CountDownLatch(2);
         @SuppressWarnings("unchecked")
-        final ActionFuture<AcknowledgedResponse>[] putFuture = new ActionFuture[1];
+        final ActionFuture<AcknowledgedResponse>[] putFuture = (ActionFuture<AcknowledgedResponse>[]) new ActionFuture<?>[1];
         @SuppressWarnings("unchecked")
-        final ActionFuture<AcknowledgedResponse>[] deleteFuture = new ActionFuture[1];
+        final ActionFuture<AcknowledgedResponse>[] deleteFuture = (ActionFuture<AcknowledgedResponse>[]) new ActionFuture<?>[1];
 
         Thread puter = new Thread(() -> {
             try {
@@ -391,8 +416,9 @@ public class DataSourceCrudIT extends ESIntegTestCase {
         // The SPI contract on DataSourceValidator.validateDataset says dataset settings carry no
         // secrets, but only convention enforces that. If a dataset key ever shadowed a parent
         // secret-keyed setting, DatasetRewriter.mergeSettings would silently overwrite the
-        // SecureString — losing secret-classification down the carrier path. validatePutDataset
-        // rejects the put at validate-time so the invariant is enforced where it's defined.
+        // EncryptedData carrier — losing secret-classification down the carrier path.
+        // validatePutDataset rejects the put at
+        // validate-time so the invariant is enforced where it's defined.
         final String parentDsName = "shadowing_parent";
         final String datasetName = "shadowing_ds";
         assertAcked(
@@ -523,7 +549,7 @@ public class DataSourceCrudIT extends ESIntegTestCase {
         assertAcked(client().execute(DeleteDataSourceAction.INSTANCE, deleteDataSourceRequest(dsName)));
     }
 
-    private static PutDataSourceAction.Request putDataSourceRequest(String name, Map<String, Object> settings) {
+    static PutDataSourceAction.Request putDataSourceRequest(String name, Map<String, Object> settings) {
         return new PutDataSourceAction.Request(TEST_TIMEOUT, TEST_TIMEOUT, name, "test", null, new HashMap<>(settings));
     }
 

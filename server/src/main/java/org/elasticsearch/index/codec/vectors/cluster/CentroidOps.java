@@ -127,6 +127,30 @@ public sealed interface CentroidOps<V> permits CentroidOps.FloatOps, CentroidOps
     void addScaled(float scale, V src, float[] dest);
 
     /**
+     * Applies a batch update to a centroid: {@code centroid[i] = scaleSrc * src[i] + scaleCentroid * centroid[i]}.
+     * <p>
+     * For float centroids, this operates directly on the centroid array.
+     * For byte centroids, this loads the centroid into the provided float buffer, applies the
+     * linear combination, and writes the result back to the byte centroid.
+     *
+     * @param scaleSrc      scale factor for the source (batch sum)
+     * @param src           the source float array (e.g. accumulated batch sums)
+     * @param scaleCentroid scale factor for the existing centroid value
+     * @param centroid      the centroid to update in place
+     * @param buffer        a reusable float[dim] scratch buffer (used internally by ByteOps; ignored by FloatOps)
+     * @param dim           vector dimension
+     */
+    void blendBatchIntoCentroid(float scaleSrc, float[] src, float scaleCentroid, V centroid, float[] buffer, int dim);
+
+    /**
+     * Allocates a scratch buffer for use with {@link #blendBatchIntoCentroid}, or returns {@code null}
+     * if no buffer is needed (e.g. for float centroids that are updated in place).
+     *
+     * @param dim vector dimension
+     */
+    float[] allocateBlendBuffer(int dim);
+
+    /**
      * Compute the mean centroid of all vectors in the given collection.
      * For float vectors this accumulates directly into a {@code float[]} centroid.
      * For byte vectors this accumulates into {@code int[]} precision and rounds once at the end.
@@ -341,6 +365,17 @@ public sealed interface CentroidOps<V> permits CentroidOps.FloatOps, CentroidOps
         }
 
         @Override
+        public void blendBatchIntoCentroid(float scaleSrc, float[] src, float scaleCentroid, float[] centroid, float[] buffer, int dim) {
+            // Float centroids can be updated directly — no load/store needed
+            ESVectorUtil.linearCombination(scaleSrc, src, scaleCentroid, centroid);
+        }
+
+        @Override
+        public float[] allocateBlendBuffer(int dim) {
+            return null; // float centroids are updated in place, no scratch buffer needed
+        }
+
+        @Override
         public void computeDiffs(float[] vector, float[] centroid, float[] diffs) {
             for (int j = 0; j < diffs.length; j++) {
                 diffs[j] = vector[j] - centroid[j];
@@ -551,6 +586,25 @@ public sealed interface CentroidOps<V> permits CentroidOps.FloatOps, CentroidOps
         @Override
         public void addScaled(float scale, byte[] src, float[] dest) {
             ESVectorUtil.linearCombination(scale, src, dest);
+        }
+
+        @Override
+        public void blendBatchIntoCentroid(float scaleSrc, float[] src, float scaleCentroid, byte[] centroid, float[] buffer, int dim) {
+            // Load byte centroid into float buffer
+            for (int d = 0; d < dim; d++) {
+                buffer[d] = centroid[d];
+            }
+            // Apply linear combination in float precision
+            ESVectorUtil.linearCombination(scaleSrc, src, scaleCentroid, buffer);
+            // Write back to byte centroid with rounding and clamping
+            for (int d = 0; d < dim; d++) {
+                centroid[d] = (byte) Math.clamp(Math.round(buffer[d]), -128, 127);
+            }
+        }
+
+        @Override
+        public float[] allocateBlendBuffer(int dim) {
+            return new float[dim];
         }
 
         @Override

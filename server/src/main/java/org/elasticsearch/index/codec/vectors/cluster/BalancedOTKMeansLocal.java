@@ -11,7 +11,6 @@ package org.elasticsearch.index.codec.vectors.cluster;
 
 import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.hnsw.IntToIntFunction;
-import org.elasticsearch.simdvec.ESVectorUtil;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -65,13 +64,18 @@ abstract class BalancedOTKMeansLocal<V> extends KMeansLocal<V> {
         float[] cumulativeClusterWeights,
         float[][] softAssignments,
         V[] centroids,
-        CentroidOps.MutationContext<V> sgdContext
+        float[][] batchSums,
+        float[] batchWeights,
+        float[] buffer
     ) throws IOException {
         int k = centroids.length;
         int dim = vectors.dimension();
 
-        float[][] batchSums = new float[k][dim];
-        float[] batchWeights = new float[k];
+        // Zero the accumulators (reused across mini-batches)
+        for (float[] row : batchSums) {
+            Arrays.fill(row, 0f);
+        }
+        Arrays.fill(batchWeights, 0f);
 
         // Accumulate the raw Sinkhorn weights via fast FMA loop
         for (int idx = 0; idx < vectors.size(); idx++) {
@@ -85,18 +89,17 @@ abstract class BalancedOTKMeansLocal<V> extends KMeansLocal<V> {
             }
         }
 
-        // Apply the k scaling and update
+        // Apply the k scaling and update each centroid directly — no float shadow needed.
+        // Each centroid is loaded, blended with its batch sum, and written back once.
         for (int c = 0; c < k; c++) {
             if (batchWeights[c] > 0) {
                 float scaledBatchWeight = batchWeights[c] * k;
                 cumulativeClusterWeights[c] += scaledBatchWeight;
                 float learningRate = scaledBatchWeight / cumulativeClusterWeights[c];
                 float lrNorm = learningRate / batchWeights[c];
-                ESVectorUtil.linearCombination(lrNorm, batchSums[c], 1.0f - learningRate, sgdContext.floatCentroid(c));
+                ops.blendBatchIntoCentroid(lrNorm, batchSums[c], 1.0f - learningRate, centroids[c], buffer, dim);
             }
         }
-
-        sgdContext.syncToNative();
     }
 
     /** assign to each vector the closest centroid */
@@ -146,59 +149,59 @@ abstract class BalancedOTKMeansLocal<V> extends KMeansLocal<V> {
         V[] oldCentroids = ops.newCentroidArray(k, vectors.dimension());
         ops.deepCopy(centroids, oldCentroids);
 
-        // Scoped float-precision mutation context for SGD updates.
-        // For float centroids this is zero-cost; for byte centroids it maintains a float shadow
-        // that is synced back to native on each call to syncToNative() and released on close().
-        try (var sgdContext = ops.newMutationContext(centroids, vectors.dimension())) {
-            int t = 0;
-            for (int epoch = 0; epoch < maxIterations; epoch++) {
-                for (int batch = 0; batch < sampleSize; batch += miniBatchSizeLocal) {
-                    // This simple version performs sampling with replacement (that is, two batches can share vectors but within a batch
-                    // the vectors are unique) for simplicity. To be more precise, we could sample without replacement but the current
-                    // approach seems good enough.
-                    ClusteringVectorValues<V> sampledVectors = ClusteringVectorValuesSlice.createRandomSlice(
-                        vectors,
-                        miniBatchSizeLocal,
-                        t++,
-                        miniBatchSamples
-                    );
+        // Pre-allocate SGD workspace — reused across all mini-batches to avoid repeated allocation.
+        float[][] batchSums = new float[k][vectors.dimension()];
+        float[] batchWeights = new float[k];
+        float[] buffer = ops.allocateBlendBuffer(vectors.dimension()); // scratch for blendBatchIntoCentroid (null for float path)
 
-                    computeDistances(sampledVectors, centroids, distances);
+        int t = 0;
+        for (int epoch = 0; epoch < maxIterations; epoch++) {
+            for (int batch = 0; batch < sampleSize; batch += miniBatchSizeLocal) {
+                // This simple version performs sampling with replacement (that is, two batches can share vectors but within a batch
+                // the vectors are unique) for simplicity. To be more precise, we could sample without replacement but the current
+                // approach seems good enough.
+                ClusteringVectorValues<V> sampledVectors = ClusteringVectorValuesSlice.createRandomSlice(
+                    vectors,
+                    miniBatchSizeLocal,
+                    t++,
+                    miniBatchSamples
+                );
 
-                    if (medianEstimator == null) {
-                        // Getting the range of the median estimator from the first batch.
-                        // Since the estimator snaps the values to the provided range, this is a safe operation.
-                        float maxDistance = Float.NEGATIVE_INFINITY;
-                        for (float[] dist : distances) {
-                            for (float d : dist) {
-                                maxDistance = Math.max(maxDistance, d);
-                            }
-                        }
-                        medianEstimator = new OnlineQuantileEstimator(0.5f, 0, maxDistance, 0.0001f, 42L);
-                    }
+                computeDistances(sampledVectors, centroids, distances);
 
+                if (medianEstimator == null) {
+                    // Getting the range of the median estimator from the first batch.
+                    // Since the estimator snaps the values to the provided range, this is a safe operation.
+                    float maxDistance = Float.NEGATIVE_INFINITY;
                     for (float[] dist : distances) {
-                        medianEstimator.updateEstimate(dist);
+                        for (float d : dist) {
+                            maxDistance = Math.max(maxDistance, d);
+                        }
                     }
-
-                    float currentMedian = medianEstimator.getEstimate();
-                    float eps = Math.max(eta * currentMedian, etaMin);
-                    // Perform Shinkhorn iterations in log domain to obtain a balanced assignment.
-                    sinkhorn.compute(distances, sinkhornIterations, eps, softAssignments);
-
-                    // Update the centroids using SGD.
-                    updateCentroids(sampledVectors, cumulativeClusterWeights, softAssignments, centroids, sgdContext);
-                }
-                eta *= etaMultiplicativeUpdate;
-                for (int kk = 0; kk < k; kk++) {
-                    cumulativeClusterWeights[kk] *= forgettingFactor;
+                    medianEstimator = new OnlineQuantileEstimator(0.5f, 0, maxDistance, 0.0001f, 42L);
                 }
 
-                if (ops.normalizedFrobeniusNorm(centroids, oldCentroids) < convergenceRelativeTolerance) {
-                    break;
-                } else {
-                    ops.deepCopy(centroids, oldCentroids);
+                for (float[] dist : distances) {
+                    medianEstimator.updateEstimate(dist);
                 }
+
+                float currentMedian = medianEstimator.getEstimate();
+                float eps = Math.max(eta * currentMedian, etaMin);
+                // Perform Shinkhorn iterations in log domain to obtain a balanced assignment.
+                sinkhorn.compute(distances, sinkhornIterations, eps, softAssignments);
+
+                // Update the centroids using SGD.
+                updateCentroids(sampledVectors, cumulativeClusterWeights, softAssignments, centroids, batchSums, batchWeights, buffer);
+            }
+            eta *= etaMultiplicativeUpdate;
+            for (int kk = 0; kk < k; kk++) {
+                cumulativeClusterWeights[kk] *= forgettingFactor;
+            }
+
+            if (ops.normalizedFrobeniusNorm(centroids, oldCentroids) < convergenceRelativeTolerance) {
+                break;
+            } else {
+                ops.deepCopy(centroids, oldCentroids);
             }
         }
 

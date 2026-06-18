@@ -1051,7 +1051,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
             DocumentMapper mapper = createColumnarMapperWithPrefixDynamic(indexMode, "attributes", "false", "host", "keyword");
             // dotted-notation unmapped field under attributes.* prefix
             ParsedDocument doc = mapper.parse(columnarSource(b -> b.field("attributes.unknown", "value")));
-            assertEquals(0, doc.rootDoc().getFields("attributes.unknown").size());
+            assertTrue(doc.rootDoc().getFields("attributes.unknown").isEmpty());
             assertNull(
                 "prefix dynamic:false must drop the field (not store to _ignored_source)",
                 doc.rootDoc().getField(IgnoredSourceFieldMapper.NAME)
@@ -1065,7 +1065,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
             DocumentMapper mapper = createColumnarMapperWithPrefixDynamic(indexMode, "attributes", "false", "host", "keyword");
             // object-notation unmapped field under attributes.* prefix
             ParsedDocument doc = mapper.parse(columnarSource(b -> b.startObject("attributes").field("unknown", "value").endObject()));
-            assertEquals(0, doc.rootDoc().getFields("attributes.unknown").size());
+            assertTrue(doc.rootDoc().getFields("attributes.unknown").isEmpty());
             assertNull(
                 "prefix dynamic:false must drop the field (not store to _ignored_source)",
                 doc.rootDoc().getField(IgnoredSourceFieldMapper.NAME)
@@ -1079,7 +1079,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
             DocumentMapper mapper = createColumnarMapperWithPrefixDynamic(indexMode, "attributes", "false", "host", "keyword");
             // Mapped field under the prefix must still be indexed
             ParsedDocument doc = mapper.parse(columnarSource(b -> b.field("attributes.host", "myhost")));
-            assertNotEquals(0, doc.rootDoc().getFields("attributes.host").size());
+            assertFalse(doc.rootDoc().getFields("attributes.host").isEmpty());
         }
     }
 
@@ -1114,10 +1114,9 @@ public class DocumentParserTests extends MapperServiceTestCase {
             DocumentMapper mapper = createColumnarMapperWithPrefixDynamic(indexMode, "attributes", "false", "host", "keyword");
             ParsedDocument doc = mapper.parse(columnarSource(b -> b.field("other.unmapped", 42)));
             // The field "other.unmapped" is under no registered prefix → root dynamic=true → field created
-            assertNotEquals(
+            assertFalse(
                 "field outside any prefix should be created via root dynamic:true",
-                0,
-                doc.rootDoc().getFields("other.unmapped").size()
+                doc.rootDoc().getFields("other.unmapped").isEmpty()
             );
         }
     }
@@ -1149,11 +1148,11 @@ public class DocumentParserTests extends MapperServiceTestCase {
 
             // foo.bar.unmapped → longest prefix foo.bar (true) → field created
             ParsedDocument doc1 = mapper.parse(columnarSource(b -> b.field("foo.bar.unmapped", "value")));
-            assertNotEquals(0, doc1.rootDoc().getFields("foo.bar.unmapped").size());
+            assertFalse(doc1.rootDoc().getFields("foo.bar.unmapped").isEmpty());
 
             // foo.other → prefix foo (false) → dropped
             ParsedDocument doc2 = mapper.parse(columnarSource(b -> b.field("foo.other", "value")));
-            assertEquals(0, doc2.rootDoc().getFields("foo.other").size());
+            assertTrue(doc2.rootDoc().getFields("foo.other").isEmpty());
         }
     }
 

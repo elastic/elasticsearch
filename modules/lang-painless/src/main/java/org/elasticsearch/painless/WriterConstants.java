@@ -233,6 +233,24 @@ public final class WriterConstants {
     /** Generated override of {@link org.elasticsearch.painless.PainlessScript#getAllocBytes()}. */
     public static final Method GET_ALLOC_BYTES = getAsmMethod(long.class, "getAllocBytes");
 
+    /**
+     * {@link org.elasticsearch.painless.PainlessScript#$checkAllocBytes(long)} — invoked (via the script interface) at every
+     * compile-time-known allocation site to charge and check the running total against the per-context limit.
+     */
+    public static final Method CHECK_ALLOC_BYTES = getAsmMethod(void.class, "$checkAllocBytes", long.class);
+
+    /** ASM {@link Type} for {@link AllocationGuard}, the log-and-throw helper called on a limit breach. */
+    public static final Type ALLOCATION_GUARD_TYPE = Type.getType(AllocationGuard.class);
+
+    /** {@link AllocationGuard#allocationLimitExceeded(long, long, long)} — called from {@code $checkAllocBytes} on breach. */
+    public static final Method ALLOCATION_LIMIT_EXCEEDED = getAsmMethod(
+        void.class,
+        "allocationLimitExceeded",
+        long.class,
+        long.class,
+        long.class
+    );
+
     private static Method getAsmMethod(final Class<?> rtype, final String name, final Class<?>... ptypes) {
         return new Method(name, MethodType.methodType(rtype, ptypes).toMethodDescriptorString());
     }

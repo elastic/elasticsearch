@@ -1,0 +1,43 @@
+TopNExec[[Order[name{r}#0,ASC,LAST]],1000[INTEGER],null]
+\_MergeExec[[name{r}#0]]
+  |_ExchangeExec[[name{r}#1],false]
+  | \_ProjectExec[[name{r}#1]]
+  |   \_ProjectExec[[first_name{f}#2 AS name#1]]
+  |     \_FieldExtractExec[first_name{f}#2]<[],[],[]>
+  |       \_EsQueryExec[employees], indexMode[standard], [_doc{f}#3], limit[], sort[] estimatedRowSize[54] queryBuilderAndTags [[QueryBuilderAndTags[query={
+  "esql_single_value" : {
+    "field" : "first_name",
+    "next" : {
+      "term" : {
+        "first_name" : {
+          "value" : "staging",
+          "boost" : 0.0
+        }
+      }
+    },
+    "source" : "name == \"staging\"@4:9"
+  }
+}, tags=[]]]]
+  |_ExchangeExec[[name{r}#4],false]
+  | \_ProjectExec[[name{r}#4]]
+  |   \_ProjectExec[[cluster{f}#5 AS name#4]]
+  |     \_FieldExtractExec[cluster{f}#5]<[],[],[]>
+  |       \_EsQueryExec[k8s], indexMode[standard], [_doc{f}#6], limit[], sort[] estimatedRowSize[54] queryBuilderAndTags [[QueryBuilderAndTags[query={
+  "esql_single_value" : {
+    "field" : "cluster",
+    "next" : {
+      "term" : {
+        "cluster" : {
+          "value" : "staging",
+          "boost" : 0.0
+        }
+      }
+    },
+    "source" : "name == \"staging\"@4:9"
+  }
+}, tags=[]]]]
+  \_ExchangeExec[[name{r}#7],false]
+    \_ProjectExec[[name{r}#7]]
+      \_ProjectExec[[name{r}#7]]
+        \_FilterExec[name{r}#7 == staging[KEYWORD]]
+          \_ExternalSourceExec[s3://bucket/golden_salaries.parquet][parquet][name{r}#7]

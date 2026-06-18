@@ -12,23 +12,21 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.core.Nullable;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.SettingsConfiguration;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
-import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.inference.common.ValidationResult;
+import org.elasticsearch.xpack.inference.common.oauth2.BaseOAuth2Settings;
 import org.elasticsearch.xpack.inference.common.oauth2.OAuth2Settings;
 
 import java.io.IOException;
 import java.util.EnumSet;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 import static org.elasticsearch.xpack.inference.common.oauth2.OAuth2Settings.getOAuth2Configurations;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalString;
@@ -37,26 +35,25 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOpt
  * Represents the OAuth2 service-level settings required for Azure OpenAI client credentials flow authentication,
  * which includes the standard OAuth2 fields (client ID and scopes)  as well as the tenant ID specific to Azure.
  */
-public class AzureOpenAiOAuth2Settings implements ToXContentFragment, Writeable {
+public class AzureOpenAiOAuth2Settings extends BaseOAuth2Settings {
 
     public static final TransportVersion AZURE_OPENAI_OAUTH_SETTINGS = TransportVersion.fromName("azure_openai_oauth_settings");
 
     public static final String TENANT_ID_FIELD = "tenant_id";
 
-    public static final String REQUIRED_FIELDS = String.join(", ", OAuth2Settings.REQUIRED_FIELDS, TENANT_ID_FIELD);
-
-    public static final String REQUIRED_FIELDS_DESCRIPTION = Strings.format("OAuth2 requires the fields [%s], to be set.", REQUIRED_FIELDS);
+    public static final Set<String> REQUIRED_FIELDS = Sets.addToCopy(OAuth2Settings.REQUIRED_FIELDS, TENANT_ID_FIELD);
+    public static final String REQUIRED_FIELDS_DESCRIPTION = requiredFieldsDescription(REQUIRED_FIELDS);
 
     private static final String TENANT_ID_CONFIG_DESCRIPTION = "The directory tenant that you want to request permission from.";
+    private static final String SERVICE_DESCRIPTION = "Azure OpenAI";
 
-    private final OAuth2Settings oAuth2Settings;
     private final String tenantId;
 
     public static AzureOpenAiOAuth2Settings fromMap(Map<String, Object> map, ValidationException validationException) {
         var oauth2ServiceSettings = OAuth2Settings.fromMap(map, validationException);
         var tenantId = extractOptionalString(map, TENANT_ID_FIELD, ModelConfigurations.SERVICE_SETTINGS, validationException);
 
-        var hasAllFields = validateFields(oauth2ServiceSettings, tenantId, validationException);
+        var hasAllFields = validateFields(oauth2ServiceSettings, tenantId, TENANT_ID_FIELD, SERVICE_DESCRIPTION, validationException);
 
         if (hasAllFields) {
             return new AzureOpenAiOAuth2Settings(oauth2ServiceSettings.result(), tenantId);
@@ -69,59 +66,13 @@ public class AzureOpenAiOAuth2Settings implements ToXContentFragment, Writeable 
         return OAuth2Settings.hasAnyOAuth2Fields(map) || map.containsKey(TENANT_ID_FIELD);
     }
 
-    /**
-     * Validates that either all or none of the fields are provided. If any field is provided, then all fields must be provided.
-     * This is because OAuth2 requires all fields to be set together.
-     *
-     * @return true if all fields are provided, false if no fields are provided or some are missing
-     */
-    private static boolean validateFields(
-        ValidationResult<OAuth2Settings> oauth2Settings,
-        @Nullable String tenantId,
-        ValidationException validationException
-    ) {
-        if (tenantId == null) {
-            if (oauth2Settings.isUndefined()) {
-                return false;
-            }
-
-            addMissingFieldsValidationException(TENANT_ID_FIELD, validationException);
-
-            return false;
-        } else if (oauth2Settings.isUndefined()) {
-            addMissingFieldsValidationException(OAuth2Settings.REQUIRED_FIELDS, validationException);
-            return false;
-        }
-
-        return oauth2Settings.isSuccess();
-    }
-
-    private static void addMissingFieldsValidationException(String missingFields, ValidationException validationException) {
-        validationException.addValidationError(
-            Strings.format(
-                "[%s] all Azure OpenAI OAuth2 fields must be provided together; missing: [%s]",
-                ModelConfigurations.SERVICE_SETTINGS,
-                missingFields
-            )
-        );
-    }
-
     public AzureOpenAiOAuth2Settings(OAuth2Settings oAuth2Settings, String tenantId) {
-        this.oAuth2Settings = Objects.requireNonNull(oAuth2Settings);
+        super(oAuth2Settings);
         this.tenantId = Objects.requireNonNull(tenantId);
     }
 
     public AzureOpenAiOAuth2Settings(StreamInput in) throws IOException {
-        this.oAuth2Settings = new OAuth2Settings(in);
-        this.tenantId = in.readString();
-    }
-
-    public String clientId() {
-        return oAuth2Settings.clientId();
-    }
-
-    public List<String> scopes() {
-        return oAuth2Settings.scopes();
+        this(new OAuth2Settings(in), in.readString());
     }
 
     public String tenantId() {

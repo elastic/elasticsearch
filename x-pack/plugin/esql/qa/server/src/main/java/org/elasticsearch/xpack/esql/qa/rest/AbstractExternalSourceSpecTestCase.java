@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.esql.CsvSpecReader.CsvTestCase;
 import org.elasticsearch.xpack.esql.CsvSpecReader.DatasetSource;
 import org.elasticsearch.xpack.esql.CsvTestsDataLoader;
 import org.elasticsearch.xpack.esql.SpecReader;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.datasources.AzureFixtureUtils;
 import org.elasticsearch.xpack.esql.datasources.AzureFixtureUtils.DataSourcesAzureHttpFixture;
 import org.elasticsearch.xpack.esql.datasources.DatasetRegistry;
@@ -48,6 +49,7 @@ import static org.elasticsearch.xpack.esql.datasources.AzureFixtureUtils.CONTAIN
 import static org.elasticsearch.xpack.esql.datasources.FixtureUtils.COMPRESSED_EXTENSIONS;
 import static org.elasticsearch.xpack.esql.datasources.S3FixtureUtils.BUCKET;
 import static org.elasticsearch.xpack.esql.datasources.S3FixtureUtils.WAREHOUSE;
+import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.hasCapabilities;
 
 /**
  * Abstract base class for external source integration tests using S3HttpFixture.
@@ -355,13 +357,15 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
         // ClickBench templates are resolved by ClickBenchParquetSpecIT, not by this class.
         assumeFalse("ClickBench templates require ClickBenchParquetSpecIT", testCase.query.contains("{{clickbench}}"));
 
-        // Pick the Azure URI form once per test so wildcard expansion sees a single, consistent form.
-        useAzureHadoopForm = storageBackend == StorageBackend.AZURE && randomBoolean();
-
         if (testCase.datasetSources.isEmpty() == false && datasetModeBackends().contains(storageBackend)) {
             runDatasetMode();
             return;
         }
+
+        // Pick the Azure URI form once per test so wildcard expansion sees a single, consistent form.
+        // Only the EXTERNAL/rebuild path resolves Azure templates; dataset mode is S3-only, so this is
+        // scoped to the non-dataset path it actually affects.
+        useAzureHadoopForm = storageBackend == StorageBackend.AZURE && randomBoolean();
 
         // Non-dataset path: rebuild EXTERNAL from any dataset: directives, then run the existing flow.
         String query = rebuildExternalFromDatasets(testCase.query);
@@ -411,8 +415,18 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
      * the spec's {@code FROM <name>} query verbatim — cold then warm (same warm-path rationale as the
      * EXTERNAL flow above). Each source's resource template is resolved to the backend URI exactly as the
      * EXTERNAL path resolves it.
+     * <p>
+     * Skipped (rather than failed) on a cluster that lacks {@code dataset_in_from_command}: that
+     * capability gates resolving {@code FROM <dataset>} in {@code POST /_query}, which is what this path
+     * exercises. The EXTERNAL-rebuild fallback in {@link EsqlSpecTestCase#rebuildExternalFromDatasets}
+     * stays gated only by {@code external_command}, so the two execution paths advertise their real
+     * requirements independently of the spec's static {@code required_capability} lines.
      */
     private void runDatasetMode() throws Throwable {
+        assumeTrue(
+            "FROM <dataset> requires the [dataset_in_from_command] capability",
+            hasCapabilities(client(), List.of(EsqlCapabilities.Cap.DATASET_IN_FROM_COMMAND.capabilityName()))
+        );
         String dataSourceName = ensureDataSourceForBackend();
         for (DatasetSource source : testCase.datasetSources) {
             String resource = transformTemplates(source.resource());

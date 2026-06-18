@@ -9,9 +9,19 @@
 
 package org.elasticsearch.benchmark.codec.bloomfilter;
 
+import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.FSDirectory;
+import org.apache.lucene.store.IOContext;
+import org.apache.lucene.store.IndexInput;
+import org.apache.lucene.store.IndexOutput;
+import org.apache.lucene.store.MMapDirectory;
+import org.apache.lucene.store.RandomAccessInput;
 import org.apache.lucene.util.BitUtil;
 import org.elasticsearch.benchmark.Utils;
+import org.elasticsearch.core.DirectAccessInput;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.simdvec.ESVectorUtil;
+import org.elasticsearch.xpack.stateless.lucene.StatelessDirectoryFactory;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -22,20 +32,30 @@ import org.openjdk.jmh.annotations.Param;
 import org.openjdk.jmh.annotations.Scope;
 import org.openjdk.jmh.annotations.Setup;
 import org.openjdk.jmh.annotations.State;
+import org.openjdk.jmh.annotations.TearDown;
 import org.openjdk.jmh.annotations.Warmup;
 
-import java.lang.foreign.Arena;
-import java.lang.foreign.MemorySegment;
-import java.lang.foreign.ValueLayout;
-import java.nio.ByteBuffer;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.Comparator;
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Stream;
 
 /**
- * Benchmark comparing scalar vs SIMD implementations for bloom filter operations:
- * popcount (counting set bits) and byte array OR (merging bloom filter pages).
+ * Benchmark comparing bloom filter popcount and OR strategies when data is
+ * read through a Lucene {@link Directory} — either mmap-backed or stateless
+ * (blob-cache-backed).
+ *
+ * <p>Variants per operation (popcount / OR):
+ * <ul>
+ *   <li>{@code *ReadBytes} — readBytes into heap scratch, then scalar (baseline)</li>
+ *   <li>{@code *ReadBytesThenSimd} — readBytes into heap scratch, then SIMD</li>
+ *   <li>{@code *DirectAccess} — zero-copy via {@link DirectAccessInput} + SIMD</li>
+ * </ul>
  */
-@Warmup(iterations = 4, time = 1)
+@Warmup(iterations = 3, time = 1)
 @Measurement(iterations = 5, time = 1)
 @BenchmarkMode(Mode.Throughput)
 @OutputTimeUnit(TimeUnit.MICROSECONDS)
@@ -47,120 +67,168 @@ public class BloomFilterBenchmark {
         Utils.configureBenchmarkLogging();
     }
 
+    public enum DirType {
+        MMAP,
+        STATELESS
+    }
+
+    @Param({ "MMAP" })
+    public DirType dirType;
+
     @Param({ "128", "4096", "16384" })
     public int pageSize;
 
-    @Param({ "0.1", "0.5", "0.9" })
+    @Param({ "0.5" })
     public double saturation;
 
     private static final int NUM_PAGES = 1024;
+    private static final String DATA_FILE = "bloom.dat";
 
-    private byte[] page;
-    private byte[] popcountScratch;
-    private ByteBuffer directPage;
-    private MemorySegment segmentPage;
-    private byte[][] sourcePages;
-    private ByteBuffer[] directSourcePages;
-    private byte[][] destPagesScalar;
-    private byte[][] destPagesSimd;
-    private byte[][] destPagesDirectOr;
-    private byte[][] destPagesCopyThenOr;
-    private byte[] orCopyScratch;
-    private int orIndex;
+    private Path dataPath;
+    private Path workPath;
+    private Directory directory;
+    private IndexInput indexInput;
+    private RandomAccessInput randomAccessInput;
 
-    @SuppressWarnings("restricted")
+    private byte[] scratch;
+    private byte[] destScratch;
+    private int pageIndex;
+
     @Setup
-    public void setup() {
+    public void setup() throws IOException {
+        dataPath = Files.createTempDirectory("bloom-bench-data");
+        writeDataFile(dataPath);
+
+        switch (dirType) {
+            case MMAP -> directory = new MMapDirectory(dataPath);
+            case STATELESS -> {
+                workPath = Files.createTempDirectory("bloom-bench-work");
+                directory = StatelessDirectoryFactory.create(dataPath, workPath);
+            }
+        }
+
+        indexInput = directory.openInput(DATA_FILE, IOContext.DEFAULT);
+        randomAccessInput = indexInput.randomAccessSlice(0, indexInput.length());
+
+        if (dirType == DirType.STATELESS) {
+            preWarm();
+        }
+
+        System.out.println(
+            "[bloom-bench] dirType="
+                + dirType
+                + " randomAccessInput="
+                + randomAccessInput.getClass().getName()
+                + " directAccessInput="
+                + (randomAccessInput instanceof DirectAccessInput)
+        );
+
+        scratch = new byte[pageSize];
+        destScratch = new byte[pageSize];
+    }
+
+    private void writeDataFile(Path dir) throws IOException {
         Random random = new Random(42);
-        page = generatePage(random, pageSize, saturation);
-        popcountScratch = new byte[pageSize];
-        directPage = toSegmentBackedBuffer(page);
-        segmentPage = Arena.global().allocate(pageSize, 64);
-        MemorySegment.copy(page, 0, segmentPage, ValueLayout.JAVA_BYTE, 0, pageSize);
-        sourcePages = new byte[NUM_PAGES][];
-        directSourcePages = new ByteBuffer[NUM_PAGES];
-        destPagesScalar = new byte[NUM_PAGES][];
-        destPagesSimd = new byte[NUM_PAGES][];
-        destPagesDirectOr = new byte[NUM_PAGES][];
-        destPagesCopyThenOr = new byte[NUM_PAGES][];
-        orCopyScratch = new byte[pageSize];
-        for (int i = 0; i < NUM_PAGES; i++) {
-            sourcePages[i] = generatePage(random, pageSize, saturation);
-            directSourcePages[i] = toSegmentBackedBuffer(sourcePages[i]);
-            destPagesScalar[i] = generatePage(random, pageSize, saturation);
-            destPagesSimd[i] = new byte[pageSize];
-            destPagesDirectOr[i] = new byte[pageSize];
-            destPagesCopyThenOr[i] = new byte[pageSize];
-            System.arraycopy(destPagesScalar[i], 0, destPagesSimd[i], 0, pageSize);
-            System.arraycopy(destPagesScalar[i], 0, destPagesDirectOr[i], 0, pageSize);
-            System.arraycopy(destPagesScalar[i], 0, destPagesCopyThenOr[i], 0, pageSize);
+        try (Directory fsDir = FSDirectory.open(dir); IndexOutput out = fsDir.createOutput(DATA_FILE, IOContext.DEFAULT)) {
+            for (int i = 0; i < NUM_PAGES; i++) {
+                byte[] page = generatePage(random, pageSize, saturation);
+                out.writeBytes(page, page.length);
+            }
         }
     }
 
-    @SuppressWarnings("restricted")
-    private static ByteBuffer toSegmentBackedBuffer(byte[] data) {
-        MemorySegment seg = Arena.global().allocate(data.length, 64);
-        MemorySegment.copy(data, 0, seg, ValueLayout.JAVA_BYTE, 0, data.length);
-        return seg.asByteBuffer();
+    private void preWarm() throws IOException {
+        byte[] buf = new byte[64 * 1024];
+        try (IndexInput in = directory.openInput(DATA_FILE, IOContext.READONCE)) {
+            long remaining = in.length();
+            while (remaining > 0) {
+                int n = (int) Math.min(buf.length, remaining);
+                in.readBytes(buf, 0, n);
+                remaining -= n;
+            }
+        }
     }
 
-    @Benchmark
-    public long popcountScalar() {
-        return scalarPopcount(page, 0, page.length);
+    @TearDown
+    public void tearDown() throws IOException {
+        IOUtils.close(indexInput, directory);
+        deleteRecursively(dataPath);
+        if (workPath != null) {
+            deleteRecursively(workPath);
+        }
     }
 
-    @Benchmark
-    @Fork(jvmArgsPrepend = { "--add-modules=jdk.incubator.vector" })
-    public long popcountSimd() {
-        return ESVectorUtil.popcount(page, 0, page.length);
+    private long pageOffset() {
+        int idx = pageIndex++ & (NUM_PAGES - 1);
+        return (long) idx * pageSize;
     }
 
-    @Benchmark
-    @Fork(jvmArgsPrepend = { "--add-modules=jdk.incubator.vector" })
-    public long popcountCopyThenSimd() {
-        directPage.get(0, popcountScratch, 0, pageSize);
-        return ESVectorUtil.popcount(popcountScratch, 0, pageSize);
-    }
+    // --- popcount benchmarks ---
 
     @Benchmark
-    @Fork(jvmArgsPrepend = { "--add-modules=jdk.incubator.vector" })
-    public long popcountSimdDirect() {
-        return ESVectorUtil.popcount(directPage, pageSize);
-    }
-
-    @Benchmark
-    @Fork(jvmArgsPrepend = { "--add-modules=jdk.incubator.vector" })
-    public long popcountSimdSegment() {
-        return ESVectorUtil.popcount(segmentPage, pageSize);
-    }
-
-    @Benchmark
-    public void orScalar() {
-        int idx = orIndex++ & (NUM_PAGES - 1);
-        scalarOr(sourcePages[idx], destPagesScalar[idx], 0, pageSize);
+    public long popcountReadBytesThenScalar() throws IOException {
+        long offset = pageOffset();
+        randomAccessInput.readBytes(offset, scratch, 0, pageSize);
+        return scalarPopcount(scratch, 0, pageSize);
     }
 
     @Benchmark
     @Fork(jvmArgsPrepend = { "--add-modules=jdk.incubator.vector" })
-    public void orSimd() {
-        int idx = orIndex++ & (NUM_PAGES - 1);
-        ESVectorUtil.orByteArrays(sourcePages[idx], destPagesSimd[idx], 0, pageSize);
+    public long popcountReadBytesThenSimd() throws IOException {
+        long offset = pageOffset();
+        randomAccessInput.readBytes(offset, scratch, 0, pageSize);
+        return ESVectorUtil.popcount(scratch, 0, pageSize);
     }
 
     @Benchmark
     @Fork(jvmArgsPrepend = { "--add-modules=jdk.incubator.vector" })
-    public void orCopyThenSimd() {
-        int idx = orIndex++ & (NUM_PAGES - 1);
-        directSourcePages[idx].get(0, orCopyScratch, 0, pageSize);
-        ESVectorUtil.orByteArrays(orCopyScratch, destPagesCopyThenOr[idx], 0, pageSize);
+    public long popcountDirectAccessThenSimd() throws IOException {
+        long offset = pageOffset();
+        if (randomAccessInput instanceof DirectAccessInput dai) {
+            long[] holder = { 0 };
+            int len = pageSize;
+            boolean direct = dai.withByteBufferSlice(offset, len, buf -> holder[0] = ESVectorUtil.popcount(buf, len));
+            if (direct) {
+                return holder[0];
+            }
+        }
+        randomAccessInput.readBytes(offset, scratch, 0, pageSize);
+        return ESVectorUtil.popcount(scratch, 0, pageSize);
+    }
+
+    // --- OR benchmarks ---
+
+    @Benchmark
+    public void orReadBytesThenScalar() throws IOException {
+        long offset = pageOffset();
+        randomAccessInput.readBytes(offset, scratch, 0, pageSize);
+        scalarOr(scratch, destScratch, 0, pageSize);
     }
 
     @Benchmark
     @Fork(jvmArgsPrepend = { "--add-modules=jdk.incubator.vector" })
-    public void orSimdDirect() {
-        int idx = orIndex++ & (NUM_PAGES - 1);
-        ESVectorUtil.orByteArrays(directSourcePages[idx], destPagesDirectOr[idx], 0, pageSize);
+    public void orReadBytesThenSimd() throws IOException {
+        long offset = pageOffset();
+        randomAccessInput.readBytes(offset, scratch, 0, pageSize);
+        ESVectorUtil.orByteArrays(scratch, destScratch, 0, pageSize);
     }
+
+    @Benchmark
+    @Fork(jvmArgsPrepend = { "--add-modules=jdk.incubator.vector" })
+    public void orDirectAccessThenSimd() throws IOException {
+        long offset = pageOffset();
+        if (randomAccessInput instanceof DirectAccessInput dai) {
+            int len = pageSize;
+            boolean direct = dai.withByteBufferSlice(offset, len, buf -> ESVectorUtil.orByteArrays(buf, destScratch, 0, len));
+            if (direct) {
+                return;
+            }
+        }
+        randomAccessInput.readBytes(offset, scratch, 0, pageSize);
+        ESVectorUtil.orByteArrays(scratch, destScratch, 0, pageSize);
+    }
+
+    // --- helpers ---
 
     static long scalarPopcount(byte[] data, int offset, int length) {
         long cnt = 0;
@@ -200,5 +268,20 @@ public class BloomFilterBenchmark {
             page[i] = (byte) bits;
         }
         return page;
+    }
+
+    private static void deleteRecursively(Path path) throws IOException {
+        if (Files.exists(path) == false) {
+            return;
+        }
+        try (Stream<Path> walk = Files.walk(path)) {
+            walk.sorted(Comparator.reverseOrder()).forEach(p -> {
+                try {
+                    Files.deleteIfExists(p);
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                }
+            });
+        }
     }
 }

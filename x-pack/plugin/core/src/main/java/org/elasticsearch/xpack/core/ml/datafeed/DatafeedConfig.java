@@ -745,9 +745,7 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
                     XContentUtils.addAuthorizationInfo(builder, headers);
                 }
             }
-            if (forInternalStorage == false
-                && params.paramAsBoolean(CPS_AUTH_VISIBILITY_PARAM, false)
-                && cloudInternalCredential != null) {
+            if (forInternalStorage == false && params.paramAsBoolean(CPS_AUTH_VISIBILITY_PARAM, false) && cloudInternalCredential != null) {
                 builder.startObject("authorization");
                 builder.startObject("cloud_api_key");
                 builder.field("id", cloudInternalCredential.id());

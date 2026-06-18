@@ -11,7 +11,9 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.blobcache.BlobCacheMetrics;
 import org.elasticsearch.blobcache.common.ByteRange;
+import org.elasticsearch.blobcache.shared.EvictionPolicy;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -40,6 +42,18 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
         Setting.Property.NodeScope
     );
 
+    /**
+     * Selects the eviction policy used by the shared blob cache when {@link #STATELESS_CACHE_BOOST_PREFERENCE_ENABLED_SETTING} is enabled.
+     * When cache boost preference is disabled, {@link StatelessCacheEvictionPolicyType#ALWAYS} is used regardless of this setting.
+     */
+    public static final Setting<StatelessCacheEvictionPolicyType> STATELESS_CACHE_BOOST_PREFERENCE_EVICTION_POLICY_SETTING = Setting
+        .enumSetting(
+            StatelessCacheEvictionPolicyType.class,
+            "stateless.cache_boost_preference.eviction_policy",
+            StatelessCacheEvictionPolicyType.PINNED_WINDOW,
+            Setting.Property.NodeScope
+        );
+
     // Stateless shared blob cache service populates-and-reads in-thread. And it relies on the cache service to fetch gap bytes
     // asynchronously using a CacheBlobReader.
     private static final Executor IO_EXECUTOR = EsExecutors.DIRECT_EXECUTOR_SERVICE;
@@ -53,9 +67,10 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
         Settings settings,
         ThreadPool threadPool,
         BlobCacheMetrics blobCacheMetrics,
+        ClusterService clusterService,
         PluggableDirectoryMetricsHolder<BlobStoreCacheDirectoryMetrics> metricsHolder
     ) {
-        super(environment, settings, threadPool, IO_EXECUTOR, blobCacheMetrics);
+        super(environment, settings, threadPool, IO_EXECUTOR, blobCacheMetrics, createEvictionPolicy(settings, clusterService));
         this.shardReadThreadPoolExecutor = threadPool.executor(StatelessPlugin.SHARD_READ_THREAD_POOL);
         this.metricsHolder = metricsHolder;
     }
@@ -66,12 +81,25 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
         Settings settings,
         ThreadPool threadPool,
         BlobCacheMetrics blobCacheMetrics,
+        ClusterService clusterService,
         LongSupplier relativeTimeInNanosSupplier,
         PluggableDirectoryMetricsHolder<BlobStoreCacheDirectoryMetrics> metricsHolder
     ) {
-        super(environment, settings, threadPool, IO_EXECUTOR, blobCacheMetrics, relativeTimeInNanosSupplier);
+        super(
+            environment,
+            settings,
+            threadPool,
+            IO_EXECUTOR,
+            blobCacheMetrics,
+            relativeTimeInNanosSupplier,
+            createEvictionPolicy(settings, clusterService)
+        );
         this.shardReadThreadPoolExecutor = IO_EXECUTOR;
         this.metricsHolder = metricsHolder;
+    }
+
+    static EvictionPolicy<FileCacheKey> createEvictionPolicy(Settings settings, ClusterService clusterService) {
+        return StatelessCacheEvictionPolicyType.fromSettings(settings).create(clusterService);
     }
 
     /**

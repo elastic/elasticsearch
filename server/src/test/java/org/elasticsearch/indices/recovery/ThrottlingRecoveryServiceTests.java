@@ -650,7 +650,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
 
     /// Stress one [ThrottlingRecoveryService] from many producer threads using real threads: alternating
     /// bursty submits (high contention on the throttle) and idle periods. Verify that all tasks finish and
-    /// that no more than `maxConcurrentRecoveries` consumer bodies overlap.
+    /// that concurrent recovery executions count never exceeded the peak value of `maxConcurrentRecoveries`.
     ///
     /// Unlike [#testStressConcurrentEnqueueMaintainsBoundsAndCompleteness], this test uses real threads to
     /// catch missing happens-before relationships that a deterministic scheduler cannot expose.
@@ -726,8 +726,9 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
             }
         });
 
-        // taskLatch starts with 1 ref, decremented here
+        // refCounted starts with 1 ref, decremented here
         refCounted.decRef();
+        // Worst case is maxConcurrentRecoveries=1, 1000 tasks and 20ms sleep, which is ~20s
         safeAwait(allFinished, TimeValue.timeValueSeconds(30));
         assertThat(tasksCompleted.get(), equalTo(tasksEnqueued.get()));
         assertThat(peakRunning.get(), lessThanOrEqualTo(peakLimit.get()));

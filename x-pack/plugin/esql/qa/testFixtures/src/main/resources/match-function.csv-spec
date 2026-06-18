@@ -232,7 +232,7 @@ book_no:keyword | title:text
 ;
 
 matchMultivaluedField
-skip_flattened_rewrite: match_family_rejects_field_extract
+
 required_capability: match_function
 
 from employees 
@@ -250,7 +250,7 @@ emp_no:integer | first_name:keyword | last_name:keyword
 ;
 
 testMultiValuedFieldWithConjunction
-skip_flattened_rewrite: match_family_rejects_field_extract
+
 required_capability: match_function
 
 from employees 
@@ -263,7 +263,7 @@ emp_no:integer | first_name:keyword | last_name:keyword
 ;
 
 testMatchAndQueryStringFunctions
-skip_flattened_rewrite: match_family_rejects_field_extract
+
 required_capability: match_function
 required_capability: qstr_function
 
@@ -620,7 +620,7 @@ live long and prosper
 ;
 
 testMatchWithSemanticTextAndKeyword
-skip_flattened_rewrite: match_family_rejects_field_extract
+
 required_capability: match_function
 required_capability: semantic_text_field_caps
 
@@ -634,7 +634,7 @@ live long and prosper    | host1
 ;
 
 testMatchWithSemanticTextMultiValueField
-skip_flattened_rewrite: match_family_rejects_field_extract
+
 required_capability: match_function
 required_capability: semantic_text_field_caps
 
@@ -648,7 +648,7 @@ _id: keyword | st_multi_value:text
 ;
 
 testMatchWithSemanticTextWithEvalsAndOtherFunctionsAndStats
-skip_flattened_rewrite: match_family_rejects_field_extract
+
 required_capability: match_function
 required_capability: semantic_text_field_caps
 
@@ -860,7 +860,6 @@ c:long | m:integer | n:integer
 4      | 9607      | 1211
 ;
 
-
 testMatchInStatsWithGrouping
 required_capability: match_function
 required_capability: full_text_functions_in_stats_where
@@ -880,7 +879,7 @@ r:double           | author: text
 ;
 
 testMatchInStatsWithGroupingBy
-skip_flattened_rewrite: match_family_rejects_field_extract
+
 required_capability: match_function
 required_capability: full_text_functions_in_stats_where
 FROM airports 
@@ -898,7 +897,6 @@ c: long     |   scalerank: long
 10             | 3              
 15             | 2              
 ;
-
 
 testMatchWithReplace
 required_capability: match_function
@@ -1449,7 +1447,6 @@ required_capability: match_function
 required_capability: match_runtime_search
 
 pragma: runtime_lexical_search=true
-
 
 ROW a = [1.2, 1.3, 1.4, 1.5, 1.6]
 | MV_EXPAND a

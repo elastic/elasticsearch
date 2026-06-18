@@ -105,7 +105,7 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
             throw new IllegalStateException("No csv-spec files found for patterns: " + List.of(specPatterns));
         }
 
-        List<Object[]> baseTests = SpecReader.readScriptSpec(urls, specParser());
+        List<Object[]> baseTests = SpecReader.readScriptSpec(urls, CsvSpecReader::specParser);
         List<Object[]> parameterizedTests = new ArrayList<>();
         for (Object[] baseTest : baseTests) {
             for (StorageBackend backend : BACKENDS) {
@@ -154,7 +154,7 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
             throw new IllegalStateException("No csv-spec files found for patterns: " + List.of(specPatterns));
         }
 
-        List<Object[]> baseTests = SpecReader.readScriptSpec(urls, specParser());
+        List<Object[]> baseTests = SpecReader.readScriptSpec(urls, CsvSpecReader::specParser);
         List<Object[]> parameterizedTests = new ArrayList<>();
         for (Object[] baseTest : baseTests) {
             for (String extra : extraParams) {

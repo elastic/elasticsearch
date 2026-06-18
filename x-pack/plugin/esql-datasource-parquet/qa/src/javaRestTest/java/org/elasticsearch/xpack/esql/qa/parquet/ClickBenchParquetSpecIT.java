@@ -83,7 +83,7 @@ public class ClickBenchParquetSpecIT extends EsqlSpecTestCase {
     public static List<Object[]> readScriptSpec() throws Exception {
         List<URL> urls = classpathResources("/external-clickbench.csv-spec");
         assertFalse("No clickbench csv-spec files found", urls.isEmpty());
-        List<Object[]> baseTests = SpecReader.readScriptSpec(urls, specParser());
+        List<Object[]> baseTests = SpecReader.readScriptSpec(urls, ClickBenchParquetSpecIT::specParser);
         List<Object[]> parameterizedTests = new ArrayList<>();
         for (Object[] base : baseTests) {
             for (Layout layout : Layout.values()) {

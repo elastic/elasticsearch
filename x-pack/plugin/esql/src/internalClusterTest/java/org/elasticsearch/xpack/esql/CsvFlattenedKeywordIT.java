@@ -48,7 +48,6 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoTimeout;
-import static org.elasticsearch.xpack.esql.CsvSpecReader.specParser;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.classpathResources;
 
 /**
@@ -590,7 +589,7 @@ public class CsvFlattenedKeywordIT extends CsvIT {
         private static List<CsvSpecReader.CsvTestCase> loadAllCsvSpecTestCases() {
             try {
                 List<URL> urls = classpathResources("/*.csv-spec");
-                List<Object[]> rows = SpecReader.readScriptSpec(urls, specParser());
+                List<Object[]> rows = SpecReader.readScriptSpec(urls, CsvSpecReader::specParser);
                 List<CsvSpecReader.CsvTestCase> cases = new ArrayList<>(rows.size());
                 for (Object[] row : rows) {
                     if (row[4] instanceof CsvSpecReader.CsvTestCase tc) {

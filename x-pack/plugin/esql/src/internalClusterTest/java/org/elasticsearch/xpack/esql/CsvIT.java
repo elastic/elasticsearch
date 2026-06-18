@@ -105,7 +105,6 @@ import java.util.function.Function;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.xpack.esql.CsvSpecReader.specParser;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.assumeFalseLogging;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.assumeTrueLogging;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.isEnabled;
@@ -254,7 +253,7 @@ public class CsvIT extends ESTestCase {
     public static List<Object[]> readScriptSpec() throws Exception {
         List<URL> urls = classpathResources("/*.csv-spec");
         assertThat("Not enough specs found " + urls, urls, hasSize(greaterThan(0)));
-        return SpecReader.readScriptSpec(urls, specParser());
+        return SpecReader.readScriptSpec(urls, CsvSpecReader::specParser);
     }
 
     @BeforeClass

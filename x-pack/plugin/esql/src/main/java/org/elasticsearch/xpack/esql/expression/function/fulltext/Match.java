@@ -416,7 +416,7 @@ public class Match extends SingleFieldFullTextFunction implements OptionalArgume
     protected boolean isRuntimeSearch() {
         return EsqlCapabilities.Cap.MATCH_RUNTIME_SEARCH.isEnabled()
             && configuration.pragmas().runtimeLexicalSearch()
-            && fieldAsFieldAttribute() == null;
+            && (fieldAsFieldAttribute() == null || fieldAsFieldAttribute().name().contains("EXTRACT_FLATTENED_SUBFIELD"));
     }
 
     @Override
@@ -425,6 +425,20 @@ public class Match extends SingleFieldFullTextFunction implements OptionalArgume
             return Translatable.NO;
         }
         return super.translatable(pushdownPredicates);
+    }
+
+    @Override
+    public org.elasticsearch.compute.operator.ScoreOperator.ExpressionScorer.Factory toScorer(
+        org.elasticsearch.xpack.esql.score.ExpressionScoreMapper.ToScorer toScorer
+    ) {
+        if (false == isRuntimeSearch()) {
+            return super.toScorer(toScorer);
+        }
+
+        throw new org.elasticsearch.xpack.esql.core.InvalidArgumentException(
+            "MATCH does not support scoring when evaluated as a runtime search",
+            source()
+        );
     }
 
     @Override

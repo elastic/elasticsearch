@@ -23,4 +23,14 @@ public interface CloseableMappedByteBuffer extends CloseableByteBuffer {
      * Prefetches the given offset and length.
      */
     void prefetch(long offset, long length);
+
+    /**
+     * Advises the operating system about the expected access pattern for the
+     * specified memory region, allowing the kernel to optimize paging behavior.
+     *
+     * @param offset the starting offset within the buffer
+     * @param length the length of the region in bytes
+     * @param advice the access pattern advice; see {@link MadviseAdvice} constants
+     */
+    void madvise(long offset, long length, int advice);
 }

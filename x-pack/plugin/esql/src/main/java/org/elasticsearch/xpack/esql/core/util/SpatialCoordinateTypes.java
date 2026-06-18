@@ -193,7 +193,7 @@ public enum SpatialCoordinateTypes {
         String wkt = writer.write(jtsGeometry);
         // JTS writes MULTIPOINT with inner parens per point: MULTIPOINT ((x1 y1), (x2 y2))
         // The ES WKT parser expects the flat OGC form: MULTIPOINT (x1 y1, x2 y2)
-        if (wkt.startsWith("MULTIPOINT") && wkt.contains("((")) {
+        if (wkt.startsWith("MULTIPOINT ((")) {
             wkt = normalizeMultiPointWkt(wkt);
         }
         return wktToWkb(wkt);

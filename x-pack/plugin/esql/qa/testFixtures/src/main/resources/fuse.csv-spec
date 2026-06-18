@@ -973,6 +973,7 @@ FROM colors METADATA _id, _index, _score
 | FORK (WHERE color:"red"                  | EVAL score1 = 1.0    | SORT _score DESC | LIMIT 10)
        (WHERE knn(rgb_vector, [255, 0, 0]) | EVAL score2 = _score | SORT _score DESC | LIMIT 10)
 | FUSE
+| EVAL _fork = mv_sort(_fork)
 | EVAL _score = round(_score, 5)
 | KEEP _score, color, rgb_vector, hex_code, primary, _index, _fork, score1, score2
 | SORT _score DESC, color ASC

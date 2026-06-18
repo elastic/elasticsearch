@@ -1493,7 +1493,7 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
     @Override
     public void squareDistanceBulk(
         float[] query,
-        int queryOffset,
+        int vectorOffset,
         float[] v0,
         float[] v1,
         float[] v2,
@@ -1502,9 +1502,9 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
         float[] distances,
         int length
     ) {
-        int i = queryOffset;
-        int vectorEnd = queryOffset + FLOAT_SPECIES.loopBound(length);
-        int end = queryOffset + length;
+        int i = vectorOffset;
+        int vectorEnd = vectorOffset + FLOAT_SPECIES.loopBound(length);
+        int end = vectorOffset + length;
 
         FloatVector sv0 = FloatVector.zero(FLOAT_SPECIES);
         FloatVector sv1 = FloatVector.zero(FLOAT_SPECIES);
@@ -1878,28 +1878,29 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
         float[] distances,
         int length
     ) {
-        int i = 0;
+        int i = vectorOffset;
+        int end = vectorOffset + length;
         int[] result = new int[4];
 
         if (length >= 128 / Byte.SIZE && HAS_FAST_INTEGER_VECTORS) {
             if (VECTOR_BITSIZE >= 512) {
-                i = BYTE_SPECIES_128.loopBound(length);
+                i += BYTE_SPECIES_128.loopBound(length);
                 squareDistanceBulkBody512(query, vectorOffset, v0, v1, v2, v3, i, result);
             } else if (VECTOR_BITSIZE == 256) {
-                i = BYTE_SPECIES_64.loopBound(length);
+                i += BYTE_SPECIES_64.loopBound(length);
                 squareDistanceBulkBody256(query, vectorOffset, v0, v1, v2, v3, i, result);
             } else {
-                i = BYTE_SPECIES_64.loopBound(length);
+                i += BYTE_SPECIES_64.loopBound(length);
                 squareDistanceBulkBody128(query, vectorOffset, v0, v1, v2, v3, i, result);
             }
         }
 
-        for (; i < length; i++) {
-            int q = query[vectorOffset + i];
-            int d0 = q - v0[vectorOffset + i];
-            int d1 = q - v1[vectorOffset + i];
-            int d2 = q - v2[vectorOffset + i];
-            int d3 = q - v3[vectorOffset + i];
+        for (; i < end; i++) {
+            int q = query[i];
+            int d0 = q - v0[i];
+            int d1 = q - v1[i];
+            int d2 = q - v2[i];
+            int d3 = q - v3[i];
             result[0] += d0 * d0;
             result[1] += d1 * d1;
             result[2] += d2 * d2;
@@ -1914,7 +1915,7 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
 
     private static void squareDistanceBulkBody512(
         byte[] query,
-        int queryOffset,
+        int vectorOffset,
         byte[] v0,
         byte[] v1,
         byte[] v2,
@@ -1929,14 +1930,14 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
 
         // the diff^2 operation can overflow a short
         // so have to use AVX512 ops here regardless
-        for (int i = 0; i < limit; i += BYTE_SPECIES_128.length()) {
-            ByteVector qv8 = ByteVector.fromArray(BYTE_SPECIES_128, query, queryOffset + i);
+        for (int i = vectorOffset; i < limit; i += BYTE_SPECIES_128.length()) {
+            ByteVector qv8 = ByteVector.fromArray(BYTE_SPECIES_128, query, i);
             Vector<Integer> qv32 = qv8.convertShape(B2I, INT_SPECIES_512, 0);
 
-            ByteVector bv0 = ByteVector.fromArray(BYTE_SPECIES_128, v0, queryOffset + i);
-            ByteVector bv1 = ByteVector.fromArray(BYTE_SPECIES_128, v1, queryOffset + i);
-            ByteVector bv2 = ByteVector.fromArray(BYTE_SPECIES_128, v2, queryOffset + i);
-            ByteVector bv3 = ByteVector.fromArray(BYTE_SPECIES_128, v3, queryOffset + i);
+            ByteVector bv0 = ByteVector.fromArray(BYTE_SPECIES_128, v0, i);
+            ByteVector bv1 = ByteVector.fromArray(BYTE_SPECIES_128, v1, i);
+            ByteVector bv2 = ByteVector.fromArray(BYTE_SPECIES_128, v2, i);
+            ByteVector bv3 = ByteVector.fromArray(BYTE_SPECIES_128, v3, i);
 
             Vector<Integer> diff0 = qv32.sub(bv0.convertShape(B2I, INT_SPECIES_512, 0));
             Vector<Integer> diff1 = qv32.sub(bv1.convertShape(B2I, INT_SPECIES_512, 0));
@@ -1957,7 +1958,7 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
 
     private static void squareDistanceBulkBody256(
         byte[] query,
-        int queryOffset,
+        int vectorOffset,
         byte[] v0,
         byte[] v1,
         byte[] v2,
@@ -1970,14 +1971,14 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
         IntVector sv2 = IntVector.zero(INT_SPECIES_256);
         IntVector sv3 = IntVector.zero(INT_SPECIES_256);
 
-        for (int i = 0; i < limit; i += BYTE_SPECIES_64.length()) {
-            ByteVector qv8 = ByteVector.fromArray(BYTE_SPECIES_64, query, queryOffset + i);
+        for (int i = vectorOffset; i < limit; i += BYTE_SPECIES_64.length()) {
+            ByteVector qv8 = ByteVector.fromArray(BYTE_SPECIES_64, query, i);
             Vector<Integer> qv32 = qv8.convertShape(B2I, INT_SPECIES_256, 0);
 
-            ByteVector bv0 = ByteVector.fromArray(BYTE_SPECIES_64, v0, queryOffset + i);
-            ByteVector bv1 = ByteVector.fromArray(BYTE_SPECIES_64, v1, queryOffset + i);
-            ByteVector bv2 = ByteVector.fromArray(BYTE_SPECIES_64, v2, queryOffset + i);
-            ByteVector bv3 = ByteVector.fromArray(BYTE_SPECIES_64, v3, queryOffset + i);
+            ByteVector bv0 = ByteVector.fromArray(BYTE_SPECIES_64, v0, i);
+            ByteVector bv1 = ByteVector.fromArray(BYTE_SPECIES_64, v1, i);
+            ByteVector bv2 = ByteVector.fromArray(BYTE_SPECIES_64, v2, i);
+            ByteVector bv3 = ByteVector.fromArray(BYTE_SPECIES_64, v3, i);
 
             Vector<Integer> diff0 = qv32.sub(bv0.convertShape(B2I, INT_SPECIES_256, 0));
             Vector<Integer> diff1 = qv32.sub(bv1.convertShape(B2I, INT_SPECIES_256, 0));
@@ -1998,7 +1999,7 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
 
     private static void squareDistanceBulkBody128(
         byte[] query,
-        int queryOffset,
+        int vectorOffset,
         byte[] v0,
         byte[] v1,
         byte[] v2,
@@ -2011,14 +2012,14 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
         IntVector sv2 = IntVector.zero(INT_SPECIES_128);
         IntVector sv3 = IntVector.zero(INT_SPECIES_128);
 
-        for (int i = 0; i < limit; i += BYTE_SPECIES_64.length()) {
-            ByteVector qv8 = ByteVector.fromArray(BYTE_SPECIES_64, query, queryOffset + i);
+        for (int i = vectorOffset; i < limit; i += BYTE_SPECIES_64.length()) {
+            ByteVector qv8 = ByteVector.fromArray(BYTE_SPECIES_64, query, i);
             Vector<Short> qv16 = qv8.convertShape(B2S, SHORT_SPECIES_128, 0);
 
-            ByteVector bv0 = ByteVector.fromArray(BYTE_SPECIES_64, v0, queryOffset + i);
-            ByteVector bv1 = ByteVector.fromArray(BYTE_SPECIES_64, v1, queryOffset + i);
-            ByteVector bv2 = ByteVector.fromArray(BYTE_SPECIES_64, v2, queryOffset + i);
-            ByteVector bv3 = ByteVector.fromArray(BYTE_SPECIES_64, v3, queryOffset + i);
+            ByteVector bv0 = ByteVector.fromArray(BYTE_SPECIES_64, v0, i);
+            ByteVector bv1 = ByteVector.fromArray(BYTE_SPECIES_64, v1, i);
+            ByteVector bv2 = ByteVector.fromArray(BYTE_SPECIES_64, v2, i);
+            ByteVector bv3 = ByteVector.fromArray(BYTE_SPECIES_64, v3, i);
 
             // convert to shorts for the diff
             Vector<Short> diff0 = qv16.sub(bv0.convertShape(B2S, SHORT_SPECIES_128, 0));

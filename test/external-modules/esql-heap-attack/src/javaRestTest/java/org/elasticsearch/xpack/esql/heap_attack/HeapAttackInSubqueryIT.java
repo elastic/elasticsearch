@@ -84,17 +84,10 @@ public class HeapAttackInSubqueryIT extends HeapAttackTestCase {
      * of being rejected by {@code checkPagesBelowSize} first.
      */
     public void testDedupBlockHashWithInSubquery() throws IOException {
-        // ~64MB of distinct 1MB values, sized to hit the narrow window where the request circuit breaker (~60% of the 512MB node
-        // heap, ~307MB) trips inside dedup rather than earlier. SessionUtils.fromPages concatenates the subquery result while still
-        // holding the input pages (~2x the data), keeping the request breaker just below its ~307MB limit so it survives; then the
-        // dedup BlockHash allocates a third copy of the distinct keys, tipping the breaker just over ~307MB and tripping it (observed:
-        // request usage would be ~307.2MB vs the ~307.1MB limit, via BlockHash reused arrays). A larger total (e.g. 128 docs) instead
-        // trips earlier, in the fromPages concatenation, before reaching the BlockHash. The cap below is only raised so
-        // checkPagesBelowSize lets the result through to dedup.
         heapAttackIT.initGiantTextField(64, true, 1, true);
         setIntermediateLocalRelationMaxSize("128mb");
         try {
-            assertCircuitBreaksVia(attempt -> giantTextInSubquery(), "AbstractSubqueryJoin", "BlockHash");
+            assertCircuitBreaksVia(attempt -> giantTextInSubquery(48 + attempt * 4), "AbstractSubqueryJoin", "BlockHash");
         } finally {
             setIntermediateLocalRelationMaxSize(null);
         }
@@ -128,6 +121,20 @@ public class HeapAttackInSubqueryIT extends HeapAttackTestCase {
     private Map<String, Object> giantTextInSubquery() throws IOException {
         StringBuilder query = startQuery();
         query.append("FROM bigtext | WHERE f IN (FROM bigtext | KEEP f)");
+        query.append("\"}");
+        return responseAsMap(query(query.toString(), "columns"));
+    }
+
+    /**
+     * Like {@link #giantTextInSubquery()} but limits the IN subquery to the first {@code subqueryDocs} distinct giant-text rows so the
+     * amount of data flowing through the coordinator's dedup {@code BlockHash} scales with the attempt. The dedup step in
+     * {@link org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin} runs on the full subquery key column regardless of
+     * the hash-join threshold, so a smaller subquery still exercises the same dedup path with proportionally less memory. See
+     * {@link #testDedupBlockHashWithInSubquery()} for why the workload is ramped rather than fixed.
+     */
+    private Map<String, Object> giantTextInSubquery(int subqueryDocs) throws IOException {
+        StringBuilder query = startQuery();
+        query.append("FROM bigtext | WHERE f IN (FROM bigtext | KEEP f | LIMIT ").append(subqueryDocs).append(")");
         query.append("\"}");
         return responseAsMap(query(query.toString(), "columns"));
     }
@@ -181,13 +188,5 @@ public class HeapAttackInSubqueryIT extends HeapAttackTestCase {
             "{\"persistent\": {\"esql.intermediate_local_relation_max_size\": " + (size == null ? "null" : "\"" + size + "\"") + "}}"
         );
         adminClient().performRequest(request);
-    }
-
-    private static void verifyCircuitBreakingException(ResponseException re) throws IOException {
-        Map<?, ?> map = responseAsMap(re.getResponse());
-        assertMap(
-            map,
-            matchesMap().entry("status", 429).entry("error", matchesMap().extraOk().entry("type", "circuit_breaking_exception"))
-        );
     }
 }

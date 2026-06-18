@@ -173,8 +173,7 @@ public class HeapAttackInSubqueryIT extends HeapAttackTestCase {
     private static ListMatcher outputColumns(String dataType) {
         ListMatcher columns = matchesList();
         for (int f = 0; f < STRING_FIELD_1000; f++) {
-            columns = columns.item(matchesMap().entry("name", "f" + String.format(Locale.ROOT, "%03d", f)).
-                entry("type", dataType));
+            columns = columns.item(matchesMap().entry("name", "f" + String.format(Locale.ROOT, "%03d", f)).entry("type", dataType));
         }
         return columns;
     }

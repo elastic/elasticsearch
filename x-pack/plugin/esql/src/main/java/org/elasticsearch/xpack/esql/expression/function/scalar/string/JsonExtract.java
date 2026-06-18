@@ -72,6 +72,7 @@ public class JsonExtract extends EsqlScalarFunction {
         returnType = "keyword",
         preview = true,
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.4.0") },
+        briefSummary = "Extracts a value from a JSON string using JSONPath syntax.",
         description = """
             Extracts a value from a JSON string using a subset of
             [JSONPath](https://datatracker.ietf.org/doc/rfc9535) syntax.""",
@@ -238,7 +239,7 @@ public class JsonExtract extends EsqlScalarFunction {
     }
 
     @Evaluator(extraName = "Constant", warnExceptions = IllegalArgumentException.class)
-    static void processConstant(BytesRefBlock.Builder builder, BytesRef str, @Fixed JsonPath path) {
+    static void processConstant(BytesRefBlock.Builder builder, BytesRef str, @Fixed(jitConstant = true) JsonPath path) {
         doExtract(builder, str, path);
     }
 
@@ -360,19 +361,19 @@ public class JsonExtract extends EsqlScalarFunction {
                         int end = (int) endLocation.byteOffset() + rawOffset;
                         builder.appendBytesRef(new BytesRef(rawBytes, start, end - start));
                     } else {
-                        // Fallback if offsets are unavailable (shouldn't happen for JSON)
-                        copyCurrentStructureFallback(builder, parser);
+                        // Standard if offsets are unavailable (shouldn't happen for JSON)
+                        copyCurrentStructureStandard(builder, parser);
                     }
                 } else {
                     // Non-JSON format (SMILE/CBOR/YAML) — must re-serialize to JSON
-                    copyCurrentStructureFallback(builder, parser);
+                    copyCurrentStructureStandard(builder, parser);
                 }
             }
             default -> throw new IllegalArgumentException("unexpected token: " + token);
         }
     }
 
-    private static void copyCurrentStructureFallback(BytesRefBlock.Builder builder, XContentParser parser) throws IOException {
+    private static void copyCurrentStructureStandard(BytesRefBlock.Builder builder, XContentParser parser) throws IOException {
         try (XContentBuilder jsonBuilder = XContentBuilder.builder(XContentType.JSON.xContent())) {
             jsonBuilder.copyCurrentStructure(parser);
             builder.appendBytesRef(BytesReference.bytes(jsonBuilder).toBytesRef());

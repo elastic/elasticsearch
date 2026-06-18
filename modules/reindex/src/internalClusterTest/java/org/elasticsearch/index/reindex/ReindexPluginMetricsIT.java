@@ -17,7 +17,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
-import org.elasticsearch.reindex.BulkByScrollSearchContextMetrics;
+import org.elasticsearch.reindex.BulkByPaginatedSearchSearchContextMetrics;
 import org.elasticsearch.reindex.BulkIndexByScrollResponseMatcher;
 import org.elasticsearch.reindex.ReindexPlugin;
 import org.elasticsearch.reindex.ReindexSettings;
@@ -41,10 +41,10 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
-import static org.elasticsearch.reindex.BulkByScrollSearchContextMetrics.ATTRIBUTE_NAME_SEARCH_SOURCE;
-import static org.elasticsearch.reindex.BulkByScrollSearchContextMetrics.ATTRIBUTE_NAME_TASK_KIND;
-import static org.elasticsearch.reindex.BulkByScrollSearchContextMetrics.ATTRIBUTE_VALUE_SEARCH_SOURCE_LOCAL;
-import static org.elasticsearch.reindex.BulkByScrollSearchContextMetrics.SEARCH_CONTEXT_KEEPALIVE_EXPIRED_COUNTER;
+import static org.elasticsearch.reindex.BulkByPaginatedSearchSearchContextMetrics.ATTRIBUTE_NAME_SEARCH_SOURCE;
+import static org.elasticsearch.reindex.BulkByPaginatedSearchSearchContextMetrics.ATTRIBUTE_NAME_TASK_KIND;
+import static org.elasticsearch.reindex.BulkByPaginatedSearchSearchContextMetrics.ATTRIBUTE_VALUE_SEARCH_SOURCE_LOCAL;
+import static org.elasticsearch.reindex.BulkByPaginatedSearchSearchContextMetrics.SEARCH_CONTEXT_KEEPALIVE_EXPIRED_COUNTER;
 import static org.elasticsearch.reindex.DeleteByQueryMetrics.DELETE_BY_QUERY_TIME_HISTOGRAM;
 import static org.elasticsearch.reindex.ReindexMetrics.ATTRIBUTE_NAME_ERROR_TYPE;
 import static org.elasticsearch.reindex.ReindexMetrics.ATTRIBUTE_NAME_SLICING_MODE;
@@ -90,9 +90,8 @@ public class ReindexPluginMetricsIT extends ESIntegTestCase {
             .build();
     }
 
-    @Override
     @After
-    public void tearDown() throws Exception {
+    public void resetSearchContextCounters() throws Exception {
         try {
             // Tests that skip via assumeTrue before starting a node leave the cluster empty;
             // the persistent setting reset would then fail with "no node found".
@@ -106,7 +105,6 @@ public class ReindexPluginMetricsIT extends ESIntegTestCase {
             SearchContextFailureInjectionPlugin.CONFIG.set(null);
             SearchContextFailureInjectionPlugin.PIT_SEARCH_COUNTER.set(0);
             SearchContextFailureInjectionPlugin.SCROLL_SEARCH_COUNTER.set(0);
-            super.tearDown();
         }
     }
 
@@ -491,7 +489,8 @@ public class ReindexPluginMetricsIT extends ESIntegTestCase {
     }
 
     /**
-     * Successful local reindex must not increment {@link BulkByScrollSearchContextMetrics#SEARCH_CONTEXT_KEEPALIVE_EXPIRED_COUNTER}.
+     * Successful local reindex must not increment
+     * {@link BulkByPaginatedSearchSearchContextMetrics#SEARCH_CONTEXT_KEEPALIVE_EXPIRED_COUNTER}.
      * That counter is reserved for when the underlying search context's keep-alive expires
      */
     public void testSuccessfulLocalReindexDoesNotEmitSearchContextKeepaliveExpiredMetric() throws Exception {
@@ -511,7 +510,7 @@ public class ReindexPluginMetricsIT extends ESIntegTestCase {
             .orElseThrow();
         testTelemetryPlugin.resetMeter();
 
-        BulkByScrollResponse response = reindex().source("source").destination("dest").refresh(true).get();
+        BulkByPaginatedSearchResponse response = reindex().source("source").destination("dest").refresh(true).get();
         assertThat(response.getBulkFailures(), empty());
         assertThat(response.getSearchFailures(), empty());
         assertHitCount(prepareSearch("dest").setSize(0), 3);
@@ -519,14 +518,15 @@ public class ReindexPluginMetricsIT extends ESIntegTestCase {
         assertBusy(() -> {
             testTelemetryPlugin.collect();
             final long keepaliveExpiredTotal = testTelemetryPlugin.getLongCounterMeasurement(
-                BulkByScrollSearchContextMetrics.SEARCH_CONTEXT_KEEPALIVE_EXPIRED_COUNTER
+                BulkByPaginatedSearchSearchContextMetrics.SEARCH_CONTEXT_KEEPALIVE_EXPIRED_COUNTER
             ).stream().mapToLong(Measurement::getLong).sum();
             assertThat(keepaliveExpiredTotal, equalTo(0L));
         });
     }
 
     /**
-     * Successful update by query must not increment {@link BulkByScrollSearchContextMetrics#SEARCH_CONTEXT_KEEPALIVE_EXPIRED_COUNTER}.
+     * Successful update by query must not increment
+     * {@link BulkByPaginatedSearchSearchContextMetrics#SEARCH_CONTEXT_KEEPALIVE_EXPIRED_COUNTER}.
      * That counter is reserved for when the underlying search context's keep-alive expires
      */
     public void testSuccessfulUpdateByQueryDoesNotEmitSearchContextKeepaliveExpiredMetric() throws Exception {
@@ -546,7 +546,7 @@ public class ReindexPluginMetricsIT extends ESIntegTestCase {
             .orElseThrow();
         testTelemetryPlugin.resetMeter();
 
-        BulkByScrollResponse response = updateByQuery().source("test").refresh(true).get();
+        BulkByPaginatedSearchResponse response = updateByQuery().source("test").refresh(true).get();
         assertThat(response.getBulkFailures(), empty());
         assertThat(response.getSearchFailures(), empty());
         assertHitCount(prepareSearch("test").setSize(0), 3);
@@ -554,14 +554,15 @@ public class ReindexPluginMetricsIT extends ESIntegTestCase {
         assertBusy(() -> {
             testTelemetryPlugin.collect();
             final long keepaliveExpiredTotal = testTelemetryPlugin.getLongCounterMeasurement(
-                BulkByScrollSearchContextMetrics.SEARCH_CONTEXT_KEEPALIVE_EXPIRED_COUNTER
+                BulkByPaginatedSearchSearchContextMetrics.SEARCH_CONTEXT_KEEPALIVE_EXPIRED_COUNTER
             ).stream().mapToLong(Measurement::getLong).sum();
             assertThat(keepaliveExpiredTotal, equalTo(0L));
         });
     }
 
     /**
-     * Successful delete by query must not increment {@link BulkByScrollSearchContextMetrics#SEARCH_CONTEXT_KEEPALIVE_EXPIRED_COUNTER}.
+     * Successful delete by query must not increment
+     * {@link BulkByPaginatedSearchSearchContextMetrics#SEARCH_CONTEXT_KEEPALIVE_EXPIRED_COUNTER}.
      * That counter is reserved for when the underlying search context's keep-alive expires
      */
     public void testSuccessfulDeleteByQueryDoesNotEmitSearchContextKeepaliveExpiredMetric() throws Exception {
@@ -581,7 +582,7 @@ public class ReindexPluginMetricsIT extends ESIntegTestCase {
             .orElseThrow();
         testTelemetryPlugin.resetMeter();
 
-        BulkByScrollResponse response = deleteByQuery().source("test").filter(QueryBuilders.matchAllQuery()).refresh(true).get();
+        BulkByPaginatedSearchResponse response = deleteByQuery().source("test").filter(QueryBuilders.matchAllQuery()).refresh(true).get();
         assertThat(response.getBulkFailures(), empty());
         assertThat(response.getSearchFailures(), empty());
         assertHitCount(prepareSearch("test").setSize(0), 0);
@@ -589,7 +590,7 @@ public class ReindexPluginMetricsIT extends ESIntegTestCase {
         assertBusy(() -> {
             testTelemetryPlugin.collect();
             final long keepaliveExpiredTotal = testTelemetryPlugin.getLongCounterMeasurement(
-                BulkByScrollSearchContextMetrics.SEARCH_CONTEXT_KEEPALIVE_EXPIRED_COUNTER
+                BulkByPaginatedSearchSearchContextMetrics.SEARCH_CONTEXT_KEEPALIVE_EXPIRED_COUNTER
             ).stream().mapToLong(Measurement::getLong).sum();
             assertThat(keepaliveExpiredTotal, equalTo(0L));
         });
@@ -597,7 +598,7 @@ public class ReindexPluginMetricsIT extends ESIntegTestCase {
 
     /**
      * A missing PIT search context that fails after the keep-alive deadline must increment
-     * {@link BulkByScrollSearchContextMetrics#SEARCH_CONTEXT_KEEPALIVE_EXPIRED_COUNTER} for local reindex.
+     * {@link BulkByPaginatedSearchSearchContextMetrics#SEARCH_CONTEXT_KEEPALIVE_EXPIRED_COUNTER} for local reindex.
      * Uses {@link SearchContextFailureInjectionPlugin}: sets a short PIT keep-alive, sleeps on the second pit search,
      * then fails with {@link SearchContextMissingException}.
      */
@@ -638,12 +639,12 @@ public class ReindexPluginMetricsIT extends ESIntegTestCase {
         builder.source().setSize(1);
         expectThrows(Exception.class, () -> builder.get());
 
-        assertSearchContextKeepaliveExpiredMetric(testTelemetryPlugin, BulkByScrollSearchContextMetrics.TaskKind.REINDEX);
+        assertSearchContextKeepaliveExpiredMetric(testTelemetryPlugin, BulkByPaginatedSearchSearchContextMetrics.TaskKind.REINDEX);
     }
 
     /**
      * A missing scroll search context after the scroll keep-alive deadline must increment
-     * {@link BulkByScrollSearchContextMetrics#SEARCH_CONTEXT_KEEPALIVE_EXPIRED_COUNTER} for update-by-query.
+     * {@link BulkByPaginatedSearchSearchContextMetrics#SEARCH_CONTEXT_KEEPALIVE_EXPIRED_COUNTER} for update-by-query.
      */
     public void testUpdateByQueryEmitsSearchContextKeepaliveExpiredMetric() throws Exception {
         final String dataNodeName = internalCluster().startNode();
@@ -676,12 +677,12 @@ public class ReindexPluginMetricsIT extends ESIntegTestCase {
         request.source().setSize(1);
         expectThrows(Exception.class, request::get);
 
-        assertSearchContextKeepaliveExpiredMetric(testTelemetryPlugin, BulkByScrollSearchContextMetrics.TaskKind.UPDATE_BY_QUERY);
+        assertSearchContextKeepaliveExpiredMetric(testTelemetryPlugin, BulkByPaginatedSearchSearchContextMetrics.TaskKind.UPDATE_BY_QUERY);
     }
 
     /**
      * A missing scroll search context after the scroll keep-alive deadline must increment
-     * {@link BulkByScrollSearchContextMetrics#SEARCH_CONTEXT_KEEPALIVE_EXPIRED_COUNTER} for delete-by-query.
+     * {@link BulkByPaginatedSearchSearchContextMetrics#SEARCH_CONTEXT_KEEPALIVE_EXPIRED_COUNTER} for delete-by-query.
      */
     public void testDeleteByQueryEmitsSearchContextKeepaliveExpiredMetric() throws Exception {
         final String dataNodeName = internalCluster().startNode();
@@ -714,7 +715,7 @@ public class ReindexPluginMetricsIT extends ESIntegTestCase {
         request.source().setSize(1);
         expectThrows(Exception.class, request::get);
 
-        assertSearchContextKeepaliveExpiredMetric(testTelemetryPlugin, BulkByScrollSearchContextMetrics.TaskKind.DELETE_BY_QUERY);
+        assertSearchContextKeepaliveExpiredMetric(testTelemetryPlugin, BulkByPaginatedSearchSearchContextMetrics.TaskKind.DELETE_BY_QUERY);
     }
 
     public void testDeleteByQueryMetrics() throws Exception {
@@ -829,7 +830,7 @@ public class ReindexPluginMetricsIT extends ESIntegTestCase {
 
     private void assertSearchContextKeepaliveExpiredMetric(
         TestTelemetryPlugin plugin,
-        BulkByScrollSearchContextMetrics.TaskKind expectedTaskKind
+        BulkByPaginatedSearchSearchContextMetrics.TaskKind expectedTaskKind
     ) throws Exception {
         assertBusy(() -> {
             plugin.collect();

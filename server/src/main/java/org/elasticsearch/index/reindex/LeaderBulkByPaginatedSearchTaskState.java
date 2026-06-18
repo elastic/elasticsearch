@@ -59,6 +59,7 @@ public class LeaderBulkByPaginatedSearchTaskState {
     private volatile float relocationRequestsPerSecond;
     private boolean capturedRpsForRelocation = false;
 
+    @SuppressWarnings("this-escape")
     public LeaderBulkByPaginatedSearchTaskState(BulkByPaginatedSearchTask task, int slices, float requestsPerSecond) {
         this.task = task;
         this.slices = slices;
@@ -116,7 +117,11 @@ public class LeaderBulkByPaginatedSearchTaskState {
     /**
      * Record a response from a slice and respond to the listener if the request is finished.
      */
-    public void onSliceResponse(ActionListener<BulkByScrollResponse> listener, int sliceId, BulkByScrollResponse response) {
+    public void onSliceResponse(
+        ActionListener<BulkByPaginatedSearchResponse> listener,
+        int sliceId,
+        BulkByPaginatedSearchResponse response
+    ) {
         results.setOnce(sliceId, new Result(sliceId, response));
         if (response != null && response.getPitId().isPresent()) {
             latestPitId.set(response.getPitId().get());
@@ -129,10 +134,11 @@ public class LeaderBulkByPaginatedSearchTaskState {
     /**
      * Record a failure from a slice and respond to the listener if the request is finished.
      */
-    public void onSliceFailure(ActionListener<BulkByScrollResponse> listener, int sliceId, Exception e) {
+    public void onSliceFailure(ActionListener<BulkByPaginatedSearchResponse> listener, int sliceId, Exception e) {
         results.setOnce(sliceId, new Result(sliceId, e));
         recordSliceCompletionAndRespondIfAllDone(listener);
-        // TODO cancel when a slice fails?
+        // TODO - https://github.com/elastic/elasticsearch/issues/150877
+        // Cancel when a slice fails?
     }
 
     public void setNodeToRelocateToSupplier(Supplier<Optional<String>> nodeToRelocateToSupplier) {
@@ -167,20 +173,20 @@ public class LeaderBulkByPaginatedSearchTaskState {
         return relocationRequestsPerSecond;
     }
 
-    private void recordSliceCompletionAndRespondIfAllDone(ActionListener<BulkByScrollResponse> listener) {
+    private void recordSliceCompletionAndRespondIfAllDone(ActionListener<BulkByPaginatedSearchResponse> listener) {
         if (runningSubtasks.decrementAndGet() != 0) {
             return;
         }
 
         if (task.isRelocationRequested() && getNodeToRelocateTo().isPresent()) {
-            final BulkByScrollResponse relocationResponse = relocationResponseIfNeeded().orElse(null);
+            final BulkByPaginatedSearchResponse relocationResponse = relocationResponseIfNeeded().orElse(null);
             if (relocationResponse != null) {
                 listener.onResponse(relocationResponse);
                 return;
             }
         }
 
-        List<BulkByScrollResponse> responses = new ArrayList<>(results.length());
+        List<BulkByPaginatedSearchResponse> responses = new ArrayList<>(results.length());
         Exception exception = null;
         for (Result t : results.asList()) {
             if (t.response == null) {
@@ -197,14 +203,14 @@ public class LeaderBulkByPaginatedSearchTaskState {
         }
         if (exception == null) {
             listener.onResponse(
-                new BulkByScrollResponse(responses, task.getReasonCancelled(), latestPitId.get(), relocationRequestsPerSecond)
+                new BulkByPaginatedSearchResponse(responses, task.getReasonCancelled(), latestPitId.get(), relocationRequestsPerSecond)
             );
         } else {
             listener.onFailure(exception);
         }
     }
 
-    private Optional<BulkByScrollResponse> relocationResponseIfNeeded() {
+    private Optional<BulkByPaginatedSearchResponse> relocationResponseIfNeeded() {
         final Map<Integer, ResumeInfo.SliceStatus> sliceResumeInfoMap = new HashMap<>();
         boolean allJobsCompletedThereforeNoNeedForRelocation = true;
         for (final Result result : results.asList()) {
@@ -221,7 +227,7 @@ public class LeaderBulkByPaginatedSearchTaskState {
         // this response is a local carrier for resumeInfo only — for higher-level code to handle relocation and then discard.
         // the status for the task that's serialized into the .tasks index is taken from the leader state.
         return Optional.of(
-            new BulkByScrollResponse(
+            new BulkByPaginatedSearchResponse(
                 TimeValue.MINUS_ONE,
                 new BulkByPaginatedSearchTask.Status(List.of(), null, 0f),
                 List.of(),
@@ -234,7 +240,7 @@ public class LeaderBulkByPaginatedSearchTaskState {
 
     private static ResumeInfo.SliceStatus getSliceStatus(final Result result) {
         final var workerResumeInfo = Optional.ofNullable(result.response)
-            .flatMap(BulkByScrollResponse::getTaskResumeInfo)
+            .flatMap(BulkByPaginatedSearchResponse::getTaskResumeInfo)
             .flatMap(resumeInfo -> {
                 assert resumeInfo.worker() != null : "if taskResumeInfo present, worker should have resume info";
                 assert resumeInfo.slices() == null : "if taskResumeInfo present, worker shouldn't have slices";
@@ -247,11 +253,11 @@ public class LeaderBulkByPaginatedSearchTaskState {
     }
 
     private static final class Result {
-        final BulkByScrollResponse response;
+        final BulkByPaginatedSearchResponse response;
         final int sliceId;
         final Exception failure;
 
-        private Result(int sliceId, BulkByScrollResponse response) {
+        private Result(int sliceId, BulkByPaginatedSearchResponse response) {
             this.sliceId = sliceId;
             this.response = response;
             failure = null;

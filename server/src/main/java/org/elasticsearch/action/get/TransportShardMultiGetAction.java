@@ -50,6 +50,7 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
@@ -221,31 +222,40 @@ public class TransportShardMultiGetAction extends TransportSingleShardAction<Mul
         }
         ProjectId projectId = state.projectId();
         final var retryingListener = listener.delegateResponse((l, e) -> {
-            final var cause = ExceptionsHelper.unwrapCause(e);
-            logger.debug("mget_from_translog[shard] failed", cause);
-            // All of the following exceptions can be thrown if the shard is relocated
-            if (cause instanceof ShardNotFoundException
-                || cause instanceof IndexNotFoundException
-                || cause instanceof IllegalIndexShardStateException
-                || cause instanceof AlreadyClosedException) {
-                logger.debug("retrying mget_from_translog[shard]");
-                observer.waitForNextChange(new ClusterStateObserver.Listener() {
-                    @Override
-                    public void onNewClusterState(ClusterState state) {
-                        shardMultiGetFromTranslog(request, shardId, state.projectState(projectId), observer, l);
-                    }
+            logger.debug("mget_from_translog[shard] failed", e);
+            if (ExceptionsHelper.unwrapCausesAndSuppressed(e, t -> t instanceof TransportException).isPresent()) {
+                // If there was a transport exception, that means the exception relates to the action we sent to the indexing node
+                // So check if the indexing shard was relocated to retry, else do not retry and fail the listener
+                if (ExceptionsHelper.unwrapCausesAndSuppressed(
+                    e,
+                    t -> t instanceof ShardNotFoundException
+                        || t instanceof IndexNotFoundException
+                        || t instanceof IllegalIndexShardStateException
+                        || t instanceof AlreadyClosedException
+                ).isPresent()) {
+                    logger.debug("retrying mget_from_translog[shard]");
+                    observer.waitForNextChange(new ClusterStateObserver.Listener() {
+                        @Override
+                        public void onNewClusterState(ClusterState state) {
+                            shardMultiGetFromTranslog(request, shardId, state.projectState(projectId), observer, l);
+                        }
 
-                    @Override
-                    public void onClusterServiceClose() {
-                        l.onFailure(new NodeClosedException(clusterService.localNode()));
-                    }
+                        @Override
+                        public void onClusterServiceClose() {
+                            l.onFailure(new NodeClosedException(clusterService.localNode()));
+                        }
 
-                    @Override
-                    public void onTimeout(TimeValue timeout) {
-                        l.onFailure(new ElasticsearchException("Timed out retrying mget_from_translog[shard]", cause));
-                    }
-                });
+                        @Override
+                        public void onTimeout(TimeValue timeout) {
+                            l.onFailure(new ElasticsearchException("Timed out retrying mget_from_translog[shard]", e));
+                        }
+                    });
+                } else {
+                    l.onFailure(e);
+                }
             } else {
+                // Local exceptions, e.g., if the search shard was relocated, are handled by the upper layer. This is also shown, e.g.,
+                // by asyncShardOperation() which can produce ShardNotFoundException if the search shard was relocated.
                 l.onFailure(e);
             }
         });
@@ -340,7 +350,8 @@ public class TransportShardMultiGetAction extends TransportSingleShardAction<Mul
                     item.fetchSourceContext(),
                     request.isForceSyntheticSource(),
                     mget,
-                    request.getSplitShardCountSummary()
+                    request.getSplitShardCountSummary(),
+                    request.refresh()
                 );
             response.add(request.locations.get(location), new GetResponse(getResult));
         } catch (RuntimeException e) {

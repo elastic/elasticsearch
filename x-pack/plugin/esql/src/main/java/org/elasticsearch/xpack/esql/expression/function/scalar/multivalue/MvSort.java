@@ -73,7 +73,8 @@ public class MvSort extends EsqlScalarFunction implements OptionalArgument, Post
     private static final String INVALID_ORDER_ERROR = "Invalid order value in [{}], expected one of [{}, {}] but got [{}]";
 
     @FunctionInfo(
-        returnType = { "boolean", "date", "date_nanos", "double", "flattened", "integer", "ip", "keyword", "long", "version" },
+        returnType = { "boolean", "date", "date_nanos", "double", "integer", "ip", "keyword", "long", "version" },
+        briefSummary = "Sorts the values in a multi-value field.",
         description = "Sorts a multivalued field in lexicographical order.",
         examples = @Example(file = "ints", tag = "mv_sort")
     )
@@ -81,7 +82,7 @@ public class MvSort extends EsqlScalarFunction implements OptionalArgument, Post
         Source source,
         @Param(
             name = "field",
-            type = { "boolean", "date", "date_nanos", "double", "flattened", "integer", "ip", "keyword", "long", "text", "version" },
+            type = { "boolean", "date", "date_nanos", "double", "integer", "ip", "keyword", "long", "text", "version" },
             description = "Expression that can be null, a single value, or multiple values. If `null`, the function returns `null`."
         ) Expression field,
         @Param(

@@ -17,12 +17,15 @@ import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 
 /**
+ * <p>
+ * N.B.: This class exists only as a backward-compatible version of {@link CompactMultiTypeEsField}.
+ * </p>
  * During IndexResolution it can occur that the same field is mapped to different types in different indices.
  * An {@link InvalidMappedField} holds that information and allows for later resolution of the field
  * to a single type in {@code ResolveUnionTypes}.
@@ -31,7 +34,7 @@ import java.util.Set;
  * this class instead of the {@link InvalidMappedField}.
  * This class is sent to the data nodes to inform them that they have to convert the type directly during field extraction.
  */
-public class MultiTypeEsField extends EsField {
+public final class MultiTypeEsField extends UnionTypeEsField {
     private static final TransportVersion POTENTIALLY_UNMAPPED_EXPRESSION = TransportVersion.fromName(
         "esql_potentially_unmapped_expression"
     );
@@ -94,8 +97,30 @@ public class MultiTypeEsField extends EsField {
         return potentiallyUnmappedExpression;
     }
 
+    @Override
+    public @Nullable Expression getUnmappedConversionExpression() {
+        return potentiallyUnmappedExpression;
+    }
+
     public Map<String, Expression> getIndexToConversionExpressions() {
         return indexToConversionExpressions;
+    }
+
+    @Override
+    public Collection<Expression> getConversionExpressions() {
+        return indexToConversionExpressions.values();
+    }
+
+    @Override
+    public EsField rewrapWithCast(Expression convertExpression) {
+        return new MultiTypeEsField(
+            getName(),
+            convertExpression.dataType(),
+            isAggregatable(),
+            UnionTypeEsField.replaceChildrenWithExpressionField(indexToConversionExpressions, convertExpression),
+            getTimeSeriesFieldType(),
+            potentiallyUnmappedExpression
+        );
     }
 
     public @Nullable Expression getConversionExpressionForIndex(String indexName) {
@@ -114,30 +139,23 @@ public class MultiTypeEsField extends EsField {
     }
 
     public static MultiTypeEsField resolveFrom(
-        InvalidMappedField invalidMappedField,
+        TypeConflictedField typeConflictedField,
         Map<String, Expression> typesToConversionExpressions
     ) {
-        Map<String, Set<String>> typesToIndices = invalidMappedField.getTypesToIndices();
-        DataType resolvedDataType = DataType.UNSUPPORTED;
+        UnionTypeEsField.Resolution resolution = UnionTypeEsField.resolve(typeConflictedField, typesToConversionExpressions);
         Map<String, Expression> indexToConversionExpressions = new HashMap<>();
-        for (String typeName : typesToIndices.keySet()) {
-            Set<String> indices = typesToIndices.get(typeName);
-            Expression convertExpr = typesToConversionExpressions.get(typeName);
-            if (resolvedDataType == DataType.UNSUPPORTED) {
-                resolvedDataType = convertExpr.dataType();
-            } else if (resolvedDataType != convertExpr.dataType()) {
-                throw new IllegalArgumentException("Resolved data type mismatch: " + resolvedDataType + " != " + convertExpr.dataType());
-            }
+        typeConflictedField.getTypesToIndices().forEach((typeName, indices) -> {
+            Expression convertExpr = resolution.typeToExpr().get(DataType.fromTypeName(typeName));
             for (String indexName : indices) {
                 indexToConversionExpressions.put(indexName, convertExpr);
             }
-        }
+        });
         return new MultiTypeEsField(
-            invalidMappedField.getName(),
-            resolvedDataType,
+            typeConflictedField.getName(),
+            resolution.resolvedDataType(),
             false,
             indexToConversionExpressions,
-            invalidMappedField.getTimeSeriesFieldType(),
+            typeConflictedField.getTimeSeriesFieldType(),
             null
         );
     }

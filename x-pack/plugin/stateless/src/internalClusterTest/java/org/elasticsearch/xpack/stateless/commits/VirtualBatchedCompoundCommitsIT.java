@@ -17,6 +17,7 @@ import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.TriConsumer;
 import org.elasticsearch.common.breaker.CircuitBreaker;
@@ -343,6 +344,10 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessPluginInte
     private long getDirectorySize(Directory directory) throws IOException {
         long size = 0;
         for (String file : directory.listAll()) {
+            // Don't count .tmp files from ongoing merges, they can and will disappear
+            if (file.endsWith(".tmp")) {
+                continue;
+            }
             size += directory.fileLength(file);
         }
         return size;
@@ -983,18 +988,17 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessPluginInte
         // Ensure VBCC not yet uploaded
         assertNotNull(statelessCommitService.getCurrentVirtualBcc(shardId));
 
+        final var indexNodeATransportService = MockTransportService.getInstance(indexNodeA);
         CountDownLatch getVBCCChunkSent = new CountDownLatch(1);
         CountDownLatch getVBCCChunkBlocked = new CountDownLatch(1);
-        final var transportService = MockTransportService.getInstance(searchNode);
-        transportService.addSendBehavior((connection, requestId, action, request, options) -> {
-            if (connection.getNode().getName().equals(indexNodeA)
-                && action.equals(TransportGetVirtualBatchedCompoundCommitChunkAction.NAME + "[p]")) {
-                getVBCCChunkSent.countDown();
-                safeAwait(getVBCCChunkBlocked);
-            }
-            connection.sendRequest(requestId, action, request, options);
-        });
-
+        MockTransportService.getInstance(searchNode)
+            .addSendBehavior(indexNodeATransportService, (connection, requestId, action, request, options) -> {
+                if (action.equals(TransportGetVirtualBatchedCompoundCommitChunkAction.NAME + "[p]")) {
+                    getVBCCChunkSent.countDown();
+                    safeAwait(getVBCCChunkBlocked);
+                }
+                connection.sendRequest(requestId, action, request, options);
+            });
         updateIndexSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1), indexName);
 
         // Wait till search shard start recovery
@@ -1008,16 +1012,14 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessPluginInte
             final String indexNodeBNodeId = getNodeId(indexNodeB);
             awaitClusterState(
                 indexNodeA,
-                clusterState -> clusterState.routingTable()
+                clusterState -> clusterState.routingTable(ProjectId.DEFAULT)
                     .index(indexName)
                     .shard(shardId.id())
                     .primaryShard()
                     .currentNodeId()
                     .equals(indexNodeBNodeId)
             );
-            internalCluster().awaitNodeVacated(indexName, indexNodeA);
             logger.info("--> relocated primary");
-            final var indexNodeATransportService = MockTransportService.getInstance(indexNodeA);
             indexNodeATransportService.addRequestHandlingBehavior(
                 TransportGetVirtualBatchedCompoundCommitChunkAction.NAME + "[p]",
                 (handler, request, channel, task) -> handler.messageReceived(request, new TransportChannel() {
@@ -1127,7 +1129,7 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessPluginInte
         ensureSearchable(indexName);
     }
 
-    public void testVirtualBatchedCompoundCommitChunksPressure() {
+    public void testVirtualBatchedCompoundCommitChunksPressure() throws Exception {
         // The test admits a first refresh that requests a 1-page chunk, and halts it mid-way before returning the chunk response.
         // Then, a second refresh comes in, that requests another 1-page chunk. It is rejected two times in a row, and the third retry
         // attempt is halted mid-way before processing the chunk request (and thus is not yet counted by the pressure). Then, we complete
@@ -1260,12 +1262,12 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessPluginInte
         logger.info("--> continuing sending chunk for the first refresh");
         chunk1ToSendResponse.countDown();
         assertNoFailures(safeGet(refresh1));
-        assertThat(vbccChunksPressure.getCurrentChunksBytes(), equalTo(0L));
+        assertBusy(() -> assertThat(vbccChunksPressure.getCurrentChunksBytes(), equalTo(0L)));
 
         logger.info("--> continuing processing chunk for the second refresh");
         chunk2ToProcess.countDown();
         assertNoFailures(safeGet(refresh2));
-        assertThat(vbccChunksPressure.getCurrentChunksBytes(), equalTo(0L));
+        assertBusy(() -> assertThat(vbccChunksPressure.getCurrentChunksBytes(), equalTo(0L)));
 
         // Confirm that the pressure metrics were correctly set
         final int pages = pagesRead.get();

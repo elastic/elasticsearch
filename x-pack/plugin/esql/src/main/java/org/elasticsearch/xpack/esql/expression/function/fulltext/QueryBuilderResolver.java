@@ -43,7 +43,7 @@ public final class QueryBuilderResolver {
         var hasRewriteableAwareFunctions = plan.anyMatch(p -> {
             Holder<Boolean> hasRewriteable = new Holder<>(false);
             p.forEachExpression(expr -> {
-                if (expr instanceof RewriteableAware) {
+                if (expr instanceof RewriteableAware rewriteableAware && rewriteableAware.requiresQueryBuilderRewrite()) {
                     hasRewriteable.set(true);
                 }
             });
@@ -98,7 +98,7 @@ public final class QueryBuilderResolver {
             Holder<Boolean> updated = new Holder<>(false);
             LogicalPlan newPlan = plan.transformExpressionsDown(Expression.class, expr -> {
                 Expression finalExpression = expr;
-                if (expr instanceof RewriteableAware rewriteableAware) {
+                if (expr instanceof RewriteableAware rewriteableAware && rewriteableAware.requiresQueryBuilderRewrite()) {
                     QueryBuilder builder = rewriteableAware.queryBuilder(), initial = builder;
                     builder = builder == null
                         ? rewriteableAware.asQuery(LucenePushdownPredicates.DEFAULT, TranslatorHandler.TRANSLATOR_HANDLER).toQueryBuilder()

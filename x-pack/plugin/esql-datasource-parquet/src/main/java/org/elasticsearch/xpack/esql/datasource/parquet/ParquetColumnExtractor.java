@@ -29,6 +29,7 @@ import java.util.Map;
 import java.util.NavigableMap;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutionException;
@@ -221,10 +222,11 @@ final class ParquetColumnExtractor implements ColumnExtractor {
         // bounded by the per-query concurrency budget which sits inside readBytesAsync.
         List<BlockMetaData> blocks = ownedFooter.getBlocks();
         @SuppressWarnings("unchecked")
-        CompletableFuture<NavigableMap<Long, ColumnChunkPrefetcher.PrefetchedChunk>>[] futures = new CompletableFuture[buckets.size()];
+        CompletableFuture<ColumnChunkPrefetcher.PrefetchedChunks>[] futures = (CompletableFuture<
+            ColumnChunkPrefetcher.PrefetchedChunks>[]) new CompletableFuture<?>[buckets.size()];
         for (int i = 0; i < buckets.size(); i++) {
             BlockMetaData block = blocks.get(buckets.get(i).rowGroupIndex);
-            futures[i] = ColumnChunkPrefetcher.prefetchAsync(storageObject, block, projection);
+            futures[i] = ColumnChunkPrefetcher.prefetchAsync(storageObject, block, projection, blockFactory.arrowAllocator());
         }
 
         // result[c][b] = block for column c in bucket b (bucket-visit order). We populate this
@@ -274,7 +276,7 @@ final class ParquetColumnExtractor implements ColumnExtractor {
         MessageType schema,
         String[] columnNames,
         Set<String> projection,
-        CompletableFuture<NavigableMap<Long, ColumnChunkPrefetcher.PrefetchedChunk>>[] futures,
+        CompletableFuture<ColumnChunkPrefetcher.PrefetchedChunks>[] futures,
         Block[][] perBucketBlocks,
         BlockFactory blockFactory
     ) throws IOException {
@@ -284,9 +286,13 @@ final class ParquetColumnExtractor implements ColumnExtractor {
         int colCount = columnNames.length;
         MessageType[] perColumnSchemas = new MessageType[colCount];
         @SuppressWarnings("unchecked")
-        Set<String>[] perColumnProjections = new Set[colCount];
+        Set<String>[] perColumnProjections = (Set<String>[]) new Set<?>[colCount];
         for (int c = 0; c < colCount; c++) {
-            perColumnSchemas[c] = new MessageType(schema.getName(), schema.getType(columnNames[c]));
+            // Use the descriptor's first path segment as the top-level field name. For flat
+            // columns and LIST<primitive> this equals columnNames[c]; for dotted struct-leaf
+            // columns (e.g. "event.action") columnNames[c] is not a top-level schema field and
+            // schema.getType(columnNames[c]) would throw.
+            perColumnSchemas[c] = new MessageType(schema.getName(), schema.getType(infos[c].descriptor().getPath()[0]));
             perColumnProjections[c] = Set.of(String.join(".", infos[c].descriptor().getPath()));
         }
         String createdBy = ownedFooter.getFileMetaData().getCreatedBy();
@@ -299,9 +305,9 @@ final class ParquetColumnExtractor implements ColumnExtractor {
         try {
             while (pending > 0) {
                 int bucketIdx = waitForNextCompleted(futures);
-                NavigableMap<Long, ColumnChunkPrefetcher.PrefetchedChunk> prefetched;
+                ColumnChunkPrefetcher.PrefetchedChunks prefetchedResult;
                 try {
-                    prefetched = futures[bucketIdx].get();
+                    prefetchedResult = futures[bucketIdx].get();
                 } catch (ExecutionException e) {
                     // Unwrap the CompletableFuture wrapper; the underlying cause is what callers
                     // expect (e.g. an IOException from S3) and what existing tests assert against.
@@ -324,33 +330,58 @@ final class ParquetColumnExtractor implements ColumnExtractor {
                 BlockMetaData block = blocks.get(bucket.rowGroupIndex);
                 int rgRowCount = Math.toIntExact(block.getRowCount());
 
-                // Decode every requested column from this bucket's prefetched chunk map. Each
-                // call passes a single-column projection so PrefetchedRowGroupBuilder only
-                // materialises that column's bytes despite the prefetched map carrying every
-                // projected column for this row group.
-                for (int c = 0; c < colCount; c++) {
-                    perBucketBlocks[c][bucketIdx] = decodeBucket(
-                        bucket,
-                        block,
-                        infos[c],
-                        perColumnSchemas[c],
-                        perColumnProjections[c],
-                        prefetched,
-                        rgRowCount,
-                        createdBy,
-                        blockFactory
-                    );
+                try {
+                    // Decode every requested column from this bucket's prefetched chunk map. Each
+                    // call passes a single-column projection so PrefetchedRowGroupBuilder only
+                    // materialises that column's bytes despite the prefetched map carrying every
+                    // projected column for this row group.
+                    for (int c = 0; c < colCount; c++) {
+                        perBucketBlocks[c][bucketIdx] = decodeBucket(
+                            bucket,
+                            block,
+                            infos[c],
+                            perColumnSchemas[c],
+                            perColumnProjections[c],
+                            prefetchedResult.chunks(),
+                            rgRowCount,
+                            createdBy,
+                            blockFactory
+                        );
+                    }
+                } finally {
+                    // Release this bucket's prefetched buffers as soon as the loop exits — the
+                    // decoded values now live in perBucketBlocks and the raw bytes are no longer
+                    // referenced.
+                    prefetchedResult.release().close();
                 }
-                // The prefetched buffers for this bucket are eligible for GC the moment we exit
-                // this iteration: nothing else holds a reference (perBucketBlocks owns decoded
-                // values, not raw bytes).
             }
         } catch (Throwable t) {
-            // Cancel every still-pending prefetch so its memory can be released (best-effort —
-            // the async client may already have started decoding a response). Also drop any
-            // result that lands after our cancel: discard via whenComplete.
+            // Cancel every still-pending prefetch and release any buffers that already landed so
+            // the failure path leaves no breaker reservation outstanding.
             for (int i = 0; i < futures.length; i++) {
-                FutureUtils.cancel(futures[i]);
+                CompletableFuture<ColumnChunkPrefetcher.PrefetchedChunks> f = futures[i];
+                if (f == null) {
+                    continue;
+                }
+                FutureUtils.cancel(f);
+                ColumnChunkPrefetcher.PrefetchedChunks landed;
+                try {
+                    landed = f.getNow(null);
+                } catch (CompletionException | CancellationException ignored) {
+                    // Future completed exceptionally (or was cancelled) — no chunks were ever
+                    // produced so there is nothing for us to release.
+                    continue;
+                }
+                if (landed != null) {
+                    try {
+                        landed.release().close();
+                    } catch (Throwable releaseFailure) {
+                        // Surface release failures (e.g. ArrowBuf double-decrement) as suppressed
+                        // exceptions on the original error so they don't mask the root cause and
+                        // we still drain the rest of the prefetched chunks.
+                        t.addSuppressed(releaseFailure);
+                    }
+                }
             }
             throw t;
         }
@@ -540,7 +571,8 @@ final class ParquetColumnExtractor implements ColumnExtractor {
                 /* preloadedMetadata = */ null,
                 prefetched,
                 storageObject,
-                reader.codecFactory()
+                reader.codecFactory(),
+                blockFactory.arrowAllocator()
             )
         ) {
             if (info.maxRepLevel() == 0) {

@@ -9,13 +9,14 @@
 
 package org.elasticsearch.reindex.management;
 
-import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskResponse;
+import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
+import org.elasticsearch.action.admin.cluster.node.tasks.list.TaskGroup;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.TransportBulkAction;
 import org.elasticsearch.action.get.GetResponse;
@@ -48,6 +49,7 @@ import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.reindex.ReindexMetrics;
 import org.elasticsearch.reindex.ReindexMetrics.SlicingMode;
 import org.elasticsearch.reindex.ReindexPlugin;
+import org.elasticsearch.reindex.RethrottleRequestBuilder;
 import org.elasticsearch.reindex.TransportReindexAction;
 import org.elasticsearch.rest.root.MainRestPlugin;
 import org.elasticsearch.search.internal.SearchContext;
@@ -82,10 +84,8 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.OptionalInt;
-import java.util.Queue;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -135,7 +135,7 @@ public class ReindexRelocationIT extends ESIntegTestCase {
     }
 
     /// Collects the slicing configurations from all the searches performed while `capturingSearchSlices` is true.
-    private static final Queue<SliceBuilder> capturedSearchSlices = new ConcurrentLinkedQueue<>();
+    private static final List<SliceBuilder> capturedSearchSlices = Collections.synchronizedList(new ArrayList<>());
 
     private static final AtomicBoolean capturingSearchSlices = new AtomicBoolean();
 
@@ -357,7 +357,7 @@ public class ReindexRelocationIT extends ESIntegTestCase {
             });
 
             // Speed up reindex post-relocation to keep the test fast
-            unthrottleReindex(relocatedTaskId);
+            unthrottleReindex(originalTaskId, relocatedTaskId, slices, shards, manualShardId);
 
             assertRelocatedTaskExpectedEndState(relocatedTaskId, originalTaskId, expectedDescription, slices, shards, manualShardId);
         }
@@ -425,7 +425,7 @@ public class ReindexRelocationIT extends ESIntegTestCase {
             shards,
             OptionalInt.empty()
         );
-        unthrottleReindex(relocatedTaskId);
+        unthrottleReindex(originalTaskId, relocatedTaskId, 1, shards, OptionalInt.empty());
         assertRelocatedTaskExpectedEndState(relocatedTaskId, originalTaskId, expectedDescription, 1, shards, OptionalInt.empty());
         assertExpectedNumberOfDocumentsInDestinationIndex();
 
@@ -476,7 +476,7 @@ public class ReindexRelocationIT extends ESIntegTestCase {
             shards,
             OptionalInt.empty()
         );
-        unthrottleReindex(relocatedTaskId);
+        unthrottleReindex(originalTaskId, relocatedTaskId, 1, shards, OptionalInt.empty());
         assertRelocatedTaskExpectedEndState(relocatedTaskId, originalTaskId, expectedDescription, 1, shards, OptionalInt.empty());
         assertExpectedNumberOfDocumentsInDestinationIndex();
     }
@@ -522,7 +522,7 @@ public class ReindexRelocationIT extends ESIntegTestCase {
             OptionalInt.empty()
         );
 
-        unthrottleReindex(relocatedTaskId);
+        unthrottleReindex(originalTaskId, relocatedTaskId, 1, shards, OptionalInt.empty());
         assertRelocatedTaskExpectedEndState(relocatedTaskId, originalTaskId, expectedDescription, 1, shards, OptionalInt.empty());
         assertExpectedNumberOfDocumentsInDestinationIndex();
 
@@ -677,7 +677,7 @@ public class ReindexRelocationIT extends ESIntegTestCase {
 
         // Wait for .tasks and replica to be created before stopping nodeB, otherwise the replica
         // on nodeA is stale and can't be promoted to primary when nodeB leaves
-        assertBusy(() -> assertTrue(indexExists(TaskResultsService.TASK_INDEX)), 30, TimeUnit.SECONDS);
+        awaitClusterState(state -> state.metadata().getProject().hasIndex(TaskResultsService.TASK_INDEX));
         ensureGreen(TaskResultsService.TASK_INDEX);
 
         internalCluster().stopNode(nodeName);
@@ -759,10 +759,7 @@ public class ReindexRelocationIT extends ESIntegTestCase {
         final int shards,
         OptionalInt manualSliceId
     ) throws Exception {
-        final SetOnce<TaskResult> finishedResult = new SetOnce<>();
-
-        assertBusy(() -> finishedResult.set(getCompletedTaskResult(taskId)), 30, TimeUnit.SECONDS);
-        final TaskResult result = finishedResult.get();
+        final TaskResult result = getCompletedTaskResult(taskId);
         assertThat("relocated task has no error", result.getError(), is(nullValue()));
         final Map<String, Object> innerResponse = result.getResponseAsMap();
         assertThat(innerResponse.get("timed_out"), is(false));
@@ -1032,7 +1029,10 @@ public class ReindexRelocationIT extends ESIntegTestCase {
     }
 
     private TaskResult getCompletedTaskResult(final TaskId taskId) {
-        final GetTaskResponse response = clusterAdmin().prepareGetTask(taskId).setWaitForCompletion(true).get();
+        final GetTaskResponse response = clusterAdmin().prepareGetTask(taskId)
+            .setWaitForCompletion(true)
+            .setTimeout(TimeValue.timeValueSeconds(60))
+            .get();
         final TaskResult task = response.getTask();
         assertNotNull(task);
         assertThat(task.isCompleted(), is(true));
@@ -1049,14 +1049,85 @@ public class ReindexRelocationIT extends ESIntegTestCase {
         ensureGreen(TimeValue.timeValueSeconds(10), index);
     }
 
-    private void unthrottleReindex(final TaskId taskId) {
-        try {
-            final RestClient restClient = getRestClient();
-            final Request request = new Request("POST", "/_reindex/" + taskId + "/_rethrottle");
-            request.addParameter("requests_per_second", Integer.toString(-1));
-            restClient.performRequest(request);
-        } catch (Exception e) {
-            throw new AssertionError("failed to rethrottle reindex", e);
+    /// Removes the reindex throttle after relocation. Rethrottles by {@code originalTaskId} so the relocation chain is
+    /// followed, retrying until the transport returns a successful response, then verifies that the relocated
+    /// task reports unlimited {@code requests_per_second}.
+    private void unthrottleReindex(
+        final TaskId originalTaskId,
+        final TaskId relocatedTaskId,
+        final int slices,
+        final int shards,
+        final OptionalInt manualShardId
+    ) throws Exception {
+        // Retry only the rethrottle: 503 from setRequestsPerSecondWithRelocationGuard during handoff
+        assertBusy(() -> {
+            try {
+                final ListTasksResponse rethrottleResponse = new RethrottleRequestBuilder(client()).setTargetTaskId(originalTaskId)
+                    .setRequestsPerSecond(Float.POSITIVE_INFINITY)
+                    .setFollowRelocations(true)
+                    .get();
+                rethrottleResponse.rethrowFailures("unthrottle reindex after relocation");
+                assertThat("rethrottle should find running task", rethrottleResponse.getTasks().isEmpty(), is(false));
+            } catch (Exception e) {
+                throw new AssertionError("failed to unthrottle reindex after relocation", e);
+            }
+        }, 30, TimeUnit.SECONDS);
+
+        assertUnthrottledRequestsPerSecond(relocatedTaskId, slices, shards, manualShardId);
+    }
+
+    private void assertUnthrottledRequestsPerSecond(
+        final TaskId relocatedTaskId,
+        final int slices,
+        final int shards,
+        final OptionalInt manualShardId
+    ) {
+        if (isAutoSliced(slices, shards, manualShardId)) {
+            // Best-effort live-children check: the relocated leader, or one or more slices may have already completed after the successful
+            // unthrottle, in which case they are no longer in the TaskManager.
+            clusterAdmin().prepareListTasks()
+                .setActions(ReindexAction.NAME)
+                .setDetailed(true)
+                .get()
+                .getTaskGroups()
+                .stream()
+                .filter(g -> g.taskInfo().taskId().equals(relocatedTaskId))
+                .findFirst()
+                .ifPresent(group -> {
+                    for (TaskGroup child : group.childTasks()) {
+                        final BulkByPaginatedSearchTask.Status sliceStatus = asInstanceOf(
+                            BulkByPaginatedSearchTask.Status.class,
+                            child.task().status()
+                        );
+                        assertThat("slice should be unthrottled", sliceStatus.getRequestsPerSecond(), equalTo(Float.POSITIVE_INFINITY));
+                    }
+                });
+
+            // Leader RPS backstop: prepareGetTask works for both running (live status from relocationRequestsPerSecond) and
+            // completed (terminal status from .tasks, which preserves the last rethrottled RPS).
+            assertUnthrottled(
+                "relocated leader should report unthrottled RPS",
+                clusterAdmin().prepareGetTask(relocatedTaskId).get().getTask().getTask()
+            );
+        } else {
+            assertUnthrottled(
+                "relocated task should be unthrottled",
+                clusterAdmin().prepareGetTask(relocatedTaskId).get().getTask().getTask()
+            );
+        }
+    }
+
+    /// Asserts that the task is reporting unlimited {@code requests_per_second}, regardless of whether its status is the live typed
+    /// {@link BulkByPaginatedSearchTask.Status} (still running) or a {@link RawTaskStatus} parsed back from {@code .tasks} (completed,
+    /// where {@link Float#POSITIVE_INFINITY} serializes as {@code -1.0}).
+    private static void assertUnthrottled(final String reason, final TaskInfo info) {
+        final Object status = info.status();
+        if (status instanceof BulkByPaginatedSearchTask.Status typed) {
+            assertThat(reason, typed.getRequestsPerSecond(), equalTo(Float.POSITIVE_INFINITY));
+        } else if (status instanceof RawTaskStatus raw) {
+            assertThat(reason, ((Number) raw.toMap().get("requests_per_second")).doubleValue(), closeTo(-1.0, 0.0001));
+        } else {
+            throw new AssertionError("unexpected status type [" + (status == null ? "null" : status.getClass().getName()) + "]");
         }
     }
 

@@ -73,6 +73,7 @@ public final class Case extends EsqlScalarFunction {
             "cartesian_shape",
             "date",
             "date_nanos",
+            "date_range",
             "dense_vector",
             "double",
             "flattened",
@@ -90,6 +91,7 @@ public final class Case extends EsqlScalarFunction {
             "unsigned_long",
             "version",
             "exponential_histogram" },
+        briefSummary = "Returns the value for the first condition that evaluates to true.",
         description = """
             Accepts pairs of conditions and values. The function returns the value that
             belongs to the first condition that evaluates to `true`. Both the conditions
@@ -128,6 +130,7 @@ public final class Case extends EsqlScalarFunction {
                 "cartesian_shape",
                 "date",
                 "date_nanos",
+                "date_range",
                 "dense_vector",
                 "double",
                 "flattened",
@@ -228,15 +231,15 @@ public final class Case extends EsqlScalarFunction {
             dataType = value.dataType().noText();
             return TypeResolutions.isType(
                 value,
-                t -> t != DataType.DATE_RANGE,
+                t -> true,
                 sourceText(),
                 TypeResolutions.ParamOrdinal.fromIndex(position),
-                originalWasNull ? NULL.typeName() : "any but date_range"
+                originalWasNull ? NULL.typeName() : "any type"
             );
         }
         return TypeResolutions.isType(
             value,
-            t -> t.noText() == dataType && t != DataType.DATE_RANGE,
+            t -> t.noText() == dataType,
             sourceText(),
             TypeResolutions.ParamOrdinal.fromIndex(position),
             dataType.typeName()
@@ -358,9 +361,36 @@ public final class Case extends EsqlScalarFunction {
     }
 
     private Expression finishPartialFold(List<Expression> newChildren) {
+        Expression result = innerFinishPartialFold(newChildren);
+        if (result.dataType().noText().equals(dataType()) == false) {
+            throw new IllegalStateException("partiallyFold produced type [" + result.dataType() + "] but expected [" + dataType() + "]");
+        }
+        return result;
+    }
+
+    private Expression innerFinishPartialFold(List<Expression> newChildren) {
         return switch (newChildren.size()) {
+            // CASE(false, a) -> NULL
             case 0 -> new Literal(source(), null, dataType());
-            case 1 -> newChildren.get(0);
+            /*
+             * CASE(false, a, b) -> b
+             *
+             * We *must* return something of dataType or downstream stuff will
+             * blow up. `b` can be:
+             *   - dataType - return as-is
+             *   - TEXT when dataType is keyword - return as-is - which is safe because
+             *     TEXT is the same as KEYWORD everywhere that matters downstream from here
+             *   - any NULL-typed expression — cast it to dataType so callers
+             *     see the right type (e.g. KEYWORD, not NULL)
+             */
+            case 1 -> {
+                Expression child = newChildren.getFirst();
+                if (child.dataType() == NULL && dataType() != NULL) {
+                    yield new Literal(child.source(), null, dataType());
+                }
+                yield child;
+            }
+            // CASE(false, a, b, c, d) -> CASE(b, c, d)
             default -> replaceChildren(newChildren);
         };
     }

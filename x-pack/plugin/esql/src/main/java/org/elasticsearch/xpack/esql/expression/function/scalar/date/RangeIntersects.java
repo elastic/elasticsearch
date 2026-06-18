@@ -7,15 +7,20 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar.date;
 
+import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.data.LongRangeBlockBuilder;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
+import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.expression.TypedAttribute;
+import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
+import org.elasticsearch.xpack.esql.core.querydsl.query.RangeQuery;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -29,6 +34,8 @@ import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
+import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
 
 import java.io.IOException;
 import java.util.List;
@@ -38,6 +45,9 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.Param
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_RANGE;
+import static org.elasticsearch.xpack.esql.expression.Foldables.literalValueOf;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.DEFAULT_DATE_TIME_FORMATTER;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateTimeToString;
 
 /**
  * RANGE_INTERSECTS(a, b) -> boolean
@@ -49,7 +59,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_RANGE;
  *   <li>(date, date): degenerate; equivalent to {@code a == b}, lowered to {@link Equals} via {@link SurrogateExpression}</li>
  * </ul>
  */
-public class RangeIntersects extends EsqlScalarFunction implements SurrogateExpression {
+public class RangeIntersects extends EsqlScalarFunction implements SurrogateExpression, TranslationAware {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "RangeIntersects",
@@ -66,6 +76,7 @@ public class RangeIntersects extends EsqlScalarFunction implements SurrogateExpr
         returnType = "boolean",
         preview = true,
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW) },
+        briefSummary = "Returns true if two date ranges or dates overlap.",
         description = "Returns true if the two arguments overlap. The relation is symmetric — argument order does not matter. "
             + "Supports any combination of `date` and `date_range`. "
             + "When both arguments are `date`, this is equivalent to `a == b`.",
@@ -193,6 +204,58 @@ public class RangeIntersects extends EsqlScalarFunction implements SurrogateExpr
             return new Equals(source(), left, right);
         }
         return null;
+    }
+
+    @Override
+    public Translatable translatable(LucenePushdownPredicates pushdownPredicates) {
+        // (date, date) lowers to Equals via surrogate() before translation; reject here as a safety net.
+        if (left.dataType() == DATETIME && right.dataType() == DATETIME) {
+            return Translatable.NO;
+        }
+        if (isPushable(left, right, pushdownPredicates) || isPushable(right, left, pushdownPredicates)) {
+            // date_range MVs are represented as a single BinaryDocValues, so SingleValueQuery does not detect that it's a MV.
+            // We have to recheck and filter out MVs
+            return Translatable.RECHECK;
+        }
+        return Translatable.NO;
+    }
+
+    private static boolean isPushable(Expression maybeField, Expression maybeLiteral, LucenePushdownPredicates pushdownPredicates) {
+        return pushdownPredicates.isPushableFieldAttribute(maybeField) && maybeLiteral.foldable();
+    }
+
+    @Override
+    public Query asQuery(LucenePushdownPredicates pushdownPredicates, TranslatorHandler handler) {
+        Expression fieldExp;
+        Expression literalExp;
+        if (pushdownPredicates.isPushableFieldAttribute(left)) {
+            fieldExp = left;
+            literalExp = right;
+        } else {
+            fieldExp = right;
+            literalExp = left;
+        }
+        TypedAttribute attribute = LucenePushdownPredicates.checkIsPushableAttribute(fieldExp);
+        String name = handler.nameOf(attribute);
+        Object value = literalValueOf(literalExp);
+        String format = DEFAULT_DATE_TIME_FORMATTER.pattern();
+
+        // Build the [lower, upper) interval representing the literal. A point degenerates to [d, d] inclusive.
+        Object lower;
+        Object upper;
+        boolean includeUpper;
+        if (literalExp.dataType() == DATETIME) {
+            String date = dateTimeToString((Long) value);
+            lower = date;
+            upper = date;
+            includeUpper = true;
+        } else {
+            LongRangeBlockBuilder.LongRange r = (LongRangeBlockBuilder.LongRange) value;
+            lower = dateTimeToString(r.from());
+            upper = dateTimeToString(r.to());
+            includeUpper = false;
+        }
+        return new RangeQuery(source(), name, lower, true, upper, includeUpper, format, null, ShapeRelation.INTERSECTS);
     }
 
     @Override

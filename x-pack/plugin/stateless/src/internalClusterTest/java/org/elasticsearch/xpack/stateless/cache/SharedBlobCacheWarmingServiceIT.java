@@ -26,6 +26,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver;
 import org.elasticsearch.common.regex.Regex;
@@ -36,6 +37,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.MergePolicyConfig;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.mapper.Uid;
@@ -113,6 +115,7 @@ import static org.elasticsearch.cluster.coordination.LeaderChecker.LEADER_CHECK_
 import static org.elasticsearch.discovery.PeerFinder.DISCOVERY_FIND_PEERS_INTERVAL_SETTING;
 import static org.elasticsearch.index.engine.ThreadPoolMergeScheduler.USE_THREAD_POOL_MERGE_SCHEDULER_SETTING;
 import static org.elasticsearch.test.MockLog.assertThatLogger;
+import static org.elasticsearch.test.MockLog.awaitLogger;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcherDynamicSettings.STATELESS_SEARCH_USE_INTERNAL_FILES_REPLICATED_CONTENT;
@@ -227,7 +230,10 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
             .put(STATELESS_HOLLOW_INDEX_SHARDS_ENABLED.getKey(), false)
             .build();
         var indexNodeA = startIndexNode(nodeSettings);
+        var indexNodeB = startIndexNode(nodeSettings);
+        ensureStableCluster(3);
 
+        // Pin the shard to indexNodeA to make sure no rebalances happen
         final String indexName = randomIdentifier();
         assertAcked(
             prepareCreate(
@@ -237,14 +243,16 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
                     .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
                     .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
                     .put(EngineConfig.USE_COMPOUND_FILE, randomBoolean())
+                    .put("index.routing.allocation.exclude._name", indexNodeB)
             )
         );
 
         indexDocs(indexName, randomIntBetween(100, 10000));
         refresh(indexName);
 
-        var indexNodeB = startIndexNode(nodeSettings);
-        ensureStableCluster(3);
+        // Force the indexing-recovery warming on indexNodeB to block until warming completes, so the recovery thread
+        // cannot race a concurrent fill against the warming task and trip the test's post-warming object-store ban.
+        getSharedBlobCacheWarmingService(indexNodeB).setAwaitWarmingForIndexingRecovery(true);
 
         // wait for INDEXING_EARLY and INDEXING to be completed before blocking access to the latest BCC.
         final var waitForWarmingsCompleted = new CountDownLatch(1);
@@ -273,6 +281,8 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
             expectCacheWarmingCompleteEvent(Type.INDEXING_EARLY),
             expectCacheWarmingCompleteEvent(Type.INDEXING) };
         assertThatLogger(() -> {
+            // Lift the exclusion so the shard can move to indexNodeB once the shutdown handoff triggers relocation.
+            updateIndexSettings(Settings.builder().putNull("index.routing.allocation.exclude._name"), indexName);
             var shutdownNodeId = client().admin()
                 .cluster()
                 .prepareState(TEST_REQUEST_TIMEOUT)
@@ -407,7 +417,7 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
         final String indexName = randomIdentifier();
         createIndex(indexName, indexSettings(1, 0).build());
 
-        int segments = randomIntBetween(4, 8);
+        int segments = randomIntBetween(2, (int) MergePolicyConfig.DEFAULT_SEGMENTS_PER_TIER - 1);
         for (int i = 0; i < segments; ++i) {
             indexDocs(indexName, randomIntBetween(100, 1000));
             flush(indexName);
@@ -442,7 +452,7 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
             }
         });
 
-        assertThatLogger(
+        awaitLogger(
             () -> client().admin().indices().prepareForceMerge(indexName).setMaxNumSegments(1).get(),
             SharedBlobCacheWarmingService.class,
             expectCacheWarmingCompleteEvent(Type.INDEXING_MERGE)
@@ -511,8 +521,12 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
         startIndexNode(nodeSettings);
 
         var searchNodeA = startSearchNode(nodeSettings);
-        ensureStableCluster(3);
+        var searchNodeB = startSearchNode(nodeSettings);
+        ensureStableCluster(4);
 
+        // Pin the search shard to searchNodeA so nothing relocates it to searchNodeB
+        // before we install the warming-completed listener on B in phase B. The exclusion is flipped from B to A
+        // at the start of phase B to drive the relocation under test.
         final String indexName = randomIdentifier();
         assertAcked(
             prepareCreate(
@@ -522,6 +536,7 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
                     .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
                     .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
                     .put(EngineConfig.USE_COMPOUND_FILE, randomBoolean())
+                    .put("index.routing.allocation.exclude._name", searchNodeB)
             )
         );
 
@@ -546,6 +561,11 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
 
         ensureGreen(indexName);
 
+        // Force the search-recovery warming on searchNodeA to await completion. Without this,
+        // warmCacheForSearchShardRecovery is fire-and-forget on the new-shard-copy path (searchRecoveryTimeout
+        // returns skip()), letting concurrent reads claim cache gaps that warming then skips and the post-warming
+        // ban then trips. See ObservableSharedBlobCacheWarmingService Javadoc for the wrapper semantics.
+        getSharedBlobCacheWarmingService(searchNodeA).setAwaitWarmingForSearchRecovery(true);
         // Verify that we performed pre-warming and don't need to hit the object store on searches
         failObjectStoreAndFetchFromIndexingNodeAfterPrewarming(indexName, searchNodeA, Type.SEARCH);
 
@@ -557,12 +577,14 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
         disableTransportBlocking(searchNodeA);
         ensureSearchHits(indexName, totalDocs);
 
-        var searchNodeB = startSearchNode(nodeSettings);
-        ensureStableCluster(4);
-
+        // Same await-warming rationale as above: ensure the warming-complete listener (which installs the object-store ban) fires
+        // before the engine opens, so no reader can race the warming task for cache gaps.
+        getSharedBlobCacheWarmingService(searchNodeB).setAwaitWarmingForSearchRecovery(true);
         // The cache also gets pre-warmed when a shard gets relocated to a new node
         failObjectStoreAndFetchFromIndexingNodeAfterPrewarming(indexName, searchNodeB, Type.SEARCH);
-        shutdownNode(searchNodeA);
+        // Flip the exclusion from searchNodeB to searchNodeA so the search shard relocates to searchNodeB.
+        // Simpler than SIGTERM-driven shutdown and equivalent for the recovery path under test.
+        updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude._name", searchNodeA), indexName);
         ensureGreen(indexName);
         assertThat(findSearchShard(resolveIndex(indexName), 0).routingEntry().currentNodeId(), equalTo(getNodeId(searchNodeB)));
         assertHitCount(prepareSearch(indexName).setSize(0), totalDocs);
@@ -1074,7 +1096,7 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
         final var idsToLookup = returnedIds.subList(10, randomIntBetween(10, 100));
         try (Engine.Searcher searcher = indexShard.acquireSearcher("test")) {
             for (var id : idsToLookup) {
-                assertNotNull(VersionsAndSeqNoResolver.timeSeriesLoadDocIdAndVersion(searcher.getIndexReader(), Uid.encodeId(id), false));
+                assertNotNull(VersionsAndSeqNoResolver.loadDocIdAndVersion(searcher.getIndexReader(), Uid.encodeId(id), false));
             }
         }
     }
@@ -1207,33 +1229,16 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
             public void assertMatched() {
                 assertThat("expected to see " + expectationName + " but did not", seenLatch.getCount(), equalTo(0L));
             }
-        };
-    }
 
-    private static void shutdownNode(String indexNode) {
-        var shutdownNodeId = client().admin()
-            .cluster()
-            .prepareState(TEST_REQUEST_TIMEOUT)
-            .get()
-            .getState()
-            .nodes()
-            .resolveNode(indexNode)
-            .getId();
-        assertAcked(
-            client().execute(
-                PutShutdownNodeAction.INSTANCE,
-                new PutShutdownNodeAction.Request(
-                    TEST_REQUEST_TIMEOUT,
-                    TEST_REQUEST_TIMEOUT,
-                    shutdownNodeId,
-                    SingleNodeShutdownMetadata.Type.SIGTERM,
-                    "Shutdown for cache warming test",
-                    null,
-                    null,
-                    TimeValue.timeValueMinutes(randomIntBetween(1, 5))
-                )
-            )
-        );
+            @Override
+            public void awaitMatched(long millis) throws InterruptedException {
+                assertThat(
+                    "expected to see " + expectationName + " but did not",
+                    seenLatch.await(millis, TimeUnit.MILLISECONDS),
+                    equalTo(true)
+                );
+            }
+        };
     }
 
     private void blockAccessToGenerationBeforePostHandoffPreWarmingStarts(String node, long generationToBlock) {
@@ -1319,10 +1324,17 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
             NodeEnvironment nodeEnvironment,
             Settings settings,
             ThreadPool threadPool,
-            BlobCacheMetrics blobCacheMetrics
+            BlobCacheMetrics blobCacheMetrics,
+            ClusterService clusterService
         ) {
             MaybeNoFreeRegionForWarmingStatelessSharedBlobCacheService maybeNoFreeRegionForWarmingBlobCacheService =
-                new MaybeNoFreeRegionForWarmingStatelessSharedBlobCacheService(nodeEnvironment, settings, threadPool, blobCacheMetrics);
+                new MaybeNoFreeRegionForWarmingStatelessSharedBlobCacheService(
+                    nodeEnvironment,
+                    settings,
+                    threadPool,
+                    blobCacheMetrics,
+                    clusterService
+                );
             maybeNoFreeRegionForWarmingBlobCacheService.assertInvariants();
             return maybeNoFreeRegionForWarmingBlobCacheService;
         }
@@ -1335,13 +1347,15 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
             NodeEnvironment environment,
             Settings settings,
             ThreadPool threadPool,
-            BlobCacheMetrics blobCacheMetrics
+            BlobCacheMetrics blobCacheMetrics,
+            ClusterService clusterService
         ) {
             super(
                 environment,
                 settings,
                 threadPool,
                 blobCacheMetrics,
+                clusterService,
                 new ThreadLocalDirectoryMetricHolder<>(BlobStoreCacheDirectoryMetrics::new)
             );
         }
@@ -1372,11 +1386,21 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
 
     /**
      * Test subclass of {@link SharedBlobCacheWarmingService} that exposes listener-based hooks for observing warming start and
-     * completion. Unlike a blocking wrapper, this subclass does not await warming inside {@link #warmCache} or
-     * {@link #warmCacheMerge} — it mirrors production's async semantics so callers that pass {@link ActionListener#noop()}
-     * (e.g. the fire-and-forget branch of {@code warmCacheForSearchShardRecovery}) are not converted into blocking calls.
-     * Tests that need "warming done" as a precondition must explicitly await via {@link #addWarmingCompletedListener}
-     * or {@link #addMergeWarmingCompletedListener}.
+     * completion. By default this subclass mirrors production's async semantics: {@link #warmCache} and {@link #warmCacheMerge}
+     * do not await warming, and callers that pass {@link ActionListener#noop()} (e.g. the fire-and-forget branch of
+     * {@code warmCacheForSearchShardRecovery}) are not converted into blocking calls. Tests that need "warming done" as a
+     * precondition must explicitly await via {@link #addWarmingCompletedListener} or {@link #addMergeWarmingCompletedListener}.
+     *
+     * <p>Specific recovery paths can be opted into await-warming semantics via {@link #setAwaitWarmingForSearchRecovery(boolean)}
+     * and {@link #setAwaitWarmingForIndexingRecovery(boolean)}. Both ensure that any registered {@code warmingCompletedListeners}
+     * fire before recovery resumes, which lets tests install an object-store ban before the engine opens. They differ in how:
+     * <ul>
+     *   <li>{@link #warmCacheForShardRecoveryOrUnhollowing} (indexing) blocks the calling thread until warming completes, because
+     *   in production the recovery thread immediately reads {@code segments_N} after kicking off fire-and-forget warming.</li>
+     *   <li>{@link #warmCacheForSearchShardRecovery} (search) does not block the caller. It routes warming through
+     *   {@link #warmCache} so {@code resumeRecoveryListener} is invoked only after warming (and any
+     *   {@code warmingCompletedListeners}) have completed, deferring the resume step rather than blocking the caller.</li>
+     * </ul>
      */
     private static class ObservableSharedBlobCacheWarmingService extends SharedBlobCacheWarmingService {
 
@@ -1386,6 +1410,7 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
         private final CopyOnWriteArrayList<Consumer<Type>> beforeWarmingStartsListeners = new CopyOnWriteArrayList<>();
 
         private volatile boolean awaitWarmingForSearchRecovery = false;
+        private volatile boolean awaitWarmingForIndexingRecovery = false;
 
         ObservableSharedBlobCacheWarmingService(
             StatelessSharedBlobCacheService cacheService,
@@ -1399,6 +1424,10 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
 
         void setAwaitWarmingForSearchRecovery(boolean await) {
             this.awaitWarmingForSearchRecovery = await;
+        }
+
+        void setAwaitWarmingForIndexingRecovery(boolean await) {
+            this.awaitWarmingForIndexingRecovery = await;
         }
 
         @Override
@@ -1436,6 +1465,41 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
                     directory,
                     endOffsetsToWarm,
                     resumeRecoveryListener
+                );
+            }
+        }
+
+        @Override
+        public void warmCacheForShardRecoveryOrUnhollowing(
+            Type type,
+            IndexShard indexShard,
+            StatelessCompoundCommit commit,
+            BlobStoreCacheDirectory directory,
+            @Nullable Map<BlobFile, Long> endOffsetsToWarm,
+            boolean preWarmForIdLookup,
+            ActionListener<Void> listener
+        ) {
+            if (awaitWarmingForIndexingRecovery) {
+                final var latch = new CountDownLatch(1);
+                super.warmCacheForShardRecoveryOrUnhollowing(
+                    type,
+                    indexShard,
+                    commit,
+                    directory,
+                    endOffsetsToWarm,
+                    preWarmForIdLookup,
+                    ActionListener.runBefore(listener, latch::countDown)
+                );
+                safeAwait(latch);
+            } else {
+                super.warmCacheForShardRecoveryOrUnhollowing(
+                    type,
+                    indexShard,
+                    commit,
+                    directory,
+                    endOffsetsToWarm,
+                    preWarmForIdLookup,
+                    listener
                 );
             }
         }

@@ -34,6 +34,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.NavigableMap;
 import java.util.Optional;
 import java.util.TreeMap;
 import java.util.function.BiConsumer;
@@ -185,7 +186,7 @@ public class RootObjectMapper extends ObjectMapper {
                 sourceKeepMode,
                 dynamic,
                 mappers,
-                Map.copyOf(dynamicByPrefix),
+                dynamicByPrefix,
                 new HashMap<>(runtimeFields),
                 dynamicDateTimeFormatters,
                 dynamicTemplates,
@@ -204,15 +205,12 @@ public class RootObjectMapper extends ObjectMapper {
     private final RootObjectMapperNamespaceValidator namespaceValidator;
     /**
      * Per-prefix {@code dynamic} settings captured during auto-flattening in strict columnar mode.
-     * Keys are the full dotted paths of declared object mappers (e.g. {@code "attributes"},
+     * Keys are the full dotted paths of dec    lared object mappers (e.g. {@code "attributes"},
      * {@code "resource.sub"}); values are their explicit {@code dynamic} setting.
      * Empty for non-strict-columnar indices.
      */
-    private final Map<String, Dynamic> dynamicByPrefix;
-    /** Sorted array of keys from {@link #dynamicByPrefix} for efficient longest-prefix lookup. */
-    private final String[] sortedDynamicPrefixes;
-    /** Parallel array of {@link Dynamic} values corresponding to {@link #sortedDynamicPrefixes}. */
-    private final Dynamic[] dynamicsForPrefixes;
+    /** Per-prefix dynamic settings, kept in sorted key order for longest-prefix resolution and deterministic serialization. */
+    private final NavigableMap<String, Dynamic> dynamicByPrefix;
 
     RootObjectMapper(
         String name,
@@ -236,15 +234,7 @@ public class RootObjectMapper extends ObjectMapper {
         this.dateDetection = dateDetection;
         this.numericDetection = numericDetection;
         this.namespaceValidator = namespaceValidator == null ? new DefaultRootObjectMapperNamespaceValidator() : namespaceValidator;
-        this.dynamicByPrefix = dynamicByPrefix;
-        String[] prefixes = dynamicByPrefix.keySet().toArray(String[]::new);
-        Arrays.sort(prefixes);
-        this.sortedDynamicPrefixes = prefixes;
-        Dynamic[] dynamics = new Dynamic[prefixes.length];
-        for (int i = 0; i < prefixes.length; i++) {
-            dynamics[i] = dynamicByPrefix.get(prefixes[i]);
-        }
-        this.dynamicsForPrefixes = dynamics;
+        this.dynamicByPrefix = Collections.unmodifiableNavigableMap(new TreeMap<>(dynamicByPrefix));
     }
 
     @Override
@@ -329,22 +319,16 @@ public class RootObjectMapper extends ObjectMapper {
      * @return the resolved dynamic value
      */
     public Dynamic resolveDynamic(String fullPath, Dynamic fallback) {
-        if (sortedDynamicPrefixes.length == 0) {
+        if (dynamicByPrefix.isEmpty()) {
             return fallback;
         }
-        int idx = Arrays.binarySearch(sortedDynamicPrefixes, fullPath);
-        if (idx >= 0) {
-            // Exact match: fullPath is itself a registered prefix.
-            return dynamicsForPrefixes[idx];
-        }
-        // Walk backwards from the insertion point to find the longest stored prefix whose
-        // dotted extension matches fullPath (e.g. "attributes" matches "attributes.foo").
-        // Because prefixes are sorted lexicographically, the longest matching prefix is the
-        // first one encountered when scanning backwards from the insertion point.
-        int insertionPoint = ~idx;
-        for (int i = insertionPoint - 1; i >= 0; i--) {
-            if (fullPath.startsWith(sortedDynamicPrefixes[i] + ".")) {
-                return dynamicsForPrefixes[i];
+        // headMap(fullPath, inclusive=true) limits candidates to prefixes <= fullPath in sort order.
+        // Iterating in descending order finds the longest (closest) matching prefix first.
+        // A prefix matches if it is exactly fullPath or a dotted ancestor of fullPath.
+        for (Map.Entry<String, Dynamic> entry : dynamicByPrefix.headMap(fullPath, true).descendingMap().entrySet()) {
+            String prefix = entry.getKey();
+            if (fullPath.equals(prefix) || fullPath.startsWith(prefix + ".")) {
+                return entry.getValue();
             }
         }
         return fallback;
@@ -397,13 +381,13 @@ public class RootObjectMapper extends ObjectMapper {
         }
 
         if (dynamicByPrefix.isEmpty() == false) {
-            // Keys are sorted for deterministic serialization: the mapping source is byte-compared
-            // across nodes, so output order must be stable. Grouped under "prefix_properties" so
-            // future per-prefix facets (disabled, passthrough) can be added without a stored-format
-            // migration.
+            // Keys are in sorted order (guaranteed by the NavigableMap field type) for deterministic
+            // serialization: the mapping source is byte-compared across nodes, so output order must
+            // be stable. Grouped under "prefix_properties" so future per-prefix facets (disabled,
+            // passthrough) can be added without a stored-format migration.
             builder.startObject("prefix_properties");
             builder.startObject("dynamic");
-            for (Map.Entry<String, Dynamic> entry : new TreeMap<>(dynamicByPrefix).entrySet()) {
+            for (Map.Entry<String, Dynamic> entry : dynamicByPrefix.entrySet()) {
                 builder.field(entry.getKey(), entry.getValue().name().toLowerCase(Locale.ROOT));
             }
             builder.endObject();

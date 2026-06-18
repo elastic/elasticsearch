@@ -1174,7 +1174,6 @@ public class LocalExecutionPlanner {
 
         return source.with(
             new HighlightOperator.Factory(
-                highlight.prefix(),
                 query,
                 analyzer,
                 formatter,

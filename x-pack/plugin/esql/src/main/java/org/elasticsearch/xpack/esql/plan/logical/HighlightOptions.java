@@ -49,8 +49,8 @@ public record HighlightOptions(String preTag, String postTag, String encoder, in
             );
         }
         return new HighlightOptions(
-            firstString(options.get(Highlight.PRE_TAGS), foldContext, DEFAULT_PRE_TAG),
-            firstString(options.get(Highlight.POST_TAGS), foldContext, DEFAULT_POST_TAG),
+            string(options.get(Highlight.PRE_TAGS), foldContext, DEFAULT_PRE_TAG),
+            string(options.get(Highlight.POST_TAGS), foldContext, DEFAULT_POST_TAG),
             string(options.get(Highlight.ENCODER), foldContext, DEFAULT_ENCODER),
             integer(options.get(Highlight.NUMBER_OF_FRAGMENTS), foldContext, DEFAULT_NUMBER_OF_FRAGMENTS),
             integer(options.get(Highlight.FRAGMENT_SIZE), foldContext, DEFAULT_FRAGMENT_SIZE),
@@ -59,11 +59,11 @@ public record HighlightOptions(String preTag, String postTag, String encoder, in
     }
 
     /**
-     * Reads a tag option that may be specified either as a single string ({@code "pre_tags": "<b>"}) or a single-element
-     * array ({@code "pre_tags": ["<b>"]}). Only the first tag is honoured in this version.
+     * Reads a string option. Tags may be given as a single string ({@code "pre_tags": "<b>"}) or a single-element list
+     * ({@code "pre_tags": ["<b>"]}); for a list we take the first element.
      */
     // TODO: support multiple pre_tags/post_tags (Query DSL rotates through the list per match) instead of only the first.
-    private static String firstString(Expression value, FoldContext foldContext, String defaultValue) {
+    private static String string(Expression value, FoldContext foldContext, String defaultValue) {
         if (value == null) {
             return defaultValue;
         }
@@ -74,17 +74,13 @@ public record HighlightOptions(String preTag, String postTag, String encoder, in
         return BytesRefs.toString(folded);
     }
 
-    private static String string(Expression value, FoldContext foldContext, String defaultValue) {
-        return value == null ? defaultValue : BytesRefs.toString(value.fold(foldContext));
-    }
-
     private static int integer(Expression value, FoldContext foldContext, int defaultValue) {
         if (value == null) {
             return defaultValue;
         }
         Object folded = value.fold(foldContext);
-        if (folded instanceof Number n) {
-            int intValue = n.intValue();
+        if (folded instanceof Number number) {
+            int intValue = number.intValue();
             if (intValue < 0) {
                 throw new IllegalArgumentException("HIGHLIGHT option must be >= 0 but got [" + folded + "]");
             }

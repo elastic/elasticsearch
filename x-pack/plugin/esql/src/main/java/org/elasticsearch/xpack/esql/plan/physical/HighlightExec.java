@@ -65,7 +65,8 @@ public class HighlightExec extends UnaryExec {
             in.readString(),
             in.readOptionalNamedWriteable(Expression.class),
             in.readNamedWriteableCollectionAsList(Expression.class),
-            in.readOptionalNamedWriteable(MapExpression.class),
+            // MapExpression is registered under the Expression category, not its own, so read it as an Expression.
+            (MapExpression) in.readOptionalNamedWriteable(Expression.class),
             in.readNamedWriteableCollectionAsList(Attribute.class)
         );
     }

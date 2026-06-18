@@ -32,6 +32,7 @@ import org.elasticsearch.lucene.search.uhighlight.BoundedBreakIteratorScanner;
 import org.elasticsearch.lucene.search.uhighlight.CustomUnifiedHighlighter;
 import org.elasticsearch.lucene.search.uhighlight.QueryMaxAnalyzedOffset;
 import org.elasticsearch.lucene.search.uhighlight.Snippet;
+import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 
 import java.io.IOException;
 import java.text.BreakIterator;
@@ -41,17 +42,17 @@ import java.util.Locale;
 import java.util.function.Supplier;
 
 /**
- * Appends one {@code <prefix><field>} column per highlighted field to the input page.
+ * Appends one highlighted keyword column per ON field to the input page.
  * <p>
- * Each ON field is evaluated to its {@link BytesRefBlock} value and highlighted on a per-row basis using a Lucene
- * {@link MemoryIndex}: the row's (possibly multi-valued) text is re-analyzed into a single in-memory document and the
+ * Each ON field is evaluated to its {@link BytesRefBlock} value and highlighted per row using a Lucene
+ * {@link MemoryIndex}: the row's (possibly multi-valued) text is analyzed into a single in-memory document and the
  * configured {@link Query} is run against it through a {@link CustomUnifiedHighlighter}. Matched terms are wrapped with
  * the configured tags by the {@link PassageFormatter}. A row that the query does not match yields {@code null} (or, when
- * {@code no_match_size > 0}, the leading text). Multiple fragments and multi-valued inputs are emitted as a multi-value
- * keyword block.
+ * {@code no_match_size > 0}, the leading text). Multiple fragments and multi-valued inputs become a multi-value keyword
+ * block.
  * <p>
- * This mirrors the coordinator re-analysis path proven by {@code TOP_SNIPPETS}; it stores offsets in the
- * {@link MemoryIndex} and highlights via {@link UnifiedHighlighter.OffsetSource#POSTINGS}.
+ * The {@link MemoryIndex} is built with offsets, so we read them via {@link UnifiedHighlighter.OffsetSource#POSTINGS}.
+ * This is the same coordinator-side path that {@code TOP_SNIPPETS} already uses.
  * <p>
  * TODO: use real index offsets and per-field analyzers when highlighting can run directly against shard data.
  */
@@ -64,7 +65,6 @@ public class HighlightOperator extends AbstractPageMappingOperator {
     public static final String CONTENT_FIELD = "content";
 
     public record Factory(
-        String prefix,
         Query query,
         Analyzer analyzer,
         PassageFormatter formatter,
@@ -93,9 +93,7 @@ public class HighlightOperator extends AbstractPageMappingOperator {
 
         @Override
         public String describe() {
-            return "HighlightOperator[prefix="
-                + prefix
-                + ", query="
+            return "HighlightOperator[query="
                 + query
                 + ", fields="
                 + fieldEvaluatorFactories.size()
@@ -140,12 +138,8 @@ public class HighlightOperator extends AbstractPageMappingOperator {
         this.noMatchSize = noMatchSize;
         this.maxAnalyzedOffset = IndexSettings.MAX_ANALYZED_OFFSET_SETTING.get(Settings.EMPTY);
         this.fieldEvaluators = fieldEvaluators;
-        /*
-         * We always ask the underlying highlighter for *all* passages and truncate to number_of_fragments ourselves.
-         * Lucene's FieldHighlighter selects the top maxPassages by score (not document order), so capping there would
-         * return an arbitrary subset when several sentences score equally. Requesting everything and keeping the first
-         * number_of_fragments preserves document order, which is the contract of the HIGHLIGHT command.
-         */
+        // Ask Lucene for every passage and trim to number_of_fragments ourselves. Lucene would otherwise keep the
+        // top passages by score, which loses document order when several sentences tie. We want document order.
         this.highlighterNumberOfFragments = Integer.MAX_VALUE - 1;
         // TODO: honour boundary_scanner, boundary_scanner_locale, boundary_chars, boundary_max_scan, and order.
         if (numberOfFragments == 0) {
@@ -177,7 +171,7 @@ public class HighlightOperator extends AbstractPageMappingOperator {
                     if (block instanceof BytesRefBlock fieldValues) {
                         highlightedBlocks[f] = highlightField(fieldValues, rowCount);
                     } else {
-                        throw new org.elasticsearch.xpack.esql.EsqlIllegalArgumentException(
+                        throw new EsqlIllegalArgumentException(
                             "HIGHLIGHT ON fields must evaluate to keyword/text values but got [" + block.getClass().getSimpleName() + "]"
                         );
                     }

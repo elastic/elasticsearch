@@ -10,7 +10,9 @@ package org.elasticsearch.xpack.esql.plan.logical;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.xpack.esql.capabilities.PostAnalysisVerificationAware;
 import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
+import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -24,18 +26,19 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.plan.GeneratingPlan;
+import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
+import static org.elasticsearch.xpack.esql.common.Failure.fail;
 import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputAttributes;
 
-// TODO: add highlight-specific verification, including option values and placement after row-shaping commands such as
-// STATS, INLINESTATS, and LOOKUP JOIN.
+// TODO: add option-value verification (e.g. encoder must be default|html, order must be none|score).
 // TODO: carry an analyzer name here once the "analyzer" option is supported.
-public class Highlight extends UnaryPlan implements TelemetryAware, GeneratingPlan<Highlight> {
+public class Highlight extends UnaryPlan implements TelemetryAware, GeneratingPlan<Highlight>, PostAnalysisVerificationAware {
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         LogicalPlan.class,
@@ -45,19 +48,21 @@ public class Highlight extends UnaryPlan implements TelemetryAware, GeneratingPl
 
     public static final String DEFAULT_PREFIX = "highlight_";
 
-    // Supported today: pre_tags, post_tags, number_of_fragments, fragment_size, encoder, no_match_size.
+    // Options honoured today by HighlightOptions and the operator.
     public static final String PRE_TAGS = "pre_tags";
     public static final String POST_TAGS = "post_tags";
     public static final String NUMBER_OF_FRAGMENTS = "number_of_fragments";
     public static final String FRAGMENT_SIZE = "fragment_size";
     public static final String ENCODER = "encoder";
-    // TODO: wire these options through HighlightOptions and the operator.
+    public static final String NO_MATCH_SIZE = "no_match_size";
+
+    // Options the parser accepts but that are not wired through yet. The feature is snapshot-only, so accepting them now
+    // keeps the grammar stable; each is honoured in a follow-up. TODO: wire these through HighlightOptions and the operator.
     public static final String BOUNDARY_SCANNER = "boundary_scanner";
     public static final String BOUNDARY_SCANNER_LOCALE = "boundary_scanner_locale";
     public static final String BOUNDARY_CHARS = "boundary_chars";
     public static final String BOUNDARY_MAX_SCAN = "boundary_max_scan";
     public static final String ORDER = "order";
-    public static final String NO_MATCH_SIZE = "no_match_size";
     public static final String MAX_ANALYZED_OFFSET = "max_analyzed_offset";
     public static final String PHRASE_LIMIT = "phrase_limit";
 
@@ -112,7 +117,8 @@ public class Highlight extends UnaryPlan implements TelemetryAware, GeneratingPl
             in.readString(),
             in.readOptionalNamedWriteable(Expression.class),
             in.readNamedWriteableCollectionAsList(Expression.class),
-            in.readOptionalNamedWriteable(MapExpression.class),
+            // MapExpression is registered under the Expression category, not its own, so read it as an Expression.
+            (MapExpression) in.readOptionalNamedWriteable(Expression.class),
             in.readNamedWriteableCollectionAsList(Attribute.class)
         );
     }
@@ -229,6 +235,17 @@ public class Highlight extends UnaryPlan implements TelemetryAware, GeneratingPl
             }
         }
         return options == null || options.resolved();
+    }
+
+    @Override
+    public void postAnalysisVerification(Failures failures) {
+        // HIGHLIGHT needs each row to map back to a single document. STATS, INLINE STATS and LOOKUP JOIN reshape or
+        // combine rows, so highlighting after them is not supported.
+        child().forEachDown(plan -> {
+            if (plan instanceof Aggregate || plan instanceof InlineStats || plan instanceof Join) {
+                failures.add(fail(this, "HIGHLIGHT cannot be used after [{}]", plan.sourceText()));
+            }
+        });
     }
 
     @Override

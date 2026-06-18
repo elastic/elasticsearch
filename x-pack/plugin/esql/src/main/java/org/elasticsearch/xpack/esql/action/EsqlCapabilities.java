@@ -3116,14 +3116,13 @@ public class EsqlCapabilities {
         APPROXIMATION_FIX_MV_FUNCTIONS,
 
         /**
-         * Support for the {@code HIGHLIGHT} command. Part A: parsing and plan-shape only; execution
-         * throws "not implemented yet". Snapshot-only.
+         * Parsing and plan-shape support for the {@code HIGHLIGHT} command (grammar, plan nodes, serialization).
+         * Execution is gated separately by {@link #HIGHLIGHT_V1}. Snapshot-only.
          */
         HIGHLIGHT_V0(Build.current().isSnapshot()),
 
         /**
-         * Support for executing the {@code HIGHLIGHT} command and exposing generated {@code highlight_*} columns.
-         * Snapshot-only.
+         * Execution of the {@code HIGHLIGHT} command, exposing the generated {@code highlight_*} columns. Snapshot-only.
          */
         HIGHLIGHT_V1(Build.current().isSnapshot()),
 

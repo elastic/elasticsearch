@@ -244,3 +244,17 @@ ROW content = "The One Ring was forged by Sauron."
 content:keyword                    | highlight_content:keyword
 The One Ring was forged by Sauron. | The One <em>Ring</em> was forged by Sauron.
 ;
+
+
+# A fragment_size larger than the whole text returns a single bounded fragment covering both sentences.
+highlightFragmentSizeLargerThanText
+required_capability: highlight_v1
+
+ROW content = "Elasticsearch is fast. Elasticsearch is scalable."
+| HIGHLIGHT "elasticsearch" ON content WITH { "fragment_size": 100 }
+| KEEP highlight_content
+;
+
+highlight_content:keyword
+<em>Elasticsearch</em> is fast. <em>Elasticsearch</em> is scalable.
+;

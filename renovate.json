@@ -36,8 +36,9 @@
       "enabled": true
     },
     {
-      "description": "Gradle wrapper: one rolling PR per release train (e.g. 9.5.x patch lane and 9.6.x minor/RC lane). Renovate's built-in gradle-wrapper manager updates the root gradle/wrapper/gradle-wrapper.properties; the postUpgradeTasks step below runs `./gradlew wrapper` which (via the root build.gradle wrapper task's doLast) copies the properties to build-tools-internal/ and plugins/examples/ and refreshes minimumGradleVersion so all wrapper files stay in lockstep. `respectLatest: false` together with `ignoreUnstable: false` lets the same PR keep rolling forward through Gradle RCs/milestones until we hit GA, mirroring our previous manual workflow.",
-      "matchManagers": ["gradle-wrapper"],
+      "description": "Gradle wrapper: one rolling PR per release train (e.g. 9.5.x patch lane and 9.6.x minor/RC lane). Renovate's built-in gradle-wrapper manager updates each gradle-wrapper.properties file independently (and refreshes distributionSha256Sum via an HTTP fetch of <distributionUrl>.sha256, no arbitrary command execution on the runner). The customManager below keeps build-tools-internal/src/main/resources/minimumGradleVersion in sync with the same Gradle version. `respectLatest: false` together with `ignoreUnstable: false` lets the same PR keep rolling forward through Gradle RCs/milestones until we hit GA. No postUpgradeTasks are used — running ./gradlew on the Renovate runner is not permitted for IT-security reasons.",
+      "matchManagers": ["gradle-wrapper", "custom.regex"],
+      "matchPackageNames": ["gradle"],
       "matchBaseBranches": ["main"],
       "enabled": true,
       "ignoreUnstable": false,
@@ -48,25 +49,22 @@
       "branchTopic": "gradle-wrapper-{{{newMajor}}}.{{{newMinor}}}.{{{newPatch}}}",
       "commitMessageTopic": "Gradle wrapper {{{newMajor}}}.{{{newMinor}}}.{{{newPatch}}}",
       "schedule": ["at any time"],
-      "labels": [":Delivery/Build", ">non-issue", "auto-backport"],
-      "postUpgradeTasks": {
-        "commands": [
-          "./gradlew wrapper"
-        ],
-        "executionMode": "branch",
-        "fileFilters": [
-          "gradle/wrapper/gradle-wrapper.properties",
-          "gradle/wrapper/gradle-wrapper.jar",
-          "gradlew",
-          "gradlew.bat",
-          "build-tools-internal/gradle/wrapper/gradle-wrapper.properties",
-          "build-tools-internal/src/main/resources/minimumGradleVersion",
-          "plugins/examples/gradle/wrapper/gradle-wrapper.properties",
-          "plugins/examples/gradle/wrapper/gradle-wrapper.jar",
-          "plugins/examples/gradlew",
-          "plugins/examples/gradlew.bat"
-        ]
-      }
+      "labels": [":Delivery/Build", ">non-issue", "auto-backport"]
+    }
+  ],
+  "customManagers": [
+    {
+      "description": "Keep build-tools-internal/src/main/resources/minimumGradleVersion in sync with Gradle wrapper bumps. The file contains a bare version string (e.g. `9.5.0`); the built-in gradle-wrapper manager doesn't see it, so this regex feeds it via the gradle-version datasource and depName=gradle so it groups into the same PR as the gradle-wrapper updates.",
+      "customType": "regex",
+      "fileMatch": [
+        "^build-tools-internal/src/main/resources/minimumGradleVersion$"
+      ],
+      "matchStrings": [
+        "^(?<currentValue>\\d[\\w.+-]*)\\s*$"
+      ],
+      "depNameTemplate": "gradle",
+      "datasourceTemplate": "gradle-version",
+      "versioningTemplate": "gradle"
     }
   ]
 }

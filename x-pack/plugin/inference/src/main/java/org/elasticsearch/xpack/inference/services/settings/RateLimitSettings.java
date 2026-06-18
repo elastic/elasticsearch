@@ -39,6 +39,14 @@ public class RateLimitSettings implements Writeable, ToXContentFragment {
     public static final String REQUESTS_PER_MINUTE_FIELD = "requests_per_minute";
     public static final RateLimitSettings DISABLED_INSTANCE = new RateLimitSettings(1, TimeUnit.MINUTES, false);
 
+    /**
+     * Creates a parser for the {@code rate_limit} object. When {@code requests_per_minute} is not supplied (for example an explicitly
+     * empty {@code "rate_limit": {}} object), the parser returns {@code defaultValue} rather than {@code null}, so callers that store the
+     * parsed result do not have to treat an explicitly-provided rate limit object as a {@code null} value.
+     *
+     * @param ignoreUnknownFields whether unknown fields within the rate limit object are tolerated
+     * @param defaultValue the value to return when {@code requests_per_minute} is absent; may be {@code null}
+     */
     public static ConstructingObjectParser<RateLimitSettings, ConfigurationParseContext> createParser(
         boolean ignoreUnknownFields,
         @Nullable RateLimitSettings defaultValue

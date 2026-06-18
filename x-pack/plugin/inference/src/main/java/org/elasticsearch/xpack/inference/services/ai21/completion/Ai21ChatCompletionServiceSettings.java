@@ -28,7 +28,7 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.xpack.inference.common.parser.StringParser.validateRequiredNonEmptyString;
+import static org.elasticsearch.xpack.inference.common.parser.StringParser.validateStringIsNotNullOrEmpty;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MODEL_ID;
 
 /**
@@ -89,7 +89,7 @@ public class Ai21ChatCompletionServiceSettings extends FilteredXContentObject im
         }
 
         public Ai21ChatCompletionServiceSettings build() {
-            validateRequiredNonEmptyString(modelId, MODEL_ID);
+            validateStringIsNotNullOrEmpty(modelId, MODEL_ID);
             return new Ai21ChatCompletionServiceSettings(modelId, rateLimitSettings);
         }
     }

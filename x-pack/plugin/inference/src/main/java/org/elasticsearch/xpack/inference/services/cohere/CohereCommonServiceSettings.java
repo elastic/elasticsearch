@@ -93,7 +93,7 @@ public class CohereCommonServiceSettings extends FilteredXContentObject implemen
         }
         parser.declareObject(
             Builder::setRateLimitSettings,
-            (p, c) -> RateLimitSettings.createParser(c == ConfigurationParseContext.PERSISTENT, null).apply(p, null),
+            (p, c) -> RateLimitSettings.createParser(c == ConfigurationParseContext.PERSISTENT, DEFAULT_RATE_LIMIT_SETTINGS).apply(p, null),
             new ParseField(RateLimitSettings.FIELD_NAME)
         );
         // api_key appears in the same JSON block as service settings in REST requests; DefaultSecretSettings extracts it separately.

@@ -16,15 +16,15 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.core.inference.InferenceUtils.missingSettingErrorMsg;
+import static org.elasticsearch.xpack.core.inference.InferenceUtils.mustBeNonEmptyString;
 import static org.elasticsearch.xpack.inference.common.parser.ObjectParserUtils.pathToKey;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.mustBeNonEmptyString;
 
 public final class StringParser {
 
     /**
      * Validates that a required string service setting is present and not empty, throwing an {@link IllegalArgumentException} otherwise.
      */
-    public static void validateRequiredNonEmptyString(@Nullable String value, String settingName) {
+    public static void validateStringIsNotNullOrEmpty(@Nullable String value, String settingName) {
         if (value == null) {
             throw new IllegalArgumentException(missingSettingErrorMsg(settingName, ModelConfigurations.SERVICE_SETTINGS));
         }

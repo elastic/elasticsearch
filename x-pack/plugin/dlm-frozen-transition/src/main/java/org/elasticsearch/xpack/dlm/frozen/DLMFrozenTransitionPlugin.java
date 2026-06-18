@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.dlm.frozen;
 
 import org.elasticsearch.client.internal.OriginSettingClient;
-import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -52,9 +51,6 @@ public class DLMFrozenTransitionPlugin extends Plugin {
 
     @Override
     public List<ExecutorBuilder<?>> getExecutorBuilders(Settings settings) {
-        if (DataStreamLifecycle.DLM_SEARCHABLE_SNAPSHOTS_FEATURE_FLAG.isEnabled() == false) {
-            return List.of();
-        }
         int coreCount = EsExecutors.allocatedProcessors(settings);
         final FixedScaleDownExecutorBuilder builder = new FixedScaleDownExecutorBuilder(
             settings,
@@ -72,52 +68,48 @@ public class DLMFrozenTransitionPlugin extends Plugin {
     @Override
     public Collection<?> createComponents(PluginServices services) {
         Set<Object> components = new HashSet<>(super.createComponents(services));
-        if (DataStreamLifecycle.DLM_SEARCHABLE_SNAPSHOTS_FEATURE_FLAG.isEnabled()) {
-            var transitionSettings = DLMFrozenTransitionSettings.create(services.clusterService());
-            components.add(transitionSettings);
+        var transitionSettings = DLMFrozenTransitionSettings.create(services.clusterService());
+        components.add(transitionSettings);
 
-            ThreadPool.Info threadPoolInfo = services.threadPool().info(EXECUTOR_NAME);
-            if (threadPoolInfo == null) {
-                throw new RuntimeException("Failed to get thread pool info for " + EXECUTOR_NAME + " thread pool.");
-            } else if (threadPoolInfo.getQueueSize() == null) {
-                throw new RuntimeException("Queue size for " + EXECUTOR_NAME + " must be set");
-            } else if (threadPoolInfo.getQueueSize() > Integer.MAX_VALUE) {
-                // This should never happen as queue size is an int in the implementation, but this guards against future changes
-                throw new RuntimeException("Queue size for " + EXECUTOR_NAME + " thread pool is larger than Integer.MAX_VALUE");
-            } else if (threadPoolInfo.getMax() + threadPoolInfo.getQueueSize() > Integer.MAX_VALUE) {
-                throw new RuntimeException(
-                    "Queue size + thread pool size for " + EXECUTOR_NAME + " must equal less than Integer.MAX_VALUE"
-                );
-            }
-
-            int maxSubmitted = (int) (threadPoolInfo.getMax() + threadPoolInfo.getQueueSize());
-
-            DLMFrozenTransitionExecutor dlmFrozenTransitionExecutor = new DLMFrozenTransitionExecutor(
-                services.clusterService(),
-                maxSubmitted,
-                transitionSettings,
-                services.dlmErrorStore(),
-                services.threadPool().executor(EXECUTOR_NAME)
-            );
-
-            var originClient = new OriginSettingClient(services.client(), DATA_STREAM_LIFECYCLE_ORIGIN);
-
-            var transitionService = new DLMFrozenTransitionService(
-                services.clusterService(),
-                originClient,
-                getLicenseStateSupplier(),
-                dlmFrozenTransitionExecutor
-            );
-
-            transitionService.init();
-            components.add(transitionService);
-            managedServices.add(transitionService);
-
-            var cleanupService = new DLMFrozenCleanupService(services.clusterService(), originClient);
-            cleanupService.init();
-            components.add(cleanupService);
-            managedServices.add(cleanupService);
+        ThreadPool.Info threadPoolInfo = services.threadPool().info(EXECUTOR_NAME);
+        if (threadPoolInfo == null) {
+            throw new RuntimeException("Failed to get thread pool info for " + EXECUTOR_NAME + " thread pool.");
+        } else if (threadPoolInfo.getQueueSize() == null) {
+            throw new RuntimeException("Queue size for " + EXECUTOR_NAME + " must be set");
+        } else if (threadPoolInfo.getQueueSize() > Integer.MAX_VALUE) {
+            // This should never happen as queue size is an int in the implementation, but this guards against future changes
+            throw new RuntimeException("Queue size for " + EXECUTOR_NAME + " thread pool is larger than Integer.MAX_VALUE");
+        } else if (threadPoolInfo.getMax() + threadPoolInfo.getQueueSize() > Integer.MAX_VALUE) {
+            throw new RuntimeException("Queue size + thread pool size for " + EXECUTOR_NAME + " must equal less than Integer.MAX_VALUE");
         }
+
+        int maxSubmitted = (int) (threadPoolInfo.getMax() + threadPoolInfo.getQueueSize());
+
+        DLMFrozenTransitionExecutor dlmFrozenTransitionExecutor = new DLMFrozenTransitionExecutor(
+            services.clusterService(),
+            maxSubmitted,
+            transitionSettings,
+            services.dlmErrorStore(),
+            services.threadPool().executor(EXECUTOR_NAME)
+        );
+
+        var originClient = new OriginSettingClient(services.client(), DATA_STREAM_LIFECYCLE_ORIGIN);
+
+        var transitionService = new DLMFrozenTransitionService(
+            services.clusterService(),
+            originClient,
+            getLicenseStateSupplier(),
+            dlmFrozenTransitionExecutor
+        );
+
+        transitionService.init();
+        components.add(transitionService);
+        managedServices.add(transitionService);
+
+        var cleanupService = new DLMFrozenCleanupService(services.clusterService(), originClient);
+        cleanupService.init();
+        components.add(cleanupService);
+        managedServices.add(cleanupService);
         return components;
     }
 
@@ -130,14 +122,6 @@ public class DLMFrozenTransitionPlugin extends Plugin {
 
     @Override
     public List<Setting<?>> getSettings() {
-        if (DataStreamLifecycle.DLM_SEARCHABLE_SNAPSHOTS_FEATURE_FLAG.isEnabled()) {
-            return List.of(
-                DLMFrozenTransitionService.POLL_INTERVAL_SETTING,
-                DLMFrozenCleanupService.POLL_INTERVAL_SETTING,
-                DLMConvertToFrozen.DLM_CREATED_SETTING
-            );
-        } else {
-            return List.of();
-        }
+        return List.of(DLMFrozenTransitionService.POLL_INTERVAL_SETTING, DLMFrozenCleanupService.POLL_INTERVAL_SETTING);
     }
 }

@@ -2,8 +2,8 @@
 description: Execution and HTTP constraints for PromQL in Elasticsearch, including unsupported constructs and instant-query behavior.
 navigation_title: Limitations
 applies_to:
-  stack: preview 9.4.0
-  serverless: preview
+  stack: preview 9.4, ga 9.5
+  serverless: ga
 products:
   - id: elasticsearch
 ---
@@ -13,11 +13,6 @@ products:
 PromQL reads metrics stored in [time series data streams](docs-content://manage-data/data-store/data-streams/time-series-data-stream-tsds.md) (TSDS).
 The following constraints apply to execution in {{es}}, including the [Prometheus-compatible HTTP API](promql-http-api.md) and the {{esql}} [`PROMQL`](/reference/query-languages/esql/commands/promql.md) source command, unless stated otherwise.
 They describe behavioral differences and unsupported areas compared with upstream Prometheus.
-
-::::{warning}
-This functionality is in technical preview and might be changed or removed in a future release.
-Elastic will work to fix any issues, but features in technical preview are not subject to the support SLA of official GA features.
-::::
 
 ## Form-encoded POST requests (HTTP API) [promql-limitations-form-post]
 
@@ -47,9 +42,9 @@ For now, a series stops appearing in results only once all its samples fall outs
 The majority of PromQL expressions run unchanged.
 The following constructs are not evaluated yet, so they return a client error (4xx):
 
-- Binary set operators: `and`, `or`, `unless`
+- Binary set operators: `and` and `unless`. The `or` operator is supported only at the top level of an expression; nested `or` returns a client error (4xx).
 - Group modifiers: `on(...)`, `group_left`, `group_right`
-- Functions: `histogram_quantile`, `predict_linear`, `label_join`
+- Functions: `predict_linear`, `label_join`
 
 ## Metric metadata `help` (HTTP API) [promql-limitations-metadata-help]
 

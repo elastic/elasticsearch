@@ -23,6 +23,7 @@ import java.util.concurrent.RejectedExecutionException;
 import java.util.function.BiFunction;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleService.DLM_CREATED_SETTING;
 import static org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleService.indexMarkedForFrozen;
 import static org.elasticsearch.logging.LogManager.getLogger;
 
@@ -111,10 +112,22 @@ class DLMFrozenTransitionService extends AbstractDLMPeriodicMasterOnlyService {
                 if (Thread.currentThread().isInterrupted() || isClosing()) {
                     return;
                 }
-                if (DLMConvertToFrozen.DLM_CREATED_SETTING.get(indexMetadata.getSettings())) {
+                if (DLM_CREATED_SETTING.get(indexMetadata.getSettings())) {
+                    logger.debug(
+                        "Skipping frozen transition for index [{}] because it was created by DLM",
+                        indexMetadata.getIndex().getName()
+                    );
                     continue;
                 }
                 if (indexMarkedForFrozen(indexMetadata) == false) {
+                    continue;
+                }
+                if (IndexMetadata.LIFECYCLE_SKIP_SETTING.get(indexMetadata.getSettings())) {
+                    logger.info(
+                        "Skipping frozen transition for index [{}] because [{}] is set to true",
+                        indexMetadata.getIndex().getName(),
+                        IndexMetadata.LIFECYCLE_SKIP_SETTING.getKey()
+                    );
                     continue;
                 }
                 String indexName = indexMetadata.getIndex().getName();

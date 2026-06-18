@@ -35,7 +35,8 @@ import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
-import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
@@ -44,7 +45,7 @@ import java.util.function.Consumer;
 public class RecordingApmServer extends ExternalResource {
     private static final Logger logger = LogManager.getLogger(RecordingApmServer.class);
 
-    final ArrayBlockingQueue<ReceivedTelemetry> received = new ArrayBlockingQueue<>(1000);
+    private final BlockingQueue<ReceivedTelemetry> received = new LinkedBlockingQueue<>();
 
     /**
      * The "Resource" (telemetry source identity) observed by this server. The test JVM emits
@@ -157,6 +158,9 @@ public class RecordingApmServer extends ExternalResource {
                 }
             }
             exchange.sendResponseHeaders(responseCode, 0);
+        } catch (Throwable t) {
+            logger.error("Unexpected error caught when serving HTTP request", t);
+            throw t;
         }
     }
 

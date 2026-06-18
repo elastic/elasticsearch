@@ -1,0 +1,206 @@
+---
+setup:
+  - requires:
+      cluster_features: ["mapper.keyword.store_high_cardinality_in_binary_doc_values"]
+      reason: "requires keyword doc_values cardinality mapping option"
+
+  - do:
+      indices.create:
+        index: test_kw_dv_low
+        body:
+          settings:
+            number_of_shards: 1
+          mappings:
+            dynamic: false
+            properties:
+              keyword_field:
+                type: keyword
+                index: false
+                doc_values:
+                  cardinality: low
+
+  - do:
+      index:
+        index: test_kw_dv_low
+        id: "1"
+        body: { "keyword_field": "London Heathrow Airport" }
+
+  - do:
+      index:
+        index: test_kw_dv_low
+        id: "2"
+        body: { "keyword_field": "London Gatwick Airport" }
+
+  - do:
+      index:
+        index: test_kw_dv_low
+        id: "3"
+        body: { "keyword_field": "Singapore Changi Airport" }
+
+  - do:
+      index:
+        index: test_kw_dv_low
+        id: "4"
+        body: { "keyword_field": "New York JFK Airport" }
+
+  - do:
+      indices.create:
+        index: test_kw_dv_high
+        body:
+          settings:
+            number_of_shards: 1
+          mappings:
+            dynamic: false
+            properties:
+              keyword_field:
+                type: keyword
+                index: false
+                doc_values:
+                  cardinality: high
+
+  - do:
+      index:
+        index: test_kw_dv_high
+        id: "1"
+        body: { "keyword_field": "London Heathrow Airport" }
+
+  - do:
+      index:
+        index: test_kw_dv_high
+        id: "2"
+        body: { "keyword_field": "London Gatwick Airport" }
+
+  - do:
+      index:
+        index: test_kw_dv_high
+        id: "3"
+        body: { "keyword_field": "Singapore Changi Airport" }
+
+  - do:
+      index:
+        index: test_kw_dv_high
+        id: "4"
+        body: { "keyword_field": "New York JFK Airport" }
+
+  - do:
+      indices.refresh: {}
+
+---
+"Test prefix query on sorted-set doc-values-only keyword field":
+
+  - do:
+      search:
+        index: test_kw_dv_low
+        body: { query: { prefix: { keyword_field: { value: "London" } } } }
+  - length: { hits.hits: 2 }
+
+---
+"Test case-insensitive prefix query on sorted-set doc-values-only keyword field":
+
+  - do:
+      search:
+        index: test_kw_dv_low
+        body: { query: { prefix: { keyword_field: { value: "london", case_insensitive: true } } } }
+  - length: { hits.hits: 2 }
+
+---
+"Test wildcard query on sorted-set doc-values-only keyword field":
+
+  - do:
+      search:
+        index: test_kw_dv_low
+        body: { query: { wildcard: { keyword_field: { value: "*Changi*" } } } }
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._id: "3" }
+
+---
+"Test case-insensitive wildcard query on sorted-set doc-values-only keyword field":
+
+  - do:
+      search:
+        index: test_kw_dv_low
+        body: { query: { wildcard: { keyword_field: { value: "*changi*", case_insensitive: true } } } }
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._id: "3" }
+
+---
+"Test regexp query on sorted-set doc-values-only keyword field":
+
+  - do:
+      search:
+        index: test_kw_dv_low
+        body: { query: { regexp: { keyword_field: { value: "London.*" } } } }
+  - length: { hits.hits: 2 }
+
+---
+"Test case-insensitive regexp query on sorted-set doc-values-only keyword field":
+
+  - requires:
+      cluster_features: ["mapper.keyword.doc_values_case_insensitive_regexp"]
+      reason: "case-insensitive regexp on doc-values-only keyword fields requires mapper.keyword.doc_values_case_insensitive_regexp"
+
+  - do:
+      search:
+        index: test_kw_dv_low
+        body: { query: { regexp: { keyword_field: { value: "london.*", case_insensitive: true } } } }
+  - length: { hits.hits: 2 }
+
+---
+"Test prefix query on binary doc-values-only keyword field":
+
+  - do:
+      search:
+        index: test_kw_dv_high
+        body: { query: { prefix: { keyword_field: { value: "London" } } } }
+  - length: { hits.hits: 2 }
+
+---
+"Test case-insensitive prefix query on binary doc-values-only keyword field":
+
+  - do:
+      search:
+        index: test_kw_dv_high
+        body: { query: { prefix: { keyword_field: { value: "london", case_insensitive: true } } } }
+  - length: { hits.hits: 2 }
+
+---
+"Test wildcard query on binary doc-values-only keyword field":
+
+  - do:
+      search:
+        index: test_kw_dv_high
+        body: { query: { wildcard: { keyword_field: { value: "*Changi*" } } } }
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._id: "3" }
+
+---
+"Test case-insensitive wildcard query on binary doc-values-only keyword field":
+
+  - do:
+      search:
+        index: test_kw_dv_high
+        body: { query: { wildcard: { keyword_field: { value: "*changi*", case_insensitive: true } } } }
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._id: "3" }
+
+---
+"Test regexp query on binary doc-values-only keyword field":
+
+  - do:
+      search:
+        index: test_kw_dv_high
+        body: { query: { regexp: { keyword_field: { value: "London.*" } } } }
+  - length: { hits.hits: 2 }
+
+---
+"Test case-insensitive regexp query on binary doc-values-only keyword field":
+
+  - requires:
+      cluster_features: ["mapper.keyword.doc_values_case_insensitive_regexp"]
+      reason: "case-insensitive regexp on doc-values-only keyword fields requires mapper.keyword.doc_values_case_insensitive_regexp"
+
+  - do:
+      search:
+        index: test_kw_dv_high
+        body: { query: { regexp: { keyword_field: { value: "london.*", case_insensitive: true } } } }
+  - length: { hits.hits: 2 }

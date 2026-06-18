@@ -46,6 +46,9 @@ import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.query.SearchTimeoutException;
+import org.elasticsearch.telemetry.InstrumentType;
+import org.elasticsearch.telemetry.Measurement;
+import org.elasticsearch.telemetry.RecordingMeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.test.transport.MockTransportService;
@@ -53,7 +56,6 @@ import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
 import org.junit.After;
-import org.mockito.Mockito;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -71,14 +73,12 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
 
+import static org.elasticsearch.rest.action.search.SearchResponseMetrics.STORE_BYTES_READ_HISTOGRAM_NAME;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.mockito.ArgumentMatchers.anyLong;
-import static org.mockito.ArgumentMatchers.anyMap;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.verify;
 
 public class AbstractSearchAsyncActionTests extends ESTestCase {
 
@@ -86,6 +86,7 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
     private final Set<ShardSearchContextId> releasedContexts = new CopyOnWriteArraySet<>();
     private TestThreadPool threadPool;
     private TransportService mockTransportService;
+    private RecordingMeterRegistry meterRegistry;
 
     @After
     public void cleanTransportService() {
@@ -139,7 +140,10 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
         );
         SearchTransportService searchTransportService = new SearchTransportService(mockTransportService, null, null);
 
-        return new AbstractSearchAsyncAction<SearchPhaseResult>(
+        this.meterRegistry = new RecordingMeterRegistry();
+        SearchResponseMetrics searchResponseMetrics = new SearchResponseMetrics(meterRegistry);
+
+        return new AbstractSearchAsyncAction<>(
             "test",
             logger,
             null,
@@ -161,7 +165,7 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
             results,
             request.getMaxConcurrentShardRequests(),
             SearchResponse.Clusters.EMPTY,
-            Mockito.mock(SearchResponseMetrics.class),
+            searchResponseMetrics,
             Map.of(),
             false
         ) {
@@ -676,7 +680,9 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
                 action.accumulateDirectoryMetrics(storeMetrics(shardBytes));
             }
             action.recordStoreMetrics(action.getMergedDirectoryMetrics());
-            verify(action.getSearchResponseMetrics()).recordStoreBytesRead(eq(expectedBytesRead), anyMap());
+            List<Measurement> measurements = meterRegistry.getRecorder().getMeasurements(InstrumentType.LONG_HISTOGRAM, STORE_BYTES_READ_HISTOGRAM_NAME);
+            assertThat(measurements, hasSize(1));
+            assertThat(measurements.get(0).value(), equalTo(expectedBytesRead));
         }
     }
 
@@ -690,7 +696,8 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
                 new AtomicLong()
             );
             action.recordStoreMetrics(DirectoryMetrics.EMPTY);
-            verify(action.getSearchResponseMetrics(), never()).recordStoreBytesRead(anyLong(), anyMap());
+            List<Measurement> measurements = meterRegistry.getRecorder().getMeasurements(InstrumentType.LONG_HISTOGRAM, STORE_BYTES_READ_HISTOGRAM_NAME);
+            assertThat(measurements, empty());
         }
     }
 

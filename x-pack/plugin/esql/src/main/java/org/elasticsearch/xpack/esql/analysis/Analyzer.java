@@ -2680,7 +2680,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     Set<DataType> supportedTypes = convert.supportedTypes();
                     if (canConvertOriginalTypes(unionTypeEsField, supportedTypes)) {
                         Expression unmappedExpr = unionTypeEsField.getUnmappedConversionExpression();
-                        UnionTypeEsField rewrapped = unionTypeEsField.rewrapWithCast(convertExpression);
+                        // Resolve surrogates immediately, since expressions stored in UnionTypeEsField are serialized
+                        // to data nodes, and SurrogateExpressions cannot be serialized.
+                        Expression resolvedConvertExpression = SubstituteSurrogateExpressions.rule(convertExpression);
+                        UnionTypeEsField rewrapped = unionTypeEsField.rewrapWithCast(resolvedConvertExpression);
 
                         if (unmappedExpr instanceof AbstractConvertFunction existingConvert) {
                             Expression keywordField = existingConvert.field();

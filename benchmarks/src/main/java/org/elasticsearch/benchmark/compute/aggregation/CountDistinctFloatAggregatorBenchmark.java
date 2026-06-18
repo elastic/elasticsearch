@@ -41,16 +41,24 @@ import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 /**
- * Counterpart to {@link SumIntAggregatorBenchmark} for an aggregator with an <b>expensive</b> {@code combine}.
+ * Microbenchmark for {@link CountDistinctFloatAggregatorFunction}'s ungrouped vector path, {@code addRawVector}, an
+ * aggregator with an <b>expensive</b> {@code combine}: a HyperLogLog add (a hash plus a register update, tens of ns),
+ * reached through a static call. Because that {@code combine} dominates the loop, the per-element receiver dispatch in
+ * front of it is only a small fraction of the cost. This is the high-cost end of the range that
+ * {@link SumIntAggregatorBenchmark} (trivial {@code combine}, an {@code int} add) and {@link TopIntAggregatorBenchmark}
+ * (moderate {@code combine}, a bounded top-k insert) bracket.
  *
- * <p>The "fold all simple aggregator vector loops" change monomorphizes {@code addRawVector} for every simple-shape
- * aggregator, not just numeric SUM/MIN/MAX. This bench gates that decision for {@link CountDistinctFloatAggregatorFunction}:
- * its {@code combine} is a HyperLogLog add (hash + register update, tens of ns) reached through a <b>static</b> call, so the
- * per-element {@code FloatVector.getFloat} interface dispatch the fold removes is a tiny fraction of the loop. The expectation
- * is therefore "no measurable change" — and the const cell exposes the missed N→1 optimization (HLL is fed the same value
- * {@code BLOCK_LENGTH} times). Run unfolded (pre-fold commit) vs folded (HEAD) to confirm the fold neither helps nor hurts here.
+ * <p>{@code addRawVector} reads each value with {@code FloatVector.getFloat(i)} over several concrete receivers
+ * ({@code FloatArrayVector}, {@code FloatArrowBufVector}, {@code ConstantFloatVector}). Each {@code vec_*} cell drives a
+ * single concrete type so that call site is monomorphic; {@code vec_megamorphic} rotates through all of them within one
+ * fork so the call site goes megamorphic and the JIT falls back to an interface-table lookup. Comparing the cells
+ * isolates the dispatch cost from the {@code combine} cost.
  *
- * <p>Vector cells only: the fold touches {@code addRawVector}, not {@code addRawBlock}.
+ * <p>Vector cells only: this exercises {@code addRawVector}, not the multi-valued/nullable {@code addRawBlock} path.
+ *
+ * <p>Note: {@link #selfTest()} runs every cell at small scale before measurement, which deliberately poisons the
+ * dispatch to behave like production rather than an artificially monomorphic microbenchmark (per
+ * {@code benchmarks/AGENTS.md}).
  */
 @Warmup(iterations = 5)
 @Measurement(iterations = 7)

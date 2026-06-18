@@ -42,19 +42,23 @@ import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 /**
- * Third data point — alongside {@link SumIntAggregatorBenchmark} (trivial {@code combine}: an {@code int} add) and
- * {@code CountDistinctFloatAggregatorBenchmark} (expensive {@code combine}: a HyperLogLog add) — for the
- * "fold all simple aggregator vector loops" change. {@code TopIntAggregator.combine} sits in between: a
- * bounded top-{@code k} insert into a {@code BucketedSort} (a comparison plus an occasional sift-down) reached through a
- * <b>static</b> call.
+ * Microbenchmark for {@link TopIntAggregatorFunction}'s ungrouped vector path, {@code addRawVector}. Top has a
+ * moderate-cost {@code combine}: a bounded top-{@code k} insert into a {@code BucketedSort} (a comparison plus an
+ * occasional sift-down), reached through a static call. That makes it a useful midpoint between aggregators with a
+ * trivial {@code combine} (e.g. SUM, an {@code int} add) and an expensive one (e.g. {@code COUNT(DISTINCT)}, a
+ * HyperLogLog add) when reasoning about how much the per-element dispatch in front of {@code combine} costs.
  *
- * <p>The fold monomorphizes the per-element {@code IntVector.getInt} interface dispatch in {@code addRawVector}; whether
- * that shows up depends on how much the surrounding {@code combine} costs. This bench measures it for a moderate-cost
- * {@code combine} so we can see where Top lands between the SUM and CountDistinct extremes. Run unfolded (pre-fold commit)
- * vs folded (HEAD) to read off the delta.
+ * <p>{@code addRawVector} reads each value with {@code IntVector.getInt(i)} over several concrete receivers
+ * ({@code IntArrayVector}, {@code IntArrowBufVector}, {@code Int16ArrowBufVector}, {@code Int8ArrowBufVector},
+ * {@code ConstantIntVector}). Each {@code vec_*} cell drives a single concrete type so that call site is monomorphic;
+ * {@code vec_megamorphic} rotates through all of them within one fork so the call site goes megamorphic and the JIT
+ * falls back to an interface-table lookup. Comparing the cells isolates the dispatch cost from the {@code combine} cost.
  *
- * <p>Vector cells only: the fold touches {@code addRawVector}, not {@code addRawBlock}. The {@code vec_megamorphic} cell
- * rotates concrete receiver types within one fork so the call site goes megamorphic — the case the fold removes.
+ * <p>Vector cells only: this exercises {@code addRawVector}, not the multi-valued/nullable {@code addRawBlock} path.
+ *
+ * <p>Note: {@link #selfTest()} runs every cell at small scale before measurement, which deliberately poisons the
+ * dispatch to behave like production rather than an artificially monomorphic microbenchmark (per
+ * {@code benchmarks/AGENTS.md}).
  */
 @Warmup(iterations = 5)
 @Measurement(iterations = 7)

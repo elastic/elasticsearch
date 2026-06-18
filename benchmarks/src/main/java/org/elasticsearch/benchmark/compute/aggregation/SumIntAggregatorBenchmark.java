@@ -50,28 +50,31 @@ import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 /**
- * Gate microbench for the receiver-specialized evaluator codegen change
+ * Microbenchmark for {@link SumIntAggregatorFunction}'s ungrouped input paths. SUM has a trivial {@code combine} (an
+ * integer add), so the per-element receiver dispatch is the dominant cost. That makes this the low-cost end of the
+ * range that {@link TopIntAggregatorBenchmark} (moderate {@code combine}) and {@link CountDistinctFloatAggregatorBenchmark}
+ * (expensive {@code combine}) bracket.
+ *
  * <p>{@link SumIntAggregatorFunction#addRawInput(Page, BooleanVector)} routes through two polymorphic call sites:
  * <ul>
- *   <li><b>addRawVector(IntVector)</b> — {@code IntVector.getInt(i)} over {@code IntArrayVector},
+ *   <li><b>addRawVector(IntVector)</b>: {@code IntVector.getInt(i)} over {@code IntArrayVector},
  *       {@code IntArrowBufVector} (32-bit), {@code Int16ArrowBufVector}, {@code Int8ArrowBufVector},
- *       {@code ConstantIntVector}. This is where the flame profile shows {@code ItableStub}.</li>
- *   <li><b>addRawBlock(IntBlock)</b> — {@code IntBlock.getInt(offset)} / {@code getValueCount} /
+ *       {@code ConstantIntVector}.</li>
+ *   <li><b>addRawBlock(IntBlock)</b>: {@code IntBlock.getInt(offset)} / {@code getValueCount} /
  *       {@code getFirstValueIndex} over {@code IntArrayBlock}, {@code IntBigArrayBlock},
  *       {@code IntArrowBufBlock}, {@code Int16ArrowBufBlock}, {@code Int8ArrowBufBlock}.</li>
  * </ul>
  * Plus the {@code ConstantNullBlock} short-circuit that {@code addRawInputNotMasked} takes via
  * {@code areAllValuesNull()}.
  *
- * <p>Each {@code vec_*} / {@code block_*} cell exercises one concrete receiver type at a time.
- * The {@code *_megamorphic} cells rotate through several types within a single fork so the
- * call site goes megamorphic and the JIT falls back to interface table lookup — that's the
- * cost the codegen fix is designed to remove.
+ * <p>Each {@code vec_*} / {@code block_*} cell exercises one concrete receiver type so its call site is monomorphic.
+ * The {@code *_megamorphic} cells rotate through several types within a single fork so the call site goes megamorphic
+ * and the JIT falls back to an interface-table lookup. Comparing the cells isolates the dispatch cost from the
+ * {@code combine} cost.
  *
- * <p>Note: {@link #selfTest()} runs every cell at small {@code BLOCK_LENGTH} before measurement,
- * which deliberately poisons virtual dispatch to behave like production (per
- * {@code benchmarks/AGENTS.md}). Both pre-fix and post-fix runs see the same poisoning, so
- * the delta still reflects the codegen change.
+ * <p>Note: {@link #selfTest()} runs every cell at small {@code BLOCK_LENGTH} before measurement, which deliberately
+ * poisons virtual dispatch so the benchmark behaves like production rather than an artificially monomorphic
+ * microbenchmark (per {@code benchmarks/AGENTS.md}).
  */
 @Warmup(iterations = 5)
 @Measurement(iterations = 7)

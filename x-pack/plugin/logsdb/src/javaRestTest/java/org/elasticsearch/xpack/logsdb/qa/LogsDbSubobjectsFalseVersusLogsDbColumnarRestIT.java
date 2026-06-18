@@ -62,14 +62,14 @@ import java.util.stream.Collectors;
  * diverge. Excluding these field types from both the mapping and documents avoids both
  * failure modes.
  */
-public class LogsDbSubobjectsFalseVersusLogsDbColumnarChallengeRestIT extends BulkChallengeRestIT {
+public class LogsDbSubobjectsFalseVersusLogsDbColumnarRestIT extends BulkChallengeRestIT {
 
     private static final Set<String> STRIPPED_PARAMS = Set.of("store", "synthetic_source_keep", "subobjects");
     private static final Set<String> SHAPE_TYPES = Set.of("geo_shape", "shape");
 
     private Set<String> shapeFieldPaths;
 
-    public LogsDbSubobjectsFalseVersusLogsDbColumnarChallengeRestIT() {
+    public LogsDbSubobjectsFalseVersusLogsDbColumnarRestIT() {
         super(new DataGenerationHelper(b -> b.withMaxObjectDepth(0).withNestedFieldsLimit(0).withMaxFieldCountPerLevel(30)));
     }
 

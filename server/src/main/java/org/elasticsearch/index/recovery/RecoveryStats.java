@@ -234,7 +234,9 @@ public class RecoveryStats implements ToXContentFragment, Writeable {
             out.writeVInt(currentAsSource.get());
             out.writeVInt(currentAsSourceQueued.get());
         } else {
-            // Before SOURCE_QUEUED_STATS there was no separate queued counter, so fold it into the active count.
+            // Before SOURCE_QUEUED_STATS there was no separate queued counter, so fold the queued count into the active count.
+            // Note: we do not assume currentAsSourceQueued == 0 here. For nodes with the throttling feature, all recoveries
+            // may transition through the queue even if they are started immediately afterwards (node is unthrottled)
             out.writeVInt(currentAsSource.get() + currentAsSourceQueued.get());
         }
         if (out.getTransportVersion().supports(STORE_AND_TARGET_QUEUED_STATS)) {
@@ -246,6 +248,7 @@ public class RecoveryStats implements ToXContentFragment, Writeable {
             // Before STORE_AND_TARGET_QUEUED_STATS, store recoveries were not tracked in RecoveryStats at all, so we drop
             // currentFromStore and currentFromStoreQueued. We fold currentAsTargetQueued into currentAsTarget since the receiving
             // side has no separate queued counter.
+            // We cannot assert currentAsTargetQueued == 0 here, for the same reason as above.
             out.writeVInt(currentAsTarget.get() + currentAsTargetQueued.get());
         }
         out.writeLong(throttleTimeInNanos.get());

@@ -122,7 +122,6 @@ public class TransportMultiGetAction extends HandledTransportAction<MultiGetRequ
                     lastResolvedIndex = Tuple.tuple(item.index(), concreteSingleIndex);
                 }
                 item.routing(project.resolveIndexRouting(item.routing(), item.index()));
-                // Per-item slice validation against the item's own index (items may target different indices).
                 final IndexMetadata concreteMetadata = project.index(concreteSingleIndex);
                 final boolean sliceEnabled = concreteMetadata != null && IndexSettings.SLICE_ENABLED.get(concreteMetadata.getSettings());
                 SliceIndexing.validateSliceRoutingRequirement(

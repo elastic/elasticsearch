@@ -135,13 +135,8 @@ public final class AcrossSeriesAggregate extends PromqlFunctionCall {
             .toList();
     }
 
-    /**
-     * The PromQL label key of an attribute: a {@link FieldAttribute}'s backing field name with the Prometheus
-     * {@code labels.} passthrough prefix stripped (so {@code labels.pod} compares equal to a bare {@code pod}).
-     */
     private static String labelKey(Attribute attr) {
-        String name = attr instanceof FieldAttribute fieldAttribute ? fieldAttribute.fieldName().string() : attr.name();
-        return name.startsWith("labels.") ? name.substring("labels.".length()) : name;
+        return attr instanceof FieldAttribute fieldAttribute ? fieldAttribute.fieldName().string() : attr.name();
     }
 
     @Override

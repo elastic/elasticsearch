@@ -26,6 +26,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -51,19 +52,28 @@ public final class MappingLookup {
 
     private final CacheKey cacheKey = new CacheKey();
 
-    /** Full field name to mapper */
+    // field name to mapper
     private final Map<String, Mapper> fieldMappers;
     private final Map<String, ObjectMapper> objectMappers;
-    private final Map<String, InferenceFieldMetadata> inferenceFields;
-    private final Set<String> syntheticVectorFields;
+
+    // views
+    private final Map<String, InferenceFieldMetadata> indexInferenceFields;
+    private final Map<String, NamedAnalyzer> indexAnalyzers;
+    private final List<FieldMapper> indexTimeScriptMappers;
+    private final Set<String> indexSyntheticVectorFields;
+    private final Set<FieldMapper> indexMetricFieldMappers;
+    private final Set<FieldMapper> indexDimensionFieldMappers;
+
+    // stats
+    private final int totalFieldsCount;
     private final int runtimeFieldMappersCount;
+
+    // lookup
     private final NestedLookup nestedLookup;
     private final FieldTypeLookup fieldTypeLookup;
     private final FieldTypeLookup indexTimeLookup;  // for index-time scripts, a lookup that does not include runtime fields
-    private final Map<String, NamedAnalyzer> indexAnalyzers;
-    private final List<FieldMapper> indexTimeScriptMappers;
+
     private final Mapping mapping;
-    private final int totalFieldsCount;
     private final IndexMode indexMode;
 
     // cached booleans from the _source field mapper
@@ -186,6 +196,8 @@ public final class MappingLookup {
 
         final Map<String, NamedAnalyzer> indexAnalyzers = new HashMap<>();
         final List<FieldMapper> indexTimeScriptMappers = new ArrayList<>();
+        final Set<FieldMapper> dimensionMappers = new LinkedHashSet<>();
+        final Set<FieldMapper> metricMappers = new LinkedHashSet<>();
         for (FieldMapper mapper : mappers) {
             if (objects.containsKey(mapper.fullPath())) {
                 throw new MapperParsingException("Field [" + mapper.fullPath() + "] is defined both as an object and a field");
@@ -196,6 +208,13 @@ public final class MappingLookup {
             indexAnalyzers.putAll(mapper.indexAnalyzers());
             if (mapper.hasScript()) {
                 indexTimeScriptMappers.add(mapper);
+            }
+            MappedFieldType fieldType = mapper.fieldType();
+            if (fieldType.isDimension()) {
+                dimensionMappers.add(mapper);
+            }
+            if (fieldType.getMetricType() != null) {
+                metricMappers.add(mapper);
             }
         }
 
@@ -213,7 +232,7 @@ public final class MappingLookup {
         this.fieldTypeLookup = new FieldTypeLookup(mappers, aliasMappers, passThroughSources, runtimeFields);
 
         Map<String, InferenceFieldMetadata> inferenceFields = new HashMap<>();
-        List<String> syntheticVectorFields = new ArrayList<>();
+        Set<String> syntheticVectorFields = new LinkedHashSet<>();
         for (FieldMapper mapper : mappers) {
             if (mapper instanceof InferenceFieldMapper inferenceFieldMapper) {
                 inferenceFields.put(mapper.fullPath(), inferenceFieldMapper.getMetadata(fieldTypeLookup.sourcePaths(mapper.fullPath())));
@@ -222,8 +241,8 @@ public final class MappingLookup {
                 syntheticVectorFields.add(mapper.fullPath());
             }
         }
-        this.inferenceFields = Map.copyOf(inferenceFields);
-        this.syntheticVectorFields = Set.copyOf(syntheticVectorFields);
+        this.indexInferenceFields = Collections.unmodifiableMap(inferenceFields);
+        this.indexSyntheticVectorFields = Collections.unmodifiableSet(syntheticVectorFields);
 
         if (runtimeFields.isEmpty()) {
             // without runtime fields this is the same as the field type lookup
@@ -232,11 +251,13 @@ public final class MappingLookup {
             this.indexTimeLookup = new FieldTypeLookup(mappers, aliasMappers, passThroughSources, Collections.emptyList());
         }
         // make all fields into compact+fast immutable maps
-        this.fieldMappers = Map.copyOf(fieldMappers);
-        this.objectMappers = Map.copyOf(objects);
+        this.fieldMappers = Collections.unmodifiableMap(fieldMappers);
+        this.indexDimensionFieldMappers = Collections.unmodifiableSet(dimensionMappers);
+        this.indexMetricFieldMappers = Collections.unmodifiableSet(metricMappers);
+        this.objectMappers = Collections.unmodifiableMap(objects);
         this.runtimeFieldMappersCount = runtimeFields.size();
-        this.indexAnalyzers = Map.copyOf(indexAnalyzers);
-        this.indexTimeScriptMappers = List.copyOf(indexTimeScriptMappers);
+        this.indexAnalyzers = Collections.unmodifiableMap(indexAnalyzers);
+        this.indexTimeScriptMappers = Collections.unmodifiableList(indexTimeScriptMappers);
         this.indexMode = indexMode;
 
         runtimeFields.stream().flatMap(RuntimeField::asMappedFieldTypes).map(MappedFieldType::name).forEach(this::validateDoesNotShadow);
@@ -319,6 +340,24 @@ public final class MappingLookup {
         return fieldMappers.values();
     }
 
+    /**
+     * Returns the set of dimension field mappers, pre-computed at mapping construction time.
+     * The returned set is unordered; callers that need a stable order must sort it themselves.
+     * Field name ordering does not affect {@code _timeseries} JSON content: synthetic source
+     * reconstructs field order from the mapping, and stored source preserves the original document order.
+     */
+    public Set<FieldMapper> indexDimensionFieldMappers() {
+        return indexDimensionFieldMappers;
+    }
+
+    /**
+     * Returns the set of metric field mappers, pre-computed at mapping construction time.
+     * The returned set is unordered; see {@link #indexDimensionFieldMappers()} for ordering notes.
+     */
+    public Set<FieldMapper> indexMetricFieldMappers() {
+        return indexMetricFieldMappers;
+    }
+
     void checkLimits(IndexSettings settings) {
         checkFieldLimit(settings.getMappingTotalFieldsLimit());
         checkObjectDepthLimit(settings.getMappingDepthLimit());
@@ -352,11 +391,7 @@ public final class MappingLookup {
     }
 
     private void checkDimensionFieldLimit(long limit) {
-        long dimensionFieldCount = fieldMappers.values()
-            .stream()
-            .filter(m -> m instanceof FieldMapper && ((FieldMapper) m).fieldType().isDimension())
-            .count();
-        if (dimensionFieldCount > limit) {
+        if (indexDimensionFieldMappers.size() > limit) {
             throw new IllegalArgumentException("Limit of total dimension fields [" + limit + "] has been exceeded");
         }
     }
@@ -424,11 +459,11 @@ public final class MappingLookup {
      * Returns a map containing all fields that require to run inference (through the {@link InferenceService} prior to indexation.
      */
     public Map<String, InferenceFieldMetadata> inferenceFields() {
-        return inferenceFields;
+        return indexInferenceFields;
     }
 
     public Set<String> syntheticVectorFields() {
-        return syntheticVectorFields;
+        return indexSyntheticVectorFields;
     }
 
     public NestedLookup nestedLookup() {

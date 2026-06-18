@@ -442,7 +442,13 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
         LongSupplier nowSupplier
     ) {
         // We need to check if a tsds is able to accept a document based on its date.
-        var documentTimestamp = DataStream.getDocumentTimestamp(getIndexWriteRequest(request));
+        Instant documentTimestamp;
+        try {
+            documentTimestamp = DataStream.getDocumentTimestamp(getIndexWriteRequest(request));
+        } catch (DataStream.TimestampError ignored) {
+            // just skip and let the error throw in BulkOperation
+            return;
+        }
         var tsdsWriteIdx = dataStream.selectTimeSeriesWriteIndex(documentTimestamp, projectMetadata);
         if (tsdsWriteIdx == null) {
             // check if we're trying to write to the future

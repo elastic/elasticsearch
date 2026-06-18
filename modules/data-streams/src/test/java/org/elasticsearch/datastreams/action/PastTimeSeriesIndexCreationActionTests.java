@@ -15,7 +15,6 @@ import org.elasticsearch.action.datastreams.PastTimeSeriesIndexCreationAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -27,7 +26,6 @@ import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.TimeValue;
@@ -38,9 +36,6 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.indices.SystemIndices;
-import org.elasticsearch.snapshots.Snapshot;
-import org.elasticsearch.snapshots.SnapshotId;
-import org.elasticsearch.snapshots.SnapshotInProgressException;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -49,7 +44,6 @@ import org.elasticsearch.transport.TransportService;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -251,20 +245,6 @@ public class PastTimeSeriesIndexCreationActionTests extends ESTestCase {
         );
     }
 
-    public void testEnsureNoSnapshotInProgressThrows() {
-        ClusterState state = stateWithExisting(
-            List.of(Tuple.tuple(Instant.parse("2024-01-15T00:00:00Z"), Instant.parse("2024-01-16T00:00:00Z"))),
-            Instant.now()
-        );
-        SnapshotsInProgress snapshotsInProgress = SnapshotsInProgress.EMPTY.withAddedEntry(snapshotEntry(DATA_STREAM, projectId, false));
-        ClusterState stateWithSnapshot = ClusterState.builder(state).putCustom(SnapshotsInProgress.TYPE, snapshotsInProgress).build();
-
-        expectThrows(
-            SnapshotInProgressException.class,
-            () -> PastTimeSeriesIndexCreationExecutor.ensureNoSnapshotInProgress(stateWithSnapshot.projectState(projectId), DATA_STREAM)
-        );
-    }
-
     @SuppressWarnings("unchecked")
     public void testReplicatedDataStreamFails() {
         ThreadPool threadPool = mock(ThreadPool.class);
@@ -361,23 +341,5 @@ public class PastTimeSeriesIndexCreationActionTests extends ESTestCase {
 
     private static Instant getTimestampWithinDay(Instant now, int dayOffsets, int hourOffset) {
         return now.minus(dayOffsets, ChronoUnit.DAYS).minus(hourOffset, ChronoUnit.HOURS).truncatedTo(ChronoUnit.MILLIS);
-    }
-
-    private static SnapshotsInProgress.Entry snapshotEntry(String dataStreamName, ProjectId projectId, boolean partial) {
-        return SnapshotsInProgress.Entry.snapshot(
-            new Snapshot(projectId, "repo", new SnapshotId("snap", "")),
-            false,
-            partial,
-            SnapshotsInProgress.State.SUCCESS,
-            Collections.emptyMap(),
-            List.of(dataStreamName),
-            Collections.emptyList(),
-            0,
-            1,
-            ImmutableOpenMap.of(),
-            null,
-            null,
-            null
-        );
     }
 }

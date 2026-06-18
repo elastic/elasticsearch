@@ -297,10 +297,6 @@ public class TransportPastTimeSeriesIndexCreationAction extends TransportMasterN
             assert dataStream.isReplicated() == false
                 : "cannot create past TSDB backing index for replicated data stream [" + dataStreamName + "]";
             ClusterState updatedClusterState = clusterState;
-            // we can't create new backing indices while a snapshot is running. The snapshot contains the indices that
-            // existed when it was started but the cluster metadata of when it completes, so the data stream will be
-            // referring to indices that do not exist.
-            ensureNoSnapshotInProgress(projectState, dataStreamName);
 
             // From the oldest to the newest
             Deque<IndexBoundaries> stack = sortAndRetrieveExistingBackingIndices(dataStream, currentProject);

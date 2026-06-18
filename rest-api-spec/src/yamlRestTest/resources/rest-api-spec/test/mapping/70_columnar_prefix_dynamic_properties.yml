@@ -168,6 +168,44 @@ setup:
   - match: { error.type: "strict_dynamic_mapping_exception" }
 
 ---
+"columnar: runtime is rejected as a prefix_properties dynamic value":
+  - do:
+      catch: bad_request
+      indices.create:
+        index: test_columnar_prefix_runtime_rejected
+        body:
+          settings:
+            index.mode: columnar
+          mappings:
+            prefix_properties:
+              dynamic:
+                attributes: "runtime"
+            properties:
+              attributes.host:
+                type: keyword
+  - match: { error.type: "mapper_parsing_exception" }
+  - match: { error.reason: "/\\[prefix_properties\\.dynamic\\].does.not.support.\\[runtime\\]/" }
+
+---
+"columnar: runtime is rejected":
+  - do:
+      catch: bad_request
+      indices.create:
+        index: test_columnar_prefix_runtime_rejected
+        body:
+          settings:
+            index.mode: columnar
+          mappings:
+            properties:
+              attributes:
+                dynamic: "runtime"
+                properties:
+                  host:
+                    type: keyword
+  - match: { error.type: "mapper_parsing_exception" }
+  - match: { error.reason: "/dynamic.\\[runtime\\].is.not.supported.in.strict.columnar.mode/" }
+
+---
 "columnar: nested sub-object captures full dotted path as prefix key":
   - do:
       indices.create:

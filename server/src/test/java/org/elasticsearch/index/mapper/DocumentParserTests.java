@@ -1087,8 +1087,8 @@ public class DocumentParserTests extends MapperServiceTestCase {
         assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         for (IndexMode indexMode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
             DocumentMapper mapper = createColumnarMapperWithPrefixDynamic(indexMode, "resource", "strict", "service", "keyword");
-            DocumentParsingException e = expectThrows(
-                DocumentParsingException.class,
+            StrictDynamicMappingException e = expectThrows(
+                StrictDynamicMappingException.class,
                 () -> mapper.parse(columnarSource(b -> b.field("resource.unknown", "value")))
             );
             assertThat(e.getMessage(), containsString("[resource.unknown]"));
@@ -1099,8 +1099,8 @@ public class DocumentParserTests extends MapperServiceTestCase {
         assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         for (IndexMode indexMode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
             DocumentMapper mapper = createColumnarMapperWithPrefixDynamic(indexMode, "resource", "strict", "service", "keyword");
-            DocumentParsingException e = expectThrows(
-                DocumentParsingException.class,
+            StrictDynamicMappingException e = expectThrows(
+                StrictDynamicMappingException.class,
                 () -> mapper.parse(columnarSource(b -> b.startObject("resource").field("unknown", "value").endObject()))
             );
             assertThat(e.getMessage(), containsString("[resource.unknown]"));

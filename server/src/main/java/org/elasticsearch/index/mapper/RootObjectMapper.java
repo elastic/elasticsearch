@@ -325,6 +325,8 @@ public class RootObjectMapper extends ObjectMapper {
         // headMap(fullPath, inclusive=true) limits candidates to prefixes <= fullPath in sort order.
         // Iterating in descending order finds the longest (closest) matching prefix first.
         // A prefix matches if it is exactly fullPath or a dotted ancestor of fullPath.
+        // TODO: for large prefix sets a trie would reduce scan cost; acceptable for now given the
+        // small number of prefixes expected in practice.
         for (Map.Entry<String, Dynamic> entry : dynamicByPrefix.headMap(fullPath, true).descendingMap().entrySet()) {
             String prefix = entry.getKey();
             if (fullPath.equals(prefix) || fullPath.startsWith(prefix + ".")) {
@@ -613,7 +615,7 @@ public class RootObjectMapper extends ObjectMapper {
                     throw new MapperParsingException("[prefix_properties.dynamic] must be an object");
                 }
                 for (Map.Entry<String, Object> entry : ((Map<String, Object>) dynamicNode).entrySet()) {
-                    builder.dynamicByPrefix.put(entry.getKey(), parsePrefixDynamic(entry.getValue()));
+                    builder.dynamicByPrefix.put(entry.getKey(), parsePrefixDynamic(entry.getKey(), entry.getValue()));
                 }
             }
             return true;
@@ -626,15 +628,18 @@ public class RootObjectMapper extends ObjectMapper {
      * Accepts {@code true}, {@code false}, and {@code strict} (case-insensitive).
      * {@code runtime} is explicitly rejected because it is not supported in strict columnar mode.
      */
-    private static Dynamic parsePrefixDynamic(Object value) {
-        String str = value.toString();
+    private static Dynamic parsePrefixDynamic(String key, Object value) {
+        if (value instanceof String == false) {
+            throw new MapperParsingException("[prefix_properties.dynamic." + key + "] must be a string value");
+        }
+        String str = (String) value;
         if (str.equalsIgnoreCase("runtime")) {
-            throw new MapperParsingException("[prefix_properties.dynamic] does not support [runtime]");
+            throw new MapperParsingException("[prefix_properties.dynamic] does not support [runtime] at key [" + key + "]");
         }
         try {
             return Dynamic.valueOf(str.toUpperCase(Locale.ROOT));
         } catch (IllegalArgumentException e) {
-            throw new MapperParsingException("unknown [prefix_properties.dynamic] value: [" + str + "]");
+            throw new MapperParsingException("unknown [prefix_properties.dynamic] value: [" + str + "] at key [" + key + "]");
         }
     }
 

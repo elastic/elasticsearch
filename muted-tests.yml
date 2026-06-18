@@ -374,9 +374,6 @@ tests:
   method: "builds distribution from branches via archives extractedAssemble [bwcDistVersion: 8.2.1, bwcProject: major3, expectedAssembleTaskName:
     extractedAssemble, #2]"
   issue: https://github.com/elastic/elasticsearch/issues/150410
-- class: org.elasticsearch.xpack.ccr.CcrSeqNoPruningIT
-  method: testSeqNoPartiallyRetainedByCcrLease
-  issue: https://github.com/elastic/elasticsearch/issues/150435
 - class: org.elasticsearch.xpack.esql.action.FileSourceSecretDecryptionAcrossNodesIT
   method: testJoinedDataNodeDecryptsTheSecret
   issue: https://github.com/elastic/elasticsearch/issues/150440
@@ -587,9 +584,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.cluster.coordination.TransportConsistentClusterStateReadIT
   method: testWaitsUntilTheNodeRejoinsTheClusterToReturnAValidClusterState
   issue: https://github.com/elastic/elasticsearch/issues/151402
-- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
-  method: test {csv-spec:approximation.Approximate stats by with zero variance}
-  issue: https://github.com/elastic/elasticsearch/issues/151409
 - class: org.elasticsearch.xpack.stateless.StatelessHollowIndexShardsIT
   method: testRelocateHollowShards
   issue: https://github.com/elastic/elasticsearch/issues/151410
@@ -617,9 +611,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.multi_node.GenerativeIT
   method: test {feature:BASELINE}
   issue: https://github.com/elastic/elasticsearch/issues/149746
-- class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
-  method: test {csv-spec:approximation.Approximate stats by with zero variance}
-  issue: https://github.com/elastic/elasticsearch/issues/151577
 - class: org.elasticsearch.index.store.BytesReadHeaderIT
   method: testMultiSearchSetsBytesReadHeader
   issue: https://github.com/elastic/elasticsearch/issues/151595
@@ -644,3 +635,6 @@ tests:
 - class: org.elasticsearch.gradle.internal.precommit.PomValidationPrecommitPluginFuncTest
   method: detects missing POM elements and reports structured problems
   issue: https://github.com/elastic/elasticsearch/issues/151636
+- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
+  method: test {csv-spec:lookup-join.byteEqualsLong}
+  issue: https://github.com/elastic/elasticsearch/issues/151650

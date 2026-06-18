@@ -420,6 +420,15 @@ public class RootObjectMapper extends ObjectMapper {
             // Keys are in sorted order (guaranteed by the NavigableMap field type) for deterministic
             // serialization: the mapping source is byte-compared across nodes, so output order must
             // be stable.
+            //
+            // "prefix_properties" is an umbrella for per-prefix object settings in strict columnar
+            // mode. To add a new facet (e.g. "enabled") without a stored-format migration: add a
+            // Builder collector to ObjectMapper.Builder (mirror dynamicByPrefix), populate it in
+            // asFlattenedFieldBuilders gated on isStrictColumnar(), store it as a NavigableMap on
+            // RootObjectMapper, serialize/parse it here under prefix_properties.<facet>, and copy
+            // it in Builder#merge via putAll. For "enabled", also turn the enabled=false throw in
+            // ensureBuilderFlattenable into a capture (as was done for heterogeneous dynamic).
+            // Follow-ups tracked in #151524.
             builder.startObject("prefix_properties");
             if (dynamicByPrefix.isEmpty() == false) {
                 builder.startObject("dynamic");

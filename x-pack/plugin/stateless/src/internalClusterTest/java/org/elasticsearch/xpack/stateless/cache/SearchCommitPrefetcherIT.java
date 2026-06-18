@@ -226,16 +226,20 @@ public class SearchCommitPrefetcherIT extends AbstractStatelessPluginIntegTestCa
         // no new commits were created since the search node started, so it didn't receive any commit notifications, nothing to prefetch
         assertThat(searchEngine.getTotalPrefetchedBytes(), is(0L));
 
-        // Delay new commit notifications on the search shard
+        // Delay new commit notifications on the search shard to be able to capture the metrics before the search shard refreshes its engine
         final var delayed = new AtomicBoolean(true);
-        final var delayedNewCommitGeneration = new PlainActionFuture<Long>();
+        final var delayedNewBccGeneration = new PlainActionFuture<Long>();
         final Queue<CheckedRunnable<Exception>> delayedNewCommitNotifications = ConcurrentCollections.newQueue();
         MockTransportService.getInstance(searchNode)
             .addRequestHandlingBehavior(TransportNewCommitNotificationAction.NAME + "[u]", (handler, request, channel, task) -> {
                 if (delayed.get()) {
                     delayedNewCommitNotifications.add(() -> handler.messageReceived(request, channel, task));
                     var notification = asInstanceOf(NewCommitNotificationRequest.class, request);
-                    delayedNewCommitGeneration.onResponse(notification.getBatchedCompoundCommitGeneration());
+                    if (delayedNewBccGeneration.isDone()) {
+                        assertThat(delayedNewBccGeneration.get(), equalTo(notification.getBatchedCompoundCommitGeneration()));
+                    } else {
+                        delayedNewBccGeneration.onResponse(notification.getBatchedCompoundCommitGeneration());
+                    }
                 } else {
                     handler.messageReceived(request, channel, task);
                 }
@@ -252,21 +256,24 @@ public class SearchCommitPrefetcherIT extends AbstractStatelessPluginIntegTestCa
         indexDocs(indexName, 10_000);
         var refreshResponse = indicesAdmin().prepareRefresh(indexName).execute();
 
-        // Capture the lastCommitGeneration of the latest (non-processed) new commit
-        long lastCommitGeneration = safeGet(delayedNewCommitGeneration);
+        // Capture the lastBccGeneration of the latest (non-processed) new commit
+        long lastBccGeneration = safeGet(delayedNewBccGeneration);
 
-        // Ensure there is a virtual BCC that matches the expect generation
+        // Ensure there is a virtual BCC that matches the expected generation
         var shardId = new ShardId(resolveIndex(indexName), 0);
         var pendingVbcc = internalCluster().getInstance(StatelessCommitService.class, indexNode).getCurrentVirtualBcc(shardId);
         assertThat(pendingVbcc, notNullValue());
-        assertThat(pendingVbcc.getPrimaryTermAndGeneration().generation(), equalTo(lastCommitGeneration));
+        assertThat(pendingVbcc.getPrimaryTermAndGeneration().generation(), equalTo(lastBccGeneration));
 
         // Capture the metrics
         var bytesReadFromBlobStore = meterBlobStoreReadsForBCC(
             searchNode,
-            BatchedCompoundCommit.blobNameFromGeneration(lastCommitGeneration)
+            BatchedCompoundCommit.blobNameFromGeneration(lastBccGeneration)
         );
         var beforeNewCommit = bytesReadFromBlobStore.get();
+
+        // Wait until all commit notifications have been intercepted before releasing them
+        assertBusy(() -> assertThat(delayedNewCommitNotifications.size(), equalTo(pendingVbcc.getPendingCompoundCommits().size())));
 
         // Now we can release the delayed requests and flush, so that prefetcher kicks in
         delayed.set(false);

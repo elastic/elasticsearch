@@ -16,6 +16,9 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.blobcache.BlobCacheMetrics;
 import org.elasticsearch.blobcache.BlobCacheUtils;
 import org.elasticsearch.blobcache.common.ByteRange;
+import org.elasticsearch.blobcache.shared.CacheRegion;
+import org.elasticsearch.blobcache.shared.DefaultEvictionPolicy;
+import org.elasticsearch.blobcache.shared.EvictionPolicy;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.blobcache.shared.SharedBytes;
 import org.elasticsearch.common.blobstore.BlobContainer;
@@ -25,6 +28,7 @@ import org.elasticsearch.common.blobstore.support.FilterBlobContainer;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.LuceneFilesExtensions;
@@ -62,6 +66,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
@@ -529,18 +534,61 @@ public class SearchDirectoryTests extends ESTestCase {
         }
     }
 
-    public void testOnDemandReadStampsMidpointTimestampWhenBoostEnabled() throws IOException {
-        assertOnDemandReadTimestamp(true);
-    }
-
-    public void testOnDemandReadUsesUnknownTimestampWhenBoostDisabled() throws IOException {
-        assertOnDemandReadTimestamp(false);
-    }
-
-    private void assertOnDemandReadTimestamp(boolean boostEnabled) throws IOException {
+    public void testTimestampRetainedAcrossSuccessiveCommits() throws IOException {
         var regionSize = ByteSizeValue.ofBytes(4096);
         var cacheSize = ByteSizeValue.ofBytes(regionSize.getBytes() * 100L);
-        final var capturedTimestamp = new AtomicLong(Long.MIN_VALUE);
+        try (var node = createFakeStatelessNode(regionSize, cacheSize)) {
+            final var searchDirectory = SearchDirectory.unwrapDirectory(node.searchStore.directory());
+
+            // Commit A: f_A is internal with range R_A.
+            final var locationA = createBlobLocation(1L, 1L, 0L, 100L);
+            final var rangeA = new StatelessCompoundCommit.TimestampFieldValueRange(1000L, 2000L);
+            searchDirectory.updateCommit(createCommitWithTimestamp(node.shardId, 1L, Map.of("f_A", locationA), Set.of("f_A"), rangeA));
+            assertThat(
+                "after commit A, internal file f_A resolves to midpoint of commit A's range",
+                searchDirectory.getTimestampMillis("f_A"),
+                equalTo(BlobFileRanges.midpointMillisOrUnknown(rangeA))
+            );
+
+            // Commit B (later generation): f_A is referenced at the same location; f_B is the new internal file with range R_B.
+            final var locationB = createBlobLocation(1L, 2L, 0L, 100L);
+            final var rangeB = new StatelessCompoundCommit.TimestampFieldValueRange(5000L, 6000L);
+            searchDirectory.updateCommit(
+                createCommitWithTimestamp(node.shardId, 2L, Map.of("f_A", locationA, "f_B", locationB), Set.of("f_B"), rangeB)
+            );
+
+            assertThat(
+                "after commit B, f_A (referenced at the same blob location) retains commit A's midpoint",
+                searchDirectory.getTimestampMillis("f_A"),
+                equalTo(BlobFileRanges.midpointMillisOrUnknown(rangeA))
+            );
+            assertThat(
+                "f_B is internal to commit B, so it receives commit B's representative timestamp",
+                searchDirectory.getTimestampMillis("f_B"),
+                equalTo(BlobFileRanges.midpointMillisOrUnknown(rangeB))
+            );
+        }
+    }
+
+    public void testOnDemandReadStampsRegionsWhenBoostEnabled() throws IOException {
+        assertOnDemandReadStampsRegions(true);
+    }
+
+    public void testOnDemandReadStampsRegionsWhenBoostDisabled() throws IOException {
+        assertOnDemandReadStampsRegions(false);
+    }
+
+    private void assertOnDemandReadStampsRegions(boolean boostEnabled) throws IOException {
+        var regionSize = ByteSizeValue.ofBytes(4096);
+        var cacheSize = ByteSizeValue.ofBytes(regionSize.getBytes() * 100L);
+        final Map<FileCacheKey, Long> capturedRegionTimestamps = new ConcurrentHashMap<>();
+        final EvictionPolicy<FileCacheKey> capturingPolicy = new DefaultEvictionPolicy<>() {
+            @Override
+            public void onCached(CacheRegion<FileCacheKey> region) {
+                super.onCached(region);
+                capturedRegionTimestamps.put(region.key(), region.timestampMillis());
+            }
+        };
         try (var node = new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry()) {
             @Override
             protected Settings nodeSettings() {
@@ -559,49 +607,84 @@ public class SearchDirectoryTests extends ESTestCase {
                 ThreadPool threadPool,
                 MeterRegistry meterRegistry
             ) {
-                StatelessSharedBlobCacheService service = new StatelessSharedBlobCacheService(
+                return new StatelessSharedBlobCacheService(
                     nodeEnvironment,
                     settings,
                     threadPool,
                     BlobCacheMetrics.NOOP,
-                    clusterService,
-                    new ThreadLocalDirectoryMetricHolder<>(BlobStoreCacheDirectoryMetrics::new)
-                ) {
+                    System::nanoTime,
+                    new ThreadLocalDirectoryMetricHolder<>(BlobStoreCacheDirectoryMetrics::new),
+                    capturingPolicy
+                ) {};
+            }
+
+            @Override
+            public BlobContainer wrapBlobContainer(BlobPath path, BlobContainer innerContainer) {
+                // Return synthetic bytes for any range request so the on-demand read actually populates a cache region.
+                return new FilterBlobContainer(innerContainer) {
                     @Override
-                    protected boolean assertOffsetsWithinFileLength(long offset, long length, long fileLength) {
-                        return true;
+                    protected BlobContainer wrapChild(BlobContainer child) {
+                        return child;
                     }
 
                     @Override
-                    public CacheFile getCacheFile(
-                        FileCacheKey cacheKey,
-                        long length,
-                        SharedBlobCacheService.CacheMissHandler cacheMissHandler,
-                        long timestampMillis
-                    ) {
-                        capturedTimestamp.set(timestampMillis);
-                        return super.getCacheFile(cacheKey, length, cacheMissHandler, timestampMillis);
+                    public InputStream readBlob(OperationPurpose purpose, String blobName, long position, long length) {
+                        return new InputStream() {
+                            private long remaining = length;
+
+                            @Override
+                            public int read() {
+                                if (remaining == 0) {
+                                    return -1;
+                                }
+                                remaining -= 1;
+                                return 1;
+                            }
+                        };
                     }
                 };
-                service.assertInvariants();
-                return service;
             }
         }) {
             final var searchDirectory = SearchDirectory.unwrapDirectory(node.searchStore.directory());
-
             final var range = new StatelessCompoundCommit.TimestampFieldValueRange(1000L, 2000L);
-            final var withTimestamp = new BlobFileRanges(createBlobLocation(1L, 1L, 0L, 100L), range);
-            searchDirectory.updateMetadata(Map.of("file-with-ts", withTimestamp), 200L);
+            final var locationWithTs = createBlobLocation(1L, 1L, 0L, regionSize.getBytes());
+            final var locationWithoutTs = createBlobLocation(1L, 2L, 0L, regionSize.getBytes());
+            final var withTimestamp = new BlobFileRanges(locationWithTs, range);
+            final var withoutTimestamp = new BlobFileRanges(locationWithoutTs, null);
+            searchDirectory.updateMetadata(
+                Map.of("file-with-ts", withTimestamp, "file-without-ts", withoutTimestamp),
+                2 * regionSize.getBytes()
+            );
+            // Mark the latest BCC as uploaded so the cache reader routes both files through the object store path
+            // (our FilterBlobContainer override), not the indexing-shard transport path which would require a live indexing shard.
+            searchDirectory.updateLatestUploadedBcc(new PrimaryTermAndGeneration(1L, 2L));
 
             try (var input = searchDirectory.openInput("file-with-ts", IOContext.DEFAULT)) {
-                assertNotNull(input);
+                // Reading a byte triggers slot assignment and fires EvictionPolicy.onCached on the live region.
+                input.readByte();
+            }
+            try (var input = searchDirectory.openInput("file-without-ts", IOContext.DEFAULT)) {
+                input.readByte();
             }
 
-            if (boostEnabled) {
-                assertEquals(BlobFileRanges.midpointMillisOrUnknown(range), capturedTimestamp.get());
-            } else {
-                assertEquals(SharedBlobCacheService.UNKNOWN_TIMESTAMP, capturedTimestamp.get());
-            }
+            final var keyWithTs = new FileCacheKey(node.shardId, 1L, locationWithTs.blobName());
+            final var keyWithoutTs = new FileCacheKey(node.shardId, 1L, locationWithoutTs.blobName());
+            final long expectedForKnownRange = boostEnabled
+                ? BlobFileRanges.midpointMillisOrUnknown(range)
+                : SharedBlobCacheService.UNKNOWN_TIMESTAMP;
+            assertThat(
+                "live CacheRegion for file-with-ts (non-null range, boostEnabled="
+                    + boostEnabled
+                    + ") should carry "
+                    + (boostEnabled ? "the per-CC midpoint" : "UNKNOWN_TIMESTAMP"),
+                capturedRegionTimestamps.get(keyWithTs),
+                equalTo(expectedForKnownRange)
+            );
+            assertThat(
+                "live CacheRegion for file-without-ts (null range, boostEnabled=" + boostEnabled + ") should carry UNKNOWN_TIMESTAMP",
+                capturedRegionTimestamps.get(keyWithoutTs),
+                equalTo(SharedBlobCacheService.UNKNOWN_TIMESTAMP)
+            );
         }
     }
 
@@ -622,6 +705,28 @@ public class SearchDirectoryTests extends ESTestCase {
             InternalFilesReplicatedRanges.EMPTY,
             Map.of(),
             null
+        );
+    }
+
+    private static StatelessCompoundCommit createCommitWithTimestamp(
+        ShardId shardId,
+        long generation,
+        Map<String, BlobLocation> commitFiles,
+        Set<String> internalFiles,
+        @Nullable StatelessCompoundCommit.TimestampFieldValueRange timestampRange
+    ) {
+        return new StatelessCompoundCommit(
+            shardId,
+            new PrimaryTermAndGeneration(1L, generation),
+            1L,
+            "_na_",
+            commitFiles,
+            commitFiles.values().stream().mapToLong(BlobLocation::fileLength).sum(),
+            internalFiles,
+            50L,
+            InternalFilesReplicatedRanges.EMPTY,
+            Map.of(),
+            timestampRange
         );
     }
 

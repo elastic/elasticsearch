@@ -87,15 +87,28 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
         LongSupplier relativeTimeInNanosSupplier,
         PluggableDirectoryMetricsHolder<BlobStoreCacheDirectoryMetrics> metricsHolder
     ) {
-        super(
+        this(
             environment,
             settings,
             threadPool,
-            IO_EXECUTOR,
             blobCacheMetrics,
             relativeTimeInNanosSupplier,
+            metricsHolder,
             createEvictionPolicy(settings, clusterService)
         );
+    }
+
+    // for tests
+    protected StatelessSharedBlobCacheService(
+        NodeEnvironment environment,
+        Settings settings,
+        ThreadPool threadPool,
+        BlobCacheMetrics blobCacheMetrics,
+        LongSupplier relativeTimeInNanosSupplier,
+        PluggableDirectoryMetricsHolder<BlobStoreCacheDirectoryMetrics> metricsHolder,
+        EvictionPolicy<FileCacheKey> evictionPolicy
+    ) {
+        super(environment, settings, threadPool, IO_EXECUTOR, blobCacheMetrics, relativeTimeInNanosSupplier, evictionPolicy);
         this.shardReadThreadPoolExecutor = IO_EXECUTOR;
         this.metricsHolder = metricsHolder;
         this.statelessCacheBoostPreferenceEnabled = STATELESS_CACHE_BOOST_PREFERENCE_ENABLED_SETTING.get(settings);

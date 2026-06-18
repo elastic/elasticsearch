@@ -12,6 +12,7 @@ package org.elasticsearch.gradle.internal.foreign;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.artifacts.Configuration;
+import org.gradle.api.file.FileCollection;
 import org.gradle.api.plugins.JavaLibraryPlugin;
 import org.gradle.api.plugins.JavaPlugin;
 import org.gradle.api.plugins.JavaPluginExtension;
@@ -65,7 +66,7 @@ public class ForeignLibraryPlugin implements Plugin<Project> {
         Configuration processorConfiguration = addDependencies(project);
 
         SourceSet mainSourceSet = project.getExtensions().getByType(SourceSetContainer.class).getByName(SourceSet.MAIN_SOURCE_SET_NAME);
-        Configuration compileClasspath = project.getConfigurations().getByName(mainSourceSet.getCompileClasspathConfigurationName());
+        FileCollection compileClasspath = mainSourceSet.getCompileClasspath();
 
         TaskProvider<JavaCompile> processAnnotations = registerProcessAnnotationsTask(
             project,
@@ -102,7 +103,7 @@ public class ForeignLibraryPlugin implements Plugin<Project> {
     private TaskProvider<JavaCompile> registerProcessAnnotationsTask(
         Project project,
         SourceSet mainSourceSet,
-        Configuration compileClasspath,
+        FileCollection compileClasspath,
         Configuration processorConfiguration
     ) {
         JavaPluginExtension javaExtension = project.getExtensions().getByType(JavaPluginExtension.class);

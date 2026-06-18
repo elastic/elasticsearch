@@ -52,6 +52,11 @@ $$$data-streams-lifecycle-signalling-error-retry-interval$$$
 `data_streams.lifecycle.signalling.error_retry_interval`
 :   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting), integer) The number of retries the data stream lifecycle has to perform for an index in an error step to signal that the index is not progressing (for example, it's stuck in an error step). The current signalling mechanism is a log statement at the `error` level. However, the signalling mechanism can be extended in the future. Defaults to 10 retries.
 
+$$$data-streams-lifecycle-downsampling-max-indices-in-progress$$$
+
+`data_streams.lifecycle.downsampling.max_indices_in_progress` {applies_to}`serverless: ga`
+:   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting), integer) The maximum number of indices per data stream that can be submitted for downsampling by data stream lifecycle. Defaults to `10`.
+
 ## Frozen tier transition settings [_frozen_tier_transition_settings]
 ```{applies_to}
 stack: ga 9.5
@@ -93,7 +98,7 @@ $$$index-lifecycle-prefer-ilm$$$
 
 $$$index-data-stream-lifecycle-origination-date$$$
 
-`index.lifecycle.origination_date` {applies_to}`serverless: ga all`
+`index.lifecycle.origination_date` {applies_to}`serverless: ga all` {applies_to}`stack: ga 9.5`
 :   ([Dynamic](../index-settings/index.md#index-modules-settings-description), long) If specified, this is the timestamp used to calculate the backing index generation age after this backing index has been [rolled over](docs-content://manage-data/lifecycle/index-lifecycle-management/rollover.md). The generation age is used to determine data retention, consequently, you can use this setting if you create a backing index that contains older data and want to ensure that the retention period or other parts of the lifecycle will be applied based on the data's original timestamp and not the timestamp when it was indexed. Specified as a Unix epoch value in milliseconds.
 
 $$$index-dlm-frozen-created$$$

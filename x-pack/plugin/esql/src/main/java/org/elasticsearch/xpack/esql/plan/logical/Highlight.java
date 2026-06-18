@@ -163,7 +163,7 @@ public class Highlight extends UnaryPlan implements TelemetryAware, GeneratingPl
                 f -> (Attribute) new ReferenceAttribute(
                     source,
                     null,
-                    prefix + Expressions.name(f),
+                    prefix + (f instanceof Attribute attr ? attr.name() : Expressions.name(f)),
                     DataType.KEYWORD,
                     Nullability.TRUE,
                     null,

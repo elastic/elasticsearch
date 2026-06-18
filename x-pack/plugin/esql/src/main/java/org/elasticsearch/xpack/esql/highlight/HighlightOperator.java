@@ -173,8 +173,14 @@ public class HighlightOperator extends AbstractPageMappingOperator {
         boolean success = false;
         try {
             for (int f = 0; f < fieldEvaluators.length; f++) {
-                try (BytesRefBlock fieldValues = (BytesRefBlock) fieldEvaluators[f].eval(page)) {
-                    highlightedBlocks[f] = highlightField(fieldValues, rowCount);
+                try (Block block = fieldEvaluators[f].eval(page)) {
+                    if (block instanceof BytesRefBlock fieldValues) {
+                        highlightedBlocks[f] = highlightField(fieldValues, rowCount);
+                    } else {
+                        throw new org.elasticsearch.xpack.esql.EsqlIllegalArgumentException(
+                            "HIGHLIGHT ON fields must evaluate to keyword/text values but got [" + block.getClass().getSimpleName() + "]"
+                        );
+                    }
                 }
             }
             Page result = page.appendBlocks(highlightedBlocks);

@@ -4,7 +4,8 @@
 
 {applies_to}`stack: preview 9.4, ga 9.5`
 
-Returns the input vector with all sample values converted to their absolute value.
+:::{include} briefSummary/abs.md
+:::
 
 **Return type**
 

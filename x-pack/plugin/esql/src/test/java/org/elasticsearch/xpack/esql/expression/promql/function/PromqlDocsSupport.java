@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlDataType;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.EnumMap;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.SortedSet;
@@ -193,6 +194,13 @@ public final class PromqlDocsSupport {
     );
     private static final Logger logger = LogManager.getLogger(PromqlDocsSupport.class);
     private static final String SPEC_SITE = "https://prometheus.io/docs/prometheus/latest/querying";
+
+    /**
+     * Docs-root path of the PromQL reference pages. Cross-page links are built as absolute paths from this root,
+     * matching the docs framework convention (see {@code DocsV3Support#makeLink}) so they stay valid regardless of
+     * where the including snippet lives.
+     */
+    private static final String DOCS_ROOT = "/reference/query-languages/promql";
     private static final String COMMENT_HEADER = "PromQL function definition for Kibana";
     private static final String COMMENT_FUNCTION = COMMENT_HEADER + ". See " + SPEC_SITE + "/functions/";
     private static final String COMMENT_OPERATOR = COMMENT_HEADER + ". See " + SPEC_SITE + "/operators/";
@@ -209,15 +217,19 @@ public final class PromqlDocsSupport {
     public static void entrypoint(DocsV3Support.Callbacks callbacks) throws Exception {
         var functions = PromqlFunctionRegistry.INSTANCE.allFunctions();
         Map<DocCategory, SortedSet<String>> byCategory = new EnumMap<>(DocCategory.class);
+        Map<String, PromqlFunctionDefinition> byName = new HashMap<>();
         for (var def : functions) {
             genFunctionDocs(def, callbacks);
             genFunctionMarkdown(def, callbacks);
+            genBriefSummary(def, callbacks);
             byCategory.computeIfAbsent(categoryOf(def), k -> new TreeSet<>()).add(def.name());
+            byName.put(def.name(), def);
         }
         for (var opDef : OPERATOR_DEFS) {
             genOperatorDocs(opDef, callbacks);
         }
         genCategoryLists(functions.size(), byCategory, callbacks);
+        genFunctionOverviewLists(byCategory, byName, callbacks);
         genNotSupported(callbacks);
     }
 
@@ -250,9 +262,9 @@ public final class PromqlDocsSupport {
     private static void genFunctionMarkdown(PromqlFunctionDefinition def, DocsV3Support.Callbacks callbacks) throws Exception {
         List<String> blocks = new ArrayList<>();
         blocks.add(MD_WARNING);
-        blocks.add("## `" + def.name() + "` [promql-fn-" + def.name() + "]");
+        blocks.add("## `" + def.name() + "` [" + functionAnchor(def.name()) + "]");
         blocks.add(appliesToBadge(def));
-        blocks.add(def.description());
+        blocks.add(include("briefSummary/" + def.name() + ".md"));
         blocks.add("**Return type**\n\n`" + mapDataType(def.functionType().outputType()) + "`");
 
         if (def.params().isEmpty() == false) {
@@ -324,10 +336,76 @@ public final class PromqlDocsSupport {
             List<String> blocks = new ArrayList<>();
             blocks.add(MD_WARNING);
             for (String name : names) {
-                blocks.add(":::{include} ../" + name + ".md\n:::");
+                blocks.add(include("../" + name + ".md"));
             }
             callbacks.write(dir, category.slug, "md", String.join("\n\n", blocks) + "\n", false);
         }
+    }
+
+    /**
+     * Emits the generated one-line brief-summary snippet for a single function (mirroring the ES|QL
+     * {@code briefSummary/<name>.md} snippets). This is the single materialization of the function's description string:
+     * it is included both by the function's own page snippet ({@link #genFunctionMarkdown}) and by the per-category
+     * overview lists ({@link #genFunctionOverviewLists}), so the description is never duplicated across generated files.
+     */
+    private static void genBriefSummary(PromqlFunctionDefinition def, DocsV3Support.Callbacks callbacks) throws Exception {
+        String summary = def.description().replaceAll("\\s+", " ").strip();
+        String rendered = MD_WARNING + "\n\n" + summary + "\n";
+        callbacks.write(snippetsFunctionsDir().resolve("briefSummary"), def.name(), "md", rendered, false);
+    }
+
+    /**
+     * Emits one generated overview-list snippet per documentation category, matching the ES|QL "Functions overview"
+     * layout: each entry is a function link to its section on the category page, the {@code applies_to}
+     * availability badge on the same line, and the function's brief summary included as a block on the next line.
+     * These snippets back the searchable "Functions overview" section of {@code functions.md} and are asserted
+     * byte-for-byte in CI.
+     */
+    private static void genFunctionOverviewLists(
+        Map<DocCategory, SortedSet<String>> byCategory,
+        Map<String, PromqlFunctionDefinition> byName,
+        DocsV3Support.Callbacks callbacks
+    ) throws Exception {
+        Path dir = snippetsFunctionsDir().resolve("lists");
+        for (DocCategory category : DocCategory.values()) {
+            SortedSet<String> names = byCategory.getOrDefault(category, new TreeSet<>());
+            List<String> blocks = new ArrayList<>();
+            blocks.add(MD_WARNING);
+            StringBuilder list = new StringBuilder();
+            for (String name : names) {
+                list.append("* [`")
+                    .append(name)
+                    .append("`](")
+                    .append(functionPageLink(category, name))
+                    .append(") ")
+                    .append(appliesToBadge(byName.get(name)))
+                    .append("\n  :::{include} ../briefSummary/")
+                    .append(name)
+                    .append(".md\n  :::\n");
+            }
+            if (list.isEmpty() == false) {
+                blocks.add(list.toString().stripTrailing());
+            }
+            callbacks.write(dir, category.slug + "-overview", "md", String.join("\n\n", blocks) + "\n", false);
+        }
+    }
+
+    /** Renders a docs-builder include directive for a snippet at the given path, relative to the including file. */
+    private static String include(String relativePath) {
+        return ":::{include} " + relativePath + "\n:::";
+    }
+
+    /** The stable docs anchor for a function's section heading, for example {@code promql-fn-rate}. */
+    private static String functionAnchor(String name) {
+        return "promql-fn-" + name;
+    }
+
+    /**
+     * Absolute docs link to a function's section on its category page, for example
+     * {@code /reference/query-languages/promql/functions/math.md#promql-fn-abs}.
+     */
+    private static String functionPageLink(DocCategory category, String name) {
+        return DOCS_ROOT + "/functions/" + category.slug + ".md#" + functionAnchor(name);
     }
 
     /**

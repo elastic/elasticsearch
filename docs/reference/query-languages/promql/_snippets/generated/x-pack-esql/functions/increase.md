@@ -4,7 +4,8 @@
 
 {applies_to}`stack: preview 9.4, ga 9.5`
 
-Calculates the increase in the time series in the range vector, adjusting for counter resets.
+:::{include} briefSummary/increase.md
+:::
 
 **Return type**
 

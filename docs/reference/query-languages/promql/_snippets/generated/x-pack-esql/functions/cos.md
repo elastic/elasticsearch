@@ -4,7 +4,8 @@
 
 {applies_to}`stack: preview 9.4, ga 9.5`
 
-Calculates the cosine of all elements in the input vector.
+:::{include} briefSummary/cos.md
+:::
 
 **Return type**
 

@@ -4,7 +4,8 @@
 
 {applies_to}`stack: preview 9.4, ga 9.5`
 
-Returns the maximum value of all points in the specified time range.
+:::{include} briefSummary/max_over_time.md
+:::
 
 **Return type**
 

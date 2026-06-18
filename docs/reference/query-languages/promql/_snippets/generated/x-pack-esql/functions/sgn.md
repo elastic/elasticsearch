@@ -4,7 +4,8 @@
 
 {applies_to}`stack: preview 9.4, ga 9.5`
 
-Returns the sign of the sample values: -1 for negative, 0 for zero, and 1 for positive values.
+:::{include} briefSummary/sgn.md
+:::
 
 **Return type**
 

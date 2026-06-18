@@ -4,7 +4,8 @@
 
 {applies_to}`stack: preview 9.4, ga 9.5`
 
-Calculates the inverse hyperbolic tangent of all elements in the input vector.
+:::{include} briefSummary/atanh.md
+:::
 
 **Return type**
 

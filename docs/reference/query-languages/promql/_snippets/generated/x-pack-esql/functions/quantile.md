@@ -4,7 +4,8 @@
 
 {applies_to}`stack: preview 9.4, ga 9.5`
 
-Returns the φ-quantile (0 ≤ φ ≤ 1) of the values across the input vector.
+:::{include} briefSummary/quantile.md
+:::
 
 **Return type**
 

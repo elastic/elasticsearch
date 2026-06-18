@@ -4,7 +4,8 @@
 
 {applies_to}`stack: ga 9.5`
 
-Returns the φ-quantile of a classic histogram represented by cumulative `le` buckets.
+:::{include} briefSummary/histogram_quantile.md
+:::
 
 **Return type**
 

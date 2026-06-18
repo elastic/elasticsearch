@@ -4,7 +4,8 @@
 
 {applies_to}`stack: preview 9.4, ga 9.5`
 
-Calculates the exponential function for all elements in the input vector.
+:::{include} briefSummary/exp.md
+:::
 
 **Return type**
 

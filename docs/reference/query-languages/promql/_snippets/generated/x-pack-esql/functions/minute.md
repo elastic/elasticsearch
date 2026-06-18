@@ -4,7 +4,8 @@
 
 {applies_to}`stack: ga 9.5`
 
-Returns the minute of the hour for each of the input timestamps (in UTC). Returned values are from 0 to 59.
+:::{include} briefSummary/minute.md
+:::
 
 **Return type**
 

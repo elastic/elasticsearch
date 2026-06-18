@@ -4,7 +4,8 @@
 
 {applies_to}`stack: preview 9.4, ga 9.5`
 
-Returns the minimum value across the input vector.
+:::{include} briefSummary/min.md
+:::
 
 **Return type**
 

@@ -4,7 +4,8 @@
 
 {applies_to}`stack: preview 9.4, ga 9.5`
 
-Calculates the average of the values across the input vector.
+:::{include} briefSummary/avg.md
+:::
 
 **Return type**
 

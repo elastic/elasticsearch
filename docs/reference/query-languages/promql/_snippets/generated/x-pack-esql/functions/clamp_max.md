@@ -4,7 +4,8 @@
 
 {applies_to}`stack: preview 9.4, ga 9.5`
 
-Clamps the sample values of all elements to have an upper limit of max.
+:::{include} briefSummary/clamp_max.md
+:::
 
 **Return type**
 

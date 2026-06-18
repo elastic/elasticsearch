@@ -4,7 +4,8 @@
 
 {applies_to}`stack: preview 9.4, ga 9.5`
 
-Returns the first value of each time series in the specified time range.
+:::{include} briefSummary/first_over_time.md
+:::
 
 **Return type**
 

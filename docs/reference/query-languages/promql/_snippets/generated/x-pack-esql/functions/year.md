@@ -4,7 +4,8 @@
 
 {applies_to}`stack: ga 9.5`
 
-Returns the year for each of the input timestamps (in UTC).
+:::{include} briefSummary/year.md
+:::
 
 **Return type**
 

@@ -4,7 +4,8 @@
 
 {applies_to}`stack: ga 9.5`
 
-Returns the day of the week for each of the input timestamps (in UTC). Returned values are from 0 to 6, where 0 means Sunday.
+:::{include} briefSummary/day_of_week.md
+:::
 
 **Return type**
 

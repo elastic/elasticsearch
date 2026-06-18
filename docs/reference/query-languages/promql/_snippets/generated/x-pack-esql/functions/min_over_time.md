@@ -4,7 +4,8 @@
 
 {applies_to}`stack: preview 9.4, ga 9.5`
 
-Returns the minimum value of all points in the specified time range.
+:::{include} briefSummary/min_over_time.md
+:::
 
 **Return type**
 

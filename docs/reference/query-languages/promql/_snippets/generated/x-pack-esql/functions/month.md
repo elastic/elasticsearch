@@ -4,7 +4,8 @@
 
 {applies_to}`stack: ga 9.5`
 
-Returns the month of the year for each of the input timestamps (in UTC). Returned values are from 1 to 12.
+:::{include} briefSummary/month.md
+:::
 
 **Return type**
 

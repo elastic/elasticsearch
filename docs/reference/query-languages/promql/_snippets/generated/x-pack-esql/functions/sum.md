@@ -4,7 +4,8 @@
 
 {applies_to}`stack: preview 9.4, ga 9.5`
 
-Calculates the sum of the values across the input vector.
+:::{include} briefSummary/sum.md
+:::
 
 **Return type**
 

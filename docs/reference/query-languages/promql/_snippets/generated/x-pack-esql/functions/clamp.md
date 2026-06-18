@@ -4,7 +4,8 @@
 
 {applies_to}`stack: preview 9.4, ga 9.5`
 
-Clamps the sample values of all elements to be within [min, max].
+:::{include} briefSummary/clamp.md
+:::
 
 **Return type**
 

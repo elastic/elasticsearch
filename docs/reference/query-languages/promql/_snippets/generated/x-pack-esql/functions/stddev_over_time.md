@@ -4,7 +4,8 @@
 
 {applies_to}`stack: preview 9.4, ga 9.5`
 
-Returns the population standard deviation of the values in the specified time range.
+:::{include} briefSummary/stddev_over_time.md
+:::
 
 **Return type**
 

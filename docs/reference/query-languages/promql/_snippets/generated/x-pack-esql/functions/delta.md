@@ -4,7 +4,8 @@
 
 {applies_to}`stack: preview 9.4, ga 9.5`
 
-Calculates the difference between the first and last value of each time series in a range vector.
+:::{include} briefSummary/delta.md
+:::
 
 **Return type**
 

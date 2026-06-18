@@ -4,7 +4,8 @@
 
 {applies_to}`stack: ga 9.5`
 
-Returns the hour of the day for each of the input timestamps (in UTC). Returned values are from 0 to 23.
+:::{include} briefSummary/hour.md
+:::
 
 **Return type**
 

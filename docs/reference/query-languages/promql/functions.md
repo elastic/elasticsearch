@@ -12,14 +12,67 @@ products:
 
 These functions are based on the [Prometheus query functions](https://prometheus.io/docs/prometheus/latest/querying/functions/). Refer to the Prometheus documentation for the full semantics, and note any {{es}}-specific differences called out per function.
 
-PromQL functions in {{es}} are grouped into the following categories:
+## Functions overview [promql-functions-overview]
 
-* [Range vector functions](functions/range-vector.md): Functions that take a range vector and return an instant vector, such as `rate`, `increase`, and the `_over_time` aggregates.
-* [Aggregation functions](functions/aggregation.md): Functions that aggregate an instant vector across series, such as `sum`, `avg`, and `quantile`.
-* [Histogram functions](functions/histogram.md): Functions that operate on histogram metrics.
-* [Math functions](functions/math.md): Mathematical, trigonometric, and rounding functions.
-* [Date and time functions](functions/date-time.md): Functions that extract date and time components from timestamps.
-* [Conversion functions](functions/conversion.md): Functions that convert between scalars and instant vectors.
+### Range vector functions
+
+Functions that take a range vector and return an instant vector.
+
+::::{dropdown} Range vector function list
+:open:
+:::{include} _snippets/generated/x-pack-esql/functions/lists/range-vector-overview.md
+:::
+::::
+
+### Aggregation functions
+
+Functions that aggregate an instant vector across series.
+
+::::{dropdown} Aggregation function list
+:open:
+:::{include} _snippets/generated/x-pack-esql/functions/lists/aggregation-overview.md
+:::
+::::
+
+### Histogram functions
+
+Functions that operate on histogram metrics.
+
+::::{dropdown} Histogram function list
+:open:
+:::{include} _snippets/generated/x-pack-esql/functions/lists/histogram-overview.md
+:::
+::::
+
+### Math functions
+
+Mathematical, trigonometric, and rounding functions.
+
+::::{dropdown} Math function list
+:open:
+:::{include} _snippets/generated/x-pack-esql/functions/lists/math-overview.md
+:::
+::::
+
+### Date and time functions
+
+Functions that extract date and time components from timestamps.
+
+::::{dropdown} Date and time function list
+:open:
+:::{include} _snippets/generated/x-pack-esql/functions/lists/date-time-overview.md
+:::
+::::
+
+### Conversion functions
+
+Functions that convert between scalars and instant vectors.
+
+::::{dropdown} Conversion function list
+:open:
+:::{include} _snippets/generated/x-pack-esql/functions/lists/conversion-overview.md
+:::
+::::
 
 ## Not yet supported [promql-not-supported]
 

@@ -4,7 +4,8 @@
 
 {applies_to}`stack: preview 9.4, ga 9.5`
 
-Returns the value of pi.
+:::{include} briefSummary/pi.md
+:::
 
 **Return type**
 

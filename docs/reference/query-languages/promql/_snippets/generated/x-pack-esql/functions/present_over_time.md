@@ -4,7 +4,8 @@
 
 {applies_to}`stack: preview 9.4, ga 9.5`
 
-Returns true if the range vector has at least one element.
+:::{include} briefSummary/present_over_time.md
+:::
 
 **Return type**
 

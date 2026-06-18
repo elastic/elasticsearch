@@ -4,7 +4,8 @@
 
 {applies_to}`stack: preview 9.4, ga 9.5`
 
-Returns the maximum value across the input vector.
+:::{include} briefSummary/max.md
+:::
 
 **Return type**
 

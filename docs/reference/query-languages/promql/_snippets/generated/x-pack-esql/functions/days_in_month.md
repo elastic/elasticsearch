@@ -4,7 +4,8 @@
 
 {applies_to}`stack: ga 9.5`
 
-Returns the number of days in the month for each of the input timestamps (in UTC). Returned values are from 28 to 31.
+:::{include} briefSummary/days_in_month.md
+:::
 
 **Return type**
 

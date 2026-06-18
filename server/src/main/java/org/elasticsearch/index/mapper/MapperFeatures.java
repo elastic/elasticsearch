@@ -14,6 +14,7 @@ import org.elasticsearch.features.NodeFeature;
 
 import java.util.Set;
 
+import static org.elasticsearch.index.mapper.ProvidedIdFieldMapper.ID_FIELD_MODE_MAPPING_ATTRIBUTE;
 import static org.elasticsearch.index.mapper.RoutingFieldMapper.ROUTING_AS_DOC_VALUES;
 import static org.elasticsearch.index.mapper.RoutingFieldMapper.ROUTING_AS_DOC_VALUES_BY_DEFAULT;
 import static org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper.FLATTENED_MAPPED_SUBFIELDS_FEATURE;
@@ -191,6 +192,7 @@ public class MapperFeatures implements FeatureSpecification {
             KEYWORD_MULTI_FIELDS_NOT_STORED_WHEN_IGNORED,
             ANALYZER_WRAPPER_RELOADABLE_SEARCH_ANALYZER,
             ROUTING_AS_DOC_VALUES,
+            ID_FIELD_MODE_MAPPING_ATTRIBUTE,
             ROUTING_AS_DOC_VALUES_BY_DEFAULT,
             STORE_NOT_ALLOWED_IN_COLUMNAR_INDEX_MODE,
             KEYWORD_DV_CASE_INSENSITIVE_REGEXP,

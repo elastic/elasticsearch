@@ -7,6 +7,8 @@
 :::{include} briefSummary/irate.md
 :::
 
+Requires a counter input; non-counter inputs are automatically coerced with `to_counter`. The metric's configured temporality (cumulative or delta) is honored. The result is always a `double`.
+
 **Return type**
 
 `instant_vector`
@@ -21,7 +23,3 @@
 ```
 irate(http_requests_total[5m])
 ```
-
-**Differences from Prometheus**
-
-Requires a counter input; non-counter inputs are automatically coerced with `to_counter`. The metric's configured temporality (cumulative or delta) is honored. Native histogram inputs are not supported, and the result is always a `double`.

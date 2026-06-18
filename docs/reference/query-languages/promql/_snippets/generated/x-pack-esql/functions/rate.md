@@ -7,6 +7,8 @@
 :::{include} briefSummary/rate.md
 :::
 
+Requires a counter input; non-counter inputs are automatically coerced with `to_counter`. The metric's configured temporality (cumulative or delta) is honored. The result is always a `double`.
+
 **Return type**
 
 `instant_vector`
@@ -24,4 +26,4 @@ rate(http_requests_total[5m])
 
 **Differences from Prometheus**
 
-Requires a counter input; non-counter inputs are automatically coerced with `to_counter`. The metric's configured temporality (cumulative or delta) is honored. Native histogram inputs are not supported, and the result is always a `double`.
+{{es}} computes the value over fixed time buckets and, at bucket boundaries, interpolates the counter value from the adjacent buckets' samples, falling back to Prometheus-style extrapolation wherever an adjacent bucket has no samples (the series edges and any gaps). Prometheus instead extrapolates within each range window, so results can differ slightly.

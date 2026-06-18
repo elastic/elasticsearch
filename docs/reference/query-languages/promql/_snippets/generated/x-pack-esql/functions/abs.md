@@ -24,4 +24,4 @@ abs(rate(http_requests_total[5m]))
 
 **Differences from Prometheus**
 
-Preserves the input's integer or floating-point type instead of always returning a float. For the minimum `integer` or `long` value, whose absolute value cannot be represented, {{es}} returns `null` and emits a warning.
+For the minimum `integer` or `long` value, whose absolute value cannot be represented, {{es}} returns `null` and emits a warning. Prometheus, which operates on floating-point values, returns the absolute value instead.

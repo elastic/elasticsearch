@@ -21,7 +21,3 @@
 ```
 floor(rate(http_requests_total[5m]))
 ```
-
-**Differences from Prometheus**
-
-Preserves the input's integer or floating-point type: whole-number inputs are returned unchanged instead of being converted to a float.

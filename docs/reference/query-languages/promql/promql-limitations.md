@@ -46,6 +46,11 @@ The following constructs are not evaluated yet, so they return a client error (4
 - Group modifiers: `on(...)`, `group_left`, `group_right`
 - Functions: see [Not yet supported](functions.md#promql-not-supported) for the full list of recognized but unimplemented functions.
 
+## Native histograms [promql-limitations-native-histograms]
+
+Prometheus native histograms are not supported yet.
+PromQL functions operate on float samples; series stored as native histograms are not evaluated.
+
 ## Metric metadata `help` (HTTP API) [promql-limitations-metadata-help]
 
 On [`/api/v1/metadata`](promql-http-api.md#promql-http-api-metadata-endpoint), each metric includes a `help` string shaped like Prometheus `HELP` lines.

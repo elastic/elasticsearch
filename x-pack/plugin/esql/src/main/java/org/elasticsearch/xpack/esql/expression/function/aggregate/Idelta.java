@@ -46,9 +46,9 @@ public class Idelta extends TimeSeriesAggregateFunction implements OptionalArgum
     public static final PromqlFunctionDefinition PROMQL_DEFINITION = PromqlFunctionDefinition.def()
         .withinSeries(Idelta::new)
         .description("Calculates the difference between the last two samples of each time series in a range vector.")
+        .extendedDescription(PromqlFunctionDefinition.GAUGE_FAMILY_BEHAVIOR)
         .example("idelta(cpu_temp_celsius[5m])")
         .stack(PromqlFunctionDefinition.STACK_PREVIEW_9_4_GA_9_5)
-        .differenceFromPrometheus(PromqlFunctionDefinition.GAUGE_FAMILY_NOTE)
         .name("idelta");
 
     private final Expression timestamp;

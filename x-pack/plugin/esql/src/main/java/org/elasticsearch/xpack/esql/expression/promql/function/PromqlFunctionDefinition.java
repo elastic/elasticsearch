@@ -41,6 +41,7 @@ public final class PromqlFunctionDefinition {
     private final PromqlFunctionArity arity;
     private final FunctionBuilder esqlBuilder;
     private final String description;
+    private final String extendedDescription;
     private final List<PromqlParamInfo> params;
     private final List<String> examples;
     private final CounterSupport counterSupport;
@@ -145,6 +146,7 @@ public final class PromqlFunctionDefinition {
         PromqlFunctionArity arity,
         FunctionBuilder esqlBuilder,
         String description,
+        String extendedDescription,
         List<PromqlParamInfo> params,
         List<String> examples,
         CounterSupport counterSupport,
@@ -178,6 +180,8 @@ public final class PromqlFunctionDefinition {
         this.arity = arity;
         this.esqlBuilder = esqlBuilder;
         this.description = description;
+        // Optional: extra description paragraph rendered only on the function's own page, not in the brief overview.
+        this.extendedDescription = extendedDescription;
         this.params = params;
         this.examples = examples;
         this.counterSupport = counterSupport;
@@ -206,6 +210,15 @@ public final class PromqlFunctionDefinition {
 
     public String description() {
         return description;
+    }
+
+    /**
+     * Additional description detail rendered only on the function's own reference page (after the brief summary), not
+     * in the per-category functions overview. Used to keep the overview summaries short while documenting fuller
+     * behavior on the dedicated page. {@code null} when the function has no extra detail.
+     */
+    public String extendedDescription() {
+        return extendedDescription;
     }
 
     public List<PromqlParamInfo> params() {
@@ -259,19 +272,36 @@ public final class PromqlFunctionDefinition {
     public static final PromqlParamInfo MIN_SCALAR = PromqlParamInfo.of("min", PromqlDataType.SCALAR, "Minimum value.");
     public static final PromqlParamInfo MAX_SCALAR = PromqlParamInfo.of("max", PromqlDataType.SCALAR, "Maximum value.");
 
-    /*
-     * Shared "Differences from Prometheus" notes, reused by function definitions whose Elasticsearch behavior diverges
-     * from the Prometheus reference in the same way. Function-specific notes are declared inline at each definition via
-     * {@link Builder#differenceFromPrometheus}; these presets exist only to avoid duplicating identical text across the
-     * functions that share a divergence. The notes are rendered (with `{{es}}` substitution) by the docs generator.
+    /**
+     * Shared extended-description fragment for the counter rate family ({@code rate}, {@code irate}, {@code increase}),
+     * set as each function's {@link Builder#extendedDescription} so it appears only on the dedicated function page, not
+     * in the brief functions overview. Documents Elasticsearch behavior that is consistent with Prometheus.
      */
-    public static final String RATE_FAMILY_NOTE =
+    public static final String COUNTER_RATE_BEHAVIOR =
         "Requires a counter input; non-counter inputs are automatically coerced with `to_counter`. The metric's "
-            + "configured temporality (cumulative or delta) is honored. Native histogram inputs are not supported, and "
-            + "the result is always a `double`.";
-    public static final String GAUGE_FAMILY_NOTE =
-        "This is a gauge-only function: counter inputs are automatically converted to a gauge with `to_gauge`. Native "
-            + "histogram inputs are not supported. The result is always a `double`.";
+            + "configured temporality (cumulative or delta) is honored. The result is always a `double`.";
+
+    /**
+     * Difference note for {@code rate} and {@code increase}: unlike Prometheus, which extrapolates within each
+     * (overlapping) range window, Elasticsearch evaluates these over fixed time buckets and interpolates the counter
+     * value at interior bucket boundaries from the adjacent buckets' samples. See
+     * {@code RateDoubleGroupingAggregatorFunction}.
+     */
+    public static final String RATE_INCREASE_NOTE =
+        "{{es}} computes the value over fixed time buckets and, at bucket boundaries, interpolates the counter value "
+            + "from the adjacent buckets' samples, falling back to Prometheus-style extrapolation wherever an adjacent "
+            + "bucket has no samples (the series edges and any gaps). Prometheus instead extrapolates within each range "
+            + "window, so results can differ slightly.";
+    /**
+     * Shared extended-description fragment for the gauge family ({@code delta}, {@code idelta}, {@code deriv}), set as
+     * each function's {@link Builder#extendedDescription} so it appears only on the dedicated function page, not in the
+     * brief functions overview. Documents the transparent {@code to_gauge} coercion, which matches Prometheus semantics
+     * and so is not a "Differences from Prometheus" note. (Native histogram support is covered by the page-level
+     * limitations note rather than repeated here.)
+     */
+    public static final String GAUGE_FAMILY_BEHAVIOR =
+        "Operates on gauges: counter inputs are automatically and transparently converted to a gauge with `to_gauge`. "
+            + "The result is always a `double`.";
     public static final String FIRST_LAST_NOTE =
         "Accepts additional {{es}} field types (for example `keyword`, `ip`, and `date`) and returns counter inputs "
             + "unchanged rather than rejecting or converting them.";
@@ -285,9 +315,6 @@ public final class PromqlFunctionDefinition {
     public static final String OVERFLOW_NOTE =
         "On numeric overflow for large-magnitude inputs, {{es}} returns `null` and emits a warning, rather than the "
             + "`±Inf` that Prometheus returns.";
-    public static final String WHOLE_NUMBER_TYPE_NOTE =
-        "Preserves the input's integer or floating-point type: whole-number inputs are returned unchanged instead of "
-            + "being converted to a float.";
     public static final String QUANTILE_NOTE =
         "Computed using the {{es}} t-digest percentile aggregation, so results are approximate and may differ slightly "
             + "from Prometheus's exact linear interpolation, particularly for small sample sets.";
@@ -379,6 +406,7 @@ public final class PromqlFunctionDefinition {
         private PromqlFunctionArity arity;
         private FunctionBuilder builder;
         private String description;
+        private String extendedDescription;
         private List<PromqlParamInfo> params;
         private CounterSupport counterSupport = CounterSupport.UNSUPPORTED;
         private String differenceFromPrometheus;
@@ -391,6 +419,16 @@ public final class PromqlFunctionDefinition {
 
         public PromqlFunctionDefinition.Builder description(String description) {
             this.description = description;
+            return this;
+        }
+
+        /**
+         * Adds a description paragraph rendered only on the function's own reference page, after the brief summary. Use
+         * this for behavior detail that should not bloat the short summaries shown in the functions overview. Omit for
+         * functions whose full description fits in {@link #description}.
+         */
+        public PromqlFunctionDefinition.Builder extendedDescription(String extendedDescription) {
+            this.extendedDescription = extendedDescription;
             return this;
         }
 
@@ -628,6 +666,7 @@ public final class PromqlFunctionDefinition {
                 arity,
                 builder,
                 description,
+                extendedDescription,
                 params,
                 examples,
                 counterSupport,

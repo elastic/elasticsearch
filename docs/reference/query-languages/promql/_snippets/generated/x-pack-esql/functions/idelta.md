@@ -7,6 +7,8 @@
 :::{include} briefSummary/idelta.md
 :::
 
+Operates on gauges: counter inputs are automatically and transparently converted to a gauge with `to_gauge`. The result is always a `double`.
+
 **Return type**
 
 `instant_vector`
@@ -21,7 +23,3 @@
 ```
 idelta(cpu_temp_celsius[5m])
 ```
-
-**Differences from Prometheus**
-
-This is a gauge-only function: counter inputs are automatically converted to a gauge with `to_gauge`. Native histogram inputs are not supported. The result is always a `double`.

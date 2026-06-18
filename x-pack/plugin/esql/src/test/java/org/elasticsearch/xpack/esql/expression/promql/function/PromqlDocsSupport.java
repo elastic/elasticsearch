@@ -247,7 +247,7 @@ public final class PromqlDocsSupport {
             mapFunctionType(def.functionType()),
             null,
             def.name(),
-            def.description(),
+            fullDescription(def),
             signatures,
             def.examples(),
             callbacks
@@ -265,6 +265,9 @@ public final class PromqlDocsSupport {
         blocks.add("## `" + def.name() + "` [" + functionAnchor(def.name()) + "]");
         blocks.add(appliesToBadge(def));
         blocks.add(include("briefSummary/" + def.name() + ".md"));
+        if (def.extendedDescription() != null) {
+            blocks.add(def.extendedDescription());
+        }
         blocks.add("**Return type**\n\n`" + mapDataType(def.functionType().outputType()) + "`");
 
         if (def.params().isEmpty() == false) {
@@ -388,6 +391,18 @@ public final class PromqlDocsSupport {
             }
             callbacks.write(dir, category.slug + "-overview", "md", String.join("\n\n", blocks) + "\n", false);
         }
+    }
+
+    /**
+     * The function's full description for the Kibana definition JSON: the brief summary plus the optional extended
+     * detail, matching what the dedicated function page renders. (The functions overview deliberately uses only the
+     * brief {@link PromqlFunctionDefinition#description()}.)
+     */
+    private static String fullDescription(PromqlFunctionDefinition def) {
+        if (def.extendedDescription() == null) {
+            return def.description();
+        }
+        return def.description() + " " + def.extendedDescription();
     }
 
     /** Renders a docs-builder include directive for a snippet at the given path, relative to the including file. */

@@ -42,7 +42,6 @@ public class Ceil extends UnaryScalarFunction {
         .description("Rounds the sample values of all elements up to the nearest integer.")
         .example("ceil(rate(http_requests_total[5m]))")
         .stack(PromqlFunctionDefinition.STACK_PREVIEW_9_4_GA_9_5)
-        .differenceFromPrometheus(PromqlFunctionDefinition.WHOLE_NUMBER_TYPE_NOTE)
         .name("ceil");
 
     @FunctionInfo(

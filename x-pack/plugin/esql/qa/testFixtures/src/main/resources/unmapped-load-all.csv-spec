@@ -115,6 +115,54 @@ FROM partial_mapping_sample_data
 ;
 
 ############################
+# Distributed / join coverage
+############################
+
+// LOOKUP JOIN: DetermineUnmappedFieldsToKeep skips the LOOKUP EsRelation (IndexMode.LOOKUP),
+// so _unmapped_fields reflects only the main index's unmapped source fields. The join plan's
+// unmappedFieldsToKeep() falls back to ALL (Join does not implement it), so the full set of
+// unmapped fields is preserved. Column order: main-index columns + _unmapped_fields (from the
+// left/main output), then message_type from the right/lookup output.
+lookupJoinDoesNotContributeToUnmappedFields
+required_capability: optional_fields_load_all
+required_capability: join_lookup_v12
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data
+| LOOKUP JOIN partial_message_types_lookup ON message
+| SORT @timestamp DESC
+;
+
+@timestamp:datetime      | client_ip:ip | event_duration:long | message:keyword        | _unmapped_fields:keyword                                                                                                                                      | message_type:keyword
+2024-10-23T13:55:01.543Z | 173.21.3.15  | 1756466             | Connected to 10.1.0.1! | "{""language_code"":""1"",""unmapped.nested"":""a"",""unmapped_event_duration"":""1756468"",""unmapped_message"":""Disconnected from 10.1.0.1""}"           | connection
+2024-10-23T13:53:55.832Z | 173.21.3.15  | 5033754             | Connection error?      | "{""language_code"":""2"",""unmapped.nested"":""b"",""unmapped_event_duration"":""5033756"",""unmapped_message"":""Disconnection error""}"                 | error
+2024-10-23T13:52:55.015Z | 173.21.3.15  | 8268152             | Connection error?      | "{""language_code"":""3"",""unmapped.nested"":""c"",""unmapped_event_duration"":""8268154"",""unmapped_message"":""Disconnection error""}"                 | error
+2024-10-23T13:51:54.732Z | 173.21.3.15  | 725447              | Connection error?      | "{""language_code"":""1"",""unmapped.nested"":""d"",""unmapped_event_duration"":""725449"",""unmapped_message"":""Disconnection error""}"                  | error
+2024-10-23T13:33:34.937Z | 173.21.0.5   | 1232381             | 42                     | "{""language_code"":""2"",""unmapped.nested"":""e"",""unmapped_event_duration"":""1232383"",""unmapped_message"":""43""}"                                  | numeric
+2024-10-23T12:27:28.948Z | 173.21.2.113 | 2764888             | Connected to 10.1.0.2! | "{""language_code"":""3"",""unmapped.nested"":""f"",""unmapped_event_duration"":""2764890"",""unmapped_message"":""Disconnected from 10.1.0.2""}"           | connection
+2024-10-23T12:15:03.360Z | 173.21.2.162 | 3450232             | Connected to 10.1.0.3! | "{""language_code"":""4"",""unmapped.nested"":""g"",""unmapped_event_duration"":""3450234"",""unmapped_message"":""Disconnected from 10.1.0.3""}"           | connection
+;
+
+// TS (time-series) query with LOAD_ALL: the TIME_SERIES EsRelation is annotated with
+// _unmapped_fields (not skipped like LOOKUP), but STATS drops the per-document column
+// before it reaches the output. Since all fields in ts_window are mapped, _unmapped_fields
+// would be "{}" per row anyway; after aggregation only the STATS output columns appear.
+tsStatsDropsUnmappedFields
+required_capability: optional_fields_load_all
+required_capability: ts_command_v0
+
+SET unmapped_fields="LOAD_ALL"\;
+TS ts_window
+| STATS total_val = SUM(val) BY dim
+| SORT dim
+;
+
+total_val:long | dim:keyword
+30             | a
+300            | b
+;
+
+############################
 # Mapping diversity tests
 ############################
 

@@ -159,6 +159,34 @@ They are still available as self-managed connectors.
 ** Jira Cloud & Server
 ** Network drives
 
+* *Jira Server/Data Center syncs fail to fetch issues*
++
+https://github.com/elastic/connectors/pull/3710[elastic/connectors#3710^] migrated the Jira issues endpoint to the cursor-based `rest/api/3/search/jql` endpoint.
+That endpoint is not available on Jira Server/Data Center pre-v10, so syncs against those instances fail when fetching issues.
++
+*Affected versions*: 8.19.5–8.19.16. Jira Cloud is not affected.
++
+*Fix*: https://github.com/elastic/connectors/pull/4059[elastic/connectors#4059^], shipped in 8.19.17.
+
+* *Outlook connector fails to sync on non-English Exchange servers*
++
+The connector resolved default folders by English display names (`Contacts`, `Archive`).
+On localized on-prem Exchange servers these names differ, raising `ErrorFolderNotFound` and aborting the sync.
++
+*Affected versions*: 8.11.0–8.19.16. Non-English on-prem Exchange servers only.
++
+*Fix*: https://github.com/elastic/connectors/pull/4065[elastic/connectors#4065^], shipped in 8.19.17.
+Folders are now resolved by locale-agnostic distinguished folder IDs; the Archive leaf folder has no distinguished ID in Exchange and is skipped when absent.
+
+* *Outlook connector fails when Active Directory users lack a mail attribute*
++
+On on-prem Exchange, the connector passed the raw LDAP `mail` attribute into `exchangelib.Account`.
+When the attribute is missing, `ldap3` returns `[]`, causing `ValueError: primary_smtp_address [] is not an email address` and aborting the sync.
++
+*Affected versions*: 8.11.0–8.19.16. On-prem Exchange with Active Directory only.
++
+*Fix*: https://github.com/elastic/connectors/pull/4078[elastic/connectors#4078^], shipped in 8.19.17.
+
 [discrete#es-connectors-known-issues-specific]
 === Individual connector known issues
 

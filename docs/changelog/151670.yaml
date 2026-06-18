@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 151670
+summary: Chunk time-series aggregation output
+type: feature

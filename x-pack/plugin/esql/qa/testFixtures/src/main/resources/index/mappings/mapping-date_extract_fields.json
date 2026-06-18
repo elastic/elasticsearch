@@ -1,0 +1,10 @@
+{
+    "properties": {
+        "date_part": {
+            "type": "keyword"
+        },
+        "date_val": {
+            "type": "date"
+        }
+    }
+}

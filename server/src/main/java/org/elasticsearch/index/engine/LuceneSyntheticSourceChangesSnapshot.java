@@ -271,66 +271,98 @@ public final class LuceneSyntheticSourceChangesSnapshot extends SearchBasedChang
         int segmentDocID,
         LeafReaderContext context
     ) throws IOException {
-        // Resolve the _id. In columnar mode it is read from binary doc values; in document mode from stored fields. A
-        // slice index stores the plain encodeId(id) on a live doc and the compound identity term on a tombstone, so a
-        // live doc's plain id is taken from the field loader that already loaded stored fields (no second pass), while a
-        // tombstone's compound term is read raw only then — the field loader would mis-decode it — and used as-is for the
-        // Delete. A noop tombstone has no _id at all.
-        final BytesRef idBytes;
-        final String id;
-        if (columnarId) {
-            assert fieldLoader.id() == null : "id shouldn't exist in stored fields if id mode is columnar";
-            idBytes = leafIdDocValues.advanceExact(segmentDocID) ? BytesRef.deepCopyOf(leafIdDocValues.binaryValue()) : null;
-            // A slice tombstone's bytes are the compound term (used as-is below); otherwise decode the plain id.
-            id = (sliceEnabled && docRecord.isTombstone()) || idBytes == null ? null : Uid.decodeId(idBytes);
-        } else if (sliceEnabled) {
-            idBytes = docRecord.isTombstone() ? readRawId(context, segmentDocID) : null;
-            id = docRecord.isTombstone() ? null : fieldLoader.id();
-        } else {
-            assert leafIdDocValues == null : "id shouldn't exist in doc values if id mode is document";
-            idBytes = null;
-            id = fieldLoader.id();
-        }
-        final boolean noId = sliceEnabled ? idBytes == null : id == null;
-        if (docRecord.isTombstone() && noId) {
-            assert docRecord.version() == 1L : "Noop tombstone should have version 1L; actual version [" + docRecord.version() + "]";
-            assert assertDocSoftDeleted(context.reader(), segmentDocID) : "Noop but soft_deletes field is not set [" + docRecord + "]";
-            return new Translog.NoOp(docRecord.seqNo(), docRecord.primaryTerm(), "null");
-        } else if (docRecord.isTombstone()) {
-            assert assertDocSoftDeleted(context.reader(), segmentDocID) : "Delete op but soft_deletes field is not set [" + docRecord + "]";
-            // For a slice index the tombstone _id IS the compound identity term, used as-is (routing-free); otherwise the
-            // plain id reproduces it.
-            return sliceEnabled
-                ? new Translog.Delete(idBytes, docRecord.seqNo(), docRecord.primaryTerm(), docRecord.version())
-                : new Translog.Delete(id, docRecord.seqNo(), docRecord.primaryTerm(), docRecord.version());
-        } else {
-            if (docRecord.hasRecoverySourceSize() == false) {
-                // TODO: Callers should ask for the range that source should be retained. Thus we should always
-                // check for the existence source once we make peer-recovery to send ops after the local checkpoint.
-                if (requiredFullRange) {
-                    throw new MissingHistoryOperationsException(
-                        "source not found for seqno=" + docRecord.seqNo() + " from_seqno=" + fromSeqNo + " to_seqno=" + toSeqNo
-                    );
-                } else {
-                    skippedOperations++;
-                    return null;
-                }
+        // The _id lives in binary doc values in columnar mode and in stored fields in document mode; these are mutually
+        // exclusive, so exactly one source is populated.
+        assert columnarId == false || fieldLoader.id() == null : "_id shouldn't be in stored fields when columnar";
+        assert columnarId || leafIdDocValues == null : "_id shouldn't be in doc values when not columnar";
+        // A tombstone and a live doc need different _id representations, so resolve each independently. Slice only
+        // affects the tombstone (whose identity is the compound term); a live doc always carries the plain user id.
+        return docRecord.isTombstone()
+            ? createTombstoneOperation(docRecord, fieldLoader, leafIdDocValues, segmentDocID, context)
+            : createIndexOperation(docRecord, fieldLoader, sourceLoader, routingDocValues, leafIdDocValues, segmentDocID);
+    }
+
+    private Translog.Operation createIndexOperation(
+        SearchRecord docRecord,
+        LeafStoredFieldLoader fieldLoader,
+        SourceLoader.Leaf sourceLoader,
+        SortedDocValues routingDocValues,
+        BinaryDocValues leafIdDocValues,
+        int segmentDocID
+    ) throws IOException {
+        if (docRecord.hasRecoverySourceSize() == false) {
+            // TODO: Callers should ask for the range that source should be retained. Thus we should always
+            // check for the existence source once we make peer-recovery to send ops after the local checkpoint.
+            if (requiredFullRange) {
+                throw new MissingHistoryOperationsException(
+                    "source not found for seqno=" + docRecord.seqNo() + " from_seqno=" + fromSeqNo + " to_seqno=" + toSeqNo
+                );
             }
-            var source = addSyntheticFields(sourceLoader.source(fieldLoader, segmentDocID), segmentDocID);
-            String routing = fieldLoader.routing();
-            if (routing == null && routingDocValues != null) {
-                routing = readRoutingFromDocValues(routingDocValues, segmentDocID);
-            }
-            return new Translog.Index(
-                id,
-                docRecord.seqNo(),
-                docRecord.primaryTerm(),
-                docRecord.version(),
-                source != null ? source.internalSourceRef() : null,
-                routing,
-                -1 // autogenerated timestamp
-            );
+            skippedOperations++;
+            return null;
         }
+        // A live doc's _id is the plain user id in every mode (a slice index stores the plain id, not the compound term,
+        // on live docs): from doc values in columnar mode, otherwise from the field loader.
+        final String id = columnarId ? decodeColumnarId(leafIdDocValues, segmentDocID) : fieldLoader.id();
+        var source = addSyntheticFields(sourceLoader.source(fieldLoader, segmentDocID), segmentDocID);
+        String routing = fieldLoader.routing();
+        if (routing == null && routingDocValues != null) {
+            routing = readRoutingFromDocValues(routingDocValues, segmentDocID);
+        }
+        return new Translog.Index(
+            id,
+            docRecord.seqNo(),
+            docRecord.primaryTerm(),
+            docRecord.version(),
+            source != null ? source.internalSourceRef() : null,
+            routing,
+            -1 // autogenerated timestamp
+        );
+    }
+
+    private Translog.Operation createTombstoneOperation(
+        SearchRecord docRecord,
+        LeafStoredFieldLoader fieldLoader,
+        BinaryDocValues leafIdDocValues,
+        int segmentDocID,
+        LeafReaderContext context
+    ) throws IOException {
+        if (sliceEnabled) {
+            // The slice tombstone's identity IS the compound (slice, id) term, used verbatim (routing-free): from doc
+            // values in columnar mode, otherwise read raw from stored fields (the field loader would mis-decode it).
+            final BytesRef uid = columnarId ? readColumnarUid(leafIdDocValues, segmentDocID) : readRawId(context, segmentDocID);
+            return uid == null ? noOp(docRecord, segmentDocID, context) : delete(uid, docRecord, segmentDocID, context);
+        }
+        // Otherwise the tombstone _id is the plain id, which Translog.Delete re-encodes into the identity term.
+        final String id = columnarId ? decodeColumnarId(leafIdDocValues, segmentDocID) : fieldLoader.id();
+        return id == null ? noOp(docRecord, segmentDocID, context) : delete(id, docRecord, segmentDocID, context);
+    }
+
+    private Translog.Operation noOp(SearchRecord docRecord, int segmentDocID, LeafReaderContext context) throws IOException {
+        assert docRecord.version() == 1L : "Noop tombstone should have version 1L; actual version [" + docRecord.version() + "]";
+        assert assertDocSoftDeleted(context.reader(), segmentDocID) : "Noop but soft_deletes field is not set [" + docRecord + "]";
+        return new Translog.NoOp(docRecord.seqNo(), docRecord.primaryTerm(), "null");
+    }
+
+    private Translog.Operation delete(BytesRef uid, SearchRecord docRecord, int segmentDocID, LeafReaderContext context)
+        throws IOException {
+        assert assertDocSoftDeleted(context.reader(), segmentDocID) : "Delete op but soft_deletes field is not set [" + docRecord + "]";
+        return new Translog.Delete(uid, docRecord.seqNo(), docRecord.primaryTerm(), docRecord.version());
+    }
+
+    private Translog.Operation delete(String id, SearchRecord docRecord, int segmentDocID, LeafReaderContext context) throws IOException {
+        assert assertDocSoftDeleted(context.reader(), segmentDocID) : "Delete op but soft_deletes field is not set [" + docRecord + "]";
+        return new Translog.Delete(id, docRecord.seqNo(), docRecord.primaryTerm(), docRecord.version());
+    }
+
+    /** Decode the plain id from the {@code _id} binary doc values (columnar mode), or {@code null} if absent. */
+    private static String decodeColumnarId(BinaryDocValues leafIdDocValues, int segmentDocID) throws IOException {
+        return leafIdDocValues.advanceExact(segmentDocID) ? Uid.decodeId(leafIdDocValues.binaryValue()) : null;
+    }
+
+    /** Copy the raw {@code _id} bytes from the binary doc values (a slice tombstone's compound term), or {@code null}. */
+    private static BytesRef readColumnarUid(BinaryDocValues leafIdDocValues, int segmentDocID) throws IOException {
+        return leafIdDocValues.advanceExact(segmentDocID) ? BytesRef.deepCopyOf(leafIdDocValues.binaryValue()) : null;
     }
 
     private static String readRoutingFromDocValues(SortedDocValues routingDocValues, int segmentDocID) throws IOException {

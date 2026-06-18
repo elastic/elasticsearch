@@ -7,6 +7,54 @@ setup:
         wait_for_events: languid
 
 ---
+"Test OTel SDK metrics fields are aggregatable":
+  - do:
+      allowed_warnings:
+        - "Parameter [default_metric] is deprecated and will be removed in a future version"
+      bulk:
+        index: metrics-apm.app.otel-sdk-testing
+        refresh: true
+        body:
+          - create: {}
+          - "@timestamp": "2017-06-22"
+            data_stream.type: metrics
+            data_stream.dataset: apm.app.otel-sdk
+            data_stream.namespace: testing
+            otel.sdk.exporter.span.exported: 42
+            otel.sdk.exporter.span.inflight: 7
+            otel.sdk.processor.span.processed: 100
+            otel.sdk.exporter.operation.duration:
+              counts: [1, 2, 3]
+              values: [0.5, 1.5, 5.0]
+  - is_false: errors
+  - do:
+      cluster.health:
+        wait_for_events: languid
+  - do:
+      search:
+        index: metrics-apm.app.otel-sdk-testing
+        body:
+          size: 0
+          aggs:
+            exported_sum:
+              sum:
+                field: otel.sdk.exporter.span.exported
+            inflight_sum:
+              sum:
+                field: otel.sdk.exporter.span.inflight
+            processed_sum:
+              sum:
+                field: otel.sdk.processor.span.processed
+            duration_histogram:
+              histogram:
+                field: otel.sdk.exporter.operation.duration
+                interval: 1
+  - match: { aggregations.exported_sum.value: 42 }
+  - match: { aggregations.inflight_sum.value: 7 }
+  - match: { aggregations.processed_sum.value: 100 }
+  - is_true: aggregations.duration_histogram.buckets
+
+---
 "Test metrics-apm.app-* dynamic mapping":
   - do:
       allowed_warnings:

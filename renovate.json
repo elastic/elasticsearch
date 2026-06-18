@@ -20,6 +20,10 @@
     "9.3",
     "8.19"
   ],
+  "ignorePaths": [
+    "build-tools-internal/gradle/wrapper/**",
+    "plugins/examples/gradle/wrapper/**"
+  ],
   "packageRules": [
     {
       "description": "Don't manage dependencies by default",
@@ -36,7 +40,7 @@
       "enabled": true
     },
     {
-      "description": "Gradle wrapper: one rolling PR per release train (e.g. 9.5.x patch lane and 9.6.x minor/RC lane). Renovate's built-in gradle-wrapper manager updates the root gradle/wrapper/gradle-wrapper.properties; the postUpgradeTasks step below runs `./gradlew wrapper` which (via the root build.gradle wrapper task's doLast) copies the properties to build-tools-internal/ and plugins/examples/ and refreshes minimumGradleVersion so all wrapper files stay in lockstep. `respectLatest: false` together with `ignoreUnstable: false` lets the same PR keep rolling forward through Gradle RCs/milestones until we hit GA, mirroring our previous manual workflow.",
+      "description": "Gradle wrapper: one rolling PR per release train (e.g. 9.5.x patch lane and 9.6.x minor/RC lane). The top-level ignorePaths excludes the non-root gradle-wrapper.properties files (build-tools-internal/ and plugins/examples/) so Renovate's built-in gradle-wrapper manager only detects and updates the root gradle/wrapper/gradle-wrapper.properties (fileMatch is additive and cannot be narrowed, hence ignorePaths). `respectLatest: false` together with `ignoreUnstable: false` lets the same PR keep rolling forward through Gradle RCs/milestones until we hit GA, mirroring our previous manual workflow.",
       "matchManagers": ["gradle-wrapper"],
       "matchBaseBranches": ["main"],
       "enabled": true,
@@ -49,24 +53,6 @@
       "commitMessageTopic": "Gradle wrapper {{{newMajor}}}.{{{newMinor}}}.{{{newPatch}}}",
       "schedule": ["at any time"],
       "labels": [":Delivery/Build", ">non-issue", "auto-backport"],
-      "postUpgradeTasks": {
-        "commands": [
-          "./gradlew wrapper"
-        ],
-        "executionMode": "branch",
-        "fileFilters": [
-          "gradle/wrapper/gradle-wrapper.properties",
-          "gradle/wrapper/gradle-wrapper.jar",
-          "gradlew",
-          "gradlew.bat",
-          "build-tools-internal/gradle/wrapper/gradle-wrapper.properties",
-          "build-tools-internal/src/main/resources/minimumGradleVersion",
-          "plugins/examples/gradle/wrapper/gradle-wrapper.properties",
-          "plugins/examples/gradle/wrapper/gradle-wrapper.jar",
-          "plugins/examples/gradlew",
-          "plugins/examples/gradlew.bat"
-        ]
-      }
     }
   ]
 }

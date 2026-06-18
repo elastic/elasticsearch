@@ -1201,8 +1201,17 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
          * @return true if successful, i.e., not evicted and data available, false if evicted
          */
         boolean tryRead(ByteBuffer buf, long offset) throws IOException {
+            return tryRead(buf, offset, SharedBytes.MADV_NORMAL);
+        }
+
+        /**
+         * Optimistically try to read from the region, applying the given madvise advice.
+         * @return true if successful, i.e., not evicted and data available, false if evicted
+         */
+        boolean tryRead(ByteBuffer buf, long offset, int advice) throws IOException {
             SharedBytes.IO ioRef = nonVolatileIO();
             if (ioRef != null) {
+                ioRef.madvise(advice);
                 int readBytes = ioRef.read(buf, blobCacheService.getRegionRelativePosition(offset));
                 if (isEvicted()) {
                     buf.position(buf.position() - readBytes);
@@ -1222,9 +1231,15 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
          * invoking the action when not available (not mmap'd, evicted, etc.).
          */
         boolean withByteBufferSlice(long offset, int length, CheckedConsumer<ByteBuffer, IOException> action) throws IOException {
+            return withByteBufferSlice(offset, length, action, SharedBytes.MADV_NORMAL);
+        }
+
+        boolean withByteBufferSlice(long offset, int length, CheckedConsumer<ByteBuffer, IOException> action, int advice)
+            throws IOException {
             SharedBytes.IO ioRef = nonVolatileIO();
             if (ioRef != null && tryIncRef()) {
                 try {
+                    ioRef.madvise(advice);
                     ByteBuffer slice = ioRef.byteBufferSlice(blobCacheService.getRegionRelativePosition(offset), length);
                     if (slice != null && isEvicted() == false) {
                         action.accept(slice);
@@ -1509,6 +1524,10 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
         }
 
         public boolean tryRead(ByteBuffer buf, long offset) throws IOException {
+            return tryRead(buf, offset, SharedBytes.MADV_NORMAL);
+        }
+
+        public boolean tryRead(ByteBuffer buf, long offset, int advice) throws IOException {
             assert assertOffsetsWithinFileLength(offset, buf.remaining(), length);
             final int startRegion = getRegion(offset);
             final long end = offset + buf.remaining();
@@ -1532,7 +1551,7 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
             if (region.tracker.checkAvailable(end - getRegionStart(startRegion)) == false) {
                 return false;
             }
-            boolean res = region.tryRead(buf, offset);
+            boolean res = region.tryRead(buf, offset, advice);
             lastAccessedRegion = res ? fileRegion : null;
             if (res && incrementReads) {
                 blobCacheMetrics.recordRead();
@@ -1547,6 +1566,11 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
          * {@code false} without invoking the action.
          */
         public boolean withByteBufferSlice(long offset, int length, CheckedConsumer<ByteBuffer, IOException> action) throws IOException {
+            return withByteBufferSlice(offset, length, action, SharedBytes.MADV_NORMAL);
+        }
+
+        public boolean withByteBufferSlice(long offset, int length, CheckedConsumer<ByteBuffer, IOException> action, int advice)
+            throws IOException {
             assert assertOffsetsWithinFileLength(offset, length, this.length);
             final int startRegion = getRegion(offset);
             final long end = offset + length;
@@ -1567,7 +1591,7 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
             if (region.tracker.checkAvailable(end - getRegionStart(startRegion)) == false) {
                 return false;
             }
-            boolean result = region.withByteBufferSlice(offset, length, action);
+            boolean result = region.withByteBufferSlice(offset, length, action, advice);
             if (result) {
                 lastAccessedRegion = fileRegion;
             }
@@ -1582,6 +1606,17 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
         @SuppressWarnings({ "unchecked", "rawtypes" })
         public boolean withByteBufferSlices(long[] offsets, int length, int count, CheckedConsumer<ByteBuffer[], IOException> action)
             throws IOException {
+            return withByteBufferSlices(offsets, length, count, action, SharedBytes.MADV_NORMAL);
+        }
+
+        @SuppressWarnings({ "unchecked", "rawtypes" })
+        public boolean withByteBufferSlices(
+            long[] offsets,
+            int length,
+            int count,
+            CheckedConsumer<ByteBuffer[], IOException> action,
+            int advice
+        ) throws IOException {
             if (DirectAccessInput.checkSlicesArgs(offsets, count)) {
                 return false;
             }
@@ -1618,6 +1653,7 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
                             return false;
                         }
                         held[heldCount++] = region;
+                        ioRef.madvise(advice);
                     }
 
                     results[i] = ioRef.byteBufferSlice(getRegionRelativePosition(offset), length);

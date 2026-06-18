@@ -620,6 +620,24 @@ public class ESVectorUtilTests extends BaseVectorizationTests {
         assertArrayEquals(expectedDistances, panamaDistances, 1e-3f * length);
     }
 
+    public void testSquareDistanceBulkRangeByte() {
+        int vectorSize = randomIntBetween(64, 2048);
+        int offset = randomIntBetween(0, vectorSize - 1);
+        int length = randomIntBetween(1, vectorSize - offset);
+        byte[] query = randomByteArrayOfLength(vectorSize);
+        byte[] v0 = randomByteArrayOfLength(vectorSize);
+        byte[] v1 = randomByteArrayOfLength(vectorSize);
+        byte[] v2 = randomByteArrayOfLength(vectorSize);
+        byte[] v3 = randomByteArrayOfLength(vectorSize);
+        float[] expectedDistances = new float[4];
+        float[] panamaDistances = new float[4];
+        defaultedProvider.getVectorUtilSupport().squareDistanceBulk(query, offset, v0, v1, v2, v3, 0, expectedDistances, length);
+        panamaProvider.getVectorUtilSupport().squareDistanceBulk(query, offset, v0, v1, v2, v3, 0, panamaDistances, length);
+        for (int i = 0; i < 4; i++) {
+            assertEquals(expectedDistances[i], panamaDistances[i], Math.abs(expectedDistances[i]) * 1e-3f);
+        }
+    }
+
     public void testDotProductBulk() {
         int vectorSize = randomIntBetween(1, 2048);
         float[] query = generateRandomVector(vectorSize);

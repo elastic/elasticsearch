@@ -248,6 +248,7 @@ sample_data            | 8268153.0
 ;
 
 // Reproducer for #151525.
+typeConflictShortUnmappedCastToInteger
 required_capability: optional_fields_v5
 
 SET unmapped_fields="load"\;

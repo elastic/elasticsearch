@@ -232,7 +232,6 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
 
     final class OngoingRecoveries {
 
-        // TODO: register setting in `BUILT_IN_CLUSTER_SETTINGS` as part of elasticsearch-team#2805
         private int maxConcurrentOutgoingRecoveries;
 
         private final Map<IndexShard, ShardRecoveryContext> activeRecoveries = new HashMap<>();
@@ -277,7 +276,7 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
             }
         }
 
-        /// Starts the recovery immediately if a slot is available, otherwise queues it for later.
+        /// Starts the recovery immediately if a slot is available and there are no pending items in queue, otherwise queues it for later.
         /// Returns the handler to start (non-null) if a slot was available, or null if the request was queued.
         RecoverySourceHandler addOrEnqueueNewRecovery(
             StartRecoveryRequest request,
@@ -289,7 +288,7 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
             synchronized (this) {
                 assert lifecycle.started();
                 ensureNoDuplicateAllocationId(request.targetAllocationId());
-                if (activeRecoveryHandlerCount < maxConcurrentOutgoingRecoveries) {
+                if (activeRecoveryHandlerCount < maxConcurrentOutgoingRecoveries && pendingRecoveries.isEmpty()) {
                     handler = addNewRecovery(request, task, shard);
                 } else {
                     shard.recoveryStats().incCurrentAsSourceQueued();
@@ -377,18 +376,46 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
         /// Called when an active recovery completes (successfully or not).
         /// Frees the throttling slot and starts any queued recoveries that now fit within the limit.
         void onRecoveryComplete(IndexShard shard, RecoverySourceHandler handler) {
-            final List<Tuple<PendingRecovery, RecoverySourceHandler>> eligibleRecoveries;
-            synchronized (this) {
-                remove(shard, handler);
-                eligibleRecoveries = dequeuePendingRecoveriesUptoLimit();
-            }
-            triggerRecovery(eligibleRecoveries);
+            remove(shard, handler);
+            startRecoveriesUpToLimit(true);
         }
 
-        private void triggerRecovery(List<Tuple<PendingRecovery, RecoverySourceHandler>> eligibleRecoveries) {
-            for (var pair : eligibleRecoveries) {
-                final PendingRecovery nextRecovery = pair.v1();
-                final RecoverySourceHandler nextHandler = pair.v2();
+        /// Updates the concurrency limit and, if the new limit is higher, drains any newly eligible pending recoveries.
+        void updateMaxConcurrentOutgoingRecoveries(int newMax) {
+            final boolean limitIncreased;
+            synchronized (this) {
+                final int oldMax = maxConcurrentOutgoingRecoveries;
+                maxConcurrentOutgoingRecoveries = newMax;
+                limitIncreased = oldMax < newMax;
+            }
+
+            // Release lock because `startRecoveriesUpToLimit` needs to trigger recoveries outside the synchronized block.
+            if (limitIncreased) {
+                startRecoveriesUpToLimit(false);
+            }
+        }
+
+        /// Dequeues and starts pending recoveries up to the max concurrency limit.
+        /// Acquires the lock once per dequeued recovery and triggers recovery in same loop, outside the lock.
+        ///
+        /// Notifies scheduling listeners if {@code onRecoveryCompleteContext} is true (a recovery just completed, freeing a slot)
+        /// or if at least one queued recovery was actually started. A limit increase when the queue is already
+        /// empty should pass {@code false} so that listeners are not notified spuriously.
+        void startRecoveriesUpToLimit(boolean onRecoveryCompleteContext) {
+            boolean recoveryDequeued = false;
+            while (true) {
+                final PendingRecovery nextRecovery;
+                final RecoverySourceHandler nextHandler;
+                synchronized (this) {
+                    if (activeRecoveryHandlerCount >= maxConcurrentOutgoingRecoveries || pendingRecoveries.isEmpty()) {
+                        break;
+                    }
+                    nextRecovery = pendingRecoveries.poll();
+                    recoveryDequeued = true;
+                    nextRecovery.shard().recoveryStats().decCurrentAsSourceQueued();
+                    metrics.outgoingPeerRecoveryDequeued();
+                    nextHandler = addNewRecovery(nextRecovery.request(), nextRecovery.task(), nextRecovery.shard());
+                }
                 logger.trace(
                     "[{}][{}] starting queued recovery to {}",
                     nextRecovery.request().shardId().getIndex().getName(),
@@ -399,36 +426,9 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
                     ActionListener.runAfter(nextRecovery.listener(), () -> onRecoveryComplete(nextRecovery.shard(), nextHandler))
                 );
             }
-
-            if (!eligibleRecoveries.isEmpty()) {
+            if (onRecoveryCompleteContext || recoveryDequeued) {
                 notifyRecoverySchedulingListeners();
             }
-        }
-
-        /// Updates the concurrency limit and, if the new limit is higher, drains any newly eligible pending recoveries.
-        void updateMaxConcurrentOutgoingRecoveries(int newMax) {
-            final List<Tuple<PendingRecovery, RecoverySourceHandler>> eligibleRecoveries;
-            synchronized (this) {
-                final int oldMax = maxConcurrentOutgoingRecoveries;
-                maxConcurrentOutgoingRecoveries = newMax;
-                eligibleRecoveries = oldMax < newMax ? dequeuePendingRecoveriesUptoLimit() : List.of();
-            }
-            triggerRecovery(eligibleRecoveries);
-        }
-
-        /// Dequeues all pending recoveries that fit within the current limit and registers them as active.
-        /// Must be called while holding the lock on {@code this}.
-        private List<Tuple<PendingRecovery, RecoverySourceHandler>> dequeuePendingRecoveriesUptoLimit() {
-            assert Thread.holdsLock(this);
-            final List<Tuple<PendingRecovery, RecoverySourceHandler>> result = new ArrayList<>();
-            while (activeRecoveryHandlerCount < maxConcurrentOutgoingRecoveries && pendingRecoveries.isEmpty() == false) {
-                final PendingRecovery nextRecovery = pendingRecoveries.poll();
-                nextRecovery.shard().recoveryStats().decCurrentAsSourceQueued();
-                metrics.outgoingPeerRecoveryDequeued();
-                final RecoverySourceHandler nextHandler = addNewRecovery(nextRecovery.request(), nextRecovery.task(), nextRecovery.shard());
-                result.add(Tuple.tuple(nextRecovery, nextHandler));
-            }
-            return result;
         }
 
         void cancelAllPendingRecoveries() {

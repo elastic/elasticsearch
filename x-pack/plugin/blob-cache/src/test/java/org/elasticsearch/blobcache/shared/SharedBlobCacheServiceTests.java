@@ -181,6 +181,231 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
         }
     }
 
+    public void testTimestampIsStampedOnCacheEntryAndSetOnce() throws IOException {
+        Settings settings = Settings.builder()
+            .put(NODE_NAME_SETTING.getKey(), "node")
+            .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(500)))
+            .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(100)))
+            .put(SharedBlobCacheService.SHARED_CACHE_INITIAL_DECAYS_SETTING.getKey(), 0)
+            .put("path.home", createTempDir())
+            .build();
+        final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
+        try (
+            NodeEnvironment environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
+            var cacheService = new SharedBlobCacheService<TestCacheKey>(
+                environment,
+                settings,
+                taskQueue.getThreadPool(),
+                taskQueue.getThreadPool().executor(ThreadPool.Names.GENERIC),
+                new BlobCacheMetrics(new RecordingMeterRegistry())
+            )
+        ) {
+            final var cacheKey = generateCacheKey();
+            final long timestamp = randomLongBetween(1, Long.MAX_VALUE - 1);
+
+            // a region created with an explicit timestamp is stamped with it
+            final var region0 = cacheService.get(cacheKey, size(250), 0, timestamp);
+            assertEquals(timestamp, region0.timestampMillis());
+
+            // the timestamp is set-once: fetching the same region again with a different timestamp keeps the original
+            final var region0Again = cacheService.get(cacheKey, size(250), 0, timestamp + 1);
+            assertSame(region0, region0Again);
+            assertEquals(timestamp, region0Again.timestampMillis());
+
+            // a region created without a timestamp defaults to UNKNOWN_TIMESTAMP
+            final var region1 = cacheService.get(cacheKey, size(250), 1);
+            assertEquals(SharedBlobCacheService.UNKNOWN_TIMESTAMP, region1.timestampMillis());
+        }
+    }
+
+    public void testFetchOverloadsStampTimestamp() throws Exception {
+        final long cacheSize = size(500L);
+        final long regionSize = size(100L);
+        Settings settings = Settings.builder()
+            .put(NODE_NAME_SETTING.getKey(), "node")
+            .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(cacheSize))
+            .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(regionSize))
+            .put(SharedBlobCacheService.SHARED_CACHE_INITIAL_DECAYS_SETTING.getKey(), 0)
+            .put("path.home", createTempDir())
+            .build();
+
+        final var threadPool = new TestThreadPool("test");
+        final var bulkExecutor = new StoppableExecutorServiceWrapper(threadPool.generic());
+
+        // a writer that simply reports the requested bytes as populated
+        final RangeMissingHandler writer = (
+            channel,
+            channelPos,
+            streamFactory,
+            relativePos,
+            length,
+            progressUpdater,
+            completionListener) -> completeWith(completionListener, () -> progressUpdater.accept(length));
+
+        try (
+            NodeEnvironment environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
+            var cacheService = new SharedBlobCacheService<>(
+                environment,
+                settings,
+                threadPool,
+                threadPool.executor(ThreadPool.Names.GENERIC),
+                BlobCacheMetrics.NOOP
+            )
+        ) {
+            {
+                final var cacheKey = generateCacheKey();
+                final long ts = randomLongBetween(1, Long.MAX_VALUE - 1);
+                final PlainActionFuture<Boolean> future = new PlainActionFuture<>();
+                cacheService.fetchRegion(cacheKey, 0, regionSize, writer, bulkExecutor, true, ts, future);
+                assertThat(future.get(10, TimeUnit.SECONDS), is(true));
+                assertEquals(ts, cacheService.get(cacheKey, regionSize, 0).timestampMillis());
+            }
+            {
+                final var cacheKey = generateCacheKey();
+                final long ts = randomLongBetween(1, Long.MAX_VALUE - 1);
+                final var range = ByteRange.of(0, regionSize);
+                final PlainActionFuture<Boolean> future = new PlainActionFuture<>();
+                cacheService.fetchRange(cacheKey, 0, range, regionSize, writer, bulkExecutor, true, ts, future);
+                assertThat(future.get(10, TimeUnit.SECONDS), is(true));
+                assertEquals(ts, cacheService.get(cacheKey, regionSize, 0).timestampMillis());
+            }
+            {
+                final var cacheKey = generateCacheKey();
+                final long ts = randomLongBetween(1, Long.MAX_VALUE - 1);
+                final PlainActionFuture<Boolean> future = new PlainActionFuture<>();
+                cacheService.maybeFetchRegion(cacheKey, 0, regionSize, writer, bulkExecutor, ts, future);
+                assertThat(future.get(10, TimeUnit.SECONDS), is(true));
+                assertEquals(ts, cacheService.get(cacheKey, regionSize, 0).timestampMillis());
+            }
+            {
+                final var cacheKey = generateCacheKey();
+                final long ts = randomLongBetween(1, Long.MAX_VALUE - 1);
+                final var range = ByteRange.of(0, regionSize);
+                final PlainActionFuture<Boolean> future = new PlainActionFuture<>();
+                cacheService.maybeFetchRange(cacheKey, 0, range, regionSize, writer, bulkExecutor, ts, future);
+                assertThat(future.get(10, TimeUnit.SECONDS), is(true));
+                assertEquals(ts, cacheService.get(cacheKey, regionSize, 0).timestampMillis());
+            }
+        } finally {
+            TestThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS);
+        }
+    }
+
+    public void testTimestampSetOnceAcrossFetchOverloads() throws Exception {
+        final long cacheSize = size(500L);
+        final long regionSize = size(100L);
+        Settings settings = Settings.builder()
+            .put(NODE_NAME_SETTING.getKey(), "node")
+            .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(cacheSize))
+            .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(regionSize))
+            .put(SharedBlobCacheService.SHARED_CACHE_INITIAL_DECAYS_SETTING.getKey(), 0)
+            .put("path.home", createTempDir())
+            .build();
+
+        final var threadPool = new TestThreadPool("test");
+        final var bulkExecutor = new StoppableExecutorServiceWrapper(threadPool.generic());
+
+        final RangeMissingHandler writer = (
+            channel,
+            channelPos,
+            streamFactory,
+            relativePos,
+            length,
+            progressUpdater,
+            completionListener) -> completeWith(completionListener, () -> progressUpdater.accept(length));
+
+        try (
+            NodeEnvironment environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
+            var cacheService = new SharedBlobCacheService<>(
+                environment,
+                settings,
+                threadPool,
+                threadPool.executor(ThreadPool.Names.GENERIC),
+                BlobCacheMetrics.NOOP
+            )
+        ) {
+            final var cacheKey = generateCacheKey();
+            final long firstTimestamp = randomLongBetween(1, Long.MAX_VALUE - 2);
+            final long secondTimestamp = firstTimestamp + 1;
+
+            // first population path to create region 0 wins the stamp
+            final PlainActionFuture<Boolean> firstFuture = new PlainActionFuture<>();
+            cacheService.fetchRegion(cacheKey, 0, regionSize, writer, bulkExecutor, true, firstTimestamp, firstFuture);
+            assertThat(firstFuture.get(10, TimeUnit.SECONDS), is(true));
+
+            // a later population path through a different overload carries a different timestamp, but the stamp is set-once
+            final PlainActionFuture<Boolean> secondFuture = new PlainActionFuture<>();
+            cacheService.maybeFetchRange(
+                cacheKey,
+                0,
+                ByteRange.of(0, regionSize),
+                regionSize,
+                writer,
+                bulkExecutor,
+                secondTimestamp,
+                secondFuture
+            );
+            secondFuture.get(10, TimeUnit.SECONDS);
+
+            assertEquals(firstTimestamp, cacheService.get(cacheKey, regionSize, 0).timestampMillis());
+        } finally {
+            TestThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS);
+        }
+    }
+
+    public void testGetCacheFileStampsTimestampOnRead() throws Exception {
+        Settings settings = Settings.builder()
+            .put(NODE_NAME_SETTING.getKey(), "node")
+            .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(500)))
+            .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(100)))
+            .put(SharedBlobCacheService.SHARED_CACHE_INITIAL_DECAYS_SETTING.getKey(), 0)
+            .put("path.home", createTempDir())
+            .build();
+        final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
+        final ExecutorService ioExecutor = Executors.newCachedThreadPool();
+        try (
+            NodeEnvironment environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
+            var cacheService = new SharedBlobCacheService<TestCacheKey>(
+                environment,
+                settings,
+                taskQueue.getThreadPool(),
+                ioExecutor,
+                new BlobCacheMetrics(new RecordingMeterRegistry())
+            )
+        ) {
+            final var cacheKey = generateCacheKey();
+            final long ts = randomLongBetween(1, Long.MAX_VALUE - 1);
+            final Path tempFile = createTempFile("test", "other");
+            final ByteBuffer writeBuffer = ByteBuffer.allocate(SharedBytes.PAGE_SIZE);
+
+            // the timestamp passed to getCacheFile is stamped on the region populated by the CacheFile read
+            final SharedBlobCacheService<TestCacheKey>.CacheFile cacheFile = cacheService.getCacheFile(
+                cacheKey,
+                1L,
+                SharedBlobCacheService.CacheMissHandler.NOOP,
+                ts
+            );
+
+            final int bytesRead = cacheFile.populateAndRead(
+                ByteRange.of(0L, 1L),
+                ByteRange.of(0L, 1L),
+                (channel, pos, relativePos, len) -> len,
+                (channel, channelPos, streamFactory, relativePos, len, progressUpdater, completionListener) -> {
+                    try (var in = Files.newInputStream(tempFile)) {
+                        SharedBytes.copyToCacheFileAligned(channel, in, channelPos, progressUpdater, writeBuffer.clear());
+                    }
+                    ActionListener.completeWith(completionListener, () -> null);
+                },
+                tempFile.toAbsolutePath().toString()
+            );
+            assertThat(bytesRead, is(1));
+
+            assertEquals(ts, cacheService.get(cacheKey, 1L, 0).timestampMillis());
+        } finally {
+            ThreadPool.terminate(ioExecutor, 10, TimeUnit.SECONDS);
+        }
+    }
+
     public void testCacheMissOnPopulate() throws Exception {
         Settings settings = Settings.builder()
             .put(NODE_NAME_SETTING.getKey(), "node")

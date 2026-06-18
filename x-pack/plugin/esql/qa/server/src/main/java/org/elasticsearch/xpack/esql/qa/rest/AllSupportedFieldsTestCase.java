@@ -286,6 +286,10 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
                 "Cluster has nodes that default to low-cardinality doc values in columnar index modes",
                 clusterHasFeature("mapper.keyword.columnar_default_high_cardinality")
             );
+            assumeTrue(
+                "Cluster has nodes that do not default to doc values for text fields in columnar index modes",
+                clusterHasFeature("mapper.text_fields.enable_doc_values_by_default_in_columnar_mode")
+            );
         }
         if (supportsNodeAssignment()) {
             for (Map.Entry<String, NodeInfo> e : localNodeToInfo().entrySet()) {

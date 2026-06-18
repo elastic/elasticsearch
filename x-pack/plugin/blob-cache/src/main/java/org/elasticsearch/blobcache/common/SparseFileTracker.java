@@ -176,7 +176,7 @@ public class SparseFileTracker {
             );
         }
 
-        if (subRange.end() <= complete) {
+        if (range.isEmpty() || subRange.end() <= complete) {
             listener.onResponse(null);
             return Optional.empty();
         }
@@ -586,7 +586,10 @@ public class SparseFileTracker {
             } else if (mergeWithNext) {
                 assert nextRange.isPending() == false : nextRange;
                 assert gapRange.end == nextRange.start : gapRange + " vs " + nextRange;
+                // Remove before mutating the sort key, then re-insert at the new position.
+                ranges.remove(nextRange);
                 nextRange.start = gapRange.start;
+                ranges.add(nextRange);
                 maybeUpdateCompletePointer(nextRange);
             } else {
                 maybeUpdateCompletePointer(gapRange);

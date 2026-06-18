@@ -10,6 +10,8 @@
 package org.elasticsearch.index.engine;
 
 import org.apache.lucene.codecs.StoredFieldsReader;
+import org.apache.lucene.index.BinaryDocValues;
+import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedDocValues;
@@ -86,7 +88,7 @@ public final class LuceneChangesSnapshot extends SearchBasedChangesSnapshot {
         super(mapperService, engineSearcher, searchBatchSize, fromSeqNo, toSeqNo, requiredFullRange, accessStats);
         this.creationThread = Assertions.ENABLED ? Thread.currentThread() : null;
         this.singleConsumer = singleConsumer;
-        this.parallelArray = new ParallelArray(this.searchBatchSize);
+        this.parallelArray = new ParallelArray(this.searchBatchSize, columnarId);
         this.lastSeenSeqNo = fromSeqNo - 1;
         final TopDocs topDocs = nextTopDocs();
         this.maxDocIndex = topDocs.scoreDocs.length;
@@ -173,6 +175,7 @@ public final class LuceneChangesSnapshot extends SearchBasedChangesSnapshot {
             CombinedDocValues combinedDocValues = null;
             LeafReaderContext leaf = null;
             SortedDocValues routingDocValues = null;
+            BinaryDocValues idDocValues = null;
             for (ScoreDoc scoreDoc : scoreDocs) {
                 if (scoreDoc.doc >= docBase + maxDoc) {
                     do {
@@ -183,6 +186,9 @@ public final class LuceneChangesSnapshot extends SearchBasedChangesSnapshot {
                     combinedDocValues = new CombinedDocValues(leaf.reader());
                     if (ordinalToRoutingLookup != null) {
                         routingDocValues = leaf.reader().getSortedDocValues(RoutingFieldMapper.NAME);
+                    }
+                    if (parallelArray.columnarIds != null) {
+                        idDocValues = DocValues.getBinary(leaf.reader(), IdFieldMapper.NAME);
                     }
                 }
                 final int segmentDocID = scoreDoc.doc - docBase;
@@ -202,6 +208,9 @@ public final class LuceneChangesSnapshot extends SearchBasedChangesSnapshot {
                     } else {
                         parallelArray.routingOrdinals[index] = -1;
                     }
+                }
+                if (idDocValues != null && idDocValues.advanceExact(segmentDocID)) {
+                    parallelArray.columnarIds[index] = BytesRef.deepCopyOf(idDocValues.binaryValue());
                 }
             }
             // now sort back based on the shardIndex. we use this to store the previous index
@@ -282,10 +291,24 @@ public final class LuceneChangesSnapshot extends SearchBasedChangesSnapshot {
             routing = fields.routing();
         }
 
-        // For a slice index the raw _id bytes are the compound term on tombstones and the plain encodeId(id) on live
-        // docs. The plain user id (for the noop check and the Index op) decodes from the live doc's plain _id.
-        final BytesRef idBytes = sliceEnabled ? ((SliceAwareFieldsVisitor) fields).idBytes() : null;
-        final String id = sliceEnabled ? (idBytes == null ? null : Uid.decodeId(idBytes)) : fields.id();
+        // Resolve _id. For a slice index the raw _id bytes are the compound term on tombstones and the plain
+        // encodeId(id) on live docs (the plain user id, for the noop check and the Index op, decodes from a live doc's
+        // plain _id). For a columnar index the _id is read from doc values; otherwise from stored fields. NoOp
+        // tombstones have no _id at all (neither stored nor doc values); id stays null for them.
+        final BytesRef idBytes;
+        final String id;
+        if (sliceEnabled) {
+            idBytes = ((SliceAwareFieldsVisitor) fields).idBytes();
+            id = idBytes == null ? null : Uid.decodeId(idBytes);
+        } else if (parallelArray.columnarIds != null) {
+            assert fields.id() == null : "id shouldn't exist in stored fields if doc_values is enabled for _id field";
+            idBytes = null;
+            BytesRef encoded = parallelArray.columnarIds[docIndex];
+            id = encoded == null ? null : Uid.decodeId(encoded);
+        } else {
+            idBytes = null;
+            id = fields.id();
+        }
 
         final Translog.Operation op;
         final boolean isTombstone = parallelArray.isTombStone[docIndex];
@@ -387,9 +410,10 @@ public final class LuceneChangesSnapshot extends SearchBasedChangesSnapshot {
         final boolean[] isTombStone;
         final boolean[] hasRecoverySource;
         final int[] routingOrdinals;
+        final BytesRef[] columnarIds;
         boolean useSequentialStoredFieldsReader = false;
 
-        ParallelArray(int size) {
+        ParallelArray(int size, boolean columnarId) {
             docID = new int[size];
             version = new long[size];
             seqNo = new long[size];
@@ -399,6 +423,11 @@ public final class LuceneChangesSnapshot extends SearchBasedChangesSnapshot {
             routingOrdinals = new int[size];
             Arrays.fill(routingOrdinals, -1);
             leafReaderContexts = new LeafReaderContext[size];
+            if (columnarId) {
+                columnarIds = new BytesRef[size];
+            } else {
+                columnarIds = null;
+            }
         }
     }
 

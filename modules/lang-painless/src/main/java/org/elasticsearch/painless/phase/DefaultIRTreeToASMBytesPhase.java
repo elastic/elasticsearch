@@ -136,6 +136,7 @@ import org.elasticsearch.painless.symbol.IRDecorations.IRDInstanceBinding;
 import org.elasticsearch.painless.symbol.IRDecorations.IRDInstanceType;
 import org.elasticsearch.painless.symbol.IRDecorations.IRDIterableName;
 import org.elasticsearch.painless.symbol.IRDecorations.IRDIterableType;
+import org.elasticsearch.painless.symbol.IRDecorations.IRDMaxAllocationBytes;
 import org.elasticsearch.painless.symbol.IRDecorations.IRDMaxLoopCounter;
 import org.elasticsearch.painless.symbol.IRDecorations.IRDMethod;
 import org.elasticsearch.painless.symbol.IRDecorations.IRDModifiers;
@@ -264,6 +265,37 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
             pollCancellation.endMethod();
         }
 
+        boolean needsAllocBytesField = irClassNode.getFunctionsNodes()
+            .stream()
+            .anyMatch(f -> f.getDecorationValueOrDefault(IRDMaxAllocationBytes.class, -1L) > 0L);
+
+        if (needsAllocBytesField) {
+            // private long $allocBytes — the running heuristic allocation total, accessed only by the generated
+            // $incAllocBytes/getAllocBytes overrides below and reset at the execute entry.
+            classVisitor.visitField(Opcodes.ACC_PRIVATE, WriterConstants.ALLOC_BYTES_FIELD, "J", null, null).visitEnd();
+
+            // public long $incAllocBytes(long bytes) { return this.$allocBytes += bytes; }
+            MethodWriter incAllocBytes = classWriter.newMethodWriter(Opcodes.ACC_PUBLIC, WriterConstants.INC_ALLOC_BYTES);
+            incAllocBytes.visitCode();
+            incAllocBytes.loadThis();
+            incAllocBytes.dup();
+            incAllocBytes.getField(WriterConstants.CLASS_TYPE, WriterConstants.ALLOC_BYTES_FIELD, Type.LONG_TYPE);
+            incAllocBytes.loadArg(0);
+            incAllocBytes.math(MethodWriter.ADD, Type.LONG_TYPE);
+            incAllocBytes.visitInsn(Opcodes.DUP2_X1);
+            incAllocBytes.putField(WriterConstants.CLASS_TYPE, WriterConstants.ALLOC_BYTES_FIELD, Type.LONG_TYPE);
+            incAllocBytes.returnValue();
+            incAllocBytes.endMethod();
+
+            // public long getAllocBytes() { return this.$allocBytes; }
+            MethodWriter getAllocBytes = classWriter.newMethodWriter(Opcodes.ACC_PUBLIC, WriterConstants.GET_ALLOC_BYTES);
+            getAllocBytes.visitCode();
+            getAllocBytes.loadThis();
+            getAllocBytes.getField(WriterConstants.CLASS_TYPE, WriterConstants.ALLOC_BYTES_FIELD, Type.LONG_TYPE);
+            getAllocBytes.returnValue();
+            getAllocBytes.endMethod();
+        }
+
         // Write the constructor:
         MethodWriter constructor = classWriter.newMethodWriter(Opcodes.ACC_PUBLIC, init);
         constructor.visitCode();
@@ -371,6 +403,15 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
             methodWriter.ifNull(skipEntry);
             methodWriter.writeCancellationPoll(writeScope.getInternalVariable("scriptThis").getSlot(), cancelRunnable.getSlot());
             methodWriter.mark(skipEntry);
+        }
+
+        // Reset the per-instance allocation counter at the entry of the execute method so each execution starts fresh.
+        // The entry method is the single non-static method named "execute"; user functions are mangled and lambdas are static.
+        long maxAllocationBytes = irFunctionNode.getDecorationValueOrDefault(IRDMaxAllocationBytes.class, -1L);
+        if (maxAllocationBytes > 0L && irFunctionNode.hasCondition(IRCStatic.class) == false && "execute".equals(method.getName())) {
+            methodWriter.loadThis();
+            methodWriter.push(0L);
+            methodWriter.putField(WriterConstants.CLASS_TYPE, WriterConstants.ALLOC_BYTES_FIELD, Type.LONG_TYPE);
         }
 
         if (maxLoopCounter > 0) {

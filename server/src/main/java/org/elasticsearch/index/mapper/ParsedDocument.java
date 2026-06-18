@@ -76,7 +76,7 @@ public class ParsedDocument {
      */
     // used by tests
     public static ParsedDocument deleteTombstone(SeqNoFieldMapper.SeqNoIndexOptions seqNoIndexOptions, String id) {
-        return deleteTombstone(seqNoIndexOptions, false /* ignored */, false, id, null /* ignored */);
+        return deleteTombstone(seqNoIndexOptions, false /* ignored */, false, false, id, null /* ignored */);
     }
 
     /**
@@ -89,6 +89,7 @@ public class ParsedDocument {
         SeqNoFieldMapper.SeqNoIndexOptions seqNoIndexOptions,
         boolean useDocValuesSkipper,
         boolean useSyntheticId,
+        boolean useColumnarId,
         String id,
         BytesRef uid
     ) {
@@ -121,6 +122,8 @@ public class ParsedDocument {
             );
             document.add(field);
 
+        } else if (useColumnarId) {
+            document.add(ProvidedIdFieldMapper.columnarIdField(id));
         } else {
             // Use standard _id field (indexed and stored, some indices also trim the stored field at some point)
             // When uid is provided (slice-enabled indices), use the composite uid for the Lucene term. The field must be

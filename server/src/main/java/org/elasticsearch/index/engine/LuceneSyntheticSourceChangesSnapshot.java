@@ -11,6 +11,8 @@ package org.elasticsearch.index.engine;
 
 import com.carrotsearch.hppc.IntArrayList;
 
+import org.apache.lucene.index.BinaryDocValues;
+import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedDocValues;
@@ -28,6 +30,7 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMetrics;
 import org.elasticsearch.index.mapper.SourceLoader;
+import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.translog.Translog;
 
 import java.io.IOException;
@@ -200,6 +203,7 @@ public final class LuceneSyntheticSourceChangesSnapshot extends SearchBasedChang
         LeafStoredFieldLoader leafFieldLoader = null;
         SourceLoader.Leaf leafSourceLoader = null;
         SortedDocValues leafRoutingDocValues = null;
+        BinaryDocValues leafIdDocValues = null;
         for (int i = 0; i < documentRecords.size(); i++) {
             SearchRecord docRecord = documentRecords.get(i);
             if (docRecord.docID() >= docBase + maxDoc) {
@@ -238,6 +242,9 @@ public final class LuceneSyntheticSourceChangesSnapshot extends SearchBasedChang
                 if (routingDocValues) {
                     leafRoutingDocValues = leafReaderContext.reader().getSortedDocValues(RoutingFieldMapper.NAME);
                 }
+                if (columnarId) {
+                    leafIdDocValues = DocValues.getBinary(leafReaderContext.reader(), IdFieldMapper.NAME);
+                }
                 setNextSyntheticFieldsReader(leafReaderContext);
             }
             int segmentDocID = docRecord.docID() - docBase;
@@ -247,6 +254,7 @@ public final class LuceneSyntheticSourceChangesSnapshot extends SearchBasedChang
                 leafFieldLoader,
                 leafSourceLoader,
                 leafRoutingDocValues,
+                leafIdDocValues,
                 segmentDocID,
                 leafReaderContext
             );
@@ -259,23 +267,40 @@ public final class LuceneSyntheticSourceChangesSnapshot extends SearchBasedChang
         LeafStoredFieldLoader fieldLoader,
         SourceLoader.Leaf sourceLoader,
         SortedDocValues routingDocValues,
+        BinaryDocValues leafIdDocValues,
         int segmentDocID,
         LeafReaderContext context
     ) throws IOException {
-        if (docRecord.isTombstone()) {
-            // For a slice index the tombstone _id is the compound term (not a plain encodeId), so read the raw bytes
-            // and use them directly as the Delete's identity term; a noop tombstone has no _id field.
-            final BytesRef sliceIdBytes = sliceEnabled ? readRawId(context, segmentDocID) : null;
-            final boolean hasId = sliceEnabled ? sliceIdBytes != null : fieldLoader.id() != null;
-            if (hasId == false) {
-                assert docRecord.version() == 1L : "Noop tombstone should have version 1L; actual version [" + docRecord.version() + "]";
-                assert assertDocSoftDeleted(context.reader(), segmentDocID) : "Noop but soft_deletes field is not set [" + docRecord + "]";
-                return new Translog.NoOp(docRecord.seqNo(), docRecord.primaryTerm(), "null");
-            }
+        // Resolve _id. A slice index stores the plain encodeId(id) on a live doc and the compound identity term on a
+        // tombstone: read the raw bytes so a tombstone's compound term is used as-is for the Delete (routing-free), and
+        // decode the plain id (via the field loader) only for a live doc's Index op. A columnar index reads _id from doc
+        // values; otherwise it comes from stored fields. A noop tombstone has no _id at all.
+        final BytesRef sliceIdBytes;
+        final String id;
+        if (sliceEnabled) {
+            sliceIdBytes = readRawId(context, segmentDocID);
+            id = docRecord.isTombstone() ? null : fieldLoader.id();
+        } else if (columnarId) {
+            assert fieldLoader.id() == null : "id shouldn't exist in stored fields if id mode is columnar";
+            sliceIdBytes = null;
+            id = leafIdDocValues.advanceExact(segmentDocID) ? Uid.decodeId(leafIdDocValues.binaryValue()) : null;
+        } else {
+            assert leafIdDocValues == null : "id shouldn't exist in doc values if id mode is document";
+            sliceIdBytes = null;
+            id = fieldLoader.id();
+        }
+        final boolean noId = sliceEnabled ? sliceIdBytes == null : id == null;
+        if (docRecord.isTombstone() && noId) {
+            assert docRecord.version() == 1L : "Noop tombstone should have version 1L; actual version [" + docRecord.version() + "]";
+            assert assertDocSoftDeleted(context.reader(), segmentDocID) : "Noop but soft_deletes field is not set [" + docRecord + "]";
+            return new Translog.NoOp(docRecord.seqNo(), docRecord.primaryTerm(), "null");
+        } else if (docRecord.isTombstone()) {
             assert assertDocSoftDeleted(context.reader(), segmentDocID) : "Delete op but soft_deletes field is not set [" + docRecord + "]";
+            // For a slice index the tombstone _id IS the compound identity term, used as-is (routing-free); otherwise the
+            // plain id reproduces it.
             return sliceEnabled
                 ? new Translog.Delete(sliceIdBytes, docRecord.seqNo(), docRecord.primaryTerm(), docRecord.version())
-                : new Translog.Delete(fieldLoader.id(), docRecord.seqNo(), docRecord.primaryTerm(), docRecord.version());
+                : new Translog.Delete(id, docRecord.seqNo(), docRecord.primaryTerm(), docRecord.version());
         } else {
             if (docRecord.hasRecoverySourceSize() == false) {
                 // TODO: Callers should ask for the range that source should be retained. Thus we should always
@@ -295,7 +320,7 @@ public final class LuceneSyntheticSourceChangesSnapshot extends SearchBasedChang
                 routing = readRoutingFromDocValues(routingDocValues, segmentDocID);
             }
             return new Translog.Index(
-                fieldLoader.id(),
+                id,
                 docRecord.seqNo(),
                 docRecord.primaryTerm(),
                 docRecord.version(),

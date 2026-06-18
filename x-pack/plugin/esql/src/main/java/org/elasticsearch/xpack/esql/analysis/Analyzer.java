@@ -651,9 +651,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                         return plan.withUnresolvedMessage(e.getMessage());
                     }
                     Class<?> type = info.getFields().get(dp.fieldName());
-                    if (type != null) {
-                        filteredOutputFields.put(dp.fieldName(), type);
-                    }
+                    assert type != null : "valid property [" + dp.fieldName() + "] has no type in the database fields map";
+                    filteredOutputFields.put(dp.fieldName(), type);
                 }
             }
 

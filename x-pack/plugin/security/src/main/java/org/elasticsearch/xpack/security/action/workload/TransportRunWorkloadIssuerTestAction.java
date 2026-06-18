@@ -75,7 +75,7 @@ public class TransportRunWorkloadIssuerTestAction extends HandledTransportAction
                 .header("Content-Type", "application/json")
                 .POST(HttpRequest.BodyPublishers.ofString("""
                     {
-                        "aud":"test_audience"
+                        "audience":"test_audience"
                     }
                     """))
                 .build();

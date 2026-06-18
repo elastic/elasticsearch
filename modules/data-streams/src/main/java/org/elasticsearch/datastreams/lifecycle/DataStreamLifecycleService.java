@@ -700,9 +700,9 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
      * replacing an index in the data stream, deleting a source index, or downsampling itself) so these indices can be skipped in case
      * there are other operations to be executed by the data stream lifecycle after downsampling.
      *
-     * At most {@link #DATA_STREAM_MAX_DOWNSAMPLING_INDICES_IN_PROGRESS_SETTING} new downsampling operations are triggered per data stream
-     * per run. {@code activeDownsamplingCount} represents the number of backing indices already being downsampled (via persistent tasks)
-     * and counts against this limit.
+     * At most {@link #DATA_STREAM_MAX_DOWNSAMPLING_INDICES_IN_PROGRESS_SETTING} downsampling operations are triggered per data stream
+     * concurrently. {@code activeDownsamplingCount} represents the number of backing indices already being downsampled
+     * (via persistent tasks) and counts against this limit.
      */
     Set<Index> maybeExecuteDownsampling(
         ProjectState projectState,
@@ -811,7 +811,8 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                     lastRound,
                     downsamplingMethod,
                     backingIndex,
-                    targetDownsampleIndexMeta.getIndex()
+                    targetDownsampleIndexMeta.getIndex(),
+                    canTriggerNewDownsampling
                 );
                 if (downsamplingNotComplete.isEmpty() == false) {
                     return sourceIndex;
@@ -902,7 +903,8 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
         DataStreamLifecycle.DownsamplingRound lastRound,
         DownsampleConfig.SamplingMethod downsamplingMethod,
         IndexMetadata backingIndex,
-        Index downsampleIndex
+        Index downsampleIndex,
+        boolean canTriggerNewDownsampling
     ) {
         Set<Index> affectedIndices = new HashSet<>();
         String indexName = backingIndex.getIndex().getName();
@@ -931,25 +933,15 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                 yield affectedIndices;
             }
             case STARTED -> {
-                // we'll wait for this round to complete
-                // TODO add support for cancelling a current in-progress operation if another, later, round matches
-                logger.trace(
-                    "Data stream lifecycle service waits for index [{}] to be downsampled. Current status is [{}] and the "
-                        + "downsample index name is [{}]",
-                    indexName,
-                    STARTED,
-                    downsampleIndexName
-                );
-                // this request here might seem weird, but hear me out:
-                // if we triggered a downsample operation, and then had a master failover (so DSL starts from scratch)
-                // we can't really find out if the downsampling persistent task failed (if it was successful, no worries, the next case
-                // SUCCESS branch will catch it and we will cruise forward)
-                // if the downsampling persistent task failed, we will find out only via re-issuing the downsample request (and we will
-                // continue to re-issue the request until we get SUCCESS)
-
-                // NOTE that the downsample request is made through the deduplicator so it will only really be executed if
-                // there isn't one already in-flight. This can happen if a previous request timed-out, failed, or there was a
-                // master failover and data stream lifecycle needed to restart
+                // Being here means that we have a downsampled index created, but there is no persistent task yet (otherwise
+                // we would have skipped the index).
+                // There could be at least two things here at play:
+                // - the downsampling request is in progress, it has created the downsampling target, but it hasn't kick-started the
+                // persistent task yet. In this case, the deduplicator will stop this from being re-executed.
+                // - there was a disruption while the downsampling request was in progress, for example, master failover or a failure.
+                // In this case, we re-issue the downsample request to capture the error.
+                // This part is not protected by the floodgate on purpose. It is possible that if DLM runs are very close to each other
+                // we might miss counting this in-progress request, but there has been an error we prefer to surface it asap.
                 downsampleIndexOnce(currentRound, downsamplingMethod, projectId, backingIndex, downsampleIndexName);
                 affectedIndices.add(backingIndex.getIndex());
                 yield affectedIndices;

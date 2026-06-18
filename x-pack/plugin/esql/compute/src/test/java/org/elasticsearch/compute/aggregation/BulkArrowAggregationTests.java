@@ -7,6 +7,7 @@
 
 package org.elasticsearch.compute.aggregation;
 
+import org.apache.arrow.memory.ArrowBuf;
 import org.apache.arrow.memory.BufferAllocator;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
@@ -74,6 +75,45 @@ public class BulkArrowAggregationTests extends ESTestCase {
             }
         }
         assertEquals(expected, sumIntArrowMasked(values, mask));
+    }
+
+    /**
+     * Feeds a deliberately misaligned int buffer through the real bulk Arrow segment path.
+     * <p>
+     * External Arrow producers are only <em>recommended</em> (not required) to pad each buffer to its
+     * element width, and the Arrow IPC reader slices the shared record-batch body at whatever byte
+     * offsets the producer wrote, so a vector's data buffer can start on an address that is not a
+     * multiple of the element size. The JDK enforces {@link java.lang.foreign.ValueLayout} alignment in
+     * software, so the segment reduction must read through an <em>unaligned</em> layout; with an aligned
+     * layout the very first {@code getAtIndex} throws {@link IllegalArgumentException}. This is the
+     * regression that {@code JAVA_INT_UNALIGNED} (vs {@code JAVA_INT}) guards against.
+     */
+    public void testSumIntOverMisalignedArrowBuffer() {
+        int positions = between(1, 1000);
+        long expected = 0;
+        // One element of slack so the data can start one byte into the allocation.
+        try (ArrowBuf base = allocator.buffer((long) (positions + 1) * Integer.BYTES)) {
+            final long misalignByteOffset = 1; // not a multiple of 4: base + 1 is not int-aligned
+            for (int i = 0; i < positions; i++) {
+                int v = between(-1000, 1000);
+                base.setInt(misalignByteOffset + (long) i * Integer.BYTES, v);
+                expected += v;
+            }
+            ArrowBuf misaligned = base.slice(misalignByteOffset, (long) positions * Integer.BYTES);
+            assertNotEquals("buffer must be misaligned for this test to be meaningful", 0, misaligned.memoryAddress() % Integer.BYTES);
+            // The vector/block releases this reference once on close; balance it against the try-with-resources base.
+            misaligned.getReferenceManager().retain();
+            DriverContext ctx = driverContext();
+            try (
+                IntBlock block = new IntArrowBufVector(misaligned, positions, blockFactory).asBlock();
+                BooleanVector mask = blockFactory.newConstantBooleanVector(true, positions);
+                SumIntAggregatorFunction agg = new SumIntAggregatorFunctionSupplier().aggregator(ctx, List.of(0))
+            ) {
+                assertTrue("expected the bulk segment path", block.asVector() instanceof IntArrowBufVector);
+                agg.addRawInput(new Page(block), mask);
+                assertEquals(expected, evaluateLong(agg, ctx));
+            }
+        }
     }
 
     private long sumIntArrow(int[] values) {

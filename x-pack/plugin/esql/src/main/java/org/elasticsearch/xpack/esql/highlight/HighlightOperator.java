@@ -14,6 +14,7 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.uhighlight.CustomSeparatorBreakIterator;
 import org.apache.lucene.search.uhighlight.PassageFormatter;
+import org.apache.lucene.search.uhighlight.SplittingBreakIterator;
 import org.apache.lucene.search.uhighlight.UnifiedHighlighter;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.settings.Settings;
@@ -152,10 +153,17 @@ public class HighlightOperator extends AbstractPageMappingOperator {
             this.breakIteratorSupplier = () -> new CustomSeparatorBreakIterator(CustomUnifiedHighlighter.MULTIVAL_SEP_CHAR);
         } else {
             // Fragment by sentence, bounded to fragment_size characters when a positive size is requested.
-            this.breakIteratorSupplier = fragmentSize > 0
-                ? () -> BoundedBreakIteratorScanner.getSentence(Locale.ROOT, fragmentSize)
-                : () -> BreakIterator.getSentenceInstance(Locale.ROOT);
+            this.breakIteratorSupplier = () -> new SplittingBreakIterator(
+                sentenceBreakIterator(),
+                CustomUnifiedHighlighter.MULTIVAL_SEP_CHAR
+            );
         }
+    }
+
+    private BreakIterator sentenceBreakIterator() {
+        return fragmentSize > 0
+            ? BoundedBreakIteratorScanner.getSentence(Locale.ROOT, fragmentSize)
+            : BreakIterator.getSentenceInstance(Locale.ROOT);
     }
 
     @Override

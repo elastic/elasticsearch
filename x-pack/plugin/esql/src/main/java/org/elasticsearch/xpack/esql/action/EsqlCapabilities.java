@@ -3122,6 +3122,12 @@ public class EsqlCapabilities {
         HIGHLIGHT_V0(Build.current().isSnapshot()),
 
         /**
+         * Support for executing the {@code HIGHLIGHT} command and exposing generated {@code highlight_*} columns.
+         * Snapshot-only.
+         */
+        HIGHLIGHT_V1(Build.current().isSnapshot()),
+
+        /**
          * Support for PromQL {@code histogram_quantile()} over classic histograms with {@code le} buckets.
          */
         PROMQL_HISTOGRAM_QUANTILE,

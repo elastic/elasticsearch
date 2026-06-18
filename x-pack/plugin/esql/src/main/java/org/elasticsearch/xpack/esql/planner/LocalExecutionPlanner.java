@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.planner;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.highlight.DefaultEncoder;
 import org.apache.lucene.search.highlight.Encoder;
@@ -1151,6 +1152,9 @@ public class LocalExecutionPlanner {
         // TODO: support more query shapes here (phrase, fuzzy, wildcard, QSTR, KQL, MATCH, MATCH_PHRASE) instead of
         // treating the query text as a bag of words.
         Query query = new QueryBuilder(analyzer).createBooleanQuery(HighlightOperator.CONTENT_FIELD, queryText, BooleanClause.Occur.SHOULD);
+        if (query == null) {
+            query = new MatchNoDocsQuery("HIGHLIGHT query produced no terms");
+        }
 
         // TODO: honour boundary_scanner*, order, max_analyzed_offset, and phrase_limit once HighlightOptions exposes them.
         HighlightOptions options = HighlightOptions.from(highlight.options(), context.foldCtx());

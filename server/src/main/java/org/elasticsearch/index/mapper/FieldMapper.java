@@ -338,9 +338,7 @@ public abstract class FieldMapper extends Mapper {
                 return;
             }
         }
-        throw new IllegalArgumentException(
-            "Field [" + fullPath + "] is configured with [nullability=false] but encountered a null value"
-        );
+        throw new IllegalArgumentException("Field [" + fullPath + "] is configured with [nullability=false] but encountered a null value");
     }
 
     /**

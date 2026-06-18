@@ -22,6 +22,7 @@ import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleService;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.repositories.RepositoriesService;
@@ -133,7 +134,7 @@ class DLMFrozenCleanupService extends AbstractDLMPeriodicMasterOnlyService {
         return projectMetadata.indices()
             .values()
             .stream()
-            .filter(indexMetadata -> DLMConvertToFrozen.DLM_CREATED_SETTING.get(indexMetadata.getSettings()))
+            .filter(indexMetadata -> DataStreamLifecycleService.DLM_CREATED_SETTING.get(indexMetadata.getSettings()))
             .map(IndexMetadata::getIndex)
             .map(Index::getName)
             .filter(indexName -> isIndexOrphaned(indexName, projectMetadata))

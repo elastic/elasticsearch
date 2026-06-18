@@ -12,12 +12,8 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.StoredField;
-import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexOptions;
-import org.apache.lucene.index.IndexWriter;
-import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.store.ByteBuffersDirectory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Strings;
@@ -33,7 +29,6 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.engine.SearchBasedChangesSnapshot;
-import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
 import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
 import org.elasticsearch.index.mapper.blockloader.ConstantNull;
 import org.elasticsearch.index.query.QueryShardException;
@@ -107,15 +102,6 @@ public class SourceFieldMapper extends MetadataFieldMapper {
 
     private static final SourceFieldMapper SYNTHETIC = new SourceFieldMapper(
         Mode.SYNTHETIC,
-        Explicit.IMPLICIT_TRUE,
-        Strings.EMPTY_ARRAY,
-        Strings.EMPTY_ARRAY,
-        false,
-        false
-    );
-
-    private static final SourceFieldMapper COLUMNAR_STORED = new SourceFieldMapper(
-        Mode.COLUMNAR_STORED,
         Explicit.IMPLICIT_TRUE,
         Strings.EMPTY_ARRAY,
         Strings.EMPTY_ARRAY,
@@ -326,7 +312,16 @@ public class SourceFieldMapper extends MetadataFieldMapper {
             case SYNTHETIC -> SYNTHETIC;
             case STORED -> STORED;
             case DISABLED -> DISABLED;
-            case COLUMNAR_STORED -> COLUMNAR_STORED;
+            // COLUMNAR_STORED gets its own instance per mapping version so ColumnarSourceWriter can cache
+            // instances of SourceLoader.Synthetic and related classes without conflating state across indices.
+            case COLUMNAR_STORED -> new SourceFieldMapper(
+                Mode.COLUMNAR_STORED,
+                Explicit.IMPLICIT_TRUE,
+                Strings.EMPTY_ARRAY,
+                Strings.EMPTY_ARRAY,
+                false,
+                false
+            );
         };
     }
 
@@ -393,6 +388,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
     private final String[] includes;
     private final String[] excludes;
     private final SourceFilter sourceFilter;
+    private final ColumnarSourceWriter columnarSourceWriter;
 
     private SourceFieldMapper(
         Mode mode,
@@ -411,6 +407,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         this.complete = stored() && sourceFilter == null;
         this.serializeMode = serializeMode;
         this.sourceModeIsNoop = sourceModeIsNoop;
+        this.columnarSourceWriter = mode == Mode.COLUMNAR_STORED ? new ColumnarSourceWriter(sourceFilter) : null;
     }
 
     private static SourceFilter buildSourceFilter(String[] includes, String[] excludes) {
@@ -499,44 +496,51 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         if (mode != Mode.COLUMNAR_STORED) {
             return;
         }
-        List<LuceneDocument> docs = context.luceneDocumentsInShardIndexOrder();
-        int docId = docs.size() - 1;
-        try (var directory = new ByteBuffersDirectory()) {
-            try (var writer = new IndexWriter(directory, new IndexWriterConfig())) {
-                writer.addDocuments(docs);
-            }
-            try (var indexReader = DirectoryReader.open(directory)) {
-                var leafCtx = indexReader.leaves().get(0);
-                int[] docIds = new int[] { docId };
-                var sourceLoader = new SourceLoader.Synthetic(
-                    sourceFilter,
-                    () -> context.mappingLookup().getMapping().syntheticFieldLoader(sourceFilter),
-                    SourceFieldMetrics.NOOP,
-                    context.mappingLookup().getMapping().ignoredSourceFormat()
+        // Columnar mode disables nested objects, so there is exactly one root document (docId 0).
+        assert context.nonRootDocuments().iterator().hasNext() == false;
+        try (var builder = XContentFactory.jsonBuilder()) {
+            columnarSourceWriter.write(context, builder);
+            BytesRef encodedValue = XContentDataHelper.encodeXContentBuilder(builder);
+            // Remove per-field fallback entries collected during parsing — their contents are
+            // subsumed by the whole-document entry written below, and binary doc values only allow
+            // one field instance per document. Entries kept here (e.g. .offsets, _ignored) are
+            // still used after indexing by block loaders or queries.
+            context.doc().getFields().removeIf(f -> isRedundantInColumnarStoredSource(f.name()));
+            IgnoredSourceFieldMapper.ignoredSourceFormat(context.indexSettings())
+                .writeIgnoredFields(
+                    List.of(new IgnoredSourceFieldMapper.NameValue(NAME, 0, encodedValue, context.doc())),
+                    context.indexSettings().getIndexVersionCreated(),
+                    false
                 );
-                var sourceLeafLoader = sourceLoader.leaf(leafCtx.reader(), docIds);
-                var storedFieldLoader = StoredFieldLoader.create(false, sourceLoader.requiredStoredFields()).getLoader(leafCtx, docIds);
-                storedFieldLoader.advanceTo(docId);
-                try (var b = XContentFactory.jsonBuilder()) {
-                    sourceLeafLoader.write(storedFieldLoader, docId, b);
-                    BytesRef encodedValue = XContentDataHelper.encodeXContentBuilder(b);
-                    // Remove individual _ignored_source entries collected during parsing — their contents are
-                    // subsumed by the whole-document entry written below, and binary doc values only allow
-                    // one field instance per document.
-                    String countsFieldName = IgnoredSourceFieldMapper.NAME
-                        + MultiValuedBinaryDocValuesField.SeparateCount.COUNT_FIELD_SUFFIX;
-                    context.doc()
-                        .getFields()
-                        .removeIf(f -> IgnoredSourceFieldMapper.NAME.equals(f.name()) || countsFieldName.equals(f.name()));
-                    IgnoredSourceFieldMapper.ignoredSourceFormat(context.indexSettings())
-                        .writeIgnoredFields(
-                            List.of(new IgnoredSourceFieldMapper.NameValue(NAME, 0, encodedValue, context.doc())),
-                            context.indexSettings().getIndexVersionCreated(),
-                            false
-                        );
-                }
-            }
         }
+    }
+
+    /**
+     * Returns {@code true} for Lucene fields that exist only to support per-field synthetic-source reconstruction and are therefore
+     * redundant once {@link #postParse} has materialized the whole-document source blob into {@code _ignored_source}.
+     *
+     * <p>The following are removed:</p>
+     * <ul>
+     *   <li>{@code _ignored_source} per-field entries
+     *   <li>{@code <field>._ignore_malformed} (and {@code .counts})</li>
+     *   <li>{@code <field>._original} (and {@code .counts}) — the text / keyword fallback field for ignored-above and
+     *       normalized values</li>
+     * </ul>
+     *
+     */
+    private static boolean isRedundantInColumnarStoredSource(String fieldName) {
+        // A less expense check to avoid more string comparison:
+        if (fieldName.indexOf('_') == -1) {
+            return false;
+        }
+
+        String counts = MultiValuedBinaryDocValuesField.SeparateCount.COUNT_FIELD_SUFFIX;
+        return IgnoredSourceFieldMapper.NAME.equals(fieldName)
+            || (IgnoredSourceFieldMapper.NAME + counts).equals(fieldName)
+            || fieldName.endsWith(IgnoreMalformedStoredValues.IGNORE_MALFORMED_FIELD_NAME_SUFFIX)
+            || fieldName.endsWith(IgnoreMalformedStoredValues.IGNORE_MALFORMED_FIELD_NAME_SUFFIX + counts)
+            || fieldName.endsWith(TextFamilyFieldType.FALLBACK_FIELD_NAME_SUFFIX)
+            || fieldName.endsWith(TextFamilyFieldType.FALLBACK_FIELD_NAME_SUFFIX + counts);
     }
 
     /**

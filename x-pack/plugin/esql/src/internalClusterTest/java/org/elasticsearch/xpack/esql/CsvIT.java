@@ -63,6 +63,7 @@ import org.elasticsearch.xpack.esql.CsvTestUtils.ExpectedResults;
 import org.elasticsearch.xpack.esql.action.ColumnInfoImpl;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
+import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 import org.elasticsearch.xpack.esql.action.EsqlResolveFieldsAction;
 import org.elasticsearch.xpack.esql.datasources.datasource.TestEncryptionServicePlugin;
@@ -173,7 +174,9 @@ public class CsvIT extends ESTestCase {
          * query is not relevant for the variant &mdash; for example, when no field that this variant rewrites
          * appears in the query and so re-running the spec would only re-test the unmodified behavior.
          */
-        String transformQuery(String testId, CsvSpecReader.CsvTestCase testCase);
+        TransformedQuery transformQuery(String testId, CsvSpecReader.CsvTestCase testCase);
+
+        record TransformedQuery(String query, Settings extraPragmas) {}
 
         /**
          * Transforms the expected results loaded from the csv-spec entry before they are compared
@@ -204,8 +207,8 @@ public class CsvIT extends ESTestCase {
         }
 
         @Override
-        public String transformQuery(String testId, CsvSpecReader.CsvTestCase testCase) {
-            return testCase.query;
+        public TransformedQuery transformQuery(String testId, CsvSpecReader.CsvTestCase testCase) {
+            return new TransformedQuery(testCase.query, Settings.EMPTY);
         }
 
         @Override
@@ -344,8 +347,8 @@ public class CsvIT extends ESTestCase {
         inference.ensureNoFailures();
         views.ensureNoFailures();
 
-        String queryToRun = indexLoadStrategy.transformQuery(groupName + "." + testName, testCase);
-        var request = syncEsqlQueryRequest(queryToRun);
+        IndexLoadStrategy.TransformedQuery transformed = indexLoadStrategy.transformQuery(groupName + "." + testName, testCase);
+        EsqlQueryRequest request = syncEsqlQueryRequest(transformed.query());
         if (testCase.requestTimeRangeGte != null && testCase.requestTimeRangeGte.isEmpty() == false) {
             request.filter(new RangeQueryBuilder("@timestamp").gte(testCase.requestTimeRangeGte).lte(testCase.requestTimeRangeLte));
         }
@@ -354,6 +357,7 @@ public class CsvIT extends ESTestCase {
         if (randomBoolean()) {
             pragmaSettings.put("max_concurrent_shards_per_node", randomBoolean() ? 1 : between(2, 10));
         }
+        pragmaSettings.put(transformed.extraPragmas());
         testCase.pragmas.forEach(pragmaSettings::put);
         if (pragmaSettings.build().isEmpty() == false) {
             request.acceptedPragmaRisks(true).pragmas(new QueryPragmas(pragmaSettings.build()));

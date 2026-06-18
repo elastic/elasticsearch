@@ -1146,7 +1146,11 @@ public class LocalExecutionPlanner {
     private PhysicalOperation planHighlight(HighlightExec highlight, LocalExecutionPlannerContext context) {
         PhysicalOperation source = plan(highlight.child(), context);
 
-        String queryText = BytesRefs.toString(highlight.query().fold(context.foldCtx));
+        Expression queryExpr = highlight.query();
+        if (queryExpr == null) {
+            throw new EsqlIllegalArgumentException("HIGHLIGHT requires an explicit query string");
+        }
+        String queryText = BytesRefs.toString(queryExpr.fold(context.foldCtx));
         // TODO: resolve a named analyzer from context.analysisRegistry() when the "analyzer" option is supported.
         Analyzer analyzer = new StandardAnalyzer();
         // TODO: support more query shapes here (phrase, fuzzy, wildcard, QSTR, KQL, MATCH, MATCH_PHRASE) instead of

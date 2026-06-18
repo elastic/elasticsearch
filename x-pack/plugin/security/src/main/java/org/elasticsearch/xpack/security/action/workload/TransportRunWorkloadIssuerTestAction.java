@@ -29,6 +29,7 @@ import java.net.http.HttpResponse;
 import java.nio.file.Path;
 import java.security.PrivateKey;
 import java.security.cert.Certificate;
+import java.time.Duration;
 import java.util.List;
 
 import javax.net.ssl.KeyManager;
@@ -38,7 +39,7 @@ public class TransportRunWorkloadIssuerTestAction extends HandledTransportAction
 
     private static final Logger logger = LogManager.getLogger(TransportRunWorkloadIssuerTestAction.class);
 
-    private static final String ISSUER_URL = "http://workload-identity-issuer-internal.eu-west-1.aws.svc.qa.elastic.cloud/token";
+    private static final String ISSUER_URL = "https://workload-identity-issuer-internal.eu-west-1.aws.svc.qa.elastic.cloud/token";
     private static final String CERT_SETTING = "xpack.inference.elastic.http.ssl.certificate";
     private static final String KEY_SETTING = "xpack.inference.elastic.http.ssl.key";
 
@@ -69,7 +70,7 @@ public class TransportRunWorkloadIssuerTestAction extends HandledTransportAction
         final HttpRequest httpRequest;
         try {
             final SSLContext sslContext = buildSslContext();
-            httpClient = HttpClient.newBuilder().sslContext(sslContext).build();
+            httpClient = HttpClient.newBuilder().sslContext(sslContext).connectTimeout(Duration.ofSeconds(10)).build();
             httpRequest = HttpRequest.newBuilder(URI.create(ISSUER_URL))
                 .header("Content-Type", "application/json")
                 .POST(HttpRequest.BodyPublishers.ofString("""

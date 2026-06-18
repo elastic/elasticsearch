@@ -24,11 +24,11 @@ import java.util.Map;
 /**
  * RestBuilderListener that returns higher than 200 status if there are any failures and allows to set XContent.Params.
  */
-public class BulkIndexByScrollResponseContentListener extends RestBuilderListener<BulkByPaginatedSearchResponse> {
+public class BulkIndexByPaginatedSearchResponseContentListener extends RestBuilderListener<BulkByPaginatedSearchResponse> {
 
     private final Map<String, String> params;
 
-    public BulkIndexByScrollResponseContentListener(RestChannel channel, Map<String, String> params) {
+    public BulkIndexByPaginatedSearchResponseContentListener(RestChannel channel, Map<String, String> params) {
         super(channel);
         this.params = params;
     }

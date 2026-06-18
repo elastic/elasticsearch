@@ -505,6 +505,14 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
                     if (usesWithoutGrouping(binaryOperator.left()) || usesWithoutGrouping(binaryOperator.right())) {
                         failures.add(fail(lp, "binary expressions with WITHOUT are not supported at this time [{}]", lp.sourceText()));
                     }
+                    if (hasSourceBackedExpression(binaryOperator.left())
+                        && hasSourceBackedExpression(binaryOperator.right())
+                        && (usesNestedAcrossSeriesAggregation(binaryOperator.left())
+                            || usesNestedAcrossSeriesAggregation(binaryOperator.right()))) {
+                        failures.add(
+                            fail(lp, "binary expressions with nested aggregations are not supported at this time [{}]", lp.sourceText())
+                        );
+                    }
                 }
                 case PlaceholderRelation placeholderRelation -> {
                     // ok
@@ -561,6 +569,14 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
             collectTopLevelUnionChain(setOp.left(), chain);
             collectTopLevelUnionChain(setOp.right(), chain);
         }
+    }
+
+    private static boolean hasSourceBackedExpression(LogicalPlan plan) {
+        return plan.anyMatch(p -> p instanceof Selector && (p instanceof LiteralSelector) == false);
+    }
+
+    private static boolean usesNestedAcrossSeriesAggregation(LogicalPlan plan) {
+        return plan.anyMatch(p -> p instanceof AcrossSeriesAggregate agg && agg.child().anyMatch(AcrossSeriesAggregate.class::isInstance));
     }
 
     private static boolean usesWithoutGrouping(LogicalPlan plan) {

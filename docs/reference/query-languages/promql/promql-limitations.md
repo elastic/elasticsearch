@@ -42,7 +42,7 @@ For now, a series stops appearing in results only once all its samples fall outs
 The majority of PromQL expressions run unchanged.
 The following constructs are not evaluated yet, so they return a client error (4xx):
 
-- Binary set operators: `and`, `or`, `unless`
+- Binary set operators: `and` and `unless`. The `or` operator is supported only at the top level of an expression and only between instant vectors; nested `or` and `or` with scalar operands return a client error (4xx).
 - Group modifiers: `on(...)`, `group_left`, `group_right`
 - Functions: `predict_linear`, `label_join`
 

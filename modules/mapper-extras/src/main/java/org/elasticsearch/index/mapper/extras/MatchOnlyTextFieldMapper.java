@@ -1205,14 +1205,8 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
         if (docValuesParameters.enabled()) {
             BytesRef binaryValue = new BytesRef(utfBytes.bytes(), utfBytes.offset(), utfBytes.length());
             if (fieldType().usesArrayOrderBinaryDocValues()) {
-                // In-order path: write the value into the field's own binary doc-values column directly, in document order with nulls. The
-                // BytesRef wraps the parser's reusable buffer, so a defensive deep copy is required before retaining it across the
-                // document.
-                MultiValuedBinaryDocValuesField.ArrayOrderInlineNull.recordValue(
-                    context.doc(),
-                    fieldType().name(),
-                    BytesRef.deepCopyOf(binaryValue)
-                );
+                // In-order path: write the value into the field's own binary doc-values column directly, in document order with nulls.
+                MultiValuedBinaryDocValuesField.ArrayOrderInlineNull.recordValue(context.doc(), fieldType().name(), binaryValue);
             } else if (fieldType().usesBinaryDocValues()) {
                 dvFactory.addBinaryField(
                     context.doc(),

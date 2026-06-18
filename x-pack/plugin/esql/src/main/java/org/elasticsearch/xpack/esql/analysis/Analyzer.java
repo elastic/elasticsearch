@@ -173,7 +173,6 @@ import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.MarkJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.SemiJoin;
-import org.elasticsearch.xpack.esql.plan.logical.local.EmptyLocalSupplier;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 import org.elasticsearch.xpack.esql.plan.logical.local.ResolvingProject;
@@ -792,17 +791,6 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
 
         private LogicalPlan resolvePromql(PromqlCommand promql, List<Attribute> childrenOutput) {
-            if ((promql.child() instanceof EsRelation esRelation) && esRelation.concreteQualifiedIndices().isEmpty()) {
-                var source = promql.source();
-                var localRelation = new LocalRelation(
-                    source,
-                    List.of(promql.valueAttribute(), promql.stepAttribute()),
-                    EmptyLocalSupplier.EMPTY
-                );
-                // Wrap in an explicit LIMIT 0 so that AddImplicitLimit skips the "No limit defined" warning,
-                // which would otherwise fire because the LocalRelation contains no PromqlCommand marker.
-                return new Limit(source, new Literal(source, 0, DataType.INTEGER), localRelation);
-            }
             LogicalPlan promqlPlan = promql.promqlPlan();
             Function<UnresolvedAttribute, Expression> lambda = ua -> ResolveRefs.maybeResolveAttribute(ua, childrenOutput, log);
             // resolve the nested plan
@@ -2144,8 +2132,11 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             // We check whether the query contains a TimeSeriesAggregate to determine if we should apply
             // the default limit for TS queries or for non-TS queries.
             // NOTE: PromqlCommand is translated to TimeSeriesAggregate during optimization.
-            boolean isTsAggregate = logicalPlan.collectFirstChildren(lp -> lp instanceof TimeSeriesAggregate || lp instanceof PromqlCommand)
-                .isEmpty() == false;
+            // TimeSeriesCollapse is included because const-folded PromQL plans (e.g. literals on empty indices)
+            // replace PromqlCommand with a LocalRelation but retain the TimeSeriesCollapse wrapper.
+            boolean isTsAggregate = logicalPlan.collectFirstChildren(
+                lp -> lp instanceof TimeSeriesAggregate || lp instanceof PromqlCommand || lp instanceof TimeSeriesCollapse
+            ).isEmpty() == false;
 
             int limit;
             if (limits.isEmpty()) {
@@ -2672,7 +2663,14 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                         if (((UnionTypeEsField) fa.field()).getUnmappedConversionExpression() != null) {
                             throw new IllegalStateException("Unexpected potentially unmapped expression for [" + fa.fieldName() + "]");
                         }
-                        return createIfDoesNotAlreadyExist(fa, unionTypeEsField.rewrapWithCast(convertExpression), unionFieldAttributes);
+                        // Resolve surrogates immediately, since expressions stored in UnionTypeEsField are serialized
+                        // to data nodes, and SurrogateExpressions cannot be serialized.
+                        Expression resolvedConvertExpression = SubstituteSurrogateExpressions.rule(convertExpression);
+                        return createIfDoesNotAlreadyExist(
+                            fa,
+                            unionTypeEsField.rewrapWithCast(resolvedConvertExpression),
+                            unionFieldAttributes
+                        );
                     }
                 } else if (convert.field() instanceof AbstractConvertFunction subConvert) {
                     return convertExpression.replaceChildren(
@@ -3028,11 +3026,11 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                         new Count(aggFunc.source(), field, aggFunc.filter(), aggFunc.window())
                     );
                 }
-                if (aggFunc instanceof AvgOverTime) {
+                if (aggFunc instanceof AvgOverTime avgOT) {
                     return new Div(
                         aggFunc.source(),
-                        new SumOverTime(aggFunc.source(), field, aggFunc.filter(), aggFunc.window()),
-                        new CountOverTime(aggFunc.source(), field, aggFunc.filter(), aggFunc.window())
+                        new SumOverTime(aggFunc.source(), field, aggFunc.filter(), aggFunc.window(), avgOT.timestamp()),
+                        new CountOverTime(aggFunc.source(), field, aggFunc.filter(), aggFunc.window(), avgOT.timestamp())
                     );
                 }
 
@@ -3056,8 +3054,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 if (aggFunc instanceof Count) {
                     return new Sum(aggFunc.source(), children.getFirst());
                 }
-                if (aggFunc instanceof CountOverTime) {
-                    return new SumOverTime(aggFunc.source(), children.getFirst(), aggFunc.filter(), aggFunc.window());
+                if (aggFunc instanceof CountOverTime cot) {
+                    return new SumOverTime(aggFunc.source(), children.getFirst(), aggFunc.filter(), aggFunc.window(), cot.timestamp());
                 }
                 return aggFunc.replaceChildren(children);
             }

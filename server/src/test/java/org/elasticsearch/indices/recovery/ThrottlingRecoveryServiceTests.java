@@ -462,6 +462,95 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         assertThat(service.currentQueueSize(), equalTo(0));
     }
 
+    public void testCloseAbortsQueuedButNotDispatchedRecoveries() {
+        final var taskQueue = new DeterministicTaskQueue();
+        final var service = new ThrottlingRecoveryService(taskQueue.getThreadPool().generic(), newClusterService(1));
+
+        final var queuedTaskAborted = new AtomicBoolean();
+        final var runningTaskDispatched = new AtomicBoolean();
+        final var runningTaskListener = new RecoveryListener() {
+            @Override
+            public void onRecoveryDone(
+                RecoveryState state,
+                ShardLongFieldRange timestampMillisFieldRange,
+                ShardLongFieldRange eventIngestedMillisFieldRange
+            ) {
+                fail("unexpected completion");
+            }
+
+            @Override
+            public void onRecoveryFailure(RecoveryFailedException e, boolean sendShardFailure) {
+                fail("unexpected failure " + e.getDetailedMessage());
+            }
+
+            @Override
+            public void onRecoveryAborted() {
+                fail("unexpected abort");
+            }
+        };
+
+        service.enqueue(runningTaskListener, fakeRecoveryState(), ignored -> runningTaskDispatched.set(true));
+        service.enqueue(new RecoveryListener() {
+            @Override
+            public void onRecoveryDone(
+                RecoveryState state,
+                ShardLongFieldRange timestampMillisFieldRange,
+                ShardLongFieldRange eventIngestedMillisFieldRange
+            ) {
+                fail("unexpected completion");
+            }
+
+            @Override
+            public void onRecoveryFailure(RecoveryFailedException e, boolean sendShardFailure) {
+                fail("unexpected failure");
+            }
+
+            @Override
+            public void onRecoveryAborted() {
+                queuedTaskAborted.set(true);
+            }
+        }, fakeRecoveryState(), ignored -> fail("queued task should not be dispatched after close"));
+
+        taskQueue.runAllRunnableTasks();
+        assertTrue("first task should have been dispatched", runningTaskDispatched.get());
+        assertFalse("second task should still be queued", queuedTaskAborted.get());
+
+        service.close();
+        assertTrue("queued task should be aborted on close", queuedTaskAborted.get());
+        assertThat(service.currentQueueSize(), equalTo(0));
+    }
+
+    public void testEnqueueAfterCloseImmediatelyAborts() {
+        final var taskQueue = new DeterministicTaskQueue();
+        final var service = new ThrottlingRecoveryService(taskQueue.getThreadPool().generic(), newClusterService(1));
+        service.close();
+
+        final var aborted = new AtomicBoolean();
+        service.enqueue(new RecoveryListener() {
+            @Override
+            public void onRecoveryDone(
+                RecoveryState state,
+                ShardLongFieldRange timestampMillisFieldRange,
+                ShardLongFieldRange eventIngestedMillisFieldRange
+            ) {
+                fail("should not complete normally after close");
+            }
+
+            @Override
+            public void onRecoveryFailure(RecoveryFailedException e, boolean sendShardFailure) {
+                fail("should not fail after close");
+            }
+
+            @Override
+            public void onRecoveryAborted() {
+                aborted.set(true);
+            }
+        }, fakeRecoveryState(), ignored -> fail("should not be dispatched after close"));
+
+        assertTrue("task enqueued after close should be immediately aborted", aborted.get());
+        assertThat(service.currentQueueSize(), equalTo(0));
+    }
+
     /// Stress one [ThrottlingRecoveryService] by enqueueing many tasks with randomized completion times,
     /// alternating bursty submits and completion periods, and randomly changing the max concurrent limit.
     /// Verify that all tasks finish and that concurrent execution never exceeds the limit applied.
@@ -485,19 +574,16 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
                 ShardLongFieldRange timestampMillisFieldRange,
                 ShardLongFieldRange eventIngestedMillisFieldRange
             ) {
-                running.decrementAndGet();
                 completed.incrementAndGet();
             }
 
             @Override
             public void onRecoveryFailure(RecoveryFailedException e, boolean sendShardFailure) {
-                running.decrementAndGet();
                 completed.incrementAndGet();
             }
 
             @Override
             public void onRecoveryAborted() {
-                running.decrementAndGet();
                 completed.incrementAndGet();
             }
         };
@@ -512,10 +598,15 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
             final var incomingTasks = randomIntBetween(50, 100);
             totalTaskCount.addAndGet(incomingTasks);
             for (int i = 0; i < incomingTasks; i++) {
+                if (iteration > 15 && rarely()) {
+                    // idempotent
+                    service.close();
+                }
                 taskQueue.scheduleNow(() -> service.enqueue(trackingListener, recoveryState, schedulingListener -> {
                     assertThat(running.incrementAndGet(), lessThanOrEqualTo(maxConcurrency.get()));
                     final var currentTime = taskQueue.getCurrentTimeMillis();
                     taskQueue.scheduleAt(currentTime + randomIntBetween(0, 100), () -> {
+                        running.decrementAndGet();
                         // Randomly choose completion type
                         if (randomBoolean()) {
                             schedulingListener.onRecoveryDone(null, ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY);
@@ -537,8 +628,14 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
                 }));
                 taskQueue.runAllRunnableTasks();
                 while (randomBoolean() && taskQueue.hasDeferredTasks()) {
+                    if (service.isClosed()) {
+                        assertThat(service.currentQueueSize(), equalTo(0));
+                    }
                     taskQueue.advanceTime();
                     taskQueue.runAllRunnableTasks();
+                }
+                if (service.isClosed()) {
+                    assertThat(service.currentQueueSize(), equalTo(0));
                 }
             }
             // Execute all enqueued and scheduled tasks

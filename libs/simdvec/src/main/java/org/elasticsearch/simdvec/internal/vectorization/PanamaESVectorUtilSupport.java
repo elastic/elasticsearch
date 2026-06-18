@@ -164,6 +164,53 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
     }
 
     @Override
+    public float dotProduct(float[] a, float[] b, int offset, int length) {
+        if (offset == 0 && length == a.length) {
+            return dotProduct(a, b);
+        }
+
+        int i = 0;
+        int vectorEnd = FLOAT_SPECIES.loopBound(length);
+        FloatVector acc = FloatVector.zero(FLOAT_SPECIES);
+        for (; i < vectorEnd; i += FLOAT_SPECIES.length()) {
+            FloatVector av = FloatVector.fromArray(FLOAT_SPECIES, a, i + offset);
+            FloatVector bv = FloatVector.fromArray(FLOAT_SPECIES, b, i + offset);
+            acc = fma(av, bv, acc);
+        }
+
+        int remaining = length - i;
+        if (remaining > 0) {
+            VectorMask<Float> mask = VectorMask.fromLong(FLOAT_SPECIES, (1L << remaining) - 1);
+            FloatVector av = FloatVector.fromArray(FLOAT_SPECIES, a, i + offset, mask);
+            FloatVector bv = FloatVector.fromArray(FLOAT_SPECIES, b, i + offset, mask);
+            acc = fma(av, bv, acc);
+        }
+        return acc.reduceLanes(ADD);
+    }
+
+    @Override
+    public void l2Normalize(float[] v, int offset, int length) {
+        float normSq = dotProduct(v, v, offset, length);
+        if (normSq == 0f) {
+            return;
+        }
+        float scale = (float) (1.0 / Math.sqrt(normSq));
+        FloatVector scaleVec = FloatVector.broadcast(FLOAT_SPECIES, scale);
+        int end = offset + length;
+        int vectorEnd = offset + FLOAT_SPECIES.loopBound(length);
+        int i = offset;
+        for (; i < vectorEnd; i += FLOAT_SPECIES.length()) {
+            FloatVector vv = FloatVector.fromArray(FLOAT_SPECIES, v, i);
+            vv.mul(scaleVec).intoArray(v, i);
+        }
+        if (i < end) {
+            VectorMask<Float> mask = FLOAT_SPECIES.indexInRange(i, end);
+            FloatVector vv = FloatVector.fromArray(FLOAT_SPECIES, v, i, mask);
+            vv.mul(scaleVec).intoArray(v, i, mask);
+        }
+    }
+
+    @Override
     public float squareDistance(float[] a, float[] b) {
         return VectorUtil.squareDistance(a, b);
     }
@@ -203,6 +250,55 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
     @Override
     public float dotProduct(byte[] a, byte[] b) {
         return VectorUtil.dotProduct(a, b);
+    }
+
+    @Override
+    public float dotProduct(byte[] a, byte[] b, int offset, int length) {
+        if (offset == 0 && length == a.length) {
+            return dotProduct(a, b);
+        }
+
+        int i = 0;
+        int vectorEnd = BYTE_SPECIES.loopBound(length);
+        IntVector acc = IntVector.zero(INTEGER_SPECIES);
+        for (; i < vectorEnd; i += BYTE_SPECIES.length()) {
+            ByteVector ba = ByteVector.fromArray(BYTE_SPECIES, a, i + offset);
+            ByteVector bb = ByteVector.fromArray(BYTE_SPECIES, b, i + offset);
+            for (int part = 0; part < BYTE_TO_FLOAT_PARTS; part++) {
+                Vector<Integer> ia = ba.castShape(INTEGER_SPECIES, part);
+                Vector<Integer> ib = bb.castShape(INTEGER_SPECIES, part);
+                acc = acc.add(ia.mul(ib));
+            }
+        }
+
+        int remaining = length - i;
+        if (remaining > 0) {
+            VectorMask<Byte> mask = VectorMask.fromLong(BYTE_SPECIES, (1L << remaining) - 1);
+            ByteVector ba = ByteVector.fromArray(BYTE_SPECIES, a, i + offset, mask);
+            ByteVector bb = ByteVector.fromArray(BYTE_SPECIES, b, i + offset, mask);
+            for (int maskedPart = 0; remaining > 0; maskedPart++) {
+                assert maskedPart < BYTE_TO_FLOAT_PARTS;
+                Vector<Integer> ia = ba.castShape(INTEGER_SPECIES, maskedPart);
+                Vector<Integer> ib = bb.castShape(INTEGER_SPECIES, maskedPart);
+                acc = acc.add(ia.mul(ib));
+                remaining -= INTEGER_SPECIES.length();
+            }
+        }
+
+        return acc.reduceLanes(VectorOperators.ADD);
+    }
+
+    @Override
+    public void l2Normalize(byte[] v, int offset, int length) {
+        float normSq = dotProduct(v, v, offset, length);
+        if (normSq == 0f) {
+            return;
+        }
+        float scale = (float) (1.0 / Math.sqrt(normSq));
+        int end = offset + length;
+        for (int j = offset; j < end; j++) {
+            v[j] = (byte) (v[j] * scale);
+        }
     }
 
     @Override

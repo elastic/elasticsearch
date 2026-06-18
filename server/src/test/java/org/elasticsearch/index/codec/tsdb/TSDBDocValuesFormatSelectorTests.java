@@ -49,12 +49,16 @@ public class TSDBDocValuesFormatSelectorTests extends ESTestCase {
 
     public void testES95OnlySelectedForTimeSeriesWhenSettingEnabled() {
         assumeTrue("es95_codec feature flag must be enabled", IndexSettings.ES95_CODEC_FEATURE_FLAG.isEnabled());
+        final IndexVersion version = IndexVersionUtils.randomVersionBetween(
+            IndexVersions.ES95_TSDB_CODEC_FEATURE_FLAG,
+            IndexVersion.current()
+        );
         for (IndexMode mode : indexModesUnderTest()) {
-            final DocValuesFormat format = TSDBDocValuesFormatSelector.select(indexSettings(mode, IndexVersion.current(), true), null);
+            final DocValuesFormat format = TSDBDocValuesFormatSelector.select(indexSettings(mode, version, true), null);
             if (mode == IndexMode.TIME_SERIES) {
-                assertThat("mode=" + mode, format.getName(), equalTo(ES95_CODEC_NAME));
+                assertThat("mode=" + mode + " version=" + version, format.getName(), equalTo(ES95_CODEC_NAME));
             } else {
-                assertThat("mode=" + mode, format.getName(), startsWith("ES819"));
+                assertThat("mode=" + mode + " version=" + version, format.getName(), startsWith("ES819"));
             }
         }
     }

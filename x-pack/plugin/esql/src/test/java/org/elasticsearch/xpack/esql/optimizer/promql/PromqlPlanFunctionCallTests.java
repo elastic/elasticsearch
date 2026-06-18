@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.optimizer.promql;
 
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
@@ -16,6 +17,8 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Avg;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.LastOverTime;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Percentile;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.PercentileOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Rate;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToCounter;
@@ -48,6 +51,41 @@ public class PromqlPlanFunctionCallTests extends AbstractPromqlPlanOptimizerTest
         assertConstantResult("pi()", equalTo(Math.PI));
         assertConstantResult("abs(vector(-1))", equalTo(1.0));
         assertConstantResult("quantile(0.5, vector(1))", equalTo(1.0));
+    }
+
+    /**
+     * PromQL {@code quantile} and {@code quantile_over_time} take the quantile φ in the range [0, 1], whereas the
+     * ES|QL {@link Percentile} aggregation they translate into expects a percentile in the range [0, 100]. The
+     * PromQL builders must therefore scale φ by 100. Without this scaling, {@code quantile(1.0, x)} would, for
+     * example, collapse to the 0.01th percentile (≈ the minimum) instead of returning the maximum.
+     */
+    public void testQuantilePhiIsScaledToPercentile() {
+        for (String function : List.of("quantile", "quantile_over_time")) {
+            assertPhiScaledToPercentile(function, 1.0, 100.0);
+            assertPhiScaledToPercentile(function, 0.75, 75.0);
+            assertPhiScaledToPercentile(function, 0.5, 50.0);
+            assertPhiScaledToPercentile(function, 0.25, 25.0);
+        }
+    }
+
+    private void assertPhiScaledToPercentile(String function, double phi, double expectedPercentile) {
+        var ctx = new PromqlFunctionRegistry.PromqlContext(Literal.NULL, Literal.NULL, Literal.NULL, EsqlTestUtils.TEST_CFG);
+        Expression target = Literal.fromDouble(Source.EMPTY, 1.0);
+        Expression built = PromqlFunctionRegistry.INSTANCE.buildEsqlFunction(
+            function,
+            Source.EMPTY,
+            target,
+            ctx,
+            List.of(Literal.fromDouble(Source.EMPTY, phi))
+        );
+        Percentile percentile = built instanceof PercentileOverTime overTime
+            ? as(overTime.perTimeSeriesAggregation(), Percentile.class)
+            : as(built, Percentile.class);
+        assertThat(
+            function + "(" + phi + ", ...)",
+            as(percentile.percentile().fold(FoldContext.small()), Double.class),
+            equalTo(expectedPercentile)
+        );
     }
 
     public void testRound() {

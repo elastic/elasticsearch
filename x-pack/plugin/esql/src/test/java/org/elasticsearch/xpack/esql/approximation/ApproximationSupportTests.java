@@ -67,6 +67,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Dedup;
 import org.elasticsearch.xpack.esql.plan.logical.Drop;
 import org.elasticsearch.xpack.esql.plan.logical.Explain;
 import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
+import org.elasticsearch.xpack.esql.plan.logical.Highlight;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.Keep;
 import org.elasticsearch.xpack.esql.plan.logical.LeafPlan;
@@ -86,6 +87,7 @@ import org.elasticsearch.xpack.esql.plan.logical.ViewShadowRelation;
 import org.elasticsearch.xpack.esql.plan.logical.fuse.Fuse;
 import org.elasticsearch.xpack.esql.plan.logical.fuse.FuseScoreEval;
 import org.elasticsearch.xpack.esql.plan.logical.inference.InferencePlan;
+import org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.AntiJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.MarkJoin;
@@ -146,6 +148,9 @@ public class ApproximationSupportTests extends ESTestCase {
         // substitutions phase, before any approximation logic runs.
         Dedup.class, // rewritten to LimitBy
 
+        // HIGHLIGHT is not supported;
+        Highlight.class,
+
         // PromQL plans are not supported yet.
         // They require chained stats commands.
         PromqlCommand.class,
@@ -187,6 +192,7 @@ public class ApproximationSupportTests extends ESTestCase {
         BinaryPlan.class,
         InferencePlan.class,
         CompoundOutputEval.class,
+        AbstractSubqueryJoin.class,
 
         // These plans don't occur in a correct analyzed query.
         AntiJoin.class,

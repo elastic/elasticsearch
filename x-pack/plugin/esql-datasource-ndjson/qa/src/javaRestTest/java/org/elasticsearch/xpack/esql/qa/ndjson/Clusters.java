@@ -22,6 +22,21 @@ import static org.elasticsearch.xpack.esql.datasources.S3FixtureUtils.SECRET_KEY
  */
 public class Clusters {
 
+    private static final String ENCRYPTION_PASSWORD_ID = "test";
+    private static final String ENCRYPTION_PASSWORD = "esql-test-encryption-password";
+
+    /**
+     * Installs the project-encryption-key (PEK) secure settings + feature flag so data-source secrets
+     * can be encrypted when a data source is registered via {@code PUT /_query/data_source}. Mirrors the
+     * single-node esql qa datasource-CRUD cluster config. Applied only by {@link #testClusterWithEncryption}.
+     */
+    private static final LocalClusterConfigProvider DATASET_ENCRYPTION_CONFIG = builder -> builder.systemProperty(
+        "es.project_encryption_key_feature_flag_enabled",
+        "true"
+    )
+        .keystore("cluster.state.encryption.password." + ENCRYPTION_PASSWORD_ID, ENCRYPTION_PASSWORD)
+        .keystore("cluster.state.encryption.active_password_id", ENCRYPTION_PASSWORD_ID);
+
     public static ElasticsearchCluster testCluster(Supplier<String> s3EndpointSupplier, LocalClusterConfigProvider configProvider) {
         return ElasticsearchCluster.local()
             .distribution(DistributionType.DEFAULT)
@@ -58,5 +73,18 @@ public class Clusters {
 
     public static ElasticsearchCluster testCluster(Supplier<String> s3EndpointSupplier) {
         return testCluster(s3EndpointSupplier, config -> {});
+    }
+
+    /**
+     * Encryption-enabled variant of {@link #testCluster(Supplier)} for suites that register data sources
+     * carrying secret settings and then read them back via {@code FROM <dataset>}. Registering such a data
+     * source encrypts the secrets, which requires an installed project encryption key; without
+     * {@link #DATASET_ENCRYPTION_CONFIG} the request fails with a 503 {@code encryption_key_not_yet_available_exception}.
+     *
+     * <p>Kept separate from {@link #testCluster(Supplier)} so the non-subquery spec suites that use the
+     * inline {@code EXTERNAL "..." WITH {creds}} form keep their existing cluster configuration unchanged.
+     */
+    public static ElasticsearchCluster testClusterWithEncryption(Supplier<String> s3EndpointSupplier) {
+        return testCluster(s3EndpointSupplier, DATASET_ENCRYPTION_CONFIG);
     }
 }

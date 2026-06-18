@@ -644,3 +644,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.StatelessMergePreWarmingIT
   method: testMergePreWarmingFailureDoesNotFailTheEngine
   issue: https://github.com/elastic/elasticsearch/issues/151618
+- class: org.elasticsearch.xpack.stateless.cluster.coordination.BlobStoreSyncDirectoryTests
+  method: testCloseCancelsOnGoingUploads
+  issue: https://github.com/elastic/elasticsearch/issues/151622

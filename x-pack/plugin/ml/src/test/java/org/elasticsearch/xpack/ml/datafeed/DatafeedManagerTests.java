@@ -15,6 +15,7 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.search.TransportSearchAction;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -1468,16 +1469,10 @@ public class DatafeedManagerTests extends ESTestCase {
         );
 
         UpdateDatafeedAction.Request request = new UpdateDatafeedAction.Request(new DatafeedUpdate.Builder("df-1").build());
-        manager.updateDatafeed(
-            request,
-            mockClusterStateForUpdate(),
-            null,
-            threadPool,
-            ActionListener.wrap(r -> {}, e -> fail("unexpected failure: " + e))
-        );
+        manager.updateDatafeed(request, mockClusterStateForUpdate(), null, threadPool, ActionTestUtils.assertNoFailureListener(r -> {}));
 
         assertThat(capturedUpdate.get(), notNullValue());
-        assertThat(capturedUpdate.get().getProjectRouting(), equalTo("_alias:" + ProjectRoutingResolver.ORIGIN));
+        assertThat(capturedUpdate.get().getProjectRouting(), equalTo(ProjectRoutingResolver.LOCAL_ONLY));
         verify(auditor).info(eq("job-1"), eq(Messages.getMessage(Messages.JOB_AUDIT_DATAFEED_CPS_MIGRATION_PROJECT_ROUTING_DEFAULTED)));
     }
 
@@ -1519,13 +1514,7 @@ public class DatafeedManagerTests extends ESTestCase {
         );
 
         UpdateDatafeedAction.Request request = new UpdateDatafeedAction.Request(new DatafeedUpdate.Builder("df-2").build());
-        manager.updateDatafeed(
-            request,
-            mockClusterStateForUpdate(),
-            null,
-            threadPool,
-            ActionListener.wrap(r -> {}, e -> fail("unexpected failure: " + e))
-        );
+        manager.updateDatafeed(request, mockClusterStateForUpdate(), null, threadPool, ActionTestUtils.assertNoFailureListener(r -> {}));
 
         assertThat(capturedUpdate.get(), notNullValue());
         assertThat(capturedUpdate.get().getProjectRouting(), nullValue());
@@ -1569,13 +1558,7 @@ public class DatafeedManagerTests extends ESTestCase {
         UpdateDatafeedAction.Request request = new UpdateDatafeedAction.Request(
             new DatafeedUpdate.Builder("df-3").setProjectRouting("_alias:explicit").build()
         );
-        manager.updateDatafeed(
-            request,
-            mockClusterStateForUpdate(),
-            null,
-            threadPool,
-            ActionListener.wrap(r -> {}, e -> fail("unexpected failure: " + e))
-        );
+        manager.updateDatafeed(request, mockClusterStateForUpdate(), null, threadPool, ActionTestUtils.assertNoFailureListener(r -> {}));
 
         assertThat(capturedUpdate.get(), notNullValue());
         assertThat(capturedUpdate.get().getProjectRouting(), equalTo("_alias:explicit"));
@@ -1623,13 +1606,7 @@ public class DatafeedManagerTests extends ESTestCase {
         UpdateDatafeedAction.Request request = new UpdateDatafeedAction.Request(
             new DatafeedUpdate.Builder("df-4").setIndices(List.of("new-logs-*")).build()
         );
-        manager.updateDatafeed(
-            request,
-            mockClusterStateForUpdate(),
-            null,
-            threadPool,
-            ActionListener.wrap(r -> {}, e -> fail("unexpected failure: " + e))
-        );
+        manager.updateDatafeed(request, mockClusterStateForUpdate(), null, threadPool, ActionTestUtils.assertNoFailureListener(r -> {}));
 
         assertThat(capturedUpdate.get(), notNullValue());
         assertThat(capturedUpdate.get().getProjectRouting(), nullValue());

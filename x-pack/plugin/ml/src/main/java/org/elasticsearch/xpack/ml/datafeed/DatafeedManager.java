@@ -308,6 +308,13 @@ public final class DatafeedManager {
                     );
                     CredentialTransitions.Intent intent = CredentialTransitions.decideForUpdate(ctx);
                     UpdateDatafeedAction.Request effectiveRequest = maybeDefaultProjectRoutingForMigration(request, current, intent);
+                    ActionListener<PutDatafeedAction.Response> effectiveListener = effectiveRequest != request ? l.map(r -> {
+                        auditor.info(
+                            current.getJobId(),
+                            Messages.getMessage(Messages.JOB_AUDIT_DATAFEED_CPS_MIGRATION_PROJECT_ROUTING_DEFAULTED)
+                        );
+                        return r;
+                    }) : l;
                     credentialTransitions.executeUpdate(
                         intent,
                         effectiveRequest,
@@ -316,7 +323,7 @@ public final class DatafeedManager {
                         threadPool,
                         securityContext,
                         wrappedValidator,
-                        l
+                        effectiveListener
                     );
                 } catch (Exception e) {
                     l.onFailure(e);
@@ -369,11 +376,10 @@ public final class DatafeedManager {
         logger.info(
             "[{}] CPS migration: defaulting project_routing to [{}] to preserve local search scope",
             existingConfig.getId(),
-            "_alias:" + ProjectRoutingResolver.ORIGIN
+            ProjectRoutingResolver.LOCAL_ONLY
         );
-        auditor.info(existingConfig.getJobId(), Messages.getMessage(Messages.JOB_AUDIT_DATAFEED_CPS_MIGRATION_PROJECT_ROUTING_DEFAULTED));
         DatafeedUpdate augmentedUpdate = new DatafeedUpdate.Builder(request.getUpdate()).setProjectRouting(
-            "_alias:" + ProjectRoutingResolver.ORIGIN
+            ProjectRoutingResolver.LOCAL_ONLY
         ).build();
         return new UpdateDatafeedAction.Request(augmentedUpdate);
     }

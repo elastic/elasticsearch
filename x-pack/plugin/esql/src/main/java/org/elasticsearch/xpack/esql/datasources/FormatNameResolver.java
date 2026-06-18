@@ -33,9 +33,9 @@ public final class FormatNameResolver {
     static final String CONFIG_FORMAT = "format";
     static final String CONFIG_READER = "reader";
 
-    /** Reader alias accepted in {@code WITH (reader = "...")} for the parquet-rs native reader. */
+    /** Reader alias accepted in {@code WITH {"reader": "..."}} for the parquet-rs native reader. */
     public static final String READER_PARQUET_RS = "parquet-rs";
-    /** Reader alias accepted in {@code WITH (reader = "...")} for the Java parquet reader. */
+    /** Reader alias accepted in {@code WITH {"reader": "..."}} for the Java parquet reader. */
     public static final String READER_JAVA = "java";
     /** Format name registered by the Java parquet reader. */
     public static final String FORMAT_PARQUET = "parquet";

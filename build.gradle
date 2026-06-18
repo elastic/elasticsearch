@@ -19,7 +19,6 @@ import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.internal.BaseInternalPluginBuildPlugin
 import org.elasticsearch.gradle.internal.ResolveAllDependencies
 import org.elasticsearch.gradle.util.GradleUtils
-import org.gradle.plugins.ide.eclipse.model.AccessRule
 import org.elasticsearch.gradle.internal.testfixtures.DockerComposeThrottle
 
 import groovy.xml.XmlParser;
@@ -320,24 +319,6 @@ allprojects {
 
   ext.bwc_tests_enabled = bwc_tests_enabled
 
-  // eclipse configuration
-  apply plugin: 'elasticsearch.eclipse'
-
-  /*
-   * Allow accessing com/sun/net/httpserver in projects that have
-   * configured forbidden apis to allow it.
-   */
-  plugins.withType(ForbiddenApisPlugin) {
-    eclipse.classpath.file.whenMerged { classpath ->
-      if (false == forbiddenApisTest.bundledSignatures.contains('jdk-non-portable')) {
-        classpath.entries
-          .findAll { it.kind == "con" && it.toString().contains("org.eclipse.jdt.launching.JRE_CONTAINER") }
-          .each {
-            it.accessRules.add(new AccessRule("accessible", "com/sun/net/httpserver/*"))
-          }
-      }
-    }
-  }
 
   tasks.register('resolveAllDependencies', ResolveAllDependencies) {
     def ignoredPrefixes = [DistributionDownloadPlugin.ES_DISTRO_CONFIG_PREFIX, "jdbcDriver"]
@@ -565,7 +546,6 @@ tasks.named("checkPart1").configure {
 [
   releaseTestCheckEsqlEngine: [
     ':x-pack:plugin:esql',
-    ':x-pack:plugin:esql:arrow',
     ':x-pack:plugin:esql:compute',
     ':x-pack:plugin:esql:compute:ann',
     ':x-pack:plugin:esql:compute:gen',
@@ -624,18 +604,6 @@ tasks.named("checkPart1").configure {
 
 tasks.named("assemble").configure {
   dependsOn gradle.includedBuild('build-tools').task(':assemble')
-}
-
-tasks.named("cleanEclipse").configure {
-  dependsOn gradle.includedBuild('build-conventions').task(':cleanEclipse')
-  dependsOn gradle.includedBuild('build-tools').task(':cleanEclipse')
-  dependsOn gradle.includedBuild('build-tools-internal').task(':cleanEclipse')
-}
-
-tasks.named("eclipse").configure {
-  dependsOn gradle.includedBuild('build-conventions').task(':eclipse')
-  dependsOn gradle.includedBuild('build-tools').task(':eclipse')
-  dependsOn gradle.includedBuild('build-tools-internal').task(':eclipse')
 }
 
 tasks.register("buildReleaseArtifacts").configure {

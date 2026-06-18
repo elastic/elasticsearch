@@ -7,8 +7,11 @@
 
 package org.elasticsearch.xpack.inference.common.parser;
 
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.core.inference.InferenceUtils;
 
+import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.Locale;
 import java.util.Map;
@@ -37,6 +40,45 @@ public final class EnumParser {
         } catch (IllegalArgumentException e) {
             var validValuesAsStrings = validValues.stream().map(value -> value.toString().toLowerCase(Locale.ROOT)).toArray(String[]::new);
             throw new IllegalArgumentException(invalidValue(key, root, enumString, validValuesAsStrings));
+        }
+    }
+
+    /**
+     * Parses a string into an enum returning a user-friendly error message if the value is invalid.
+     * Use this instead of {@link #extractEnum(Map, String, String, InferenceUtils.EnumConstructor, EnumSet)} when parsing
+     * from an object parser context.
+     *
+     * @param value the enum value to parse
+     * @param constructor the constructor to use to create the enum
+     * @param validValues the valid values for the enum
+     * @param excludeValuesFromErrorMessage the values to exclude from the error message
+     * @return the parsed enum or null if the value is null
+     * @param <E> the enum type
+     */
+    @Nullable
+    public static <E extends Enum<E>> E parseFromStringInObjectParserContext(
+        @Nullable String value,
+        InferenceUtils.EnumConstructor<E> constructor,
+        EnumSet<E> validValues,
+        EnumSet<E> excludeValuesFromErrorMessage
+    ) {
+        if (value == null) {
+            return null;
+        }
+
+        try {
+            var createdEnum = constructor.apply(value);
+            if (validValues.contains(createdEnum) == false) {
+                throw new IllegalArgumentException();
+            }
+            return createdEnum;
+        } catch (IllegalArgumentException e) {
+            var validValuesAsStrings = validValues.stream()
+                .filter(enumValue -> excludeValuesFromErrorMessage.contains(enumValue) == false)
+                .map(v -> v.toString().toLowerCase(Locale.ROOT))
+                .toArray(String[]::new);
+            String msg = Strings.format("Invalid value [%s]; expected one of %s", value, Arrays.toString(validValuesAsStrings));
+            throw new IllegalArgumentException(msg);
         }
     }
 

@@ -28,6 +28,66 @@ public final class OtelSdkSettings {
 
     private OtelSdkSettings() {}
 
+    /** Best-effort upper bound on time spent flushing buffered metrics or spans to the exporter. */
+    public static final Setting<TimeValue> TELEMETRY_OTEL_FLUSH_TIMEOUT = Setting.timeSetting(
+        "telemetry.otel.flush_timeout",
+        TimeValue.timeValueSeconds(10),
+        NodeScope
+    );
+
+    /** External OTel resource attributes attached to every metric and span exported by the SDK path.*/
+    public static final Setting.AffixSetting<String> TELEMETRY_OTEL_RESOURCE_ATTRIBUTES = Setting.prefixKeySetting(
+        "telemetry.otel.resource.",
+        key -> Setting.simpleString(key, NodeScope)
+    );
+
+    // --- General OTLP settings
+
+    /** Total attempts per export (initial + retries). {@code 1} disables retry. */
+    public static final Setting<Integer> TELEMETRY_OTEL_OTLP_RETRY_MAX_ATTEMPTS = Setting.intSetting(
+        "telemetry.otel.otlp.retry.max_attempts",
+        2,
+        1,
+        5,
+        NodeScope
+    );
+
+    public static final Setting<TimeValue> TELEMETRY_OTEL_OTLP_RETRY_INITIAL_BACKOFF = Setting.timeSetting(
+        "telemetry.otel.otlp.retry.initial_backoff",
+        TimeValue.timeValueSeconds(1),
+        NodeScope
+    );
+
+    public static final Setting<Double> TELEMETRY_OTEL_OTLP_RETRY_BACKOFF_MULTIPLIER = Setting.doubleSetting(
+        "telemetry.otel.otlp.retry.backoff_multiplier",
+        1.5,
+        1.0,
+        NodeScope
+    );
+
+    /**
+     * Total deadline for one OTLP send() including retries; must stay below the collection interval so a slow export
+     * does not stretch into the next cycle.
+     */
+    public static final Setting<TimeValue> TELEMETRY_OTEL_OTLP_SEND_TIMEOUT = Setting.timeSetting(
+        "telemetry.otel.otlp.send_timeout",
+        TimeValue.timeValueSeconds(5),
+        TimeValue.timeValueMillis(1),
+        TimeValue.timeValueSeconds(60),
+        new GreaterThanTimeValueValidator("telemetry.otel.otlp.send_timeout", TELEMETRY_OTEL_OTLP_RETRY_INITIAL_BACKOFF),
+        NodeScope
+    );
+
+    public static final Setting<TimeValue> TELEMETRY_OTEL_OTLP_CONNECT_TIMEOUT = Setting.timeSetting(
+        "telemetry.otel.otlp.connect_timeout",
+        TimeValue.timeValueSeconds(2),
+        TimeValue.timeValueMillis(1),
+        TimeValue.timeValueSeconds(10),
+        NodeScope
+    );
+
+    // --- Metrics
+
     public static final Setting<String> TELEMETRY_OTEL_METRICS_ENDPOINT = Setting.simpleString(
         "telemetry.otel.metrics.endpoint",
         "",
@@ -37,6 +97,7 @@ public final class OtelSdkSettings {
     public static final Setting<TimeValue> TELEMETRY_OTEL_METRICS_INTERVAL = Setting.timeSetting(
         "telemetry.otel.metrics.interval",
         TimeValue.timeValueSeconds(10),
+        new GreaterThanTimeValueValidator("telemetry.otel.metrics.interval", TELEMETRY_OTEL_OTLP_SEND_TIMEOUT),
         NodeScope
     );
 
@@ -84,47 +145,7 @@ public final class OtelSdkSettings {
         NodeScope
     );
 
-    /** Total attempts per export (initial + retries). {@code 1} disables retry. */
-    public static final Setting<Integer> TELEMETRY_OTEL_OTLP_RETRY_MAX_ATTEMPTS = Setting.intSetting(
-        "telemetry.otel.otlp.retry.max_attempts",
-        2,
-        1,
-        5,
-        NodeScope
-    );
-
-    public static final Setting<TimeValue> TELEMETRY_OTEL_OTLP_RETRY_INITIAL_BACKOFF = Setting.timeSetting(
-        "telemetry.otel.otlp.retry.initial_backoff",
-        TimeValue.timeValueSeconds(1),
-        NodeScope
-    );
-
-    public static final Setting<Double> TELEMETRY_OTEL_OTLP_RETRY_BACKOFF_MULTIPLIER = Setting.doubleSetting(
-        "telemetry.otel.otlp.retry.backoff_multiplier",
-        1.5,
-        1.0,
-        NodeScope
-    );
-
-    /**
-     * Total deadline for one OTLP send() including retries; must stay below the collection interval so a slow export
-     * does not stretch into the next cycle.
-     */
-    public static final Setting<TimeValue> TELEMETRY_OTEL_OTLP_SEND_TIMEOUT = Setting.timeSetting(
-        "telemetry.otel.otlp.send_timeout",
-        TimeValue.timeValueSeconds(5),
-        TimeValue.timeValueMillis(1),
-        TimeValue.timeValueSeconds(60),
-        NodeScope
-    );
-
-    public static final Setting<TimeValue> TELEMETRY_OTEL_OTLP_CONNECT_TIMEOUT = Setting.timeSetting(
-        "telemetry.otel.otlp.connect_timeout",
-        TimeValue.timeValueSeconds(2),
-        TimeValue.timeValueMillis(1),
-        TimeValue.timeValueSeconds(10),
-        NodeScope
-    );
+    // --- Traces
 
     /** OTLP HTTP endpoint URL where the SDK exports buffered spans. Required when the SDK trace path is active. */
     public static final Setting<String> TELEMETRY_OTEL_TRACES_ENDPOINT = Setting.simpleString(
@@ -195,18 +216,7 @@ public final class OtelSdkSettings {
         NodeScope
     );
 
-    /** Best-effort upper bound on time spent flushing buffered metrics or spans to the exporter. */
-    public static final Setting<TimeValue> TELEMETRY_OTEL_FLUSH_TIMEOUT = Setting.timeSetting(
-        "telemetry.otel.flush_timeout",
-        TimeValue.timeValueSeconds(10),
-        NodeScope
-    );
-
-    /** External OTel resource attributes attached to every metric and span exported by the SDK path.*/
-    public static final Setting.AffixSetting<String> TELEMETRY_OTEL_RESOURCE_ATTRIBUTES = Setting.prefixKeySetting(
-        "telemetry.otel.resource.",
-        key -> Setting.simpleString(key, NodeScope)
-    );
+    // --- Logs
 
     /** OTLP/gRPC endpoint URL where the SDK exports audit log records. Required when {@link #TELEMETRY_OTEL_LOGS_ENABLED} is true. */
     public static final Setting<String> TELEMETRY_OTEL_LOGS_ENDPOINT = Setting.simpleString("telemetry.otel.logs.endpoint", "", NodeScope);
@@ -235,4 +245,33 @@ public final class OtelSdkSettings {
         },
         NodeScope
     );
+
+    private static final class GreaterThanTimeValueValidator implements Setting.Validator<TimeValue> {
+
+        private final String thisSettingKey;
+        private final Setting<TimeValue> otherSetting;
+
+        private GreaterThanTimeValueValidator(String thisSettingKey, Setting<TimeValue> otherSetting) {
+            this.thisSettingKey = thisSettingKey;
+            this.otherSetting = otherSetting;
+        }
+
+        @Override
+        public void validate(TimeValue value) {}
+
+        @Override
+        public void validate(TimeValue value, Map<Setting<?>, Object> settings) {
+            var otherValue = (TimeValue) settings.get(otherSetting);
+            if (value.compareTo(otherValue) <= 0) {
+                throw new IllegalArgumentException(
+                    thisSettingKey + " (" + value + ") must be greater than " + otherSetting.getKey() + " (" + otherValue + ")"
+                );
+            }
+        }
+
+        @Override
+        public Iterator<Setting<?>> settings() {
+            return List.<Setting<?>>of(otherSetting).iterator();
+        }
+    }
 }

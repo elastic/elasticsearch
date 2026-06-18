@@ -1,0 +1,26 @@
+apply plugin: 'elasticsearch.internal-java-rest-test'
+
+dependencies {
+  javaRestTestImplementation project(path: xpackModule('core'))
+  javaRestTestImplementation project(path: xpackModule('inference'))
+
+  // MockWebServer (org.elasticsearch.test.http.*) for the mock OpenAI endpoint
+  javaRestTestImplementation(testArtifact(project(xpackModule('core'))))
+  // Utils.inferenceUtilityExecutors() for the fetcher's thread pool
+  javaRestTestImplementation(testArtifact(project(xpackModule('inference'))))
+  // Reuse InferenceBaseRestTest (cluster @ClassRule + putModel/infer/updateEndpoint/deleteModel helpers).
+  // Same pattern as x-pack/plugin/inference/qa/rolling-upgrade/build.gradle.
+  javaRestTestImplementation(testArtifact(project(":x-pack:plugin:inference:qa:inference-service-tests"), "javaRestTest"))
+  // InferenceBaseRestTest's cluster boots .plugin("inference-service-test").
+  clusterPlugins project(':x-pack:plugin:inference:qa:test-service-plugin')
+
+  // Real in-process OAuth2/OIDC identity provider
+  javaRestTestImplementation "no.nav.security:mock-oauth2-server:2.2.1"
+  // okio-jvm must be declared explicitly; mock-oauth2-server brings okio (a Kotlin MPP artifact)
+  // which does not put JVM classes on the compile classpath by itself.
+  javaRestTestImplementation "com.squareup.okio:okio-jvm:3.17.0"
+}
+
+tasks.named("javaRestTest").configure {
+  usesDefaultDistribution("OpenAI OAuth2 end-to-end tests")
+}

@@ -55,6 +55,7 @@ import org.elasticsearch.xpack.inference.services.googlevertexai.embeddings.Goog
 import org.elasticsearch.xpack.inference.services.googlevertexai.embeddings.GoogleVertexAiEmbeddingsServiceSettings;
 import org.elasticsearch.xpack.inference.services.googlevertexai.embeddings.GoogleVertexAiEmbeddingsTaskSettings;
 import org.junit.Before;
+import org.mockito.ArgumentCaptor;
 import org.mockito.stubbing.Answer;
 
 import java.util.HashMap;
@@ -89,6 +90,7 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
     private static final String SERVICE_ACCOUNT_JSON_INITIAL_VALUE = "some_service_account";
     private static final String SERVICE_NAME_VALUE = "some_service_name";
     private static final int MAX_BATCH_SIZE_INITIAL_VALUE = 2;
+    private static final int MAX_BATCH_SIZE_UPDATED_VALUE = 16;
     private static final InputType INPUT_TYPE_INITIAL_VALUE = InputType.SEARCH;
     private static final Boolean AUTO_TRUNCATE_INITIAL_VALUE = Boolean.FALSE;
     private static final String SERVICE_SETTINGS_KEY = "some_service_key";
@@ -102,19 +104,23 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
     private static final String UNKNOWN_SETTING_KEY = "unknown_setting";
     private static final String UNKNOWN_SETTING_VALUE = "unknown_value";
     private static final String ENDPOINT_DOES_NOT_EXIST_ERROR_PATTERN = "The inference endpoint [%s] does not exist and cannot be updated";
-    private static final String DEFAULT_UPDATE_REQUEST_BODY = """
-        {
-            "task_type": "text_embedding",
-            "service_settings": {
-                "service_account_json": "some_new_service_account",
-                "max_batch_size": 16
-            },
-            "task_settings": {
-                "input_type": "ingest",
-                "auto_truncate": true
+    private static final String DEFAULT_UPDATE_REQUEST_BODY = buildDefaultUpdateRequestBody();
+
+    private static String buildDefaultUpdateRequestBody() {
+        return Strings.format("""
+            {
+                "task_type": "text_embedding",
+                "service_settings": {
+                    "service_account_json": "some_new_service_account",
+                    "max_batch_size": %d
+                },
+                "task_settings": {
+                    "input_type": "ingest",
+                    "auto_truncate": true
+                }
             }
-        }
-        """;
+            """, MAX_BATCH_SIZE_UPDATED_VALUE);
+    }
 
     private MockLicenseState licenseState;
     private TransportUpdateInferenceModelAction action;
@@ -130,6 +136,13 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
         licenseState = MockLicenseState.createMock();
         service = mock(InferenceService.class);
         when(service.name()).thenReturn(SERVICE_NAME_VALUE);
+        // Mockito doesn't invoke interface default methods; stub onModelUpdated to call the listener
+        // so the post-persist hook in TransportUpdateInferenceModelAction completes the chain.
+        doAnswer(invocation -> {
+            ActionListener<Void> listener = invocation.getArgument(2);
+            listener.onResponse(null);
+            return null;
+        }).when(service).onModelUpdated(any(), any(), any());
         action = new TransportUpdateInferenceModelAction(
             mock(TransportService.class),
             mock(ClusterService.class),
@@ -273,6 +286,8 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
         var response = listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT);
         assertThat(response.getModel(), is(model.getConfigurations()));
         verifyNoModelRegistryMutations();
+        // The refs are only set on a real update; on a no-op the hook must never be invoked.
+        verify(service, never()).onModelUpdated(any(), any(), any());
     }
 
     public void testMasterOperation_UpdateModelTransactionFailedDueToRuntimeException_ThrowsSameException() {
@@ -533,7 +548,75 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
         verifyModelRegistryUpdateInvoked();
     }
 
+    public void testMasterOperation_SuccessfulUpdate_InvokesOnModelUpdatedWithExistingAndMergedModels() {
+        var unparsedModel = new UnparsedModel(INFERENCE_ENTITY_ID_VALUE, TaskType.TEXT_EMBEDDING, SERVICE_NAME_VALUE, Map.of(), Map.of());
+        mockGetModelWithSecretsToReturnUnparsedModel(unparsedModel, INFERENCE_ENTITY_ID_VALUE);
+        mockServiceRegistryToReturnService(service);
+        mockLicenseStateIsAllowed(true);
+
+        // existingModel and mergedModel must be distinct instances so that the update path is taken
+        // (equals() returning false prevents the no-op early-return at lines 164-168).
+        var existingModel = createModel(MAX_BATCH_SIZE_INITIAL_VALUE);
+        var mergedModel = createModel(MAX_BATCH_SIZE_UPDATED_VALUE);
+        mockParsePersistedConfigWithSecretsToReturnModel(existingModel);
+        when(service.buildModelFromConfigAndSecrets(any(ModelConfigurations.class), any(ModelSecrets.class))).thenReturn(mergedModel);
+        mockServiceInferCallToReturnDenseEmbeddingFloatResults();
+        // Embedding-details update returns its argument unchanged, so the persisted model stays mergedModel.
+        when(service.updateModelWithEmbeddingDetails(any(GoogleVertexAiEmbeddingsModel.class), eq(3))).thenAnswer(
+            invocationOnMock -> invocationOnMock.getArgument(0)
+        );
+        mockUpdateModelTransactionToReturnBoolean(true, existingModel);
+        mockModelRegistryGetModelToReturnUnparsedModel(unparsedModel);
+        when(service.parsePersistedConfig(unparsedModel)).thenReturn(existingModel);
+
+        var listener = callMasterOperation(INFERENCE_ENTITY_ID_VALUE, DEFAULT_UPDATE_REQUEST_BODY);
+        var response = listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT);
+        assertThat(response.getModel(), is(existingModel.getConfigurations()));
+        verifyModelRegistryUpdateInvoked();
+
+        // The hook must be invoked with exactly (existingModel, mergedModel).
+        var oldCaptor = ArgumentCaptor.forClass(Model.class);
+        var newCaptor = ArgumentCaptor.forClass(Model.class);
+        verify(service).onModelUpdated(oldCaptor.capture(), newCaptor.capture(), any());
+        assertThat(oldCaptor.getValue(), sameInstance(existingModel));
+        assertThat(newCaptor.getValue(), sameInstance(mergedModel));
+    }
+
+    public void testMasterOperation_OnModelUpdatedFails_PropagatesExceptionAndSkipsGetModel() {
+        var unparsedModel = new UnparsedModel(INFERENCE_ENTITY_ID_VALUE, TaskType.TEXT_EMBEDDING, SERVICE_NAME_VALUE, Map.of(), Map.of());
+        mockGetModelWithSecretsToReturnUnparsedModel(unparsedModel, INFERENCE_ENTITY_ID_VALUE);
+        mockServiceRegistryToReturnService(service);
+        mockLicenseStateIsAllowed(true);
+        var model = createModel();
+        mockParsePersistedConfigWithSecretsToReturnModel(model);
+        mockBuildModelFromConfigAndSecretsToReturnNewModel();
+        mockServiceInferCallToReturnDenseEmbeddingFloatResults();
+        mockUpdateModelWithEmbeddingDetailsToReturnSameModel();
+        mockUpdateModelTransactionToReturnBoolean(true, model);
+
+        // Override the @Before no-op stub to simulate a cache-invalidation failure.
+        var simulatedException = new RuntimeException("cache invalidation failed");
+        doAnswer(invocation -> {
+            ActionListener<Void> hookListener = invocation.getArgument(2);
+            hookListener.onFailure(simulatedException);
+            return null;
+        }).when(service).onModelUpdated(any(), any(), any());
+
+        var listener = callMasterOperation(INFERENCE_ENTITY_ID_VALUE, DEFAULT_UPDATE_REQUEST_BODY);
+
+        var actualException = expectThrows(RuntimeException.class, () -> listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT));
+        assertThat(actualException, sameInstance(simulatedException));
+        // The persist step ran before the hook, so the registry update must have been invoked.
+        verifyModelRegistryUpdateInvoked();
+        // The failure must short-circuit the chain: the re-fetch stage must never run.
+        verify(mockModelRegistry, never()).getModel(eq(INFERENCE_ENTITY_ID_VALUE), any());
+    }
+
     private static GoogleVertexAiEmbeddingsModel createModel() {
+        return createModel(MAX_BATCH_SIZE_INITIAL_VALUE);
+    }
+
+    private static GoogleVertexAiEmbeddingsModel createModel(int maxBatchSize) {
         return new GoogleVertexAiEmbeddingsModel(
             INFERENCE_ENTITY_ID_VALUE,
             TaskType.TEXT_EMBEDDING,
@@ -545,7 +628,7 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
                 Boolean.FALSE,
                 null,
                 null,
-                MAX_BATCH_SIZE_INITIAL_VALUE,
+                maxBatchSize,
                 null,
                 null
             ),

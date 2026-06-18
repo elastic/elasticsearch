@@ -2666,7 +2666,11 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                         // Resolve surrogates immediately, since expressions stored in (Compact)MultiTypeEsField are serialized
                         // to data nodes, and SurrogateExpressions cannot be serialized.
                         Expression resolvedConvertExpression = SubstituteSurrogateExpressions.rule(convertExpression);
-                        return createIfDoesNotAlreadyExist(fa, unionTypeEsField.rewrapWithCast(resolvedConvertExpression), unionFieldAttributes);
+                        return createIfDoesNotAlreadyExist(
+                            fa,
+                            unionTypeEsField.rewrapWithCast(resolvedConvertExpression),
+                            unionFieldAttributes
+                        );
                     }
                 } else if (convert.field() instanceof AbstractConvertFunction subConvert) {
                     return convertExpression.replaceChildren(

@@ -101,6 +101,12 @@ public class SearchResponseMetrics {
                 String.format(Locale.ROOT, SEARCH_PHASE_METRIC_FORMAT, "query"),
                 "The search phase query duration in milliseconds at the coordinator, expressed as a histogram",
                 "millis"
+            ),
+            "rank-feature",
+            meterRegistry.registerLongHistogram(
+                String.format(Locale.ROOT, SEARCH_PHASE_METRIC_FORMAT, "rank_feature"),
+                "The search phase rank-feature duration in milliseconds at the coordinator, expressed as a histogram",
+                "millis"
             )
         );
     }

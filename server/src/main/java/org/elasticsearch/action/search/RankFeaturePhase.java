@@ -48,6 +48,7 @@ public class RankFeaturePhase extends SearchPhase {
     private final AggregatedDfs aggregatedDfs;
     private final SearchProgressListener progressListener;
     private final RankFeaturePhaseRankCoordinatorContext rankFeaturePhaseRankCoordinatorContext;
+    private long phaseStartTimeInNanos;
 
     RankFeaturePhase(
         SearchPhaseResults<SearchPhaseResult> queryPhaseResults,
@@ -76,6 +77,7 @@ public class RankFeaturePhase extends SearchPhase {
 
     @Override
     protected void run() {
+        phaseStartTimeInNanos = System.nanoTime();
         context.execute(new AbstractRunnable() {
             @Override
             protected void doRun() throws Exception {
@@ -218,6 +220,7 @@ public class RankFeaturePhase extends SearchPhase {
                         );
                         moveToNextPhase(rankPhaseResults, reducedRankFeaturePhase);
                     } else {
+                        // do not record duration of failed phases
                         context.onPhaseFailure(NAME, "Computing updated ranks for results failed", e);
                     }
                 }
@@ -268,6 +271,8 @@ public class RankFeaturePhase extends SearchPhase {
     }
 
     void moveToNextPhase(SearchPhaseResults<SearchPhaseResult> phaseResults, SearchPhaseController.ReducedQueryPhase reducedQueryPhase) {
+        context.getSearchResponseMetrics()
+            .recordSearchPhaseDuration(getName(), System.nanoTime() - phaseStartTimeInNanos, context.getSearchRequestAttributes());
         context.executeNextPhase(NAME, () -> new FetchSearchPhase(phaseResults, aggregatedDfs, context, reducedQueryPhase));
     }
 }

@@ -316,7 +316,9 @@ public class JoinValidationServiceTests extends ESTestCase {
                 );
 
                 try (var ignored = NamedWriteableRegistryTests.ignoringUnknownNamedWriteables(); var out = new BytesStreamOutput()) {
-                    request.writeTo(out);
+                    BytesTransportRequest bytesRequest = (BytesTransportRequest) request;
+                    bytesRequest.writeThin(out);
+                    bytesRequest.bytes().writeTo(out);
                     out.flush();
                     final var handler = joiningNodeTransport.getRequestHandlers().getHandler(action);
                     handler.processMessageReceived(

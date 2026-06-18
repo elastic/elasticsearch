@@ -15,6 +15,8 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.coordination.CleanableResponseHandler;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
@@ -326,7 +328,17 @@ public abstract class DisruptableMockTransport extends MockTransport {
 
         final TransportRequest copiedRequest;
         try {
-            copiedRequest = copyWriteable(request, writeableRegistry(), requestHandler::newRequest);
+            if (request instanceof BytesTransportMessage bytesRequest) {
+                try (BytesStreamOutput output = new BytesStreamOutput()) {
+                    bytesRequest.writeThin(output);
+                    bytesRequest.bytes().writeTo(output);
+                    copiedRequest = requestHandler.newRequest(
+                        new NamedWriteableAwareStreamInput(output.bytes().streamInput(), writeableRegistry())
+                    );
+                }
+            } else {
+                copiedRequest = copyWriteable(request, writeableRegistry(), requestHandler::newRequest);
+            }
         } catch (IOException e) {
             throw new AssertionError("exception de/serializing request", e);
         }

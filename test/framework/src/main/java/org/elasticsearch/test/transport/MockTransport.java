@@ -25,6 +25,7 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.BytesTransportMessage;
 import org.elasticsearch.transport.CloseableConnection;
 import org.elasticsearch.transport.ClusterConnectionManager;
 import org.elasticsearch.transport.RemoteTransportException;
@@ -100,7 +101,12 @@ public class MockTransport extends StubbableTransport {
         } else {
             final Response deliveredResponse;
             try (BytesStreamOutput output = new BytesStreamOutput()) {
-                response.writeTo(output);
+                if (response instanceof BytesTransportMessage bytesResponse) {
+                    bytesResponse.writeThin(output);
+                    bytesResponse.bytes().writeTo(output);
+                } else {
+                    response.writeTo(output);
+                }
                 deliveredResponse = transportResponseHandler.read(
                     new NamedWriteableAwareStreamInput(output.bytes().streamInput(), writeableRegistry())
                 );

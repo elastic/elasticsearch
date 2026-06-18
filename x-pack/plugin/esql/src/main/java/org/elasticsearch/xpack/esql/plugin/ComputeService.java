@@ -239,20 +239,31 @@ public class ComputeService {
         return formatReaderRegistry;
     }
 
-    PhysicalPlan discoverSplits(PhysicalPlan plan, Configuration configuration) {
+    PhysicalPlan discoverSplits(PhysicalPlan plan, Configuration configuration, EsqlExecutionInfo execInfo) {
         if (operatorFactoryRegistry == null) {
             return plan;
         }
         try {
-            PhysicalPlan discovered = SplitDiscoveryPhase.resolveExternalSplits(
+            SplitDiscoveryPhase.Result result = SplitDiscoveryPhase.resolveExternalSplitsWithStats(
                 plan,
                 operatorFactoryRegistry.sourceFactories(),
                 maxRecordBytes(configuration)
             );
-            return coalesceSplits(discovered);
+            recordExternalScanStats(execInfo, result);
+            return coalesceSplits(result.plan());
         } catch (Exception e) {
             LOGGER.warn("split discovery failed for external source", e);
             throw e;
+        }
+    }
+
+    /**
+     * Adds the post-prune external scan accounting to the query profile. The counts are captured
+     * before split coalescing so {@code splits_scanned} reflects the number of discovered splits.
+     */
+    private static void recordExternalScanStats(EsqlExecutionInfo execInfo, SplitDiscoveryPhase.Result result) {
+        if (execInfo != null && result.splitsScanned() > 0) {
+            execInfo.queryProfile().addExternalScanStats(result.filesScanned(), result.splitsScanned(), result.bytesScanned());
         }
     }
 
@@ -284,8 +295,12 @@ public class ComputeService {
         };
     }
 
-    ExternalDistributionResult applyExternalDistributionStrategy(PhysicalPlan plan, Configuration configuration) {
-        List<ExternalSplit> externalSplits = collectExternalSplits(plan, configuration);
+    ExternalDistributionResult applyExternalDistributionStrategy(
+        PhysicalPlan plan,
+        Configuration configuration,
+        EsqlExecutionInfo execInfo
+    ) {
+        List<ExternalSplit> externalSplits = collectExternalSplits(plan, configuration, execInfo);
         if (externalSplits.isEmpty()) {
             return new ExternalDistributionResult(collapseExternalSourceExchanges(plan), null, List.of());
         }
@@ -318,12 +333,14 @@ public class ComputeService {
         }
     }
 
-    private List<ExternalSplit> collectExternalSplits(PhysicalPlan plan, Configuration configuration) {
+    private List<ExternalSplit> collectExternalSplits(PhysicalPlan plan, Configuration configuration, EsqlExecutionInfo execInfo) {
         List<ExternalSplit> splits = new ArrayList<>();
+        // Splits attached to a top-level ExternalSourceExec were already accounted for by
+        // discoverSplits; only the fragment path below needs to record scan stats.
         plan.forEachDown(ExternalSourceExec.class, exec -> splits.addAll(exec.splits()));
         if (splits.isEmpty()) {
             if (canSkipSplitDiscovery(plan, formatReaderRegistry) == false) {
-                discoverSplitsFromFragments(plan, splits, maxRecordBytes(configuration));
+                discoverSplitsFromFragments(plan, splits, maxRecordBytes(configuration), execInfo);
                 if (splits.size() > SplitCoalescer.COALESCING_THRESHOLD) {
                     List<ExternalSplit> coalesced = SplitCoalescer.coalesce(splits);
                     if (coalesced != splits) {
@@ -421,21 +438,27 @@ public class ComputeService {
         return result;
     }
 
-    private void discoverSplitsFromFragments(PhysicalPlan plan, List<ExternalSplit> splits, int maxRecordBytes) {
+    private void discoverSplitsFromFragments(
+        PhysicalPlan plan,
+        List<ExternalSplit> splits,
+        int maxRecordBytes,
+        EsqlExecutionInfo execInfo
+    ) {
         if (operatorFactoryRegistry == null) {
             return;
         }
         plan.forEachDown(FragmentExec.class, fragment -> {
             fragment.fragment().forEachDown(ExternalRelation.class, external -> {
                 ExternalSourceExec tempExec = external.toPhysicalExec();
-                PhysicalPlan discovered = SplitDiscoveryPhase.resolveExternalSplits(
+                SplitDiscoveryPhase.Result result = SplitDiscoveryPhase.resolveExternalSplitsWithStats(
                     tempExec,
                     operatorFactoryRegistry.sourceFactories(),
                     maxRecordBytes
                 );
-                if (discovered instanceof ExternalSourceExec withSplits) {
+                if (result.plan() instanceof ExternalSourceExec withSplits) {
                     splits.addAll(withSplits.splits());
                 }
+                recordExternalScanStats(execInfo, result);
             });
         });
     }
@@ -714,8 +737,8 @@ public class ComputeService {
         Map<String, EsqlExecutionInfo.Cluster.Status> initialClusterStatuses,
         PlanTimeProfile planTimeProfile
     ) {
-        final PhysicalPlan splitPlan = discoverSplits(physicalPlan, configuration);
-        final ExternalDistributionResult distributionResult = applyExternalDistributionStrategy(splitPlan, configuration);
+        final PhysicalPlan splitPlan = discoverSplits(physicalPlan, configuration, execInfo);
+        final ExternalDistributionResult distributionResult = applyExternalDistributionStrategy(splitPlan, configuration, execInfo);
         final PhysicalPlan resolvedPlan = distributionResult.plan();
         Tuple<PhysicalPlan, PhysicalPlan> coordinatorAndDataNodePlan = PlannerUtils.breakPlanBetweenCoordinatorAndDataNode(
             resolvedPlan,

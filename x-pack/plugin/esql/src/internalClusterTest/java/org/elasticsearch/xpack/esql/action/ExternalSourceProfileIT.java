@@ -23,6 +23,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.xpack.esql.datasource.csv.CsvDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasource.http.HttpDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasource.parquet.ParquetDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasource.parquet.ParquetReaderStatus;
@@ -42,6 +43,7 @@ import org.junit.Before;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -52,8 +54,10 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.EXTERNAL_COMMAND;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -122,6 +126,7 @@ public class ExternalSourceProfileIT extends AbstractEsqlIntegTestCase {
         plugins.add(EsqlEnterpriseWithDatasourceExtensions.class);
         plugins.add(HttpDataSourcePlugin.class);
         plugins.add(ParquetDataSourcePlugin.class);
+        plugins.add(CsvDataSourcePlugin.class);
         plugins.add(TestDataSourcePlugin.class);
         return plugins;
     }
@@ -180,6 +185,88 @@ public class ExternalSourceProfileIT extends AbstractEsqlIntegTestCase {
             }
         } finally {
             Files.deleteIfExists(parquetFile);
+        }
+    }
+
+    public void testExternalScanCountersArePopulated() throws Exception {
+        // Many rows with small row groups produce several row-group splits for a single file.
+        Path parquetFile = writeParquetFile(300, 25);
+        try {
+            String query = "EXTERNAL \"" + StoragePath.fileUri(parquetFile) + "\" | LIMIT 5";
+
+            var request = syncEsqlQueryRequest(query);
+            request.profile(true);
+
+            try (var response = run(request, TIMEOUT)) {
+                assertNotNull("execution info must be present", response.getExecutionInfo());
+                EsqlQueryProfile profile = response.getExecutionInfo().queryProfile();
+                // A single Parquet file is scanned, split into one or more row-group ranges.
+                assertEquals("exactly one file scanned", 1, profile.filesScanned());
+                assertThat("at least one split scanned", profile.splitsScanned(), greaterThanOrEqualTo(1));
+                assertThat("bytes scanned populated", profile.bytesScanned(), greaterThan(0L));
+            }
+        } finally {
+            Files.deleteIfExists(parquetFile);
+        }
+    }
+
+    /**
+     * A {@code COUNT(*)} that can be answered from the source's row-count metadata must not scan any
+     * files: split discovery is skipped (see {@code ComputeService.canSkipSplitDiscovery}), so the
+     * scan counters stay at zero and are omitted from the profile JSON.
+     */
+    public void testMetadataOnlyCountStarScansNoFiles() throws Exception {
+        Path parquetFile = writeParquetFile(300, 25);
+        try {
+            String query = "EXTERNAL \"" + StoragePath.fileUri(parquetFile) + "\" | STATS c = COUNT(*)";
+
+            var request = syncEsqlQueryRequest(query);
+            request.profile(true);
+
+            try (var response = run(request, TIMEOUT)) {
+                assertNotNull("execution info must be present", response.getExecutionInfo());
+                EsqlQueryProfile profile = response.getExecutionInfo().queryProfile();
+                assertEquals("metadata-only COUNT(*) must scan no files", 0, profile.filesScanned());
+                assertEquals("metadata-only COUNT(*) must scan no splits", 0, profile.splitsScanned());
+                assertEquals("metadata-only COUNT(*) must scan no bytes", 0L, profile.bytesScanned());
+            }
+        } finally {
+            Files.deleteIfExists(parquetFile);
+        }
+    }
+
+    /**
+     * CSV has no embedded row count, so the first {@code COUNT(*)} must scan the whole file (the scan
+     * counters are populated). After execution the row count is reconciled into the coordinator's
+     * source-stats cache, so a second identical {@code COUNT(*)} is answered from metadata and scans
+     * nothing, so the counters return to zero. This is the "read it once, then never again" behavior.
+     */
+    public void testCsvCountStarScansColdThenSkipsWarm() throws Exception {
+        int rowCount = 200;
+        Path csvFile = writeCsvFile(rowCount);
+        try {
+            String query = "EXTERNAL \"" + StoragePath.fileUri(csvFile) + "\" | STATS c = COUNT(*)";
+
+            // COLD: no cached row count yet, so the file is scanned to answer COUNT(*).
+            try (var response = run(syncEsqlQueryRequest(query).profile(true))) {
+                assertCountValue(response, rowCount);
+                EsqlQueryProfile profile = response.getExecutionInfo().queryProfile();
+                assertEquals("cold COUNT(*) scans the one CSV file", 1, profile.filesScanned());
+                assertThat("cold COUNT(*) scans at least one split", profile.splitsScanned(), greaterThanOrEqualTo(1));
+                assertThat("cold COUNT(*) reads bytes", profile.bytesScanned(), greaterThan(0L));
+            }
+
+            // WARM: the row count was reconciled into the coordinator cache, so COUNT(*) is served
+            // from metadata and no file is scanned.
+            try (var response = run(syncEsqlQueryRequest(query).profile(true))) {
+                assertCountValue(response, rowCount);
+                EsqlQueryProfile profile = response.getExecutionInfo().queryProfile();
+                assertEquals("warm COUNT(*) scans no files", 0, profile.filesScanned());
+                assertEquals("warm COUNT(*) scans no splits", 0, profile.splitsScanned());
+                assertEquals("warm COUNT(*) scans no bytes", 0L, profile.bytesScanned());
+            }
+        } finally {
+            Files.deleteIfExists(csvFile);
         }
     }
 
@@ -286,6 +373,22 @@ public class ExternalSourceProfileIT extends AbstractEsqlIntegTestCase {
         }
         assertThat("expected at least one AsyncExternalSourceOperator.Status in the driver profiles", found, notNullValue());
         return found;
+    }
+
+    private static void assertCountValue(EsqlQueryResponse response, long expected) {
+        List<List<Object>> rows = getValuesList(response);
+        assertThat(rows.size(), equalTo(1));
+        assertThat(((Number) rows.get(0).get(0)).longValue(), equalTo(expected));
+    }
+
+    private Path writeCsvFile(int rowCount) throws IOException {
+        StringBuilder sb = new StringBuilder("id:integer,name:keyword,value:integer\n");
+        for (int i = 0; i < rowCount; i++) {
+            sb.append(i).append(",row_").append(i).append(',').append(i * 10).append('\n');
+        }
+        Path tempFile = createTempDir().resolve("count_star_scan_test.csv");
+        Files.write(tempFile, sb.toString().getBytes(StandardCharsets.UTF_8));
+        return tempFile;
     }
 
     private Path writeParquetFile(int rowCount, int rowGroupSize) throws IOException {

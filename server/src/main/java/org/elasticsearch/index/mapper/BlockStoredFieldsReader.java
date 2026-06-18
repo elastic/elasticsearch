@@ -199,5 +199,4 @@ public abstract class BlockStoredFieldsReader implements BlockLoader.RowStrideRe
             return "BlockStoredFieldsReader.Id";
         }
     }
-
 }

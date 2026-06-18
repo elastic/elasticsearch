@@ -248,10 +248,12 @@ public final class MappingLookup {
         this.isSourceSynthetic = sfm != null && sfm.isSynthetic();
         this.isSourceColumnarStored = sfm != null && sfm.isColumnarStored();
 
-        // Any _id mapper may be columnar (ProvidedIdFieldMapper, or SliceIdFieldMapper on a slice-enabled index), so
-        // resolve the _id mapper by name and ask it, rather than keying on a single concrete class.
+        // Columnar _id (binary doc values) is used by ProvidedIdFieldMapper and a slice-enabled SliceIdFieldMapper.
+        // Match those two explicitly rather than any IdFieldMapper (TSDB's TsidExtractingIdFieldMapper also stores _id as
+        // binary doc values but synthesizes it at read time, so it must not count as columnar here).
         var idFieldMapper = mapping.getMetadataMapperByName(IdFieldMapper.NAME);
-        this.isColumnarId = idFieldMapper instanceof IdFieldMapper id && id.isColumnarMode();
+        this.isColumnarId = (idFieldMapper instanceof ProvidedIdFieldMapper provided && provided.isColumnarMode())
+            || (idFieldMapper instanceof SliceIdFieldMapper slice && slice.isColumnarMode());
     }
 
     private static boolean assertMapperNamesInterned(Map<String, Mapper> mappers, Map<String, ObjectMapper> objectMappers) {

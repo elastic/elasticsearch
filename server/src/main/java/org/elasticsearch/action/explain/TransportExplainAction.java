@@ -191,7 +191,11 @@ public class TransportExplainAction extends TransportSingleShardAction<ExplainRe
         try {
             // No need to check the type, IndexShard#get does it for us. For slice indices the routing is the slice
             // (validated upstream), so encodeIdentity builds the compound identity term.
-            final BytesRef uid = IdFieldMapper.encodeIdentity(context.indexShard().indexSettings(), request.id(), request.routing());
+            final BytesRef uid = IdFieldMapper.encodeIdentity(
+                context.indexShard().indexSettings().isSliceEnabled(),
+                request.id(),
+                request.routing()
+            );
             result = context.indexShard().get(new Engine.Get(false, false, request.id(), uid), request.getSplitShardCountSummary());
             if (result.exists() == false) {
                 return new ExplainResponse(shardId.getIndexName(), request.id(), false);

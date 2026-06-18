@@ -123,15 +123,9 @@ public class ParsedDocument {
             document.add(field);
 
         } else if (useColumnarId) {
-            // When uid is provided (slice-enabled indices) the tombstone identity is the compound (slice, id) term, so
-            // store that in the columnar _id (indexed + binary doc values); columnar ops-recovery reads the compound
-            // back from doc values. Otherwise store the plain encoded id.
+            // When uid is provided (slice-enabled indices) the tombstone identity is the compound (slice, id) term, so store that
             document.add(uid != null ? ProvidedIdFieldMapper.columnarIdField(uid) : ProvidedIdFieldMapper.columnarIdField(id));
         } else {
-            // Use standard _id field (indexed and stored, some indices also trim the stored field at some point)
-            // When uid is provided (slice-enabled indices), use the composite uid for the Lucene term. The field must be
-            // stored (like the non-slice branch below): ops-based recovery reads the tombstone's _id back from stored
-            // fields, and a missing stored _id would make LuceneChangesSnapshot misclassify the delete as a no-op.
             if (uid != null) {
                 document.add(IdFieldMapper.standardIdField(uid, Field.Store.YES));
             } else {

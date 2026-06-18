@@ -269,12 +269,15 @@ public class SliceBuilder implements Writeable, ToXContentObject {
     }
 
     private Query createSliceQuery(int id, int max, SearchExecutionContext context, boolean isScroll) {
-        // A slice-enabled index indexes two _id terms per doc; the _id terms-slicer must hash only the search term.
-        final boolean idSearchTermsOnly = context.getIndexSettings().isSliceEnabled();
+        // A slice-enabled index indexes two _id terms per doc, so the _id terms-slicer must hash only the per-document
+        // search term; otherwise it hashes every term, which assumes a single term per document.
+        final TermsSliceQuery.TermFilter idTermFilter = context.getIndexSettings().isSliceEnabled()
+            ? TermsSliceQuery.TermFilter.SLICED_ID_TERMS
+            : TermsSliceQuery.TermFilter.ALL_TERMS;
         if (field == null) {
-            return isScroll ? new TermsSliceQuery(IdFieldMapper.NAME, id, max, idSearchTermsOnly) : new DocIdSliceQuery(id, max);
+            return isScroll ? new TermsSliceQuery(IdFieldMapper.NAME, id, max, idTermFilter) : new DocIdSliceQuery(id, max);
         } else if (IdFieldMapper.NAME.equals(field)) {
-            return new TermsSliceQuery(IdFieldMapper.NAME, id, max, idSearchTermsOnly);
+            return new TermsSliceQuery(IdFieldMapper.NAME, id, max, idTermFilter);
         } else {
             MappedFieldType type = context.getFieldType(field);
             if (type == null) {

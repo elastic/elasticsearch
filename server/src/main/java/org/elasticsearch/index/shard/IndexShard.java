@@ -1122,7 +1122,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             // whether mappings were provided or not.
             doc.addDynamicMappingsUpdate(Mapping.emptyCompressed());
         }
-        final BytesRef uid = IdFieldMapper.encodeIdentity(mapperService.getIndexSettings(), doc.id(), source.routing());
+        final BytesRef uid = IdFieldMapper.encodeIdentity(mapperService.getIndexSettings().isSliceEnabled(), doc.id(), source.routing());
         return new Engine.Index(
             uid,
             doc,
@@ -1390,8 +1390,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         long ifPrimaryTerm
     ) {
         long startTime = System.nanoTime();
-        // For a slice-enabled index the identity term is the compound encodeCompoundId(id, slice); slice writes/replays
-        // always supply the slice as routing (see IndexShard.applyTranslogOperation DELETE, which recovers it from the uid).
         BytesRef uid = IdFieldMapper.encodeIdentity(sliceEnabled, id, routing);
         return new Engine.Delete(id, uid, seqNo, primaryTerm, version, versionType, origin, startTime, ifSeqNo, ifPrimaryTerm);
     }
@@ -2306,8 +2304,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             case DELETE -> {
                 final Translog.Delete delete = (Translog.Delete) operation;
                 // The translog Delete uid is the engine identity term. For a slice index it is the compound
-                // encodeCompoundId(id, slice); recover (id, slice) from it so prepareDelete rebuilds the exact same term.
-                // For a non-slice index it is the plain encodeId(id).
+                // encodeCompoundId(id, slice);
                 final boolean sliceEnabled = mapperService.getIndexSettings().isSliceEnabled();
                 final String id = sliceEnabled ? Uid.decodeCompoundId(delete.uid()) : Uid.decodeId(delete.uid());
                 final String routing = sliceEnabled ? Uid.sliceFromCompoundId(delete.uid()) : null;

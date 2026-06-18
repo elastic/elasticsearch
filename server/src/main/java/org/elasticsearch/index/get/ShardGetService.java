@@ -194,7 +194,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
         currentMetric.inc();
         final long now = System.nanoTime();
         try {
-            final BytesRef uid = IdFieldMapper.encodeIdentity(indexSettings, id, routing);
+            final BytesRef uid = IdFieldMapper.encodeIdentity(indexSettings.isSliceEnabled(), id, routing);
             var engineGet = new Engine.Get(realtime, realtime, id, uid).version(version)
                 .versionType(versionType)
                 .setIfSeqNo(ifSeqNo)

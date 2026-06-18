@@ -89,7 +89,7 @@ public class TermVectorsService {
                     request.realtime(),
                     false,
                     request.id(),
-                    IdFieldMapper.encodeIdentity(indexShard.indexSettings(), request.id(), request.routing())
+                    IdFieldMapper.encodeIdentity(indexShard.indexSettings().isSliceEnabled(), request.id(), request.routing())
                 ).version(request.version()).versionType(request.versionType()),
                 request.getSplitShardCountSummary()
             );

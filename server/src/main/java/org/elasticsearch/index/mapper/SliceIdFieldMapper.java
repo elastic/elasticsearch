@@ -55,7 +55,7 @@ public class SliceIdFieldMapper extends IdFieldMapper {
     static final class SliceIdFieldType extends AbstractIdFieldType {
 
         SliceIdFieldType(boolean columnar) {
-            super(columnar /* hasDocValues */);
+            super(columnar);
         }
 
         @Override
@@ -120,9 +120,7 @@ public class SliceIdFieldMapper extends IdFieldMapper {
     @Override
     public void postParse(DocumentParserContext context) {
         if (columnar) {
-            // Nested child documents share the root's Lucene updateDocuments batch, and Lucene requires a consistent
-            // field schema across the batch, so children must also carry the _id binary doc values field. Mirrors
-            // ProvidedIdFieldMapper#postParse.
+            // Mirrors ProvidedIdFieldMapper#postParse.
             var iterator = context.nonRootDocuments().iterator();
             if (iterator.hasNext()) {
                 final BytesRef encoded = Uid.encodeId(context.id());

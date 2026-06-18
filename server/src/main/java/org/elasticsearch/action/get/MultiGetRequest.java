@@ -567,8 +567,6 @@ public class MultiGetRequest extends LegacyActionRequest
             } else {
                 aFields = defaultFields;
             }
-            // A per-item _slice overrides the (default) routing and marks the routing as slice-derived. A doc may not set
-            // both routing and _slice. The slice requirement against index.slice.enabled is validated on the coordinating node.
             if (slice != null) {
                 if (routingFromSlice == false && routing != null) {
                     throw new IllegalArgumentException("[routing] is not allowed together with [" + SliceIndexing.PARAM_NAME + "]");

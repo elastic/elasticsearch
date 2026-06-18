@@ -42,6 +42,8 @@ import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.plugins.internal.XContentParserDecorator;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
@@ -416,11 +418,13 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     }
 
     public Map<String, Object> sourceAsMap() {
-        return XContentHelper.convertToMap(source, false, contentType).v2();
+        var parserConfiguration = XContentParserConfiguration.EMPTY.withIncludeSourceOnError(includeSourceOnError);
+        return XContentHelper.parseToType(XContentParser::map, source, contentType, parserConfiguration).v2();
     }
 
     public Map<String, Object> sourceAsMap(XContentParserDecorator parserDecorator) {
-        return XContentHelper.convertToMap(source, false, contentType, parserDecorator).v2();
+        var parserConfiguration = XContentParserConfiguration.EMPTY.withIncludeSourceOnError(includeSourceOnError);
+        return XContentHelper.parseToType(XContentParser::map, source, contentType, parserConfiguration, parserDecorator).v2();
     }
 
     /**

@@ -1536,6 +1536,7 @@ emp_no:integer
 ;
 
 inSubqueryReferencingNestedInSubqueryView
+skip_flattened_rewrite: view_in_subquery_flattened
 required_capability: views_with_no_branching
 required_capability: views_crud_as_index_actions
 required_capability: where_in_subquery_with_view
@@ -1560,6 +1561,7 @@ emp_no:integer | first_name:keyword
 ;
 
 inSubqueryReferencingConjunctionView
+skip_flattened_rewrite: view_in_subquery_flattened
 required_capability: views_with_no_branching
 required_capability: views_crud_as_index_actions
 required_capability: where_in_subquery_with_view
@@ -1589,6 +1591,7 @@ c:long
 ;
 
 threeInSubqueriesIntersectNestedConjunctionDisjunctionViews
+skip_flattened_rewrite: view_in_subquery_flattened
 required_capability: views_with_no_branching
 required_capability: views_crud_as_index_actions
 required_capability: where_in_subquery_with_view
@@ -1605,6 +1608,7 @@ emp_no:integer | first_name:keyword
 ;
 
 inNestedAndDisjunctionNotInConjunctionViews
+skip_flattened_rewrite: view_in_subquery_flattened
 required_capability: views_with_no_branching
 required_capability: views_crud_as_index_actions
 required_capability: where_in_subquery_with_view
@@ -1779,6 +1783,7 @@ emp_no:integer
 ;
 
 inSubqueryReferencingNestedInSubqueryViewAlternateView
+skip_flattened_rewrite: view_in_subquery_flattened
 required_capability: views_with_no_branching
 required_capability: views_crud_as_index_actions
 required_capability: where_in_subquery_with_view
@@ -1803,6 +1808,7 @@ emp_no:integer | first_name:keyword
 ;
 
 inSubqueryReferencingConjunctionViewAlternateView
+skip_flattened_rewrite: view_in_subquery_flattened
 required_capability: views_with_no_branching
 required_capability: views_crud_as_index_actions
 required_capability: where_in_subquery_with_view
@@ -1835,6 +1841,7 @@ c:long
 ;
 
 threeInSubqueriesIntersectNestedConjunctionDisjunctionViewsAlternateView
+skip_flattened_rewrite: view_in_subquery_flattened
 required_capability: views_with_no_branching
 required_capability: views_crud_as_index_actions
 required_capability: where_in_subquery_with_view
@@ -1854,6 +1861,7 @@ emp_no:integer | first_name:keyword
 ;
 
 inNestedAndDisjunctionNotInConjunctionViewsAlternateView
+skip_flattened_rewrite: view_in_subquery_flattened
 required_capability: views_with_no_branching
 required_capability: views_crud_as_index_actions
 required_capability: where_in_subquery_with_view
@@ -2119,6 +2127,75 @@ FROM employees
 
 emp_no:integer | first_name:keyword
 10001          | Georgi
+;
+
+viewDataSelector
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: index_component_selectors
+
+// view::data should behave the same as the plain view name
+FROM country_airports::data
+;
+ignoreOrder:true
+
+count:long | country:keyword
+129        | United States
+50         | India
+45         | Mexico
+41         | China
+37         | Canada
+31         | Brazil
+26         | Russia
+17         | Australia
+17         | United Kingdom
+13         | Argentina
+12         | France
+12         | Indonesia
+11         | Germany
+11         | Italy
+11         | Nigeria
+;
+
+viewDataSelectorSameAsView
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: index_component_selectors
+
+// Confirm view::data returns the same document count as the plain view
+FROM employees_all::data
+| STATS count = COUNT(emp_no)
+;
+
+count:long
+100
+;
+
+viewDataSelectorBranching
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+required_capability: index_component_selectors
+
+// Multiple views combined with ::data selectors should work like combining the plain view names
+FROM country_airports::data, country_addresses::data
+| STATS count=SUM(count) BY country
+| WHERE count > 11
+| SORT count DESC, country ASC
+;
+
+count:long | country:keyword
+130        | United States
+50         | India
+45         | Mexico
+41         | China
+37         | Canada
+31         | Brazil
+26         | Russia
+17         | Australia
+17         | United Kingdom
+13         | Argentina
+12         | France
+12         | Indonesia
 ;
 
 mainFromAndInSubqueryEachReferenceMultipleViewSubqueries

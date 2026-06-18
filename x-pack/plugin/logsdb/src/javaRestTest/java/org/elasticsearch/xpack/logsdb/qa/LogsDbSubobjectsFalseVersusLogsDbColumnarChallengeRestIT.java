@@ -47,9 +47,20 @@ import java.util.stream.Collectors;
  * </ul>
  *
  * <p>{@code geo_shape} and {@code shape} fields are excluded entirely from both the mapping
- * and documents: their JSON-object values are interpreted as flat dot-notation sub-fields
- * under {@code subobjects: false}, which causes indexing failures when dynamic mapping is
- * strict.
+ * and documents. The reason is that their wire format is a JSON object (e.g. GeoJSON
+ * {@code {"type":"Point","coordinates":[1,2]}}). When a field is statically mapped as
+ * {@code geo_shape}, the document parser delegates the token stream to the
+ * {@code GeoShapeFieldMapper}, which consumes the JSON object as a single composite value —
+ * {@code subobjects: false} has no effect in that case. However, when the field is
+ * <em>not</em> present in the static mapping, the dynamic-mapping path is taken instead.
+ * With {@code subobjects: false}, the document parser flattens any JSON object it encounters
+ * into dot-notation child paths (e.g. {@code field.type}, {@code field.coordinates}) rather
+ * than routing the whole object to a field mapper. With {@code dynamic: strict} this results
+ * in a {@code strict_dynamic_mapping_exception}. With {@code dynamic: true} the index would
+ * accept the document, but the sub-keys would be mapped as ordinary leaf fields (keyword,
+ * float, etc.) instead of a {@code geo_shape}, causing baseline and contender mappings to
+ * diverge. Excluding these field types from both the mapping and documents avoids both
+ * failure modes.
  */
 public class LogsDbSubobjectsFalseVersusLogsDbColumnarChallengeRestIT extends BulkChallengeRestIT {
 

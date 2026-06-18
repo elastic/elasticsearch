@@ -153,6 +153,7 @@ import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.indices.recovery.PeerRecoverySourceService;
 import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
 import org.elasticsearch.indices.recovery.RecoveryMetricsCollector;
+import org.elasticsearch.indices.recovery.RecoverySchedulingListeners;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.indices.recovery.SnapshotFilesProvider;
 import org.elasticsearch.indices.recovery.ThrottlingRecoveryService;
@@ -926,7 +927,12 @@ class NodeConstruction {
             }
         };
 
-        final ThrottlingRecoveryService throttlingRecoveryService = new ThrottlingRecoveryService(threadPool.generic(), clusterService);
+        final RecoverySchedulingListeners recoverySchedulingListeners = new RecoverySchedulingListeners();
+        final ThrottlingRecoveryService throttlingRecoveryService = new ThrottlingRecoveryService(
+            threadPool.generic(),
+            clusterService,
+            recoverySchedulingListeners
+        );
 
         IndicesService indicesService = new IndicesServiceBuilder().settings(settings)
             .pluginsService(pluginsService)
@@ -1367,20 +1373,21 @@ class NodeConstruction {
             serviceProvider.processRecoverySettings(pluginsService, settingsModule.getClusterSettings(), recoverySettings);
             final SnapshotFilesProvider snapshotFilesProvider = new SnapshotFilesProvider(repositoriesService);
             final RecoveryMetricsCollector recoveryMetricsCollector = new RecoveryMetricsCollector(telemetryProvider);
+            recoverySchedulingListeners.addListener(recoveryMetricsCollector);
             final PeerRecoverySourceService peerRecovery = new PeerRecoverySourceService(
                 transportService,
                 indicesService,
                 clusterService,
                 recoverySettings,
-                recoveryPlannerService
+                recoveryPlannerService,
+                recoverySchedulingListeners
             );
-            throttlingRecoveryService.addRecoverySchedulingListener(recoveryMetricsCollector);
-            peerRecovery.addRecoverySchedulingListener(recoveryMetricsCollector);
 
             resourcesToClose.add(throttlingRecoveryService);
             resourcesToClose.add(peerRecovery);
 
             b.bind(RecoveryMetricsCollector.class).toInstance(recoveryMetricsCollector);
+            b.bind(RecoverySchedulingListeners.class).toInstance(recoverySchedulingListeners);
             b.bind(ThrottlingRecoveryService.class).toInstance(throttlingRecoveryService);
             b.bind(PeerRecoverySourceService.class).toInstance(peerRecovery);
             b.bind(PeerRecoveryTargetService.class)

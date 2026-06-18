@@ -48,7 +48,6 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
@@ -88,20 +87,22 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
     private final int maxConcurrentOutgoingRecoveries;
 
     // visible for testing
-    final OngoingRecoveries ongoingRecoveries = new OngoingRecoveries();
+    final OngoingRecoveries ongoingRecoveries;
 
     public PeerRecoverySourceService(
         TransportService transportService,
         IndicesService indicesService,
         ClusterService clusterService,
         RecoverySettings recoverySettings,
-        RecoveryPlannerService recoveryPlannerService
+        RecoveryPlannerService recoveryPlannerService,
+        RecoverySchedulingListeners schedulingListeners
     ) {
         this.transportService = transportService;
         this.indicesService = indicesService;
         this.clusterService = clusterService;
         this.recoverySettings = recoverySettings;
         this.recoveryPlannerService = recoveryPlannerService;
+        this.ongoingRecoveries = new OngoingRecoveries(schedulingListeners);
         this.maxConcurrentOutgoingRecoveries = INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING.get(
             clusterService.getSettings()
         );
@@ -145,14 +146,6 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
 
     @Override
     protected void doClose() {}
-
-    public void addRecoverySchedulingListener(RecoverySchedulingListener listener) {
-        ongoingRecoveries.addRecoverySchedulingListener(listener);
-    }
-
-    public void removeRecoverySchedulingListener(RecoverySchedulingListener listener) {
-        ongoingRecoveries.removeRecoverySchedulingListener(listener);
-    }
 
     @Override
     public void beforeIndexShardClosed(ShardId shardId, @Nullable IndexShard indexShard, Settings indexSettings) {
@@ -238,6 +231,8 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
 
     final class OngoingRecoveries {
 
+        private final RecoverySchedulingListeners schedulingListeners;
+
         private final Map<IndexShard, ShardRecoveryContext> activeRecoveries = new HashMap<>();
 
         private final Map<DiscoveryNode, Collection<RemoteRecoveryTargetHandler>> nodeToHandlers = new HashMap<>();
@@ -246,7 +241,9 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
 
         private int activeRecoveryHandlerCount = 0;
 
-        private final List<RecoverySchedulingListener> recoverySchedulingListeners = new CopyOnWriteArrayList<>();
+        OngoingRecoveries(RecoverySchedulingListeners schedulingListeners) {
+            this.schedulingListeners = schedulingListeners;
+        }
 
         // visible for testing
         synchronized int activeRecoveryCount() {
@@ -256,16 +253,6 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
         // visible for testing
         synchronized int queuedRecoveryCount() {
             return pendingRecoveries.size();
-        }
-
-        /// Registers a recovery scheduling listener.
-        void addRecoverySchedulingListener(RecoverySchedulingListener listener) {
-            recoverySchedulingListeners.add(listener);
-        }
-
-        /// Unregisters a recovery scheduling listener.
-        void removeRecoverySchedulingListener(RecoverySchedulingListener listener) {
-            recoverySchedulingListeners.remove(listener);
         }
 
         /// Starts the recovery immediately if a slot is available, otherwise queues it for later.
@@ -282,24 +269,20 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
                 ensureNoDuplicateAllocationId(request.targetAllocationId());
                 if (activeRecoveryHandlerCount < maxConcurrentOutgoingRecoveries) {
                     handler = addNewRecovery(request, task, shard);
+                    shard.recoveryStats().sourceRecoveryStarted();
                 } else {
                     // TODO: consider capping the queue depth and rejecting with DelayRecoveryException once exceeded.
                     final var subscribableListener = new SubscribableListener<RecoveryResponse>();
                     subscribableListener.addListener(listener);
                     pendingRecoveries.add(new PendingRecovery(request, task, shard, subscribableListener));
                     handler = null;
+                    shard.recoveryStats().sourceRecoveryQueued();
                 }
             }
             if (handler == null) {
-                shard.recoveryStats().sourceRecoveryQueued();
-                for (RecoverySchedulingListener schedulingListener : recoverySchedulingListeners) {
-                    schedulingListener.onRecoveryQueued(RecoverySource.Type.PEER, RecoveryRole.SOURCE);
-                }
+                schedulingListeners.onRecoveryQueued(RecoverySource.Type.PEER, RecoveryRole.SOURCE);
             } else {
-                shard.recoveryStats().sourceRecoveryStarted();
-                for (RecoverySchedulingListener schedulingListener : recoverySchedulingListeners) {
-                    schedulingListener.onRecoveryStarted(RecoverySource.Type.PEER, RecoveryRole.SOURCE);
-                }
+                schedulingListeners.onRecoveryStarted(RecoverySource.Type.PEER, RecoveryRole.SOURCE);
             }
             return handler;
         }
@@ -326,6 +309,9 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
                     }
                 }
                 cancelled = removePendingRecoveries(pendingRecovery -> pendingRecovery.request().targetNode().equals(node));
+                for (PendingRecovery cancelledRecovery : cancelled) {
+                    cancelledRecovery.shard().recoveryStats().sourceQueuedRecoveryDiscarded();
+                }
             }
             for (PendingRecovery cancelledRecovery : cancelled) {
                 cancelledRecovery.listener()
@@ -338,10 +324,7 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
                             )
                         )
                     );
-                cancelledRecovery.shard().recoveryStats().sourceQueuedRecoveryDiscarded();
-                for (RecoverySchedulingListener schedulingListener : recoverySchedulingListeners) {
-                    schedulingListener.onQueuedRecoveryDiscarded(RecoverySource.Type.PEER, RecoveryRole.SOURCE);
-                }
+                schedulingListeners.onQueuedRecoveryDiscarded(RecoverySource.Type.PEER, RecoveryRole.SOURCE);
             }
         }
 
@@ -379,25 +362,21 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
             final RecoverySourceHandler nextHandler;
             synchronized (this) {
                 remove(shard, handler);
+                shard.recoveryStats().sourceRecoveryCompleted();
                 if (activeRecoveryHandlerCount < maxConcurrentOutgoingRecoveries && pendingRecoveries.isEmpty() == false) {
                     // TODO: switch to < once we have made maxConcurrentOutgoingRecoveries dynamic
                     assert activeRecoveryHandlerCount == maxConcurrentOutgoingRecoveries - 1;
                     nextRecovery = pendingRecoveries.poll();
                     nextHandler = addNewRecovery(nextRecovery.request(), nextRecovery.task(), nextRecovery.shard());
+                    nextRecovery.shard().recoveryStats().sourceRecoveryDequeuedAndStarted();
                 } else {
                     nextHandler = null;
                     nextRecovery = null;
                 }
             }
-            shard.recoveryStats().sourceRecoveryCompleted();
-            for (RecoverySchedulingListener schedulingListener : recoverySchedulingListeners) {
-                schedulingListener.onRecoveryCompleted(RecoverySource.Type.PEER, RecoveryRole.SOURCE);
-            }
+            schedulingListeners.onRecoveryCompleted(RecoverySource.Type.PEER, RecoveryRole.SOURCE);
             if (nextHandler != null) {
-                nextRecovery.shard().recoveryStats().sourceRecoveryDequeuedAndStarted();
-                for (RecoverySchedulingListener schedulingListener : recoverySchedulingListeners) {
-                    schedulingListener.onRecoveryDequeuedAndStarted(RecoverySource.Type.PEER, RecoveryRole.SOURCE);
-                }
+                schedulingListeners.onRecoveryDequeuedAndStarted(RecoverySource.Type.PEER, RecoveryRole.SOURCE);
                 logger.trace(
                     "[{}][{}] starting queued recovery to {}",
                     nextRecovery.request().shardId().getIndex().getName(),
@@ -414,6 +393,9 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
             final List<PendingRecovery> cancelled;
             synchronized (this) {
                 cancelled = removePendingRecoveries(ignored -> true);
+                for (PendingRecovery cancelledRecovery : cancelled) {
+                    cancelledRecovery.shard().recoveryStats().sourceQueuedRecoveryDiscarded();
+                }
             }
             for (PendingRecovery cancelledRecovery : cancelled) {
                 cancelledRecovery.listener()
@@ -426,10 +408,7 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
                             )
                         )
                     );
-                cancelledRecovery.shard().recoveryStats().sourceQueuedRecoveryDiscarded();
-                for (RecoverySchedulingListener schedulingListener : recoverySchedulingListeners) {
-                    schedulingListener.onQueuedRecoveryDiscarded(RecoverySource.Type.PEER, RecoveryRole.SOURCE);
-                }
+                schedulingListeners.onQueuedRecoveryDiscarded(RecoverySource.Type.PEER, RecoveryRole.SOURCE);
             }
         }
 
@@ -472,6 +451,9 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
                     ExceptionsHelper.maybeThrowRuntimeAndSuppress(failures);
                 }
                 cancelled = removePendingRecoveries(pendingRecovery -> pendingRecovery.shard() == shard);
+                for (PendingRecovery cancelledRecovery : cancelled) {
+                    cancelledRecovery.shard().recoveryStats().sourceQueuedRecoveryDiscarded();
+                }
             }
             for (PendingRecovery cancelledRecovery : cancelled) {
                 cancelledRecovery.listener()
@@ -484,10 +466,7 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
                             )
                         )
                     );
-                cancelledRecovery.shard().recoveryStats().sourceQueuedRecoveryDiscarded();
-                for (RecoverySchedulingListener schedulingListener : recoverySchedulingListeners) {
-                    schedulingListener.onQueuedRecoveryDiscarded(RecoverySource.Type.PEER, RecoveryRole.SOURCE);
-                }
+                schedulingListeners.onQueuedRecoveryDiscarded(RecoverySource.Type.PEER, RecoveryRole.SOURCE);
             }
         }
 
@@ -498,23 +477,34 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
             }
             final CountDownLatch emptyLatch = new CountDownLatch(1);
             final RecoverySchedulingListener listener = new RecoverySchedulingListener() {
-                @Override
-                public void onRecoverySchedulingChange() {
+                private void checkEmpty() {
                     if (isEmpty()) {
                         emptyLatch.countDown();
                     }
                 }
+
+                @Override
+                public void onRecoveryCompleted(RecoverySource.Type type, RecoveryRole role) {
+                    checkEmpty();
+                }
+
+                @Override
+                public void onQueuedRecoveryDiscarded(RecoverySource.Type type, RecoveryRole role) {
+                    checkEmpty();
+                }
             };
-            addRecoverySchedulingListener(listener);
+            schedulingListeners.addListener(listener);
             try {
                 // Force a check in case we became empty while registering
-                listener.onRecoverySchedulingChange();
+                if (isEmpty()) {
+                    emptyLatch.countDown();
+                }
                 emptyLatch.await();
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
                 throw new IllegalStateException("interrupted while waiting for recoveries to complete", e);
             } finally {
-                removeRecoverySchedulingListener(listener);
+                schedulingListeners.removeListener(listener);
             }
         }
 

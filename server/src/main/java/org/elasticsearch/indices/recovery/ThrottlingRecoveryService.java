@@ -22,7 +22,6 @@ import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Deque;
 import java.util.List;
-import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.Executor;
 import java.util.function.Consumer;
 
@@ -47,7 +46,7 @@ public final class ThrottlingRecoveryService implements Closeable {
     );
 
     private final Executor executor;
-    private final List<RecoverySchedulingListener> schedulingListeners = new CopyOnWriteArrayList<>();
+    private final RecoverySchedulingListeners schedulingListeners;
 
     private int maxConcurrentRecoveries;
     private int runningRecoveries = 0;
@@ -55,18 +54,11 @@ public final class ThrottlingRecoveryService implements Closeable {
 
     private boolean closed;
 
-    public ThrottlingRecoveryService(Executor executor, ClusterService clusterService) {
+    public ThrottlingRecoveryService(Executor executor, ClusterService clusterService, RecoverySchedulingListeners schedulingListeners) {
         this.executor = executor;
+        this.schedulingListeners = schedulingListeners;
         clusterService.getClusterSettings()
             .initializeAndWatchIfRegistered(INDICES_RECOVERY_MAX_CONCURRENT_RECOVERIES_SETTING, this::setMaxConcurrentRecoveries);
-    }
-
-    public void addRecoverySchedulingListener(RecoverySchedulingListener listener) {
-        schedulingListeners.add(listener);
-    }
-
-    public void removeRecoverySchedulingListener(RecoverySchedulingListener listener) {
-        schedulingListeners.remove(listener);
     }
 
     /// Enqueues a recovery task and/or dispatches it to the executor if there are any available slots.
@@ -81,6 +73,7 @@ public final class ThrottlingRecoveryService implements Closeable {
             if (closed == false) {
                 pendingRecovery = new PendingRecovery(recoveryState, stats, task, recoveryListener);
                 pendingRecoveries.add(pendingRecovery);
+                stats.targetRecoveryQueued(recoveryState.getRecoverySource().getType());
             } else {
                 pendingRecovery = null;
             }
@@ -92,11 +85,7 @@ public final class ThrottlingRecoveryService implements Closeable {
         }
         logger.trace("enqueued recovery: {}", recoveryState);
 
-        final RecoverySource source = recoveryState.getRecoverySource();
-        stats.targetRecoveryQueued(source.getType());
-        for (RecoverySchedulingListener listener : schedulingListeners) {
-            listener.onRecoveryQueued(source.getType(), RecoveryRole.TARGET);
-        }
+        schedulingListeners.onRecoveryQueued(recoveryState.getRecoverySource().getType(), RecoveryRole.TARGET);
         fillSlots();
     }
 
@@ -116,16 +105,14 @@ public final class ThrottlingRecoveryService implements Closeable {
             closed = true;
             recoveriesToAbort = new ArrayList<>(pendingRecoveries);
             pendingRecoveries.clear();
+            for (PendingRecovery pending : recoveriesToAbort) {
+                pending.stats().targetQueuedRecoveryDiscarded(pending.recoveryState().getRecoverySource().getType());
+            }
         }
         for (PendingRecovery pending : recoveriesToAbort) {
             logger.trace("service closing, aborting recovery: {}", pending.recoveryState());
             pending.listener.onRecoveryAborted();
-
-            final RecoverySource source = pending.recoveryState().getRecoverySource();
-            pending.stats().targetQueuedRecoveryDiscarded(source.getType());
-            for (RecoverySchedulingListener listener : schedulingListeners) {
-                listener.onQueuedRecoveryDiscarded(source.getType(), RecoveryRole.TARGET);
-            }
+            schedulingListeners.onQueuedRecoveryDiscarded(pending.recoveryState().getRecoverySource().getType(), RecoveryRole.TARGET);
         }
     }
 
@@ -142,36 +129,30 @@ public final class ThrottlingRecoveryService implements Closeable {
                 return;
             }
             while (pendingRecoveries.isEmpty() == false && runningRecoveries < maxConcurrentRecoveries) {
-                recoveriesToDispatch.add(pendingRecoveries.poll());
+                final PendingRecovery recovery = pendingRecoveries.poll();
+                recoveriesToDispatch.add(recovery);
                 runningRecoveries++;
+                recovery.stats().targetRecoveryDequeuedAndStarted(recovery.recoveryState().getRecoverySource().getType());
             }
         }
         for (PendingRecovery recovery : recoveriesToDispatch) {
             executor.execute(new RecoveryRunnable(recovery, () -> releaseSlot(recovery)));
             logger.trace("dispatched recovery: {}", recovery.recoveryState());
-
-            final RecoverySource source = recovery.recoveryState().getRecoverySource();
-            recovery.stats().targetRecoveryDequeuedAndStarted(source.getType());
-            for (RecoverySchedulingListener listener : schedulingListeners) {
-                listener.onRecoveryDequeuedAndStarted(source.getType(), RecoveryRole.TARGET);
-            }
+            schedulingListeners.onRecoveryDequeuedAndStarted(recovery.recoveryState().getRecoverySource().getType(), RecoveryRole.TARGET);
         }
     }
 
     private void releaseSlot(PendingRecovery recovery) {
+        final RecoverySource source = recovery.recoveryState().getRecoverySource();
         final int currentRunning;
         synchronized (this) {
             runningRecoveries--;
             currentRunning = runningRecoveries;
+            assert currentRunning >= 0 : "negative number of running recoveries " + currentRunning;
+            recovery.stats().targetRecoveryCompleted(source.getType());
         }
-        assert currentRunning >= 0 : "negative number of running recoveries " + currentRunning;
         logger.trace("recovery slot released: {}", recovery.recoveryState());
-
-        final RecoverySource source = recovery.recoveryState().getRecoverySource();
-        recovery.stats().targetRecoveryCompleted(source.getType());
-        for (RecoverySchedulingListener listener : schedulingListeners) {
-            listener.onRecoveryCompleted(source.getType(), RecoveryRole.TARGET);
-        }
+        schedulingListeners.onRecoveryCompleted(source.getType(), RecoveryRole.TARGET);
         fillSlots();
     }
 

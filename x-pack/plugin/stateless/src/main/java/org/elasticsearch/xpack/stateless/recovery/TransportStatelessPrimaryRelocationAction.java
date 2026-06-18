@@ -19,6 +19,7 @@ import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
+import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Randomness;
@@ -50,6 +51,8 @@ import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.recovery.PeerRecoverySourceClusterStateDelay;
 import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
+import org.elasticsearch.indices.recovery.RecoveryRole;
+import org.elasticsearch.indices.recovery.RecoverySchedulingListeners;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.indices.recovery.StatelessPrimaryRelocationAction;
 import org.elasticsearch.injection.guice.Inject;
@@ -113,6 +116,7 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
     private final TransportService transportService;
     private final ClusterService clusterService;
     private final IndicesService indicesService;
+    private final RecoverySchedulingListeners recoverySchedulingListeners;
     private final PeerRecoveryTargetService peerRecoveryTargetService;
     private final StatelessCommitService statelessCommitService;
     private final Executor recoveryExecutor;
@@ -129,6 +133,7 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
         ClusterService clusterService,
         ActionFilters actionFilters,
         IndicesService indicesService,
+        RecoverySchedulingListeners recoverySchedulingListeners,
         PeerRecoveryTargetService peerRecoveryTargetService,
         StatelessCommitService statelessCommitService,
         IndexShardCacheWarmer indexShardCacheWarmer,
@@ -140,6 +145,7 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
         this.transportService = transportService;
         this.clusterService = clusterService;
         this.indicesService = indicesService;
+        this.recoverySchedulingListeners = recoverySchedulingListeners;
         this.peerRecoveryTargetService = peerRecoveryTargetService;
         this.statelessCommitService = statelessCommitService;
         this.indexShardCacheWarmer = indexShardCacheWarmer;
@@ -340,6 +346,7 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
         }
 
         indexShard.recoveryStats().sourceRecoveryStarted();
+        recoverySchedulingListeners.onRecoveryStarted(RecoverySource.Type.PEER, RecoveryRole.SOURCE);
 
         // Flushing before blocking operations because we expect this to reduce the amount of work done by the flush that happens while
         // operations are blocked. NB the flush has force=false so may do nothing.
@@ -360,6 +367,7 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
         final RelocationSourceMetrics.Builder relocationSourceMetricsBuilder = new RelocationSourceMetrics.Builder();
         preFlushStep.addListener(listener.delegateResponse((l, e) -> {
             indexShard.recoveryStats().sourceRecoveryCompleted();
+            recoverySchedulingListeners.onRecoveryCompleted(RecoverySource.Type.PEER, RecoveryRole.SOURCE);
             l.onFailure(e);
         }).delegateFailureAndWrap((listener0, preFlushResult) -> {
             final var initialFlushDuration = getTimeSince(beforeInitialFlush);
@@ -511,6 +519,7 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
                         try {
                             handoffCompleteListener.onResponse(null);
                             indexShard.recoveryStats().sourceRecoveryCompleted();
+                            recoverySchedulingListeners.onRecoveryCompleted(RecoverySource.Type.PEER, RecoveryRole.SOURCE);
                         } finally {
                             handoffResultListener.onResponse(null);
                         }

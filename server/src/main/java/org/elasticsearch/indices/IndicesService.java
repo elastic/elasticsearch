@@ -435,7 +435,6 @@ public class IndicesService extends AbstractLifecycleComponent
         stopLatch.countDown();
         clusterService.removeApplier(timestampFieldMapperService);
         timestampFieldMapperService.doStop();
-        throttlingRecoveryService.close();
 
         ThreadPool.terminate(danglingIndicesThreadPoolExecutor, 10, TimeUnit.SECONDS);
 

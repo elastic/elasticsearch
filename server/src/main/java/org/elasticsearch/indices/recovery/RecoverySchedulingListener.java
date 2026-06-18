@@ -16,34 +16,21 @@ import org.elasticsearch.cluster.routing.RecoverySource;
 /// Implementations must be thread-safe, not block, and not throw exceptions.
 ///
 /// Default methods cover every lifecycle transition and are no-ops by default, so implementers only override the events
-/// they care about. Implementers that only need to react to any scheduling change (without distinguishing which transition
-/// fired) can override [#onRecoverySchedulingChange] alone.
+/// they care about.
 public interface RecoverySchedulingListener {
 
-    default void onRecoverySchedulingChange() {}
-
     /// Called when a recovery is queued on this data node.
-    default void onRecoveryQueued(RecoverySource.Type type, RecoveryRole role) {
-        onRecoverySchedulingChange();
-    }
+    default void onRecoveryQueued(RecoverySource.Type type, RecoveryRole role) {}
 
     /// Called when a recovery has been dispatched for execution on this data node.
-    default void onRecoveryStarted(RecoverySource.Type type, RecoveryRole role) {
-        onRecoverySchedulingChange();
-    }
+    default void onRecoveryStarted(RecoverySource.Type type, RecoveryRole role) {}
 
     /// Called when a previously queued recovery is dequeued and dispatched for execution on this data node.
-    default void onRecoveryDequeuedAndStarted(RecoverySource.Type type, RecoveryRole role) {
-        onRecoverySchedulingChange();
-    }
+    default void onRecoveryDequeuedAndStarted(RecoverySource.Type type, RecoveryRole role) {}
 
     /// Called when a queued recovery is discarded without having ever run.
-    default void onQueuedRecoveryDiscarded(RecoverySource.Type type, RecoveryRole role) {
-        onRecoverySchedulingChange();
-    }
+    default void onQueuedRecoveryDiscarded(RecoverySource.Type type, RecoveryRole role) {}
 
     /// Called when a running recovery finishes (success, failure or aborted).
-    default void onRecoveryCompleted(RecoverySource.Type type, RecoveryRole role) {
-        onRecoverySchedulingChange();
-    }
+    default void onRecoveryCompleted(RecoverySource.Type type, RecoveryRole role) {}
 }

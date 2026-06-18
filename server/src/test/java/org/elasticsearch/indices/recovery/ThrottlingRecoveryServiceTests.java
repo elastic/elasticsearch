@@ -70,7 +70,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
     public void testSynchronousTaskRunsOnProvidedThreadPoolAndNotifiesUserListener() {
         // Use real threads instead of DeterministicTaskQueue to verify actual threading behavior below
         final var recoveryType = randomFrom(RecoverySource.Type.values());
-        final var service = new ThrottlingRecoveryService(threadPool.generic(), newClusterService(1));
+        final var service = new ThrottlingRecoveryService(threadPool.generic(), newClusterService(1), new RecoverySchedulingListeners());
         final var callerThread = Thread.currentThread();
         final var executionThread = new AtomicReference<Thread>();
         final var consumerReturned = new CountDownLatch(1);
@@ -117,7 +117,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
     /// Asynchronous task: consumer returns before the scheduling listener receives a terminal callback.
     public void testAsynchronousTaskListenerNotificationAfterConsumerReturns() {
         // Use real threads instead of DeterministicTaskQueue to be able to use safeAwait below
-        final var service = new ThrottlingRecoveryService(threadPool.generic(), newClusterService(1));
+        final var service = new ThrottlingRecoveryService(threadPool.generic(), newClusterService(1), new RecoverySchedulingListeners());
         final var consumerReturned = new CountDownLatch(1);
         final var recoveryDone = new CountDownLatch(1);
         final var userListener = new RecoveryListener() {
@@ -156,7 +156,11 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         final var taskQueue = new DeterministicTaskQueue();
         final var executor = taskQueue.getThreadPool().generic();
         final int maxConcurrentRecoveries = between(2, 5);
-        final var service = new ThrottlingRecoveryService(executor, newClusterService(maxConcurrentRecoveries));
+        final var service = new ThrottlingRecoveryService(
+            executor,
+            newClusterService(maxConcurrentRecoveries),
+            new RecoverySchedulingListeners()
+        );
         final var running = new AtomicInteger();
         final var completed = new AtomicInteger();
         final var peakConcurrent = new AtomicInteger();
@@ -224,7 +228,11 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
     public void testIncreasingMaxConcurrentRecoveriesStartsPendingTasks() {
         final var taskQueue = new DeterministicTaskQueue();
         final var clusterService = newClusterService(2);
-        final var service = new ThrottlingRecoveryService(taskQueue.getThreadPool().generic(), clusterService);
+        final var service = new ThrottlingRecoveryService(
+            taskQueue.getThreadPool().generic(),
+            clusterService,
+            new RecoverySchedulingListeners()
+        );
         final var started = new AtomicInteger();
 
         // Delay completion until we explicitly trigger time jump
@@ -254,7 +262,11 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
     public void testDecreasingMaxConcurrentRecoveriesDefersQueueWithoutCancellingRunningTasks() {
         final var taskQueue = new DeterministicTaskQueue();
         final var clusterService = newClusterService(3);
-        final var service = new ThrottlingRecoveryService(taskQueue.getThreadPool().generic(), clusterService);
+        final var service = new ThrottlingRecoveryService(
+            taskQueue.getThreadPool().generic(),
+            clusterService,
+            new RecoverySchedulingListeners()
+        );
         final var started = new AtomicInteger();
         final var done = new AtomicInteger();
 
@@ -325,7 +337,11 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
 
     public void testFifoWhenThrottledToOneConcurrentWithSynchronousCompletion() {
         final var taskQueue = new DeterministicTaskQueue();
-        final var service = new ThrottlingRecoveryService(taskQueue.getThreadPool().generic(), newClusterService(1));
+        final var service = new ThrottlingRecoveryService(
+            taskQueue.getThreadPool().generic(),
+            newClusterService(1),
+            new RecoverySchedulingListeners()
+        );
         final int total = between(10, 20);
         final var completionOrder = new CopyOnWriteArrayList<Integer>();
 
@@ -369,7 +385,11 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
 
     public void testFailureTriggersNextQueuedRecovery() {
         final var taskQueue = new DeterministicTaskQueue();
-        final var service = new ThrottlingRecoveryService(taskQueue.getThreadPool().generic(), newClusterService(1));
+        final var service = new ThrottlingRecoveryService(
+            taskQueue.getThreadPool().generic(),
+            newClusterService(1),
+            new RecoverySchedulingListeners()
+        );
         final var firstTaskFailed = new AtomicBoolean(false);
         final var secondTaskCompleted = new AtomicBoolean(false);
 
@@ -433,7 +453,11 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
 
     public void testRecoveryAbortedTriggersNextQueuedRecovery() {
         final var taskQueue = new DeterministicTaskQueue();
-        final var service = new ThrottlingRecoveryService(taskQueue.getThreadPool().generic(), newClusterService(1));
+        final var service = new ThrottlingRecoveryService(
+            taskQueue.getThreadPool().generic(),
+            newClusterService(1),
+            new RecoverySchedulingListeners()
+        );
         final var firstTaskAborted = new AtomicBoolean(false);
         final var secondTaskCompleted = new AtomicBoolean(false);
 
@@ -492,7 +516,11 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
 
     public void testCloseAbortsQueuedButNotDispatchedRecoveries() {
         final var taskQueue = new DeterministicTaskQueue();
-        final var service = new ThrottlingRecoveryService(taskQueue.getThreadPool().generic(), newClusterService(1));
+        final var service = new ThrottlingRecoveryService(
+            taskQueue.getThreadPool().generic(),
+            newClusterService(1),
+            new RecoverySchedulingListeners()
+        );
 
         final var queuedTaskAborted = new AtomicBoolean();
         final var runningTaskDispatched = new AtomicBoolean();
@@ -555,7 +583,11 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
 
     public void testEnqueueAfterCloseImmediatelyAborts() {
         final var taskQueue = new DeterministicTaskQueue();
-        final var service = new ThrottlingRecoveryService(taskQueue.getThreadPool().generic(), newClusterService(1));
+        final var service = new ThrottlingRecoveryService(
+            taskQueue.getThreadPool().generic(),
+            newClusterService(1),
+            new RecoverySchedulingListeners()
+        );
         service.close();
 
         final var aborted = new AtomicBoolean();
@@ -593,7 +625,11 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
 
         final var maxConcurrency = new AtomicInteger(between(1, 20));
         final var clusterService = newClusterService(maxConcurrency.get());
-        final var service = new ThrottlingRecoveryService(taskQueue.getThreadPool().generic(), clusterService);
+        final var service = new ThrottlingRecoveryService(
+            taskQueue.getThreadPool().generic(),
+            clusterService,
+            new RecoverySchedulingListeners()
+        );
 
         final var recoveryState = newRecoveryState();
         final var running = new AtomicInteger();

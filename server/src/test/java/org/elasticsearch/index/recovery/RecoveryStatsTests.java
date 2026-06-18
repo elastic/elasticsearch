@@ -119,16 +119,20 @@ public class RecoveryStatsTests extends AbstractWireSerializingTestCase<Recovery
 
         // Before source_queued_stats
         var stats = new RecoveryStats();
-        stats.sourceRecoveryQueued();
+        stats.sourceRecoveryQueued(); // queued peer source (folded into source)
         stats.sourceRecoveryStarted();
-        stats.targetRecoveryQueued(RecoverySource.Type.PEER);
+        stats.targetRecoveryQueued(RecoverySource.Type.PEER); // queued peer target (folded into target)
         stats.targetRecoveryQueued(RecoverySource.Type.PEER);
         stats.targetRecoveryDequeuedAndStarted(RecoverySource.Type.PEER);
+        stats.targetRecoveryQueued(RecoverySource.Type.EXISTING_STORE); // dropped (store was not tracked prior to this version)
+        stats.targetRecoveryDequeuedAndStarted(RecoverySource.Type.EXISTING_STORE); // store (dropped)
         stats.addThrottleTime(randomNonNegativeLong());
 
+        final int expectedFoldedSourceBefore = stats.currentAsSource() + stats.currentAsSourceQueued();
+        final int expectedFoldedTargetBefore = stats.currentAsTarget() + stats.currentAsTargetQueued();
         var deserialized = roundTrip(stats, TransportVersionUtils.randomVersionNotSupporting(sourceQueuedVersion));
-        assertEquals(stats.currentAsSource(), deserialized.currentAsSource());
-        assertEquals(stats.currentAsTarget(), deserialized.currentAsTarget());
+        assertEquals(expectedFoldedSourceBefore, deserialized.currentAsSource());
+        assertEquals(expectedFoldedTargetBefore, deserialized.currentAsTarget());
         assertEquals(stats.throttleTime(), deserialized.throttleTime());
         assertEquals(0, deserialized.currentAsSourceQueued());
         assertEquals(0, deserialized.currentAsTargetQueued());
@@ -142,12 +146,16 @@ public class RecoveryStatsTests extends AbstractWireSerializingTestCase<Recovery
         stats.sourceRecoveryQueued();
         stats.targetRecoveryQueued(RecoverySource.Type.PEER);
         stats.targetRecoveryDequeuedAndStarted(RecoverySource.Type.PEER);
+        stats.targetRecoveryQueued(RecoverySource.Type.PEER); // queued peer target (folded into target)
+        stats.targetRecoveryQueued(RecoverySource.Type.EXISTING_STORE); // dropped (store was not tracked prior to this version)
+        stats.targetRecoveryDequeuedAndStarted(RecoverySource.Type.EXISTING_STORE); // store (dropped)
         stats.addThrottleTime(randomNonNegativeLong());
 
+        final int expectedFoldedTarget = stats.currentAsTarget() + stats.currentAsTargetQueued();
         deserialized = roundTrip(stats, sourceQueuedVersion);
         assertEquals(stats.currentAsSource(), deserialized.currentAsSource());
         assertEquals(stats.currentAsSourceQueued(), deserialized.currentAsSourceQueued());
-        assertEquals(stats.currentAsTarget(), deserialized.currentAsTarget());
+        assertEquals(expectedFoldedTarget, deserialized.currentAsTarget());
         assertEquals(stats.throttleTime(), deserialized.throttleTime());
         assertEquals(0, deserialized.currentAsTargetQueued());
         assertEquals(0, deserialized.currentFromStore());

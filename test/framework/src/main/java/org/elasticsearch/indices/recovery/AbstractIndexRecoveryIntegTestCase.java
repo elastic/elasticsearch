@@ -97,51 +97,46 @@ public abstract class AbstractIndexRecoveryIntegTestCase extends ESIntegTestCase
         final AtomicBoolean success = new AtomicBoolean();
 
         final Map<String, IndicesService> indicesServices = new ConcurrentHashMap<>();
-        final Map<String, ThrottlingRecoveryService> throttlingRecoveryServices = new ConcurrentHashMap<>();
-        final Map<String, PeerRecoverySourceService> peerRecoverySourceServices = new ConcurrentHashMap<>();
+        final Map<String, RecoverySchedulingListeners> schedulingListeners = new ConcurrentHashMap<>();
         for (String nodeName : predicatePerNode.keySet()) {
             indicesServices.put(nodeName, internalCluster().getInstance(IndicesService.class, nodeName));
-            throttlingRecoveryServices.put(nodeName, internalCluster().getInstance(ThrottlingRecoveryService.class, nodeName));
-            peerRecoverySourceServices.put(nodeName, internalCluster().getInstance(PeerRecoverySourceService.class, nodeName));
+            schedulingListeners.put(nodeName, internalCluster().getInstance(RecoverySchedulingListeners.class, nodeName));
         }
 
-        final RecoverySchedulingListener listener = new RecoverySchedulingListener() {
-            @Override
-            public void onRecoverySchedulingChange() {
-                if (success.get()) {
+        final Runnable checkStats = () -> {
+            if (success.get()) {
+                return;
+            }
+            // Check if all conditions are met
+            for (final var nodePredicate : predicatePerNode.entrySet()) {
+                final var indicesService = indicesServices.get(nodePredicate.getKey());
+
+                final var stats = new RecoveryStats();
+                for (IndexService indexService : indicesService) {
+                    for (IndexShard shard : indexService) {
+                        stats.add(shard.recoveryStats());
+                    }
+                }
+                if (nodePredicate.getValue().test(stats) == false) {
                     return;
                 }
-                // Check if all conditions are met
-                for (final var nodePredicate : predicatePerNode.entrySet()) {
-                    final var indicesService = indicesServices.get(nodePredicate.getKey());
-
-                    final var stats = new RecoveryStats();
-                    for (IndexService indexService : indicesService) {
-                        for (IndexShard shard : indexService) {
-                            stats.add(shard.recoveryStats());
-                        }
-                    }
-                    if (nodePredicate.getValue().test(stats) == false) {
-                        return;
-                    }
-                }
-                conditionLatch.countDown();
-                success.set(true);
             }
+            conditionLatch.countDown();
+            success.set(true);
         };
+
+        final var listener = new TestRecoverySchedulingListener(checkStats);
         for (final var nodeName : predicatePerNode.keySet()) {
-            throttlingRecoveryServices.get(nodeName).addRecoverySchedulingListener(listener);
-            peerRecoverySourceServices.get(nodeName).addRecoverySchedulingListener(listener);
+            schedulingListeners.get(nodeName).addListener(listener);
         }
         try {
             // In case conditions were already met before we added the listener everywhere
-            listener.onRecoverySchedulingChange();
+            checkStats.run();
             safeAwait(conditionLatch);
         } finally {
             // Clean up all listeners
             for (final var nodeName : predicatePerNode.keySet()) {
-                throttlingRecoveryServices.get(nodeName).removeRecoverySchedulingListener(listener);
-                peerRecoverySourceServices.get(nodeName).removeRecoverySchedulingListener(listener);
+                schedulingListeners.get(nodeName).removeListener(listener);
             }
         }
     }

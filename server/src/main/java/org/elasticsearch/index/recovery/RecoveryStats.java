@@ -53,6 +53,9 @@ public class RecoveryStats implements ToXContentFragment, Writeable {
             currentFromStore.set(in.readVInt());
             currentFromStoreQueued.set(in.readVInt());
         }
+        // else the new counters (currentAsTargetQueued, currentFromStore, currentFromStoreQueued) are left at 0
+        // Store recoveries were not tracked in RecoveryStats before STORE_AND_TARGET_QUEUED_STATS,
+        // and queued recoveries are only possible on nodes that have the new throttling code.
         throttleTimeInNanos.set(in.readLong());
     }
 
@@ -128,7 +131,8 @@ public class RecoveryStats implements ToXContentFragment, Writeable {
 
     /// Records that a queued source-side peer recovery was discarded without starting.
     public void sourceQueuedRecoveryDiscarded() {
-        currentAsSourceQueued.decrementAndGet();
+        final int remaining = currentAsSourceQueued.decrementAndGet();
+        assert remaining >= 0 : remaining;
     }
 
     /// Records that a source-side peer recovery has started directly, without a prior queue step.
@@ -138,13 +142,15 @@ public class RecoveryStats implements ToXContentFragment, Writeable {
 
     /// Records that a queued source-side peer recovery has been dequeued and started.
     public void sourceRecoveryDequeuedAndStarted() {
-        currentAsSourceQueued.decrementAndGet();
+        final int remaining = currentAsSourceQueued.decrementAndGet();
+        assert remaining >= 0 : remaining;
         currentAsSource.incrementAndGet();
     }
 
     /// Records that an active source-side peer recovery has completed.
     public void sourceRecoveryCompleted() {
-        currentAsSource.decrementAndGet();
+        final int remaining = currentAsSource.decrementAndGet();
+        assert remaining >= 0 : remaining;
     }
 
     /// Records that a target-side (peer or non-peer) recovery has been queued for this shard.
@@ -159,19 +165,23 @@ public class RecoveryStats implements ToXContentFragment, Writeable {
     /// Records that a queued target-side (peer or non-peer) recovery for this shard was discarded without starting.
     public void targetQueuedRecoveryDiscarded(RecoverySource.Type type) {
         if (type == RecoverySource.Type.PEER) {
-            currentAsTargetQueued.decrementAndGet();
+            final int remaining = currentAsTargetQueued.decrementAndGet();
+            assert remaining >= 0 : remaining;
         } else {
-            currentFromStoreQueued.decrementAndGet();
+            final int remaining = currentFromStoreQueued.decrementAndGet();
+            assert remaining >= 0 : remaining;
         }
     }
 
     /// Records that a queued target-side (peer or non-peer) recovery has been dequeued and started for this shard.
     public void targetRecoveryDequeuedAndStarted(RecoverySource.Type type) {
         if (type == RecoverySource.Type.PEER) {
-            currentAsTargetQueued.decrementAndGet();
+            final int remaining = currentAsTargetQueued.decrementAndGet();
+            assert remaining >= 0 : remaining;
             currentAsTarget.incrementAndGet();
         } else {
-            currentFromStoreQueued.decrementAndGet();
+            final int remaining = currentFromStoreQueued.decrementAndGet();
+            assert remaining >= 0 : remaining;
             currentFromStore.incrementAndGet();
         }
     }
@@ -179,9 +189,11 @@ public class RecoveryStats implements ToXContentFragment, Writeable {
     /// Records that an active target-side (peer or non-peer) recovery has completed for this shard.
     public void targetRecoveryCompleted(RecoverySource.Type type) {
         if (type == RecoverySource.Type.PEER) {
-            currentAsTarget.decrementAndGet();
+            final int remaining = currentAsTarget.decrementAndGet();
+            assert remaining >= 0 : remaining;
         } else {
-            currentFromStore.decrementAndGet();
+            final int remaining = currentFromStore.decrementAndGet();
+            assert remaining >= 0 : remaining;
         }
     }
 
@@ -218,15 +230,23 @@ public class RecoveryStats implements ToXContentFragment, Writeable {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeVInt(currentAsSource.get());
         if (out.getTransportVersion().supports(SOURCE_QUEUED_STATS)) {
+            out.writeVInt(currentAsSource.get());
             out.writeVInt(currentAsSourceQueued.get());
+        } else {
+            // Before SOURCE_QUEUED_STATS there was no separate queued counter, so fold it into the active count.
+            out.writeVInt(currentAsSource.get() + currentAsSourceQueued.get());
         }
-        out.writeVInt(currentAsTarget.get());
         if (out.getTransportVersion().supports(STORE_AND_TARGET_QUEUED_STATS)) {
+            out.writeVInt(currentAsTarget.get());
             out.writeVInt(currentAsTargetQueued.get());
             out.writeVInt(currentFromStore.get());
             out.writeVInt(currentFromStoreQueued.get());
+        } else {
+            // Before STORE_AND_TARGET_QUEUED_STATS, store recoveries were not tracked in RecoveryStats at all, so we drop
+            // currentFromStore and currentFromStoreQueued. We fold currentAsTargetQueued into currentAsTarget since the receiving
+            // side has no separate queued counter.
+            out.writeVInt(currentAsTarget.get() + currentAsTargetQueued.get());
         }
         out.writeLong(throttleTimeInNanos.get());
     }

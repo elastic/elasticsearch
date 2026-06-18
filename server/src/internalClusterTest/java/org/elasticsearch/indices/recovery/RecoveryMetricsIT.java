@@ -393,41 +393,35 @@ public class RecoveryMetricsIT extends AbstractIndexRecoveryIntegTestCase {
     /// the metric update, so the check always sees a consistent post-update state.
     private void awaitRecoveryCountMetrics(Map<String, TestTelemetryPlugin> telemetries, Map<String, Map<String, Long>> expectedMetrics) {
         final var conditionLatch = new CountDownLatch(1);
-        final Map<String, ThrottlingRecoveryService> throttlingRecoveryServices = new ConcurrentHashMap<>();
-        final Map<String, PeerRecoverySourceService> peerRecoverySourceServices = new ConcurrentHashMap<>();
+        final Map<String, RecoverySchedulingListeners> schedulingListeners = new ConcurrentHashMap<>();
         for (String nodeName : expectedMetrics.keySet()) {
-            throttlingRecoveryServices.put(nodeName, internalCluster().getInstance(ThrottlingRecoveryService.class, nodeName));
-            peerRecoverySourceServices.put(nodeName, internalCluster().getInstance(PeerRecoverySourceService.class, nodeName));
+            schedulingListeners.put(nodeName, internalCluster().getInstance(RecoverySchedulingListeners.class, nodeName));
         }
-        final RecoverySchedulingListener listener = new RecoverySchedulingListener() {
-            @Override
-            public void onRecoverySchedulingChange() {
-                if (conditionLatch.getCount() == 0) {
-                    return;
-                }
-                for (var entry : expectedMetrics.entrySet()) {
-                    final var telemetry = telemetries.get(entry.getKey());
-                    final var nodeExpectedMetrics = entry.getValue();
-                    for (var expectedMetric : nodeExpectedMetrics.entrySet()) {
-                        if (telemetry.getLongUpDownCounterMeasurement(expectedMetric.getKey())
-                            .stream()
-                            .mapToLong(Measurement::getLong)
-                            .sum() != expectedMetric.getValue()) {
-                            return;
-                        }
+        final Runnable checkMetrics = () -> {
+            if (conditionLatch.getCount() == 0) {
+                return;
+            }
+            for (var entry : expectedMetrics.entrySet()) {
+                final var telemetry = telemetries.get(entry.getKey());
+                final var nodeExpectedMetrics = entry.getValue();
+                for (var expectedMetric : nodeExpectedMetrics.entrySet()) {
+                    if (telemetry.getLongUpDownCounterMeasurement(expectedMetric.getKey())
+                        .stream()
+                        .mapToLong(Measurement::getLong)
+                        .sum() != expectedMetric.getValue()) {
+                        return;
                     }
                 }
-                conditionLatch.countDown();
             }
+            conditionLatch.countDown();
         };
-        throttlingRecoveryServices.values().forEach(service -> service.addRecoverySchedulingListener(listener));
-        peerRecoverySourceServices.values().forEach(service -> service.addRecoverySchedulingListener(listener));
+        final var listener = new TestRecoverySchedulingListener(checkMetrics);
+        schedulingListeners.values().forEach(s -> s.addListener(listener));
         try {
-            listener.onRecoverySchedulingChange();
+            checkMetrics.run();
             safeAwait(conditionLatch);
         } finally {
-            throttlingRecoveryServices.values().forEach(service -> service.removeRecoverySchedulingListener(listener));
-            peerRecoverySourceServices.values().forEach(service -> service.removeRecoverySchedulingListener(listener));
+            schedulingListeners.values().forEach(s -> s.removeListener(listener));
         }
     }
 

@@ -218,7 +218,7 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
                 logger.debug("reset of recovery with shard {} and id [{}]", shardId, recoveryId);
             } finally {
                 // release the initial reference. recovery files will be cleaned as soon as ref count goes to zero, potentially now.
-                updateStatsAndDecRef();
+                decRef();
             }
             try {
                 newTargetCancellableThreads.execute(closedLatch::await);
@@ -260,7 +260,7 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
                 listener.onRecoveryAborted();
             } finally {
                 // release the initial reference. recovery files will be cleaned as soon as ref count goes to zero, potentially now
-                updateStatsAndDecRef();
+                decRef();
             }
         }
     }
@@ -280,7 +280,7 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
                     cancellableThreads.cancel("failed recovery [" + ExceptionsHelper.stackTrace(e) + "]");
                 } finally {
                     // release the initial reference. recovery files will be cleaned as soon as ref count goes to zero, potentially now
-                    updateStatsAndDecRef();
+                    decRef();
                 }
             }
         }
@@ -303,10 +303,6 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
                 }
             }, this::decRef));
         }
-    }
-
-    private void updateStatsAndDecRef() {
-        decRef();
     }
 
     @Override

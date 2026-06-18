@@ -9,17 +9,23 @@ package org.elasticsearch.xpack.esql.qa.rest;
 import org.elasticsearch.Version;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.esql.CsvSpecReader.CsvTestCase;
+import org.elasticsearch.xpack.esql.CsvSpecReader.DatasetSource;
 import org.elasticsearch.xpack.esql.CsvTestsDataLoader;
 import org.elasticsearch.xpack.esql.SpecReader;
 import org.elasticsearch.xpack.esql.datasources.AzureFixtureUtils;
 import org.elasticsearch.xpack.esql.datasources.AzureFixtureUtils.DataSourcesAzureHttpFixture;
+import org.elasticsearch.xpack.esql.datasources.DatasetRegistry;
 import org.elasticsearch.xpack.esql.datasources.FixtureUtils;
 import org.elasticsearch.xpack.esql.datasources.GcsFixtureUtils;
 import org.elasticsearch.xpack.esql.datasources.GcsFixtureUtils.DataSourcesGcsHttpFixture;
 import org.elasticsearch.xpack.esql.datasources.S3FixtureUtils;
 import org.elasticsearch.xpack.esql.datasources.S3FixtureUtils.DataSourcesS3HttpFixture;
 import org.elasticsearch.xpack.esql.datasources.S3FixtureUtils.S3RequestLog;
+import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.ClassRule;
 
@@ -29,6 +35,8 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -267,6 +275,19 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
     }
 
     /**
+     * Drops every {@code data_source}/{@code dataset} registered by {@link DatasetRegistry} during the
+     * suite (datasets first, so data-source deletes do not 409 on a still-referenced parent). These are
+     * {@code ProjectCustom} metadata that survive the framework's index wipe, so they must be cleaned
+     * explicitly. Skipped when the test clusters are already known broken.
+     */
+    @AfterClass
+    public static void cleanupRegisteredDatasets() throws IOException {
+        if (testClustersOk) {
+            DatasetRegistry.cleanup(adminClient());
+        }
+    }
+
+    /**
      * Automatically checks for unsupported S3 operations after each test.
      */
     @org.junit.After
@@ -308,22 +329,47 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
     }
 
     /**
+     * Backends for which migrated specs (those carrying {@code dataset:} directives) run via the native
+     * {@code FROM <dataset>} path, registering a {@code data_source}/{@code dataset} per declared source.
+     * Every other backend rebuilds the equivalent {@code EXTERNAL} query instead, so no test is skipped.
+     * Defaults to none; only suites whose cluster + fixture can back a dataset override this.
+     */
+    protected Set<StorageBackend> datasetModeBackends() {
+        return Set.of();
+    }
+
+    /**
      * Override doTest() to transform templates and inject storage-specific parameters.
+     * <p>
+     * A spec that declares {@code dataset:} sources runs one of two ways:
+     * <ul>
+     *   <li>on a {@link #datasetModeBackends()} backend, the datasets are registered and the spec's
+     *       {@code FROM <name>} query is run verbatim (see {@link #runDatasetMode()});</li>
+     *   <li>on any other backend, the equivalent {@code EXTERNAL} query is rebuilt from the directive
+     *       (see {@link #rebuildExternalFromDatasets(String)}) and run through the existing flow.</li>
+     * </ul>
+     * Specs with no {@code dataset:} directive are unaffected.
      */
     @Override
     protected void doTest() throws Throwable {
-        String query = testCase.query;
-
         // ClickBench templates are resolved by ClickBenchParquetSpecIT, not by this class.
-        assumeFalse("ClickBench templates require ClickBenchParquetSpecIT", query.contains("{{clickbench}}"));
+        assumeFalse("ClickBench templates require ClickBenchParquetSpecIT", testCase.query.contains("{{clickbench}}"));
+
+        // Pick the Azure URI form once per test so wildcard expansion sees a single, consistent form.
+        useAzureHadoopForm = storageBackend == StorageBackend.AZURE && randomBoolean();
+
+        if (testCase.datasetSources.isEmpty() == false && datasetModeBackends().contains(storageBackend)) {
+            runDatasetMode();
+            return;
+        }
+
+        // Non-dataset path: rebuild EXTERNAL from any dataset: directives, then run the existing flow.
+        String query = rebuildExternalFromDatasets(testCase.query);
 
         if (query.contains(MULTIFILE_SUFFIX) || query.contains(HIVE_SUFFIX + "}}")) {
             // HTTP does not support directory listing, so skip multi-file/Hive-partitioned glob tests
             assumeTrue("HTTP backend does not support multi-file glob patterns", storageBackend != StorageBackend.HTTP);
         }
-
-        // Pick the Azure URI form once per test so wildcard expansion sees a single, consistent form.
-        useAzureHadoopForm = storageBackend == StorageBackend.AZURE && randomBoolean();
 
         // Transform templates like {{employees}} to actual paths
         query = transformTemplates(query);
@@ -357,6 +403,51 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
         // warm-path guard regardless of routing.
         if (isExternalQuery(query) && testCase.expectedDocumentsFound == null) {
             doTest(query);
+        }
+    }
+
+    /**
+     * Registers the {@code data_source} (once per backend) and every declared {@code dataset}, then runs
+     * the spec's {@code FROM <name>} query verbatim — cold then warm (same warm-path rationale as the
+     * EXTERNAL flow above). Each source's resource template is resolved to the backend URI exactly as the
+     * EXTERNAL path resolves it.
+     */
+    private void runDatasetMode() throws Throwable {
+        String dataSourceName = ensureDataSourceForBackend();
+        for (DatasetSource source : testCase.datasetSources) {
+            String resource = transformTemplates(source.resource());
+            DatasetRegistry.ensureDataset(client(), source.name(), dataSourceName, resource, parseWithSettings(source.withJson()));
+        }
+        String query = testCase.query;
+        logger.debug("Dataset-mode query for {} backend: {}", storageBackend, query);
+        doTest(query);
+        if (testCase.expectedDocumentsFound == null) {
+            doTest(query);
+        }
+    }
+
+    /** Lazily registers (and caches) the {@code data_source} pointing at the in-process fixture for the active backend. */
+    private String ensureDataSourceForBackend() throws IOException {
+        return switch (storageBackend) {
+            case S3 -> DatasetRegistry.ensureDataSource(
+                client(),
+                "esql_spec_s3",
+                "s3",
+                Map.of("endpoint", s3Fixture.getAddress(), "auth", "none")
+            );
+            // datasetModeBackends() currently only returns S3; reaching here means a backend opted into
+            // dataset mode without a registered data_source body, which is a wiring bug.
+            default -> throw new IllegalStateException("Dataset mode not supported for backend [" + storageBackend + "]");
+        };
+    }
+
+    /** Parses a {@code dataset:} directive's {@code WITH {...}} JSON into a settings map ({@code null} maps to empty). */
+    private static Map<String, Object> parseWithSettings(String withJson) throws IOException {
+        if (withJson == null) {
+            return Map.of();
+        }
+        try (XContentParser parser = JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, withJson)) {
+            return parser.map();
         }
     }
 

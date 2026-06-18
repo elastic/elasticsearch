@@ -22,6 +22,7 @@ public final class CsvSpecReader {
     public static SpecReader.Parser specParser() {
         var ctx = new ParserContext();
         ctx.addOptionParser(new Capability(ctx));
+        ctx.addOptionParser(new Dataset(ctx));
         ctx.addOptionParser(new Pragma(ctx));
         ctx.addOptionParser(new RequestStored(ctx));
         ctx.addOptionParser(new RequestTimeFilter(ctx));
@@ -49,6 +50,7 @@ public final class CsvSpecReader {
         private final List<String> requiredCapabilities = new ArrayList<>();
         private final List<String> requiredCapabilitiesLocalCluster = new ArrayList<>();
         private final List<String> missingCapabilitiesRemoteCluster = new ArrayList<>();
+        private final List<DatasetSource> datasetSources = new ArrayList<>();
         private final List<SpecReader.Parser> optionParsers = new ArrayList<>();
         private final Map<String, String> pragmas = new HashMap<>();
         WhenLoadsRequestedToStored requestStored = WhenLoadsRequestedToStored.IGNORE_VALUE_ORDER;
@@ -84,6 +86,7 @@ public final class CsvSpecReader {
                 testCase.requiredCapabilities = List.copyOf(requiredCapabilities);
                 testCase.requiredCapabilitiesLocalCluster = List.copyOf(requiredCapabilitiesLocalCluster);
                 testCase.missingCapabilitiesRemoteCluster = List.copyOf(missingCapabilitiesRemoteCluster);
+                testCase.datasetSources = List.copyOf(datasetSources);
                 testCase.pragmas = Map.copyOf(pragmas);
                 testCase.requestStored = requestStored;
                 testCase.requestTimeRangeGte = requestTimeRangeGte;
@@ -92,6 +95,7 @@ public final class CsvSpecReader {
                 requiredCapabilities.clear();
                 requiredCapabilitiesLocalCluster.clear();
                 missingCapabilitiesRemoteCluster.clear();
+                datasetSources.clear();
                 requestStored = WhenLoadsRequestedToStored.IGNORE_VALUE_ORDER;
                 requestTimeRangeGte = null;
                 requestTimeRangeLte = null;
@@ -136,6 +140,71 @@ public final class CsvSpecReader {
                 return Boolean.TRUE;
             }
             return null;
+        }
+    }
+
+    /**
+     * A single external source declared by a {@code dataset:} preamble directive of the form
+     * {@code dataset: <name>: "<resource>" [WITH {<json>}]}. It carries everything the test harness
+     * needs to either (a) register a {@code data_source}/{@code dataset} pair and run the spec's
+     * {@code FROM <name>} query verbatim on dataset-capable backends, or (b) rebuild the equivalent
+     * {@code EXTERNAL "<resource>" WITH {<json>}} query on backends that cannot back a dataset.
+     *
+     * @param name      the dataset name referenced by the {@code FROM} clause
+     * @param resource  the resource URI or {@code {{template}}} placeholder (without surrounding quotes)
+     * @param withJson  the brace-delimited JSON options object (e.g. {@code {"header_row": false}}), or
+     *                  {@code null} when the directive carries no {@code WITH} clause
+     */
+    public record DatasetSource(String name, String resource, String withJson) {}
+
+    /**
+     * Parses {@code dataset:} preamble directives. Each declares one named external source whose
+     * format options are exactly today's EXTERNAL {@code WITH} options; storage connection settings are
+     * still injected by the test harness, never written in the spec. The directive is repeatable so a
+     * single query can reference multiple datasets.
+     */
+    record Dataset(ParserContext state) implements SpecReader.Parser {
+        @Override
+        public Object parse(String line) {
+            String lower = line.toLowerCase(Locale.ROOT);
+            if (lower.startsWith("dataset:") == false) {
+                return null;
+            }
+            String rest = line.substring("dataset:".length()).trim();
+            int colon = rest.indexOf(':');
+            if (colon < 0) {
+                throw new IllegalArgumentException(
+                    "Invalid dataset directive [" + line + "]: expected 'dataset: <name>: \"<resource>\" [WITH {...}]'"
+                );
+            }
+            String name = rest.substring(0, colon).trim();
+            String spec = rest.substring(colon + 1).trim();
+            if (name.isEmpty() || spec.startsWith("\"") == false) {
+                throw new IllegalArgumentException("Invalid dataset directive [" + line + "]: a name and a quoted resource are required");
+            }
+            int closeQuote = spec.indexOf('"', 1);
+            if (closeQuote < 0) {
+                throw new IllegalArgumentException("Invalid dataset directive [" + line + "]: unterminated resource string");
+            }
+            String resource = spec.substring(1, closeQuote);
+            String remainder = spec.substring(closeQuote + 1).trim();
+            String withJson = null;
+            if (remainder.isEmpty() == false) {
+                if (remainder.toLowerCase(Locale.ROOT).startsWith("with") == false) {
+                    throw new IllegalArgumentException(
+                        "Invalid dataset directive [" + line + "]: expected WITH after the resource, got [" + remainder + "]"
+                    );
+                }
+                String afterWith = remainder.substring("with".length()).trim();
+                if (afterWith.startsWith("{") == false || afterWith.endsWith("}") == false) {
+                    throw new IllegalArgumentException(
+                        "Invalid dataset directive [" + line + "]: WITH must be followed by a JSON object, got [" + afterWith + "]"
+                    );
+                }
+                withJson = afterWith;
+            }
+            state.datasetSources.add(new DatasetSource(name, resource, withJson));
+            return Boolean.TRUE;
         }
     }
 
@@ -314,6 +383,13 @@ public final class CsvSpecReader {
          * (not supported for single-cluster tests)
          */
         public List<String> missingCapabilitiesRemoteCluster = List.of();
+        /**
+         * External sources declared via {@code dataset:} preamble directives, in declaration order.
+         * Empty for the vast majority of tests. When non-empty the query is expected to read these
+         * via {@code FROM <name>}; the test harness registers the datasets (dataset-capable backends)
+         * or rebuilds the equivalent {@code EXTERNAL} query (other backends).
+         */
+        public List<DatasetSource> datasetSources = List.of();
         /**
          * When set from a {@code timestamp_bounds:} line in the expected-results section, the REST request includes
          * a Query DSL range on {@code @timestamp} with these bounds (inclusive).

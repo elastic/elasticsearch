@@ -36,7 +36,7 @@ final class ProjectEncryptionKeyPasswordSettings {
         "cluster.state.encryption.required",
         true,
         Setting.Property.NodeScope,
-        Setting.Property.Dynamic
+        Setting.Property.OperatorDynamic
     );
 
     private ProjectEncryptionKeyPasswordSettings() {}

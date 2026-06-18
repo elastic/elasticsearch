@@ -176,7 +176,9 @@ public class SparseFileTracker {
             );
         }
 
-        if (range.isEmpty() || subRange.end() <= complete) {
+        if (subRange.isEmpty() || subRange.end() <= complete) {
+            // Short-circuit without fetching more data when subRange is empty or the data is already available
+            // regardless of whether range could be asking for more.
             listener.onResponse(null);
             return Optional.empty();
         }

@@ -124,7 +124,7 @@ public class SparseFileTrackerTests extends ESTestCase {
         }
     }
 
-    public void testWaitForEmptyRangeReturnsImmediately() {
+    public void testWaitForEmptySubRangeReturnsImmediately() {
         final byte[] fileContents = new byte[between(0, 1000)];
         final long length = fileContents.length;
         final SparseFileTracker sparseFileTracker = new SparseFileTracker("test", length);
@@ -142,10 +142,11 @@ public class SparseFileTrackerTests extends ESTestCase {
             safeGet(listener);
         }
 
-        final long rangeStartAndEnd = randomLongBetween(0, length);
-        final ByteRange range = ByteRange.of(rangeStartAndEnd, rangeStartAndEnd);
+        final long subRangeStartAndEnd = randomLongBetween(0, length);
+        final ByteRange subRange = ByteRange.of(subRangeStartAndEnd, subRangeStartAndEnd);
+        final var range = ByteRange.of(randomLongBetween(0, subRangeStartAndEnd), randomLongBetween(subRangeStartAndEnd, length));
         final var listener = new PlainActionFuture<Void>();
-        final var gapsOpt = sparseFileTracker.waitForRange(range, range, listener);
+        final var gapsOpt = sparseFileTracker.waitForRange(range, subRange, listener);
         assertThat(gapsOpt.isEmpty(), is(true));
         safeGet(listener);
     }

@@ -1389,3 +1389,27 @@ FROM view_partial_mapping_sample_data
 2024-10-23T13:53:55.832Z | "{""language_code"":""2"",""unmapped.nested"":""b"",""unmapped_event_duration"":""5033756"",""unmapped_message"":""Disconnection error""}"
 2024-10-23T13:55:01.543Z | "{""language_code"":""1"",""unmapped.nested"":""a"",""unmapped_event_duration"":""1756468"",""unmapped_message"":""Disconnected from 10.1.0.1""}"
 ;
+
+// FROM two views (gap): one backed by partial_mapping_sample_data (which has unmapped source
+// fields) and one by sample_data (fully mapped). Same gap as viewHasUnmappedFields — the
+// ViewUnionAll nodes for both views must be traversed by DetermineUnmappedFieldsToKeep. Rows from
+// the partial-mapping view carry all four unmapped source fields; rows from the fully-mapped view
+// produce _unmapped_fields = "{}". The LIMIT 4 captures the four most-recent rows, which are all
+// from view_partial_mapping_sample_data (2024 timestamps sort above sample_data's 2023).
+fromTwoViews
+required_capability: optional_fields_load_all
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM view_partial_mapping_sample_data, view_sample_data
+| SORT @timestamp DESC
+| LIMIT 4
+;
+
+@timestamp:datetime      | client_ip:ip | event_duration:long | message:keyword        | _unmapped_fields:keyword
+2024-10-23T13:55:01.543Z | 173.21.3.15  | 1756466             | Connected to 10.1.0.1! | "{""language_code"":""1"",""unmapped.nested"":""a"",""unmapped_event_duration"":""1756468"",""unmapped_message"":""Disconnected from 10.1.0.1""}"
+2024-10-23T13:53:55.832Z | 173.21.3.15  | 5033754             | Connection error?      | "{""language_code"":""2"",""unmapped.nested"":""b"",""unmapped_event_duration"":""5033756"",""unmapped_message"":""Disconnection error""}"
+2024-10-23T13:52:55.015Z | 173.21.3.15  | 8268152             | Connection error?      | "{""language_code"":""3"",""unmapped.nested"":""c"",""unmapped_event_duration"":""8268154"",""unmapped_message"":""Disconnection error""}"
+2024-10-23T13:51:54.732Z | 173.21.3.15  | 725447              | Connection error?      | "{""language_code"":""1"",""unmapped.nested"":""d"",""unmapped_event_duration"":""725449"",""unmapped_message"":""Disconnection error""}"
+;

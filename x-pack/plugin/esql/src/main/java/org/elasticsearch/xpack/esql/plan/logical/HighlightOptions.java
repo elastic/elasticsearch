@@ -79,6 +79,13 @@ public record HighlightOptions(String preTag, String postTag, String encoder, in
     }
 
     private static int integer(Expression value, FoldContext foldContext, int defaultValue) {
-        return value == null ? defaultValue : ((Number) value.fold(foldContext)).intValue();
+        if (value == null) {
+            return defaultValue;
+        }
+        Object folded = value.fold(foldContext);
+        if (folded instanceof Number n) {
+            return n.intValue();
+        }
+        throw new IllegalArgumentException("Expected a numeric HIGHLIGHT option but got [" + folded + "]");
     }
 }

@@ -161,7 +161,8 @@ public class MapperUtils {
                 highlight.prefix(),
                 highlight.query(),
                 highlight.fields(),
-                highlight.options()
+                highlight.options(),
+                highlight.generatedAttributes()
             );
         }
 

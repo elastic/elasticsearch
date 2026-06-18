@@ -662,6 +662,149 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
         }
     }
 
+    public void testCountCachedRegionsByShardId() throws IOException {
+        Settings settings = Settings.builder()
+            .put(NODE_NAME_SETTING.getKey(), "node")
+            .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(500)).getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(100)).getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_INITIAL_DECAYS_SETTING.getKey(), 0)
+            .put("path.home", createTempDir())
+            .build();
+        final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
+        try (
+            NodeEnvironment environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
+            var cacheService = new SharedBlobCacheService<>(
+                environment,
+                settings,
+                taskQueue.getThreadPool(),
+                taskQueue.getThreadPool().executor(ThreadPool.Names.GENERIC),
+                BlobCacheMetrics.NOOP
+            )
+        ) {
+            final ShardId shard1 = randomShardId();
+            final ShardId shard2 = randomShardId();
+            final var cacheKey1 = randomTestCacheKey(shard1);
+            final var cacheKey2 = randomTestCacheKey(shard2);
+
+            // populate 2 regions for shard1 and 1 region for shard2
+            cacheService.get(cacheKey1, size(250), 0);
+            cacheService.get(cacheKey1, size(250), 1);
+            cacheService.get(cacheKey2, size(250), 0);
+
+            // count all regions for shard1
+            assertThat(cacheService.countCachedRegions(shard1, (key, region) -> true), equalTo(2L));
+            // count all regions for shard2
+            assertThat(cacheService.countCachedRegions(shard2, (key, region) -> true), equalTo(1L));
+            // count only region 0 for shard1
+            assertThat(cacheService.countCachedRegions(shard1, (key, region) -> region == 0), equalTo(1L));
+            // count only region 1 for shard1
+            assertThat(cacheService.countCachedRegions(shard1, (key, region) -> region == 1), equalTo(1L));
+            // count with a predicate matching only specific file
+            assertThat(cacheService.countCachedRegions(shard1, (key, region) -> key.equals(cacheKey1)), equalTo(2L));
+            // count for a shard with no cached regions
+            assertThat(cacheService.countCachedRegions(randomShardId(), (key, region) -> true), equalTo(0L));
+        }
+    }
+
+    public void testForceEvictByShardIdAndRegionPredicate() throws IOException {
+        Settings settings = Settings.builder()
+            .put(NODE_NAME_SETTING.getKey(), "node")
+            .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(500)).getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(100)).getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_INITIAL_DECAYS_SETTING.getKey(), 0)
+            .put("path.home", createTempDir())
+            .build();
+        final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
+        try (
+            NodeEnvironment environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
+            var cacheService = new SharedBlobCacheService<>(
+                environment,
+                settings,
+                taskQueue.getThreadPool(),
+                taskQueue.getThreadPool().executor(ThreadPool.Names.GENERIC),
+                BlobCacheMetrics.NOOP
+            )
+        ) {
+            final ShardId shard1 = randomShardId();
+            final ShardId shard2 = randomShardId();
+            final var cacheKey1 = randomTestCacheKey(shard1);
+            final var cacheKey2 = randomTestCacheKey(shard2);
+
+            // populate regions: 2 for shard1, 1 for shard2
+            final var region0 = cacheService.get(cacheKey1, size(250), 0);
+            final var region1 = cacheService.get(cacheKey1, size(250), 1);
+            final var region2 = cacheService.get(cacheKey2, size(250), 0);
+            assertEquals(2, cacheService.freeRegionCount());
+
+            // evict only region 0 of shard1
+            assertEquals(1, cacheService.forceEvict(shard1, (key, region) -> region == 0));
+            assertTrue(region0.isEvicted());
+            assertFalse(region1.isEvicted());
+            assertFalse(region2.isEvicted());
+            assertEquals(3, cacheService.freeRegionCount());
+
+            // evict remaining shard1 regions
+            assertEquals(1, cacheService.forceEvict(shard1, (key, region) -> true));
+            assertTrue(region1.isEvicted());
+            assertFalse(region2.isEvicted());
+            assertEquals(4, cacheService.freeRegionCount());
+
+            // evict with a predicate that matches no region
+            assertEquals(0, cacheService.forceEvict(shard2, (key, region) -> region == 99));
+            assertFalse(region2.isEvicted());
+
+            // evict shard2 by file key
+            assertEquals(1, cacheService.forceEvict(shard2, (key, region) -> key.equals(cacheKey2)));
+            assertTrue(region2.isEvicted());
+            assertEquals(5, cacheService.freeRegionCount());
+        }
+    }
+
+    public void testSubmitAsyncEviction() throws Exception {
+        Settings settings = Settings.builder()
+            .put(NODE_NAME_SETTING.getKey(), "node")
+            .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(500)).getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(100)).getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_INITIAL_DECAYS_SETTING.getKey(), 0)
+            .put("path.home", createTempDir())
+            .build();
+        final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
+        try (
+            NodeEnvironment environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
+            var cacheService = new SharedBlobCacheService<>(
+                environment,
+                settings,
+                taskQueue.getThreadPool(),
+                taskQueue.getThreadPool().executor(ThreadPool.Names.GENERIC),
+                BlobCacheMetrics.NOOP
+            )
+        ) {
+            final ShardId shard1 = randomShardId();
+            final var cacheKey1 = randomTestCacheKey(shard1);
+
+            final var region0 = cacheService.get(cacheKey1, size(250), 0);
+            final var region1 = cacheService.get(cacheKey1, size(250), 1);
+            assertFalse(region0.isEvicted());
+            assertFalse(region1.isEvicted());
+
+            AtomicBoolean taskExecuted = new AtomicBoolean(false);
+            cacheService.submitAsyncEviction(() -> {
+                taskExecuted.set(true);
+                cacheService.forceEvict(shard1, (key, region) -> region == 0);
+            });
+
+            assertFalse(taskExecuted.get());
+            assertFalse(region0.isEvicted());
+
+            taskQueue.runAllRunnableTasks();
+
+            assertTrue(taskExecuted.get());
+            assertTrue(region0.isEvicted());
+            assertFalse(region1.isEvicted());
+            assertEquals(4, cacheService.freeRegionCount());
+        }
+    }
+
     public void testDecay() throws IOException {
         RecordingMeterRegistry recordingMeterRegistry = new RecordingMeterRegistry();
         BlobCacheMetrics metrics = new BlobCacheMetrics(recordingMeterRegistry);

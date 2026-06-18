@@ -60,6 +60,7 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
 
     private final Executor shardReadThreadPoolExecutor;
     private final PluggableDirectoryMetricsHolder<BlobStoreCacheDirectoryMetrics> metricsHolder;
+    private final boolean cacheBoostEnabled;
 
     // TODO Merge the two constructors
     public StatelessSharedBlobCacheService(
@@ -73,6 +74,7 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
         super(environment, settings, threadPool, IO_EXECUTOR, blobCacheMetrics, createEvictionPolicy(settings, clusterService));
         this.shardReadThreadPoolExecutor = threadPool.executor(StatelessPlugin.SHARD_READ_THREAD_POOL);
         this.metricsHolder = metricsHolder;
+        this.cacheBoostEnabled = STATELESS_CACHE_BOOST_PREFERENCE_ENABLED_SETTING.get(settings);
     }
 
     // for tests
@@ -96,6 +98,11 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
         );
         this.shardReadThreadPoolExecutor = IO_EXECUTOR;
         this.metricsHolder = metricsHolder;
+        this.cacheBoostEnabled = STATELESS_CACHE_BOOST_PREFERENCE_ENABLED_SETTING.get(settings);
+    }
+
+    public boolean isCacheBoostEnabled() {
+        return cacheBoostEnabled;
     }
 
     static EvictionPolicy<FileCacheKey> createEvictionPolicy(Settings settings, ClusterService clusterService) {

@@ -36,12 +36,14 @@ import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.util.BitSet;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.OptionalLong;
 import java.util.Set;
 import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.atomic.LongAdder;
 import java.util.function.LongFunction;
@@ -65,6 +67,12 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
      * Term/generation of the latest updated commit if it contained at least one generational file.
      */
     private volatile Releasable lastAcquiredGenerationalFilesTermAndGen = null;
+
+    /**
+     * Guards scheduling of the async regions eviction task. When {@code true}, a task is already queued or executing,
+     * so subsequent calls to {@link #maybeScheduleRegionsEviction()} are no-ops until the task resets it.
+     */
+    private final AtomicBoolean regionsEvictionScheduled = new AtomicBoolean(false);
 
     public SearchDirectory(
         StatelessSharedBlobCacheService cacheService,
@@ -189,13 +197,63 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
             assert assertCompareAndSetUpdatingCommitThread(null, Thread.currentThread());
             try {
                 final var updated = new HashMap<>(currentMetadata);
-                updated.keySet().retainAll(filesToRetain);
+                final var filesRemoved = updated.keySet().retainAll(filesToRetain);
                 assert updated.keySet().containsAll(filesToRetain)
                     : "missing files [" + Sets.difference(filesToRetain, updated.keySet()) + "]";
                 currentMetadata = Map.copyOf(updated);
+
+                if (filesRemoved && cacheService.isCacheBoostEnabled()) {
+                    maybeScheduleRegionsEviction();
+                }
             } finally {
                 assert assertCompareAndSetUpdatingCommitThread(Thread.currentThread(), null);
             }
+        }
+    }
+
+    /**
+     * Schedules an async eviction of cache regions that are no longer referenced by the current metadata,
+     * unless one is already scheduled.
+     */
+    private void maybeScheduleRegionsEviction() {
+        if (regionsEvictionScheduled.compareAndSet(false, true)) {
+            cacheService.submitAsyncEviction(() -> {
+                regionsEvictionScheduled.set(false);
+
+                final Map<String, BlobFileRanges> metadata = currentMetadata;
+
+                final Map<String, BitSet> activeRegionsByBlob = new HashMap<>();
+                final Map<String, Integer> maxKnownRegionByBlob = new HashMap<>();
+                long maxBccGeneration = 0L;
+
+                for (var file : metadata.values()) {
+                    int startRegion = cacheService.getRegion(file.fileOffset());
+                    int endRegion = cacheService.getEndingRegion(file.fileOffset() + file.fileLength());
+                    activeRegionsByBlob.computeIfAbsent(file.blobName(), k -> new BitSet()).set(startRegion, endRegion + 1);
+                    maxKnownRegionByBlob.merge(file.blobName(), endRegion, Math::max);
+                    maxBccGeneration = Math.max(maxBccGeneration, file.getBatchedCompoundCommitTermAndGeneration().generation());
+                }
+
+                final long maxBccGen = maxBccGeneration;
+                cacheService.forceEvict(shardId, (key, region) -> {
+                    final String blobName = key.fileName();
+
+                    BitSet activeRegions = activeRegionsByBlob.get(blobName);
+                    if (activeRegions != null && activeRegions.get(region)) {
+                        return false; // Region is active, keep it
+                    }
+
+                    long bccGeneration = StatelessCompoundCommit.parseGenerationFromBlobName(blobName);
+                    if (bccGeneration < maxBccGen) {
+                        return true; // BCC is older and region is not active, evict
+                    }
+                    if (bccGeneration == maxBccGen) {
+                        int maxKnownRegion = maxKnownRegionByBlob.getOrDefault(blobName, -1);
+                        return region <= maxKnownRegion; // region is known, evict
+                    }
+                    return false;
+                });
+            });
         }
     }
 

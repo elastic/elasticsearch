@@ -464,9 +464,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardDisruptionIT
   method: testReshardWithDisruption
   issue: https://github.com/elastic/elasticsearch/issues/150708
-- class: org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfigTests
-  method: testEqualsAndHashcode
-  issue: https://github.com/elastic/elasticsearch/issues/150712
 - class: org.elasticsearch.xpack.esql.analysis.AnalyzerUnmappedGoldenTests
   method: testTypeConflictTimeseriesLongUnmappedWithCast
   issue: https://github.com/elastic/elasticsearch/issues/150722

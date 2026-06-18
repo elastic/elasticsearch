@@ -1139,6 +1139,117 @@ decade:integer | description:keyword | date_range:date_range
 ;
 
 
+mvFirstDateRange
+required_capability: date_range_field_type_v6
+required_capability: mv_first_last_date_range
+
+FROM mv_decades
+| WHERE decade == 1950
+| EVAL first_dr = MV_FIRST(date_range)
+| KEEP decade, first_dr
+;
+
+decade:integer | first_dr:date_range
+1950           | 1950-01-01..1960-01-01
+;
+
+mvLastDateRange
+required_capability: date_range_field_type_v6
+required_capability: mv_first_last_date_range
+
+FROM mv_decades
+| WHERE decade == 1950
+| EVAL last_dr = MV_LAST(date_range)
+| KEEP decade, last_dr
+;
+
+decade:integer | last_dr:date_range
+1950           | 1955-01-01..1965-01-01
+;
+
+mvFirstDateRangeSingleValue
+required_capability: date_range_field_type_v6
+required_capability: mv_first_last_date_range
+
+FROM decades
+| WHERE decade == 1900
+| EVAL first_dr = MV_FIRST(date_range)
+| KEEP decade, first_dr
+;
+
+decade:integer | first_dr:date_range
+1900           | 1900-01-01..1910-01-01
+;
+
+mvLastDateRangeSingleValue
+required_capability: date_range_field_type_v6
+required_capability: mv_first_last_date_range
+
+FROM decades
+| WHERE decade == 1900
+| EVAL last_dr = MV_LAST(date_range)
+| KEEP decade, last_dr
+;
+
+decade:integer | last_dr:date_range
+1900           | 1900-01-01..1910-01-01
+;
+
+mvFirstDateRangeRow
+required_capability: date_range_field_type_v6
+required_capability: mv_first_last_date_range
+
+FROM mv_decades
+| WHERE decade == 2000
+| EVAL first_dr = MV_FIRST(date_range)
+| KEEP decade, first_dr
+;
+
+decade:integer | first_dr:date_range
+2000           | 1995-01-01..2005-01-01
+;
+
+mvLastDateRangeRow
+required_capability: date_range_field_type_v6
+required_capability: mv_first_last_date_range
+
+FROM mv_decades
+| WHERE decade == 2000
+| EVAL last_dr = MV_LAST(date_range)
+| KEEP decade, last_dr
+;
+
+decade:integer | last_dr:date_range
+2000           | 2000-01-01..2010-01-01
+;
+
+mvFirstDateRangeRowSingle
+required_capability: date_range_field_type_v6
+required_capability: mv_first_last_date_range
+
+ROW a = TO_DATE_RANGE("2023-06-01..2023-12-31")
+| EVAL first_dr = MV_FIRST(a)
+| KEEP first_dr
+;
+
+first_dr:date_range
+2023-06-01..2023-12-31
+;
+
+mvLastDateRangeRowSingle
+required_capability: date_range_field_type_v6
+required_capability: mv_first_last_date_range
+
+ROW a = TO_DATE_RANGE("2023-06-01..2023-12-31")
+| EVAL last_dr = MV_LAST(a)
+| KEEP last_dr
+;
+
+last_dr:date_range
+2023-06-01..2023-12-31
+;
+
+
 ###############################################
 # COALESCE tests
 ###############################################
@@ -1384,4 +1495,38 @@ FROM decades
 decade:integer | r:date_range
 1900           | 1900-01-01..1910-01-01
 1910           | 2000-01-01..2001-01-01
+;
+
+###############################################
+# VALUES tests
+###############################################
+
+// VALUES on a single-row group returns the one date_range value.
+valuesDateRangeSingleRow
+required_capability: date_range_field_type_v6
+required_capability: values_date_range
+
+FROM decades
+| WHERE decade == 1900
+| STATS r = VALUES(date_range)
+;
+
+r:date_range
+1900-01-01..1910-01-01
+;
+
+// VALUES grouped by decade returns one date_range per group (all distinct).
+valuesDateRangeGrouped
+required_capability: date_range_field_type_v6
+required_capability: values_date_range
+
+FROM decades
+| WHERE decade == 1900 OR decade == 1910
+| STATS r = VALUES(date_range) BY decade
+| SORT decade
+;
+
+r:date_range           | decade:integer
+1900-01-01..1910-01-01 | 1900
+1910-01-01..1920-01-01 | 1910
 ;

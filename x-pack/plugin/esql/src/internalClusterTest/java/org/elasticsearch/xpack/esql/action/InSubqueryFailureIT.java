@@ -9,15 +9,14 @@ package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
-import org.elasticsearch.cluster.metadata.View;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.esql.VerificationException;
-import org.elasticsearch.xpack.esql.view.DeleteViewAction;
-import org.elasticsearch.xpack.esql.view.PutViewAction;
+import org.elasticsearch.xpack.esql.view.ViewResolver;
 import org.junit.Before;
 
-import static org.elasticsearch.test.ESIntegTestCase.indexExists;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.xpack.esql.action.InSubqueryIT.deleteViews;
+import static org.elasticsearch.xpack.esql.action.InSubqueryIT.installView;
 import static org.hamcrest.Matchers.containsString;
 
 /**
@@ -132,6 +131,18 @@ public class InSubqueryFailureIT extends AbstractEsqlIntegTestCase {
         assertThat(e.getMessage(), containsString("IN subquery must return exactly one column, found []"));
     }
 
+    public void testRejectsViewSubqueryWithMultipleColumns() {
+        assumeTrue("Requires views in cluster state", EsqlCapabilities.Cap.VIEWS_IN_CLUSTER_STATE.isEnabled());
+        assumeTrue("Requires IN subquery view support", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITH_VIEW.isEnabled());
+        installView("multi_col_view", "FROM test | KEEP id, name");
+        try {
+            var e = expectThrows(VerificationException.class, () -> run("FROM test | WHERE id IN (FROM multi_col_view) | KEEP id"));
+            assertThat(e.getMessage(), containsString("IN subquery must return exactly one column, found [id, name]"));
+        } finally {
+            deleteViews("multi_col_view");
+        }
+    }
+
     public void testRejectsSubqueryWithEmptyMapping() {
         var e = expectThrows(VerificationException.class, () -> run("FROM test | WHERE id IN (FROM empty_mapping) | KEEP id"));
         assertThat(e.getMessage(), containsString("IN subquery cannot reference an index with empty mapping"));
@@ -155,117 +166,26 @@ public class InSubqueryFailureIT extends AbstractEsqlIntegTestCase {
         );
     }
 
-    // ---- views referenced from inside an IN subquery (unsupported until ViewAndInSubqueryResolver returns) ----
-
-    /**
-     * Three nested views, each defined as {@code IN (FROM <previous_view>)}, with the outer query adding
-     * one more {@code IN} over {@code in_layer_3}. Once {@code ViewAndInSubqueryResolver} alternated
-     * {@code ViewResolver} and {@code InSubqueryResolver}, this query worked (and was used to exercise the
-     * iteration cap setting). After the simplification to a single sequential pass, the view reference
-     * inside the IN subquery's plan is no longer expanded and the analyzer rejects the query.
-     * <p>
-     * NEGATIVE: when {@code ViewAndInSubqueryResolver} is reintroduced, restore the original positive
-     * assertion against {@code MAX_VIEW_IN_SUBQUERY_RESOLUTION_ITERATIONS_SETTING} (see git history of
-     * this file).
-     */
-    /**
-     * Simplest negative case: the IN subquery's plan is just {@code FROM <view>} where the view itself is
-     * a plain {@code FROM <index>} projection — no nested IN subqueries, no chaining. The view alone
-     * resolves fine when used in the outer {@code FROM}, but inside an IN subquery's plan it is left as an
-     * {@code UnresolvedRelation} (because {@code ViewResolver} does not recurse into IN subquery plans),
-     * hoisted into the {@code SemiJoin}'s right side, and rejected during index resolution.
-     * <p>
-     * NEGATIVE: flip to a positive assertion (SemiJoin over {@code id} with the view body expanded) when
-     * {@code ViewAndInSubqueryResolver} returns.
-     */
-    public void testInSubqueryReferencingSimpleViewIsRejected() {
+    // ---- view depth cap ----
+    public void testMaxViewDepthClusterSettingWithInSubquery() {
         assumeTrue("Requires views in cluster state", EsqlCapabilities.Cap.VIEWS_IN_CLUSTER_STATE.isEnabled());
+        assumeTrue("Requires IN subquery view support", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITH_VIEW.isEnabled());
+
+        // Three nested views (in_layer_3 -> in_layer_2 -> in_layer_1) exceed maxDepth=2.
+        final int maxDepth = 2;
+        final String settingKey = ViewResolver.MAX_VIEW_DEPTH_SETTING.getKey();
+        updateClusterSettings(Settings.builder().put(settingKey, maxDepth));
         try {
-            assertAcked(
-                client().admin()
-                    .indices()
-                    .prepareCreate("employees")
-                    .setSettings(Settings.builder().put("index.number_of_shards", 1))
-                    .setMapping("id", "type=integer", "score", "type=double")
-            );
-            client().prepareBulk()
-                .add(new IndexRequest("employees").id("1").source("id", 1, "score", 60000.0))
-                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-                .get();
-            ensureYellow("employees");
+            installView("in_layer_1", "FROM test | WHERE id IN (FROM test | KEEP id) | KEEP id");
+            installView("in_layer_2", "FROM test | WHERE id IN (FROM in_layer_1 | KEEP id) | KEEP id");
+            installView("in_layer_3", "FROM test | WHERE id IN (FROM in_layer_2 | KEEP id) | KEEP id");
 
-            installView("simple_employees", "FROM employees | KEEP id");
-
-            String query = "FROM test | WHERE id IN (FROM simple_employees)";
+            String query = "FROM test | WHERE id IN (FROM in_layer_3 | KEEP id)";
             VerificationException e = expectThrows(VerificationException.class, () -> run(query));
-            assertThat(e.getMessage(), containsString("Unknown index [simple_employees]"));
+            assertThat(e.getMessage(), containsString("The maximum allowed view depth of " + maxDepth + " has been exceeded"));
         } finally {
-            try {
-                assertAcked(
-                    client().execute(
-                        DeleteViewAction.INSTANCE,
-                        new DeleteViewAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, new String[] { "simple_employees" })
-                    )
-                );
-            } catch (RuntimeException e) {
-                // View may be absent if the test body failed before creating it.
-            }
-            if (indexExists("employees")) {
-                assertAcked(indicesAdmin().prepareDelete("employees").get());
-            }
+            deleteViews("in_layer_1", "in_layer_2", "in_layer_3");
+            updateClusterSettings(Settings.builder().putNull(settingKey));
         }
-    }
-
-    public void testViewReferencedFromInSubqueryIsRejected() {
-        assumeTrue("Requires views in cluster state", EsqlCapabilities.Cap.VIEWS_IN_CLUSTER_STATE.isEnabled());
-        try {
-            assertAcked(
-                client().admin()
-                    .indices()
-                    .prepareCreate("employees")
-                    .setSettings(Settings.builder().put("index.number_of_shards", 1))
-                    .setMapping("id", "type=integer", "score", "type=double")
-            );
-            client().prepareBulk()
-                .add(new IndexRequest("employees").id("1").source("id", 1, "score", 60000.0))
-                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-                .get();
-            ensureYellow("employees");
-
-            installView("in_layer_1", "FROM employees | WHERE id IN (FROM test | KEEP id) | KEEP id");
-            installView("in_layer_2", "FROM employees | WHERE id IN (FROM in_layer_1 | KEEP id) | KEEP id");
-            installView("in_layer_3", "FROM employees | WHERE id IN (FROM in_layer_2 | KEEP id) | KEEP id, score");
-
-            String query = "FROM test | WHERE id IN (FROM in_layer_3 | WHERE score > 50000 | KEEP id)";
-            VerificationException e = expectThrows(VerificationException.class, () -> run(query));
-            // The hoisted IN subquery still references the view name as if it were an index; the analyzer
-            // cannot resolve it, so verification fails.
-            assertThat(e.getMessage(), containsString("Unknown index [in_layer_3]"));
-        } finally {
-            for (String viewName : new String[] { "in_layer_1", "in_layer_2", "in_layer_3" }) {
-                try {
-                    assertAcked(
-                        client().execute(
-                            DeleteViewAction.INSTANCE,
-                            new DeleteViewAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, new String[] { viewName })
-                        )
-                    );
-                } catch (RuntimeException e) {
-                    // View may be absent if the test body failed before creating it.
-                }
-            }
-            if (indexExists("employees")) {
-                assertAcked(indicesAdmin().prepareDelete("employees").get());
-            }
-        }
-    }
-
-    private void installView(String name, String query) {
-        assertAcked(
-            client().execute(
-                PutViewAction.INSTANCE,
-                new PutViewAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, new View(name, query))
-            )
-        );
     }
 }

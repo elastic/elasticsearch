@@ -99,9 +99,10 @@ public final class IntArrayBlock extends AbstractArrayBlock implements IntBlock 
     }
 
     @Override
-    public IntBlock filter(boolean mayContainDuplicates, int... positions) {
-        try (var builder = blockFactory().newIntBlockBuilder(positions.length)) {
-            for (int pos : positions) {
+    public IntBlock filter(boolean mayContainDuplicates, int[] positions, int offset, int length) {
+        try (var builder = blockFactory().newIntBlockBuilder(length)) {
+            for (int i = offset, end = offset + length; i < end; i++) {
+                int pos = positions[i];
                 if (isNull(pos)) {
                     builder.appendNull();
                     continue;

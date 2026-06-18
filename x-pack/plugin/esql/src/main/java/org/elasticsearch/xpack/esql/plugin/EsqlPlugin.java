@@ -43,6 +43,7 @@ import org.elasticsearch.compute.operator.exchange.ExchangeSourceOperator;
 import org.elasticsearch.compute.operator.fuse.LinearScoreEvalOperator;
 import org.elasticsearch.compute.operator.topn.GroupedTopNOperatorStatus;
 import org.elasticsearch.compute.operator.topn.TopNOperatorStatus;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.license.XPackLicenseState;
@@ -148,6 +149,7 @@ import org.elasticsearch.xpack.esql.view.TransportPutViewAction;
 import org.elasticsearch.xpack.esql.view.ViewResolver;
 import org.elasticsearch.xpack.esql.view.ViewService;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -271,6 +273,14 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
 
     private final SetOnce<EsqlCapabilities> capabilities = new SetOnce<>();
 
+    /** Closed by {@link #close()} on node shutdown to release S3/Azure workload-identity resources. */
+    private volatile DataSourceModule dataSourceModule;
+
+    @Override
+    public void close() throws IOException {
+        IOUtils.close(dataSourceModule);
+    }
+
     @Override
     public Collection<?> createComponents(PluginServices services) {
         // Refuse to start with data sources on but encryption off — the CRUD layer could never store a
@@ -332,7 +342,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
 
         // Create DataSourceModule with all discovered plugins
         // Pass GENERIC executor for plugins that need async I/O (e.g. HTTP storage provider)
-        DataSourceModule dataSourceModule = new DataSourceModule(
+        dataSourceModule = new DataSourceModule(
             allDataSourcePlugins,
             dataSourceCapabilities,
             settings,
@@ -340,7 +350,9 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
             services.threadPool().executor(ThreadPool.Names.GENERIC),
             dataSourceCredentials,
             workloadIdentityEnabled::get,
-            services.threadPool()
+            services.threadPool(),
+            services.environment(),
+            services.resourceWatcherService()
         );
 
         EsqlFunctionRegistry functionRegistry = new EsqlFunctionRegistry();

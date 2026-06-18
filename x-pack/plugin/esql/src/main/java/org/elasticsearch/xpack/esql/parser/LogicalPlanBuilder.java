@@ -66,6 +66,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Explain;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
+import org.elasticsearch.xpack.esql.plan.logical.Highlight;
 import org.elasticsearch.xpack.esql.plan.logical.InfoCommandPlanUtils;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.Insist;
@@ -1427,6 +1428,37 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         return rerank;
     }
 
+    @Override
+    public PlanFactory visitHighlightCommand(EsqlBaseParser.HighlightCommandContext ctx) {
+        Source source = source(ctx);
+        // The prefix isn't user-configurable in v1; the plan node carries it as a field so a future
+        // grammar extension can override it without changing serialization.
+        String prefix = Highlight.DEFAULT_PREFIX;
+        Expression query = ctx.queryText == null ? null : visitString(ctx.queryText);
+        List<Expression> fields = ctx.highlightFields.qualifiedName().stream().map(qn -> (Expression) visitQualifiedName(qn)).toList();
+        return p -> applyHighlightOptions(new Highlight(source, p, prefix, query, fields, null), ctx.commandNamedParameters());
+    }
+
+    private Highlight applyHighlightOptions(Highlight h, EsqlBaseParser.CommandNamedParametersContext ctx) {
+        MapExpression options = ctx == null ? null : visitCommandNamedParameters(ctx);
+        if (options == null) {
+            return h;
+        }
+
+        Map<String, Expression> optionsMap = options.keyFoldedMap();
+        Set<String> unknown = new HashSet<>(optionsMap.keySet());
+        unknown.removeAll(Highlight.validOptionNames());
+        if (unknown.isEmpty() == false) {
+            throw new ParsingException(
+                source(ctx),
+                "Invalid option [{}] in HIGHLIGHT, expected one of [{}]",
+                unknown.iterator().next(),
+                Highlight.validOptionNames()
+            );
+        }
+        return h.withOptions(options);
+    }
+
     public PlanFactory visitCompletionCommand(EsqlBaseParser.CompletionCommandContext ctx) {
         Source source = source(ctx);
 
@@ -1556,14 +1588,6 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         Source source = source(ctx);
 
         PromqlParams params = parsePromqlParams(ctx, source);
-        UnresolvedRelation unresolvedRelation = new UnresolvedRelation(
-            source,
-            params.indexPattern(),
-            false,
-            List.of(),
-            null,
-            SourceCommand.PROMQL
-        );
 
         // TODO: Perform type and value validation
         final String promqlQuery;
@@ -1625,6 +1649,15 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         }
 
         String valueColumnName = getValueColumnName(ctx.valueName(), promqlQuery);
+
+        UnresolvedRelation unresolvedRelation = new UnresolvedRelation(
+            source,
+            params.indexPattern(),
+            false,
+            List.of(),
+            null,
+            SourceCommand.PROMQL
+        );
 
         return new PromqlCommand(
             source,

@@ -846,6 +846,26 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    */
   void exitDedupCommand(EsqlBaseParser.DedupCommandContext ctx);
   /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#highlightCommand}.
+   * @param ctx the parse tree
+   */
+  void enterHighlightCommand(EsqlBaseParser.HighlightCommandContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#highlightCommand}.
+   * @param ctx the parse tree
+   */
+  void exitHighlightCommand(EsqlBaseParser.HighlightCommandContext ctx);
+  /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#qualifiedNames}.
+   * @param ctx the parse tree
+   */
+  void enterQualifiedNames(EsqlBaseParser.QualifiedNamesContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#qualifiedNames}.
+   * @param ctx the parse tree
+   */
+  void exitQualifiedNames(EsqlBaseParser.QualifiedNamesContext ctx);
+  /**
    * Enter a parse tree produced by {@link EsqlBaseParser#uriPartsCommand}.
    * @param ctx the parse tree
    */

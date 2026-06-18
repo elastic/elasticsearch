@@ -131,6 +131,26 @@ setup:
           - { "index": {} }
           - { "attributes_alias": "kw" }
 
+  # index whose mapping omits name_alias (dynamic:false), but whose _source still carries it - the only
+  # way to make the load _source-read observable: a value that can come from nowhere but _source.
+  - do:
+      indices.create:
+        index: fa-source-only
+        body:
+          mappings:
+            dynamic: false
+            properties:
+              other:
+                type: keyword
+
+  - do:
+      bulk:
+        index: fa-source-only
+        refresh: true
+        body:
+          - { "index": {} }
+          - { "other": "z", "name_alias": "src", "name": "TARGET_MUST_NOT_APPEAR" }
+
 ---
 'field alias is inert to unmapped_fields - default, load and nullify resolve identically':
   # A fully-mapped alias never enters the unmapped-field machinery, so the unmapped_fields setting
@@ -205,6 +225,25 @@ setup:
   - match: { values.1: ["b", "20"] }
   - match: { values.2: ["concrete", null] }
   - match: { values.3: [null, null] }
+
+---
+'unmapped_fields=load surfaces an unmapped field value from _source by its literal name':
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          # fa-aliased: name_alias resolves through the mapping (alias -> name) -> "a","b".
+          # fa-source-only: name_alias is unmapped (dynamic:false) but present in _source, so load reads the
+          # literal key "name_alias" -> "src". The "src" value can only come from the _source read. It must
+          # NOT read the alias TARGET ("name"), which holds the decoy - proving load reads the literal name
+          # and never resolves an alias in an index that doesn't have one.
+          query: 'SET unmapped_fields="load"; FROM fa-aliased, fa-source-only | KEEP name_alias | SORT name_alias'
+  - match: { columns.0.name: name_alias }
+  - match: { columns.0.type: keyword }
+  - match: { values.0: ["a"] }
+  - match: { values.1: ["b"] }
+  - match: { values.2: ["src"] }
 
 ---
 'field alias in a cross-index type conflict resolves via an explicit cast':

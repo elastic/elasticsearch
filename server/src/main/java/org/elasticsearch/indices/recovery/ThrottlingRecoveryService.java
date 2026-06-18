@@ -9,11 +9,9 @@
 
 package org.elasticsearch.indices.recovery;
 
-import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
-import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 
@@ -70,14 +68,12 @@ public final class ThrottlingRecoveryService implements Closeable {
                 pendingRecovery = null;
             }
         }
-        final RecoverySource source = recoveryState.getRecoverySource();
-        final ShardId shardId = recoveryState.getShardId();
         if (pendingRecovery == null) {
-            logger.debug("service is closed, aborting recovery: recoverySource [{}], shardId [{}]", source, shardId);
+            logger.debug("service is closed, aborting recovery: {}", recoveryState);
             recoveryListener.onRecoveryAborted();
             return;
         }
-        logger.trace("enqueued recovery: recoverySource [{}], shardId [{}]", source, shardId);
+        logger.trace("enqueued recovery: {}", recoveryState);
         fillSlots();
     }
 
@@ -100,11 +96,7 @@ public final class ThrottlingRecoveryService implements Closeable {
         }
         for (PendingRecovery pending : recoveriesToAbort) {
             final RecoveryState state = pending.recoveryState;
-            logger.trace(
-                "service closing, aborting recovery: recoverySource [{}], shardId [{}]",
-                state.getRecoverySource(),
-                state.getShardId()
-            );
+            logger.trace("service closing, aborting recovery: {}", state);
             pending.listener.onRecoveryAborted();
         }
     }
@@ -129,7 +121,7 @@ public final class ThrottlingRecoveryService implements Closeable {
         for (PendingRecovery recovery : recoveriesToDispatch) {
             final RecoveryState state = recovery.recoveryState;
             executor.execute(new RecoveryRunnable(recovery, () -> releaseSlot(state)));
-            logger.trace("dispatched recovery: recoverySource [{}], shardId [{}]", state.getRecoverySource(), state.getShardId());
+            logger.trace("dispatched recovery: {}", state);
         }
     }
 
@@ -140,7 +132,7 @@ public final class ThrottlingRecoveryService implements Closeable {
             currentRunning = runningRecoveries;
         }
         assert currentRunning >= 0 : "negative number of running recoveries " + currentRunning;
-        logger.trace("recovery slot released: recoverySource [{}], shardId [{}]", state.getRecoverySource(), state.getShardId());
+        logger.trace("recovery slot released: {}", state);
         fillSlots();
     }
 

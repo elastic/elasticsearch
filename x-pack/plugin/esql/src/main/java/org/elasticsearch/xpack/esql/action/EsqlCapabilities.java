@@ -474,6 +474,18 @@ public class EsqlCapabilities {
         FIELD_EXTRACT_MAPPED_SUBFIELD_RETURNS_VALUE(Build.current().isSnapshot()),
 
         /**
+         * A {@code flattened} root that declares mapped sub-fields (e.g. {@code KEEP attributes}) is always loaded
+         * from {@code _source}, producing one canonical stringly-typed blob on every loading path: every leaf is a
+         * string (a mapped {@code long} sub-field reads back as {@code "200"}, not the native {@code 200}) and every
+         * key is present, including a bare {@code text} sub-field that has no doc values and so could never be rebuilt
+         * by the doc-values root loader. Direct access to the typed sub-field column (e.g. {@code attributes.status_code}
+         * or {@code attributes.message}) is unaffected and still returns the native value. Tests that pin this blob
+         * shape must require this capability so they skip on mixed clusters where an older data node still builds the
+         * root from doc values, rendering mapped sub-fields with their native type and dropping a bare text sub-field.
+         */
+        FLATTENED_ROOT_STRINGIFIES_MAPPED_SUBFIELDS(Build.current().isSnapshot()),
+
+        /**
          * Optimization for ST_CENTROID changed some results in cartesian data. #108713
          */
         ST_CENTROID_AGG_OPTIMIZED,
@@ -3125,6 +3137,17 @@ public class EsqlCapabilities {
          * Support for PromQL {@code histogram_quantile()} over classic histograms with {@code le} buckets.
          */
         PROMQL_HISTOGRAM_QUANTILE,
+
+        /**
+         * Support for the top-level PromQL {@code or} (UNION) set operator between two instant vectors.
+         */
+        PROMQL_SET_OPERATOR_UNION,
+
+        /**
+         * Support for PromQL {@code histogram_quantile()} over classic histograms where {@code le} is not an explicit
+         * child output.
+         */
+        PROMQL_HISTOGRAM_QUANTILE_IMPLICIT_LE,
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

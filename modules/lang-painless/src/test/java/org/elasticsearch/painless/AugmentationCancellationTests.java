@@ -728,9 +728,14 @@ public class AugmentationCancellationTests extends ScriptTestCase {
         assertFires(compileFillThen("", "big.sum(x -> 1.0d);"), "cancelled-sum-fn");
     }
 
+    /** {@code count(Predicate)} scans the whole iterable counting matches and must poll. */
+    public void testCountAugmentationFiresCancelRunnable() {
+        assertFires(compileFillThen("", "big.count(x -> true);"), "cancelled-count");
+    }
+
     /**
      * Each new Iterable script-aware augmentation must take the no-poll fast path when the script has
-     * no cancellation check installed.  Exercises all six new methods in one script execution.
+     * no cancellation check installed.  Exercises all seven new methods in one script execution.
      */
     public void testIterableAugmentationsNoRunnable() {
         ScriptedMetricAggContexts.InitScript script = compileFillThen(
@@ -740,7 +745,8 @@ public class AugmentationCancellationTests extends ScriptTestCase {
                 + "big.eachWithIndex((x, i) -> x.toString()); "
                 + "big.findResults(x -> x.toString()); "
                 + "big.groupBy(x -> x % 3); "
-                + "big.sum(x -> 1.0d);"
+                + "big.sum(x -> 1.0d); "
+                + "big.count(x -> true);"
         );
         // No runnable set — _getCancellationCheck() returns null; fast paths must not throw.
         script.execute();
@@ -936,10 +942,59 @@ public class AugmentationCancellationTests extends ScriptTestCase {
         );
     }
 
+    /** {@code PrimitiveIterator.OfInt.forEachRemaining} visits every element and must poll. */
+    public void testIntPrimitiveIteratorForEachRemainingAugmentationFiresCancelRunnable() {
+        assertFires(
+            compileFillThen("", "big.stream().mapToInt(x -> x).iterator().forEachRemaining(x -> x);"),
+            "cancelled-int-primitiveiterator-foreachremaining"
+        );
+    }
+
+    /** {@code PrimitiveIterator.OfLong.forEachRemaining} visits every element and must poll. */
+    public void testLongPrimitiveIteratorForEachRemainingAugmentationFiresCancelRunnable() {
+        assertFires(
+            compileFillThen("", "big.stream().mapToLong(x -> x).iterator().forEachRemaining(x -> x);"),
+            "cancelled-long-primitiveiterator-foreachremaining"
+        );
+    }
+
+    /** {@code PrimitiveIterator.OfDouble.forEachRemaining} visits every element and must poll. */
+    public void testDoublePrimitiveIteratorForEachRemainingAugmentationFiresCancelRunnable() {
+        assertFires(
+            compileFillThen("", "big.stream().mapToDouble(x -> x).iterator().forEachRemaining(x -> x);"),
+            "cancelled-double-primitiveiterator-foreachremaining"
+        );
+    }
+
+    /** {@code Spliterator.OfInt.forEachRemaining} visits every element and must poll. */
+    public void testIntSpliteratorForEachRemainingAugmentationFiresCancelRunnable() {
+        assertFires(
+            compileFillThen("", "big.stream().mapToInt(x -> x).spliterator().forEachRemaining(x -> x);"),
+            "cancelled-int-spliterator-foreachremaining"
+        );
+    }
+
+    /** {@code Spliterator.OfLong.forEachRemaining} visits every element and must poll. */
+    public void testLongSpliteratorForEachRemainingAugmentationFiresCancelRunnable() {
+        assertFires(
+            compileFillThen("", "big.stream().mapToLong(x -> x).spliterator().forEachRemaining(x -> x);"),
+            "cancelled-long-spliterator-foreachremaining"
+        );
+    }
+
+    /** {@code Spliterator.OfDouble.forEachRemaining} visits every element and must poll. */
+    public void testDoubleSpliteratorForEachRemainingAugmentationFiresCancelRunnable() {
+        assertFires(
+            compileFillThen("", "big.stream().mapToDouble(x -> x).spliterator().forEachRemaining(x -> x);"),
+            "cancelled-double-spliterator-foreachremaining"
+        );
+    }
+
     /**
      * Each new native-wrapper script-aware augmentation must take the no-poll fast path when the
-     * script has no cancellation check installed.  Exercises all seven native wrappers (Iterable,
-     * Collection, Iterator, List, Map x2, Spliterator) in one script execution.
+     * script has no cancellation check installed.  Exercises all native wrappers (Iterable,
+     * Collection, Iterator, List, Map x2, Spliterator, and the six primitive iterator/spliterator
+     * variants) in one script execution.
      */
     public void testNativeWrapperAugmentationsNoRunnable() {
         ScriptedMetricAggContexts.InitScript script = compileFillThen(
@@ -950,7 +1005,13 @@ public class AugmentationCancellationTests extends ScriptTestCase {
                 + "big.replaceAll(x -> x); "
                 + "Map m = newMap(); m.forEach((k, v) -> v.toString()); "
                 + "Map m2 = newMap(); m2.replaceAll((k, v) -> v); "
-                + "big.spliterator().forEachRemaining(x -> x.toString());"
+                + "big.spliterator().forEachRemaining(x -> x.toString()); "
+                + "big.stream().mapToInt(x -> x).iterator().forEachRemaining(x -> x); "
+                + "big.stream().mapToLong(x -> x).iterator().forEachRemaining(x -> x); "
+                + "big.stream().mapToDouble(x -> x).iterator().forEachRemaining(x -> x); "
+                + "big.stream().mapToInt(x -> x).spliterator().forEachRemaining(x -> x); "
+                + "big.stream().mapToLong(x -> x).spliterator().forEachRemaining(x -> x); "
+                + "big.stream().mapToDouble(x -> x).spliterator().forEachRemaining(x -> x);"
         );
         // No runnable set — _getCancellationCheck() returns null; fast paths must not throw.
         script.execute();
@@ -1004,6 +1065,19 @@ public class AugmentationCancellationTests extends ScriptTestCase {
             compileFillThen("", "big.stream().collect(() -> new ArrayList(), (l, x) -> l.add(x), (a, b) -> a.addAll(b));"),
             "cancelled-stream-collect"
         );
+    }
+
+    /** {@code Stream.collect(Collector)} drives the whole stream through the collector's accumulator and must poll. */
+    public void testStreamCollectCollectorAugmentationFiresCancelRunnable() {
+        assertFires(compileFillThen("", "big.stream().collect(Collectors.toList());"), "cancelled-stream-collect-collector");
+    }
+
+    /**
+     * {@code Stream.collect(Collector)} with a finishing collector ({@code counting()} is not
+     * {@code IDENTITY_FINISH}) still polls — the rebuilt collector applies the original finisher.
+     */
+    public void testStreamCollectFinishingCollectorAugmentationFiresCancelRunnable() {
+        assertFires(compileFillThen("", "big.stream().collect(Collectors.counting());"), "cancelled-stream-collect-counting");
     }
 
     // --- IntStream terminal-op script-aware augmentations: per-method fires tests ---
@@ -1167,6 +1241,8 @@ public class AugmentationCancellationTests extends ScriptTestCase {
                 + "big.stream().reduce(0, (a, b) -> a); "
                 + "big.stream().reduce(0, (a, b) -> a, (a, b) -> a); "
                 + "big.stream().collect(() -> new ArrayList(), (l, x) -> l.add(x), (a, b) -> a.addAll(b)); "
+                + "big.stream().collect(Collectors.toList()); "
+                + "big.stream().collect(Collectors.counting()); "
                 + "big.stream().mapToInt(x -> x).forEach(x -> x); "
                 + "big.stream().mapToInt(x -> x).allMatch(x -> true); "
                 + "big.stream().mapToInt(x -> x).reduce((a, b) -> a); "
@@ -1437,5 +1513,35 @@ public class AugmentationCancellationTests extends ScriptTestCase {
             params
         );
         assertEquals("thE qUIck brOwn fOx", out);
+    }
+
+    /**
+     * The polling branch rebuilds the collector, so pin that its output matches the JDK across an
+     * {@code IDENTITY_FINISH} collector ({@code toList}), a finishing collector ({@code counting}), and a
+     * finishing collector with a non-trivial finisher ({@code joining}).  Receiver is a statically typed
+     * {@code Stream}, so this exercises the static augmentation dispatch path.
+     */
+    public void testStreamCollectCollectorWithCheckInstalledMatchesExpectedOutput() {
+        Map<String, Object> params = new HashMap<>();
+        params.put("items", List.of("a", "b", "c"));
+        assertEquals(
+            List.of("a", "b", "c"),
+            execSourceWithCheckInstalled("List l = params['items']; state['r'] = l.stream().collect(Collectors.toList());", params)
+        );
+        assertEquals(
+            3L,
+            execSourceWithCheckInstalled("List l = params['items']; state['r'] = l.stream().collect(Collectors.counting());", params)
+        );
+        assertEquals(
+            "a,b,c",
+            execSourceWithCheckInstalled("List l = params['items']; state['r'] = l.stream().collect(Collectors.joining(','));", params)
+        );
+    }
+
+    /** A {@code def}-typed stream receiver dispatches the collector wrapper through {@code Def.lookupMethod}; pin its output. */
+    public void testStreamCollectCollectorDefReceiverMatchesExpectedOutput() {
+        Map<String, Object> params = new HashMap<>();
+        params.put("items", List.of("a", "b", "c"));
+        assertEquals(List.of("a", "b", "c"), execWithCheckInstalled("params['items'].stream().collect(Collectors.toList())", params));
     }
 }

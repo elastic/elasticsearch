@@ -49,6 +49,7 @@ import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -95,6 +96,9 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
         AtomicInteger numWithTopDocs = new AtomicInteger();
         AtomicInteger successfulOps = new AtomicInteger();
         AtomicBoolean canReturnNullResponse = new AtomicBoolean(false);
+        // Collect birth refs to release after latch.await(), mirroring InboundHandler's
+        // response.decRef() that runs after handleResponse returns.
+        List<QuerySearchResult> resultsToRelease = new ArrayList<>();
         var transportService = mock(TransportService.class);
         when(transportService.getLocalNode()).thenReturn(primaryNode);
         SearchTransportService searchTransportService = new SearchTransportService(transportService, null, null) {
@@ -118,49 +122,39 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
                     new SearchShardTarget("node1", new ShardId("idx", "na", shardId), null),
                     null
                 );
-                try {
-                    SortField sortField = new SortField("timestamp", SortField.Type.LONG);
-                    if (withCollapse) {
-                        queryResult.topDocs(
-                            new TopDocsAndMaxScore(
-                                new TopFieldGroups(
-                                    "collapse_field",
-                                    new TotalHits(
-                                        1,
-                                        withScroll ? TotalHits.Relation.EQUAL_TO : TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO
-                                    ),
-                                    new FieldDoc[] { new FieldDoc(randomInt(1000), Float.NaN, new Object[] { request.shardId().id() }) },
-                                    new SortField[] { sortField },
-                                    new Object[] { 0L }
-                                ),
-                                Float.NaN
+                SortField sortField = new SortField("timestamp", SortField.Type.LONG);
+                if (withCollapse) {
+                    queryResult.topDocs(
+                        new TopDocsAndMaxScore(
+                            new TopFieldGroups(
+                                "collapse_field",
+                                new TotalHits(1, withScroll ? TotalHits.Relation.EQUAL_TO : TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO),
+                                new FieldDoc[] { new FieldDoc(randomInt(1000), Float.NaN, new Object[] { request.shardId().id() }) },
+                                new SortField[] { sortField },
+                                new Object[] { 0L }
                             ),
-                            new DocValueFormat[] { DocValueFormat.RAW }
-                        );
-                    } else {
-                        queryResult.topDocs(
-                            new TopDocsAndMaxScore(
-                                new TopFieldDocs(
-                                    new TotalHits(
-                                        1,
-                                        withScroll ? TotalHits.Relation.EQUAL_TO : TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO
-                                    ),
-                                    new FieldDoc[] { new FieldDoc(randomInt(1000), Float.NaN, new Object[] { request.shardId().id() }) },
-                                    new SortField[] { sortField }
-                                ),
-                                Float.NaN
+                            Float.NaN
+                        ),
+                        new DocValueFormat[] { DocValueFormat.RAW }
+                    );
+                } else {
+                    queryResult.topDocs(
+                        new TopDocsAndMaxScore(
+                            new TopFieldDocs(
+                                new TotalHits(1, withScroll ? TotalHits.Relation.EQUAL_TO : TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO),
+                                new FieldDoc[] { new FieldDoc(randomInt(1000), Float.NaN, new Object[] { request.shardId().id() }) },
+                                new SortField[] { sortField }
                             ),
-                            new DocValueFormat[] { DocValueFormat.RAW }
-                        );
-                    }
-                    queryResult.from(0);
-                    queryResult.size(1);
-                    successfulOps.incrementAndGet();
-                    queryResult.incRef();
-                    new Thread(() -> ActionListener.respondAndRelease(listener, queryResult)).start();
-                } finally {
-                    queryResult.decRef();
+                            Float.NaN
+                        ),
+                        new DocValueFormat[] { DocValueFormat.RAW }
+                    );
                 }
+                queryResult.from(0);
+                queryResult.size(1);
+                successfulOps.incrementAndGet();
+                resultsToRelease.add(queryResult);
+                new Thread(() -> listener.onResponse(queryResult)).start();
             }
         };
         CountDownLatch latch = new CountDownLatch(1);
@@ -235,6 +229,8 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
             };
             action.start();
             latch.await();
+            // All onResponse calls are done; release birth refs to mirror the transport's post-handleResponse decRef.
+            resultsToRelease.forEach(QuerySearchResult::decRef);
             assertThat(successfulOps.get(), equalTo(numShards));
             if (withScroll) {
                 assertFalse(canReturnNullResponse.get());
@@ -326,6 +322,9 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
         AtomicInteger numWithTopDocs = new AtomicInteger();
         AtomicInteger successfulOps = new AtomicInteger();
         AtomicBoolean canReturnNullResponse = new AtomicBoolean(false);
+        // Collect birth refs to release after latch.await(), mirroring InboundHandler's
+        // response.decRef() that runs after handleResponse returns.
+        List<QuerySearchResult> resultsToRelease = new ArrayList<>();
         var transportService = mock(TransportService.class);
         when(transportService.getLocalNode()).thenReturn(primaryNode);
         SearchTransportService searchTransportService = new SearchTransportService(transportService, null, null) {
@@ -348,27 +347,23 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
                     new SearchShardTarget("node1", new ShardId("idx", "na", shardId), null),
                     null
                 );
-                try {
-                    SortField sortField = new SortField("RegistrationDate", SortField.Type.LONG);
-                    queryResult.topDocs(
-                        new TopDocsAndMaxScore(
-                            new TopFieldDocs(
-                                new TotalHits(1, TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO),
-                                new FieldDoc[] { new FieldDoc(0, Float.NaN, new Object[] { Long.MAX_VALUE }) },
-                                new SortField[] { sortField }
-                            ),
-                            Float.NaN
+                SortField sortField = new SortField("RegistrationDate", SortField.Type.LONG);
+                queryResult.topDocs(
+                    new TopDocsAndMaxScore(
+                        new TopFieldDocs(
+                            new TotalHits(1, TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO),
+                            new FieldDoc[] { new FieldDoc(0, Float.NaN, new Object[] { Long.MAX_VALUE }) },
+                            new SortField[] { sortField }
                         ),
-                        new DocValueFormat[] { new BadRawDocValueFormat() }
-                    );
-                    queryResult.from(0);
-                    queryResult.size(1);
-                    successfulOps.incrementAndGet();
-                    queryResult.incRef();
-                    new Thread(() -> ActionListener.respondAndRelease(listener, queryResult)).start();
-                } finally {
-                    queryResult.decRef();
-                }
+                        Float.NaN
+                    ),
+                    new DocValueFormat[] { new BadRawDocValueFormat() }
+                );
+                queryResult.from(0);
+                queryResult.size(1);
+                successfulOps.incrementAndGet();
+                resultsToRelease.add(queryResult);
+                new Thread(() -> listener.onResponse(queryResult)).start();
             }
         };
         CountDownLatch latch = new CountDownLatch(1);
@@ -442,6 +437,8 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
             };
             action.start();
             latch.await();
+            // All onResponse calls are done; release birth refs to mirror the transport's post-handleResponse decRef.
+            resultsToRelease.forEach(QuerySearchResult::decRef);
             assertThat(successfulOps.get(), equalTo(numShards));
             SearchPhaseController.ReducedQueryPhase phase = action.results.reduce();
             assertThat(phase.numReducePhases(), greaterThanOrEqualTo(1));

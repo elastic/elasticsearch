@@ -15,7 +15,7 @@ left:keyword | right:keyword | x:integer
 left         | right         | 1
 ;
 
-shadowingSubfields#[skip:-8.13.3,reason:fixed in 8.13]
+shadowingSubfields
 FROM addresses
 | KEEP city.country.continent.planet.name, city.country.name, city.name
 | EVAL city.country.continent.planet.name = to_upper(city.country.continent.planet.name)
@@ -450,7 +450,7 @@ Parto          |Bamford        |6.004230000000001
 // end::evalReplace-result[]
 ;
 
-docsEvalUnnamedColumn#[skip:-8.12.99,reason:expression spaces are maintained since 8.13]
+docsEvalUnnamedColumn
 // tag::evalUnnamedColumn[]
 FROM employees
 | SORT emp_no
@@ -467,7 +467,7 @@ Parto          |Bamford        |1.83           |6.004230000000001
 // end::evalUnnamedColumn-result[]
 ;
 
-docsEvalUnnamedColumnStats#[skip:-8.12.99,reason:expression spaces are maintained since 8.13]
+docsEvalUnnamedColumnStats
 // tag::evalUnnamedColumnStats[]
 FROM employees
 | EVAL height * 3.281
@@ -481,7 +481,7 @@ avg_height_feet:double
 // end::evalUnnamedColumnStats-result[]
 ;
 
-overwriteName#[skip:-8.13.0]
+overwriteName
 FROM employees
 | SORT emp_no asc
 | EVAL full_name = concat(first_name, " ", last_name)
@@ -495,7 +495,7 @@ Bezalel Simmel    | Bezalel Simmel 10002
 Parto Bamford     | Parto Bamford 10003
 ;
 
-overwriteNameWhere#[skip:-8.13.0]
+overwriteNameWhere
 FROM employees
 | SORT emp_no ASC
 | EVAL full_name = concat(first_name, " ", last_name)
@@ -508,7 +508,7 @@ full_name:keyword | emp_no:keyword
 Bezalel Simmel    | Bezalel Simmel 10002
 ;
 
-overwriteNameAfterSort#[skip:-8.13.0]
+overwriteNameAfterSort
 FROM employees
 | SORT emp_no ASC
 | EVAL emp_no = -emp_no
@@ -522,7 +522,7 @@ emp_no:i
 -10003
 ;
 
-overwriteNameAfterSortChained#[skip:-8.13.0]
+overwriteNameAfterSortChained
 FROM employees
 | SORT emp_no ASC
 | EVAL x = emp_no, y = -emp_no, emp_no = y
@@ -536,7 +536,7 @@ emp_no:i
 -10003
 ;
 
-sortExpression1#[skip:-8.13.99,reason:supported in 8.14]
+sortExpression1
 FROM employees
 | SORT emp_no + salary ASC
 | EVAL emp_no = -emp_no
@@ -558,7 +558,7 @@ FROM employees
 -10042         |30404          |40446
 ;
 
-sortConcat1#[skip:-8.13.99,reason:supported in 8.14]
+sortConcat1
 from employees
 | sort concat(left(last_name, 1), left(first_name, 1)), salary desc
 | keep first_name, last_name, salary
@@ -579,7 +579,7 @@ Parto               |Bamford            |61805          |B         |P
 Premal              |Baek               |52833          |B         |P
 ;
 
-sortConcat2#[skip:-8.13.99,reason:supported in 8.14]
+sortConcat2
 from employees
 | eval ln = last_name, fn = first_name, concat = concat(left(last_name, 1), left(first_name, 1))
 | sort concat(left(ln, 1), left(fn, 1)), salary desc

@@ -46,6 +46,7 @@ class java.lang.Iterable {
   boolean org.elasticsearch.painless.api.Augmentation any(Predicate) @script_aware
   Collection org.elasticsearch.painless.api.Augmentation asCollection()
   List org.elasticsearch.painless.api.Augmentation asList()
+  int org.elasticsearch.painless.api.Augmentation count(Predicate) @script_aware
   def org.elasticsearch.painless.api.Augmentation each(Consumer) @script_aware
   def org.elasticsearch.painless.api.Augmentation eachWithIndex(ObjIntConsumer) @script_aware
   boolean org.elasticsearch.painless.api.Augmentation every(Predicate) @script_aware

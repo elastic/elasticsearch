@@ -71,6 +71,8 @@ public final class MappingLookup {
     private final boolean isSourceSynthetic;
     private final boolean isSourceColumnarStored;
 
+    private final boolean isColumnarId;
+
     /**
      * Creates a new {@link MappingLookup} instance by parsing the provided mapping and extracting its field definitions.
      *
@@ -245,6 +247,9 @@ public final class MappingLookup {
         this.isSourceEnabled = sfm != null && sfm.enabled();
         this.isSourceSynthetic = sfm != null && sfm.isSynthetic();
         this.isSourceColumnarStored = sfm != null && sfm.isColumnarStored();
+
+        var idFieldMapper = mapping.getMetadataMapperByClass(ProvidedIdFieldMapper.class);
+        this.isColumnarId = idFieldMapper != null && idFieldMapper.isColumnarMode();
     }
 
     private static boolean assertMapperNamesInterned(Map<String, Mapper> mappers, Map<String, ObjectMapper> objectMappers) {
@@ -527,6 +532,10 @@ public final class MappingLookup {
 
     public boolean isSourceColumnarStored() {
         return isSourceColumnarStored;
+    }
+
+    public boolean isColumnarId() {
+        return isColumnarId;
     }
 
     /**

@@ -35,8 +35,10 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.BlockLoader;
+import org.elasticsearch.index.mapper.BlockSourceReader;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentParsingException;
+import org.elasticsearch.index.mapper.DummyBlockLoaderContext;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.LuceneDocument;
@@ -2108,7 +2110,7 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
         });
     }
 
-    public void testBlockLoaderIncludesMappedProperties() throws IOException {
+    public void testBlockLoaderForMappedRootLoadsFromSource() throws IOException {
         MapperService mapperService = createMapperService(fieldMapping(b -> {
             b.field("type", "flattened");
             b.startObject("properties");
@@ -2119,85 +2121,16 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
             b.endObject();
         }));
 
-        MappedFieldType.BlockLoaderContext blContext = mock(MappedFieldType.BlockLoaderContext.class);
-        when(blContext.fieldExtractPreference()).thenReturn(MappedFieldType.FieldExtractPreference.DOC_VALUES);
-
         MappedFieldType fieldType = mapperService.fieldType("field");
         assertThat(fieldType, instanceOf(RootFlattenedFieldType.class));
-        BlockLoader blockLoader = fieldType.blockLoader(blContext);
-        assertThat(blockLoader, instanceOf(RootFlattenedDocValuesBlockLoader.class));
 
-        withLuceneIndex(mapperService, iw -> {
-            iw.addDocument(
-                mapperService.documentMapper()
-                    .parse(
-                        source(
-                            b -> b.startObject("field")
-                                .field("status", "ok")
-                                .field("code", 200)
-                                .field("unmapped_key", "some_value")
-                                .endObject()
-                        )
-                    )
-                    .rootDoc()
-            );
-        }, reader -> {
-            LeafReaderContext leaf = reader.leaves().get(0);
-            BlockLoader.ColumnAtATimeReader columnReader = blockLoader.columnAtATimeReader(leaf)
-                .apply(newLimitedBreaker(ByteSizeValue.ofMb(1)));
-            try {
-                TestBlock block = (TestBlock) columnReader.read(TestBlock.factory(), TestBlock.docs(0), 0, false);
-                assertThat(block.size(), equalTo(1));
-
-                BytesRef bytesRef = (BytesRef) block.get(0);
-                assertNotNull("block loader should return non-null value for doc with mapped properties", bytesRef);
-
-                assertThat(
-                    "fields must be returned in alphabetical order",
-                    bytesRef.utf8ToString(),
-                    equalTo("{\"code\":200,\"status\":\"ok\",\"unmapped_key\":\"some_value\"}")
-                );
-            } finally {
-                columnReader.close();
+        BlockLoader blockLoader = fieldType.blockLoader(new DummyBlockLoaderContext.MapperServiceBlockLoaderContext(mapperService) {
+            @Override
+            public MappedFieldType.FieldExtractPreference fieldExtractPreference() {
+                return MappedFieldType.FieldExtractPreference.DOC_VALUES;
             }
         });
-    }
-
-    public void testBlockLoaderWithMappedPropertiesOnly() throws IOException {
-        MapperService mapperService = createMapperService(fieldMapping(b -> {
-            b.field("type", "flattened");
-            b.startObject("properties");
-            {
-                b.startObject("status").field("type", "keyword").endObject();
-            }
-            b.endObject();
-        }));
-
-        MappedFieldType.BlockLoaderContext blContext = mock(MappedFieldType.BlockLoaderContext.class);
-        when(blContext.fieldExtractPreference()).thenReturn(MappedFieldType.FieldExtractPreference.DOC_VALUES);
-
-        BlockLoader blockLoader = mapperService.fieldType("field").blockLoader(blContext);
-
-        withLuceneIndex(mapperService, iw -> {
-            iw.addDocument(
-                mapperService.documentMapper().parse(source(b -> b.startObject("field").field("status", "active").endObject())).rootDoc()
-            );
-        }, reader -> {
-            LeafReaderContext leaf = reader.leaves().get(0);
-            BlockLoader.ColumnAtATimeReader columnReader = blockLoader.columnAtATimeReader(leaf)
-                .apply(newLimitedBreaker(ByteSizeValue.ofMb(1)));
-            try {
-                TestBlock block = (TestBlock) columnReader.read(TestBlock.factory(), TestBlock.docs(0), 0, false);
-                assertThat(block.size(), equalTo(1));
-
-                BytesRef bytesRef = (BytesRef) block.get(0);
-                assertNotNull("block loader should not return null when only mapped properties have values", bytesRef);
-
-                assertThat("fields must be returned in alphabetical order", bytesRef.utf8ToString(), equalTo("{\"status\":\"active\"}"));
-            } finally {
-                columnReader.close();
-            }
-        });
+        assertThat(blockLoader, instanceOf(BlockSourceReader.BytesRefsBlockLoader.class));
     }
 
     @Override

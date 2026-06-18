@@ -266,10 +266,7 @@ public class SearchCommitPrefetcherIT extends AbstractStatelessPluginIntegTestCa
         assertThat(pendingVbcc.getPrimaryTermAndGeneration().generation(), equalTo(lastBccGeneration));
 
         // Capture the metrics
-        var bytesReadFromBlobStore = meterBlobStoreReadsForBCC(
-            searchNode,
-            BatchedCompoundCommit.blobNameFromGeneration(lastBccGeneration)
-        );
+        var bytesReadFromBlobStore = meterBlobStoreReadsForBCC(searchNode, BatchedCompoundCommit.blobNameFromGeneration(lastBccGeneration));
         var beforeNewCommit = bytesReadFromBlobStore.get();
 
         // Wait until all commit notifications have been intercepted before releasing them

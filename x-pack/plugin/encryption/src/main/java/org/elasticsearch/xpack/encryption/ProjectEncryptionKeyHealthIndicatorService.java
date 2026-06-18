@@ -83,6 +83,15 @@ class ProjectEncryptionKeyHealthIndicatorService implements HealthIndicatorServi
             + " encryption, or set cluster.state.encryption.required: true to reject credential writes until encryption is configured.",
         HELP_URL
     );
+    static final Diagnosis.Definition ENCRYPTION_OPT_OUT_MISCONFIGURED_DEFINITION = new Diagnosis.Definition(
+        NAME,
+        "encryption_opt_out_misconfigured",
+        "Cluster state encryption is misconfigured and cluster.state.encryption.required is false;"
+            + " secrets are stored unencrypted.",
+        "Fix the encryption configuration (the 'state' field in details describes the specific problem),"
+            + " or set cluster.state.encryption.required: true to reject credential writes until encryption is restored.",
+        HELP_URL
+    );
     static final Diagnosis.Definition UNDECRYPTABLE_DEFINITION = new Diagnosis.Definition(
         NAME,
         "undecryptable_pek",
@@ -143,20 +152,42 @@ class ProjectEncryptionKeyHealthIndicatorService implements HealthIndicatorServi
                 }
                 yield createIndicator(GREEN, GREEN_NOT_CONFIGURED, detailsBuilder(metadata, serviceState), List.of(), List.of());
             }
-            case UNAVAILABLE_MISSING_PASSWORD -> createIndicator(
-                YELLOW,
-                YELLOW_LOCKED,
-                detailsBuilder(metadata, serviceState),
-                IMPACTS,
-                List.of(new Diagnosis(MISSING_PASSWORD_DEFINITION, List.of()))
-            );
-            case UNAVAILABLE_DECRYPTION_FAILED -> createIndicator(
-                YELLOW,
-                YELLOW_LOCKED,
-                detailsBuilder(metadata, serviceState),
-                IMPACTS,
-                List.of(new Diagnosis(UNDECRYPTABLE_DEFINITION, List.of()))
-            );
+            case UNAVAILABLE_MISSING_PASSWORD -> {
+                if (pekService.isEncryptionRequired() == false) {
+                    yield createIndicator(
+                        YELLOW,
+                        YELLOW_OPT_OUT,
+                        detailsBuilder(metadata, serviceState),
+                        OPT_OUT_IMPACTS,
+                        List.of(new Diagnosis(ENCRYPTION_OPT_OUT_MISCONFIGURED_DEFINITION, List.of()))
+                    );
+                }
+                yield createIndicator(
+                    YELLOW,
+                    YELLOW_LOCKED,
+                    detailsBuilder(metadata, serviceState),
+                    IMPACTS,
+                    List.of(new Diagnosis(MISSING_PASSWORD_DEFINITION, List.of()))
+                );
+            }
+            case UNAVAILABLE_DECRYPTION_FAILED -> {
+                if (pekService.isEncryptionRequired() == false) {
+                    yield createIndicator(
+                        YELLOW,
+                        YELLOW_OPT_OUT,
+                        detailsBuilder(metadata, serviceState),
+                        OPT_OUT_IMPACTS,
+                        List.of(new Diagnosis(ENCRYPTION_OPT_OUT_MISCONFIGURED_DEFINITION, List.of()))
+                    );
+                }
+                yield createIndicator(
+                    YELLOW,
+                    YELLOW_LOCKED,
+                    detailsBuilder(metadata, serviceState),
+                    IMPACTS,
+                    List.of(new Diagnosis(UNDECRYPTABLE_DEFINITION, List.of()))
+                );
+            }
         };
     }
 

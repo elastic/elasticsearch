@@ -187,9 +187,8 @@ total_val:long | dim:keyword
 300            | b
 ;
 
-// TS query without STATS: _unmapped_fields appears in raw row output. Since all fields
-// in ts_window are mapped, _unmapped_fields = "{}" for every row.
-tsWithoutStatsHasUnmappedFields
+// TS query without STATS on a fully-mapped index: _unmapped_fields = "{}" for every row.
+tsWithoutStatsAllMappedFields
 required_capability: optional_fields_load_all
 required_capability: ts_command_v0
 
@@ -205,6 +204,32 @@ TS ts_window
 2024-01-01T00:00:00.000Z | b           | 10       | {}
 2024-01-01T00:01:00.000Z | a           | 2        | {}
 2024-01-01T00:01:00.000Z | b           | 20       | {}
+;
+
+// TS query without STATS on an index with an unmapped source field (gap): TSDB with
+// dynamic:false does not surface unmapped fields via _source to UnmappedFieldsBlockLoader,
+// regardless of source mode (synthetic or stored). The dynamic:false field extra_label is not
+// stored in a way that UnmappedFieldsBlockLoader.read() can retrieve it: with synthetic source,
+// ignored_source entries are not surfaced through the LeafStoredFieldLoader used by ES|QL; with
+// stored source mode, DocumentParser.parseDynamicValue() returns early before adding the field
+// and the raw stored bytes are not read. This test documents the correct intended behaviour;
+// it will fail until the production gap is fixed.
+tsWithoutStatsHasUnmappedFields
+required_capability: optional_fields_load_all
+required_capability: ts_command_v0
+
+SET unmapped_fields="LOAD_ALL"\;
+TS ts_window_partial_mapping
+| SORT @timestamp, dim
+| KEEP @timestamp, dim, val
+| LIMIT 4
+;
+
+@timestamp:datetime      | dim:keyword | val:long | _unmapped_fields:keyword
+2024-01-01T00:00:00.000Z | a           | 1        | {"extra_label":"label_a"}
+2024-01-01T00:00:00.000Z | b           | 10       | {"extra_label":"label_b"}
+2024-01-01T00:01:00.000Z | a           | 2        | {"extra_label":"label_a"}
+2024-01-01T00:01:00.000Z | b           | 20       | {"extra_label":"label_b"}
 ;
 
 ############################

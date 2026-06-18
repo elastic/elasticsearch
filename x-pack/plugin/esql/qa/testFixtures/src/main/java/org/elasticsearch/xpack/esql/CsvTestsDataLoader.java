@@ -289,7 +289,13 @@ public class CsvTestsDataLoader {
             "metric_temporality.csv",
             "metric_temporality-settings.json"
         ).withRequiredCapabilities(EsqlCapabilities.Cap.TSDB_TEMPORALITY_SUPPORT_V8),
-        new TestDataset("ts_window", "ts_window-mappings.json", "ts_window.csv", "ts_window-settings.json")
+        new TestDataset("ts_window", "ts_window-mappings.json", "ts_window.csv", "ts_window-settings.json"),
+        new TestDataset(
+            "ts_window_partial_mapping",
+            "ts_window_partial_mapping-mappings.json",
+            "ts_window_partial_mapping.csv",
+            "ts_window_partial_mapping-settings.json"
+        )
     ).collect(toMap(TestDataset::indexName, Function.identity()));
 
     // Developer flags for faster iteration when debugging specific csv-spec tests:

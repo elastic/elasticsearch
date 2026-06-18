@@ -1779,7 +1779,7 @@ required_capability: join_lookup_v12
 required_capability: remove_redundant_sort
 required_capability: make_number_of_channels_consistent_with_layout
 
-from *,-addresses_*,-keyword_languages_lookup
+from *,-addresses_*,-keyword_languages_lookup,-message_language_code_lookup,-ts_window_partial_mapping
 | rename city.country.continent.planet.name as message
 | lookup join message_types_lookup on message
 | sort language_code, birth_date
@@ -1796,7 +1796,7 @@ required_capability: join_lookup_v12
 required_capability: remove_redundant_sort
 required_capability: make_number_of_channels_consistent_with_layout
 
-from *,-addresses_*,-keyword_languages_lookup
+from *,-addresses_*,-keyword_languages_lookup,-message_language_code_lookup,-ts_window_partial_mapping
 | rename city.country.continent.planet.name as message
 | lookup join message_types_lookup on message
 | keep birth_date, language_code
@@ -1814,7 +1814,7 @@ required_capability: join_lookup_v12
 required_capability: remove_redundant_sort
 required_capability: make_number_of_channels_consistent_with_layout
 
-from *,-addresses_*,-keyword_languages_lookup
+from *,-addresses_*,-keyword_languages_lookup,-message_language_code_lookup,-ts_window_partial_mapping
 | rename city.country.continent.planet.name as message
 | lookup join message_types_lookup on message
 | keep birth_date, language_code
@@ -1830,7 +1830,7 @@ required_capability: join_lookup_v12
 required_capability: remove_redundant_sort
 required_capability: make_number_of_channels_consistent_with_layout
 
-from *,-addresses_*,-keyword_languages_lookup
+from *,-addresses_*,-keyword_languages_lookup,-message_language_code_lookup,-ts_window_partial_mapping
 | rename city.country.continent.planet.name as message
 | lookup join message_types_lookup on message
 | keep birth_date, language_code
@@ -1848,7 +1848,7 @@ required_capability: join_lookup_v12
 required_capability: remove_redundant_sort
 required_capability: make_number_of_channels_consistent_with_layout
 
-from *,-addresses_*,-keyword_languages_lookup
+from *,-addresses_*,-keyword_languages_lookup,-message_language_code_lookup,-ts_window_partial_mapping
 | rename city.country.continent.planet.name as message
 | lookup join message_types_lookup on message
 | keep birth_date, language_code

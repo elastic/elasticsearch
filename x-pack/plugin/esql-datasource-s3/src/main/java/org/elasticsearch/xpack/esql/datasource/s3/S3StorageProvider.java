@@ -298,10 +298,10 @@ public class S3StorageProvider implements StorageProvider {
             throw new IllegalArgumentException("S3 session_token requires access_key and secret_key");
         }
         throw new IllegalArgumentException(
-            "S3 data source requires credentials: provide WITH (access_key = '...', secret_key = '...'), "
-                + "optionally WITH (session_token = '...') for STS temporary credentials, "
-                + "WITH (auth = 'none') for public buckets, "
-                + "WITH (auth = 'workload_identity') to use the node's instance role "
+            "S3 data source requires credentials: provide WITH {\"access_key\": \"...\", \"secret_key\": \"...\"}, "
+                + "optionally WITH {\"session_token\": \"...\"} for STS temporary credentials, "
+                + "WITH {\"auth\": \"none\"} for public buckets, "
+                + "WITH {\"auth\": \"workload_identity\"} to use the node's instance role "
                 + "(requires the esql.datasource.workload_identity.enabled cluster setting), "
                 + "or configure keyless authentication settings (role_arn, jwt_audience)"
         );
@@ -503,8 +503,8 @@ public class S3StorageProvider implements StorageProvider {
                 && config.hasCredentials() == false
                 && config.hasKeylessAuth() == false
                 && config.isWorkloadIdentity() == false)) {
-            return ". If accessing a public bucket, use WITH (auth = 'none'). "
-                + "Otherwise, provide credentials via WITH (access_key = '...', secret_key = '...') "
+            return ". If accessing a public bucket, use WITH {\"auth\": \"none\"}. "
+                + "Otherwise, provide credentials via WITH {\"access_key\": \"...\", \"secret_key\": \"...\"} "
                 + "or configure keyless authentication settings (role_arn, jwt_audience)";
         }
         return "";

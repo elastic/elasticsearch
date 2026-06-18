@@ -15,6 +15,7 @@ import org.elasticsearch.xcontent.XContentLocation;
 import java.util.List;
 
 import static java.util.Collections.singletonMap;
+import static org.hamcrest.Matchers.containsString;
 
 public class MatchesInAnyOrderAssertionTests extends ESTestCase {
 
@@ -83,6 +84,16 @@ public class MatchesInAnyOrderAssertionTests extends ESTestCase {
         assertEquals(
             "field [field] expected to contain the same values in any order but contained unexpected values [b] in [a, b]",
             error.getMessage()
+        );
+    }
+
+    public void testMatchesInAnyOrderFailsWhenActualIsShorterThanExpected() {
+        XContentLocation location = new XContentLocation(0, 0);
+        MatchesInAnyOrderAssertion assertion = new MatchesInAnyOrderAssertion(location, "field", List.of("a", "b"));
+        AssertionError error = expectThrows(AssertionError.class, () -> assertion.doAssert(List.of("a"), List.of("a", "b")));
+        assertThat(
+            error.getMessage(),
+            containsString("field [field] expected to contain the same values in any order but no value matched [b]")
         );
     }
 }

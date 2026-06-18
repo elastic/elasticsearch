@@ -82,7 +82,7 @@ public class MatchAssertion extends Assertion {
         }
         assertNotNull("field [" + field + "] is null", actualValue);
 
-        if (actualValue.getClass().equals(expectedValue == null ? null : expectedValue.getClass()) == false) {
+        if (actualValue.getClass().equals(expectedValue.getClass()) == false) {
             if (actualValue instanceof Number && expectedValue instanceof Number) {
                 // Double 1.0 is equal to Integer 1
                 assertThat(

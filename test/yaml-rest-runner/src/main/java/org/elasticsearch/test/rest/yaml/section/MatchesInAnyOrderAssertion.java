@@ -47,7 +47,7 @@ public class MatchesInAnyOrderAssertion extends Assertion {
     @Override
     protected void doAssert(Object actualValue, Object expectedValue) {
         if (actualValue instanceof List == false && expectedValue instanceof List == false) {
-            // allow comparing scalars
+            // allow comparing non-list values using standard match semantics
             MatchAssertion.assertMatches(getField(), actualValue, expectedValue);
             return;
         }

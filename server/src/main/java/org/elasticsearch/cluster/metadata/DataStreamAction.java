@@ -169,7 +169,7 @@ public class DataStreamAction implements Writeable, ToXContentObject {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         if (Type.DELETE_BACKING_INDEX == type && out.getTransportVersion().supports(DELETE_BACKING_INDEX_ACTION_ADDED) == false) {
-            throw new IllegalArgumentException("data stream action type [delete_backing_index] is unsupported");
+            throw new IllegalArgumentException("data stream action type [delete_backing_index] is unsupported in this cluster");
         }
         out.writeByte(type.value());
         out.writeString(dataStream);

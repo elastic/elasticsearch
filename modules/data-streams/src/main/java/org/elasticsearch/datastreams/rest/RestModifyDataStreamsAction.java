@@ -68,7 +68,7 @@ public class RestModifyDataStreamsAction extends BaseRestHandler {
             .anyMatch(action -> action.getType() == DataStreamAction.Type.DELETE_BACKING_INDEX);
         if (hasDeleteIndexAction) {
             if (clusterSupportsFeature.test(DataStreamFeatures.DATA_STREAMS_MODIFY_DELETE_INDEX) == false) {
-                throw new IllegalArgumentException("delete_backing_index is an unsupported action type");
+                throw new IllegalArgumentException("delete_backing_index is an unsupported action type for this mixed version cluster");
             }
         }
         return channel -> client.execute(ModifyDataStreamsAction.INSTANCE, modifyDsRequest, new RestToXContentListener<>(channel));

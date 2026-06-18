@@ -37,6 +37,20 @@ abstract sealed class NumericMetricFieldDownsampler extends AbstractFieldDownsam
     }
 
     @Override
+    public void collect(SortedNumericDoubleValues docValues, IntArrayList docIdBuffer) throws IOException {
+        if (isDone()) {
+            return;
+        }
+        for (int i = 0; i < docIdBuffer.size() && isDone() == false; i++) {
+            int docId = docIdBuffer.get(i);
+            if (docValues.advanceExact(docId) == false) {
+                continue;
+            }
+            collectCurrentValues(docValues);
+        }
+    }
+
+    @Override
     public SortedNumericDoubleValues getLeaf(LeafReaderContext context) {
         LeafNumericFieldData numericFieldData = (LeafNumericFieldData) fieldData.load(context);
         return numericFieldData.getDoubleValues();

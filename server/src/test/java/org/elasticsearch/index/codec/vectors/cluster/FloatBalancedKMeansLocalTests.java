@@ -86,7 +86,7 @@ public class FloatBalancedKMeansLocalTests extends AbstractBalancedKMeansLocalTe
         int nTrials = 10;
 
         for (int trials = 0; trials < nTrials; trials++) {
-            KMeansFloatVectorValues vectors = (KMeansFloatVectorValues) KMeansTestData.generateFloatDataWithStdDev(
+            KMeansFloatVectorValues vectors = KMeansTestData.generateFloatDataWithStdDev(
                 nVectors,
                 dims,
                 nClusters,
@@ -128,7 +128,7 @@ public class FloatBalancedKMeansLocalTests extends AbstractBalancedKMeansLocalTe
         final float soarLambda = -1;
         final int numThreads = randomIntBetween(2, 8);
 
-        KMeansFloatVectorValues vectors = (KMeansFloatVectorValues) KMeansTestData.generateFloatDataWithStdDev(nVectors, dims, 1, 0.2f);
+        KMeansFloatVectorValues vectors = KMeansTestData.generateFloatDataWithStdDev(nVectors, dims, 1, 0.2f);
 
         try (ExecutorService executorService = Executors.newFixedThreadPool(numThreads)) {
             TaskExecutor taskExecutor = new TaskExecutor(executorService);

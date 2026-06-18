@@ -153,6 +153,11 @@ public class CsvTestsDataLoader {
             "mapping-partial_mapping_excluded_source_sample_data.json",
             "partial_mapping_sample_data.csv"
         ),
+        new TestDataset(
+            "synthetic_source_partial_mapping",
+            "mapping-synthetic_source_partial_mapping.json",
+            "partial_mapping_sample_data.csv"
+        ),
         new TestDataset("mv_sample_data"),
         new TestDataset("event_alerts"),
         new TestDataset("event_logs"),

@@ -28,39 +28,39 @@ public final class AttachmentIngestMetrics {
     /**
      * Raw size of the attachment source field (before base64 decode) observed before the max-field size check runs.
      */
-    public static final String RAW_FIELD_SIZE_IN_MEGABYTES_RECEIVED = "es.ingest.attachment.raw_field_size_in_megabytes.received.histogram";
+    public static final String RAW_FIELD_SIZE_IN_MEBIBYTES_RECEIVED = "es.ingest.attachment.raw_field_size_in_mebibytes.received.histogram";
 
     /**
      * Raw size of the attachment source field (before base64 decode) for attachments that were processed.
      */
-    public static final String RAW_FIELD_SIZE_IN_MEGABYTES_PROCESSED =
-        "es.ingest.attachment.raw_field_size_in_megabytes.processed.histogram";
+    public static final String RAW_FIELD_SIZE_IN_MEBIBYTES_PROCESSED =
+        "es.ingest.attachment.raw_field_size_in_mebibytes.processed.histogram";
 
-    private final DoubleHistogram rawMegabytesReceived;
-    private final DoubleHistogram rawMegabytesProcessed;
+    private final DoubleHistogram rawMebibytesReceived;
+    private final DoubleHistogram rawMebibytesProcessed;
 
     public AttachmentIngestMetrics(MeterRegistry meterRegistry) {
-        this.rawMegabytesReceived = meterRegistry.registerDoubleHistogram(
-            RAW_FIELD_SIZE_IN_MEGABYTES_RECEIVED,
+        this.rawMebibytesReceived = meterRegistry.registerDoubleHistogram(
+            RAW_FIELD_SIZE_IN_MEBIBYTES_RECEIVED,
             "Raw attachment field sizes in mebibytes before max-field size checks.",
-            "megabytes"
+            "mebibytes"
         );
-        this.rawMegabytesProcessed = meterRegistry.registerDoubleHistogram(
-            RAW_FIELD_SIZE_IN_MEGABYTES_PROCESSED,
+        this.rawMebibytesProcessed = meterRegistry.registerDoubleHistogram(
+            RAW_FIELD_SIZE_IN_MEBIBYTES_PROCESSED,
             "Raw attachment field sizes in mebibytes that completed attachment processing.",
-            "megabytes"
+            "mebibytes"
         );
     }
 
     public void recordRawBytesReceived(long rawBytes) {
-        rawMegabytesReceived.record(toMegabytes(rawBytes));
+        rawMebibytesReceived.record(toMebibytes(rawBytes));
     }
 
     public void recordRawBytesProcessed(long rawBytes) {
-        rawMegabytesProcessed.record(toMegabytes(rawBytes));
+        rawMebibytesProcessed.record(toMebibytes(rawBytes));
     }
 
-    static double toMegabytes(long rawBytes) {
+    static double toMebibytes(long rawBytes) {
         return ByteSizeValue.ofBytes(rawBytes).getMbFrac();
     }
 

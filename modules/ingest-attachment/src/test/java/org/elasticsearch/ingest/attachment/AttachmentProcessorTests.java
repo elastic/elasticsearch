@@ -909,11 +909,11 @@ public class AttachmentProcessorTests extends ESTestCase {
         );
         int bytes = randomIntBetween(1, 100);
         assertThat(parseRandomStringAttachmentAndGetTargetField(bytes, processor), notNullValue());
-        assertHistogramLastValue(meterRegistry, AttachmentIngestMetrics.RAW_FIELD_SIZE_IN_MEGABYTES_RECEIVED, bytes);
-        assertHistogramLastValue(meterRegistry, AttachmentIngestMetrics.RAW_FIELD_SIZE_IN_MEGABYTES_PROCESSED, bytes);
+        assertHistogramLastValue(meterRegistry, AttachmentIngestMetrics.RAW_FIELD_SIZE_IN_MEBIBYTES_RECEIVED, bytes);
+        assertHistogramLastValue(meterRegistry, AttachmentIngestMetrics.RAW_FIELD_SIZE_IN_MEBIBYTES_PROCESSED, bytes);
     }
 
-    public void testSizeMetricsOneMegabyteDocument() throws Exception {
+    public void testSizeMetricsOneMebibyteDocument() throws Exception {
         RecordingMeterRegistry meterRegistry = new RecordingMeterRegistry();
         SetOnce<AttachmentIngestMetrics> metricsRef = new SetOnce<>();
         metricsRef.set(new AttachmentIngestMetrics(meterRegistry));
@@ -935,8 +935,8 @@ public class AttachmentProcessorTests extends ESTestCase {
         );
         int bytes = 1_048_576;
         assertThat(parseRandomStringAttachmentAndGetTargetField(bytes, processor), notNullValue());
-        assertHistogramLastValue(meterRegistry, AttachmentIngestMetrics.RAW_FIELD_SIZE_IN_MEGABYTES_RECEIVED, bytes);
-        assertHistogramLastValue(meterRegistry, AttachmentIngestMetrics.RAW_FIELD_SIZE_IN_MEGABYTES_PROCESSED, bytes);
+        assertHistogramLastValue(meterRegistry, AttachmentIngestMetrics.RAW_FIELD_SIZE_IN_MEBIBYTES_RECEIVED, bytes);
+        assertHistogramLastValue(meterRegistry, AttachmentIngestMetrics.RAW_FIELD_SIZE_IN_MEBIBYTES_PROCESSED, bytes);
     }
 
     public void testSizeMetricsIgnoreMissing() throws Exception {
@@ -963,12 +963,12 @@ public class AttachmentProcessorTests extends ESTestCase {
         processor.execute(ingestDocument);
         assertThat(
             meterRegistry.getRecorder()
-                .getMeasurements(InstrumentType.DOUBLE_HISTOGRAM, AttachmentIngestMetrics.RAW_FIELD_SIZE_IN_MEGABYTES_RECEIVED),
+                .getMeasurements(InstrumentType.DOUBLE_HISTOGRAM, AttachmentIngestMetrics.RAW_FIELD_SIZE_IN_MEBIBYTES_RECEIVED),
             hasSize(0)
         );
         assertThat(
             meterRegistry.getRecorder()
-                .getMeasurements(InstrumentType.DOUBLE_HISTOGRAM, AttachmentIngestMetrics.RAW_FIELD_SIZE_IN_MEGABYTES_PROCESSED),
+                .getMeasurements(InstrumentType.DOUBLE_HISTOGRAM, AttachmentIngestMetrics.RAW_FIELD_SIZE_IN_MEBIBYTES_PROCESSED),
             hasSize(0)
         );
     }
@@ -997,10 +997,10 @@ public class AttachmentProcessorTests extends ESTestCase {
         int bytes = randomIntBetween(1, 100);
         expectThrows(ElasticsearchParseException.class, () -> parseRandomStringAttachmentAndGetTargetField(bytes, processor));
 
-        assertHistogramLastValue(meterRegistry, AttachmentIngestMetrics.RAW_FIELD_SIZE_IN_MEGABYTES_RECEIVED, bytes);
+        assertHistogramLastValue(meterRegistry, AttachmentIngestMetrics.RAW_FIELD_SIZE_IN_MEBIBYTES_RECEIVED, bytes);
         assertThat(
             meterRegistry.getRecorder()
-                .getMeasurements(InstrumentType.DOUBLE_HISTOGRAM, AttachmentIngestMetrics.RAW_FIELD_SIZE_IN_MEGABYTES_PROCESSED),
+                .getMeasurements(InstrumentType.DOUBLE_HISTOGRAM, AttachmentIngestMetrics.RAW_FIELD_SIZE_IN_MEBIBYTES_PROCESSED),
             hasSize(0)
         );
     }
@@ -1028,19 +1028,19 @@ public class AttachmentProcessorTests extends ESTestCase {
         expectThrows(ElasticsearchParseException.class, () -> parseDocument("encrypted.pdf", processor));
         assertThat(
             meterRegistry.getRecorder()
-                .getMeasurements(InstrumentType.DOUBLE_HISTOGRAM, AttachmentIngestMetrics.RAW_FIELD_SIZE_IN_MEGABYTES_RECEIVED),
+                .getMeasurements(InstrumentType.DOUBLE_HISTOGRAM, AttachmentIngestMetrics.RAW_FIELD_SIZE_IN_MEBIBYTES_RECEIVED),
             hasSize(greaterThanOrEqualTo(1))
         );
         assertThat(
             meterRegistry.getRecorder()
-                .getMeasurements(InstrumentType.DOUBLE_HISTOGRAM, AttachmentIngestMetrics.RAW_FIELD_SIZE_IN_MEGABYTES_RECEIVED)
+                .getMeasurements(InstrumentType.DOUBLE_HISTOGRAM, AttachmentIngestMetrics.RAW_FIELD_SIZE_IN_MEBIBYTES_RECEIVED)
                 .getLast()
                 .getDouble(),
             greaterThan(0.0)
         );
         assertThat(
             meterRegistry.getRecorder()
-                .getMeasurements(InstrumentType.DOUBLE_HISTOGRAM, AttachmentIngestMetrics.RAW_FIELD_SIZE_IN_MEGABYTES_PROCESSED),
+                .getMeasurements(InstrumentType.DOUBLE_HISTOGRAM, AttachmentIngestMetrics.RAW_FIELD_SIZE_IN_MEBIBYTES_PROCESSED),
             hasSize(0)
         );
     }
@@ -1048,7 +1048,7 @@ public class AttachmentProcessorTests extends ESTestCase {
     private static void assertHistogramLastValue(RecordingMeterRegistry meterRegistry, String metricName, long rawBytes) {
         var measurements = meterRegistry.getRecorder().getMeasurements(InstrumentType.DOUBLE_HISTOGRAM, metricName);
         assertThat(measurements, hasSize(greaterThanOrEqualTo(1)));
-        assertThat(measurements.get(measurements.size() - 1).getDouble(), closeTo(AttachmentIngestMetrics.toMegabytes(rawBytes), 1e-12));
+        assertThat(measurements.get(measurements.size() - 1).getDouble(), closeTo(AttachmentIngestMetrics.toMebibytes(rawBytes), 1e-12));
     }
 
     private static Object parseRandomStringAttachmentAndGetTargetField(int bytes, Processor processor) throws Exception {

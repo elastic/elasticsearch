@@ -1687,6 +1687,16 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
         test().statementError(setUnmappedLoadAll("FROM test | KEEP @timestamp, _unmapped_fields"), containsString("_unmapped_fields"));
     }
 
+    public void testDropUnmappedFieldsColumn() {
+        // _unmapped_fields is a synthetic column; explicitly DROPping it by name must be rejected.
+        test().statementError(setUnmappedLoadAll("FROM test | DROP _unmapped_fields"), containsString("_unmapped_fields"));
+    }
+
+    public void testRenameUnmappedFieldsColumn() {
+        // _unmapped_fields is a synthetic column; explicitly RENAMEing it must be rejected.
+        test().statementError(setUnmappedLoadAll("FROM test | RENAME _unmapped_fields AS extras"), containsString("_unmapped_fields"));
+    }
+
     /** Finds the single non-LOOKUP EsRelation in the plan and asserts its unmapped-fields pattern. */
     private static void assertEsRelationPattern(LogicalPlan plan, UnmappedFieldsPattern expected) {
         List<EsRelation> relations = plan.collect(EsRelation.class);

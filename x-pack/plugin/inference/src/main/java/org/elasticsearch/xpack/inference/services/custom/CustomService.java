@@ -38,7 +38,7 @@ import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
 import org.elasticsearch.xpack.inference.services.ModelCreator;
 import org.elasticsearch.xpack.inference.services.SenderService;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
-import org.elasticsearch.xpack.inference.services.validation.CustomServiceIntegrationValidator;
+import org.elasticsearch.xpack.inference.services.validation.CustomServiceRerankIntegrationValidator;
 
 import java.util.EnumSet;
 import java.util.HashMap;
@@ -158,11 +158,6 @@ public class CustomService extends SenderService<CustomModel> implements Reranki
     }
 
     @Override
-    public boolean supportsNewRerankCodePath() {
-        return true;
-    }
-
-    @Override
     protected void doChunkedInfer(
         Model model,
         List<ChunkInferenceInput> inputs,
@@ -270,7 +265,7 @@ public class CustomService extends SenderService<CustomModel> implements Reranki
     @Override
     public ServiceIntegrationValidator getServiceIntegrationValidator(TaskType taskType) {
         if (taskType == TaskType.RERANK) {
-            return new CustomServiceIntegrationValidator();
+            return new CustomServiceRerankIntegrationValidator();
         }
 
         return null;

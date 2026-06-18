@@ -30,6 +30,7 @@ module org.elasticsearch.server {
     requires org.elasticsearch.plugin.analysis;
     requires org.elasticsearch.grok;
     requires org.elasticsearch.useragent.api;
+    requires org.elasticsearch.iplocation.api;
     requires org.elasticsearch.tdigest;
     requires org.elasticsearch.exponentialhistogram;
     requires org.elasticsearch.simdvec;
@@ -228,6 +229,7 @@ module org.elasticsearch.server {
     exports org.elasticsearch.common.xcontent;
     exports org.elasticsearch.common.xcontent.support;
     exports org.elasticsearch.discovery;
+    exports org.elasticsearch.eirf;
     exports org.elasticsearch.env;
     exports org.elasticsearch.features;
     exports org.elasticsearch.gateway;

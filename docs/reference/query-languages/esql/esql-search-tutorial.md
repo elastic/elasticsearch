@@ -327,6 +327,12 @@ FROM cooking_blog METADATA _score
 | LIMIT 1000
 ```
 
+:::{note}
+:applies_to: stack: ga 9.4.0
+
+The `boost` parameter is also available for the [`QSTR` function](/reference/query-languages/esql/functions-operators/search-functions/qstr.md).
+:::
+
 ## Step 6: Filtering and exact matching
 
 Filtering allows you to narrow down your search results based on exact criteria. Unlike full-text searches, filters are binary (yes/no) and do not affect the relevance score. Filters execute faster than queries because excluded results don't need to be scored.

@@ -18,7 +18,6 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Rate;
-import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqual;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
@@ -133,13 +132,13 @@ public class PromqlEsqlCommandTests extends AbstractPromqlPlanOptimizerTests {
         var tsAggregate = as(evalMiddle.child(), TimeSeriesAggregate.class);
         assertThat(tsAggregate.groupings(), hasSize(2));
 
-        // verify TBUCKET duration plus reuse
+        // verify bucket duration plus reuse
         var evalBucket = as(tsAggregate.child(), Eval.class);
-        assertThat(evalBucket.fields(), hasSize(1));
+        // bucket alias + ToDouble(network.bytes_in) extracted from the avg surrogate's Sum
+        assertThat(evalBucket.fields(), hasSize(2));
         var bucketAlias = as(evalBucket.fields().get(0), Alias.class);
-        var bucket = as(bucketAlias.child(), Bucket.class);
 
-        var bucketSpan = bucket.buckets();
+        var bucketSpan = tsAggregate.timeBucket().buckets();
         assertThat(bucketSpan.fold(FoldContext.small()), equalTo(Duration.ofHours(1)));
 
         var tbucketId = bucketAlias.toAttribute().id();
@@ -147,9 +146,13 @@ public class PromqlEsqlCommandTests extends AbstractPromqlPlanOptimizerTests {
         assertThat(Expressions.attribute(aggregate.groupings().get(0)).id(), equalTo(tbucketId));
         assertThat(Expressions.attribute(project.projections().get(1)).id(), equalTo(tbucketId));
 
-        // Filter should contain: IN(host-0, host-1, host-2, pod)
+        // Filter should contain: IN(host-0, host-1, host-2, pod) AND the unbounded timestamp range
         var filter = as(evalBucket.child(), Filter.class);
-        var in = as(filter.condition(), org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In.class);
+        var in = filter.condition()
+            .collect(org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In.class)
+            .stream()
+            .findFirst()
+            .orElseThrow();
         assertThat(in.list(), hasSize(3));
 
         as(filter.child(), EsRelation.class);
@@ -265,7 +268,7 @@ public class PromqlEsqlCommandTests extends AbstractPromqlPlanOptimizerTests {
             )
             """);
         TimeSeriesAggregate tsAgg = plan.collect(TimeSeriesAggregate.class).getFirst();
-        // timeBucket() comes from TStep.timeBucketSpecRef() — duration must equal the step
+        // timeBucket() comes from TStep.surrogate() — duration must equal the step
         assertThat(tsAgg.timeBucket().buckets().fold(FoldContext.small()), equalTo(Duration.ofMinutes(5)));
         // start=00:20 is a multiple of 5m so offset must be zero
         assertThat(tsAgg.timeBucket().offset(), equalTo(0L));
@@ -279,15 +282,23 @@ public class PromqlEsqlCommandTests extends AbstractPromqlPlanOptimizerTests {
             "PROMQL index=k8s start=\"" + start + "\" end=\"" + end + "\" step=5m sum(avg_over_time(network.bytes_in[5m]))"
         );
         long extendedStartMs = start.toEpochMilli() - window.toMillis();
+        assertHasTimestampLowerBound(plan, extendedStartMs, "window");
+    }
+
+    private void assertHasTimestampLowerBound(
+        org.elasticsearch.xpack.esql.plan.logical.LogicalPlan plan,
+        long expectedLowerBoundMs,
+        String windowName
+    ) {
         boolean found = plan.collect(Filter.class)
             .stream()
             .anyMatch(
                 f -> f.condition()
                     .collect(GreaterThanOrEqual.class)
                     .stream()
-                    .anyMatch(gte -> gte.right() instanceof Literal lit && lit.value() instanceof Long ms && ms == extendedStartMs)
+                    .anyMatch(gte -> gte.right() instanceof Literal lit && lit.value() instanceof Long ms && ms == expectedLowerBoundMs)
             );
-        assertTrue("expected a filter lower bound of start - window = " + Instant.ofEpochMilli(extendedStartMs), found);
+        assertTrue("expected a filter lower bound of start - " + windowName + " = " + Instant.ofEpochMilli(expectedLowerBoundMs), found);
     }
 
     public void testRangeQueryStepBucketUsesUpperRoundingConfiguration() {

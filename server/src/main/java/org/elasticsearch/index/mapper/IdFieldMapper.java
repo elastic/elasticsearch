@@ -34,14 +34,26 @@ public abstract class IdFieldMapper extends MetadataFieldMapper {
 
     public static final String CONTENT_TYPE = "_id";
 
-    public static final TypeParser PARSER = new FixedTypeParser(mappingParserContext -> {
+    public static final TypeParser PARSER = new ConfigurableTypeParser(mappingParserContext -> {
         var indexMode = mappingParserContext.getIndexSettings().getMode();
         if (indexMode == IndexMode.TIME_SERIES) {
-            return TsidExtractingIdFieldMapper.INSTANCE;
+            return new ConstantBuilder(TsidExtractingIdFieldMapper.INSTANCE);
         } else {
-            return ProvidedIdFieldMapper.INSTANCE;
+            boolean useColumnarIdByDefault = mappingParserContext.getIndexSettings().isUseColumnarIdByDefault();
+            return new ProvidedIdFieldMapper.Builder(useColumnarIdByDefault);
         }
-    });
+    }) {
+
+        @Override
+        public Builder parse(String name, Map<String, Object> node, MappingParserContext parserContext) throws MapperParsingException {
+            var indexMode = parserContext.getIndexSettings().getMode();
+            if (indexMode == IndexMode.TIME_SERIES) {
+                throw new MapperParsingException(name + " is not configurable if index mode is time_series");
+            } else {
+                return super.parse(name, node, parserContext);
+            }
+        }
+    };
 
     private static final Map<String, NamedAnalyzer> ANALYZERS = Map.of(NAME, Lucene.KEYWORD_ANALYZER);
 
@@ -73,10 +85,11 @@ public abstract class IdFieldMapper extends MetadataFieldMapper {
     public abstract String documentDescription(ParsedDocument parsedDocument);
 
     /**
-     * Build the {@code _id} to use on requests reindexing into indices using
-     * this {@code _id}.
+     * Returns {@code true} when the {@code _id} is stored as sorted doc values rather than a stored field.
      */
-    public abstract String reindexId(String id);
+    public boolean isColumnarMode() {
+        return false;
+    }
 
     /**
      * Create an indexed and stored {@link Field} for the provided {@code _id}.
@@ -112,7 +125,11 @@ public abstract class IdFieldMapper extends MetadataFieldMapper {
     protected abstract static class AbstractIdFieldType extends TermBasedFieldType {
 
         public AbstractIdFieldType() {
-            super(NAME, IndexType.terms(true, false), true, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
+            this(false);
+        }
+
+        public AbstractIdFieldType(boolean hasDocValues) {
+            super(NAME, IndexType.terms(true, hasDocValues), true, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
         }
 
         @Override

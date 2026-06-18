@@ -65,6 +65,10 @@ class PromqlExpressionBuilder extends PromqlIdentifierBuilder {
         this.params = params;
     }
 
+    protected QueryParams params() {
+        return params;
+    }
+
     protected Expression expression(ParseTree ctx) {
         return typedParsing(this, ctx, Expression.class);
     }

@@ -12,6 +12,9 @@ import org.elasticsearch.xpack.esql.core.capabilities.Resolvables;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToCounter;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToGauge;
 import org.elasticsearch.xpack.esql.expression.promql.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionRegistry;
@@ -29,7 +32,7 @@ import java.util.Objects;
  * This is a surrogate logical plan that encapsulates a PromQL function invocation
  * and delegates to the PromqlFunctionRegistry for validation and ESQL function construction.
  */
-public abstract sealed class PromqlFunctionCall extends UnaryPlan implements PromqlPlan permits AcrossSeriesAggregate,
+public abstract sealed class PromqlFunctionCall extends UnaryPlan implements PromqlPlan permits AcrossSeriesAggregate, HistogramQuantile,
     ScalarConversionFunction, WithinSeriesAggregate, ValueTransformationFunction, VectorConversionFunction {
     // implements TelemetryAware {
 
@@ -107,6 +110,17 @@ public abstract sealed class PromqlFunctionCall extends UnaryPlan implements Pro
      */
     public Expression buildEsqlFunction(Expression target, PromqlFunctionRegistry.PromqlContext ctx) {
         try {
+            // PromQL accepts any numeric range vector. ES|QL distinguishes counter from gauge types
+            // internally, so plain numerics are wrapped with to_counter() for counter-required
+            // functions and counter metrics are wrapped with to_gauge() for gauge-only functions.
+            if (target != null && target.resolved()) {
+                var counterSupport = definition.counterSupport();
+                if (counterSupport == PromqlFunctionDefinition.CounterSupport.REQUIRED && DataType.isCounter(target.dataType()) == false) {
+                    target = new ToCounter(source(), target);
+                } else if (counterSupport == PromqlFunctionDefinition.CounterSupport.UNSUPPORTED && DataType.isCounter(target.dataType())) {
+                    target = new ToGauge(source(), target);
+                }
+            }
             return definition.esqlBuilder().build(source(), target, ctx, parameters());
         } catch (Exception e) {
             throw new ParsingException(source(), "Error building ESQL function for [{}]: {}", functionName(), e.getMessage());

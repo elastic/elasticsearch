@@ -24,7 +24,14 @@ module org.elasticsearch.nativeaccess {
             org.elasticsearch.searchablesnapshots,
             org.elasticsearch.simdvec,
             org.elasticsearch.systemd,
-            org.elasticsearch.xpack.stateless;
+            org.elasticsearch.xpack.stateless,
+            // ESQL data source compression-libs plugin: hosts PanamaZstd, the thin Panama
+            // FFI wrapper that ESQL data source plugins (parquet today, orc/iceberg later)
+            // route their direct-buffer zstd decompression through. Targeting only this
+            // narrow ESQL-scoped module keeps the rest of the native-access surface
+            // (process limits, mlock, exec sandbox, systemd hooks, raw memory mapping)
+            // invisible to other plugins.
+            org.elasticsearch.xpack.esql.datasource.compress;
 
     uses NativeLibraryProvider;
 

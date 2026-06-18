@@ -44,7 +44,6 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.hamcrest.Matchers;
-import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -77,11 +76,6 @@ public class ReindexCancelRelocationIT extends ESIntegTestCase {
     // RPS keeps each slice well under 1s so the reindex doesn't sleep through relocation
     private final int requestsPerSecond = randomIntBetween(bulkSize * numOfSlices, 20);
     private final int numberOfDocumentsThatTakes60SecondsToIngest = 60 * requestsPerSecond;
-
-    @BeforeClass
-    public static void skipSetupIfReindexResilienceDisabled() {
-        assumeTrue("reindex resilience is enabled", ReindexPlugin.REINDEX_RESILIENCE_ENABLED);
-    }
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
@@ -254,7 +248,8 @@ public class ReindexCancelRelocationIT extends ESIntegTestCase {
         assertThat(body.get("original_start_time_in_millis"), is(nullValue()));
         @SuppressWarnings("unchecked")
         final Map<String, Object> status = (Map<String, Object>) body.get("status");
-        assertThat("task was cancelled by user request", status, Matchers.hasEntry("canceled", "by user request"));
+        // the status.canceled message varies depending on what code first discovers that the reindex task is canceled
+        assertThat("task was cancelled", status.get("canceled"), notNullValue());
 
         assertBusy(() -> assertThat("no reindex task should remain after cancellation", listReindexParentTasks(), hasSize(0)));
     }

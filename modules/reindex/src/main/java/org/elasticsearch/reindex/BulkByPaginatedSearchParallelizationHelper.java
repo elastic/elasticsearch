@@ -20,11 +20,10 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.reindex.AbstractBulkByPaginatedSearchRequest;
+import org.elasticsearch.index.reindex.BulkByPaginatedSearchResponse;
 import org.elasticsearch.index.reindex.BulkByPaginatedSearchTask;
-import org.elasticsearch.index.reindex.BulkByScrollResponse;
-import org.elasticsearch.index.reindex.LeaderBulkByScrollTaskState;
+import org.elasticsearch.index.reindex.LeaderBulkByPaginatedSearchTaskState;
 import org.elasticsearch.index.reindex.ResumeInfo;
 import org.elasticsearch.index.reindex.ResumeInfo.WorkerResult;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -66,8 +65,8 @@ class BulkByPaginatedSearchParallelizationHelper {
     static <Request extends AbstractBulkByPaginatedSearchRequest<Request>> void startSlicedAction(
         Request request,
         BulkByPaginatedSearchTask task,
-        ActionType<BulkByScrollResponse> action,
-        ActionListener<BulkByScrollResponse> listener,
+        ActionType<BulkByPaginatedSearchResponse> action,
+        ActionListener<BulkByPaginatedSearchResponse> listener,
         Client client,
         DiscoveryNode node,
         Runnable workerAction
@@ -98,8 +97,8 @@ class BulkByPaginatedSearchParallelizationHelper {
     static <Request extends AbstractBulkByPaginatedSearchRequest<Request>> void executeSlicedAction(
         BulkByPaginatedSearchTask task,
         Request request,
-        ActionType<BulkByScrollResponse> action,
-        ActionListener<BulkByScrollResponse> listener,
+        ActionType<BulkByPaginatedSearchResponse> action,
+        ActionListener<BulkByPaginatedSearchResponse> listener,
         Client client,
         DiscoveryNode node,
         @Nullable Version remoteVersion,
@@ -133,9 +132,11 @@ class BulkByPaginatedSearchParallelizationHelper {
         int configuredSlices = request.getResumeInfo().map(ResumeInfo::getTotalSlices).orElse(request.getSlices());
         assert request.getResumeInfo().isEmpty() || configuredSlices != AUTO_SLICES : "Resumed tasks can't have auto slices";
         if (configuredSlices == AUTO_SLICES) {
+            SearchRequest searchRequest = request.getSearchRequest();
             client.execute(
                 TransportClusterSearchShardsAction.TYPE,
-                new ClusterSearchShardsRequest(request.getTimeout(), request.getSearchRequest().indices()),
+                new ClusterSearchShardsRequest(request.getTimeout(), searchRequest.indices()).routing(searchRequest.routing())
+                    .searchSlice(searchRequest.searchSlice()),
                 listener.safeMap(response -> {
                     setWorkerCount(request, task, countSlicesBasedOnShards(response));
                     return null;
@@ -171,13 +172,13 @@ class BulkByPaginatedSearchParallelizationHelper {
 
     private static <Request extends AbstractBulkByPaginatedSearchRequest<Request>> void sendSubRequests(
         Client client,
-        ActionType<BulkByScrollResponse> action,
+        ActionType<BulkByPaginatedSearchResponse> action,
         String localNodeId,
         BulkByPaginatedSearchTask task,
         Request request,
-        ActionListener<BulkByScrollResponse> listener
+        ActionListener<BulkByPaginatedSearchResponse> listener
     ) {
-        LeaderBulkByScrollTaskState leader = task.getLeaderState();
+        LeaderBulkByPaginatedSearchTaskState leader = task.getLeaderState();
         int totalSlices = leader.getSlices();
         assert request.getResumeInfo().isEmpty() || totalSlices == request.getResumeInfo().get().getTotalSlices()
             : "If resuming, the total slices in the resume info should match the total slices in the task state";
@@ -190,7 +191,7 @@ class BulkByPaginatedSearchParallelizationHelper {
             activeSlices = totalSlices;
         }
 
-        SearchRequest[] searchRequests = sliceIntoSubRequests(request.getSearchRequest(), IdFieldMapper.NAME, totalSlices);
+        SearchRequest[] searchRequests = sliceIntoSubRequests(request.getSearchRequest(), totalSlices);
         for (int sliceId = 0; sliceId < searchRequests.length; sliceId++) {
             // If a resumed slice was already completed, skip sending the request and directly record the result
             Optional<ResumeInfo> resumeInfo = request.getResumeInfo();
@@ -207,7 +208,7 @@ class BulkByPaginatedSearchParallelizationHelper {
             TaskId parentTaskId = new TaskId(localNodeId, task.getId());
             SearchRequest searchRequest = searchRequests[sliceId];
             Request requestForSlice = request.forSlice(parentTaskId, searchRequest, totalSlices, activeSlices);
-            ActionListener<BulkByScrollResponse> sliceListener = ActionListener.wrap(
+            ActionListener<BulkByPaginatedSearchResponse> sliceListener = ActionListener.wrap(
                 r -> leader.onSliceResponse(listener, searchRequest.source().slice().getId(), r),
                 e -> leader.onSliceFailure(listener, searchRequest.source().slice().getId(), e)
             );
@@ -215,14 +216,12 @@ class BulkByPaginatedSearchParallelizationHelper {
         }
     }
 
-    /**
-     * Slice a search request into {@code times} separate search requests slicing on {@code field}. Note that the slices are *shallow*
-     * copies of this request so don't change them.
-     */
-    static SearchRequest[] sliceIntoSubRequests(SearchRequest request, String field, int times) {
+    /// Slice a search request into `times` separate search requests slicing on the default field (which should be safe and optimal). Note
+    /// that the slices are *shallow* copies of this request so don't change them.
+    static SearchRequest[] sliceIntoSubRequests(SearchRequest request, int times) {
         SearchRequest[] slices = new SearchRequest[times];
         for (int slice = 0; slice < times; slice++) {
-            SliceBuilder sliceBuilder = new SliceBuilder(field, slice, times);
+            SliceBuilder sliceBuilder = new SliceBuilder(slice, times);
             SearchSourceBuilder slicedSource;
             if (request.source() == null) {
                 slicedSource = new SearchSourceBuilder().slice(sliceBuilder);

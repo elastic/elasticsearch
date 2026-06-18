@@ -11,6 +11,8 @@ package org.elasticsearch.index.reindex;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -21,8 +23,10 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskInfo;
+import org.elasticsearch.tasks.TaskResult;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -64,8 +68,8 @@ public class BulkByPaginatedSearchTask extends CancellableTask {
     // if task is a slice, RelocationOrigin won't be correct because it won't be the leader here, but it's overridden in the leader state
     private final ResumeInfo.RelocationOrigin relocationOrigin;
     private final RelocationProgress relocationProgress = new RelocationProgress();
-    private volatile LeaderBulkByScrollTaskState leaderState;
-    private volatile WorkerBulkByScrollTaskState workerState;
+    private volatile LeaderBulkByPaginatedSearchTaskState leaderState;
+    private volatile WorkerBulkByPaginatedSearchTaskState workerState;
     private volatile boolean relocationRequested = false;
 
     public BulkByPaginatedSearchTask(
@@ -95,6 +99,53 @@ public class BulkByPaginatedSearchTask extends CancellableTask {
         }
 
         return emptyStatus();
+    }
+
+    @Override
+    public TaskResult result(DiscoveryNode node, Exception error) throws IOException {
+        if (ExceptionsHelper.unwrap(error, TaskCancelledException.class) instanceof TaskCancelledException taskCancelledException) {
+            TaskInfo taskInfo = taskInfo(node.getId(), true);
+            // task might not actually be cancelled at this point, but rather be in the process of cancelling
+            // make sure the task result is indeed serialized as cancelled
+            BulkByPaginatedSearchTask.Status status = (BulkByPaginatedSearchTask.Status) taskInfo.status();
+            BulkByPaginatedSearchTask.Status cancelledStatus = new BulkByPaginatedSearchTask.Status(
+                status.sliceId,
+                status.total,
+                status.updated,
+                status.created,
+                status.deleted,
+                status.batches,
+                status.versionConflicts,
+                status.noops,
+                status.bulkRetries,
+                status.searchRetries,
+                status.throttled,
+                status.requestsPerSecond,
+                // warning: the {@link TaskCancelledException#getMessage} is different from the {@code reason} parameter passed to
+                // {@link org.elasticsearch.tasks.TaskManager#cancel}
+                taskCancelledException.getMessage(),
+                status.throttledUntil
+            );
+            TaskInfo cancelledTaskInfo = new TaskInfo(
+                taskInfo.taskId(),
+                taskInfo.type(),
+                taskInfo.node(),
+                taskInfo.action(),
+                taskInfo.description(),
+                cancelledStatus,
+                taskInfo.startTime(),
+                taskInfo.runningTimeNanos(),
+                true,
+                true,
+                taskInfo.parentTaskId(),
+                taskInfo.headers(),
+                taskInfo.originalTaskId(),
+                taskInfo.originalStartTimeMillis()
+            );
+            return new TaskResult(cancelledTaskInfo, error);
+        } else {
+            return super.result(node, error);
+        }
     }
 
     /**
@@ -140,14 +191,14 @@ public class BulkByPaginatedSearchTask extends CancellableTask {
             throw new IllegalStateException("This task is already a worker");
         }
 
-        leaderState = new LeaderBulkByScrollTaskState(this, slices, requestsPerSecond);
+        leaderState = new LeaderBulkByPaginatedSearchTaskState(this, slices, requestsPerSecond);
     }
 
     /**
      * Returns the object that tracks the state of sliced subtasks. Throws IllegalStateException if this task is not set to be
      * a leader task.
      */
-    public LeaderBulkByScrollTaskState getLeaderState() {
+    public LeaderBulkByPaginatedSearchTaskState getLeaderState() {
         if (isLeader() == false) {
             throw new IllegalStateException("This task is not set to be a leader for other slice subtasks");
         }
@@ -174,7 +225,7 @@ public class BulkByPaginatedSearchTask extends CancellableTask {
             throw new IllegalStateException("This task is already a leader for other slice subtasks");
         }
 
-        workerState = new WorkerBulkByScrollTaskState(this, sliceId, requestsPerSecond);
+        workerState = new WorkerBulkByPaginatedSearchTaskState(this, sliceId, requestsPerSecond);
         if (isCancelled()) {
             workerState.handleCancel();
         }
@@ -184,7 +235,7 @@ public class BulkByPaginatedSearchTask extends CancellableTask {
      * Returns the object that manages sending search requests. Throws IllegalStateException if this task is not set to be a
      * worker task.
      */
-    public WorkerBulkByScrollTaskState getWorkerState() {
+    public WorkerBulkByPaginatedSearchTaskState getWorkerState() {
         if (isWorker() == false) {
             throw new IllegalStateException("This task is not set to be a worker");
         }
@@ -734,7 +785,7 @@ public class BulkByPaginatedSearchTask extends CancellableTask {
         @Override
         public String toString() {
             StringBuilder builder = new StringBuilder();
-            builder.append("BulkIndexByScrollResponse[");
+            builder.append("BulkIndexByPaginatedSearchResponse[");
             innerToString(builder);
             return builder.append(']').toString();
         }

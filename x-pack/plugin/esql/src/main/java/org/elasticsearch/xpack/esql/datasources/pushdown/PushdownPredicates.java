@@ -8,8 +8,12 @@
 package org.elasticsearch.xpack.esql.datasources.pushdown;
 
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
+import org.elasticsearch.xpack.esql.core.expression.VirtualAttribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.Contains;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.EndsWith;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith;
 import org.elasticsearch.xpack.esql.expression.predicate.Range;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
@@ -38,18 +42,46 @@ import static org.elasticsearch.xpack.esql.expression.Foldables.literalValueOf;
  * Boolean connective rules (AND partial vs full pushdown, OR, NOT) are intentionally
  * excluded — ORC allows partial AND pushdown while Iceberg requires both sides, so
  * the traversal logic stays format-specific.
+ * <p>
+ * Virtual columns ({@link MetadataAttribute} for ES-index metadata like {@code _id}/{@code _index},
+ * any {@link VirtualAttribute} for engine-synthesized columns like {@code _file.*}) never live in the
+ * physical file schema, so format-level readers cannot evaluate predicates / aggregates against
+ * them and these helpers always reject them. Identification is type-based: name conventions
+ * (e.g. the {@code _file.} prefix) are surface and may be aliased away, but the marker
+ * interface stays attached across renames and serialization.
  */
 public final class PushdownPredicates {
 
     private PushdownPredicates() {}
 
     /**
-     * Checks if a binary comparison can be pushed down: left side is a field reference,
-     * right side is a foldable literal, operator is one of the six standard comparisons,
-     * and the field's data type is supported by the target format.
+     * Returns {@code true} when {@code e} represents a column that has no physical presence in
+     * the source data and therefore cannot be evaluated by a format-level scan. Two cases:
+     * <ul>
+     *     <li>{@link MetadataAttribute} — Elasticsearch document metadata ({@code _id},
+     *     {@code _index}, {@code _score}, ...). Real per-document values, but external-file
+     *     readers (Parquet, ORC) have no concept of them.</li>
+     *     <li>Any {@link VirtualAttribute} — engine-synthesized columns ({@code _file.*} today)
+     *     materialized by {@code VirtualColumnIterator} on the producer thread.</li>
+     * </ul>
+     * Format-level filter and aggregate pushdown rules must reject both. Use this helper rather
+     * than name- or prefix-based checks: the marker survives rename/aliasing/serialization,
+     * names do not.
+     */
+    public static boolean isVirtualColumn(Expression e) {
+        return e instanceof MetadataAttribute || e instanceof VirtualAttribute;
+    }
+
+    /**
+     * Checks if a binary comparison can be pushed down: left side is a non-virtual field reference,
+     * right side is a foldable literal, operator is one of the six standard comparisons, and the
+     * field's data type is supported by the target format.
      */
     public static boolean isComparison(EsqlBinaryComparison bc, Predicate<DataType> typeSupported) {
-        if (bc.left() instanceof NamedExpression ne && bc.right().foldable() && typeSupported.test(ne.dataType())) {
+        if (bc.left() instanceof NamedExpression ne
+            && isVirtualColumn(ne) == false
+            && bc.right().foldable()
+            && typeSupported.test(ne.dataType())) {
             return bc instanceof Equals
                 || bc instanceof NotEquals
                 || bc instanceof LessThan
@@ -61,11 +93,11 @@ public final class PushdownPredicates {
     }
 
     /**
-     * Checks if an IN expression can be pushed down: value is a field reference with a
+     * Checks if an IN expression can be pushed down: value is a non-virtual field reference with a
      * supported data type, all list items are foldable, and at least one is non-null.
      */
     public static boolean isIn(In inExpr, Predicate<DataType> typeSupported) {
-        if (inExpr.value() instanceof NamedExpression ne && typeSupported.test(ne.dataType())) {
+        if (inExpr.value() instanceof NamedExpression ne && isVirtualColumn(ne) == false && typeSupported.test(ne.dataType())) {
             boolean hasNonNull = false;
             for (Expression item : inExpr.list()) {
                 if (item.foldable() == false) {
@@ -81,27 +113,28 @@ public final class PushdownPredicates {
     }
 
     /**
-     * Checks if an IS NULL expression can be pushed down: field is a named expression
+     * Checks if an IS NULL expression can be pushed down: field is a non-virtual named expression
      * with a supported data type.
      */
     public static boolean isIsNull(IsNull isNull, Predicate<DataType> typeSupported) {
-        return isNull.field() instanceof NamedExpression ne && typeSupported.test(ne.dataType());
+        return isNull.field() instanceof NamedExpression ne && isVirtualColumn(ne) == false && typeSupported.test(ne.dataType());
     }
 
     /**
-     * Checks if an IS NOT NULL expression can be pushed down: field is a named expression
+     * Checks if an IS NOT NULL expression can be pushed down: field is a non-virtual named expression
      * with a supported data type.
      */
     public static boolean isIsNotNull(IsNotNull isNotNull, Predicate<DataType> typeSupported) {
-        return isNotNull.field() instanceof NamedExpression ne && typeSupported.test(ne.dataType());
+        return isNotNull.field() instanceof NamedExpression ne && isVirtualColumn(ne) == false && typeSupported.test(ne.dataType());
     }
 
     /**
-     * Checks if a range expression can be pushed down: value is a field reference with a
+     * Checks if a range expression can be pushed down: value is a non-virtual field reference with a
      * supported data type, and both bounds are foldable.
      */
     public static boolean isRange(Range range, Predicate<DataType> typeSupported) {
         return range.value() instanceof NamedExpression ne
+            && isVirtualColumn(ne) == false
             && typeSupported.test(ne.dataType())
             && range.lower().foldable()
             && range.upper().foldable();
@@ -112,6 +145,31 @@ public final class PushdownPredicates {
      * named expression with a supported data type, and the prefix is foldable.
      */
     public static boolean isStartsWith(StartsWith sw, Predicate<DataType> typeSupported) {
-        return sw.singleValueField() instanceof NamedExpression ne && typeSupported.test(ne.dataType()) && sw.prefix().foldable();
+        return sw.singleValueField() instanceof NamedExpression ne
+            && isVirtualColumn(ne) == false
+            && typeSupported.test(ne.dataType())
+            && sw.prefix().foldable();
+    }
+
+    /**
+     * Checks if an EndsWith expression can be pushed down: field is a single-value
+     * named expression with a supported data type, and the suffix is foldable.
+     */
+    public static boolean isEndsWith(EndsWith ew, Predicate<DataType> typeSupported) {
+        return ew.singleValueField() instanceof NamedExpression ne
+            && isVirtualColumn(ne) == false
+            && typeSupported.test(ne.dataType())
+            && ew.suffix().foldable();
+    }
+
+    /**
+     * Checks if a Contains expression can be pushed down: field is a single-value
+     * named expression with a supported data type, and the substring is foldable.
+     */
+    public static boolean isContains(Contains c, Predicate<DataType> typeSupported) {
+        return c.singleValueField() instanceof NamedExpression ne
+            && isVirtualColumn(ne) == false
+            && typeSupported.test(ne.dataType())
+            && c.substr().foldable();
     }
 }

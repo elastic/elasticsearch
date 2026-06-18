@@ -31,9 +31,6 @@ import org.elasticsearch.core.Releasable;
 )
 public class DeltaOnlyHistogramMergeOverTimeTDigestAggregator {
 
-    public static final String CUMULATIVE_UNSUPPORTED_WARNING = "Cumulative temporality is not supported for the tdigest type."
-        + " The affected time series are excluded from the aggregation.";
-
     public static TemporalityAwareTDigestGroupingState initGrouping(BigArrays bigArrays, DriverContext driverContext, Warnings warnings) {
         return new TemporalityAwareTDigestGroupingState(bigArrays, driverContext, warnings);
     }
@@ -53,7 +50,7 @@ public class DeltaOnlyHistogramMergeOverTimeTDigestAggregator {
             if (current.cachedTemporalityAccessor.get(position) == Temporality.DELTA) {
                 current.delegate.add(groupId, value);
             } else {
-                current.warnings.registerException(IllegalArgumentException.class, CUMULATIVE_UNSUPPORTED_WARNING);
+                throw new IllegalArgumentException("Cumulative temporality is not supported for the tdigest type.");
             }
         } catch (InvalidTemporalityException e) {
             current.warnings.registerException(e);

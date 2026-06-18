@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 148678
+summary: Constant-RHS fast path for `MOD` and `DIV` evaluators
+type: enhancement

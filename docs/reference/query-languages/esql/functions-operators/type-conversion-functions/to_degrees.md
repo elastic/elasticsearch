@@ -6,5 +6,5 @@ mapped_pages:
 
 # ES|QL `TO_DEGREES` function [esql-to_degrees]
 
-:::{include} ../../_snippets/functions/layout/to_degrees.md
+:::{include} ../../_snippets/generated/x-pack-esql/functions/layout/to_degrees.md
 :::

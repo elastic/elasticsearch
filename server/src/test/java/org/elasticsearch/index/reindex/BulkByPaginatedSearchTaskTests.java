@@ -375,7 +375,7 @@ public class BulkByPaginatedSearchTaskTests extends ESTestCase {
 
         int slices = between(2, 20);
         task.setWorkerCount(slices, Float.POSITIVE_INFINITY);
-        LeaderBulkByScrollTaskState leaderState = task.getLeaderState();
+        LeaderBulkByPaginatedSearchTaskState leaderState = task.getLeaderState();
         assertNotNull(leaderState);
         assertEquals(slices, leaderState.getSlices());
     }
@@ -392,7 +392,7 @@ public class BulkByPaginatedSearchTaskTests extends ESTestCase {
         float requestsPerSecond = randomFloatBetween(0.1f, 100f);
         Integer sliceId = randomBoolean() ? null : between(0, 10);
         task.setWorker(requestsPerSecond, sliceId);
-        WorkerBulkByScrollTaskState workerState = task.getWorkerState();
+        WorkerBulkByPaginatedSearchTaskState workerState = task.getWorkerState();
         assertNotNull(workerState);
     }
 

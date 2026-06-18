@@ -11,6 +11,8 @@ package org.elasticsearch.reindex.remote;
 
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.search.ShardSearchFailure;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.index.reindex.PaginatedSearchFailure;
@@ -33,6 +35,11 @@ import static org.elasticsearch.reindex.remote.RemoteResponseParsers.RESPONSE_PA
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 
 public class RemoteResponseParsersTests extends ESTestCase {
+
+    /** Returns a fresh JSON parse context with a no-op breaker and a high threshold (no breaker behavior under test here). */
+    private static RemoteParseContext jsonContext() {
+        return new RemoteParseContext(XContentType.JSON, new NoopCircuitBreaker(CircuitBreaker.REQUEST), Long.MAX_VALUE);
+    }
 
     /**
      * Check that we can parse shard search failures without index information.
@@ -71,7 +78,7 @@ public class RemoteResponseParsersTests extends ESTestCase {
         }
         builder.endObject();
         try (XContentParser parser = createParser(builder)) {
-            BytesReference result = OPEN_PIT_PARSER.apply(parser, XContentType.JSON);
+            BytesReference result = OPEN_PIT_PARSER.apply(parser, jsonContext());
             assertArrayEquals(pitIdBytes, BytesReference.toBytes(result));
         }
     }
@@ -82,7 +89,7 @@ public class RemoteResponseParsersTests extends ESTestCase {
     public void testOpenPitParserMissingId() throws IOException {
         XContentBuilder builder = jsonBuilder().startObject().endObject();
         try (XContentParser parser = createParser(builder)) {
-            Exception e = expectThrows(Exception.class, () -> OPEN_PIT_PARSER.apply(parser, XContentType.JSON));
+            Exception e = expectThrows(Exception.class, () -> OPEN_PIT_PARSER.apply(parser, jsonContext()));
             assertThat(
                 ExceptionsHelper.unwrapCause(e).getMessage(),
                 Matchers.containsString("Failed to build [open_pit_response] after last required field arrived")
@@ -96,7 +103,7 @@ public class RemoteResponseParsersTests extends ESTestCase {
     public void testOpenPitParserEmptyId() throws IOException {
         XContentBuilder builder = jsonBuilder().startObject().field("id", "").endObject();
         try (XContentParser parser = createParser(builder)) {
-            Exception e = expectThrows(Exception.class, () -> OPEN_PIT_PARSER.apply(parser, XContentType.JSON));
+            Exception e = expectThrows(Exception.class, () -> OPEN_PIT_PARSER.apply(parser, jsonContext()));
             assertThat(ExceptionsHelper.unwrapCause(e).getMessage(), Matchers.containsString("failed to parse field [id]"));
         }
     }
@@ -107,7 +114,7 @@ public class RemoteResponseParsersTests extends ESTestCase {
     public void testOpenPitParserNotAnObject() throws IOException {
         XContentBuilder builder = jsonBuilder().startArray().value("a").endArray();
         try (XContentParser parser = createParser(builder)) {
-            XContentParseException e = expectThrows(XContentParseException.class, () -> OPEN_PIT_PARSER.apply(parser, XContentType.JSON));
+            XContentParseException e = expectThrows(XContentParseException.class, () -> OPEN_PIT_PARSER.apply(parser, jsonContext()));
             assertThat(e.getMessage(), Matchers.containsString("Expected START_OBJECT"));
         }
     }
@@ -118,7 +125,7 @@ public class RemoteResponseParsersTests extends ESTestCase {
     public void testOpenPitParserNotAnObjectWithPrimitive() throws IOException {
         XContentBuilder builder = randomFrom(jsonBuilder().value("bare_string"), jsonBuilder().value(42), jsonBuilder().value(true));
         try (XContentParser parser = createParser(builder)) {
-            XContentParseException e = expectThrows(XContentParseException.class, () -> OPEN_PIT_PARSER.apply(parser, XContentType.JSON));
+            XContentParseException e = expectThrows(XContentParseException.class, () -> OPEN_PIT_PARSER.apply(parser, jsonContext()));
             assertThat(e.getMessage(), Matchers.containsString("Expected START_OBJECT"));
         }
     }
@@ -129,7 +136,7 @@ public class RemoteResponseParsersTests extends ESTestCase {
     public void testOpenPitParserIdWrongType() throws IOException {
         XContentBuilder builder = jsonBuilder().startObject().field("id", randomInt()).endObject();
         try (XContentParser parser = createParser(builder)) {
-            XContentParseException e = expectThrows(XContentParseException.class, () -> OPEN_PIT_PARSER.apply(parser, XContentType.JSON));
+            XContentParseException e = expectThrows(XContentParseException.class, () -> OPEN_PIT_PARSER.apply(parser, jsonContext()));
             assertThat(e.getMessage(), Matchers.anyOf(Matchers.containsString("id doesn't support values of type")));
         }
     }
@@ -140,7 +147,7 @@ public class RemoteResponseParsersTests extends ESTestCase {
     public void testOpenPitParserNullId() throws IOException {
         XContentBuilder builder = jsonBuilder().startObject().nullField("id").endObject();
         try (XContentParser parser = createParser(builder)) {
-            Exception e = expectThrows(Exception.class, () -> OPEN_PIT_PARSER.apply(parser, XContentType.JSON));
+            Exception e = expectThrows(Exception.class, () -> OPEN_PIT_PARSER.apply(parser, jsonContext()));
             assertThat(
                 ExceptionsHelper.unwrapCause(e).getMessage(),
                 Matchers.containsString("id doesn't support values of type: VALUE_NULL")
@@ -155,7 +162,7 @@ public class RemoteResponseParsersTests extends ESTestCase {
         String invalidBase64 = randomAlphaOfLength(between(1, 20)) + "!!!";
         XContentBuilder builder = jsonBuilder().startObject().field("id", invalidBase64).endObject();
         try (XContentParser parser = createParser(builder)) {
-            XContentParseException e = expectThrows(XContentParseException.class, () -> OPEN_PIT_PARSER.apply(parser, XContentType.JSON));
+            XContentParseException e = expectThrows(XContentParseException.class, () -> OPEN_PIT_PARSER.apply(parser, jsonContext()));
             assertThat(e.getMessage(), Matchers.containsString("failed to parse field [id]"));
         }
     }
@@ -177,7 +184,7 @@ public class RemoteResponseParsersTests extends ESTestCase {
             .endArray()
             .endObject();
         try (XContentParser parser = createParser(builder)) {
-            PaginatedHitSource.BasicHit hit = HIT_PARSER.parse(parser, XContentType.JSON);
+            PaginatedHitSource.BasicHit hit = HIT_PARSER.parse(parser, jsonContext());
             assertNotNull(hit.getSortValues());
             assertEquals(2, hit.getSortValues().length);
             assertEquals(sortValue, hit.getSortValues()[0]);
@@ -202,7 +209,7 @@ public class RemoteResponseParsersTests extends ESTestCase {
             .endArray()
             .endObject();
         try (XContentParser parser = createParser(builder)) {
-            PaginatedHitSource.BasicHit hit = HIT_PARSER.parse(parser, XContentType.JSON);
+            PaginatedHitSource.BasicHit hit = HIT_PARSER.parse(parser, jsonContext());
             assertNotNull(hit.getSortValues());
             assertEquals(2, hit.getSortValues().length);
             assertEquals(sortValue, ((Number) hit.getSortValues()[0]).longValue());
@@ -229,7 +236,7 @@ public class RemoteResponseParsersTests extends ESTestCase {
             .endArray()
             .endObject();
         try (XContentParser parser = createParser(builder)) {
-            PaginatedHitSource.BasicHit hit = HIT_PARSER.parse(parser, XContentType.JSON);
+            PaginatedHitSource.BasicHit hit = HIT_PARSER.parse(parser, jsonContext());
             assertNotNull(hit.getSortValues());
             assertEquals(4, hit.getSortValues().length);
             assertEquals(stringVal, hit.getSortValues()[0]);
@@ -252,7 +259,7 @@ public class RemoteResponseParsersTests extends ESTestCase {
             .endArray()
             .endObject();
         try (XContentParser parser = createParser(builder)) {
-            PaginatedHitSource.BasicHit hit = HIT_PARSER.parse(parser, XContentType.JSON);
+            PaginatedHitSource.BasicHit hit = HIT_PARSER.parse(parser, jsonContext());
             assertNull(hit.getSortValues());
         }
     }
@@ -268,7 +275,7 @@ public class RemoteResponseParsersTests extends ESTestCase {
             .endObject()
             .endObject();
         try (XContentParser parser = createParser(builder)) {
-            PaginatedHitSource.BasicHit hit = HIT_PARSER.parse(parser, XContentType.JSON);
+            PaginatedHitSource.BasicHit hit = HIT_PARSER.parse(parser, jsonContext());
             assertNull(hit.getSortValues());
         }
     }
@@ -291,7 +298,7 @@ public class RemoteResponseParsersTests extends ESTestCase {
             .endArray()
             .endObject();
         try (XContentParser parser = createParser(builder)) {
-            Exception e = expectThrows(Exception.class, () -> HIT_PARSER.parse(parser, XContentType.JSON));
+            Exception e = expectThrows(Exception.class, () -> HIT_PARSER.parse(parser, jsonContext()));
             assertThat(e.getCause(), Matchers.notNullValue());
             assertThat(e.getCause().getMessage(), Matchers.containsString("Expected value in sort array"));
         }
@@ -315,7 +322,7 @@ public class RemoteResponseParsersTests extends ESTestCase {
             .endObject()
             .endObject();
         try (XContentParser parser = createParser(builder)) {
-            PaginatedHitSource.Response response = RESPONSE_PARSER.apply(parser, XContentType.JSON);
+            PaginatedHitSource.Response response = RESPONSE_PARSER.apply(parser, jsonContext());
             assertNotNull(response.getPitId());
             assertArrayEquals(pitIdBytes, BytesReference.toBytes(response.getPitId()));
         }
@@ -336,8 +343,27 @@ public class RemoteResponseParsersTests extends ESTestCase {
             .endObject()
             .endObject();
         try (XContentParser parser = createParser(builder)) {
-            PaginatedHitSource.Response response = RESPONSE_PARSER.apply(parser, XContentType.JSON);
+            PaginatedHitSource.Response response = RESPONSE_PARSER.apply(parser, jsonContext());
             assertNull(response.getPitId());
+        }
+    }
+
+    /// When a remote omits `hits.total` (because the request disabled `track_total_hits`), the parser must default
+    /// the total to `0` rather than throwing; the caller substitutes the cached total separately.
+    public void testResponseParserMissingTotalDefaultsToZero() throws IOException {
+        XContentBuilder builder = jsonBuilder().startObject()
+            .field("timed_out", false)
+            .startObject("hits")
+            .startArray("hits")
+            .endArray()
+            .endObject()
+            .startObject("_shards")
+            .endObject()
+            .endObject();
+        try (XContentParser parser = createParser(builder)) {
+            PaginatedHitSource.Response response = RESPONSE_PARSER.apply(parser, jsonContext());
+            assertEquals(0L, response.getTotalHits());
+            assertTrue(response.getHits().isEmpty());
         }
     }
 
@@ -355,7 +381,7 @@ public class RemoteResponseParsersTests extends ESTestCase {
             .endObject()
             .endObject();
         try (XContentParser parser = createParser(builder)) {
-            PaginatedHitSource.Response response = RESPONSE_PARSER.apply(parser, XContentType.JSON);
+            PaginatedHitSource.Response response = RESPONSE_PARSER.apply(parser, jsonContext());
             assertFalse(response.isTimedOut());
         }
     }
@@ -398,7 +424,7 @@ public class RemoteResponseParsersTests extends ESTestCase {
             .endObject()
             .endObject();
         try (XContentParser parser = createParser(builder)) {
-            PaginatedHitSource.Response response = RESPONSE_PARSER.apply(parser, XContentType.JSON);
+            PaginatedHitSource.Response response = RESPONSE_PARSER.apply(parser, jsonContext());
             assertFalse(response.isTimedOut());
             assertNotNull(response.getPitId());
             assertArrayEquals(pitId.getBytes(StandardCharsets.UTF_8), BytesReference.toBytes(response.getPitId()));

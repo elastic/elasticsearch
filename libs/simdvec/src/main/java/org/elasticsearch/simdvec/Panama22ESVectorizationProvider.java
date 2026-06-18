@@ -10,16 +10,16 @@
 package org.elasticsearch.simdvec;
 
 import org.elasticsearch.simdvec.internal.vectorization.ESVectorUtilSupport;
-import org.elasticsearch.simdvec.internal.vectorization.Panama22ESVectorUtilSupport;
+import org.elasticsearch.simdvec.internal.vectorization.PanamaESVectorUtilSupport;
 
 final class Panama22ESVectorizationProvider extends ESVectorizationProvider {
     @Override
     ESVectorUtilSupport getVectorUtilSupport() {
-        return new Panama22ESVectorUtilSupport();
+        return new PanamaESVectorUtilSupport();
     }
 
     @Override
     public VectorScorerFactory getVectorScorerFactory() {
-        return new Panama22VectorScorerFactory();
+        return new PanamaVectorScorerFactory();
     }
 }

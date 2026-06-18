@@ -102,8 +102,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
     private volatile int numReducePhases;
 
     /**
-     * Creates a {@link QueryPhaseResultConsumer} that incrementally reduces aggregation results
-     * as shard results are consumed.
+     * Creates a {@link QueryPhaseResultConsumer} that incrementally reduces aggregation results as shard results are consumed.
      */
     public QueryPhaseResultConsumer(
         SearchRequest request,
@@ -301,8 +300,10 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
             // reduced aggregations can be null if all shards failed
             && aggs != null) {
 
-            // Update the circuit breaker to replace the estimation with the serialized size of the newly reduced result
-            long finalSize = DelayableWriteable.getSerializedSize(reducePhase.aggregations()) - breakerSize;
+            // Update the circuit breaker to replace the estimation with the uncompressed size of the newly reduced result.
+            // Uncompressed (not on-the-wire) size matches the heap held by the live aggregations tree, which is what
+            // we have at this point.
+            long finalSize = DelayableWriteable.getUncompressedSerializedSize(reducePhase.aggregations()) - breakerSize;
             addWithoutBreaking(finalSize);
             logger.trace("aggs final reduction [{}] max [{}]", aggsCurrentBufferSize, maxAggsCurrentBufferSize);
         }
@@ -414,13 +415,15 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
         if (progressListener != SearchProgressListener.NOOP) {
             progressListener.notifyPartialReduce(processedShards, topDocsStats.getTotalHits(), newAggs, numReducePhases);
         }
-        // we leave the results un-serialized because serializing is slow but we compute the serialized
-        // size as an estimate of the memory used by the newly reduced aggregations.
+        // we leave the results un-serialized because serializing is slow. We compute the uncompressed
+        // serialized size as an estimate of the memory used by the newly reduced aggregations: this matches
+        // the heap held by the live aggregations tree we just built (and avoids the under-counting we'd
+        // get from the compressed on-the-wire size — see #147190).
         return new MergeResult(
             processedShards,
             newTopDocs,
             newAggs != null ? DelayableWriteable.referencing(newAggs) : null,
-            newAggs != null ? DelayableWriteable.getSerializedSize(newAggs) : 0
+            newAggs != null ? DelayableWriteable.getUncompressedSerializedSize(newAggs) : 0
         );
     }
 
@@ -497,11 +500,11 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
     }
 
     /**
-     * Returns the size of the serialized aggregation that is contained in the
-     * provided {@link QuerySearchResult}.
+     * Returns the uncompressed serialized size of the aggregation contained in the
+     * provided {@link QuerySearchResult} — the size it will occupy on the heap once expanded.
      */
     private long ramBytesUsedQueryResult(QuerySearchResult result) {
-        return hasAggs ? result.aggregations().getSerializedSize() : 0;
+        return hasAggs ? result.aggregations().getUncompressedSerializedSize() : 0;
     }
 
     /**

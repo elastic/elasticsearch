@@ -233,8 +233,18 @@ public class TransportStatelessUnpromotableRelocationAction extends TransportAct
             listener.onResponse(null);
             return;
         }
-        logger.debug("handle PITHandoffResponse for shard {}. Open pit infos: {}", indexShard.shardId(), response.getOpenPITContextInfos());
-
+        if (response.getOpenPITContextInfos().isEmpty()) {
+            logger.debug("handling empty PITHandoffResponse for shard {}", indexShard.shardId());
+            listener.onResponse(null);
+            return;
+        } else {
+            logger.debug(
+                "handling PITHandoffResponse for shard {}. {} open PIT infos: {}",
+                indexShard.shardId(),
+                response.getOpenPITContextInfos().size(),
+                response.getOpenPITContextInfos()
+            );
+        }
         try (var refs = new RefCountingListener(listener)) {
             for (OpenPITContextInfo pitContextInfo : response.getOpenPITContextInfos()) {
                 openPitAsync(indexShard, pitContextInfo, refs.acquire());
@@ -335,6 +345,7 @@ public class TransportStatelessUnpromotableRelocationAction extends TransportAct
     }
 
     private void doHandleStartHandoff(StartHandoffRequest request, ActionListener<RelocationHandoffResponse> listener) {
+        logger.debug("handling start handoff request for shard [{}]", request.getShardId());
         try {
             ShardId shardId = request.getShardId();
             final var indexService = indicesService.indexServiceSafe(shardId.getIndex());
@@ -367,6 +378,7 @@ public class TransportStatelessUnpromotableRelocationAction extends TransportAct
 
     private void getOpenPITContextInfos(ShardId shardId, ActionListener<PITHandoffResponse> listener) {
         List<PitReaderContext> activeContexts = searchService.getActivePITContexts(shardId);
+        logger.debug("getting pit context infos for shard {}. Active contexts: {}", shardId, activeContexts.size());
         List<OpenPITContextInfo> pitContextInfos = Collections.synchronizedList(new ArrayList<>(activeContexts.size()));
 
         try (var listeners = new RefCountingListener(listener.map(r -> new PITHandoffResponse(pitContextInfos)))) {
@@ -379,7 +391,10 @@ public class TransportStatelessUnpromotableRelocationAction extends TransportAct
     private void fetchOpenPitContextInfo(ShardId shardId, PitReaderContext context, ActionListener<Optional<OpenPITContextInfo>> listener) {
         // In case of a failure we want just to ignore this PIT and continue with the relocation process
         listener = listener.delegateResponse((l, e) -> {
-            logger.debug("Unexpected exception while fetching Open PIT context info for shard " + shardId + " " + context, e);
+            logger.warn(
+                "Unexpected exception while fetching Open PIT context info for shard " + shardId + ", context id " + context.id(),
+                e
+            );
             l.onResponse(Optional.empty());
         });
 
@@ -427,7 +442,10 @@ public class TransportStatelessUnpromotableRelocationAction extends TransportAct
             }));
         } catch (Exception e) {
             // Ignore the exception and continue with the next context
-            logger.debug("Unexpected exception while fetching Open PIT context info for shard " + shardId + " " + context, e);
+            logger.warn(
+                "Unexpected exception while fetching Open PIT context info for shard " + shardId + ", context id " + context.id(),
+                e
+            );
             listener.onResponse(Optional.empty());
         }
     }

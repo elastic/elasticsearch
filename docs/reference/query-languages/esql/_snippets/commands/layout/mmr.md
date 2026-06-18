@@ -41,6 +41,10 @@ This is useful when you want to maximize diversity by preventing similar documen
 The command uses [MMR (Maximum Marginal Relevance)](https://www.cs.cmu.edu/~jgc/publication/The_Use_MMR_Diversity_Based_LTMIR_1998.pdf) diversification to discard results that are too similar to each other.
 Similarity is determined based on the `field` parameter and the optionally provided `query_vector`.
 
+:::{tip}
+Learn more about using [ES|QL for search use cases](docs-content://solutions/search/esql-for-search.md).
+:::
+
 :::{note}
 The ordering of results returned from the input rows is preserved.
 :::
@@ -53,13 +57,13 @@ For example, you can use the [LIMIT command](../../../../esql/commands/limit.md)
 ## Examples
 
 ### Basic result diversification
-:::{include} ../examples/mmr.csv-spec/simpleMMR.md
+:::{include} ../../generated/x-pack-esql/commands/examples/mmr.csv-spec/simpleMMR.md
 :::
 
 ### Result diversification with a query vector
-:::{include} ../examples/mmr.csv-spec/simpleMMRWithQueryVector.md
+:::{include} ../../generated/x-pack-esql/commands/examples/mmr.csv-spec/simpleMMRWithQueryVector.md
 :::
 
 ### Result diversification using a text embedding to generate a query vector
-:::{include} ../examples/mmr.csv-spec/simpleMMRWithTextEmbedding.md
+:::{include} ../../generated/x-pack-esql/commands/examples/mmr.csv-spec/simpleMMRWithTextEmbedding.md
 :::

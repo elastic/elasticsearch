@@ -125,6 +125,27 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
      * (fileName, groupName, testName, lineNumber, testCase, instructions, format, storageBackend).
      */
     protected static List<Object[]> readExternalSpecTestsWithFormats(List<String> formats, String... specPatterns) throws Exception {
+        return readExternalSpecTestsWithExtraParam(formats, specPatterns);
+    }
+
+    /**
+     * Load csv-spec files and cross-product each test with all codecs and storage backends.
+     * Returns parameter arrays suitable for a {@code @ParametersFactory} constructor with 8 arguments:
+     * (fileName, groupName, testName, lineNumber, testCase, instructions, codecName, storageBackend).
+     * Identical shape to {@link #readExternalSpecTestsWithFormats}; the separate name documents the
+     * intent of the extra column ("codec" vs. "format") at the call site.
+     */
+    protected static List<Object[]> readExternalSpecTestsWithCodecs(List<String> codecs, String... specPatterns) throws Exception {
+        return readExternalSpecTestsWithExtraParam(codecs, specPatterns);
+    }
+
+    /**
+     * Shared cross-product helper used by {@link #readExternalSpecTestsWithFormats} and
+     * {@link #readExternalSpecTestsWithCodecs}. Builds the cross product on the un-expanded base tuple
+     * (so the resulting array is always {@code (baseTest..., extraParam, backend)}) rather than splicing
+     * into a tuple that already has the backend appended.
+     */
+    private static List<Object[]> readExternalSpecTestsWithExtraParam(List<String> extraParams, String... specPatterns) throws Exception {
         List<URL> urls = new ArrayList<>();
         for (String pattern : specPatterns) {
             urls.addAll(classpathResources(pattern));
@@ -136,12 +157,12 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
         List<Object[]> baseTests = SpecReader.readScriptSpec(urls, specParser());
         List<Object[]> parameterizedTests = new ArrayList<>();
         for (Object[] baseTest : baseTests) {
-            for (String format : formats) {
+            for (String extra : extraParams) {
                 for (StorageBackend backend : BACKENDS) {
                     int baseLength = baseTest.length;
                     Object[] parameterizedTest = new Object[baseLength + 2];
                     System.arraycopy(baseTest, 0, parameterizedTest, 0, baseLength);
-                    parameterizedTest[baseLength] = format;
+                    parameterizedTest[baseLength] = extra;
                     parameterizedTest[baseLength + 1] = backend;
                     parameterizedTests.add(parameterizedTest);
                 }
@@ -293,8 +314,11 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
     protected void doTest() throws Throwable {
         String query = testCase.query;
 
-        if (query.contains(MULTIFILE_SUFFIX)) {
-            // HTTP does not support directory listing, so skip multi-file glob tests
+        // ClickBench templates are resolved by ClickBenchParquetSpecIT, not by this class.
+        assumeFalse("ClickBench templates require ClickBenchParquetSpecIT", query.contains("{{clickbench}}"));
+
+        if (query.contains(MULTIFILE_SUFFIX) || query.contains(HIVE_SUFFIX + "}}")) {
+            // HTTP does not support directory listing, so skip multi-file/Hive-partitioned glob tests
             assumeTrue("HTTP backend does not support multi-file glob patterns", storageBackend != StorageBackend.HTTP);
         }
 
@@ -317,6 +341,23 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
 
         logger.debug("Transformed query for {} backend: {}", storageBackend, query);
         doTest(query);
+
+        // Warm pass — exercise the cache on EVERY external spec test, for every format and codec that
+        // extends this base. The cold run above reconciled this file's statistics into the
+        // coordinator's per-file schema cache; the aggregate-metadata pushdown that serves COUNT(*) /
+        // MIN / MAX from that cache is a SECOND code path that a single run never touches. Re-running
+        // the identical query asserts the warm path against the same expected results, so a cache-only
+        // correctness bug (e.g. a COUNT(*) that only doubles on the warm read) fails deterministically
+        // here instead of surfacing flakily in CI when the randomized spec order happens to repeat a
+        // file against a shared cluster. Skipped only when the spec pins documents_found, because the
+        // warm run short-circuits to zero scanned documents and so cannot match the cold scan count.
+        // The schema cache is per-coordinator: on a single-node IT the warm run always hits it; on a
+        // multi-node IT the second run may land on another coordinator and re-scan (a coverage gap,
+        // never a wrong answer). The deterministic ExternalNdJsonMultiScanPushdownIT is the guaranteed
+        // warm-path guard regardless of routing.
+        if (isExternalQuery(query) && testCase.expectedDocumentsFound == null) {
+            doTest(query);
+        }
     }
 
     /**
@@ -326,6 +367,16 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
      */
     protected String fixturesBase() {
         return FIXTURES_BASE;
+    }
+
+    /**
+     * Override to change the base directory within the resource tree where multi-file split fixtures
+     * live (template {@code {{x_multifile_split}}}). Defaults to {@code "multifile_split"}. Subclasses
+     * testing codec-compressed multi-file fixtures override this to point at codec-specific directories
+     * (e.g. {@code "multifile_split-gzip"}).
+     */
+    protected String multifileSplitDir() {
+        return "multifile_split";
     }
 
     /**
@@ -430,8 +481,19 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
 
     /** Suffix that triggers multi-file glob resolution */
     private static final String MULTIFILE_SUFFIX = "_multifile";
+    /** Suffix that triggers multi-file split glob resolution (same schema, split from a single file) */
+    private static final String MULTIFILE_SPLIT_SUFFIX = "_multifile_split";
     /** Suffix that triggers multi-file UBN glob resolution (divergent schemas across files) */
     private static final String MULTIFILE_UBN_SUFFIX = "_multifile_ubn";
+    /**
+     * Suffix that triggers multi-file UBN glob with cross-file type drift (one file's sampler
+     * infers INTEGER, the other infers KEYWORD for the same column). Used by csv-union-by-name
+     * to exercise the KEYWORD-fallback path: under UBN the reconciler widens to KEYWORD with a
+     * warning; under STRICT it still throws.
+     */
+    private static final String MULTIFILE_TYPE_DRIFT_SUFFIX = "_multifile_type_drift";
+    /** Suffix that triggers Hive-style partition discovery (lang=N/ directories) */
+    private static final String HIVE_SUFFIX = "_hive";
 
     /**
      * Resolve a template name to an actual path based on storage backend and format.
@@ -441,12 +503,24 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
      */
     private String resolveTemplatePath(String templateName) {
         String relativePath;
-        if (templateName.endsWith(MULTIFILE_UBN_SUFFIX)) {
+        if (templateName.endsWith(MULTIFILE_TYPE_DRIFT_SUFFIX)) {
+            relativePath = "multifile_type_drift/*." + format;
+        } else if (templateName.endsWith(MULTIFILE_UBN_SUFFIX)) {
             // UBN multi-file template: employees_multifile_ubn -> multifile_ubn/*.<format>
             relativePath = "multifile_ubn/*." + format;
+        } else if (templateName.endsWith(MULTIFILE_SPLIT_SUFFIX)) {
+            // Same-schema multi-file split: employees_multifile_split -> multifile_split/*.<format>.
+            // Subclasses testing codec-compressed multi-file fixtures override multifileSplitDir() to
+            // route to codec-specific directories (e.g. "multifile_split-gzip").
+            relativePath = multifileSplitDir() + "/*." + format;
         } else if (templateName.endsWith(MULTIFILE_SUFFIX)) {
             // Multi-file template: employees_multifile -> multifile/*.parquet
             relativePath = "multifile/*." + format;
+        } else if (templateName.endsWith(HIVE_SUFFIX)) {
+            // Hive-partitioned template: employees_hive -> hive-partitioned/**/*.parquet
+            // (uses ** so the glob recurses into lang=*/ partition directories; HivePartitionDetector
+            // parses the directory names independently)
+            relativePath = "hive-partitioned/**/*." + format;
         } else {
             // Single-file template: employees -> standalone/employees.parquet
             String filename = templateName + "." + format;
@@ -465,8 +539,7 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
             case LOCAL:
                 // Local path: file:///absolute/path/to/iceberg-fixtures/standalone/employees.parquet
                 if (localFixturesPath != null) {
-                    Path localFile = localFixturesPath.resolve(relativePath);
-                    return localFile.toUri().toString();
+                    return resolveLocalUri(localFixturesPath, relativePath);
                 } else {
                     // Fallback to S3 if local path not available
                     logger.warn("Local fixtures path not available, falling back to S3");
@@ -489,6 +562,51 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
             default:
                 throw new IllegalArgumentException("Unknown storage backend: " + storageBackend);
         }
+    }
+
+    /**
+     * Build a {@code file://} URI for a relative path under {@code base}, tolerating glob
+     * characters like {@code *} that are illegal in filesystem path components on Windows.
+     * <p>
+     * {@link Path#resolve(String)} delegates to the filesystem provider, which on Windows
+     * (NTFS) rejects {@code *} because it is a reserved filename character. The downstream
+     * local file loader expands the glob itself, so the URI we produce here only needs to
+     * be a syntactically valid {@code file://} URI - we don't have to round-trip through
+     * {@link Path}. We split the relative path on the first glob meta-character, resolve
+     * the literal prefix via {@link Path#resolve(String)} (which is portable), and append
+     * the glob suffix to the resulting URI as-is. {@code *} is a valid URI sub-delim
+     * character per RFC 3986 and does not require percent-encoding.
+     */
+    static String resolveLocalUri(Path base, String relativePath) {
+        int globIdx = indexOfGlobMeta(relativePath);
+        if (globIdx < 0) {
+            return base.resolve(relativePath).toUri().toString();
+        }
+        // Find the last path separator before the glob meta-character so the literal portion
+        // we feed to Path.resolve() contains no glob characters.
+        int splitIdx = relativePath.lastIndexOf('/', globIdx);
+        if (splitIdx < 0) {
+            // Glob meta-character in the first path segment - resolve the base itself.
+            return appendGlobSuffix(base.toUri().toString(), relativePath);
+        }
+        String literalPrefix = relativePath.substring(0, splitIdx);
+        String globSuffix = relativePath.substring(splitIdx + 1);
+        Path literalParent = base.resolve(literalPrefix);
+        return appendGlobSuffix(literalParent.toUri().toString(), globSuffix);
+    }
+
+    private static int indexOfGlobMeta(String s) {
+        for (int i = 0; i < s.length(); i++) {
+            char c = s.charAt(i);
+            if (c == '*' || c == '?') {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    private static String appendGlobSuffix(String baseUri, String suffix) {
+        return baseUri.endsWith("/") ? baseUri + suffix : baseUri + "/" + suffix;
     }
 
     @Override

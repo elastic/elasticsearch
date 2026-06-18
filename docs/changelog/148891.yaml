@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 148891
+summary: Optimize `field_extract` on flattened fields
+type: feature

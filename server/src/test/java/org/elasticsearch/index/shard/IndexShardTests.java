@@ -123,8 +123,8 @@ import org.elasticsearch.index.translog.TranslogStats;
 import org.elasticsearch.indices.IndicesQueryCache;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
-import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
 import org.elasticsearch.indices.recovery.RecoveryFailedException;
+import org.elasticsearch.indices.recovery.RecoveryListener;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.indices.recovery.RecoveryTarget;
 import org.elasticsearch.repositories.IndexId;
@@ -5327,39 +5327,12 @@ public class IndexShardTests extends IndexShardTestCase {
                 safeAwait(warmerBlocking);
                 config.getWarmer().warm(reader);
             };
-            EngineConfig configWithWarmer = new EngineConfig(
-                config.getShardId(),
-                config.getThreadPool(),
-                config.getThreadPoolMergeExecutorService(),
-                config.getIndexSettings(),
-                warmer,
-                config.getStore(),
-                config.getMergePolicy(),
-                config.getAnalyzer(),
-                config.getSimilarity(),
-                new CodecService(null, BigArrays.NON_RECYCLING_INSTANCE, null),
-                config.getEventListener(),
-                config.getQueryCache(),
-                config.getQueryCachingPolicy(),
-                config.getTranslogConfig(),
-                config.getFlushMergesAfter(),
-                config.getExternalRefreshListener(),
-                config.getInternalRefreshListener(),
-                config.getIndexSort(),
-                config.getCircuitBreakerService(),
-                config.getGlobalCheckpointSupplier(),
-                config.retentionLeasesSupplier(),
-                config.getPrimaryTermSupplier(),
-                IndexModule.DEFAULT_SNAPSHOT_COMMIT_SUPPLIER,
-                config.getLeafSorter(),
-                config.getRelativeTimeInNanosSupplier(),
-                config.getIndexCommitListener(),
-                config.isPromotableToPrimary(),
-                config.getMapperService(),
-                config.getEngineResetLock(),
-                config.getMergeMetrics(),
-                Function.identity()
-            );
+            EngineConfig configWithWarmer = EngineConfig.builder(config)
+                .warmer(warmer)
+                .codecProvider(new CodecService(null, BigArrays.NON_RECYCLING_INSTANCE, null))
+                .snapshotCommitSupplier(IndexModule.DEFAULT_SNAPSHOT_COMMIT_SUPPLIER)
+                .indexDeletionPolicyWrapper(Function.identity())
+                .build();
             return new InternalEngine(configWithWarmer);
         });
         Thread recoveryThread = new Thread(() -> expectThrows(AlreadyClosedException.class, () -> recoverShardFromStore(shard)));
@@ -5676,39 +5649,12 @@ public class IndexShardTests extends IndexShardTestCase {
                 internalRefreshListeners.add(blockingRefreshListener);
                 internalRefreshListeners.addAll(config.getInternalRefreshListener());
 
-                var engineConfigWithBlockingRefreshListener = new EngineConfig(
-                    config.getShardId(),
-                    config.getThreadPool(),
-                    config.getThreadPoolMergeExecutorService(),
-                    config.getIndexSettings(),
-                    config.getWarmer(),
-                    config.getStore(),
-                    config.getMergePolicy(),
-                    config.getAnalyzer(),
-                    config.getSimilarity(),
-                    new CodecService(null, BigArrays.NON_RECYCLING_INSTANCE, null),
-                    config.getEventListener(),
-                    config.getQueryCache(),
-                    config.getQueryCachingPolicy(),
-                    config.getTranslogConfig(),
-                    config.getFlushMergesAfter(),
-                    config.getExternalRefreshListener(),
-                    internalRefreshListeners,
-                    config.getIndexSort(),
-                    config.getCircuitBreakerService(),
-                    config.getGlobalCheckpointSupplier(),
-                    config.retentionLeasesSupplier(),
-                    config.getPrimaryTermSupplier(),
-                    IndexModule.DEFAULT_SNAPSHOT_COMMIT_SUPPLIER,
-                    config.getLeafSorter(),
-                    config.getRelativeTimeInNanosSupplier(),
-                    config.getIndexCommitListener(),
-                    config.isPromotableToPrimary(),
-                    config.getMapperService(),
-                    config.getEngineResetLock(),
-                    config.getMergeMetrics(),
-                    Function.identity()
-                );
+                var engineConfigWithBlockingRefreshListener = EngineConfig.builder(config)
+                    .internalRefreshListener(internalRefreshListeners)
+                    .codecProvider(new CodecService(null, BigArrays.NON_RECYCLING_INSTANCE, null))
+                    .snapshotCommitSupplier(IndexModule.DEFAULT_SNAPSHOT_COMMIT_SUPPLIER)
+                    .indexDeletionPolicyWrapper(Function.identity())
+                    .build();
                 lazyEngineConfig.set(engineConfigWithBlockingRefreshListener);
                 return new InternalEngine(engineConfigWithBlockingRefreshListener) {
                     @Override
@@ -5880,7 +5826,7 @@ public class IndexShardTests extends IndexShardTestCase {
         indexingThread.start();
 
         final var recoveryFinishedLatch = new CountDownLatch(1);
-        final var recoveryListener = new PeerRecoveryTargetService.RecoveryListener() {
+        final var recoveryListener = new RecoveryListener() {
             @Override
             public void onRecoveryDone(
                 RecoveryState state,
@@ -5893,6 +5839,11 @@ public class IndexShardTests extends IndexShardTestCase {
             @Override
             public void onRecoveryFailure(RecoveryFailedException e, boolean sendShardFailure) {
                 assert false : "Unexpected failure";
+            }
+
+            @Override
+            public void onRecoveryAborted() {
+                assert false : "Unexpected abort";
             }
         };
         recoverReplica(replicaShard, primary, (r, sourceNode) -> new RecoveryTarget(r, sourceNode, 0L, null, null, recoveryListener) {

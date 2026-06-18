@@ -11,19 +11,26 @@ package org.elasticsearch.index.engine;
 
 import org.apache.lucene.index.NoMergePolicy;
 import org.elasticsearch.common.Randomness;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.index.EngineTestUtils;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.SnapshotMatchers;
 import org.elasticsearch.index.translog.Translog;
+import org.elasticsearch.xcontent.XContentFactory;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -37,12 +44,37 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
 public abstract class SearchBasedChangesSnapshotTests extends EngineTestCase {
+
+    protected boolean columnarId;
+
+    @Override
+    public void setUp() throws Exception {
+        columnarId = IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled() && randomBoolean();
+        super.setUp();
+    }
+
     @Override
     protected Settings indexSettings() {
         return Settings.builder()
             .put(super.indexSettings())
             .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true) // always enable soft-deletes
             .build();
+    }
+
+    @Override
+    protected String defaultMapping() {
+        String mapping = super.defaultMapping();
+        if (columnarId) {
+            var parsedMapping = XContentHelper.convertToMap(XContentFactory.xContent(mapping), mapping, true);
+            parsedMapping.put(IdFieldMapper.NAME, Map.of("mode", "columnar"));
+            try {
+                return Strings.toString(XContentFactory.jsonBuilder().map(parsedMapping));
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+        } else {
+            return mapping;
+        }
     }
 
     protected abstract Translog.Snapshot newRandomSnapshot(
@@ -384,10 +416,13 @@ public abstract class SearchBasedChangesSnapshotTests extends EngineTestCase {
                 }
                 assertConsistentHistoryBetweenTranslogAndLuceneIndex(engine);
                 // have to verify without source since we are randomly testing without _source
-                List<DocIdSeqNoAndSource> docsWithoutSourceOnFollower = getDocIds(engine, true).stream()
+                boolean columnarId = engine.engineConfig.getMapperService().isUseColumnarId();
+                List<DocIdSeqNoAndSource> docsWithoutSourceOnFollower = EngineTestUtils.getDocIds(engine, true, columnarId)
+                    .stream()
                     .map(d -> new DocIdSeqNoAndSource(d.id(), null, d.seqNo(), d.primaryTerm(), d.version()))
                     .toList();
-                List<DocIdSeqNoAndSource> docsWithoutSourceOnLeader = getDocIds(leader, true).stream()
+                List<DocIdSeqNoAndSource> docsWithoutSourceOnLeader = EngineTestUtils.getDocIds(engine, true, columnarId)
+                    .stream()
                     .map(d -> new DocIdSeqNoAndSource(d.id(), null, d.seqNo(), d.primaryTerm(), d.version()))
                     .toList();
                 assertThat(docsWithoutSourceOnFollower, equalTo(docsWithoutSourceOnLeader));

@@ -69,7 +69,7 @@ ROW left = "left", foo = "foo", client_ip = "172.21.0.5", env = "env", right = "
 left:keyword | client_ip:keyword | env:keyword | right:keyword | foo:keyword
 ;
 
-shadowingSubfields#[skip:-8.13.99, reason:ENRICH extended in 8.14.0]
+shadowingSubfields
 required_capability: enrich_load
 FROM addresses
 | KEEP city.country.continent.planet.name, city.country.name, city.name
@@ -84,7 +84,7 @@ United States of America  | South San Francisco | San Francisco Int'l
 Japan                     | Tokyo               | null
 ;
 
-shadowingSubfieldsLimit0#[skip:-8.13.99, reason:ENRICH extended in 8.14.0]
+shadowingSubfieldsLimit0
 FROM addresses
 | KEEP city.country.continent.planet.name, city.country.name, city.name
 | EVAL city.name = REPLACE(city.name, "San Francisco", "South San Francisco")
@@ -115,7 +115,7 @@ ROW left = "left", client_ip = "172.21.0.5", env = "env", right = "right"
 left:keyword | env:keyword | right:keyword | client_ip:keyword
 ;
 
-shadowingMulti#[skip:-8.13.99, reason:ENRICH extended in 8.14.0]
+shadowingMulti
 required_capability: enrich_load
 ROW left = "left", airport = "Zurich Airport ZRH", city = "Zürich", middle = "middle", region = "North-East Switzerland", right = "right"
 | ENRICH city_names ON city WITH airport, region, city_boundary
@@ -125,7 +125,7 @@ left:keyword | city:keyword | middle:keyword | right:keyword | airport:text | re
 left         | Zürich       | middle         | right         | Zurich Int'l | Bezirk Zürich | "POLYGON((8.448 47.3802,8.4977 47.3452,8.5032 47.3202,8.6254 47.3547,8.5832 47.3883,8.5973 47.4063,8.5431 47.4329,8.4858 47.431,8.4691 47.4169,8.473 47.3951,8.448 47.3802))"
 ;
 
-shadowingMultiLimit0#[skip:-8.13.99, reason:ENRICH extended in 8.14.0]
+shadowingMultiLimit0
 ROW left = "left", airport = "Zurich Airport ZRH", city = "Zürich", middle = "middle", region = "North-East Switzerland", right = "right"
 | ENRICH city_names ON city WITH airport, region, city_boundary
 | LIMIT 0
@@ -134,7 +134,7 @@ ROW left = "left", airport = "Zurich Airport ZRH", city = "Zürich", middle = "m
 left:keyword | city:keyword | middle:keyword | right:keyword | airport:text | region:text | city_boundary:geo_shape
 ;
 
-shadowingInternal#[skip:-8.13.99, reason:ENRICH extended in 8.14.0]
+shadowingInternal
 required_capability: enrich_load
 ROW city = "Zürich"
 | ENRICH city_names ON city WITH x = airport, x = region
@@ -144,7 +144,7 @@ city:keyword | x:text
 Zürich       | Bezirk Zürich
 ;
 
-shadowingInternalImplicit#[skip:-8.13.99, reason:ENRICH extended in 8.14.0]
+shadowingInternalImplicit
 required_capability: enrich_load
 ROW city = "Zürich"
 | ENRICH city_names ON city WITH airport = region
@@ -154,7 +154,7 @@ city:keyword | airport:text
 Zürich       | Bezirk Zürich
 ;
 
-shadowingInternalImplicit2#[skip:-8.13.99, reason:ENRICH extended in 8.14.0]
+shadowingInternalImplicit2
 required_capability: enrich_load
 ROW city = "Zürich"
 | ENRICH city_names ON city WITH airport, airport = region
@@ -164,7 +164,7 @@ city:keyword | airport:text
 Zürich       | Bezirk Zürich
 ;
 
-shadowingInternalImplicit3#[skip:-8.13.99, reason:ENRICH extended in 8.14.0]
+shadowingInternalImplicit3
 required_capability: enrich_load
 ROW city = "Zürich"
 | ENRICH city_names ON city WITH airport = region, airport
@@ -338,7 +338,7 @@ emp_no:integer | x:keyword | lang:keyword
 ;
 
 
-withAliasOverwriteName#[skip:-8.13.0]
+withAliasOverwriteName
 required_capability: enrich_load
 
 from employees | sort emp_no
@@ -386,6 +386,7 @@ emp_no:integer | x:keyword | language_name:keyword
 
 
 nullInput
+skip_flattened_rewrite: enrich_on_rejects_flattened
 required_capability: enrich_load
 
 from employees  | where emp_no == 10017 | keep emp_no, gender
@@ -447,7 +448,7 @@ a:keyword   | a_lang:keyword
 ;
 
 
-enrichCidr#[skip:-8.13.99, reason:enrich for cidr added in 8.14.0]
+enrichCidr
 required_capability: enrich_load
 
 FROM sample_data
@@ -468,7 +469,7 @@ client_ip:ip | count_env:i | max_env:keyword
 ;
 
 
-enrichAgesStatsYear#[skip:-8.13.99, reason:ENRICH extended in 8.14.0]
+enrichAgesStatsYear
 required_capability: enrich_load
 
 FROM employees
@@ -491,7 +492,7 @@ birth_year:long | age_group:keyword | count:long
 ;
 
 
-enrichAgesStatsAgeGroup#[skip:-8.13.99, reason:ENRICH extended in 8.14.0]
+enrichAgesStatsAgeGroup
 required_capability: enrich_load
 
 FROM employees
@@ -508,7 +509,7 @@ count:long | age_group:keyword
 ;
 
 
-enrichHeightsStats#[skip:-8.13.99, reason:ENRICH extended in 8.14.0]
+enrichHeightsStats
 required_capability: enrich_load
 
 FROM employees
@@ -527,7 +528,7 @@ Very Tall      | 2.0        | 2.1        | 20
 ;
 
 
-enrichDecadesStats#[skip:-8.13.99, reason:ENRICH extended in 8.14.0]
+enrichDecadesStats
 required_capability: enrich_load
 
 FROM employees
@@ -548,7 +549,8 @@ null              | 1980          | null                | Radical Eighties   | 4
 ;
 
 
-spatialEnrichmentKeywordMatch#[skip:-8.13.99, reason:ENRICH extended in 8.14.0]
+spatialEnrichmentKeywordMatch
+skip_flattened_rewrite: enrich_on_rejects_flattened
 required_capability: enrich_load
 
 FROM airports
@@ -563,7 +565,7 @@ CPH             |  Copenhagen    |  POINT(12.5683 55.6761)  |  Denmark          
 ;
 
 
-spatialEnrichmentGeoMatch#[skip:-8.13.99, reason:ENRICH extended in 8.14.0]
+spatialEnrichmentGeoMatch
 required_capability: enrich_load
 
 FROM airports
@@ -578,7 +580,7 @@ CPH             |  Copenhagen    |  POINT(12.5683 55.6761)  |  Denmark          
 ;
 
 
-spatialEnrichmentGeoMatchStats#[skip:-8.13.99, reason:ENRICH extended in 8.14.0]
+spatialEnrichmentGeoMatchStats
 required_capability: enrich_load
 
 FROM airports
@@ -594,7 +596,7 @@ POINT(1.396561 24.127649)  |  872         |  88               |  947
 ;
 
 
-spatialEnrichmentKeywordMatchAndSpatialPredicate#[skip:-8.13.99, reason:st_intersects added in 8.14]
+spatialEnrichmentKeywordMatchAndSpatialPredicate
 required_capability: enrich_load
 
 FROM airports
@@ -612,7 +614,7 @@ count:long  |  airport_in_city:boolean
 ;
 
 
-spatialEnrichmentKeywordMatchAndSpatialAggregation#[skip:-8.13.99, reason:st_intersects added in 8.14]
+spatialEnrichmentKeywordMatchAndSpatialAggregation
 required_capability: enrich_load
 
 FROM airports
@@ -630,7 +632,7 @@ count:long  |  centroid:geo_point            |  airport_in_city:boolean
 ;
 
 
-spatialEnrichmentTextMatch#[skip:-8.13.99, reason:ENRICH extended in 8.14.0]
+spatialEnrichmentTextMatch
 required_capability: enrich_load
 
 FROM airports
@@ -648,11 +650,12 @@ IDR       |  Indore       |  POINT(75.8472 22.7167)  |  India      |  POINT(75.8
 // We had wrong layouts from ReplaceMissingFieldsWithNull in case of indices that had relevant fields for the query,
 // but were **missing the field we enrich on**.
 fieldsInOtherIndicesBug
+skip_flattened_rewrite: field_extract_multivalue_null
 required_capability: enrich_load
 required_capability: fix_replace_missing_field_with_null_duplicate_name_id_in_layout
 required_capability: dense_vector_agg_metric_double_if_fns
 
-from *,-addresses_*
+from *,-addresses_*,-keyword_languages_lookup
 | keep author.keyword, book_no, scalerank, street, bytes_in, @timestamp, abbrev, city_location, distance, description, birth_date, language_code, intersects, client_ip, event_duration, version
 | enrich languages_policy on author.keyword
 | sort book_no
@@ -665,6 +668,7 @@ Fyodor Dostoevsky     |1211           |null             |null          |null    
 
 
 statsAfterRemoteEnrich
+skip_flattened_rewrite: enrich_output_type_mismatch
 required_capability: enrich_load
 
 FROM sample_data
@@ -681,6 +685,7 @@ messages:long | language_name:keyword
 
 
 enrichAfterRemoteEnrich
+skip_flattened_rewrite: enrich_output_type_mismatch
 required_capability: enrich_load
 
 FROM sample_data
@@ -698,6 +703,7 @@ Connected to 10.1.0.1 | 1                     | English                     | En
 
 
 coordinatorEnrichAfterRemoteEnrich
+skip_flattened_rewrite: enrich_output_type_mismatch
 required_capability: enrich_load
 
 FROM sample_data
@@ -715,6 +721,7 @@ Connected to 10.1.0.1 | 1                     | English                     | En
 
 
 doubleRemoteEnrich
+skip_flattened_rewrite: enrich_output_type_mismatch
 required_capability: enrich_load
 
 FROM sample_data
@@ -732,6 +739,7 @@ Connected to 10.1.0.1 | 1                     | English                     | En
 
 
 enrichAfterCoordinatorEnrich
+skip_flattened_rewrite: enrich_output_type_mismatch
 required_capability: enrich_load
 
 FROM sample_data
@@ -749,6 +757,7 @@ Connected to 10.1.0.1 | 1                     | English                     | En
 
 
 doubleCoordinatorEnrich
+skip_flattened_rewrite: enrich_output_type_mismatch
 required_capability: enrich_load
 
 FROM sample_data
@@ -905,4 +914,25 @@ ROW x = 1, y = null
 
 x:integer | y:null | language_name:keyword
 1         | null   | null
+;
+
+// An unmapped field in _source is loaded from the primary index downstream of ENRICH.
+// Rows from sample_data have no unmapped_message in _source (null);
+// the row from partial_mapping_sample_data has it (real value).
+loadUnmappedFieldAfterEnrich
+required_capability: optional_fields_v5
+
+SET unmapped_fields="load"\;
+FROM sample_data, partial_mapping_sample_data
+| EVAL client_ip_str = TO_STRING(client_ip)
+| ENRICH clientip_policy ON client_ip_str WITH env
+| WHERE TO_STRING(client_ip) IN ("172.21.2.162", "172.21.2.113", "173.21.2.162")
+| KEEP @timestamp, env, unmapped_message
+| SORT @timestamp ASC
+;
+
+@timestamp:date          | env:keyword | unmapped_message:keyword
+2023-10-23T12:15:03.360Z | QA          | null
+2023-10-23T12:27:28.948Z | QA          | null
+2024-10-23T12:15:03.360Z | null        | Disconnected from 10.1.0.3
 ;

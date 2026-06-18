@@ -22,10 +22,8 @@ import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.UnaryExec;
 
 import java.util.ArrayList;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.expression.predicate.Predicates.splitAnd;
 
@@ -42,16 +40,29 @@ public final class SplitDiscoveryPhase {
     private SplitDiscoveryPhase() {}
 
     public static PhysicalPlan resolveExternalSplits(PhysicalPlan plan, Map<String, ExternalSourceFactory> sourceFactories) {
-        return resolveRecursive(plan, List.of(), sourceFactories);
+        return resolveExternalSplits(
+            plan,
+            sourceFactories,
+            org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES
+        );
+    }
+
+    public static PhysicalPlan resolveExternalSplits(
+        PhysicalPlan plan,
+        Map<String, ExternalSourceFactory> sourceFactories,
+        int maxRecordBytes
+    ) {
+        return resolveRecursive(plan, List.of(), sourceFactories, maxRecordBytes);
     }
 
     private static PhysicalPlan resolveRecursive(
         PhysicalPlan plan,
         List<Expression> ancestorFilters,
-        Map<String, ExternalSourceFactory> sourceFactories
+        Map<String, ExternalSourceFactory> sourceFactories,
+        int maxRecordBytes
     ) {
         if (plan instanceof ExternalSourceExec exec) {
-            return resolveExternalSource(exec, ancestorFilters, sourceFactories);
+            return resolveExternalSource(exec, ancestorFilters, sourceFactories, maxRecordBytes);
         }
 
         List<Expression> filtersForChildren = ancestorFilters;
@@ -71,7 +82,7 @@ public final class SplitDiscoveryPhase {
         boolean changed = false;
         List<PhysicalPlan> newChildren = new ArrayList<>(children.size());
         for (PhysicalPlan child : children) {
-            PhysicalPlan resolved = resolveRecursive(child, filtersForChildren, sourceFactories);
+            PhysicalPlan resolved = resolveRecursive(child, filtersForChildren, sourceFactories, maxRecordBytes);
             if (resolved != child) {
                 changed = true;
             }
@@ -91,7 +102,8 @@ public final class SplitDiscoveryPhase {
     private static PhysicalPlan resolveExternalSource(
         ExternalSourceExec exec,
         List<Expression> ancestorFilters,
-        Map<String, ExternalSourceFactory> sourceFactories
+        Map<String, ExternalSourceFactory> sourceFactories,
+        int maxRecordBytes
     ) {
         ExternalSourceFactory factory = sourceFactories.get(exec.sourceType());
         SplitProvider splitProvider = factory != null ? factory.splitProvider() : SplitProvider.SINGLE;
@@ -99,12 +111,13 @@ public final class SplitDiscoveryPhase {
         FileList fileList = exec.fileList();
         PartitionMetadata partitionInfo = fileList != null ? fileList.partitionMetadata() : null;
 
-        Set<String> projectedDataColumns = new LinkedHashSet<>();
+        List<Attribute> queryDataAttributes = new ArrayList<>(exec.output().size());
         for (Attribute attr : exec.output()) {
             if (attr instanceof MetadataAttribute == false) {
-                projectedDataColumns.add(attr.name());
+                queryDataAttributes.add(attr);
             }
         }
+        ExternalSchema querySchema = new ExternalSchema(queryDataAttributes);
 
         SplitDiscoveryContext context = new SplitDiscoveryContext(
             null,
@@ -113,7 +126,9 @@ public final class SplitDiscoveryPhase {
             exec.config(),
             partitionInfo,
             ancestorFilters,
-            projectedDataColumns
+            querySchema,
+            exec.unifiedSchema(),
+            maxRecordBytes
         );
 
         List<ExternalSplit> splits;

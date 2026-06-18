@@ -13,10 +13,11 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.reindex.BulkByPaginatedSearchResponse;
 import org.elasticsearch.index.reindex.BulkByPaginatedSearchTask;
-import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -24,7 +25,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 /**
  * Implementation of delete-by-query using scrolling and bulk.
  */
-public class AsyncDeleteByQueryAction extends AbstractAsyncBulkByScrollAction<DeleteByQueryRequest, TransportDeleteByQueryAction> {
+public class AsyncDeleteByQueryAction extends AbstractAsyncBulkByPaginatedSearchAction<DeleteByQueryRequest, TransportDeleteByQueryAction> {
 
     public AsyncDeleteByQueryAction(
         BulkByPaginatedSearchTask task,
@@ -33,9 +34,11 @@ public class AsyncDeleteByQueryAction extends AbstractAsyncBulkByScrollAction<De
         ThreadPool threadPool,
         DeleteByQueryRequest request,
         ScriptService scriptService,
-        ActionListener<BulkByScrollResponse> listener,
-        @Nullable BulkByScrollSearchContextMetrics bulkByScrollSearchContextMetrics,
-        TimeValue maxTaskShutdownGracePeriod
+        ActionListener<BulkByPaginatedSearchResponse> listener,
+        @Nullable BulkByPaginatedSearchSearchContextMetrics bulkByPaginatedSearchSearchContextMetrics,
+        TimeValue maxTaskShutdownGracePeriod,
+        ReindexSettings reindexSettings,
+        CircuitBreaker requestBreaker
     ) {
         super(
             task,
@@ -49,10 +52,13 @@ public class AsyncDeleteByQueryAction extends AbstractAsyncBulkByScrollAction<De
             listener,
             scriptService,
             null,
-            bulkByScrollSearchContextMetrics,
-            BulkByScrollSearchContextMetrics.TaskKind.DELETE_BY_QUERY,
+            bulkByPaginatedSearchSearchContextMetrics,
+            BulkByPaginatedSearchSearchContextMetrics.TaskKind.DELETE_BY_QUERY,
             false,
-            maxTaskShutdownGracePeriod
+            maxTaskShutdownGracePeriod,
+            reindexSettings,
+            requestBreaker,
+            "delete_by_query_bulk_batch"
         );
     }
 
@@ -79,7 +85,7 @@ public class AsyncDeleteByQueryAction extends AbstractAsyncBulkByScrollAction<De
      */
     @Override
     protected RequestWrapper<?> copyMetadata(RequestWrapper<?> request, PaginatedHitSource.Hit doc) {
-        request.setRouting(doc.getRouting());
+        copyRouting(request, doc.getRouting());
         return request;
     }
 

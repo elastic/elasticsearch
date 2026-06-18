@@ -20,6 +20,8 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.cluster.metadata.IndexReshardingMetadata;
 import org.elasticsearch.cluster.routing.SplitShardCountSummary;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -33,6 +35,7 @@ import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.engine.CompletionStatsCache;
 import org.elasticsearch.index.engine.ElasticsearchReaderManager;
@@ -80,12 +83,16 @@ import java.util.TreeSet;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
 import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.ToLongFunction;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.util.concurrent.EsExecutors.DIRECT_EXECUTOR_SERVICE;
+import static org.elasticsearch.index.IndexSettings.STATELESS_DEFAULT_REFRESH_INTERVAL;
 import static org.elasticsearch.xpack.stateless.commits.BlobFileRanges.computeBlobFileRanges;
 
 /**
@@ -113,6 +120,8 @@ public class SearchEngine extends Engine {
     private final CompletionStatsCache completionStatsCache;
     private final SearchCommitPrefetcher commitPrefetcher;
     private final SearchCommitPrefetcherDynamicSettings prefetcherDynamicSettings;
+    // Used for filtering unowned documents from a shard during resharding.
+    private final ReshardSearchFilters reshardSearchFilters;
     // task runner used to process commit notifications and incoming PIT metadata merges sequentially
     private final ThrottledTaskRunner processCommitTaskRunner;
 
@@ -127,21 +136,26 @@ public class SearchEngine extends Engine {
 
     // Guarded by the openReaders monitor
     private final Map<DirectoryReader, OpenReaderInfo> openReaders = new HashMap<>();
-    private final RelocatedPITReaderTracker relocatedPITReaderTracker = new RelocatedPITReaderTracker(
-        relocatedPITReader -> acquireSearcherSupplier(
-            relocatedPITReader.wrapper,
-            SearcherScope.EXTERNAL,
-            r -> ReshardSearchFilters.maybeWrapDirectoryReaderForPitRelocation(
-                r,
-                shardId,
-                engineConfig.getIndexSettings().getIndexMetadata(),
-                engineConfig.getMapperService(),
-                relocatedPITReader.reshardingMetadata,
-                relocatedPITReader.splitShardCountSummary
-            ),
-            relocatedPITReader.pitReaderManager
-        )
-    );
+
+    private final CircuitBreaker readerHeapBreaker;
+    private final SegmentReservations reservations = new SegmentReservations();
+    private final ToLongFunction<SegmentCommitInfo> segmentBytesFn = DirectoryReaderHeapEstimator::segmentBytes;
+    private final AtomicLong refreshDeferredCount = new AtomicLong();
+    private final AtomicLong refreshDeferredPendingBytes = new AtomicLong();
+    // Signal from refreshIfNeeded to doUpdateInternalState that the last refresh was deferred and
+    // segmentInfosAndCommit must be reverted so the commit notification is re-processed on the next cycle.
+    private volatile boolean lastRefreshDeferred;
+    // Coalesced retry slot: at most one deferred-refresh retry is in flight at a time. The volatile
+    // field always tracks the most recently deferred notification so the retry re-injects the latest one
+    // even after a burst of defers.
+    private final AtomicBoolean deferredRefreshScheduled = new AtomicBoolean();
+    private volatile NewCommitNotification pendingDeferredNotification;
+    // Independent slot for event-driven retries fired when a reader closes and frees reservation bytes. Decoupled
+    // from `deferredRefreshScheduled` so an in-flight timer does not block a budget-released kick (and vice
+    // versa). Both paths converge in `commitNotifications` / `findLatestNotification`, which handles redundancy.
+    private final AtomicBoolean immediateRetryScheduled = new AtomicBoolean();
+    private final AtomicLong refreshImmediateRetryCount = new AtomicLong();
+    private final RelocatedPITReaderTracker relocatedPITReaderTracker;
 
     @SuppressWarnings("this-escape")
     public SearchEngine(
@@ -150,14 +164,35 @@ public class SearchEngine extends Engine {
         StatelessSharedBlobCacheService statelessSharedBlobCacheService,
         ClusterSettings clusterSettings,
         Executor prefetchExecutor,
-        SearchCommitPrefetcherDynamicSettings prefetcherDynamicSettings
+        SearchCommitPrefetcherDynamicSettings prefetcherDynamicSettings,
+        CircuitBreaker readerHeapBreaker,
+        StatelessReaderHeapMetrics readerHeapMetrics,
+        ReshardSearchFilters reshardSearchFilters
     ) {
         super(config);
         assert config.isPromotableToPrimary() == false;
+        this.reshardSearchFilters = reshardSearchFilters;
         this.closedShardService = closedShardService;
+        this.readerHeapBreaker = readerHeapBreaker;
         var refreshExecutor = config.getThreadPool().executor(ThreadPool.Names.REFRESH);
         // we limit to one task to force sequential execution of enqueued tasks
         this.processCommitTaskRunner = new ThrottledTaskRunner("engine", 1, refreshExecutor);
+
+        this.relocatedPITReaderTracker = new RelocatedPITReaderTracker(
+            relocatedPITReader -> acquireSearcherSupplier(
+                relocatedPITReader.wrapper,
+                SearcherScope.EXTERNAL,
+                r -> reshardSearchFilters.maybeWrapDirectoryReaderForPitRelocation(
+                    r,
+                    shardId,
+                    engineConfig.getIndexSettings().getIndexMetadata(),
+                    engineConfig.getMapperService(),
+                    relocatedPITReader.reshardingMetadata,
+                    relocatedPITReader.splitShardCountSummary
+                ),
+                relocatedPITReader.pitReaderManager
+            )
+        );
 
         ElasticsearchDirectoryReader directoryReader = null;
         ElasticsearchReaderManager readerManager = null;
@@ -177,39 +212,113 @@ public class SearchEngine extends Engine {
                 searchDirectory.getCurrentCommit()
             );
 
-            // do not consider the empty commit an open reader (no data to delete from object store)
-            if (primaryTerm.isPresent()) {
-                trackLocalOpenReader(directoryReader, initialCommit, initialSegmentInfosAndCommit.getBCCDependenciesForCommit());
+            // Always reserve so the close listener can release a single Reservation regardless of whether the
+            // initial commit ends up tracked as an "open reader". trackLocalOpenReader and registerReaderHeapRelease
+            // both attach close listeners and can throw before doing so (IllegalArgumentException from
+            // ElasticsearchDirectoryReader.addReaderCloseListener, AlreadyClosedException from the cache helper);
+            // if either throws, the no-break charge above must be reverted.
+            final SegmentReservations.Reservation initialReservation = reserveAndChargeWithoutBreaking(
+                initialSegmentInfosAndCommit.segmentInfos()
+            );
+            boolean initialReservationOwned = false;
+            try {
+                // do not consider the empty commit an open reader (no data to delete from object store)
+                if (primaryTerm.isPresent()) {
+                    trackLocalOpenReader(
+                        directoryReader,
+                        initialCommit,
+                        initialReservation,
+                        initialSegmentInfosAndCommit.getBCCDependenciesForCommit()
+                    );
+                }
+                registerReaderHeapRelease(directoryReader, initialReservation);
+                initialReservationOwned = true;
+            } finally {
+                if (initialReservationOwned == false) {
+                    releaseReservationAndUncharge(initialReservation);
+                }
             }
             readerManager = new ElasticsearchReaderManager(directoryReader) {
                 private SegmentInfosAndCommit previousSegmentInfosAndCommit;
 
                 @Override
                 protected ElasticsearchDirectoryReader refreshIfNeeded(ElasticsearchDirectoryReader referenceToRefresh) throws IOException {
+                    lastRefreshDeferred = false;
                     SegmentInfosAndCommit segmentInfosAndCommitCopy = segmentInfosAndCommit;
                     if (segmentInfosAndCommitCopy == previousSegmentInfosAndCommit) {
                         return null;
                     }
-                    final IndexCommit indexCommit = Lucene.getIndexCommit(segmentInfosAndCommitCopy.segmentInfos(), directory);
-                    ElasticsearchDirectoryReader next = (ElasticsearchDirectoryReader) DirectoryReader.openIfChanged(
-                        referenceToRefresh,
-                        indexCommit
-                    );
-                    if (next != null) {
-                        addNextReader(next, segmentInfosAndCommitCopy, indexCommit);
+                    final SegmentInfos nextInfos = segmentInfosAndCommitCopy.segmentInfos();
+                    final SegmentReservations.Reservation reservation = reservations.reserve(nextInfos, segmentBytesFn);
+                    final long delta = reservation.bytesReserved();
+                    if (delta > 0) {
+                        if (readerHeapBreaker.getLimit() != -1) {
+                            try {
+                                readerHeapBreaker.addEstimateBytesAndMaybeBreak(delta, StatelessReaderHeapBreaker.NAME);
+                            } catch (CircuitBreakingException e) {
+                                // Establish the revert invariant first: if anything below throws, doUpdateInternalState
+                                // still sees lastRefreshDeferred == true and rolls segmentInfosAndCommit back to the
+                                // previous snapshot so the deferred notification is re-processed.
+                                lastRefreshDeferred = true;
+                                reservation.release();
+                                refreshDeferredCount.incrementAndGet();
+                                refreshDeferredPendingBytes.set(delta);
+                                readerHeapMetrics.recordRefreshDeferred();
+                                logger.warn(
+                                    "[{}] deferring refresh: reader-heap limit would be exceeded — delta [{}] used [{}] limit [{}]",
+                                    shardId,
+                                    delta,
+                                    readerHeapBreaker.getUsed(),
+                                    readerHeapBreaker.getLimit()
+                                );
+                                return null;
+                            }
+                        } else {
+                            readerHeapBreaker.addWithoutBreaking(delta);
+                        }
                     }
-                    previousSegmentInfosAndCommit = segmentInfosAndCommitCopy;
-                    return next;
+                    // After the charge, every throw site below (Lucene.getIndexCommit / openIfChanged IOException,
+                    // addReaderCloseListener IllegalArgumentException or AlreadyClosedException inside
+                    // addNextReader / registerReaderHeapRelease) must roll the ledger and breaker back. Ownership
+                    // transfers to a close listener only once registerReaderHeapRelease returns successfully (or,
+                    // for the no-changes branch, once we have explicitly released the reservation ourselves).
+                    boolean reservationOwned = false;
+                    try {
+                        final IndexCommit indexCommit = Lucene.getIndexCommit(nextInfos, directory);
+                        ElasticsearchDirectoryReader next = (ElasticsearchDirectoryReader) DirectoryReader.openIfChanged(
+                            referenceToRefresh,
+                            indexCommit
+                        );
+                        if (next == null) {
+                            releaseReservationAndUncharge(reservation);
+                            reservationOwned = true;
+                        } else {
+                            addNextReader(next, segmentInfosAndCommitCopy, indexCommit, reservation);
+                            reservationOwned = true;
+                            refreshDeferredPendingBytes.set(0L);
+                        }
+                        previousSegmentInfosAndCommit = segmentInfosAndCommitCopy;
+                        return next;
+                    } finally {
+                        if (reservationOwned == false) {
+                            releaseReservationAndUncharge(reservation);
+                        }
+                    }
                 }
 
+                // Installs both close listeners (openReaders cleanup + heap-release) under a single ownership
+                // flag so that if either install throws after the new reader has been opened, the reader is
+                // closed here. The reservation itself is released by the surrounding finally in refreshIfNeeded.
                 private void addNextReader(
                     ElasticsearchDirectoryReader next,
                     SegmentInfosAndCommit segmentInfosAndCommitCopy,
-                    IndexCommit first
+                    IndexCommit first,
+                    SegmentReservations.Reservation reservation
                 ) throws IOException {
                     boolean added = false;
                     try {
-                        trackLocalOpenReader(next, first, segmentInfosAndCommitCopy.getBCCDependenciesForCommit());
+                        trackLocalOpenReader(next, first, reservation, segmentInfosAndCommitCopy.getBCCDependenciesForCommit());
+                        registerReaderHeapRelease(next, reservation);
                         added = true;
                     } finally {
                         if (added == false) {
@@ -243,6 +352,10 @@ public class SearchEngine extends Engine {
             for (ReferenceManager.RefreshListener refreshListener : config.getExternalRefreshListener()) {
                 readerManager.addListener(refreshListener);
             }
+            // SearchEngine has a single reader manager, so internal refresh listeners must also be wired onto it.
+            for (ReferenceManager.RefreshListener refreshListener : config.getInternalRefreshListener()) {
+                readerManager.addListener(refreshListener);
+            }
             this.prefetcherDynamicSettings = prefetcherDynamicSettings;
             this.commitPrefetcher = new SearchCommitPrefetcher(
                 searchDirectory.getShardId(),
@@ -263,9 +376,12 @@ public class SearchEngine extends Engine {
         }
     }
 
-    private void trackLocalOpenReader(
+    // Package-private (was private) so tests can override to inject an exception and verify the leak-plug
+    // try/finally at each call site releases the reservation and refunds the breaker.
+    void trackLocalOpenReader(
         ElasticsearchDirectoryReader directoryReader,
         IndexCommit commit,
+        SegmentReservations.Reservation reservation,
         Set<PrimaryTermAndGeneration> bccDependencies
     ) throws IOException {
         ElasticsearchDirectoryReader.addReaderCloseListener(directoryReader, ignored -> {
@@ -275,8 +391,66 @@ public class SearchEngine extends Engine {
         });
 
         synchronized (openReaders) {
-            openReaders.put(directoryReader, new OpenReaderInfo(commit.getFileNames(), bccDependencies));
+            openReaders.put(directoryReader, new OpenReaderInfo(commit.getFileNames(), reservation, bccDependencies));
         }
+    }
+
+    // Reserve bytes for a non-refresh reader (engine open, PIT relocation) using the no-break path so the caller's
+    // open never fails on budget pressure. The returned Reservation must be paired with registerReaderHeapRelease
+    // so the close listener decrements both the ledger and the breaker.
+    private SegmentReservations.Reservation reserveAndChargeWithoutBreaking(SegmentInfos infos) {
+        SegmentReservations.Reservation reservation = reservations.reserve(infos, segmentBytesFn);
+        if (reservation.bytesReserved() > 0) {
+            readerHeapBreaker.addWithoutBreaking(reservation.bytesReserved());
+        }
+        return reservation;
+    }
+
+    // Failure-path inverse of reserveAndChargeWithoutBreaking / refreshIfNeeded's charge step. Releases the ledger
+    // reservation and refunds the breaker by however many bytes the ledger actually freed. Reservation.release()
+    // is idempotent, so this is safe to call even if a close listener was later installed and may also fire.
+    private void releaseReservationAndUncharge(SegmentReservations.Reservation reservation) {
+        long freed = reservation.release();
+        if (freed > 0) {
+            readerHeapBreaker.addWithoutBreaking(-freed);
+        }
+    }
+
+    // Capture only the Reservation handle (a short key set internally) for the close listener so the lambda does
+    // not pin the full SegmentInfos / SegmentInfo graph for the lifetime of the reader. When the close actually
+    // frees ledger bytes, kick a budget-released retry for any pending deferred refresh.
+    //
+    // Package-private (was private) so tests can override to inject an exception and verify the leak-plug
+    // try/finally at each call site releases the reservation and refunds the breaker.
+    void registerReaderHeapRelease(ElasticsearchDirectoryReader reader, SegmentReservations.Reservation reservation) throws IOException {
+        ElasticsearchDirectoryReader.addReaderCloseListener(reader, ignored -> {
+            long released = reservation.release();
+            if (released > 0) {
+                readerHeapBreaker.addWithoutBreaking(-released);
+                maybeFireImmediateRetryOnRelease();
+            }
+        });
+    }
+
+    // visible for testing
+    public long getReaderHeapReservedBytes() {
+        return reservations.totalBytes();
+    }
+
+    // visible for testing
+    public long getRefreshDeferredCount() {
+        return refreshDeferredCount.get();
+    }
+
+    // visible for testing
+    public long getRefreshDeferredPendingBytes() {
+        return refreshDeferredPendingBytes.get();
+    }
+
+    // visible for testing — counts how many times the close-listener-driven immediate retry actually re-injected
+    // the pending deferred notification onto the processor.
+    public long getRefreshImmediateRetryCount() {
+        return refreshImmediateRetryCount.get();
     }
 
     PrimaryTermAndGeneration getCurrentPrimaryTermAndGeneration() {
@@ -428,16 +602,19 @@ public class SearchEngine extends Engine {
                     listenableFuture.onResponse(Map.of());
                 }
                 assert listenableFuture.isDone() : "unexpected sync call not done after invocation";
+                final NewCommitNotification notificationToApply = latestNotification;
                 listenableFuture.addListener(ActionListener.wrap(blobFileRangesMap -> {
                     logger.trace("updating directory with commit {}", latestCommit);
-                    final boolean commitUpdated = searchDirectory.updateCommit(latestCommit, blobFileRangesMap);
-                    if (commitUpdated) {
-                        store.incRef();
-                        try {
-                            updateInternalState(latestCommit, current);
-                        } finally {
-                            store.decRef();
+                    if (store.tryIncRef() == false) {
+                        throw new AlreadyClosedException(shardId + " engine is closed", failedEngine.get());
+                    }
+                    try {
+                        final boolean commitUpdated = searchDirectory.updateCommit(latestCommit, blobFileRangesMap);
+                        if (commitUpdated) {
+                            updateInternalState(notificationToApply, current);
                         }
+                    } finally {
+                        store.decRef();
                     }
                 }, this::onFailure));
             }
@@ -493,19 +670,21 @@ public class SearchEngine extends Engine {
                 return latestNotification;
             }
 
-            private void updateInternalState(StatelessCompoundCommit latestCommit, SegmentInfos current) {
+            private void updateInternalState(NewCommitNotification latestNotification, SegmentInfos current) {
                 try {
-                    doUpdateInternalState(latestCommit, current);
+                    doUpdateInternalState(latestNotification, current);
                 } catch (Exception e) {
                     onFailure(e);
                 }
             }
 
-            private void doUpdateInternalState(StatelessCompoundCommit latestCommit, SegmentInfos current) throws IOException {
+            private void doUpdateInternalState(NewCommitNotification latestNotification, SegmentInfos current) throws IOException {
+                final StatelessCompoundCommit latestCommit = latestNotification.compoundCommit();
                 final SegmentInfos next = Lucene.readSegmentInfos(directory);
                 setSequenceNumbers(next);
 
                 assert next.getGeneration() == latestCommit.generation();
+                final SegmentInfosAndCommit previousSegmentInfosAndCommitSnapshot = segmentInfosAndCommit;
                 segmentInfosAndCommit = new SegmentInfosAndCommit(next, latestCommit);
 
                 // The shard uses a reentrant read/write lock to guard again engine changes, a type of lock that prioritizes the threads
@@ -520,12 +699,25 @@ public class SearchEngine extends Engine {
                     engineReadLock.unlock();
                 }
 
+                // The reader-heap breaker deferred the refresh: revert segmentInfosAndCommit so the (commit,
+                // reader) invariant holds, and schedule a retry tied to the index's refresh_interval so the
+                // refresh is attempted again without waiting for a fresh commit notification.
+                if (lastRefreshDeferred) {
+                    segmentInfosAndCommit = previousSegmentInfosAndCommitSnapshot;
+                    scheduleDeferredRefreshRetry(latestNotification);
+                    return;
+                }
+
                 // must be after refresh for `addOrExecuteSegmentGenerationListener to work.
                 currentPrimaryTermGeneration = new PrimaryTermAndGeneration(
                     primaryTerm(segmentInfosAndCommit.segmentInfos()),
                     segmentInfosAndCommit.getGeneration()
                 );
                 assert assertCurrentPrimaryTermGeneration(segmentInfosAndCommit, currentPrimaryTermGeneration);
+                // The advance has caught up to (or past) any previously deferred notification, so the slot is
+                // obsolete. Clearing it lets a concurrent reader-close trigger or a scheduled timer read null
+                // and short-circuit, avoiding a wasted retry that races with this update.
+                pendingDeferredNotification = null;
 
                 var reader = readerManager.acquire();
                 try {
@@ -625,6 +817,95 @@ public class SearchEngine extends Engine {
         assert commit.localCheckpoint() >= processedLocalCheckpoint
             : "Commit [" + commit + "] local checkpoint less than tracked local checkpoint [" + processedLocalCheckpoint + "]";
         processedLocalCheckpoint = commit.localCheckpoint();
+    }
+
+    /**
+     * Delay before retrying a deferred refresh. Set to twice the index's {@code refresh_interval} so the retry
+     * does not race a natural refresh cycle: when writes continue, the next natural notification arrives first and
+     * either advances the reader (making the retry a no-op via {@code findLatestNotification}) or coalesces a fresh
+     * deferred state into the same retry slot. When writes stop, the retry kicks in after at most one missed cycle,
+     * bounding staleness on quiet indices.
+     */
+    private TimeValue deferredRefreshRetryDelay() {
+        long intervalMillis = engineConfig.getIndexSettings().getRefreshInterval().millis();
+        if (intervalMillis < 0) {
+            // refreshes disabled / manual mode — still retry so a quiet index doesn't pin forever.
+            intervalMillis = STATELESS_DEFAULT_REFRESH_INTERVAL.millis();
+        } else if (intervalMillis < 1000L) {
+            // sanity floor against pathologically small intervals.
+            intervalMillis = 1000L;
+        }
+        return TimeValue.timeValueMillis(intervalMillis * 2L);
+    }
+
+    /**
+     * Schedule a deferred-refresh retry. Coalesces multiple defers into a single in-flight task; the latest deferred
+     * notification is captured so the retry re-injects the most recent one.
+     * <p>
+     * The retry appends its deferred notification to the tail of {@code commitNotifications}. That position in the
+     * queue is irrelevant to correctness: {@code findLatestNotification} polls a batch and selects the
+     * <em>maximum-generation</em> entry (not the most-recently-added one), so a newer natural notification queued
+     * either before or after the retry's entry still wins. Two race cases follow:
+     * <ul>
+     * <li>A newer natural notification {@code N2} is already queued but unprocessed when the retry adds the older
+     * {@code N1}: the batch contains both, {@code findLatestNotification} picks {@code N2}, and {@code N1} is
+     * dropped implicitly (the loop only opens a reader for the chosen latest).</li>
+     * <li>A newer natural notification {@code N2} has already advanced the reader past {@code N1}'s generation
+     * before the retry fires: {@code findLatestNotification} skips {@code N1} because its generation is
+     * {@code <= currentPrimaryTermGeneration}, and the {@code previousSegmentInfosAndCommit} check inside
+     * {@code refreshIfNeeded} is a second line of defense.</li>
+     * </ul>
+     */
+    private void scheduleDeferredRefreshRetry(NewCommitNotification notification) {
+        pendingDeferredNotification = notification;
+        if (deferredRefreshScheduled.compareAndSet(false, true) == false) {
+            return;
+        }
+        engineConfig.getThreadPool().schedule(() -> {
+            NewCommitNotification toRetry = pendingDeferredNotification;
+            deferredRefreshScheduled.set(false);
+            if (isClosed.get() || toRetry == null) {
+                return;
+            }
+            commitNotifications.add(toRetry);
+            if (pendingCommitNotifications.incrementAndGet() == 1) {
+                processCommitNotifications();
+            }
+        }, deferredRefreshRetryDelay(), engineConfig.getThreadPool().executor(ThreadPool.Names.REFRESH));
+    }
+
+    /**
+     * Event-driven counterpart to {@link #scheduleDeferredRefreshRetry}: kick a retry of the latest deferred
+     * notification immediately when a reader closes and frees ledger bytes, in case the budget headroom now
+     * accommodates a previously-deferred refresh. Skips if there is nothing pending, if the pending notification
+     * has already been overtaken by the current generation, or if another immediate retry is already in flight.
+     * Independent of the timer-based retry slot — both paths converge in {@code commitNotifications} and
+     * {@code findLatestNotification} handles any redundancy.
+     */
+    private void maybeFireImmediateRetryOnRelease() {
+        NewCommitNotification pending = pendingDeferredNotification;
+        if (pending == null || isClosed.get()) {
+            return;
+        }
+        PrimaryTermAndGeneration current = currentPrimaryTermGeneration;
+        if (current != null && pending.compoundCommit().primaryTermAndGeneration().compareTo(current) <= 0) {
+            return;
+        }
+        if (immediateRetryScheduled.compareAndSet(false, true) == false) {
+            return;
+        }
+        engineConfig.getThreadPool().executor(ThreadPool.Names.REFRESH).execute(() -> {
+            NewCommitNotification toRetry = pendingDeferredNotification;
+            immediateRetryScheduled.set(false);
+            if (isClosed.get() || toRetry == null) {
+                return;
+            }
+            refreshImmediateRetryCount.incrementAndGet();
+            commitNotifications.add(toRetry);
+            if (pendingCommitNotifications.incrementAndGet() == 1) {
+                processCommitNotifications();
+            }
+        });
     }
 
     @Override
@@ -746,7 +1027,7 @@ public class SearchEngine extends Engine {
 
     @Override
     protected DirectoryReader wrapExternalDirectoryReader(DirectoryReader reader, SplitShardCountSummary summary) throws IOException {
-        return ReshardSearchFilters.maybeWrapDirectoryReader(
+        return reshardSearchFilters.maybeWrapDirectoryReader(
             reader,
             shardId,
             summary,
@@ -1275,7 +1556,22 @@ public class SearchEngine extends Engine {
                 for (BlobLocation blobLocation : metadata.values()) {
                     bccDeps.add(blobLocation.getBatchedCompoundCommitTermAndGeneration());
                 }
-                trackLocalOpenReader(relocatedPitReader, indexCommit, Collections.unmodifiableSet(bccDeps));
+                // Account the PIT-relocated reader against the node's reader-heap budget so its segments
+                // participate in reservation tracking and metrics; uses the no-break path because relocation
+                // must always succeed. trackLocalOpenReader and registerReaderHeapRelease both attach close
+                // listeners and can throw before doing so; if either throws, the surrounding finally only closes
+                // the reader, which is not enough to release the ledger reservation here — we must do it ourselves.
+                final SegmentReservations.Reservation pitReservation = reserveAndChargeWithoutBreaking(segmentCommitInfos);
+                boolean pitReservationOwned = false;
+                try {
+                    trackLocalOpenReader(relocatedPitReader, indexCommit, pitReservation, Collections.unmodifiableSet(bccDeps));
+                    registerReaderHeapRelease(relocatedPitReader, pitReservation);
+                    pitReservationOwned = true;
+                } finally {
+                    if (pitReservationOwned == false) {
+                        releaseReservationAndUncharge(pitReservation);
+                    }
+                }
                 // Register the relocated PIT reader with relocatedPITReaderTracker so it is closed
                 // when the engine closes, even if the returned SearcherSupplier is never used (e.g.
                 // because the shard closes before the PIT context is registered with SearchService).
@@ -1298,10 +1594,24 @@ public class SearchEngine extends Engine {
         }));
     }
 
-    private record OpenReaderInfo(Collection<String> files, Set<PrimaryTermAndGeneration> referencedBCCs) {
+    /**
+     * Tracks a directory reader currently alive on this node. {@code reservation} owns the segment keys this reader
+     * holds — sufficient for a future reclamation policy to answer "how many bytes would I free by closing this
+     * reader?" by consulting {@link SegmentReservations}, without retaining the full {@link SegmentInfos}.
+     */
+    private record OpenReaderInfo(
+        Collection<String> files,
+        SegmentReservations.Reservation reservation,
+        Set<PrimaryTermAndGeneration> referencedBCCs
+    ) {
 
-        private OpenReaderInfo(Collection<String> files, Set<PrimaryTermAndGeneration> referencedBCCs) {
+        private OpenReaderInfo(
+            Collection<String> files,
+            SegmentReservations.Reservation reservation,
+            Set<PrimaryTermAndGeneration> referencedBCCs
+        ) {
             this.files = Set.copyOf(files);
+            this.reservation = reservation;
             this.referencedBCCs = referencedBCCs;
         }
     }

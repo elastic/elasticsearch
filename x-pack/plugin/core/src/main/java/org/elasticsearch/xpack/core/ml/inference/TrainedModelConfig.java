@@ -6,6 +6,8 @@
  */
 package org.elasticsearch.xpack.core.ml.inference;
 
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -21,6 +23,7 @@ import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.common.time.TimeUtils;
 import org.elasticsearch.xpack.core.ml.MlConfigVersion;
@@ -60,6 +63,13 @@ import static org.elasticsearch.xpack.core.ml.utils.NamedXContentObjectHelper.wr
 import static org.elasticsearch.xpack.core.ml.utils.ToXContentParams.EXCLUDE_GENERATED;
 
 public class TrainedModelConfig implements ToXContentObject, Writeable {
+
+    public static final int MAX_DESCRIPTION_LENGTH = 1_000;
+    public static final int MAX_TAGS_LENGTH = 100;
+    public static final int MAX_PREFIX_STRING_LENGTH = 1_000;
+    public static final int MAX_INPUT_FIELD_NAMES = 100;
+    public static final int MAX_DEFAULT_FIELD_MAP_ENTRIES = 100;
+    public static final int MAX_METADATA_SIZE_BYTES = (int) ByteSizeValue.ofKb(64).getBytes();
 
     public static final String NAME = "trained_model_config";
     public static final int CURRENT_DEFINITION_COMPRESSION_VERSION = 1;
@@ -912,6 +922,12 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
                     validationException
                 );
             }
+            if (tags.size() > MAX_TAGS_LENGTH) {
+                validationException = addValidationError(
+                    "[" + TAGS.getPreferredName() + "] must contain not more than " + MAX_TAGS_LENGTH + " tags.",
+                    validationException
+                );
+            }
             List<String> badTags = tags.stream()
                 .filter(tag -> (MlStrings.isValidId(tag) && MlStrings.hasValidLengthForId(tag)) == false)
                 .collect(Collectors.toList());
@@ -956,6 +972,72 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
                 // packaged model validation
                 validationException = checkIllegalSetting(modelPackageConfig, MODEL_PACKAGE.getPreferredName(), validationException);
             }
+
+            if (prefixStrings != null) {
+                if (prefixStrings.ingestPrefix() != null && prefixStrings.ingestPrefix().length() > MAX_PREFIX_STRING_LENGTH) {
+                    validationException = addValidationError(
+                        "["
+                            + PREFIX_STRINGS.getPreferredName()
+                            + "."
+                            + TrainedModelPrefixStrings.INGEST_PREFIX.getPreferredName()
+                            + "] must be not more than "
+                            + MAX_PREFIX_STRING_LENGTH
+                            + " characters in length.",
+                        validationException
+                    );
+                }
+                if (prefixStrings.searchPrefix() != null && prefixStrings.searchPrefix().length() > MAX_PREFIX_STRING_LENGTH) {
+                    validationException = addValidationError(
+                        "["
+                            + PREFIX_STRINGS.getPreferredName()
+                            + "."
+                            + TrainedModelPrefixStrings.SEARCH_PREFIX.getPreferredName()
+                            + "] must be not more than "
+                            + MAX_PREFIX_STRING_LENGTH
+                            + " characters in length.",
+                        validationException
+                    );
+                }
+            }
+
+            if (input != null && input.getFieldNames().size() > MAX_INPUT_FIELD_NAMES) {
+                validationException = addValidationError(
+                    "["
+                        + INPUT.getPreferredName()
+                        + "."
+                        + TrainedModelInput.FIELD_NAMES.getPreferredName()
+                        + "] must contain not more than "
+                        + MAX_INPUT_FIELD_NAMES
+                        + " field names.",
+                    validationException
+                );
+            }
+
+            if (defaultFieldMap != null && defaultFieldMap.size() > MAX_DEFAULT_FIELD_MAP_ENTRIES) {
+                validationException = addValidationError(
+                    "["
+                        + DEFAULT_FIELD_MAP.getPreferredName()
+                        + "] must contain not more than "
+                        + MAX_DEFAULT_FIELD_MAP_ENTRIES
+                        + " entries.",
+                    validationException
+                );
+            }
+
+            if (metadata != null && serializationSize(metadata) > MAX_METADATA_SIZE_BYTES) {
+                validationException = addValidationError(
+                    "[" + METADATA.getPreferredName() + "] must be not more than " + MAX_METADATA_SIZE_BYTES + " bytes in size.",
+                    validationException
+                );
+            }
+
+            if (description != null && description.length() > MAX_DESCRIPTION_LENGTH) {
+                validationException = addValidationError(
+                    "[" + DESCRIPTION.getPreferredName() + "] must be not more than " + MAX_DESCRIPTION_LENGTH + " characters in length.",
+                    validationException
+                );
+            }
+
             if (validationException != null) {
                 throw validationException;
             }
@@ -994,6 +1076,15 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
             }
 
             return this;
+        }
+
+        private static int serializationSize(Map<String, Object> map) {
+            try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
+                builder.value(map);
+                return BytesReference.bytes(builder).length();
+            } catch (IOException e) {
+                throw new ElasticsearchException("Error occurred computing serialization size", e);
+            }
         }
 
         private static ActionRequestValidationException checkIllegalSetting(
@@ -1048,6 +1139,14 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
 
     static class LazyModelDefinition implements ToXContentObject, Writeable {
 
+        /**
+         * Preserves whether a definition was submitted as compressed bytes vs parsed XContent on transport.
+         * Without this, {@link #writeTo} always compresses parsed definitions and master-side validation misclassifies them.
+         */
+        static final TransportVersion PRESERVE_DEFINITION_FORM_ON_TRANSPORT = TransportVersion.fromName(
+            "lazy_model_definition_preserve_form"
+        );
+
         private BytesReference compressedRepresentation;
         private TrainedModelDefinition parsedDefinition;
 
@@ -1065,7 +1164,13 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
         }
 
         public static LazyModelDefinition fromStreamInput(StreamInput input) throws IOException {
-            return new LazyModelDefinition(input.readBytesReference(), null);
+            if (input.getTransportVersion().supports(PRESERVE_DEFINITION_FORM_ON_TRANSPORT)) {
+                if (input.readBoolean()) {
+                    return fromCompressedData(input.readBytesReference());
+                }
+                return fromParsedDefinition(new TrainedModelDefinition(input));
+            }
+            return fromCompressedData(input.readBytesReference());
         }
 
         private LazyModelDefinition(LazyModelDefinition definition) {
@@ -1125,7 +1230,17 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeBytesReference(getCompressedDefinition());
+            if (out.getTransportVersion().supports(PRESERVE_DEFINITION_FORM_ON_TRANSPORT)) {
+                if (compressedRepresentation != null) {
+                    out.writeBoolean(true);
+                    out.writeBytesReference(compressedRepresentation);
+                } else {
+                    out.writeBoolean(false);
+                    parsedDefinition.writeTo(out);
+                }
+            } else {
+                out.writeBytesReference(getCompressedDefinition());
+            }
         }
 
         @Override

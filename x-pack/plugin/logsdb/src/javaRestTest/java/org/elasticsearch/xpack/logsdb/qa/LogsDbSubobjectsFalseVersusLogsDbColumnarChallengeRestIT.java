@@ -51,14 +51,14 @@ import java.util.stream.Collectors;
  * under {@code subobjects: false}, which causes indexing failures when dynamic mapping is
  * strict.
  */
-public class LogsDbSubobjectsFalseVersusLogsDbColumnarDataGenerationChallengeRestIT extends BulkChallengeRestIT {
+public class LogsDbSubobjectsFalseVersusLogsDbColumnarChallengeRestIT extends BulkChallengeRestIT {
 
     private static final Set<String> STRIPPED_PARAMS = Set.of("store", "synthetic_source_keep", "subobjects");
     private static final Set<String> SHAPE_TYPES = Set.of("geo_shape", "shape");
 
     private Set<String> shapeFieldPaths;
 
-    public LogsDbSubobjectsFalseVersusLogsDbColumnarDataGenerationChallengeRestIT() {
+    public LogsDbSubobjectsFalseVersusLogsDbColumnarChallengeRestIT() {
         super(new DataGenerationHelper(b -> b.withMaxObjectDepth(0).withNestedFieldsLimit(0).withMaxFieldCountPerLevel(30)));
     }
 

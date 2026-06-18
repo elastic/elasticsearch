@@ -144,6 +144,66 @@ public class PrefetchLatencySimulationTests extends ESTestCase {
         assertTrue("Should have read some rows", optimizedRows > 0);
     }
 
+    /**
+     * Tests the adaptive depth algorithm deterministically by calling
+     * {@link OptimizedParquetColumnIterator#adaptPrefetchDepth} directly — no timing
+     * dependency, no I/O.
+     */
+    public void testAdaptivePrefetchDepthGrowsOnStall() throws Exception {
+        MessageType schema = Types.buildMessage().required(PrimitiveType.PrimitiveTypeName.INT64).named("id").named("test_schema");
+
+        byte[] parquetData = createMultiRowGroupFile(schema, 5000, 4096);
+        CountingStorageObject storage = new CountingStorageObject(parquetData, asyncIoExecutor);
+
+        try (CloseableIterator<Page> iter = new ParquetFormatReader(blockFactory, true).read(storage, FormatReadContext.of(null, 1024))) {
+            OptimizedParquetColumnIterator opi = (OptimizedParquetColumnIterator) iter;
+            int initialDepth = opi.prefetchDepth();
+
+            // Simulate stalls (wasReady = false): depth should grow by PREFETCH_DEPTH_GROWTH (2)
+            opi.adaptPrefetchDepth(false);
+            assertEquals(initialDepth + 2, opi.prefetchDepth());
+            opi.adaptPrefetchDepth(false);
+            assertEquals(initialDepth + 4, opi.prefetchDepth());
+
+            int grownDepth = opi.prefetchDepth();
+
+            // Simulate sustained no-stalls: depth should shrink after SHRINK_AFTER_NO_STALLS (3)
+            opi.adaptPrefetchDepth(true);  // streak = 1
+            opi.adaptPrefetchDepth(true);  // streak = 2
+            assertEquals("Depth should not shrink before reaching the threshold", grownDepth, opi.prefetchDepth());
+            opi.adaptPrefetchDepth(true);  // streak = 3 → shrink by 1
+            assertEquals(grownDepth - 1, opi.prefetchDepth());
+        }
+    }
+
+    /**
+     * Tests that the adaptive depth never exceeds MAX_PREFETCH_DEPTH (8) even under
+     * persistent stalls, and never drops below the byte-based floor.
+     */
+    public void testAdaptivePrefetchDepthBounds() throws Exception {
+        MessageType schema = Types.buildMessage().required(PrimitiveType.PrimitiveTypeName.INT64).named("id").named("test_schema");
+
+        byte[] parquetData = createMultiRowGroupFile(schema, 5000, 4096);
+        CountingStorageObject storage = new CountingStorageObject(parquetData, asyncIoExecutor);
+
+        try (CloseableIterator<Page> iter = new ParquetFormatReader(blockFactory, true).read(storage, FormatReadContext.of(null, 1024))) {
+            OptimizedParquetColumnIterator opi = (OptimizedParquetColumnIterator) iter;
+            int floor = opi.prefetchDepth();
+
+            // Stall many times — depth should cap at MAX_PREFETCH_DEPTH (8)
+            for (int i = 0; i < 20; i++) {
+                opi.adaptPrefetchDepth(false);
+            }
+            assertTrue("Depth should not exceed MAX_PREFETCH_DEPTH", opi.prefetchDepth() <= 8);
+
+            // Sustained no-stalls — depth should not drop below floor
+            for (int i = 0; i < 100; i++) {
+                opi.adaptPrefetchDepth(true);
+            }
+            assertEquals("Depth should not drop below the byte-based floor", floor, opi.prefetchDepth());
+        }
+    }
+
     private void readAll(ParquetFormatReader reader, StorageObject storageObject) throws IOException {
         try (CloseableIterator<Page> iter = reader.read(storageObject, FormatReadContext.of(null, 1024))) {
             while (iter.hasNext()) {
@@ -207,6 +267,11 @@ public class PrefetchLatencySimulationTests extends ESTestCase {
         @Override
         public StoragePath path() {
             return StoragePath.of("memory://counting-test.parquet");
+        }
+
+        @Override
+        public boolean supportsNativeAsync() {
+            return true;
         }
 
         @Override

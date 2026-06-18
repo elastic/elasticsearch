@@ -1,18 +1,16 @@
 area: Infra/Core
-breaking:
-  area: Infra/Core
-  details: Please describe the details of this change for the release notes. You can
-    use asciidoc.
-  impact: Please describe the impact of this change to users
-  notable: false
-  title: Update deprecation of internal monitoring settings to critial
 deprecation:
   area: Infra/Core
-  details: Please describe the details of this change for the release notes. You can
-    use asciidoc.
-  impact: Please describe the impact of this change to users
-  title: Update deprecation of internal monitoring settings to critial
+  details: |-
+    Using the Elasticsearch Monitoring plugin to collect and ship monitoring data is deprecated since 7.16 and will
+    finally be removed in 10.0.
+  impact: |-
+    If you previously configured legacy collection methods, you should migrate to using Elastic Agent or Metricbeat
+    collection methods.
+    Corresponding settings will be removed as well. If such settings are still present after the removal,
+    nodes will fail to start.
+  title: Using the Elasticsearch Monitoring plugin to collect and ship monitoring data is deprecated.
 issues: []
 pr: 151617
-summary: Update deprecation of internal monitoring settings to critial
+summary: Using the Elasticsearch Monitoring plugin to collect and ship monitoring data is deprecated.
 type: deprecation

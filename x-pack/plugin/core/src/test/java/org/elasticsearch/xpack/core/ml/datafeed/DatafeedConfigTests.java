@@ -961,7 +961,7 @@ public class DatafeedConfigTests extends AbstractBWCSerializationTestCase<Datafe
     @Override
     protected DatafeedConfig mutateInstance(DatafeedConfig instance) {
         DatafeedConfig.Builder builder = new DatafeedConfig.Builder(instance);
-        switch (between(0, 14)) {
+        switch (between(0, DatafeedConfig.DATAFEED_CROSS_PROJECT.isEnabled() ? 14 : 12)) {
             case 0:
                 builder.setId(instance.getId() + randomValidDatafeedId());
                 break;
@@ -1061,19 +1061,19 @@ public class DatafeedConfigTests extends AbstractBWCSerializationTestCase<Datafe
                 }
                 break;
             case 13:
-                if (instance.getProjectRouting() == null && DatafeedConfig.DATAFEED_CROSS_PROJECT.isEnabled()) {
-                    builder.setProjectRouting("_alias:" + randomAlphaOfLengthBetween(1, 10) + "-*");
-                } else {
-                    builder.setProjectRouting(null);
-                }
-                break;
-            case 14:
                 if (instance.getCloudInternalCredential() == null) {
                     builder.setCloudInternalCredential(
                         new PersistedCloudCredential(randomAlphaOfLength(10), new SecureString(randomAlphaOfLength(20).toCharArray()))
                     );
                 } else {
                     builder.setCloudInternalCredential(null);
+                }
+                break;
+            case 14:
+                if (instance.getProjectRouting() == null) {
+                    builder.setProjectRouting("_alias:" + randomAlphaOfLengthBetween(1, 10) + "-*");
+                } else {
+                    builder.setProjectRouting(null);
                 }
                 break;
             default:

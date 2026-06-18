@@ -188,6 +188,13 @@ public abstract class IndexShardTestCase extends ESTestCase {
         writeExecutor = threadPool.executor(ThreadPool.Names.WRITE);
         primaryTerm = randomIntBetween(1, 100); // use random but fixed term for creating shards
         failOnShardFailures();
+        // threadPoolSettings() always explicitly sets the deprecated USE_THREAD_POOL_MERGE_SCHEDULER_SETTING,
+        // which fires a deprecation warning when the cluster settings are read during setup above.
+        // Consume it here so subclasses don't need to assert it in every test method.
+        assertWarnings(
+            "[indices.merge.scheduler.use_thread_pool] setting was deprecated in Elasticsearch and will be removed in a future release. "
+                + "See the breaking changes documentation for the next major version."
+        );
     }
 
     @Override

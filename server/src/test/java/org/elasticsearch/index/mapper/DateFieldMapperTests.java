@@ -629,10 +629,19 @@ public class DateFieldMapperTests extends MapperTestCase {
             private final DateFormatter formatter = resolution == DateFieldMapper.Resolution.MILLISECONDS
                 ? DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER
                 : DateFieldMapper.DEFAULT_DATE_TIME_NANOS_FORMATTER;
+            // date fields have doc_values enabled by default, so multi_value: false can always be requested when the feature is on.
+            private final boolean enforceSingleValue = FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled()
+                && randomBoolean();
+
+            @Override
+            public boolean enforcesSingleValue() {
+                return enforceSingleValue;
+            }
 
             @Override
             public SyntheticSourceExample example(int maxValues) {
-                if (randomBoolean()) {
+                // When multi_value is disabled a document may only have a single value, so never take the multi-valued branch below.
+                if (enforceSingleValue || randomBoolean()) {
                     Value v = generateValue();
                     if (v.malformedOutput != null) {
                         return new SyntheticSourceExample(v.input, v.malformedOutput, this::mapping);
@@ -716,6 +725,11 @@ public class DateFieldMapperTests extends MapperTestCase {
                 }
                 if (ignoreMalformed) {
                     b.field("ignore_malformed", true);
+                }
+                if (enforceSingleValue) {
+                    b.startObject("doc_values");
+                    b.field("multi_value", false);
+                    b.endObject();
                 }
             }
 
@@ -882,7 +896,7 @@ public class DateFieldMapperTests extends MapperTestCase {
                 LeafReaderContext context = reader.leaves().get(0);
                 // One big doc block
                 CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(1));
-                try (var columnReader = (AbstractNumericBlockLoader.Singleton<?>) blockLoader.columnAtATimeReader(context).apply(breaker)) {
+                try (var columnReader = (AbstractNumericBlockLoader.Singleton) blockLoader.columnAtATimeReader(context).apply(breaker)) {
                     assertThat(columnReader.numericDocValues(), instanceOf(BlockLoader.OptionalColumnAtATimeReader.class));
                     var docBlock = TestBlock.docs(IntStream.range(from, to).toArray());
                     var block = (TestBlock) columnReader.read(TestBlock.factory(), docBlock, 0, false);
@@ -893,7 +907,7 @@ public class DateFieldMapperTests extends MapperTestCase {
                 }
                 // Smaller doc blocks
                 int docBlockSize = 1000;
-                try (var columnReader = (AbstractNumericBlockLoader.Singleton<?>) blockLoader.columnAtATimeReader(context).apply(breaker)) {
+                try (var columnReader = (AbstractNumericBlockLoader.Singleton) blockLoader.columnAtATimeReader(context).apply(breaker)) {
                     assertThat(columnReader.numericDocValues(), instanceOf(BlockLoader.OptionalColumnAtATimeReader.class));
                     for (int i = from; i < to; i += docBlockSize) {
                         var docBlock = TestBlock.docs(IntStream.range(i, i + docBlockSize).toArray());
@@ -906,7 +920,7 @@ public class DateFieldMapperTests extends MapperTestCase {
                     }
                 }
                 // One smaller doc block:
-                try (var columnReader = (AbstractNumericBlockLoader.Singleton<?>) blockLoader.columnAtATimeReader(context).apply(breaker)) {
+                try (var columnReader = (AbstractNumericBlockLoader.Singleton) blockLoader.columnAtATimeReader(context).apply(breaker)) {
                     assertThat(columnReader.numericDocValues(), instanceOf(BlockLoader.OptionalColumnAtATimeReader.class));
                     var docBlock = TestBlock.docs(IntStream.range(1010, 2020).toArray());
                     var block = (TestBlock) columnReader.read(TestBlock.factory(), docBlock, 0, false);
@@ -917,7 +931,7 @@ public class DateFieldMapperTests extends MapperTestCase {
                     }
                 }
                 // Read two tiny blocks:
-                try (var columnReader = (AbstractNumericBlockLoader.Singleton<?>) blockLoader.columnAtATimeReader(context).apply(breaker)) {
+                try (var columnReader = (AbstractNumericBlockLoader.Singleton) blockLoader.columnAtATimeReader(context).apply(breaker)) {
                     assertThat(columnReader.numericDocValues(), instanceOf(BlockLoader.OptionalColumnAtATimeReader.class));
                     var docBlock = TestBlock.docs(IntStream.range(32, 64).toArray());
                     var block = (TestBlock) columnReader.read(TestBlock.factory(), docBlock, 0, false);

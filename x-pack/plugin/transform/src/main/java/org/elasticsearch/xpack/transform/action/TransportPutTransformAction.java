@@ -25,6 +25,7 @@ import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.rest.RestStatus;
@@ -69,6 +70,7 @@ public class TransportPutTransformAction extends AcknowledgedTransportMasterNode
     private final TransformConfigAutoMigration transformConfigAutoMigration;
     private final BooleanSupplier hasLinkedProjects;
     private final ProjectResolver projectResolver;
+    private final TransformCloudCredentialManager cloudCredentialManager;
 
     @Inject
     public TransportPutTransformAction(
@@ -103,13 +105,14 @@ public class TransportPutTransformAction extends AcknowledgedTransportMasterNode
         this.transformConfigAutoMigration = transformConfigAutoMigration;
         this.hasLinkedProjects = () -> transformServices.hasLinkedProjects().apply(projectResolver.getProjectId());
         this.projectResolver = projectResolver;
+        this.cloudCredentialManager = transformServices.cloudCredentialManager();
     }
 
     @Override
     protected void masterOperation(Task task, Request request, ClusterState clusterState, ActionListener<AcknowledgedResponse> listener) {
         XPackPlugin.checkReadyForXPackCustomMetadata(clusterState);
 
-        if (TransformMetadata.isUpgradeMode(clusterState)) {
+        if (TransformMetadata.isUpgradeMode(projectResolver.getProjectMetadata(clusterState))) {
             listener.onFailure(
                 new ElasticsearchStatusException(
                     "Cannot create new Transform while the Transform feature is upgrading.",
@@ -131,23 +134,41 @@ public class TransportPutTransformAction extends AcknowledgedTransportMasterNode
             return;
         }
 
-        // <3> Create the transform
-        ActionListener<ValidateTransformAction.Response> validateTransformListener = listener.delegateFailureAndWrap(
-            (l, unused) -> putTransform(request, l)
+        // <4> Create the transform, stamping the minted tokenId (if any) onto the config so the
+        // running task and indexer can later load the credential by id.
+        ActionListener<String> mintCredentialListener = listener.delegateFailureAndWrap(
+            (l, mintedTokenId) -> putTransform(config.withCredentialId(mintedTokenId), mintedTokenId, l)
         );
+
+        // <3> Mint cloud credential if UIAM is present (no-op when the feature is off: mintAndPersist
+        // sees no caller credential and responds with a null tokenId).
+        ActionListener<ValidateTransformAction.Response> validateTransformListener = mintCredentialListener
+            .delegateFailureIgnoreResponseAndWrap(l -> cloudCredentialManager.mintAndPersist(transformId, l));
 
         // <2> Validate source and destination indices
         var parentTaskId = new TaskId(clusterService.localNode().getId(), task.getId());
-        ActionListener<Void> checkPrivilegesListener = validateTransformListener.delegateFailureAndWrap(
-            (l, aVoid) -> ClientHelper.executeAsyncWithOrigin(
-                new ParentTaskAssigningClient(client, parentTaskId),
+        var parentTaskClient = new ParentTaskAssigningClient(client, parentTaskId);
+        ActionListener<Void> checkPrivilegesListener = validateTransformListener.delegateFailureAndWrap((l, aVoid) -> {
+            // Hoist into a local so we can hand the same instance to executeAsyncWithOrigin and to
+            // releaseAfter, which closes the request (and its CloudCredential SecureString) once the
+            // dispatch listener fires. Plugs the leak when the request is forwarded to a remote node
+            // or when dispatch fails synchronously before the receiver-side releaseAfter is set up.
+            // Request.close() is null-safe so this path is identical for non-UIAM callers.
+            var validateRequest = new ValidateTransformAction.Request(
+                config,
+                request.isDeferValidation(),
+                request.ackTimeout(),
+                cloudCredentialManager.currentCallerCredential()
+            );
+            ClientHelper.executeAsyncWithOrigin(
+                parentTaskClient,
                 ClientHelper.TRANSFORM_ORIGIN,
                 ValidateTransformAction.INSTANCE,
                 true,
-                new ValidateTransformAction.Request(config, request.isDeferValidation(), request.ackTimeout()),
-                l
-            )
-        );
+                validateRequest,
+                ActionListener.releaseAfter(l, validateRequest)
+            );
+        });
 
         // <1> Early check to verify that the user can create the destination index and can read from the source
         if (XPackSettings.SECURITY_ENABLED.get(settings)) {
@@ -194,10 +215,14 @@ public class TransportPutTransformAction extends AcknowledgedTransportMasterNode
         return state.blocks().globalBlockedException(projectResolver.getProjectId(), ClusterBlockLevel.METADATA_WRITE);
     }
 
-    private void putTransform(Request request, ActionListener<AcknowledgedResponse> listener) {
-        var config = transformConfigAutoMigration.migrate(request.getConfig());
-        transformConfigManager.putTransformConfiguration(config, listener.delegateFailureAndWrap((l, unused) -> {
-            var transformId = config.getId();
+    private void putTransform(
+        TransformConfig originalConfig,
+        @Nullable String mintedTokenId,
+        ActionListener<AcknowledgedResponse> listener
+    ) {
+        var config = transformConfigAutoMigration.migrate(originalConfig);
+        var transformId = config.getId();
+        transformConfigManager.putTransformConfiguration(config, ActionListener.wrap(unused -> {
             logger.info("[{}] created transform", transformId);
             auditor.info(transformId, "Created transform.");
 
@@ -207,7 +232,17 @@ public class TransportPutTransformAction extends AcknowledgedTransportMasterNode
                 auditor.warning(transformId, warning);
             });
 
-            l.onResponse(AcknowledgedResponse.TRUE);
+            listener.onResponse(AcknowledgedResponse.TRUE);
+        }, configWriteFailure -> {
+            // Roll back the just-minted credential so we never leave an orphan at UIAM nor an
+            // empty/leaked storage doc. mintedTokenId is null when no UIAM context was present (the
+            // helper short-circuits in that case).
+            logger.debug("[{}] config write failed after credential mint [{}], compensating revoke + delete", transformId, mintedTokenId);
+            cloudCredentialManager.loadRevokeAndDeleteByTokenId(
+                transformId,
+                mintedTokenId,
+                ActionListener.running(() -> listener.onFailure(configWriteFailure))
+            );
         }));
     }
 }

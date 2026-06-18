@@ -825,7 +825,7 @@ public class HierarchicalKMeans<V> {
      * @param targetSize       target number of vectors per cluster
      * @return clustering result with assignments and SOAR assignments
      */
-    @SuppressWarnings({ "rawtypes", "unchecked" })
+    @SuppressWarnings({ "rawtypes", "unchecked", "cast" })
     public KMeansResult<float[]> clusterByInsertion(
         ClusteringFloatVectorValues vectors,
         ClusteringFloatVectorValues initialCentroids,
@@ -910,7 +910,7 @@ public class HierarchicalKMeans<V> {
      * @param targetSize         target vectors per cluster
      * @return clustering result
      */
-    @SuppressWarnings({ "rawtypes", "unchecked" })
+    @SuppressWarnings({ "rawtypes", "unchecked", "cast" })
     public KMeansResult<float[]> clusterByConcatenation(
         ClusteringFloatVectorValues vectors,
         ClusteringFloatVectorValues allPriorCentroids,

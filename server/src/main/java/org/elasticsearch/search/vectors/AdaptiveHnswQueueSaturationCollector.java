@@ -11,6 +11,8 @@ package org.elasticsearch.search.vectors;
 
 import org.apache.lucene.search.HnswQueueSaturationCollector;
 import org.apache.lucene.search.KnnCollector;
+import org.apache.lucene.search.TopDocs;
+import org.apache.lucene.search.TotalHits;
 
 /**
  * A {@link KnnCollector.Decorator} extending {@link HnswQueueSaturationCollector}
@@ -67,6 +69,16 @@ public class AdaptiveHnswQueueSaturationCollector extends HnswQueueSaturationCol
     @Override
     public boolean earlyTerminated() {
         return patienceFinished || super.earlyTerminated();
+    }
+
+    @Override
+    public TopDocs topDocs() {
+        if (patienceFinished && super.earlyTerminated() == false) {
+            TopDocs delegateDocs = super.topDocs();
+            TotalHits totalHits = new TotalHits(delegateDocs.totalHits.value(), TotalHits.Relation.EQUAL_TO);
+            return new TopDocs(totalHits, delegateDocs.scoreDocs);
+        }
+        return super.topDocs();
     }
 
     @Override

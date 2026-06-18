@@ -35,6 +35,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.RangeAwareFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.RangeAwareFormatReader.SplitRange;
 import org.elasticsearch.xpack.esql.datasources.spi.RangeReadContext;
+import org.elasticsearch.xpack.esql.datasources.spi.RecordSplitter;
 import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SplitDiscoveryContext;
@@ -70,6 +71,7 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThan;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.mock;
@@ -584,7 +586,9 @@ public class FileSplitProviderTests extends ESTestCase {
     ) throws IOException {
         SegmentableFormatReader mockReader = mock(SegmentableFormatReader.class);
         when(mockReader.minimumSegmentSize()).thenReturn(1024L);
-        when(mockReader.findNextRecordBoundary(any())).thenAnswer(invocation -> {
+        RecordSplitter mockSplitter = mock(RecordSplitter.class);
+        when(mockReader.recordSplitter(anyInt())).thenReturn(mockSplitter);
+        when(mockSplitter.findNextRecordBoundary(any())).thenAnswer(invocation -> {
             InputStream in = invocation.getArgument(0);
             long consumed = 0;
             int b;
@@ -646,7 +650,7 @@ public class FileSplitProviderTests extends ESTestCase {
             }
         }
         assertEquals(fileLength, expectedOffset);
-        verify(mockReader, atLeastOnce()).findNextRecordBoundary(any());
+        verify(mockSplitter, atLeastOnce()).findNextRecordBoundary(any());
     }
 
     /**
@@ -682,7 +686,13 @@ public class FileSplitProviderTests extends ESTestCase {
         StorageObject obj = createInMemoryStorageObject(payload, StoragePath.of("mem://test.csv"));
 
         long stride = fileLength / 4;
-        List<Long> starts = FileSplitProvider.computeRecordAlignedMacroSplitStarts(csvReader, obj, fileLength, stride);
+        List<Long> starts = FileSplitProvider.computeRecordAlignedMacroSplitStarts(
+            csvReader,
+            obj,
+            fileLength,
+            stride,
+            SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES
+        );
 
         assertTrue("Expected multiple macro-split boundaries, got " + starts.size(), starts.size() > 1);
         assertEquals("First boundary must be 0", 0L, starts.get(0).longValue());
@@ -701,7 +711,7 @@ public class FileSplitProviderTests extends ESTestCase {
 
         // Read each split range with recordAligned=true and count total rows.
         var meta = csvReader.metadata(obj);
-        var withSchema = (CsvFormatReader) csvReader.withSchema(meta.schema());
+        var withSchema = csvReader.withSchema(meta.schema());
         long totalRows = 0;
         for (int i = 0; i < starts.size(); i++) {
             long start = starts.get(i);
@@ -749,7 +759,13 @@ public class FileSplitProviderTests extends ESTestCase {
 
         var csvReader = new CsvFormatReader(blockFactory);
         long stride = fileLength / 4;
-        List<Long> starts = FileSplitProvider.computeRecordAlignedMacroSplitStarts(csvReader, object, fileLength, stride);
+        List<Long> starts = FileSplitProvider.computeRecordAlignedMacroSplitStarts(
+            csvReader,
+            object,
+            fileLength,
+            stride,
+            SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES
+        );
 
         assertThat("expected multiple macro-split boundaries", starts.size(), greaterThan(1));
         assertTrue("each boundary probe must abort the underlying stream", tracking.abortCalls.get() >= starts.size() - 1);
@@ -758,6 +774,21 @@ public class FileSplitProviderTests extends ESTestCase {
             tracking.bytesConsumed.get(),
             lessThan(fileLength / 2)
         );
+    }
+
+    public void testRecordAlignedMacroSplitDiscoveryStopsOnMaxRecordSize() throws IOException {
+        var blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("test")).build();
+        StringBuilder csv = new StringBuilder("ok\n").append("x".repeat(128)).append('\n');
+        while (csv.length() < 2 * 1024 * 1024) {
+            csv.append("tail\n");
+        }
+        byte[] payload = csv.toString().getBytes(StandardCharsets.UTF_8);
+        StorageObject object = createInMemoryStorageObject(payload, StoragePath.of("mem://test.csv"));
+        CsvFormatReader csvReader = new CsvFormatReader(blockFactory);
+
+        List<Long> starts = FileSplitProvider.computeRecordAlignedMacroSplitStarts(csvReader, object, payload.length, 4, 16);
+
+        assertEquals(List.of(0L), starts);
     }
 
     private static StorageObject createInMemoryStorageObject(byte[] data, StoragePath path) {

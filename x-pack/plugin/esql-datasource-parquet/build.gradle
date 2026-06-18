@@ -17,6 +17,10 @@ versions << [
   'hadoop' : '3.4.3',
 ]
 
+tasks.withType(JavaCompile).configureEach {
+  options.compilerArgs << '-Xlint:-classfile'
+}
+
 esplugin {
   name = 'esql-datasource-parquet'
   description = 'Parquet format support for ESQL external data sources'
@@ -69,7 +73,28 @@ dependencies {
 tasks.named("test").configure {
   // Needed for Arrow's direct memory access (UnsafeAllocationManager)
   jvmArgs('--add-opens=java.base/java.nio=ALL-UNNAMED')
+  // Run the whole suite under Arrow's debug allocator so any use-after-free, double-free, or
+  // unreleased ArrowBuf on the direct-memory read path fails deterministically with a stack
+  // trace at the offending allocation instead of surfacing as a flaky native corruption
+  // (e.g. zstd "Src size is incorrect") in an unrelated test later in the same JVM.
+  systemProperty 'arrow.memory.debug.allocator', 'true'
+  // The wall-time perf smoke runs in its own JVM on the production allocator — see perfSmokeTest.
+  exclude '**/OptimizedReaderPerformanceTests.class'
 }
+
+// OptimizedReaderPerformanceTests asserts a wall-time ratio (optimized vs baseline). The Arrow
+// debug allocator's per-buffer ledger inflates the Arrow path ~20x and only penalizes the
+// optimized side, so the ratio is meaningless under it — and the flag is a static-final JVM
+// global that cannot be toggled per-test. Run this one class in its own JVM on the production
+// (non-debug) allocator so it always executes in CI with a meaningful measurement.
+tasks.register('perfSmokeTest', Test) {
+  include '**/OptimizedReaderPerformanceTests.class'
+  jvmArgs('--add-opens=java.base/java.nio=ALL-UNNAMED')
+  testClassesDirs = sourceSets.test.output.classesDirs
+  classpath = sourceSets.test.runtimeClasspath
+}
+
+tasks.named("check").configure { dependsOn "perfSmokeTest" }
 
 tasks.named("dependencyLicenses").configure {
   mapping from: /lucene-.*/, to: 'lucene'

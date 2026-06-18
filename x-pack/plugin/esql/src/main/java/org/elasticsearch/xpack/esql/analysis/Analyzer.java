@@ -2493,6 +2493,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                             AbstractConvertFunction originalConversionFunction = (AbstractConvertFunction) entry.getValue();
                             Expression originalField = originalConversionFunction.field();
                             Expression newConvertFunction = convertExpression.replaceChildren(Collections.singletonList(originalField));
+                            // Resolve surrogates immediately, since expressions stored in UnionTypeEsField are serialized
+                            // to data nodes, and SurrogateExpressions cannot be serialized.
+                            newConvertFunction = SubstituteSurrogateExpressions.rule(newConvertFunction);
                             indexToConversionExpressions.put(indexName, newConvertFunction);
                         }
                         // The only code that creates MultiTypeEsField with synthetic=false (reaching this branch) is

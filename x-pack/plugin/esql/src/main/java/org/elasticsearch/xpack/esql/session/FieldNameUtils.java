@@ -203,7 +203,7 @@ public class FieldNameUtils {
                     forkRefsResult.addAll(referencesBuilder.get());
                 }
 
-                forkRefsResult.removeIf(attr -> attr.name().equals(Fork.FORK_FIELD));
+                forkRefsResult.removeIf(attr -> attr.name().equals(Fork.FORK_FIELD) || attr.name().equals(Fork.FORK_ID_FIELD));
                 referencesBuilder.set(forkRefsResult);
 
                 // Return early, we've already explored all fork branches.

@@ -3,9 +3,11 @@ breaking:
   area: ES|QL
   details: >-
     In previous versions `FUSE` merged rows with matching `key_columns` by keeping all distinct
-    values for each passthrough column. Now `FUSE` selects the first non-null value for each passthrough
-    column, or null in the absence of a value. `FUSE` now supports passing through all field
-    types except `aggregate_metric_double` and `date_range`.
+    values for each passthrough column. Now `FUSE` selects the first non-null value from the
+    earliest fork branch for each passthrough column, or null in the absence of a value.
+    `FUSE` now supports passing through all field types except `aggregate_metric_double`,
+    `histogram`, and `date_range`. When different `FORK` branches compute different derived
+    values for the same column, the value from the first (lowest-numbered) branch is used.
   impact: >-
     This has no impact if passthrough columns come from the same document with identical column values
     across fork branches. Queries that relied on `FUSE` collecting multiple distinct values for a passthrough

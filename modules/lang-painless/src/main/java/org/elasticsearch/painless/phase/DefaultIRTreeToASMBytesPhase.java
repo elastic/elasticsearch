@@ -507,25 +507,47 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
      * {@code #scriptThis} for static lambdas. Net stack effect is zero, so it can be emitted directly before the allocation.
      */
     private static void writeAllocationCheck(WriteScope writeScope, long bytes) {
-        if (writeScope.getInternalVariable("allocLimit") == null) {
+        if (isAllocationTrackingActive(writeScope) == false) {
             return;
         }
 
         MethodWriter methodWriter = writeScope.getMethodWriter();
+        loadScriptPointer(writeScope, methodWriter);
+        methodWriter.push(bytes);
+        methodWriter.invokeInterface(BASE_INTERFACE_TYPE, WriterConstants.CHECK_ALLOC_BYTES);
+    }
+
+    /**
+     * True when allocation tracking is active for the enclosing function, signalled by the {@code #allocLimit} marker
+     * (absent when tracking is off or no script pointer is reachable). Sites that build a runtime size must gate the extra
+     * work on this so the disabled path stays bit-identical to today.
+     */
+    private static boolean isAllocationTrackingActive(WriteScope writeScope) {
+        return writeScope.getInternalVariable("allocLimit") != null;
+    }
+
+    /**
+     * Pushes the script instance onto the stack as a {@code PainlessScript}: {@code this} for instance methods and
+     * instance-capturing lambdas, or the captured {@code #scriptThis} (narrowed to the interface) for static lambdas.
+     */
+    private static void loadScriptPointer(WriteScope writeScope, MethodWriter methodWriter) {
         Variable thisVariable = writeScope.getInternalVariable("this");
 
         if (thisVariable != null) {
-            // Instance method or instance-capturing lambda: `this` is the generated class, which implements PainlessScript.
             methodWriter.loadThis();
         } else {
-            // Static lambda that captured #scriptThis (typed Object) for cancellation: narrow it to the script interface.
             Variable scriptThis = writeScope.getInternalVariable("scriptThis");
             methodWriter.visitVarInsn(Opcodes.ALOAD, scriptThis.getSlot());
             methodWriter.checkCast(BASE_INTERFACE_TYPE);
         }
+    }
 
-        methodWriter.push(bytes);
-        methodWriter.invokeInterface(BASE_INTERFACE_TYPE, WriterConstants.CHECK_ALLOC_BYTES);
+    /** Replaces the {@code long} on top of the stack with {@code pad8(x)} = {@code (x + 7) & ~7} (8-byte alignment). */
+    private static void writePad8(MethodWriter methodWriter) {
+        methodWriter.push(7L);
+        methodWriter.math(MethodWriter.ADD, Type.LONG_TYPE);
+        methodWriter.push(~7L);
+        methodWriter.math(MethodWriter.AND, Type.LONG_TYPE);
     }
 
     @Override
@@ -1453,7 +1475,8 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
                 visit(irArgumentNode, writeScope);
                 methodWriter.arrayStore(MethodWriter.getType(expressionType.getComponentType()));
             }
-        } else {
+        } else if (isAllocationTrackingActive(writeScope) == false) {
+            // Tracking off: bit-identical to before allocation tracking existed.
             for (ExpressionNode irArgumentNode : irArgumentNodes) {
                 visit(irArgumentNode, writeScope);
             }
@@ -1463,6 +1486,88 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
             } else {
                 methodWriter.newArray(MethodWriter.getType(expressionType.getComponentType()));
             }
+        } else if (irArgumentNodes.size() == 1) {
+            // new T[n], 1-D: size is runtime. Evaluate n, spill it, charge pad8(16 + elemSize*n), then allocate.
+            // A partial allocation such as new int[5][] also lands here with a reference component type (charges only the outer).
+            Class<?> componentType = expressionType.getComponentType();
+            visit(irArgumentNodes.get(0), writeScope);
+            Variable length = writeScope.defineInternalVariable(int.class, "arrayLength");
+            methodWriter.visitVarInsn(Opcodes.ISTORE, length.getSlot());
+
+            loadScriptPointer(writeScope, methodWriter);
+            methodWriter.visitVarInsn(Opcodes.ILOAD, length.getSlot());
+            methodWriter.visitInsn(Opcodes.I2L);
+            methodWriter.push((long) AllocSizes.fieldSize(componentType));
+            methodWriter.math(MethodWriter.MUL, Type.LONG_TYPE);
+            methodWriter.push((long) AllocSizes.ARRAY_HEADER);
+            methodWriter.math(MethodWriter.ADD, Type.LONG_TYPE);
+            writePad8(methodWriter);
+            methodWriter.invokeInterface(BASE_INTERFACE_TYPE, WriterConstants.CHECK_ALLOC_BYTES);
+
+            methodWriter.visitVarInsn(Opcodes.ILOAD, length.getSlot());
+            methodWriter.newArray(MethodWriter.getType(componentType));
+        } else {
+            // new T[d0][d1]...[dN-1], multi-dim (MULTIANEWARRAY): all dims are provided. Charge every level via the
+            // inline equivalent of AllocSizes.multiArraySize. Evaluate dims in source order, spill to locals, then
+            // accumulate total = Σ level_k * pad8(16 + elemAtLevel_k * dim_k), where level_k = dim_0*...*dim_(k-1).
+            int dimCount = irArgumentNodes.size();
+            int[] dimSlots = new int[dimCount];
+            for (int k = 0; k < dimCount; ++k) {
+                visit(irArgumentNodes.get(k), writeScope);
+                dimSlots[k] = writeScope.defineInternalVariable(int.class, "arrayDim" + k).getSlot();
+            }
+            // Dims are on the stack as [d0, d1, ..., d(N-1)] with d(N-1) on top; spill in reverse.
+            for (int k = dimCount - 1; k >= 0; --k) {
+                methodWriter.visitVarInsn(Opcodes.ISTORE, dimSlots[k]);
+            }
+
+            Class<?> innermostComponentType = expressionType;
+            for (int k = 0; k < dimCount; ++k) {
+                innermostComponentType = innermostComponentType.getComponentType();
+            }
+            int innermostElemSize = AllocSizes.fieldSize(innermostComponentType);
+
+            Variable total = writeScope.defineInternalVariable(long.class, "allocSize");
+            Variable level = writeScope.defineInternalVariable(long.class, "allocLevel");
+            methodWriter.push(0L);
+            methodWriter.visitVarInsn(Opcodes.LSTORE, total.getSlot());
+            methodWriter.push(1L);
+            methodWriter.visitVarInsn(Opcodes.LSTORE, level.getSlot());
+
+            for (int k = 0; k < dimCount; ++k) {
+                int elemAtLevel = (k < dimCount - 1) ? AllocSizes.REFERENCE_SIZE : innermostElemSize;
+                // perArray = pad8(16 + elemAtLevel * (long) dim_k)
+                methodWriter.visitVarInsn(Opcodes.ILOAD, dimSlots[k]);
+                methodWriter.visitInsn(Opcodes.I2L);
+                methodWriter.push((long) elemAtLevel);
+                methodWriter.math(MethodWriter.MUL, Type.LONG_TYPE);
+                methodWriter.push((long) AllocSizes.ARRAY_HEADER);
+                methodWriter.math(MethodWriter.ADD, Type.LONG_TYPE);
+                writePad8(methodWriter);
+                // total += level * perArray
+                methodWriter.visitVarInsn(Opcodes.LLOAD, level.getSlot());
+                methodWriter.math(MethodWriter.MUL, Type.LONG_TYPE);
+                methodWriter.visitVarInsn(Opcodes.LLOAD, total.getSlot());
+                methodWriter.math(MethodWriter.ADD, Type.LONG_TYPE);
+                methodWriter.visitVarInsn(Opcodes.LSTORE, total.getSlot());
+                // level *= dim_k (not needed past the innermost level)
+                if (k < dimCount - 1) {
+                    methodWriter.visitVarInsn(Opcodes.LLOAD, level.getSlot());
+                    methodWriter.visitVarInsn(Opcodes.ILOAD, dimSlots[k]);
+                    methodWriter.visitInsn(Opcodes.I2L);
+                    methodWriter.math(MethodWriter.MUL, Type.LONG_TYPE);
+                    methodWriter.visitVarInsn(Opcodes.LSTORE, level.getSlot());
+                }
+            }
+
+            loadScriptPointer(writeScope, methodWriter);
+            methodWriter.visitVarInsn(Opcodes.LLOAD, total.getSlot());
+            methodWriter.invokeInterface(BASE_INTERFACE_TYPE, WriterConstants.CHECK_ALLOC_BYTES);
+
+            for (int k = 0; k < dimCount; ++k) {
+                methodWriter.visitVarInsn(Opcodes.ILOAD, dimSlots[k]);
+            }
+            methodWriter.visitMultiANewArrayInsn(MethodWriter.getType(expressionType).getDescriptor(), dimCount);
         }
     }
 

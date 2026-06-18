@@ -36,7 +36,7 @@ import static java.util.Collections.singletonList;
  * @see UnresolvedSourceRelation marker implemented by both shapes; match on it to traverse any
  * FROM-style leaf.
  */
-public class UnresolvedExternalRelation extends LeafPlan implements Unresolvable, UnresolvedSourceRelation {
+public final class UnresolvedExternalRelation extends LeafPlan implements Unresolvable, UnresolvedSourceRelation {
 
     private final Expression tablePath;
     private final Map<String, Object> config;

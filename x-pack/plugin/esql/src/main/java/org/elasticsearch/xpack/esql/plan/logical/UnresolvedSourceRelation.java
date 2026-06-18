@@ -7,8 +7,9 @@
 package org.elasticsearch.xpack.esql.plan.logical;
 
 /**
- * Marker for the unresolved leaf plans the parser produces for {@code FROM}-style source commands.
- * Today there are two shapes:
+ * Marker for the unresolved leaf plans the parser produces for {@code FROM}-style source commands. The interface is
+ * {@code sealed}: every shape must be listed in the {@code permits} clause, so adding one is a compile-time decision
+ * rather than a silent drift. Today there are two shapes:
  * <ul>
  *   <li>{@link UnresolvedRelation} — the index-pattern path ({@code FROM <index>}, {@code TS}, etc.).</li>
  *   <li>{@link UnresolvedExternalRelation} — the external/dataset path ({@code FROM <dataset>} and inline
@@ -41,4 +42,4 @@ package org.elasticsearch.xpack.esql.plan.logical;
  * @see UnresolvedRelation
  * @see UnresolvedExternalRelation
  */
-public interface UnresolvedSourceRelation {}
+public sealed interface UnresolvedSourceRelation permits UnresolvedRelation, UnresolvedExternalRelation {}

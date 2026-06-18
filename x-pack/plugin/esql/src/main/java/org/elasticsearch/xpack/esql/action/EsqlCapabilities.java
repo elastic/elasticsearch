@@ -3139,6 +3139,11 @@ public class EsqlCapabilities {
         PROMQL_HISTOGRAM_QUANTILE,
 
         /**
+         * Support for the top-level PromQL {@code or} (UNION) set operator between two instant vectors.
+         */
+        PROMQL_SET_OPERATOR_UNION,
+
+        /**
          * Support for PromQL {@code histogram_quantile()} over classic histograms where {@code le} is not an explicit
          * child output.
          */

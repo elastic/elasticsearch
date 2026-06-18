@@ -1832,8 +1832,8 @@ public final class TextFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected boolean isNonNullValueEnforced() {
-        return docValuesParameters.nullability() == false;
+    protected boolean isNullable() {
+        return docValuesParameters.nullability();
     }
 
     @Override

@@ -43,13 +43,11 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.MAX_DIMS_COUNT;
@@ -132,16 +130,6 @@ public final class DocumentParser {
         };
     }
 
-    private Set<FieldMapper> nonNullableMappers(MappingLookup mappingLookup) {
-        Set<FieldMapper> mappers = new HashSet<>();
-        for (var mapper : mappingLookup.fieldMappers()) {
-            if (mapper instanceof FieldMapper fm && fm.isNonNullValueEnforced()) {
-                mappers.add(fm);
-            }
-        }
-        return mappers;
-    }
-
     private static void skipChildren(DocumentParserContext context) throws IOException {
         boolean withinLeafObject = context.path().isWithinLeafObject();
         // treat everything as leaf while skipping children, this allows parser decorators
@@ -183,30 +171,12 @@ public final class DocumentParser {
             for (MetadataFieldMapper metadataMapper : metadataFieldsMappers) {
                 metadataMapper.postParse(context);
             }
-            for (Mapper mapper : context.mappingLookup().fieldMappers()) {
-                if (mapper instanceof FieldMapper fieldMapper && fieldMapper.isNonNullValueEnforced()) {
-                    enforceNonNull(fieldMapper, context);
-                }
+            for (FieldMapper mapper : context.mappingLookup().nonNullableMappers()) {
+                mapper.throwIfNullValue(context);
             }
         } catch (Exception e) {
             throw wrapInDocumentParsingException(context, e);
         }
-    }
-
-    private static void enforceNonNull(FieldMapper fieldMapper, DocumentParserContext context) {
-        var fullPath = fieldMapper.fullPath();
-        if (context.getIgnoredFields().contains(fullPath)) {
-            return;
-        }
-        if (context.doc().getField(fullPath) != null) {
-            return;
-        }
-        for (var doc : context.nonRootDocuments()) {
-            if (doc.getField(fullPath) != null) {
-                return;
-            }
-        }
-        throw new IllegalArgumentException("Field [" + fullPath + "] is configured with [nullability=false] but encountered a null value");
     }
 
     private static void executeIndexTimeScripts(DocumentParserContext context) {

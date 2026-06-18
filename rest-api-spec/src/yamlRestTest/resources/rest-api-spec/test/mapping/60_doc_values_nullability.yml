@@ -8,8 +8,6 @@
       indices.create:
         index: test_roundtrip
         body:
-          settings:
-            index.mode: logsdb
           mappings:
             properties:
               kw:
@@ -33,8 +31,6 @@
       indices.create:
         index: test_rejects_null
         body:
-          settings:
-            index.mode: logsdb
           mappings:
             properties:
               kw:
@@ -71,8 +67,6 @@
       indices.create:
         index: test_rejects_missing
         body:
-          settings:
-            index.mode: logsdb
           mappings:
             properties:
               kw:
@@ -108,8 +102,6 @@
       indices.create:
         index: test_accepts_mixed
         body:
-          settings:
-            index.mode: logsdb
           mappings:
             properties:
               kw:

@@ -319,11 +319,28 @@ public abstract class FieldMapper extends Mapper {
     }
 
     /**
-     * Whether this mapper enforces non-null semantics (ie. {@code nullability=false}). When {@code true}, a null/missing value for the
+     * Whether this mapper allows null values (i.e. {@code nullability=true}). When {@code false}, a null/missing value for the
      * document throws. Override on mappers that expose the {@code nullability} doc values mapping parameter.
      */
-    protected boolean isNonNullValueEnforced() {
-        return false;
+    protected boolean isNullable() {
+        return true;
+    }
+
+    /**
+     * Checks if the document in the given context has a value for this field. Throws an exception if value is null or missing.
+     */
+    protected void throwIfNullValue(DocumentParserContext context) {
+        if (context.getIgnoredFields().contains(fullPath) || context.doc().getField(fullPath) != null) {
+            return;
+        }
+        for (var doc : context.nonRootDocuments()) {
+            if (doc.getField(fullPath) != null) {
+                return;
+            }
+        }
+        throw new IllegalArgumentException(
+            "Field [" + fullPath + "] is configured with [nullability=false] but encountered a null value"
+        );
     }
 
     /**

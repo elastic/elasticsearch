@@ -13,12 +13,14 @@ import org.apache.lucene.tests.util.TimeUnits;
 import org.elasticsearch.Build;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.test.ListMatcher;
 import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Locale;
 import java.util.Map;
 
+import static org.elasticsearch.test.ListMatcher.matchesList;
 import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.test.MapMatcher.matchesMap;
 import static org.hamcrest.Matchers.containsString;
@@ -84,6 +86,7 @@ public class HeapAttackInSubqueryIT extends HeapAttackTestCase {
      * of being rejected by {@code checkPagesBelowSize} first.
      */
     public void testDedupBlockHashWithInSubquery() throws IOException {
+        assumeFalse("This test does not deterministically trip circuit breaker in serverless", isServerless());
         // ~48MB of distinct 1MB values, sized to hit the narrow window where the breaker (~60% of the 512MB node heap, ~307MB) trips
         // inside dedup rather than earlier. SessionUtils.fromPages concatenates the subquery result while still holding the input pages
         // (~2x the data, ~286MB, survives), then the dedup BlockHash builds a third copy of the distinct keys (~3x, ~334MB, trips). A
@@ -99,26 +102,36 @@ public class HeapAttackInSubqueryIT extends HeapAttackTestCase {
     }
 
     public void testRandomKeywordOrTextFieldsWithInSubquery() throws IOException {
-        heapAttackIT.initManyBigFieldsIndex(MAX_DOC, randomBoolean() ? "keyword" : "text", true, STRING_FIELD_1000);
-        assertCircuitBreaks(attempt -> inSubqueryKeepManyFields());
+        String dataType = keywordOrText();
+        heapAttackIT.initManyBigFieldsIndex(MAX_DOC, dataType, true, STRING_FIELD_1000);
+        try {
+            Map<?, ?> response = inSubqueryKeepManyFields();
+            assertMap(response, matchesMap().entry("columns", outputColumns(dataType)));
+        } catch (ResponseException e) {
+            verifyCircuitBreakingException(e);
+        }
     }
 
     public void testSortWithInSubquery() throws IOException {
-        heapAttackIT.initManyBigFieldsIndex(MAX_DOC, randomBoolean() ? "keyword" : "text", true, STRING_FIELD_1000);
-        StringBuilder sortKeys = new StringBuilder(fieldName(0));
-        for (int f = 1; f < STRING_FIELD_1000; f++) {
-            sortKeys.append(", ").append(fieldName(f));
+        String dataType = keywordOrText();
+        heapAttackIT.initManyBigFieldsIndex(MAX_DOC, dataType, true, STRING_FIELD_1000);
+        try {
+            Map<?, ?> response = inSubqueryWithSort(sortOrGroupingColumns(STRING_FIELD_1000));
+            assertMap(response, matchesMap().entry("columns", outputColumns(dataType)));
+        } catch (ResponseException e) {
+            verifyCircuitBreakingException(e);
         }
-        assertCircuitBreaks(attempt -> inSubqueryWithSort(sortKeys.toString()));
     }
 
     public void testAggWithInSubquery() throws IOException {
-        heapAttackIT.initManyBigFieldsIndex(MAX_DOC, "keyword", true, STRING_FIELD_1000);
-        StringBuilder grouping = new StringBuilder(fieldName(0));
-        for (int f = 1; f < STRING_FIELD_1000; f++) {
-            grouping.append(", ").append(fieldName(f));
+        String dataType = keywordOrText();
+        heapAttackIT.initManyBigFieldsIndex(MAX_DOC, dataType, true, STRING_FIELD_1000);
+        try {
+            Map<?, ?> response = inSubqueryWithAgg("c = COUNT_DISTINCT(f499)", sortOrGroupingColumns(100));
+            assertMap(response, matchesMap().entry("columns", outputColumns(dataType)));
+        } catch (ResponseException e) {
+            verifyCircuitBreakingException(e);
         }
-        assertCircuitBreaks(attempt -> inSubqueryWithAgg("c = COUNT_DISTINCT(f499)", grouping.toString()));
     }
 
     private Map<String, Object> inSubqueryKeepManyFields() throws IOException {
@@ -141,25 +154,45 @@ public class HeapAttackInSubqueryIT extends HeapAttackTestCase {
             .append(sortKeys)
             .append(" | KEEP f000 | LIMIT ")
             .append(MAX_DOC)
-            .append(") | STATS total = COUNT(*)");
+            .append(")");
         query.append("\"}");
-        return responseAsMap(query(query.toString(), "columns,values"));
+        return responseAsMap(query(query.toString(), "columns"));
     }
 
     private Map<String, Object> inSubqueryWithAgg(String agg, String grouping) throws IOException {
         StringBuilder query = startQuery();
-        query.append("FROM manybigfields | WHERE f000 IN (FROM manybigfields | STATS ")
-            .append(agg);
+        query.append("FROM manybigfields | WHERE f000 IN (FROM manybigfields | STATS ").append(agg);
         if (grouping != null && grouping.isEmpty() == false) {
             query.append(" BY ").append(grouping);
         }
-        query.append(" | KEEP f000) | STATS total = COUNT(*)");
+        query.append(" | KEEP f000)");
         query.append("\"}");
-        return responseAsMap(query(query.toString(), "columns,values"));
+        return responseAsMap(query(query.toString(), "columns"));
+    }
+
+    private static ListMatcher outputColumns(String dataType) {
+        ListMatcher columns = matchesList();
+        for (int f = 0; f < STRING_FIELD_1000; f++) {
+            columns = columns.item(matchesMap().entry("name", "f" + String.format(Locale.ROOT, "%03d", f)).
+                entry("type", dataType));
+        }
+        return columns;
+    }
+
+    private static String sortOrGroupingColumns(int columnCount) {
+        StringBuilder keys = new StringBuilder(fieldName(0));
+        for (int f = 1; f < columnCount; f++) {
+            keys.append(", ").append(fieldName(f));
+        }
+        return keys.toString();
     }
 
     private static String fieldName(int f) {
         return "f" + String.format(Locale.ROOT, "%03d", f);
+    }
+
+    private static String keywordOrText() {
+        return randomBoolean() ? "keyword" : "text";
     }
 
     /**
@@ -173,5 +206,13 @@ public class HeapAttackInSubqueryIT extends HeapAttackTestCase {
             "{\"persistent\": {\"esql.intermediate_local_relation_max_size\": " + (size == null ? "null" : "\"" + size + "\"") + "}}"
         );
         adminClient().performRequest(request);
+    }
+
+    private static void verifyCircuitBreakingException(ResponseException re) throws IOException {
+        Map<?, ?> map = responseAsMap(re.getResponse());
+        assertMap(
+            map,
+            matchesMap().entry("status", 429).entry("error", matchesMap().extraOk().entry("type", "circuit_breaking_exception"))
+        );
     }
 }

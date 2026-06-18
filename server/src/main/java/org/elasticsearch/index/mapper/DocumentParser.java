@@ -572,9 +572,10 @@ public final class DocumentParser {
     }
 
     private static void parseObjectDynamic(DocumentParserContext context, String currentFieldName) throws IOException {
-        ensureNotStrict(context, currentFieldName);
+        ObjectMapper.Dynamic dynamic = context.resolveDynamic(currentFieldName);
+        ensureNotStrict(dynamic, context, currentFieldName);
         // For [subobjects:false], intermediate objects get flattened so we can't skip parsing children.
-        if (context.dynamic() == ObjectMapper.Dynamic.FALSE && context.parent().subobjects() != ObjectMapper.Subobjects.DISABLED) {
+        if (dynamic == ObjectMapper.Dynamic.FALSE && context.parent().subobjects() != ObjectMapper.Subobjects.DISABLED) {
             failIfMatchesRoutingPath(context, currentFieldName);
             // In columnar index modes, unmapped fields under dynamic:false are dropped entirely
             if (context.canAddIgnoredField() && context.indexSettings().getMode().isStrictColumnar() == false) {
@@ -591,7 +592,7 @@ public final class DocumentParser {
             }
         } else {
             Mapper.Builder dynamicObjectBuilder;
-            if (context.dynamic() == ObjectMapper.Dynamic.RUNTIME) {
+            if (dynamic == ObjectMapper.Dynamic.RUNTIME) {
                 // with dynamic:runtime all leaf fields will be runtime fields unless explicitly mapped,
                 // hence we don't dynamically create empty objects under properties, but rather carry around an artificial object mapper
                 dynamicObjectBuilder = null;
@@ -679,8 +680,9 @@ public final class DocumentParser {
     }
 
     private static void parseArrayDynamic(DocumentParserContext context, String currentFieldName) throws IOException {
-        ensureNotStrict(context, currentFieldName);
-        if (context.dynamic() == ObjectMapper.Dynamic.FALSE) {
+        ObjectMapper.Dynamic dynamic = context.resolveDynamic(currentFieldName);
+        ensureNotStrict(dynamic, context, currentFieldName);
+        if (dynamic == ObjectMapper.Dynamic.FALSE) {
             // In columnar index modes, unmapped fields under dynamic:false are dropped entirely
             if (context.canAddIgnoredField() && context.indexSettings().getMode().isStrictColumnar() == false) {
                 context.addIgnoredField(
@@ -914,13 +916,14 @@ public final class DocumentParser {
             // TODO: passing null to an object seems bogus?
             parseObjectOrField(context, mapper);
         } else {
-            ensureNotStrict(context, lastFieldName);
+            ensureNotStrict(context.resolveDynamic(lastFieldName), context, lastFieldName);
         }
     }
 
     private static void parseDynamicValue(DocumentParserContext context, String currentFieldName) throws IOException {
-        ensureNotStrict(context, currentFieldName);
-        if (context.dynamic() == ObjectMapper.Dynamic.FALSE) {
+        ObjectMapper.Dynamic dynamic = context.resolveDynamic(currentFieldName);
+        ensureNotStrict(dynamic, context, currentFieldName);
+        if (dynamic == ObjectMapper.Dynamic.FALSE) {
             failIfMatchesRoutingPath(context, currentFieldName);
             // In columnar index modes, unmapped fields under dynamic:false are dropped entirely
             if (context.canAddIgnoredField() && context.indexSettings().getMode().isStrictColumnar() == false) {
@@ -934,7 +937,7 @@ public final class DocumentParser {
             }
             return;
         }
-        if (context.dynamic() == ObjectMapper.Dynamic.RUNTIME && context.canAddIgnoredField()) {
+        if (dynamic == ObjectMapper.Dynamic.RUNTIME && context.canAddIgnoredField()) {
             context.addIgnoredField(
                 IgnoredSourceFieldMapper.NameValue.fromContext(
                     context,
@@ -943,13 +946,13 @@ public final class DocumentParser {
                 )
             );
         }
-        if (context.dynamic().getDynamicFieldsBuilder().createDynamicFieldFromValue(context, currentFieldName) == false) {
+        if (dynamic.getDynamicFieldsBuilder().createDynamicFieldFromValue(context, currentFieldName) == false) {
             failIfMatchesRoutingPath(context, currentFieldName);
         }
     }
 
-    private static void ensureNotStrict(DocumentParserContext context, String currentFieldName) {
-        if (context.dynamic() == ObjectMapper.Dynamic.STRICT) {
+    private static void ensureNotStrict(ObjectMapper.Dynamic dynamic, DocumentParserContext context, String currentFieldName) {
+        if (dynamic == ObjectMapper.Dynamic.STRICT) {
             throw new StrictDynamicMappingException(context.parser().getTokenLocation(), context.parent().fullPath(), currentFieldName);
         }
     }

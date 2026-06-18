@@ -47,7 +47,7 @@ import static org.hamcrest.Matchers.equalTo;
 public class ShardGetServiceTests extends IndexShardTestCase {
 
     private GetResult getForUpdate(IndexShard indexShard, String id, long ifSeqNo, long ifPrimaryTerm) throws IOException {
-        return indexShard.getService().getForUpdate(id, ifSeqNo, ifPrimaryTerm, FetchSourceContext.FETCH_ALL_SOURCE);
+        return indexShard.getService().getForUpdate(id, null, ifSeqNo, ifPrimaryTerm, FetchSourceContext.FETCH_ALL_SOURCE);
     }
 
     public void testGetForUpdate() throws IOException {

@@ -53,12 +53,7 @@ public final class SingleFieldsVisitor extends StoredFieldVisitor {
     @Override
     public void binaryField(FieldInfo fieldInfo, byte[] value) {
         if (IdFieldMapper.NAME.equals(fieldInfo.name)) {
-            assert field instanceof IdFieldMapper.AbstractIdFieldType : "unexpected field type [" + field.typeName() + "]";
-            if (field instanceof IdFieldMapper.AbstractIdFieldType idFieldType) {
-                addValue(idFieldType.decodeStoredId(new BytesRef(value)));
-            } else {
-                addValue(Uid.decodeId(value));
-            }
+            addValue(Uid.decodeId(value));
         } else {
             addValue(new BytesRef(value));
         }

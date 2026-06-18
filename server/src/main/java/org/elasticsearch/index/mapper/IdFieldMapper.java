@@ -119,7 +119,10 @@ public abstract class IdFieldMapper extends MetadataFieldMapper {
      * source of truth for the encoding.
      */
     public static BytesRef encodeIdentity(boolean sliceEnabled, String id, @Nullable String routing) {
-        return sliceEnabled && routing != null ? Uid.encodeCompoundId(id, routing) : Uid.encodeId(id);
+        if (sliceEnabled && routing == null) {
+            throw new IllegalArgumentException("unable to create _id as slice is enabled but _slice is null");
+        }
+        return sliceEnabled ? Uid.encodeCompoundId(id, routing) : Uid.encodeId(id);
     }
 
     /**
@@ -180,14 +183,6 @@ public abstract class IdFieldMapper extends MetadataFieldMapper {
         @Override
         public Query existsQuery(SearchExecutionContext context) {
             return Queries.ALL_DOCS_INSTANCE;
-        }
-
-        /**
-         * Decode a stored {@code _id} binary value to the user-visible string id.
-         * Subclasses may override this to handle composite (slice-prefixed) stored values.
-         */
-        public String decodeStoredId(BytesRef bytes) {
-            return Uid.decodeId(bytes);
         }
 
         @Override

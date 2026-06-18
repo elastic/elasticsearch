@@ -38,12 +38,6 @@ public class SliceIdFieldMapperTests extends MapperServiceTestCase {
         return (AbstractIdFieldType) SliceIdFieldMapper.DOCUMENT.fieldType();
     }
 
-    public void testStoredIdDecodesPlain() {
-        // The stored _id is the plain encodeId(id), so the default decodeStoredId returns the user-visible id directly.
-        String id = randomAlphaOfLengthBetween(1, 16);
-        assertThat(fieldType().decodeStoredId(Uid.encodeId(id)), equalTo(id));
-    }
-
     public void testFielddataIsNotSupported() {
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,

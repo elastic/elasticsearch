@@ -271,26 +271,24 @@ public final class LuceneSyntheticSourceChangesSnapshot extends SearchBasedChang
         int segmentDocID,
         LeafReaderContext context
     ) throws IOException {
-        // Resolve the raw _id bytes: from binary doc values in columnar mode, otherwise from stored fields (via
-        // readRawId for a slice index, since a slice tombstone's _id is the compound term, not a valid plain encodeId).
-        // A slice index stores the plain encodeId(id) on a live doc and the compound identity term on a tombstone, so
-        // only a live doc's plain id is decoded; the compound is used as-is for the Delete. A noop tombstone has no _id.
+        // Resolve the _id. In columnar mode it is read from binary doc values; in document mode from stored fields. A
+        // slice index stores the plain encodeId(id) on a live doc and the compound identity term on a tombstone, so a
+        // live doc's plain id is taken from the field loader that already loaded stored fields (no second pass), while a
+        // tombstone's compound term is read raw only then — the field loader would mis-decode it — and used as-is for the
+        // Delete. A noop tombstone has no _id at all.
         final BytesRef idBytes;
-        if (columnarId) {
-            idBytes = leafIdDocValues.advanceExact(segmentDocID) ? BytesRef.deepCopyOf(leafIdDocValues.binaryValue()) : null;
-        } else if (sliceEnabled) {
-            idBytes = readRawId(context, segmentDocID);
-        } else {
-            idBytes = null;
-        }
         final String id;
-        if (sliceEnabled) {
-            id = (docRecord.isTombstone() || idBytes == null) ? null : Uid.decodeId(idBytes);
-        } else if (columnarId) {
+        if (columnarId) {
             assert fieldLoader.id() == null : "id shouldn't exist in stored fields if id mode is columnar";
-            id = idBytes == null ? null : Uid.decodeId(idBytes);
+            idBytes = leafIdDocValues.advanceExact(segmentDocID) ? BytesRef.deepCopyOf(leafIdDocValues.binaryValue()) : null;
+            // A slice tombstone's bytes are the compound term (used as-is below); otherwise decode the plain id.
+            id = (sliceEnabled && docRecord.isTombstone()) || idBytes == null ? null : Uid.decodeId(idBytes);
+        } else if (sliceEnabled) {
+            idBytes = docRecord.isTombstone() ? readRawId(context, segmentDocID) : null;
+            id = docRecord.isTombstone() ? null : fieldLoader.id();
         } else {
             assert leafIdDocValues == null : "id shouldn't exist in doc values if id mode is document";
+            idBytes = null;
             id = fieldLoader.id();
         }
         final boolean noId = sliceEnabled ? idBytes == null : id == null;

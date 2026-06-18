@@ -1304,10 +1304,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         );
     }
 
-    public Engine.DeleteResult applyDeleteOperationOnReplica(long seqNo, long opPrimaryTerm, long version, String id) throws IOException {
-        return applyDeleteOperationOnReplica(seqNo, opPrimaryTerm, version, id, null);
-    }
-
     public Engine.DeleteResult applyDeleteOperationOnReplica(
         long seqNo,
         long opPrimaryTerm,

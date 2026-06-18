@@ -301,10 +301,6 @@ public final class ShardGetService extends AbstractIndexShardComponent {
         );
     }
 
-    public GetResult getForUpdate(String id, long ifSeqNo, long ifPrimaryTerm, FetchSourceContext fetchSourceContext) throws IOException {
-        return getForUpdate(id, null, ifSeqNo, ifPrimaryTerm, fetchSourceContext);
-    }
-
     public GetResult getForUpdate(
         String id,
         @Nullable String routing,

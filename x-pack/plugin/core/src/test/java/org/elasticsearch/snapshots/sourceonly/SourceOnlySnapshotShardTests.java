@@ -59,6 +59,7 @@ import org.elasticsearch.index.engine.InternalEngineFactory;
 import org.elasticsearch.index.fieldvisitor.FieldsVisitor;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.SourceToParse;
+import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.seqno.RetentionLeaseSyncer;
 import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.seqno.SequenceNumbers;
@@ -468,7 +469,10 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
         assertEquals(restoredShard.docStats().getCount(), shard.docStats().getCount());
         EngineException engineException = expectThrows(
             EngineException.class,
-            () -> restoredShard.get(new Engine.Get(false, false, Integer.toString(0)), SplitShardCountSummary.IRRELEVANT)
+            () -> restoredShard.get(
+                new Engine.Get(false, false, Integer.toString(0), Uid.encodeId(Integer.toString(0))),
+                SplitShardCountSummary.IRRELEVANT
+            )
         );
         assertEquals(engineException.getCause().getMessage(), "_source only indices can't be searched or filtered");
         SeqNoStats seqNoStats = restoredShard.seqNoStats();
@@ -501,7 +505,7 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
         }
 
         for (int i = 0; i < numInitialDocs; i++) {
-            Engine.Get get = new Engine.Get(false, false, Integer.toString(i));
+            Engine.Get get = new Engine.Get(false, false, Integer.toString(i), Uid.encodeId(Integer.toString(i)));
             Engine.GetResult original = shard.get(get, SplitShardCountSummary.IRRELEVANT);
             Engine.GetResult restored = targetShard.get(get, SplitShardCountSummary.IRRELEVANT);
             assertEquals(original.exists(), restored.exists());

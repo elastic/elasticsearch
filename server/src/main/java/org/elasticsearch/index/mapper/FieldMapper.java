@@ -1610,10 +1610,12 @@ public abstract class FieldMapper extends Mapper {
          *   <li>{@code "doc_values": { "cardinality": "high" }} - doc_values enabled with HIGH cardinality</li>
          *   <li>{@code "doc_values": { "multi_value": true }} - allow multiple values per document (default)</li>
          *   <li>{@code "doc_values": { "multi_value": false }} - reject any document that has more than one value for the field</li>
+         *   <li>{@code "doc_values": { "nullability": true }} - allow null value for field in document (default)</li>
+         *   <li>{@code "doc_values": { "nullability": false }} - reject any document that has null/missing value for the field</li>
          * </ul>
          * <p>
          * The presence of {@code doc_values} as a map indicates the user wants doc_values enabled. The map format allows specifying
-         * additional cardinality and multi_value settings.
+         * additional cardinality, multi_value, and nullability settings.
          */
         @Override
         public void parse(String field, MappingParserContext context, Object value) {

@@ -125,11 +125,15 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
 
     public static final String CONTENT_TYPE = "match_only_text";
 
-    private static final FieldMapper.DocValuesParameter.Values DEFAULT_DOC_VALUES_PARAMS = new FieldMapper.DocValuesParameter.Values(
-        false,
-        FieldMapper.DocValuesParameter.Values.Cardinality.HIGH,
-        true
-    );
+    private static FieldMapper.DocValuesParameter.Values defaultDocValuesParameters(IndexMode indexMode) {
+        return new FieldMapper.DocValuesParameter.Values(
+            // Strictly columnar indices read field values from doc values, so enable doc values by default for match_only_text in that
+            // mode.
+            indexMode.isStrictColumnar(),
+            FieldMapper.DocValuesParameter.Values.Cardinality.HIGH,
+            true
+        );
+    }
 
     public static class Defaults {
         public static final FieldType FIELD_TYPE;
@@ -149,10 +153,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
     public static class Builder extends TextFamilyBuilder {
 
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
-        private final FieldMapper.DocValuesParameter docValuesParameters = FieldMapper.DocValuesParameter.ofWithCardinality(
-            DEFAULT_DOC_VALUES_PARAMS,
-            m -> ((MatchOnlyTextFieldMapper) m).docValuesParameters
-        );
+        private final FieldMapper.DocValuesParameter docValuesParameters;
 
         private final Parameter<Boolean> indexed;
 
@@ -183,6 +184,14 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             this.storedFieldInBinaryFormat = storedFieldInBinaryFormat;
             this.usesBinaryDocValuesForFallbackFields = usesBinaryDocValuesForFallbackFields;
             this.indexMode = indexMode;
+            this.docValuesParameters = FieldMapper.DocValuesParameter.ofWithCardinality(() -> {
+                FieldMapper.DocValuesParameter.Values defaultDocValues = defaultDocValuesParameters(indexMode);
+                // In strict-columnar mode, skip the field's own doc values when a plain keyword multi-field already stores an identical
+                // copy of the raw values, so loading and synthetic source route through that delegate instead of duplicating the column.
+                boolean enabled = defaultDocValues.enabled()
+                    && multiFieldsBuilder.hasColumnarModeCompatibleKeywordDelegate(indexMode) == false;
+                return new FieldMapper.DocValuesParameter.Values(enabled, defaultDocValues.cardinality(), defaultDocValues.multiValue());
+            }, defaultDocValuesParameters(indexMode), m -> ((MatchOnlyTextFieldMapper) m).docValuesParameters);
         }
 
         public Builder(String name, MappingParserContext context) {
@@ -265,6 +274,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             this.offsetsFieldName = FieldArrayContext.getOffsetsFieldName(
                 context,
                 indexMode.isStrictColumnar(),
+                docValuesParameters.getValue().enabled(),
                 docValuesParameters.getValue().multiValue(),
                 this
             );
@@ -338,7 +348,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
                 true,
                 false,
                 false,
-                DEFAULT_DOC_VALUES_PARAMS
+                new FieldMapper.DocValuesParameter.Values(false, FieldMapper.DocValuesParameter.Values.Cardinality.HIGH, true)
             );
         }
 

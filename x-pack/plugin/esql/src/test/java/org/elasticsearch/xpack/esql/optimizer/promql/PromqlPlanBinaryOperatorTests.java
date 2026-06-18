@@ -103,10 +103,7 @@ public class PromqlPlanBinaryOperatorTests extends AbstractPromqlPlanOptimizerTe
         );
 
         Row row = plan.collect(Row.class).getFirst();
-        assertThat(
-            ((Literal) ((Alias) row.fields().getLast()).child()).value(),
-            equalTo(List.of(1735689600000L, 1735689660000L, 1735689720000L))
-        );
+        assertThat(((Literal) row.fields().getLast().child()).value(), equalTo(List.of(1735689600000L, 1735689660000L, 1735689720000L)));
         assertThat(plan.collect(MvExpand.class), hasSize(1));
         assertNoIndexBackedPromqlPlan(plan);
     }
@@ -120,10 +117,7 @@ public class PromqlPlanBinaryOperatorTests extends AbstractPromqlPlanOptimizerTe
 
         Row row = plan.collect(Row.class).getFirst();
         assertThat(row.fields().getFirst().name(), equalTo("step"));
-        assertThat(
-            ((Literal) ((Alias) row.fields().getFirst()).child()).value(),
-            equalTo(List.of(1735689600000L, 1735689660000L, 1735689720000L))
-        );
+        assertThat(((Literal) row.fields().getFirst().child()).value(), equalTo(List.of(1735689600000L, 1735689660000L, 1735689720000L)));
         Eval eval = findEvalWithField(plan, "result");
         Div value = as(eval.fields().getFirst().child(), Div.class);
         assertThat(value.left(), instanceOf(ToDouble.class));
@@ -142,10 +136,7 @@ public class PromqlPlanBinaryOperatorTests extends AbstractPromqlPlanOptimizerTe
 
         Row row = plan.collect(Row.class).getFirst();
         assertThat(row.fields().getFirst().name(), equalTo("step"));
-        assertThat(
-            ((Literal) ((Alias) row.fields().getFirst()).child()).value(),
-            equalTo(List.of(1735689600000L, 1735689660000L, 1735689720000L))
-        );
+        assertThat(((Literal) row.fields().getFirst().child()).value(), equalTo(List.of(1735689600000L, 1735689660000L, 1735689720000L)));
         Eval eval = findEvalWithField(plan, "result");
         assertThat(eval.fields().getFirst().child(), instanceOf(Add.class));
         assertThat(plan.output().stream().map(Attribute::name).toList(), equalTo(List.of("result", "step")));
@@ -162,7 +153,7 @@ public class PromqlPlanBinaryOperatorTests extends AbstractPromqlPlanOptimizerTe
 
         Row row = plan.collect(Row.class).getFirst();
         assertThat(
-            ((Literal) ((Alias) row.fields().getLast()).child()).value(),
+            ((Literal) row.fields().getLast().child()).value(),
             equalTo(List.of(1715299200000L, 1715299500000L, 1715299800000L, 1715300100000L, 1715300400000L))
         );
         assertThat(plan.collect(MvExpand.class), hasSize(1));
@@ -178,10 +169,7 @@ public class PromqlPlanBinaryOperatorTests extends AbstractPromqlPlanOptimizerTe
 
         TimeSeriesCollapse collapse = plan.collect(TimeSeriesCollapse.class).getFirst();
         Row row = collapse.child().collect(Row.class).getFirst();
-        assertThat(
-            ((Literal) ((Alias) row.fields().getLast()).child()).value(),
-            equalTo(List.of(1735689600000L, 1735689660000L, 1735689720000L))
-        );
+        assertThat(((Literal) row.fields().getLast().child()).value(), equalTo(List.of(1735689600000L, 1735689660000L, 1735689720000L)));
         assertThat(plan.collect(MvExpand.class), hasSize(1));
         assertNoIndexBackedPromqlPlan(plan);
     }
@@ -195,10 +183,7 @@ public class PromqlPlanBinaryOperatorTests extends AbstractPromqlPlanOptimizerTe
 
         TimeSeriesCollapse collapse = plan.collect(TimeSeriesCollapse.class).getFirst();
         Row row = collapse.child().collect(Row.class).getFirst();
-        assertThat(
-            ((Literal) ((Alias) row.fields().getFirst()).child()).value(),
-            equalTo(List.of(1735689600000L, 1735689660000L, 1735689720000L))
-        );
+        assertThat(((Literal) row.fields().getFirst().child()).value(), equalTo(List.of(1735689600000L, 1735689660000L, 1735689720000L)));
         Eval eval = findEvalWithField(collapse.child(), "result");
         assertThat(eval.fields().getFirst().name(), equalTo("result"));
         assertThat(plan.collect(MvExpand.class), hasSize(1));
@@ -215,10 +200,7 @@ public class PromqlPlanBinaryOperatorTests extends AbstractPromqlPlanOptimizerTe
 
         TimeSeriesCollapse collapse = plan.collect(TimeSeriesCollapse.class).getFirst();
         Row row = collapse.child().collect(Row.class).getFirst();
-        assertThat(
-            ((Literal) ((Alias) row.fields().getFirst()).child()).value(),
-            equalTo(List.of(1735689600000L, 1735689660000L, 1735689720000L))
-        );
+        assertThat(((Literal) row.fields().getFirst().child()).value(), equalTo(List.of(1735689600000L, 1735689660000L, 1735689720000L)));
         Eval eval = findEvalWithField(collapse.child(), "result");
         assertThat(eval.fields().getFirst().child(), instanceOf(Add.class));
         assertThat(plan.collect(MvExpand.class), hasSize(1));
@@ -454,7 +436,7 @@ public class PromqlPlanBinaryOperatorTests extends AbstractPromqlPlanOptimizerTe
 
     private static void assertInstantConstFolded(LogicalPlan plan, List<Long> expectedSteps) {
         Row row = plan.collect(Row.class).getFirst();
-        assertThat(((Literal) ((Alias) row.fields().getLast()).child()).value(), equalTo(expectedSteps));
+        assertThat(((Literal) row.fields().getLast().child()).value(), equalTo(expectedSteps));
         assertThat(plan.collect(MvExpand.class), hasSize(1));
         assertThat(plan.output().stream().map(Attribute::name).toList(), equalTo(List.of("result", "step")));
         assertNoIndexBackedPromqlPlan(plan);

@@ -1,0 +1,185 @@
+---
+setup:
+  - requires:
+      test_runner_features: [ capabilities, allowed_warnings ]
+      capabilities:
+        - method: PUT
+          path: /{index}
+          capabilities: [ columnar_index_modes ]
+      reason: "Support for columnar index modes required"
+
+---
+"passthrough object with static and dynamic fields":
+  - do:
+      cluster.put_component_template:
+        name: "cl-passthrough-mappings"
+        body:
+          template:
+            settings:
+              mode: "logsdb_columnar"
+            mappings:
+              properties:
+                host.name:
+                  type: keyword
+                log.level:
+                  type: keyword
+                attributes:
+                  type: passthrough
+                  dynamic: true
+                  priority: 1
+
+  - do:
+      indices.put_index_template:
+        name: "cl-passthrough-index-template"
+        body:
+          index_patterns: [ "logs-cl-passthrough-test" ]
+          priority: 1000
+          data_stream: {}
+          composed_of: [ "cl-passthrough-mappings" ]
+      allowed_warnings:
+        - "index template [cl-passthrough-index-template] has index patterns [logs-cl-passthrough-test] matching patterns from existing older templates [global] with patterns (global => [*]); this template [cl-passthrough-index-template] will take precedence during new index creation"
+
+  - do:
+      indices.create_data_stream:
+        name: "logs-cl-passthrough-test"
+  - is_true: acknowledged
+
+  - do:
+      bulk:
+        index: "logs-cl-passthrough-test"
+        refresh: true
+        body:
+          - '{"create":{}}'
+          - '{"@timestamp":"2024-01-01T00:00:00.000Z","host.name":"web-01","log.level":"INFO","attributes.service":"frontend","attributes.env":"prod"}'
+          - '{"create":{}}'
+          - '{"@timestamp":"2024-01-01T00:00:01.000Z","host.name":"web-02","log.level":"WARN","attributes.service":"backend","attributes.env":"staging"}'
+  - match: { errors: false }
+
+  - do:
+      search:
+        index: "logs-cl-passthrough-test"
+        body:
+          size: 0
+  - match: { hits.total.value: 2 }
+
+  # Sub-fields are accessible via their full dotted path
+  - do:
+      search:
+        index: "logs-cl-passthrough-test"
+        body:
+          query:
+            term:
+              attributes.env: "prod"
+  - match: { hits.total.value: 1 }
+
+  # Root-level aliases created by the passthrough object also work
+  - do:
+      search:
+        index: "logs-cl-passthrough-test"
+        body:
+          query:
+            term:
+              env: "prod"
+  - match: { hits.total.value: 1 }
+
+  # Static fields work normally alongside passthrough fields
+  - do:
+      search:
+        index: "logs-cl-passthrough-test"
+        body:
+          query:
+            bool:
+              filter:
+                - term:
+                    log.level: "WARN"
+                - term:
+                    service: "backend"
+  - match: { hits.total.value: 1 }
+
+  # The passthrough mapping entry is preserved with type: passthrough
+  - do:
+      indices.get_data_stream:
+        name: "logs-cl-passthrough-test"
+  - set: { data_streams.0.indices.0.index_name: backing_index }
+
+  - do:
+      indices.get_mapping:
+        index: $backing_index
+  - match: { .$backing_index.mappings.properties.@timestamp.type: date }
+  - match: { .$backing_index.mappings.properties.attributes.type: passthrough }
+
+---
+"two passthrough objects with priority - higher priority alias wins":
+  - do:
+      cluster.put_component_template:
+        name: "cl-passthrough-priority-mappings"
+        body:
+          template:
+            settings:
+              mode: "logsdb_columnar"
+            mappings:
+              properties:
+                host.name:
+                  type: keyword
+                attributes:
+                  type: passthrough
+                  dynamic: true
+                  priority: 1
+                resource:
+                  type: passthrough
+                  dynamic: true
+                  priority: 2
+
+  - do:
+      indices.put_index_template:
+        name: "cl-passthrough-priority-template"
+        body:
+          index_patterns: [ "logs-cl-passthrough-priority-test" ]
+          priority: 1000
+          data_stream: {}
+          composed_of: [ "cl-passthrough-priority-mappings" ]
+      allowed_warnings:
+        - "index template [cl-passthrough-priority-template] has index patterns [logs-cl-passthrough-priority-test] matching patterns from existing older templates [global] with patterns (global => [*]); this template [cl-passthrough-priority-template] will take precedence during new index creation"
+
+  - do:
+      indices.create_data_stream:
+        name: "logs-cl-passthrough-priority-test"
+  - is_true: acknowledged
+
+  - do:
+      bulk:
+        index: "logs-cl-passthrough-priority-test"
+        refresh: true
+        body:
+          - '{"create":{}}'
+          - '{"@timestamp":"2024-01-01T00:00:00.000Z","host.name":"node-01","attributes.region":"us-east","resource.region":"us-west"}'
+  - match: { errors: false }
+
+  # Both concrete paths are independently searchable
+  - do:
+      search:
+        index: "logs-cl-passthrough-priority-test"
+        body:
+          query:
+            term:
+              attributes.region: "us-east"
+  - match: { hits.total.value: 1 }
+
+  - do:
+      search:
+        index: "logs-cl-passthrough-priority-test"
+        body:
+          query:
+            term:
+              resource.region: "us-west"
+  - match: { hits.total.value: 1 }
+
+  # The root-level alias "region" resolves to the higher-priority (resource, priority=2) passthrough
+  - do:
+      search:
+        index: "logs-cl-passthrough-priority-test"
+        body:
+          query:
+            term:
+              region: "us-west"
+  - match: { hits.total.value: 1 }

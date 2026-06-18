@@ -621,6 +621,97 @@ public class FieldTypeLookupTests extends ESTestCase {
         assertNull(lookup.get("status"));
     }
 
+    // --- prefix-based alias resolution (rootSubobjectsDisabled=true path) ---
+
+    /**
+     * In subobjects:false mode, PassThrough stubs have no children; their leaf fields are stored
+     * flat at root with dotted names. FieldTypeLookup must create short-name aliases for those
+     * flat fields so queries can omit the passthrough prefix (e.g. "env" resolves "attributes.env").
+     */
+    public void testPrefixBasedAliasForFlatPassThroughStubs() {
+        MockFieldMapper envField = new MockFieldMapper("attributes.env");
+        MockFieldMapper serviceField = new MockFieldMapper("attributes.service");
+        // empty stub — no children registered directly on the PassThrough node
+        PassThroughObjectMapper stub = createPassThroughMapper("attributes", Map.of(), 1);
+
+        FieldTypeLookup lookup = new FieldTypeLookup(List.of(envField, serviceField), List.of(), List.of(stub), List.of(), true);
+
+        assertSame(envField.fieldType(), lookup.get("env"));
+        assertSame(serviceField.fieldType(), lookup.get("service"));
+        // full dotted paths still resolve
+        assertSame(envField.fieldType(), lookup.get("attributes.env"));
+        assertSame(serviceField.fieldType(), lookup.get("attributes.service"));
+    }
+
+    /**
+     * For a passthrough with a multi-segment prefix (e.g. "path.to"), a field
+     * "path.to.my.field" must produce alias "my.field", not just "field".
+     * This tests that we use startsWith(prefix + ".") rather than the last-dot heuristic.
+     */
+    public void testPrefixBasedAliasMultiSegmentAlias() {
+        MockFieldMapper deepField = new MockFieldMapper("path.to.my.field");
+        PassThroughObjectMapper stub = createPassThroughMapper("path.to", Map.of(), 0);
+
+        FieldTypeLookup lookup = new FieldTypeLookup(List.of(deepField), List.of(), List.of(stub), List.of(), true);
+
+        // alias is everything after "path.to." — so "my.field", not just "field"
+        assertSame(deepField.fieldType(), lookup.get("my.field"));
+        assertNull("last-dot-only alias must not be created", lookup.get("field"));
+    }
+
+    /**
+     * When two empty stubs compete for the same short-name alias, the one with higher priority wins.
+     */
+    public void testPrefixBasedAliasPriorityConflictWithEmptyStubs() {
+        MockFieldMapper attrEnv = new MockFieldMapper("attributes.env");
+        MockFieldMapper resEnv = new MockFieldMapper("resource.env");
+        PassThroughObjectMapper attrStub = createPassThroughMapper("attributes", Map.of(), 1);
+        PassThroughObjectMapper resStub = createPassThroughMapper("resource", Map.of(), 2);
+
+        FieldTypeLookup lookup = new FieldTypeLookup(
+            randomizedList(attrEnv, resEnv),
+            List.of(),
+            randomizedList(attrStub, resStub),
+            List.of(),
+            true
+        );
+
+        // resource has priority 2 > 1, so resource.env's type wins for alias "env"
+        assertSame(resEnv.fieldType(), lookup.get("env"));
+    }
+
+    /**
+     * An empty PassThrough in a normal (subobjects:true) index must NOT trigger prefix-based alias
+     * resolution — that path is gated exclusively on rootSubobjectsDisabled.
+     */
+    public void testNoPrefixBasedAliasWhenRootSubobjectsEnabled() {
+        MockFieldMapper envField = new MockFieldMapper("attributes.env");
+        PassThroughObjectMapper emptyStub = createPassThroughMapper("attributes", Map.of(), 1);
+
+        FieldTypeLookup lookup = new FieldTypeLookup(
+            List.of(envField),
+            List.of(),
+            List.of(emptyStub),
+            List.of(),
+            false  // rootSubobjectsDisabled = false
+        );
+
+        assertNull("empty stub with subobjects:true must not create prefix-based aliases", lookup.get("env"));
+    }
+
+    /**
+     * A concrete root-level field must win over a prefix-based alias that resolves to the same name.
+     */
+    public void testPrefixBasedAliasRootConcreteFieldWins() {
+        MockFieldMapper envField = new MockFieldMapper("attributes.env");
+        MockFieldMapper rootEnv = new MockFieldMapper("env");  // concrete root field
+        PassThroughObjectMapper stub = createPassThroughMapper("attributes", Map.of(), 1);
+
+        FieldTypeLookup lookup = new FieldTypeLookup(randomizedList(envField, rootEnv), List.of(), List.of(stub), List.of(), true);
+
+        assertSame(rootEnv.fieldType(), lookup.get("env"));
+    }
+
     @SafeVarargs
     @SuppressWarnings("varargs")
     static <T> List<T> randomizedList(T... values) {

@@ -209,7 +209,11 @@ public final class OtelSdkSettings {
     );
 
     /** OTLP/gRPC endpoint URL where the SDK exports audit log records. Required when {@link #TELEMETRY_LOGS_AUDIT_ENABLED} is true. */
-    public static final Setting<String> TELEMETRY_LOGS_AUDIT_ENDPOINT = Setting.simpleString("telemetry.logs.audit.endpoint", "", NodeScope);
+    public static final Setting<String> TELEMETRY_LOGS_AUDIT_ENDPOINT = Setting.simpleString(
+        "telemetry.logs.audit.endpoint",
+        "",
+        NodeScope
+    );
 
     /**
      * PEM-encoded CA certificate(s) used to verify the otel-delivery-gateway's server certificate.

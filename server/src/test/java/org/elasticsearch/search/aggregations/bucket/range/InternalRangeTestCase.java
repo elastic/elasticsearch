@@ -29,11 +29,6 @@ public abstract class InternalRangeTestCase<T extends InternalAggregation & Rang
     }
 
     @Override
-    public final void setUp() throws Exception {
-        super.setUp();
-    }
-
-    @Override
     protected T createTestInstance(String name, Map<String, Object> metadata, InternalAggregations aggregations) {
         return createTestInstance(name, metadata, aggregations, keyed);
     }

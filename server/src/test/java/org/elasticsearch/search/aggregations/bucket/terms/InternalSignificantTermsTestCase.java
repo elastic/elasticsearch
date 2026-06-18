@@ -41,11 +41,6 @@ public abstract class InternalSignificantTermsTestCase extends InternalMultiBuck
     }
 
     @Override
-    public final void setUp() throws Exception {
-        super.setUp();
-    }
-
-    @Override
     protected boolean supportsSampling() {
         return true;
     }

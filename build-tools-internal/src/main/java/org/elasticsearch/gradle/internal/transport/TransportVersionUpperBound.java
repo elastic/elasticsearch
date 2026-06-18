@@ -16,7 +16,7 @@ import java.nio.file.Path;
  *
  * An upper bound is the maximum transport version definitionId that should be loaded for a given release branch.
  */
-record TransportVersionUpperBound(String name, String definitionName, TransportVersionId definitionId) {
+public record TransportVersionUpperBound(String name, String definitionName, TransportVersionId definitionId) {
     public static TransportVersionUpperBound fromString(Path file, String contents) {
         String filename = file.getFileName().toString();
         assert filename.endsWith(".csv");

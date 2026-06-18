@@ -126,7 +126,6 @@ public class DLMFrozenTransitionPlugin extends Plugin {
         return List.of(
             DLMFrozenTransitionService.POLL_INTERVAL_SETTING,
             DLMFrozenCleanupService.POLL_INTERVAL_SETTING,
-            DLMConvertToFrozen.DLM_CREATED_SETTING,
             DLMFrozenTransitionSettings.TRANSITION_ENABLED_SETTING
         );
     }

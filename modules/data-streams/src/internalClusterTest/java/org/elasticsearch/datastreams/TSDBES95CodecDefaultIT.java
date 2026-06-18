@@ -14,7 +14,6 @@ import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
@@ -59,7 +58,7 @@ public class TSDBES95CodecDefaultIT extends ESIntegTestCase {
         putTsdbTemplate(dataStreamName, Settings.EMPTY);
         triggerBackingIndexCreation(dataStreamName);
 
-        final String backingIndex = backingIndexOf(dataStreamName);
+        final String backingIndex = getDataStreamBackingIndexNames(dataStreamName).getFirst();
         final Settings settings = indexSettingsFor(backingIndex);
 
         assertThat(settings.get(IndexSettings.TIME_SERIES_ES95_CODEC_ENABLED_SETTING.getKey()), equalTo("true"));
@@ -73,7 +72,7 @@ public class TSDBES95CodecDefaultIT extends ESIntegTestCase {
         );
         triggerBackingIndexCreation(dataStreamName);
 
-        final String backingIndex = backingIndexOf(dataStreamName);
+        final String backingIndex = getDataStreamBackingIndexNames(dataStreamName).getFirst();
         final Settings settings = indexSettingsFor(backingIndex);
 
         assertThat(IndexSettings.TIME_SERIES_ES95_CODEC_ENABLED_SETTING.get(settings), equalTo(false));
@@ -84,7 +83,7 @@ public class TSDBES95CodecDefaultIT extends ESIntegTestCase {
         putTsdbTemplate(dataStreamName, Settings.EMPTY);
         triggerBackingIndexCreation(dataStreamName);
 
-        final String backingIndex = backingIndexOf(dataStreamName);
+        final String backingIndex = getDataStreamBackingIndexNames(dataStreamName).getFirst();
         final Settings update = Settings.builder().put(IndexSettings.TIME_SERIES_ES95_CODEC_ENABLED_SETTING.getKey(), false).build();
 
         final IllegalArgumentException exception = expectThrows(
@@ -131,13 +130,6 @@ public class TSDBES95CodecDefaultIT extends ESIntegTestCase {
     private static void triggerBackingIndexCreation(String dataStreamName) {
         final String source = "{\"@timestamp\":\"" + Instant.now() + "\",\"hostname\":\"vm-01\",\"metric\":1}";
         client().prepareIndex(dataStreamName).setSource(source, XContentType.JSON).setOpType(DocWriteRequest.OpType.CREATE).get();
-    }
-
-    private static String backingIndexOf(String dataStreamName) {
-        final var state = client().admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
-        final var dataStream = state.getMetadata().getProject(ProjectId.DEFAULT).dataStreams().get(dataStreamName);
-        assertThat("data stream " + dataStreamName, dataStream, notNullValue());
-        return dataStream.getWriteIndex().getName();
     }
 
     private static Settings indexSettingsFor(String indexName) {

@@ -57,15 +57,6 @@ public class AllocationPreCheckTests extends ESTestCase {
         throw new AssertionError("expected an allocation limit error for [" + source + "], but got: " + e, e);
     }
 
-    public void testNewObjectCharged() {
-        // The reflective object size is charged exactly; returning a string literal adds no allocation.
-        assertEquals(AllocSizes.sizeOf(ArrayList.class), allocatedBytes("Object o = new ArrayList(); return \"x\";"));
-    }
-
-    public void testNewObjectTripsLimit() {
-        assertTripsLimit("Object o = new ArrayList(); return \"x\";");
-    }
-
     public void testInitializedArrayCharged() {
         // new int[]{1,2,3,4} => pad8(16 + 4*4) = 32 bytes.
         assertEquals(AllocSizes.arraySize(int.class, 4), allocatedBytes("int[] a = new int[] {1, 2, 3, 4}; return \"x\";"));

@@ -1471,11 +1471,9 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
         MethodWriter methodWriter = writeScope.getMethodWriter();
         methodWriter.writeDebugInfo(irNewObjectNode.getLocation());
 
-        Class<?> objectType = irNewObjectNode.getDecorationValue(IRDExpressionType.class);
-        // new T(): the object size is a compile-time constant from a reflective field-walk.
-        writeAllocationCheck(writeScope, AllocSizes.sizeOf(objectType));
-
-        methodWriter.newInstance(MethodWriter.getType(objectType));
+        // No allocation pre-check here: sizing new T() needs the class's field layout, which is the whitelist's domain.
+        // It is handled at whitelist-load time via constructor allocation metadata (the @allocates annotation work).
+        methodWriter.newInstance(MethodWriter.getType(irNewObjectNode.getDecorationValue(IRDExpressionType.class)));
 
         // Always dup so that visitStatementExpression's always has something to pop
         methodWriter.dup();

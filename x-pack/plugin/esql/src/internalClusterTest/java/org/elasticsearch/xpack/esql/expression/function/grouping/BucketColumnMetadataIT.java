@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.expression.function.grouping;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.View;
+import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
@@ -26,11 +27,21 @@ import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoTimeout;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
 public class BucketColumnMetadataIT extends AbstractEsqlIntegTestCase {
+
+    private void waitForAllTasks() {
+        // Fix for flaky test reported in https://github.com/elastic/elasticsearch/issues/150849
+        // Remove once the root cause is fixed: https://github.com/elastic/elasticsearch/issues/151369
+        // See also https://github.com/elastic/elasticsearch/issues/151371
+        //
+        // When removing this, also remove it from CvFlattenedKeywordIT.KeywordToFlattenedStrategy.afterIndexLoaded()
+        assertNoTimeout(clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT).setWaitForEvents(Priority.LANGUID).get());
+    }
 
     @Before
     public void requireBucketMetadataCapability() {
@@ -44,6 +55,8 @@ public class BucketColumnMetadataIT extends AbstractEsqlIntegTestCase {
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
             .get();
 
+        waitForAllTasks();
+
         try (var response = run(syncEsqlQueryRequest("""
             FROM dates | STATS date=VALUES(date) BY bucket=BUCKET(date, 20, "1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z")
             """))) {
@@ -56,6 +69,8 @@ public class BucketColumnMetadataIT extends AbstractEsqlIntegTestCase {
             .setSource("date", "1985-07-09T00:00:00.000Z")
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
             .get();
+
+        waitForAllTasks();
 
         try (var response = run(syncEsqlQueryRequest("""
             FROM dates | STATS date=VALUES(date) BY BUCKET(date, 20, "1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z")
@@ -73,6 +88,8 @@ public class BucketColumnMetadataIT extends AbstractEsqlIntegTestCase {
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
             .get();
 
+        waitForAllTasks();
+
         try (var response = run(syncEsqlQueryRequest("""
             FROM dates
             | STATS date=VALUES(date) BY bucket=BUCKET(date, 20, "1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z")
@@ -87,6 +104,8 @@ public class BucketColumnMetadataIT extends AbstractEsqlIntegTestCase {
             .setSource("date", "1985-07-09T00:00:00.000Z")
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
             .get();
+
+        waitForAllTasks();
 
         try (var response = run(syncEsqlQueryRequest("""
             FROM dates
@@ -103,6 +122,8 @@ public class BucketColumnMetadataIT extends AbstractEsqlIntegTestCase {
             .setSource("date", "1985-07-09T00:00:00.000Z")
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
             .get();
+
+        waitForAllTasks();
 
         try (var response = run(syncEsqlQueryRequest("""
             FROM dates
@@ -129,6 +150,8 @@ public class BucketColumnMetadataIT extends AbstractEsqlIntegTestCase {
             .add(client().prepareIndex("numbers").setSource("number", 100))
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
             .get();
+
+        waitForAllTasks();
 
         try (var response = run(syncEsqlQueryRequest("""
             FROM
@@ -163,6 +186,8 @@ public class BucketColumnMetadataIT extends AbstractEsqlIntegTestCase {
             .add(client().prepareIndex("numbers").setSource("number", 100))
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
             .get();
+
+        waitForAllTasks();
 
         assertAcked(
             client().execute(
@@ -201,6 +226,8 @@ public class BucketColumnMetadataIT extends AbstractEsqlIntegTestCase {
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
             .get();
 
+        waitForAllTasks();
+
         // dropping bucket in subsequent aggregation
         try (var response = run(syncEsqlQueryRequest("""
             FROM test
@@ -236,6 +263,8 @@ public class BucketColumnMetadataIT extends AbstractEsqlIntegTestCase {
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
             .get();
 
+        waitForAllTasks();
+
         try (var response = run(syncEsqlQueryRequest("""
             FROM test
             | STATS count() BY
@@ -252,6 +281,8 @@ public class BucketColumnMetadataIT extends AbstractEsqlIntegTestCase {
             .setSource("number", 1, "date", "1985-07-09T00:00:00.000Z")
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
             .get();
+
+        waitForAllTasks();
 
         try (var response = run(syncEsqlQueryRequest("""
             FROM test
@@ -275,6 +306,8 @@ public class BucketColumnMetadataIT extends AbstractEsqlIntegTestCase {
 
     public void testBucketColumnMetadataRetainedAfterLookupJoin() {
         client().prepareIndex("events").setSource("value", 150).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
+
+        waitForAllTasks();
 
         assertAcked(
             client().admin()
@@ -305,6 +338,8 @@ public class BucketColumnMetadataIT extends AbstractEsqlIntegTestCase {
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
             .get();
 
+        waitForAllTasks();
+
         try (var response = run(syncEsqlQueryRequest("""
             FROM dates
             | FORK ( STATS c=COUNT(*) BY bucket=BUCKET(date, 1 month) )
@@ -321,6 +356,8 @@ public class BucketColumnMetadataIT extends AbstractEsqlIntegTestCase {
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
             .get();
 
+        waitForAllTasks();
+
         try (var response = run(syncEsqlQueryRequest("""
             FROM dates
             | INLINE STATS c=COUNT(*) BY bucket=BUCKET(date, 20, "1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z")
@@ -334,6 +371,8 @@ public class BucketColumnMetadataIT extends AbstractEsqlIntegTestCase {
             .setSource("date", "1985-07-09T00:00:00.000Z")
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
             .get();
+
+        waitForAllTasks();
 
         try (var response = run(syncEsqlQueryRequest("""
             FROM dates
@@ -351,6 +390,8 @@ public class BucketColumnMetadataIT extends AbstractEsqlIntegTestCase {
             .setSource("number", 1, "date", "1985-07-09T00:00:00.000Z")
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
             .get();
+
+        waitForAllTasks();
 
         try (var response = run(syncEsqlQueryRequest("""
             FROM test
@@ -384,6 +425,8 @@ public class BucketColumnMetadataIT extends AbstractEsqlIntegTestCase {
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
             .get();
 
+        waitForAllTasks();
+
         try (var response = run(syncEsqlQueryRequest("TS ts-index | STATS max(metric) BY tb = TBUCKET(1 hour)"))) {
             assertThat(findColumn(response, "tb").meta(), equalTo(Map.of("bucket", Map.of("interval", 1L, "unit", "hour"))));
         }
@@ -397,6 +440,8 @@ public class BucketColumnMetadataIT extends AbstractEsqlIntegTestCase {
             .setSource("date", "1985-07-09T00:00:00.000Z")
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
             .get();
+
+        waitForAllTasks();
 
         Map<String, Object> expected = Map.of("bucket", Map.of("interval", 1L, "unit", "day"));
         try (var response = run(syncEsqlQueryRequest("""
@@ -417,6 +462,8 @@ public class BucketColumnMetadataIT extends AbstractEsqlIntegTestCase {
         // BUCKET(field, 0, 0, 0) is accepted by the analyzer but fails at evaluation (NaN/divide-by-zero).
         // Such impossible bucket definitions must not surface any metadata.
         client().prepareIndex("numbers").setSource("number", 1).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
+
+        waitForAllTasks();
 
         try (var response = run(syncEsqlQueryRequest("""
             FROM numbers
@@ -446,6 +493,8 @@ public class BucketColumnMetadataIT extends AbstractEsqlIntegTestCase {
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
             .get();
 
+        waitForAllTasks();
+
         try (var response = run(syncEsqlQueryRequest("""
             FROM dates
             | STATS c=COUNT(*) BY b = BUCKET(date, 0, "1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z")
@@ -459,6 +508,8 @@ public class BucketColumnMetadataIT extends AbstractEsqlIntegTestCase {
             .setSource("date", "1985-07-09T00:00:00.000Z")
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
             .get();
+
+        waitForAllTasks();
 
         try (var response = run(syncEsqlQueryRequest("""
             FROM dates
@@ -475,6 +526,8 @@ public class BucketColumnMetadataIT extends AbstractEsqlIntegTestCase {
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
             .get();
 
+        waitForAllTasks();
+
         try (var response = run(syncEsqlQueryRequest("""
             FROM date_nanos_idx
             | STATS c=COUNT(*) BY b = BUCKET(date, 0, "1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z")
@@ -489,6 +542,8 @@ public class BucketColumnMetadataIT extends AbstractEsqlIntegTestCase {
             .setSource("date", "1985-07-09T00:00:00.000Z")
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
             .get();
+
+        waitForAllTasks();
 
         try (var response = run(syncEsqlQueryRequest("""
             FROM date_nanos_idx
@@ -517,6 +572,8 @@ public class BucketColumnMetadataIT extends AbstractEsqlIntegTestCase {
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
             .get();
 
+        waitForAllTasks();
+
         try (var response = run(syncEsqlQueryRequest("""
             FROM dates
             | STATS c=COUNT(*) BY bucket=BUCKET(date, null)
@@ -543,6 +600,8 @@ public class BucketColumnMetadataIT extends AbstractEsqlIntegTestCase {
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
             .get();
 
+        waitForAllTasks();
+
         try (var response = run(syncEsqlQueryRequest("""
             FROM dates
             | STATS c=COUNT(*) BY bucket=BUCKET(date, null, "1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z")
@@ -557,6 +616,8 @@ public class BucketColumnMetadataIT extends AbstractEsqlIntegTestCase {
             .setSource("date", "1985-07-09T00:00:00.000Z")
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
             .get();
+
+        waitForAllTasks();
 
         try (var response = run(syncEsqlQueryRequest("""
             FROM dates
@@ -573,6 +634,8 @@ public class BucketColumnMetadataIT extends AbstractEsqlIntegTestCase {
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
             .get();
 
+        waitForAllTasks();
+
         try (var response = run(syncEsqlQueryRequest("""
             FROM dates
             | STATS c=COUNT(*) BY bucket=BUCKET(date, 20, "1985-01-01T00:00:00Z", null)
@@ -587,6 +650,8 @@ public class BucketColumnMetadataIT extends AbstractEsqlIntegTestCase {
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
             .get();
 
+        waitForAllTasks();
+
         try (var response = run(syncEsqlQueryRequest("""
             FROM dates
             | STATS c=COUNT(*) BY b = BUCKET(date + 1 HOUR, 1 YEAR) - 1 HOUR
@@ -597,6 +662,8 @@ public class BucketColumnMetadataIT extends AbstractEsqlIntegTestCase {
 
     public void testBucketWrappedInRoundHasNoMetadata() {
         client().prepareIndex("test").setSource("value", 150).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
+
+        waitForAllTasks();
 
         try (var response = run(syncEsqlQueryRequest("""
             FROM test
@@ -609,6 +676,8 @@ public class BucketColumnMetadataIT extends AbstractEsqlIntegTestCase {
     public void testBucketInsideAggregateHasNoMetadata() {
         client().prepareIndex("test").setSource("value", 150).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
 
+        waitForAllTasks();
+
         try (var response = run(syncEsqlQueryRequest("""
             FROM test
             | STATS avg_b = AVG(BUCKET(value, 100.0)) BY bucket = BUCKET(value, 100.0)
@@ -620,6 +689,8 @@ public class BucketColumnMetadataIT extends AbstractEsqlIntegTestCase {
 
     public void testBucketColumnCastHasNoMetadata() {
         client().prepareIndex("test").setSource("value", 150).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
+
+        waitForAllTasks();
 
         try (var response = run(syncEsqlQueryRequest("""
             FROM test
@@ -637,6 +708,8 @@ public class BucketColumnMetadataIT extends AbstractEsqlIntegTestCase {
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
             .get();
 
+        waitForAllTasks();
+
         try (var response = run(syncEsqlQueryRequest("""
             FROM dates
             | STATS c=COUNT(*) BY bucket = BUCKET(date + 1 HOUR, 1 YEAR)
@@ -647,6 +720,8 @@ public class BucketColumnMetadataIT extends AbstractEsqlIntegTestCase {
 
     public void testBucketWithFoldableBucketsArg() {
         client().prepareIndex("test").setSource("value", 150).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
+
+        waitForAllTasks();
 
         try (var response = run(syncEsqlQueryRequest("""
             FROM test

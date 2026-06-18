@@ -4515,7 +4515,8 @@ public class VerifierTests extends ESTestCase {
     public void testHighlightAfterLookupJoinIsRejected() {
         assumeTrue("requires HIGHLIGHT_V0 capability", EsqlCapabilities.Cap.HIGHLIGHT_V0.isEnabled());
         analyzerWithLanguagesLookup().error(
-            "FROM test | EVAL language_code = languages | LOOKUP JOIN languages_lookup ON language_code | HIGHLIGHT \"search\" ON first_name",
+            "FROM test | EVAL language_code = languages | LOOKUP JOIN languages_lookup ON language_code "
+                + "| HIGHLIGHT \"search\" ON first_name",
             containsString("HIGHLIGHT cannot be used after")
         );
     }

@@ -38,6 +38,7 @@ import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.Mode;
 import org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.RequestObjectBuilder;
 import org.elasticsearch.xpack.esql.telemetry.TookMetrics;
+import org.elasticsearch.xpack.esql.view.RestPutViewAction;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -635,19 +636,22 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
 
     protected boolean supportsViews() {
         if (supportsViews == null) {
-            if (hasCapabilities(adminClient(), List.of("views_with_no_branching", "views_crud_as_index_actions")) == false) {
-                supportsViews = false;
-            } else {
-                // The ESQL capabilities above are declared even on nodes that don't expose the view CRUD REST API
-                // in serverless mode (old nodes that predate the @ServerlessScope annotation on RestPutViewAction).
-                // In a mixed cluster during upgrade, we must also verify that ALL nodes actually serve the PUT endpoint.
-                // clusterHasCapability uses /_capabilities which fans out to every node and returns supported=true only
-                // when all agree, so this guards against hitting an old node with 410 during view loading.
-                try {
-                    supportsViews = clusterHasCapability(adminClient(), "GET", "/_query/view", List.of(), List.of()).orElse(false);
-                } catch (IOException e) {
-                    throw new RuntimeException(e);
-                }
+            // Check the views_put_serverless_scope capability on the PUT /_query/view/{name} handler.
+            // That string is only declared by RestPutViewAction in code that also carries
+            // @ServerlessScope(Scope.PUBLIC). Old nodes that predate the annotation don't have it, so
+            // /_capabilities returns supported=false for any mixed cluster containing such a node.
+            // Using method=PUT ensures we evaluate the handler that actually performs view writes,
+            // which matters in serverless where ingest and search nodes are separated.
+            try {
+                supportsViews = clusterHasCapability(
+                    adminClient(),
+                    "PUT",
+                    "/_query/view/test",
+                    List.of(),
+                    List.of(RestPutViewAction.VIEWS_PUT_SERVERLESS_SCOPE)
+                ).orElse(false);
+            } catch (IOException e) {
+                throw new RuntimeException(e);
             }
         }
         return supportsViews;

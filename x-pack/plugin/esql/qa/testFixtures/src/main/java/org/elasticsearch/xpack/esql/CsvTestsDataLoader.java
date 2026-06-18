@@ -822,19 +822,25 @@ public class CsvTestsDataLoader {
     }
 
     private static boolean clusterHasViewSupport(RestClient client) throws IOException {
-        // Use the /_capabilities endpoint to check ALL nodes for view support.
-        // A direct GET /_query/view can hit any single node — in a mixed cluster during an upgrade,
-        // it might succeed on a new node (which has @ServerlessScope) while a subsequent PUT then
-        // fails with 410 on an old node (which doesn't). The /_capabilities TransportNodesAction
-        // queries every node and returns supported=true only when all of them agree.
-        // Checking the view_crud_as_index_actions capability string is insufficient: that capability
-        // is declared by RestPutViewAction on all nodes even before @ServerlessScope was added, so
-        // it returns true even on old serverless nodes where the endpoint is blocked.
-        // Using method=GET&path=/_query/view instead lets /_capabilities verify actual accessibility
-        // (including serverless scope) on every node.
+        // Use /_capabilities to check ALL nodes via TransportNodesAction (allMatch).
+        //
+        // We check method=PUT path=/_query/view/{name} with capabilities=views_put_serverless_scope.
+        // That capability string is declared by RestPutViewAction only in code that also carries
+        // @ServerlessScope(Scope.PUBLIC). Old nodes that predate the annotation do not have the
+        // string in their supportedCapabilities(), so checkSupported() returns false for them, and
+        // the cluster-wide allMatch result is false. This is correct: in serverless mode those old
+        // nodes return 410 on an actual PUT, while the /_capabilities route-existence check alone
+        // (without the capability string) would have returned true because /_capabilities does not
+        // enforce @ServerlessScope.
+        //
+        // In serverless deployments ingest (write) and search (read) nodes are separated, so probing
+        // with method=PUT ensures we evaluate the PUT handler on every ingest node, not a search node
+        // that might have been independently upgraded.
         Request capRequest = new Request("GET", "/_capabilities");
-        capRequest.addParameter("method", "GET");
-        capRequest.addParameter("path", "/_query/view");
+        capRequest.addParameter("method", "PUT");
+        capRequest.addParameter("path", "/_query/view/test");
+        // Matches RestPutViewAction.VIEWS_PUT_SERVERLESS_SCOPE — keep in sync if renamed.
+        capRequest.addParameter("capabilities", "views_put_serverless_scope");
         try {
             Response capResponse = client.performRequest(capRequest);
             ObjectMapper mapper = new ObjectMapper();

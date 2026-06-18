@@ -142,6 +142,8 @@ abstract class BalancedASKMeansLocal<V> extends KMeansLocal<V> {
             ops.linearCombination(learningRate, vec, 1 - learningRate, centroid);
         }
 
+        // Sync float shadows to byte centroids so that distance computation sees updated values.
+        // The float shadow remains live for continued SGD updates in subsequent mini-batches.
         sgdContext.syncToNative();
     }
 

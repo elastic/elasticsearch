@@ -353,6 +353,16 @@ public final class KeywordFieldMapper extends FieldMapper {
             return this.normalizerSkipStoreOriginalValue.getValue();
         }
 
+        // Returns true when an effective ignore_above limit applies (field-level or index-level), so the doc values omit longer values.
+        public boolean hasIgnoreAbove() {
+            return this.ignoreAbove.getValue() != Integer.MAX_VALUE;
+        }
+
+        // Returns true when a null_value is configured, so the doc values substitute it for nulls rather than mirroring the raw values.
+        public boolean hasNullValue() {
+            return this.nullValue.getValue() != null;
+        }
+
         Builder nullValue(String nullValue) {
             this.nullValue.setValue(nullValue);
             return this;
@@ -1311,6 +1321,11 @@ public final class KeywordFieldMapper extends FieldMapper {
          *  be skipped at parsing time. */
         public IgnoreAbove ignoreAbove() {
             return ignoreAbove;
+        }
+
+        // True when a null_value is configured; such a substitution mutates the doc values away from the raw indexed values.
+        public boolean hasNullValue() {
+            return nullValue != null;
         }
 
         @Override

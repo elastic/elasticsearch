@@ -4,7 +4,7 @@
 
 {applies_to}`stack: ga 9.5`
 
-:::{include} briefSummary/minute.md
+:::{include} brief-summary/minute.md
 :::
 
 **Return type**

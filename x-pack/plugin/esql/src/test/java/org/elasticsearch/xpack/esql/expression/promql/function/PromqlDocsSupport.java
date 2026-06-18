@@ -264,7 +264,7 @@ public final class PromqlDocsSupport {
         blocks.add(MD_WARNING);
         blocks.add("## `" + def.name() + "` [" + functionAnchor(def.name()) + "]");
         blocks.add(appliesToBadge(def));
-        blocks.add(include("briefSummary/" + def.name() + ".md"));
+        blocks.add(include("brief-summary/" + def.name() + ".md"));
         if (def.extendedDescription() != null) {
             blocks.add(def.extendedDescription());
         }
@@ -346,15 +346,16 @@ public final class PromqlDocsSupport {
     }
 
     /**
-     * Emits the generated one-line brief-summary snippet for a single function (mirroring the ES|QL
-     * {@code briefSummary/<name>.md} snippets). This is the single materialization of the function's description string:
-     * it is included both by the function's own page snippet ({@link #genFunctionMarkdown}) and by the per-category
-     * overview lists ({@link #genFunctionOverviewLists}), so the description is never duplicated across generated files.
+     * Emits the generated one-line brief-summary snippet for a single function (mirroring the ES|QL brief-summary
+     * snippets, but using a lowercase {@code brief-summary/} directory because docs-builder rejects path segments with
+     * uppercase letters). This is the single materialization of the function's description string: it is included both
+     * by the function's own page snippet ({@link #genFunctionMarkdown}) and by the per-category overview lists
+     * ({@link #genFunctionOverviewLists}), so the description is never duplicated across generated files.
      */
     private static void genBriefSummary(PromqlFunctionDefinition def, DocsV3Support.Callbacks callbacks) throws Exception {
         String summary = def.description().replaceAll("\\s+", " ").strip();
         String rendered = MD_WARNING + "\n\n" + summary + "\n";
-        callbacks.write(snippetsFunctionsDir().resolve("briefSummary"), def.name(), "md", rendered, false);
+        callbacks.write(snippetsFunctionsDir().resolve("brief-summary"), def.name(), "md", rendered, false);
     }
 
     /**
@@ -382,7 +383,7 @@ public final class PromqlDocsSupport {
                     .append(functionPageLink(category, name))
                     .append(") ")
                     .append(appliesToBadge(byName.get(name)))
-                    .append("\n  :::{include} ../briefSummary/")
+                    .append("\n  :::{include} ../brief-summary/")
                     .append(name)
                     .append(".md\n  :::\n");
             }

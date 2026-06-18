@@ -4,7 +4,7 @@
 
 {applies_to}`stack: preview 9.4, ga 9.5`
 
-:::{include} briefSummary/atan.md
+:::{include} brief-summary/atan.md
 :::
 
 **Return type**

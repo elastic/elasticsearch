@@ -4,7 +4,7 @@
 
 {applies_to}`stack: preview 9.4, ga 9.5`
 
-:::{include} briefSummary/acos.md
+:::{include} brief-summary/acos.md
 :::
 
 **Return type**

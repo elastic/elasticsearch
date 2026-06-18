@@ -4,7 +4,7 @@
 
 {applies_to}`stack: preview 9.4, ga 9.5`
 
-:::{include} briefSummary/irate.md
+:::{include} brief-summary/irate.md
 :::
 
 Requires a counter input; non-counter inputs are automatically coerced with `to_counter`. The metric's configured temporality (cumulative or delta) is honored. The result is always a `double`.

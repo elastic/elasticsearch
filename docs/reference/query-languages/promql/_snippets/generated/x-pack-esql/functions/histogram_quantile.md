@@ -4,7 +4,7 @@
 
 {applies_to}`stack: ga 9.5`
 
-:::{include} briefSummary/histogram_quantile.md
+:::{include} brief-summary/histogram_quantile.md
 :::
 
 **Return type**

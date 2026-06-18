@@ -4,7 +4,7 @@
 
 {applies_to}`stack: preview 9.4, ga 9.5`
 
-:::{include} briefSummary/delta.md
+:::{include} brief-summary/delta.md
 :::
 
 Operates on gauges: counter inputs are automatically and transparently converted to a gauge with `to_gauge`. The result is always a `double`.

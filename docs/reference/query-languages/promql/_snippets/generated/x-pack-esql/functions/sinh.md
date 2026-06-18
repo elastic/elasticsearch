@@ -4,7 +4,7 @@
 
 {applies_to}`stack: preview 9.4, ga 9.5`
 
-:::{include} briefSummary/sinh.md
+:::{include} brief-summary/sinh.md
 :::
 
 **Return type**

@@ -4,7 +4,7 @@
 
 {applies_to}`stack: preview 9.4, ga 9.5`
 
-:::{include} briefSummary/clamp_min.md
+:::{include} brief-summary/clamp_min.md
 :::
 
 **Return type**

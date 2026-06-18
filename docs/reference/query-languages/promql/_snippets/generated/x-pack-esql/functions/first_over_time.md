@@ -4,7 +4,7 @@
 
 {applies_to}`stack: preview 9.4, ga 9.5`
 
-:::{include} briefSummary/first_over_time.md
+:::{include} brief-summary/first_over_time.md
 :::
 
 **Return type**

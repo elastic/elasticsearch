@@ -4,7 +4,7 @@
 
 {applies_to}`stack: preview 9.4, ga 9.5`
 
-:::{include} briefSummary/sqrt.md
+:::{include} brief-summary/sqrt.md
 :::
 
 **Return type**

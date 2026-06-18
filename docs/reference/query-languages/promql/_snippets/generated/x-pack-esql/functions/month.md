@@ -4,7 +4,7 @@
 
 {applies_to}`stack: ga 9.5`
 
-:::{include} briefSummary/month.md
+:::{include} brief-summary/month.md
 :::
 
 **Return type**

@@ -1,0 +1,202 @@
+{
+  "uid": "promql-downsample-comparison",
+  "title": "PromQL downsample comparison",
+  "timezone": "utc",
+  "schemaVersion": 41,
+  "version": 3,
+  "refresh": "",
+  "time": {
+    "from": "2024-05-10T00:00:00Z",
+    "to": "2024-05-10T16:40:00Z"
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "timeseries",
+      "title": "max_over_time(rx[30m]): raw vs downsampled",
+      "description": "Same PromQL query against raw data and 30m/1h/2h aggregate downsample targets.",
+      "gridPos": {"x": 0, "y": 0, "w": 14, "h": 8},
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {"drawStyle": "line", "lineWidth": 2, "fillOpacity": 3, "showPoints": "always", "pointSize": 3, "spanNulls": true}
+        },
+        "overrides": []
+      },
+      "options": {"legend": {"calcs": ["lastNotNull", "max"], "displayMode": "table", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "multi", "sort": "none"}},
+      "targets": [
+        {"refId": "A", "datasource": {"type": "prometheus", "uid": "promql-downsample-raw"}, "expr": "max_over_time(rx[30m])", "interval": "30m", "legendFormat": "raw", "range": true, "exemplar": false},
+        {"refId": "B", "datasource": {"type": "prometheus", "uid": "promql-downsample-30m"}, "expr": "max_over_time(rx[30m])", "interval": "30m", "legendFormat": "downsampled 30m", "range": true, "exemplar": false},
+        {"refId": "C", "datasource": {"type": "prometheus", "uid": "promql-downsample-1h"}, "expr": "max_over_time(rx[30m])", "interval": "30m", "legendFormat": "downsampled 1h", "range": true, "exemplar": false},
+        {"refId": "D", "datasource": {"type": "prometheus", "uid": "promql-downsample-2h"}, "expr": "max_over_time(rx[30m])", "interval": "30m", "legendFormat": "downsampled 2h", "range": true, "exemplar": false}
+      ],
+      "datasource": {"type": "datasource", "uid": "-- Mixed --"}
+    },
+    {
+      "id": 2,
+      "type": "timeseries",
+      "title": "delta for rx[30m]: downsampled - raw",
+      "description": "Expression targets: E=30m target, F=1h target, G=2h target.",
+      "gridPos": {"x": 14, "y": 0, "w": 10, "h": 8},
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {"drawStyle": "line", "lineWidth": 2, "fillOpacity": 5, "showPoints": "always", "pointSize": 3, "spanNulls": true}
+        },
+        "overrides": []
+      },
+      "options": {"legend": {"calcs": ["lastNotNull", "max", "min"], "displayMode": "table", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "multi", "sort": "none"}},
+      "targets": [
+        {"refId": "A", "datasource": {"type": "prometheus", "uid": "promql-downsample-raw"}, "expr": "max_over_time(rx[30m])", "hide": true, "interval": "30m", "legendFormat": "raw", "range": true, "exemplar": false},
+        {"refId": "B", "datasource": {"type": "prometheus", "uid": "promql-downsample-30m"}, "expr": "max_over_time(rx[30m])", "hide": true, "interval": "30m", "legendFormat": "downsampled 30m", "range": true, "exemplar": false},
+        {"refId": "C", "datasource": {"type": "prometheus", "uid": "promql-downsample-1h"}, "expr": "max_over_time(rx[30m])", "hide": true, "interval": "30m", "legendFormat": "downsampled 1h", "range": true, "exemplar": false},
+        {"refId": "D", "datasource": {"type": "prometheus", "uid": "promql-downsample-2h"}, "expr": "max_over_time(rx[30m])", "hide": true, "interval": "30m", "legendFormat": "downsampled 2h", "range": true, "exemplar": false},
+        {"refId": "E", "datasource": {"type": "__expr__", "uid": "__expr__"}, "expression": "$B - $A", "type": "math"},
+        {"refId": "F", "datasource": {"type": "__expr__", "uid": "__expr__"}, "expression": "$C - $A", "type": "math"},
+        {"refId": "G", "datasource": {"type": "__expr__", "uid": "__expr__"}, "expression": "$D - $A", "type": "math"}
+      ],
+      "datasource": {"type": "datasource", "uid": "-- Mixed --"}
+    },
+    {
+      "id": 3,
+      "type": "timeseries",
+      "title": "max_over_time(rx[1h]): raw vs downsampled",
+      "description": "Same PromQL query against raw data and 30m/1h/2h aggregate downsample targets.",
+      "gridPos": {"x": 0, "y": 8, "w": 14, "h": 8},
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {"drawStyle": "line", "lineWidth": 2, "fillOpacity": 3, "showPoints": "always", "pointSize": 3, "spanNulls": true}
+        },
+        "overrides": []
+      },
+      "options": {"legend": {"calcs": ["lastNotNull", "max"], "displayMode": "table", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "multi", "sort": "none"}},
+      "targets": [
+        {"refId": "A", "datasource": {"type": "prometheus", "uid": "promql-downsample-raw"}, "expr": "max_over_time(rx[1h])", "interval": "30m", "legendFormat": "raw", "range": true, "exemplar": false},
+        {"refId": "B", "datasource": {"type": "prometheus", "uid": "promql-downsample-30m"}, "expr": "max_over_time(rx[1h])", "interval": "30m", "legendFormat": "downsampled 30m", "range": true, "exemplar": false},
+        {"refId": "C", "datasource": {"type": "prometheus", "uid": "promql-downsample-1h"}, "expr": "max_over_time(rx[1h])", "interval": "30m", "legendFormat": "downsampled 1h", "range": true, "exemplar": false},
+        {"refId": "D", "datasource": {"type": "prometheus", "uid": "promql-downsample-2h"}, "expr": "max_over_time(rx[1h])", "interval": "30m", "legendFormat": "downsampled 2h", "range": true, "exemplar": false}
+      ],
+      "datasource": {"type": "datasource", "uid": "-- Mixed --"}
+    },
+    {
+      "id": 4,
+      "type": "timeseries",
+      "title": "delta for rx[1h]: downsampled - raw",
+      "description": "Expression targets: E=30m target, F=1h target, G=2h target.",
+      "gridPos": {"x": 14, "y": 8, "w": 10, "h": 8},
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {"drawStyle": "line", "lineWidth": 2, "fillOpacity": 5, "showPoints": "always", "pointSize": 3, "spanNulls": true}
+        },
+        "overrides": []
+      },
+      "options": {"legend": {"calcs": ["lastNotNull", "max", "min"], "displayMode": "table", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "multi", "sort": "none"}},
+      "targets": [
+        {"refId": "A", "datasource": {"type": "prometheus", "uid": "promql-downsample-raw"}, "expr": "max_over_time(rx[1h])", "hide": true, "interval": "30m", "legendFormat": "raw", "range": true, "exemplar": false},
+        {"refId": "B", "datasource": {"type": "prometheus", "uid": "promql-downsample-30m"}, "expr": "max_over_time(rx[1h])", "hide": true, "interval": "30m", "legendFormat": "downsampled 30m", "range": true, "exemplar": false},
+        {"refId": "C", "datasource": {"type": "prometheus", "uid": "promql-downsample-1h"}, "expr": "max_over_time(rx[1h])", "hide": true, "interval": "30m", "legendFormat": "downsampled 1h", "range": true, "exemplar": false},
+        {"refId": "D", "datasource": {"type": "prometheus", "uid": "promql-downsample-2h"}, "expr": "max_over_time(rx[1h])", "hide": true, "interval": "30m", "legendFormat": "downsampled 2h", "range": true, "exemplar": false},
+        {"refId": "E", "datasource": {"type": "__expr__", "uid": "__expr__"}, "expression": "$B - $A", "type": "math"},
+        {"refId": "F", "datasource": {"type": "__expr__", "uid": "__expr__"}, "expression": "$C - $A", "type": "math"},
+        {"refId": "G", "datasource": {"type": "__expr__", "uid": "__expr__"}, "expression": "$D - $A", "type": "math"}
+      ],
+      "datasource": {"type": "datasource", "uid": "-- Mixed --"}
+    },
+    {
+      "id": 5,
+      "type": "timeseries",
+      "title": "max_over_time(rx[2h]): raw vs downsampled",
+      "description": "Same PromQL query against raw data and 30m/1h/2h aggregate downsample targets.",
+      "gridPos": {"x": 0, "y": 16, "w": 14, "h": 8},
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {"drawStyle": "line", "lineWidth": 2, "fillOpacity": 3, "showPoints": "always", "pointSize": 3, "spanNulls": true}
+        },
+        "overrides": []
+      },
+      "options": {"legend": {"calcs": ["lastNotNull", "max"], "displayMode": "table", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "multi", "sort": "none"}},
+      "targets": [
+        {"refId": "A", "datasource": {"type": "prometheus", "uid": "promql-downsample-raw"}, "expr": "max_over_time(rx[2h])", "interval": "30m", "legendFormat": "raw", "range": true, "exemplar": false},
+        {"refId": "B", "datasource": {"type": "prometheus", "uid": "promql-downsample-30m"}, "expr": "max_over_time(rx[2h])", "interval": "30m", "legendFormat": "downsampled 30m", "range": true, "exemplar": false},
+        {"refId": "C", "datasource": {"type": "prometheus", "uid": "promql-downsample-1h"}, "expr": "max_over_time(rx[2h])", "interval": "30m", "legendFormat": "downsampled 1h", "range": true, "exemplar": false},
+        {"refId": "D", "datasource": {"type": "prometheus", "uid": "promql-downsample-2h"}, "expr": "max_over_time(rx[2h])", "interval": "30m", "legendFormat": "downsampled 2h", "range": true, "exemplar": false}
+      ],
+      "datasource": {"type": "datasource", "uid": "-- Mixed --"}
+    },
+    {
+      "id": 6,
+      "type": "timeseries",
+      "title": "delta for rx[2h]: downsampled - raw",
+      "description": "Expression targets: E=30m target, F=1h target, G=2h target.",
+      "gridPos": {"x": 14, "y": 16, "w": 10, "h": 8},
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {"drawStyle": "line", "lineWidth": 2, "fillOpacity": 5, "showPoints": "always", "pointSize": 3, "spanNulls": true}
+        },
+        "overrides": []
+      },
+      "options": {"legend": {"calcs": ["lastNotNull", "max", "min"], "displayMode": "table", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "multi", "sort": "none"}},
+      "targets": [
+        {"refId": "A", "datasource": {"type": "prometheus", "uid": "promql-downsample-raw"}, "expr": "max_over_time(rx[2h])", "hide": true, "interval": "30m", "legendFormat": "raw", "range": true, "exemplar": false},
+        {"refId": "B", "datasource": {"type": "prometheus", "uid": "promql-downsample-30m"}, "expr": "max_over_time(rx[2h])", "hide": true, "interval": "30m", "legendFormat": "downsampled 30m", "range": true, "exemplar": false},
+        {"refId": "C", "datasource": {"type": "prometheus", "uid": "promql-downsample-1h"}, "expr": "max_over_time(rx[2h])", "hide": true, "interval": "30m", "legendFormat": "downsampled 1h", "range": true, "exemplar": false},
+        {"refId": "D", "datasource": {"type": "prometheus", "uid": "promql-downsample-2h"}, "expr": "max_over_time(rx[2h])", "hide": true, "interval": "30m", "legendFormat": "downsampled 2h", "range": true, "exemplar": false},
+        {"refId": "E", "datasource": {"type": "__expr__", "uid": "__expr__"}, "expression": "$B - $A", "type": "math"},
+        {"refId": "F", "datasource": {"type": "__expr__", "uid": "__expr__"}, "expression": "$C - $A", "type": "math"},
+        {"refId": "G", "datasource": {"type": "__expr__", "uid": "__expr__"}, "expression": "$D - $A", "type": "math"}
+      ],
+      "datasource": {"type": "datasource", "uid": "-- Mixed --"}
+    },
+    {
+      "id": 7,
+      "type": "timeseries",
+      "title": "max_over_time(rx[4h]): raw vs downsampled",
+      "description": "Same PromQL query against raw data and 30m/1h/2h aggregate downsample targets.",
+      "gridPos": {"x": 0, "y": 24, "w": 14, "h": 8},
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {"drawStyle": "line", "lineWidth": 2, "fillOpacity": 3, "showPoints": "always", "pointSize": 3, "spanNulls": true}
+        },
+        "overrides": []
+      },
+      "options": {"legend": {"calcs": ["lastNotNull", "max"], "displayMode": "table", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "multi", "sort": "none"}},
+      "targets": [
+        {"refId": "A", "datasource": {"type": "prometheus", "uid": "promql-downsample-raw"}, "expr": "max_over_time(rx[4h])", "interval": "30m", "legendFormat": "raw", "range": true, "exemplar": false},
+        {"refId": "B", "datasource": {"type": "prometheus", "uid": "promql-downsample-30m"}, "expr": "max_over_time(rx[4h])", "interval": "30m", "legendFormat": "downsampled 30m", "range": true, "exemplar": false},
+        {"refId": "C", "datasource": {"type": "prometheus", "uid": "promql-downsample-1h"}, "expr": "max_over_time(rx[4h])", "interval": "30m", "legendFormat": "downsampled 1h", "range": true, "exemplar": false},
+        {"refId": "D", "datasource": {"type": "prometheus", "uid": "promql-downsample-2h"}, "expr": "max_over_time(rx[4h])", "interval": "30m", "legendFormat": "downsampled 2h", "range": true, "exemplar": false}
+      ],
+      "datasource": {"type": "datasource", "uid": "-- Mixed --"}
+    },
+    {
+      "id": 8,
+      "type": "timeseries",
+      "title": "delta for rx[4h]: downsampled - raw",
+      "description": "Expression targets: E=30m target, F=1h target, G=2h target.",
+      "gridPos": {"x": 14, "y": 24, "w": 10, "h": 8},
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {"drawStyle": "line", "lineWidth": 2, "fillOpacity": 5, "showPoints": "always", "pointSize": 3, "spanNulls": true}
+        },
+        "overrides": []
+      },
+      "options": {"legend": {"calcs": ["lastNotNull", "max", "min"], "displayMode": "table", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "multi", "sort": "none"}},
+      "targets": [
+        {"refId": "A", "datasource": {"type": "prometheus", "uid": "promql-downsample-raw"}, "expr": "max_over_time(rx[4h])", "hide": true, "interval": "30m", "legendFormat": "raw", "range": true, "exemplar": false},
+        {"refId": "B", "datasource": {"type": "prometheus", "uid": "promql-downsample-30m"}, "expr": "max_over_time(rx[4h])", "hide": true, "interval": "30m", "legendFormat": "downsampled 30m", "range": true, "exemplar": false},
+        {"refId": "C", "datasource": {"type": "prometheus", "uid": "promql-downsample-1h"}, "expr": "max_over_time(rx[4h])", "hide": true, "interval": "30m", "legendFormat": "downsampled 1h", "range": true, "exemplar": false},
+        {"refId": "D", "datasource": {"type": "prometheus", "uid": "promql-downsample-2h"}, "expr": "max_over_time(rx[4h])", "hide": true, "interval": "30m", "legendFormat": "downsampled 2h", "range": true, "exemplar": false},
+        {"refId": "E", "datasource": {"type": "__expr__", "uid": "__expr__"}, "expression": "$B - $A", "type": "math"},
+        {"refId": "F", "datasource": {"type": "__expr__", "uid": "__expr__"}, "expression": "$C - $A", "type": "math"},
+        {"refId": "G", "datasource": {"type": "__expr__", "uid": "__expr__"}, "expression": "$D - $A", "type": "math"}
+      ],
+      "datasource": {"type": "datasource", "uid": "-- Mixed --"}
+    }
+  ]
+}

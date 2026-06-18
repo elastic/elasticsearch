@@ -25,7 +25,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
- * Variant of {@link StaticLogsDbSubobjectsFalseVersusLogsDbColumnarChallengeRestIT} that uses
+ * Variant of {@link StaticLogsDbSubobjectsFalseVersusLogsDbColumnarRestIT} that uses
  * randomly generated mappings and documents from {@link DataGenerationHelper} instead of
  * hand-coded ones, to exercise a wider set of field types and configurations.
  *

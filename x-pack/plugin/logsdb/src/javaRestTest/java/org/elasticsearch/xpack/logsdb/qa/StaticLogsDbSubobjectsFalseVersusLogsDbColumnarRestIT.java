@@ -23,7 +23,7 @@ import java.time.Instant;
  * the contender is the logsdb_columnar equivalent. Results of common operations (queries,
  * aggregations, ES|QL, field caps) must match.
  */
-public class StaticLogsDbSubobjectsFalseVersusLogsDbColumnarChallengeRestIT extends BulkChallengeRestIT {
+public class StaticLogsDbSubobjectsFalseVersusLogsDbColumnarRestIT extends BulkChallengeRestIT {
 
     @Override
     public void baselineSettings(Settings.Builder builder) {

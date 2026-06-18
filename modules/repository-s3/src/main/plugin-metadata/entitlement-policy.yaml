@@ -5,8 +5,17 @@ ALL-UNNAMED:
     - relative_path: "repository-s3/aws-web-identity-token-file"
       relative_to: "config"
       mode: "read"
+    # EKS Pod Identity: the operator symlinks
+    # /var/run/secrets/pods.eks.amazonaws.com/serviceaccount/eks-pod-identity-token here. The AWS SDK's
+    # ContainerCredentialsProvider is final and reads the token path from AWS_CONTAINER_AUTHORIZATION_TOKEN_FILE;
+    # S3Service redirects it at this entitled location via the aws.containerAuthorizationTokenFile sysprop below.
+    - relative_path: "repository-s3/eks-pod-identity-token"
+      relative_to: "config"
+      mode: "read"
   # The security policy permission states this is "only for tests": org.elasticsearch.repositories.s3.S3RepositoryPlugin
   # TODO: check this is actually needed, and if we can isolate it to a test-only policy
   - write_system_properties:
       properties:
         - es.allow_insecure_settings
+        # See the EKS Pod Identity note above: redirects the AWS SDK ContainerCredentialsProvider at the entitled symlink.
+        - aws.containerAuthorizationTokenFile

@@ -1,6 +1,5 @@
+area: Data streams
+issues: []
 pr: 151594
 summary: Add explicit mappings for OTel SDK span exporter/processor fields
-area: Data streams
 type: enhancement
-issues:
-  - 150026

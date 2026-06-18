@@ -431,7 +431,10 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         DatasetSource source = sources.get(0);
         int pipe = FixtureUtils.findFirstPipeAfterExternal(query);
         String tail = pipe < 0 ? "" : " " + query.substring(pipe);
-        StringBuilder external = new StringBuilder("EXTERNAL \"").append(source.resource()).append("\"");
+        // source.resource() is decoded (quotes/escapes resolved by the parser); re-escape it back into the
+        // EXTERNAL string literal so a resource containing a backslash or quote round-trips correctly.
+        String literal = source.resource().replace("\\", "\\\\").replace("\"", "\\\"");
+        StringBuilder external = new StringBuilder("EXTERNAL \"").append(literal).append("\"");
         if (source.withJson() != null) {
             external.append(" WITH ").append(source.withJson());
         }

@@ -9,9 +9,6 @@ package org.elasticsearch.xpack.esql.qa.rest;
 import org.elasticsearch.Version;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xcontent.XContentParserConfiguration;
-import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.esql.CsvSpecReader.CsvTestCase;
 import org.elasticsearch.xpack.esql.CsvSpecReader.DatasetSource;
 import org.elasticsearch.xpack.esql.CsvTestsDataLoader;
@@ -280,12 +277,18 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
      * Drops every {@code data_source}/{@code dataset} registered by {@link DatasetRegistry} during the
      * suite (datasets first, so data-source deletes do not 409 on a still-referenced parent). These are
      * {@code ProjectCustom} metadata that survive the framework's index wipe, so they must be cleaned
-     * explicitly. Skipped when the test clusters are already known broken.
+     * explicitly. The cluster-side delete is skipped when the test clusters are already known broken, but
+     * the static caches are always cleared (in a {@code finally}) so a broken cluster — or a cleanup that
+     * throws partway — cannot poison a later suite sharing this JVM fork.
      */
     @AfterClass
     public static void cleanupRegisteredDatasets() throws IOException {
-        if (testClustersOk) {
-            DatasetRegistry.cleanup(adminClient());
+        try {
+            if (testClustersOk) {
+                DatasetRegistry.cleanup(adminClient());
+            }
+        } finally {
+            DatasetRegistry.clearCaches();
         }
     }
 
@@ -390,31 +393,38 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
         }
 
         logger.debug("Transformed query for {} backend: {}", storageBackend, query);
-        doTest(query);
+        runColdThenWarm(query, isExternalQuery(query) && testCase.expectedDocumentsFound == null);
+    }
 
-        // Warm pass — exercise the cache on EVERY external spec test, for every format and codec that
-        // extends this base. The cold run above reconciled this file's statistics into the
-        // coordinator's per-file schema cache; the aggregate-metadata pushdown that serves COUNT(*) /
-        // MIN / MAX from that cache is a SECOND code path that a single run never touches. Re-running
-        // the identical query asserts the warm path against the same expected results, so a cache-only
-        // correctness bug (e.g. a COUNT(*) that only doubles on the warm read) fails deterministically
-        // here instead of surfacing flakily in CI when the randomized spec order happens to repeat a
-        // file against a shared cluster. Skipped only when the spec pins documents_found, because the
-        // warm run short-circuits to zero scanned documents and so cannot match the cold scan count.
-        // The schema cache is per-coordinator: on a single-node IT the warm run always hits it; on a
-        // multi-node IT the second run may land on another coordinator and re-scan (a coverage gap,
-        // never a wrong answer). The deterministic ExternalNdJsonMultiScanPushdownIT is the guaranteed
-        // warm-path guard regardless of routing.
-        if (isExternalQuery(query) && testCase.expectedDocumentsFound == null) {
+    /**
+     * Runs {@code query} once (cold) and, when {@code warmPass} is set, a second time (warm) against the
+     * identical expected results.
+     * <p>
+     * The warm pass exercises the cache on EVERY external/dataset spec test, for every format and codec
+     * that extends this base. The cold run reconciles the file's statistics into the coordinator's
+     * per-file schema cache; the aggregate-metadata pushdown that serves COUNT(*) / MIN / MAX from that
+     * cache is a SECOND code path that a single run never touches. Re-running the identical query asserts
+     * the warm path, so a cache-only correctness bug (e.g. a COUNT(*) that only doubles on the warm read)
+     * fails deterministically here instead of surfacing flakily in CI when the randomized spec order
+     * happens to repeat a file against a shared cluster. Callers pass {@code warmPass == false} when the
+     * spec pins {@code documents_found}, because the warm run short-circuits to zero scanned documents and
+     * so cannot match the cold scan count. The schema cache is per-coordinator: on a single-node IT the
+     * warm run always hits it; on a multi-node IT the second run may land on another coordinator and
+     * re-scan (a coverage gap, never a wrong answer). The deterministic ExternalNdJsonMultiScanPushdownIT
+     * is the guaranteed warm-path guard regardless of routing.
+     */
+    private void runColdThenWarm(String query, boolean warmPass) throws Throwable {
+        doTest(query);
+        if (warmPass) {
             doTest(query);
         }
     }
 
     /**
      * Registers the {@code data_source} (once per backend) and every declared {@code dataset}, then runs
-     * the spec's {@code FROM <name>} query verbatim — cold then warm (same warm-path rationale as the
-     * EXTERNAL flow above). Each source's resource template is resolved to the backend URI exactly as the
-     * EXTERNAL path resolves it.
+     * the spec's {@code FROM <name>} query verbatim — cold then warm via {@link #runColdThenWarm}, the
+     * same idiom the EXTERNAL flow uses. Each source's resource template is resolved to the backend URI
+     * exactly as the EXTERNAL path resolves it.
      * <p>
      * Skipped (rather than failed) on a cluster that lacks {@code dataset_in_from_command}: that
      * capability gates resolving {@code FROM <dataset>} in {@code POST /_query}, which is what this path
@@ -430,14 +440,11 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
         String dataSourceName = ensureDataSourceForBackend();
         for (DatasetSource source : testCase.datasetSources) {
             String resource = transformTemplates(source.resource());
-            DatasetRegistry.ensureDataset(client(), source.name(), dataSourceName, resource, parseWithSettings(source.withJson()));
+            DatasetRegistry.ensureDataset(client(), source.name(), dataSourceName, resource, source.withJson());
         }
         String query = testCase.query;
         logger.debug("Dataset-mode query for {} backend: {}", storageBackend, query);
-        doTest(query);
-        if (testCase.expectedDocumentsFound == null) {
-            doTest(query);
-        }
+        runColdThenWarm(query, testCase.expectedDocumentsFound == null);
     }
 
     /** Lazily registers (and caches) the {@code data_source} pointing at the in-process fixture for the active backend. */
@@ -453,16 +460,6 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
             // dataset mode without a registered data_source body, which is a wiring bug.
             default -> throw new IllegalStateException("Dataset mode not supported for backend [" + storageBackend + "]");
         };
-    }
-
-    /** Parses a {@code dataset:} directive's {@code WITH {...}} JSON into a settings map ({@code null} maps to empty). */
-    private static Map<String, Object> parseWithSettings(String withJson) throws IOException {
-        if (withJson == null) {
-            return Map.of();
-        }
-        try (XContentParser parser = JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, withJson)) {
-            return parser.map();
-        }
     }
 
     /**

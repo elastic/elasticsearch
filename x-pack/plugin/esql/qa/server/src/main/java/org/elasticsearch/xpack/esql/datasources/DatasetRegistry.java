@@ -6,20 +6,22 @@
  */
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
-import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.equalTo;
 
 /**
  * Class-scoped, idempotent registry of {@code data_source}/{@code dataset} pairs for the
@@ -36,7 +38,11 @@ import static org.hamcrest.Matchers.equalTo;
  * an {@code @AfterClass} hook to drop everything this registry created and clear the caches.
  *
  * <p>The registry is deliberately static: each spec IT runs in its own Gradle JVM fork, and
- * {@link #cleanup(RestClient)} clears the caches, so sequential suites in one JVM stay isolated.
+ * {@link #cleanup(RestClient)} clears the caches, so sequential suites in one JVM stay isolated. When a
+ * suite cannot run {@link #cleanup(RestClient)} (a broken cluster, or a failure before the
+ * {@code @AfterClass} hook), it must still call {@link #clearCaches()} so a later suite in the same fork
+ * starts from an empty cache rather than skipping a needed PUT against a cluster that no longer holds the
+ * custom.
  *
  * <p>The survival invariant above is the load-bearing assumption behind the cache, so
  * {@link #cleanup(RestClient)} fails loudly if a custom this registry recorded as successfully
@@ -71,22 +77,30 @@ public final class DatasetRegistry {
 
     /**
      * Ensures a {@code dataset} named {@code name} bound to {@code dataSource} + {@code resource} with the
-     * given format {@code settings} exists, issuing {@code PUT /_query/dataset/<name>} only when the
-     * content signature differs from the cached one. The owning {@code data_source} must already exist
-     * (register it first via {@link #ensureDataSource}); the CRUD layer rejects a dataset whose parent is
-     * missing.
+     * format options in the {@code withJson} object (the {@code WITH {...}} JSON, or {@code null} for
+     * none) exists, issuing {@code PUT /_query/dataset/<name>} only when the content signature differs
+     * from the cached one. The owning {@code data_source} must already exist (register it first via
+     * {@link #ensureDataSource}); the CRUD layer rejects a dataset whose parent is missing.
+     * <p>
+     * The signature is keyed off the raw {@code withJson} so the JSON is parsed only on a cache miss, not
+     * on every spec invocation.
      */
-    public static synchronized void ensureDataset(
-        RestClient client,
-        String name,
-        String dataSource,
-        String resource,
-        Map<String, Object> settings
-    ) throws IOException {
-        String signature = dataSource + "|" + resource + "|" + settings;
+    public static synchronized void ensureDataset(RestClient client, String name, String dataSource, String resource, String withJson)
+        throws IOException {
+        String signature = dataSource + "|" + resource + "|" + withJson;
         if (signature.equals(datasets.get(name)) == false) {
-            putDataset(client, name, dataSource, resource, settings);
+            putDataset(client, name, dataSource, resource, parseSettings(withJson));
             datasets.put(name, signature);
+        }
+    }
+
+    /** Parses a {@code dataset:} directive's {@code WITH {...}} JSON into a settings map ({@code null} maps to empty). */
+    private static Map<String, Object> parseSettings(String withJson) throws IOException {
+        if (withJson == null) {
+            return Map.of();
+        }
+        try (XContentParser parser = JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, withJson)) {
+            return parser.map();
         }
     }
 
@@ -146,6 +160,17 @@ public final class DatasetRegistry {
     }
 
     /**
+     * Clears the static caches without issuing any REST calls. Call this from an {@code @AfterClass}
+     * {@code finally} so a suite that could not run {@link #cleanup(RestClient)} (broken cluster, or a
+     * failure that aborted cleanup) does not leave stale entries that would make a later suite in the same
+     * JVM fork skip a needed PUT.
+     */
+    public static synchronized void clearCaches() {
+        datasets.clear();
+        dataSources.clear();
+    }
+
+    /**
      * {@code DELETE <path>} that swallows 404s, for ad-hoc sweeps of resources whose existence is not
      * tracked by this registry (e.g. test indices, or datasets a test may or may not have created). The
      * registry's own {@link #cleanup} deliberately does <em>not</em> use this — it expects its tracked
@@ -179,7 +204,11 @@ public final class DatasetRegistry {
         }
     }
 
-    private static void assertOk(Response response, String what) {
-        assertThat(what, response.getStatusLine().getStatusCode(), equalTo(200));
+    private static void assertOk(Response response, String what) throws IOException {
+        int status = response.getStatusLine().getStatusCode();
+        if (status != 200) {
+            String body = response.getEntity() == null ? "<no body>" : EntityUtils.toString(response.getEntity());
+            throw new AssertionError(what + " returned unexpected status [" + status + "]: " + body);
+        }
     }
 }

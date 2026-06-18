@@ -145,23 +145,39 @@ public final class CsvSpecReader {
 
     /**
      * A single external source declared by a {@code dataset:} preamble directive of the form
-     * {@code dataset: <name>: "<resource>" [WITH {<json>}]}. It carries everything the test harness
-     * needs to either (a) register a {@code data_source}/{@code dataset} pair and run the spec's
+     * {@code dataset: <name>: "<resource>" [WITH {<json>}] [// comment]}. It carries everything the test
+     * harness needs to either (a) register a {@code data_source}/{@code dataset} pair and run the spec's
      * {@code FROM <name>} query verbatim on dataset-capable backends, or (b) rebuild the equivalent
      * {@code EXTERNAL "<resource>" WITH {<json>}} query on backends that cannot back a dataset.
      *
      * @param name      the dataset name referenced by the {@code FROM} clause
-     * @param resource  the resource URI or {@code {{template}}} placeholder (without surrounding quotes)
+     * @param resource  the decoded resource URI or {@code {{template}}} placeholder: surrounding quotes
+     *                  removed and backslash escapes resolved (e.g. {@code \"} -&gt; {@code "})
      * @param withJson  the brace-delimited JSON options object (e.g. {@code {"header_row": false}}), or
      *                  {@code null} when the directive carries no {@code WITH} clause
      */
     public record DatasetSource(String name, String resource, String withJson) {}
 
     /**
-     * Parses {@code dataset:} preamble directives. Each declares one named external source whose
-     * format options are exactly today's EXTERNAL {@code WITH} options; storage connection settings are
-     * still injected by the test harness, never written in the spec. The directive is repeatable so a
-     * single query can reference multiple datasets.
+     * Parses {@code dataset:} preamble directives of the form
+     * {@code dataset: <name>: "<resource>" [WITH {<json>}] [// comment]}. Each declares one named external
+     * source whose format options are exactly today's EXTERNAL {@code WITH} options; storage connection
+     * settings are still injected by the test harness, never written in the spec. The directive is
+     * repeatable so a single query can reference multiple datasets.
+     * <p>
+     * The resource string supports {@code \\}-escapes (so it may contain an embedded {@code "}), and a
+     * trailing {@code //} comment is permitted after the resource or after the {@code WITH} object.
+     * {@link SpecReader} only strips whole-line comments, so the inline comment is handled here; the
+     * scanners are quote/brace aware so a {@code //} inside the resource (e.g. {@code http://...}) or
+     * inside a JSON string value is never mistaken for a comment.
+     * <p>
+     * Like the other preamble directives ({@code Capability}, {@code Pragma}, {@code RequestStored}, ...),
+     * this parser deliberately runs in both the preamble and the result phase and carries no
+     * {@code state.testCase == null} guard: it accumulates into {@link ParserContext#datasetSources} (the
+     * list backing the test currently being assembled), not into {@code state.testCase}. The guard on
+     * {@code Warning}/{@code WarningRegex}/{@code IgnoreOrder} exists only because those write into
+     * {@code state.testCase.*}; adding it here would stop the directive from firing in the preamble
+     * (where {@code testCase == null}) and silently fold it into the query text.
      */
     record Dataset(ParserContext state) implements SpecReader.Parser {
         @Override
@@ -182,30 +198,111 @@ public final class CsvSpecReader {
             if (name.isEmpty() || spec.startsWith("\"") == false) {
                 throw new IllegalArgumentException("Invalid dataset directive [" + line + "]: a name and a quoted resource are required");
             }
-            int closeQuote = spec.indexOf('"', 1);
+            StringBuilder decoded = new StringBuilder();
+            int closeQuote = scanQuoted(spec, 1, decoded);
             if (closeQuote < 0) {
                 throw new IllegalArgumentException("Invalid dataset directive [" + line + "]: unterminated resource string");
             }
-            String resource = spec.substring(1, closeQuote);
+            String resource = decoded.toString();
             String remainder = spec.substring(closeQuote + 1).trim();
             String withJson = null;
-            if (remainder.isEmpty() == false) {
+            if (remainder.isEmpty() == false && isLineComment(remainder) == false) {
                 if (remainder.toLowerCase(Locale.ROOT).startsWith("with") == false) {
                     throw new IllegalArgumentException(
-                        "Invalid dataset directive [" + line + "]: expected WITH after the resource, got [" + remainder + "]"
+                        "Invalid dataset directive ["
+                            + line
+                            + "]: expected WITH or a // comment after the resource, got ["
+                            + remainder
+                            + "]"
                     );
                 }
                 String afterWith = remainder.substring("with".length()).trim();
-                if (afterWith.startsWith("{") == false || afterWith.endsWith("}") == false) {
+                if (afterWith.startsWith("{") == false) {
                     throw new IllegalArgumentException(
                         "Invalid dataset directive [" + line + "]: WITH must be followed by a JSON object, got [" + afterWith + "]"
                     );
                 }
-                withJson = afterWith;
+                int closeBrace = matchingBrace(afterWith, 0);
+                if (closeBrace < 0) {
+                    throw new IllegalArgumentException(
+                        "Invalid dataset directive [" + line + "]: unterminated WITH JSON object, got [" + afterWith + "]"
+                    );
+                }
+                withJson = afterWith.substring(0, closeBrace + 1);
+                String tail = afterWith.substring(closeBrace + 1).trim();
+                if (tail.isEmpty() == false && isLineComment(tail) == false) {
+                    throw new IllegalArgumentException(
+                        "Invalid dataset directive ["
+                            + line
+                            + "]: unexpected trailing token after WITH JSON object: ["
+                            + tail
+                            + "]; inline comments must start with //"
+                    );
+                }
             }
             state.datasetSources.add(new DatasetSource(name, resource, withJson));
             return Boolean.TRUE;
         }
+    }
+
+    /**
+     * Scans a double-quoted string starting at {@code from} (the index just past the opening quote),
+     * decoding backslash escapes ({@code \"} -&gt; {@code "}, {@code \\} -&gt; {@code \}; any other
+     * {@code \x} -&gt; {@code x}) into {@code out}. Returns the index of the closing quote, or {@code -1}
+     * if the string is unterminated. Mirrors the escape handling in
+     * {@code AbstractExternalSourceSpecTestCase.findClosingBrace}.
+     */
+    private static int scanQuoted(String s, int from, StringBuilder out) {
+        for (int i = from; i < s.length(); i++) {
+            char c = s.charAt(i);
+            if (c == '\\') {
+                if (i + 1 >= s.length()) {
+                    return -1;
+                }
+                out.append(s.charAt(i + 1));
+                i++;
+            } else if (c == '"') {
+                return i;
+            } else {
+                out.append(c);
+            }
+        }
+        return -1;
+    }
+
+    /**
+     * Returns the index of the closing brace matching the opening brace at {@code open}, skipping over
+     * quoted strings (and their backslash escapes) so braces inside JSON string values are ignored, or
+     * {@code -1} if no matching brace is found.
+     */
+    private static int matchingBrace(String s, int open) {
+        int depth = 0;
+        boolean inQuotes = false;
+        for (int i = open; i < s.length(); i++) {
+            char c = s.charAt(i);
+            if (inQuotes) {
+                if (c == '\\') {
+                    i++;
+                } else if (c == '"') {
+                    inQuotes = false;
+                }
+            } else if (c == '"') {
+                inQuotes = true;
+            } else if (c == '{') {
+                depth++;
+            } else if (c == '}') {
+                depth--;
+                if (depth == 0) {
+                    return i;
+                }
+            }
+        }
+        return -1;
+    }
+
+    /** Whether {@code s} begins a {@code //} line comment (the inline-comment marker for spec directives). */
+    private static boolean isLineComment(String s) {
+        return s.startsWith("//");
     }
 
     record RequestStored(ParserContext state) implements SpecReader.Parser {

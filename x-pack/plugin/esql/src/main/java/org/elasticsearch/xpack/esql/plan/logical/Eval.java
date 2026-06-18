@@ -75,6 +75,23 @@ public class Eval extends UnaryPlan
         return fields;
     }
 
+    /**
+     * EVAL introduces new computed columns that shadow any source field with the same name.
+     * The child's pattern is propagated with those names added to the exclusion list.
+     */
+    @Override
+    public UnmappedFieldsPattern unmappedFieldsToKeep() {
+        UnmappedFieldsPattern childPattern = child().unmappedFieldsToKeep();
+        if (childPattern.includes().isEmpty()) {
+            return childPattern;
+        }
+        List<String> newExcludes = new ArrayList<>(childPattern.excludes());
+        for (Alias field : fields) {
+            newExcludes.add(field.name());
+        }
+        return new UnmappedFieldsPattern(childPattern.includes(), newExcludes);
+    }
+
     @Override
     public List<Attribute> output() {
         if (lazyOutput == null) {

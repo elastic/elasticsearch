@@ -2998,6 +2998,12 @@ public class EsqlCapabilities {
         OPTIONAL_FIELDS_LOAD_WITH_LOOKUP_JOIN,
 
         /**
+         * Support for {@code unmapped_fields="LOAD_ALL"}, which loads all unmapped source fields into a
+         * synthetic {@code _unmapped_fields} column containing a JSON object with the unmapped field values.
+         */
+        OPTIONAL_FIELDS_LOAD_ALL(Build.current().isSnapshot()),
+
+        /**
          * Support for the {@code ==} operator on the root of a {@code flattened} field in ES|QL.
          */
         FN_EQUALS_FLATTENED(Build.current().isSnapshot()),

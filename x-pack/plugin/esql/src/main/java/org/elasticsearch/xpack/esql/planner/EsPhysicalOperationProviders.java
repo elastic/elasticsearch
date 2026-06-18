@@ -91,6 +91,7 @@ import org.elasticsearch.xpack.esql.expression.function.BlockLoaderWarnings;
 import org.elasticsearch.xpack.esql.expression.function.blockloader.BlockLoaderExpression;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.AbstractConvertFunction;
+import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsAttribute;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec.Sort;
 import org.elasticsearch.xpack.esql.plan.physical.EstimatesRowSize;
@@ -242,6 +243,9 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         DefaultShardContext shardContext = (DefaultShardContext) shardContexts.get(shardId);
         if (attr instanceof FieldAttribute fa && fa.field() instanceof PotentiallyUnmappedKeywordEsField kf) {
             shardContext = wrapWithUnmappedFieldContext(shardContext, kf);
+        }
+        if (attr instanceof UnmappedFieldsAttribute ufa) {
+            return ValuesSourceReaderOperator.load(new UnmappedFieldsBlockLoader(ufa.pattern()));
         }
 
         // Apply any block loader function if present

@@ -136,6 +136,12 @@ public class CsvTestsDataLoader {
             "partial_message_types_lookup.csv",
             "lookup-settings.json"
         ),
+        new TestDataset(
+            "message_language_code_lookup",
+            "mapping-message_language_code_lookup.json",
+            "message_language_code_lookup.csv",
+            "lookup-settings.json"
+        ),
         new TestDataset("no_mapping_sample_data", "mapping-no_mapping_sample_data.json", "partial_mapping_sample_data.csv"),
         new TestDataset("no_message_sample_data", "mapping-sample_data.json", "sample_data.csv").withTypeMapping(removeFields("message"))
             .withDynamic("false"),

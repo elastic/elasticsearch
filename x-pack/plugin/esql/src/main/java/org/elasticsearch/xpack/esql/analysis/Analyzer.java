@@ -156,6 +156,8 @@ import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesCollapse;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
+import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsAttribute;
+import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsPattern;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.ViewShadowRelation;
@@ -282,6 +284,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         new Batch<>(
             "Finish Analysis",
             Limiter.ONCE,
+            new DetermineUnmappedFieldsToKeep(),
             new ResolveImplicitTimeSeriesIdentityGrouping(),
             new ResolvedProjects(),
             new AddImplicitLimit(),
@@ -1690,7 +1693,27 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         private static LogicalPlan resolveKeep(Keep keep, UnmappedResolution unmappedResolution) {
             return unmappedResolution == UnmappedResolution.DEFAULT
                 ? new Project(keep.source(), keep.child(), keepResolver(keep.projections(), keep.child().output()))
-                : new ResolvingProject(keep.source(), keep.child(), inputAttributes -> keepResolver(keep.projections(), inputAttributes));
+                : new ResolvingProject(
+                    keep.source(),
+                    keep.child(),
+                    inputAttributes -> keepResolver(keep.projections(), inputAttributes),
+                    patternForKeep(keep.projections())
+                );
+        }
+
+        /** Computes the {@link UnmappedFieldsPattern} for a KEEP command from its projection list. */
+        static UnmappedFieldsPattern patternForKeep(List<? extends NamedExpression> projections) {
+            List<String> includes = new ArrayList<>();
+            for (NamedExpression proj : projections) {
+                if (proj instanceof UnresolvedStar) {
+                    includes.add("*");
+                } else if (proj instanceof UnresolvedNamePattern up) {
+                    includes.add(up.pattern());
+                } else {
+                    includes.add(proj.name());
+                }
+            }
+            return new UnmappedFieldsPattern(includes, List.of());
         }
 
         // Engine-synthesized columns (today: {@code _file.*}) are never expanded by {@code KEEP *}
@@ -1758,7 +1781,25 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         private static LogicalPlan resolveDrop(Drop drop, UnmappedResolution unmappedResolution) {
             return unmappedResolution == UnmappedResolution.DEFAULT
                 ? new Project(drop.source(), drop.child(), dropResolver(drop.removals(), drop.output()))
-                : new ResolvingProject(drop.source(), drop.child(), inputAttributes -> dropResolver(drop.removals(), inputAttributes));
+                : new ResolvingProject(
+                    drop.source(),
+                    drop.child(),
+                    inputAttributes -> dropResolver(drop.removals(), inputAttributes),
+                    patternForDrop(drop.removals())
+                );
+        }
+
+        /** Computes the {@link UnmappedFieldsPattern} for a DROP command from its removal list. */
+        static UnmappedFieldsPattern patternForDrop(List<NamedExpression> removals) {
+            List<String> excludes = new ArrayList<>();
+            for (NamedExpression removal : removals) {
+                if (removal instanceof UnresolvedNamePattern up) {
+                    excludes.add(up.pattern());
+                } else {
+                    excludes.add(removal.name());
+                }
+            }
+            return new UnmappedFieldsPattern(List.of("*"), excludes);
         }
 
         private static List<NamedExpression> dropResolver(List<NamedExpression> removals, List<Attribute> childOutput) {
@@ -1802,8 +1843,18 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 : new ResolvingProject(
                     rename.source(),
                     rename.child(),
-                    inputAttributes -> projectionsForRename(rename, inputAttributes, log)
+                    inputAttributes -> projectionsForRename(rename, inputAttributes, log),
+                    patternForRename(rename.renamings())
                 );
+        }
+
+        /** Computes the {@link UnmappedFieldsPattern} for a RENAME command from its alias list. */
+        static UnmappedFieldsPattern patternForRename(List<Alias> renamings) {
+            List<String> excludes = new ArrayList<>();
+            for (Alias renaming : renamings) {
+                excludes.add(renaming.name()); // target name shadows any source field with that name
+            }
+            return new UnmappedFieldsPattern(List.of("*"), excludes);
         }
 
         /**
@@ -2122,6 +2173,60 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             }
 
             return inferenceFunction;
+        }
+    }
+
+    /**
+     * When {@code SET unmapped_fields="LOAD_ALL"} is in effect, annotates each non-LOOKUP
+     * {@link EsRelation} with the {@link UnmappedFieldsPattern} that describes which additional
+     * (currently unmapped) source fields would survive to the query output.
+     *
+     * <p>The rule runs in the Finish Analysis batch <em>before</em> {@link ResolvedProjects}, so
+     * {@link ResolvingProject} nodes — which carry the original wildcard patterns — are still present.
+     * For any other {@link UnmappedResolution} the rule is a no-op.
+     */
+    private static class DetermineUnmappedFieldsToKeep extends ParameterizedRule<LogicalPlan, LogicalPlan, AnalyzerContext> {
+        @Override
+        public LogicalPlan apply(LogicalPlan plan, AnalyzerContext context) {
+            if (context.unmappedResolution() != UnmappedResolution.LOAD_ALL) {
+                return plan;
+            }
+            UnmappedFieldsPattern pattern;
+            try {
+                pattern = plan.unmappedFieldsToKeep();
+            } catch (UnsupportedOperationException e) {
+                // Complex plans (e.g. with binary union nodes) may not yet support this;
+                // fall back to ALL so we never accidentally suppress fields.
+                pattern = UnmappedFieldsPattern.ALL;
+            }
+            return annotate(plan, new UnmappedFieldsAttribute(Source.EMPTY, pattern));
+        }
+
+        /**
+         * Post-order traversal that annotates every non-LOOKUP EsRelation with the given attribute.
+         * Uses reference identity (not equals) to detect whether a child was replaced.
+         */
+        private static LogicalPlan annotate(LogicalPlan plan, UnmappedFieldsAttribute attr) {
+            if (plan instanceof EsRelation esr) {
+                if (esr.indexMode() == IndexMode.LOOKUP) {
+                    return esr;
+                }
+                List<String> outputNames = esr.output().stream().map(Attribute::name).toList();
+                UnmappedFieldsPattern refined = attr.pattern().withAdditionalExcludes(outputNames);
+                return esr.withAdditionalAttribute(new UnmappedFieldsAttribute(attr.source(), refined));
+            }
+            List<LogicalPlan> children = plan.children();
+            if (children.isEmpty()) {
+                return plan;
+            }
+            boolean changed = false;
+            List<LogicalPlan> newChildren = new ArrayList<>(children.size());
+            for (LogicalPlan child : children) {
+                LogicalPlan newChild = annotate(child, attr);
+                newChildren.add(newChild);
+                changed |= (newChild != child);
+            }
+            return changed ? plan.replaceChildren(newChildren) : plan;
         }
     }
 

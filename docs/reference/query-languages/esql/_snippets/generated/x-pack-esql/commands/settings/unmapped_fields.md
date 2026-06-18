@@ -11,6 +11,8 @@ Determines how unmapped fields are treated. Possible values are:
 - `NULLIFY` : Treats unmapped fields as null values.
 - `LOAD` : Loads unmapped fields from the stored [`_source`](/reference/elasticsearch/mapping-reference/mapping-source-field.md)
 with type `keyword`. Or nullifies them if absent from `_source`. {applies_to}`stack: preview 9.4`
+- `LOAD_ALL` : Loads all source fields not present in the index mapping into a synthetic `_unmapped_fields` column
+containing a JSON object with the unmapped field values. {applies_to}`stack: preview 9.5`
 
 An `unmapped field` is a field referenced in a query that does not exist in the mapping of the index being queried.
 When querying multiple indices, a field is considered `partially unmapped` if it exists in the mapping of some

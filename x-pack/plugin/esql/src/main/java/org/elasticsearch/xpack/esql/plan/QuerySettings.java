@@ -79,6 +79,8 @@ public class QuerySettings {
         - `NULLIFY` : Treats unmapped fields as null values.
         - `LOAD` : Loads unmapped fields from the stored [`_source`](/reference/elasticsearch/mapping-reference/mapping-source-field.md)
         with type `keyword`. Or nullifies them if absent from `_source`. {applies_to}`stack: preview 9.4`
+        - `LOAD_ALL` : Loads all source fields not present in the index mapping into a synthetic `_unmapped_fields` column
+        containing a JSON object with the unmapped field values. {applies_to}`stack: preview 9.5`
 
         An `unmapped field` is a field referenced in a query that does not exist in the mapping of the index being queried.
         When querying multiple indices, a field is considered `partially unmapped` if it exists in the mapping of some
@@ -119,13 +121,32 @@ public class QuerySettings {
         false,
         true,
         false,
+        (value, ctx) -> {
+            String resolution = Foldables.stringLiteralValueOf(value, "Unexpected value");
+            UnmappedResolution parsed;
+            try {
+                parsed = UnmappedResolution.valueOf(resolution.toUpperCase(Locale.ROOT));
+            } catch (Exception exc) {
+                return "Invalid unmapped_fields resolution ["
+                    + resolution
+                    + "], must be one of "
+                    + Arrays.toString(UnmappedResolution.values());
+            }
+            if (parsed == UnmappedResolution.LOAD_ALL && ctx.isSnapshot() == false) {
+                return "unmapped_fields value [LOAD_ALL] requires a snapshot build";
+            }
+            return null;
+        },
         (value) -> {
             String resolution = Foldables.stringLiteralValueOf(value, "Unexpected value");
             try {
                 return UnmappedResolution.valueOf(resolution.toUpperCase(Locale.ROOT));
             } catch (Exception exc) {
                 throw new IllegalArgumentException(
-                    "Invalid unmapped_fields resolution [" + value + "], must be one of " + Arrays.toString(UnmappedResolution.values())
+                    "Invalid unmapped_fields resolution ["
+                        + resolution
+                        + "], must be one of "
+                        + Arrays.toString(UnmappedResolution.values())
                 );
             }
         },

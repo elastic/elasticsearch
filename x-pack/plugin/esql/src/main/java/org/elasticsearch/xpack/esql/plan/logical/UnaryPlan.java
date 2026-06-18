@@ -44,6 +44,17 @@ public abstract class UnaryPlan extends LogicalPlan {
         return child.output();
     }
 
+    /**
+     * Most unary plan nodes are transparent to additional source field visibility:
+     * they pass rows through without restricting which field names reach the output.
+     * Nodes that do affect field visibility ({@link Keep}, {@link Drop}, {@link Eval},
+     * {@link Rename}) must override this method.
+     */
+    @Override
+    public UnmappedFieldsPattern unmappedFieldsToKeep() {
+        return child().unmappedFieldsToKeep();
+    }
+
     @Override
     public AttributeSet outputSet() {
         if (lazyOutputSet == null) {

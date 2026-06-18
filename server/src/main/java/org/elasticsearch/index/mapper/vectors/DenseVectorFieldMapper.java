@@ -110,7 +110,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParser.Token;
 import org.elasticsearch.xcontent.XContentString;
-import org.jspecify.annotations.NonNull;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;

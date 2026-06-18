@@ -671,10 +671,14 @@ public class EsExecutors {
 
             /** Sets the half-life for thread utilization EWMR tracking. */
             public Builder threadUtilizationEwmrHalfLife(TimeValue halfLife) {
-                if (halfLife.nanos() <= 0) {
-                    throw new IllegalArgumentException("halfLife must be positive");
+                if (halfLife.nanos() < 0) {
+                    throw new IllegalArgumentException("halfLife must be greater than or equal to zero");
                 }
-                this.threadUtilizationEwmrLambda = Math.log(2.0) / halfLife.nanos();
+                if (halfLife.nanos() == 0) {
+                    this.threadUtilizationEwmrLambda = DISABLE_UTILIZATION_EWMR;
+                } else {
+                    this.threadUtilizationEwmrLambda = Math.log(2.0) / halfLife.nanos();
+                }
                 return this;
             }
 

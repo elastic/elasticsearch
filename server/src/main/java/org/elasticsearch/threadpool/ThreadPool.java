@@ -272,6 +272,15 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler, 
         Setting.Property.NodeScope
     );
 
+    // A setting to allow configuration of the half-life of the EWMR used to track utilization
+    // of the write thread pool. A zero value will disable it.
+    public static final Setting<TimeValue> WRITE_THREAD_POOL_UTILIZATION_EWMR_HALF_LIFE = Setting.timeSetting(
+        "thread_pool.write.utilization_ewmr.half_life",
+        TimeValue.timeValueSeconds(30),
+        TimeValue.ZERO,
+        Setting.Property.NodeScope
+    );
+
     /**
      * Defines and builds the many thread pools delineated in {@link Names}.
      *

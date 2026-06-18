@@ -43,12 +43,12 @@ public final class AttachmentIngestMetrics {
         this.rawMebibytesReceived = meterRegistry.registerDoubleHistogram(
             RAW_FIELD_SIZE_IN_MEBIBYTES_RECEIVED,
             "Raw attachment field sizes in mebibytes before max-field size checks.",
-            "mebibytes"
+            "MiB"
         );
         this.rawMebibytesProcessed = meterRegistry.registerDoubleHistogram(
             RAW_FIELD_SIZE_IN_MEBIBYTES_PROCESSED,
             "Raw attachment field sizes in mebibytes that completed attachment processing.",
-            "mebibytes"
+            "MiB"
         );
     }
 

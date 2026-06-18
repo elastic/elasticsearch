@@ -24,8 +24,8 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
- * REST-level coverage for {@code _mget} with the slice-indexing {@code _slice} parameter, mirroring the single-document
- * {@code _slice} support exercised by {@link RestUpdateActionIT}. On a slice-enabled index, an mget item must address its
+ * REST-level coverage for {@code _mget} with the slice-indexing {@code _slice} parameter.
+ * On a slice-enabled index, an mget item must address its
  * doc via {@code _slice} (the routing value); the parameter is parsed both per-item and as a top-level default, validated
  * per-item against the item's own index, and routed by slice so the lookup reaches the correct shard.
  */

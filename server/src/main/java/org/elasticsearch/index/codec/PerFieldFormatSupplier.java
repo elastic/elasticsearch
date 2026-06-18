@@ -67,6 +67,7 @@ public class PerFieldFormatSupplier {
         includeMetaField.add(TimeSeriesRoutingHashFieldMapper.NAME);
         includeMetaField.add(SeqNoFieldMapper.NAME);
         includeMetaField.add(IgnoredSourceFieldMapper.NAME);
+        includeMetaField.add(IdFieldMapper.NAME);
         // Don't the include _recovery_source_size and _recovery_source fields, since their values can be trimmed away in
         // RecoverySourcePruneMergePolicy, which leads to inconsistencies between merge stats and actual values.
         INCLUDE_META_FIELDS = Collections.unmodifiableSet(includeMetaField);
@@ -87,6 +88,7 @@ public class PerFieldFormatSupplier {
     private final ES94BloomFilterDocValuesFormat idBloomFilterDocValuesFormat;
     private final DocValuesFormat tsdbDocValuesFormat;
 
+    @SuppressWarnings("this-escape")
     public PerFieldFormatSupplier(MapperService mapperService, BigArrays bigArrays, @Nullable ThreadPool threadPool) {
         this.mapperService = mapperService;
         this.bloomFilterPostingsFormat = new ES87BloomFilterPostingsFormat(bigArrays, this::internalGetPostingsFormatForField);

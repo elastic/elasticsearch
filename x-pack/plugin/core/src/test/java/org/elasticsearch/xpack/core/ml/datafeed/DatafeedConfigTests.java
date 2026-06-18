@@ -58,6 +58,7 @@ import org.elasticsearch.xpack.core.ml.datafeed.ChunkingConfig.Mode;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.QueryProvider;
 import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.core.security.cloud.PersistedCloudCredential;
 
 import java.io.IOException;
@@ -1557,6 +1558,28 @@ public class DatafeedConfigTests extends AbstractBWCSerializationTestCase<Datafe
         Map<String, Object> cloudApiKey = (Map<String, Object>) authorization.get("cloud_api_key");
         assertThat(cloudApiKey, notNullValue());
         assertThat(cloudApiKey.get("id"), equalTo("key-id"));
+
+        PersistedCloudCredential mintedCred = new PersistedCloudCredential("minted-id", new SecureString("secret-value".toCharArray()));
+        Map<String, String> callerHeaders = Map.of(AuthenticationField.AUTHENTICATION_KEY, "encoded-auth");
+        DatafeedConfig mintedWithCallerHeaders = new DatafeedConfig.Builder("minted-datafeed", "test-job").setIndices(List.of("logs-*"))
+            .setHeaders(callerHeaders)
+            .setCloudInternalCredential(mintedCred)
+            .build();
+        BytesReference mintedXContent = XContentHelper.toXContent(mintedWithCallerHeaders, XContentType.JSON, visibilityParams, false);
+        String mintedJson = mintedXContent.utf8ToString();
+        int authorizationFieldIndex = mintedJson.indexOf("\"authorization\"");
+        assertThat(authorizationFieldIndex, greaterThanOrEqualTo(0));
+        assertThat(mintedJson.lastIndexOf("\"authorization\""), equalTo(authorizationFieldIndex));
+        Map<String, Object> mintedSerialized = XContentHelper.convertToMap(
+            XContentHelper.toXContent(mintedWithCallerHeaders, XContentType.JSON, visibilityParams, false),
+            false,
+            XContentType.JSON
+        ).v2();
+        @SuppressWarnings("unchecked")
+        Map<String, Object> mintedAuthorization = (Map<String, Object>) mintedSerialized.get("authorization");
+        @SuppressWarnings("unchecked")
+        Map<String, Object> mintedCloudApiKey = (Map<String, Object>) mintedAuthorization.get("cloud_api_key");
+        assertThat(mintedCloudApiKey.get("id"), equalTo("minted-id"));
 
         DatafeedConfig neitherConfig = new DatafeedConfig.Builder("neither-datafeed", "test-job").setIndices(List.of("logs-*")).build();
         Map<String, Object> neitherSerialized = XContentHelper.convertToMap(

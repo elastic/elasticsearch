@@ -737,20 +737,19 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
             if (forInternalStorage) {
                 builder.field(CONFIG_TYPE.getPreferredName(), TYPE);
             }
-            if (headers.isEmpty() == false) {
-                if (forInternalStorage) {
-                    assertNoAuthorizationHeader(headers);
-                    builder.field(HEADERS.getPreferredName(), headers);
-                } else {
+            if (headers.isEmpty() == false && forInternalStorage) {
+                assertNoAuthorizationHeader(headers);
+                builder.field(HEADERS.getPreferredName(), headers);
+            } else if (forInternalStorage == false) {
+                if (params.paramAsBoolean(CPS_AUTH_VISIBILITY_PARAM, false) && cloudInternalCredential != null) {
+                    builder.startObject("authorization");
+                    builder.startObject("cloud_api_key");
+                    builder.field("id", cloudInternalCredential.id());
+                    builder.endObject();
+                    builder.endObject();
+                } else if (headers.isEmpty() == false) {
                     XContentUtils.addAuthorizationInfo(builder, headers);
                 }
-            }
-            if (forInternalStorage == false && params.paramAsBoolean(CPS_AUTH_VISIBILITY_PARAM, false) && cloudInternalCredential != null) {
-                builder.startObject("authorization");
-                builder.startObject("cloud_api_key");
-                builder.field("id", cloudInternalCredential.id());
-                builder.endObject();
-                builder.endObject();
             }
             builder.field(QUERY_DELAY.getPreferredName(), queryDelay.getStringRep());
             if (chunkingConfig != null) {

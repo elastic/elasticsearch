@@ -13,14 +13,12 @@ import org.apache.lucene.tests.util.TimeUnits;
 import org.elasticsearch.Build;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
-import org.elasticsearch.test.ListMatcher;
 import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Locale;
 import java.util.Map;
 
-import static org.elasticsearch.test.ListMatcher.matchesList;
 import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.test.MapMatcher.matchesMap;
 import static org.hamcrest.Matchers.containsString;
@@ -44,7 +42,7 @@ public class HeapAttackInSubqueryIT extends HeapAttackTestCase {
     private static final HeapAttackIT heapAttackIT = new HeapAttackIT();
 
     // Stay above esql.in_subquery_hash_join_threshold (100) so the IN subquery runs as a hash join
-    private static final int MAX_DOC = 300;
+    private static final int MAX_DOC = 350;
 
     private static final int STRING_FIELD_1000 = 1000;
 
@@ -86,13 +84,14 @@ public class HeapAttackInSubqueryIT extends HeapAttackTestCase {
      * of being rejected by {@code checkPagesBelowSize} first.
      */
     public void testDedupBlockHashWithInSubquery() throws IOException {
-        assumeFalse("This test does not deterministically trip circuit breaker in serverless", isServerless());
-        // ~48MB of distinct 1MB values, sized to hit the narrow window where the breaker (~60% of the 512MB node heap, ~307MB) trips
-        // inside dedup rather than earlier. SessionUtils.fromPages concatenates the subquery result while still holding the input pages
-        // (~2x the data, ~286MB, survives), then the dedup BlockHash builds a third copy of the distinct keys (~3x, ~334MB, trips). A
-        // larger total (e.g. 128 docs) instead trips earlier, in the fromPages concatenation, before reaching the BlockHash. The cap
-        // below is only raised so checkPagesBelowSize lets the result through to dedup.
-        heapAttackIT.initGiantTextField(48, true, 1, true);
+        // ~64MB of distinct 1MB values, sized to hit the narrow window where the request circuit breaker (~60% of the 512MB node
+        // heap, ~307MB) trips inside dedup rather than earlier. SessionUtils.fromPages concatenates the subquery result while still
+        // holding the input pages (~2x the data), keeping the request breaker just below its ~307MB limit so it survives; then the
+        // dedup BlockHash allocates a third copy of the distinct keys, tipping the breaker just over ~307MB and tripping it (observed:
+        // request usage would be ~307.2MB vs the ~307.1MB limit, via BlockHash reused arrays). A larger total (e.g. 128 docs) instead
+        // trips earlier, in the fromPages concatenation, before reaching the BlockHash. The cap below is only raised so
+        // checkPagesBelowSize lets the result through to dedup.
+        heapAttackIT.initGiantTextField(64, true, 1, true);
         setIntermediateLocalRelationMaxSize("128mb");
         try {
             assertCircuitBreaksVia(attempt -> giantTextInSubquery(), "AbstractSubqueryJoin", "BlockHash");
@@ -104,34 +103,19 @@ public class HeapAttackInSubqueryIT extends HeapAttackTestCase {
     public void testRandomKeywordOrTextFieldsWithInSubquery() throws IOException {
         String dataType = keywordOrText();
         heapAttackIT.initManyBigFieldsIndex(MAX_DOC, dataType, true, STRING_FIELD_1000);
-        try {
-            Map<?, ?> response = inSubqueryKeepManyFields();
-            assertMap(response, matchesMap().entry("columns", outputColumns(dataType)));
-        } catch (ResponseException e) {
-            verifyCircuitBreakingException(e);
-        }
+        assertCircuitBreaks(attempt -> inSubqueryKeepManyFields());
     }
 
     public void testSortWithInSubquery() throws IOException {
         String dataType = keywordOrText();
         heapAttackIT.initManyBigFieldsIndex(MAX_DOC, dataType, true, STRING_FIELD_1000);
-        try {
-            Map<?, ?> response = inSubqueryWithSort(sortOrGroupingColumns(STRING_FIELD_1000));
-            assertMap(response, matchesMap().entry("columns", outputColumns(dataType)));
-        } catch (ResponseException e) {
-            verifyCircuitBreakingException(e);
-        }
+        assertCircuitBreaks(attempt -> inSubqueryWithSort(sortOrGroupingColumns(100)));
     }
 
     public void testAggWithInSubquery() throws IOException {
         String dataType = keywordOrText();
         heapAttackIT.initManyBigFieldsIndex(MAX_DOC, dataType, true, STRING_FIELD_1000);
-        try {
-            Map<?, ?> response = inSubqueryWithAgg("c = COUNT_DISTINCT(f499)", sortOrGroupingColumns(100));
-            assertMap(response, matchesMap().entry("columns", outputColumns(dataType)));
-        } catch (ResponseException e) {
-            verifyCircuitBreakingException(e);
-        }
+        assertCircuitBreaks(attempt -> inSubqueryWithAgg("c = COUNT_DISTINCT(f499)", sortOrGroupingColumns(100)));
     }
 
     private Map<String, Object> inSubqueryKeepManyFields() throws IOException {
@@ -168,14 +152,6 @@ public class HeapAttackInSubqueryIT extends HeapAttackTestCase {
         query.append(" | KEEP f000)");
         query.append("\"}");
         return responseAsMap(query(query.toString(), "columns"));
-    }
-
-    private static ListMatcher outputColumns(String dataType) {
-        ListMatcher columns = matchesList();
-        for (int f = 0; f < STRING_FIELD_1000; f++) {
-            columns = columns.item(matchesMap().entry("name", "f" + String.format(Locale.ROOT, "%03d", f)).entry("type", dataType));
-        }
-        return columns;
     }
 
     private static String sortOrGroupingColumns(int columnCount) {

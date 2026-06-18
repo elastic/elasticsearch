@@ -394,8 +394,8 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
     @Override
     public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         if (field.dataType() == DataType.DATETIME || field.dataType() == DataType.DATE_NANOS) {
-            var prep = getDateRounding(toEvaluator.foldCtx());
-            return DateTrunc.evaluator(field.dataType(), source(), toEvaluator.apply(field), prep);
+            var preparedRounding = getDateRounding(toEvaluator.foldCtx());
+            return DateTrunc.evaluator(field.dataType(), source(), toEvaluator.apply(field), preparedRounding);
         }
         if (field.dataType().isNumeric()) {
             double roundTo = getNumberRoundTo(toEvaluator.foldCtx());
@@ -633,7 +633,7 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
             + to
             + ", offset="
             + offset
-            + "rounding="
+            + "roundingConfiguration="
             + roundingConvention
             + '}';
     }

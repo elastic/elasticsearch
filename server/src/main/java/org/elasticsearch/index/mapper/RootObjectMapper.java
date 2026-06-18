@@ -175,18 +175,19 @@ public class RootObjectMapper extends ObjectMapper {
                         this.runtimeFields.put(runtimeField.getValue().name(), runtimeField.getValue());
                     }
                 }
-                // Transfer per-prefix dynamic settings parsed from the stored source (dynamic_by_prefix key).
+                // Transfer per-prefix settings parsed from the stored source (prefix_properties key).
                 // When re-parsing a stored flat mapping there are no ObjectMapper.Builder children for
                 // asFlattenedFieldBuilders to harvest, so processField writes directly into the incoming
-                // builder's dynamicByPrefix; we copy them here to ensure they are not lost.
+                // builder's maps; we copy them here to ensure they are not lost.
                 this.dynamicByPrefix.putAll(rootMergeWith.dynamicByPrefix);
+                this.passThroughByPrefix.putAll(rootMergeWith.passThroughByPrefix);
             }
         }
 
         @Override
         public RootObjectMapper build(MapperBuilderContext context) {
             // Build child mappers first so that flattenBuildersIfNeeded has a chance to populate
-            // dynamicByPrefix before we pass it to the RootObjectMapper constructor.
+            // dynamicByPrefix and passThroughByPrefix before we pass them to the RootObjectMapper constructor.
             Map<String, Mapper> mappers = buildMappers(context.createChildContext(null, dynamic));
             return new RootObjectMapper(
                 leafName(),
@@ -196,6 +197,7 @@ public class RootObjectMapper extends ObjectMapper {
                 dynamic,
                 mappers,
                 dynamicByPrefix,
+                passThroughByPrefix,
                 new HashMap<>(runtimeFields),
                 dynamicDateTimeFormatters,
                 dynamicTemplates,
@@ -222,6 +224,15 @@ public class RootObjectMapper extends ObjectMapper {
      * non-strict-columnar indices.
      */
     private final NavigableMap<String, Dynamic> dynamicByPrefix;
+    /**
+     * Per-prefix passthrough priorities captured during auto-flattening in strict columnar mode.
+     * Keys are the full dotted paths of declared passthrough mappers (e.g. {@code "attributes"},
+     * {@code "resource.attributes"}); values are their {@code priority}. Kept in sorted key order
+     * for deterministic serialization. Persisted under {@code prefix_properties.passthrough} so that
+     * {@link FieldTypeLookup} can reconstruct root-level field aliases after a mapping round-trip.
+     * Empty for non-strict-columnar indices.
+     */
+    private final NavigableMap<String, Integer> passthroughByPrefix;
 
     RootObjectMapper(
         String name,
@@ -231,6 +242,7 @@ public class RootObjectMapper extends ObjectMapper {
         Dynamic dynamic,
         Map<String, Mapper> mappers,
         Map<String, Dynamic> dynamicByPrefix,
+        Map<String, Integer> passthroughByPrefix,
         Map<String, RuntimeField> runtimeFields,
         Explicit<DateFormatter[]> dynamicDateTimeFormatters,
         Explicit<DynamicTemplate[]> dynamicTemplates,
@@ -248,6 +260,7 @@ public class RootObjectMapper extends ObjectMapper {
         this.namespaceValidator = namespaceValidator == null ? new DefaultRootObjectMapperNamespaceValidator() : namespaceValidator;
         this.sliceEnabled = sliceEnabled;
         this.dynamicByPrefix = Collections.unmodifiableNavigableMap(new TreeMap<>(dynamicByPrefix));
+        this.passthroughByPrefix = Collections.unmodifiableNavigableMap(new TreeMap<>(passthroughByPrefix));
     }
 
     @Override
@@ -270,6 +283,7 @@ public class RootObjectMapper extends ObjectMapper {
             dynamic,
             Map.of(),
             dynamicByPrefix,
+            passthroughByPrefix,
             Map.of(),
             dynamicDateTimeFormatters,
             dynamicTemplates,
@@ -356,6 +370,11 @@ public class RootObjectMapper extends ObjectMapper {
         return dynamicByPrefix;
     }
 
+    // package-private accessor used by MappingLookup → FieldTypeLookup for prefix-based alias resolution
+    Map<String, Integer> getPassthroughByPrefix() {
+        return passthroughByPrefix;
+    }
+
     @Override
     protected void doXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
         final boolean includeDefaults = params.paramAsBoolean("include_defaults", false);
@@ -397,27 +416,25 @@ public class RootObjectMapper extends ObjectMapper {
             builder.endObject();
         }
 
-        if (dynamicByPrefix.isEmpty() == false) {
+        if (dynamicByPrefix.isEmpty() == false || passthroughByPrefix.isEmpty() == false) {
             // Keys are in sorted order (guaranteed by the NavigableMap field type) for deterministic
             // serialization: the mapping source is byte-compared across nodes, so output order must
             // be stable.
-            //
-            // "prefix_properties" is an umbrella for per-prefix object settings in strict columnar
-            // mode. Only "dynamic" is implemented today. To add a facet (e.g. "enabled",
-            // "passthrough") without a stored-format migration: add a Builder collector (mirroring
-            // Builder.dynamicByPrefix in ObjectMapper), capture it during auto-flattening in
-            // ObjectMapper#asFlattenedFieldBuilders (gated on isStrictColumnar), store it as a
-            // NavigableMap on RootObjectMapper, serialize/parse it under prefix_properties.<facet>,
-            // copy it in Builder#merge via putAll, and resolve it by longest prefix (see
-            // resolveDynamic). For the "enabled" facet, ObjectMapper#ensureBuilderFlattenable must
-            // turn its enabled=false throw into a capture, just as it stopped throwing for
-            // heterogeneous dynamic. Follow-ups tracked in #151524.
             builder.startObject("prefix_properties");
-            builder.startObject("dynamic");
-            for (Map.Entry<String, Dynamic> entry : dynamicByPrefix.entrySet()) {
-                builder.field(entry.getKey(), entry.getValue().name().toLowerCase(Locale.ROOT));
+            if (dynamicByPrefix.isEmpty() == false) {
+                builder.startObject("dynamic");
+                for (Map.Entry<String, Dynamic> entry : dynamicByPrefix.entrySet()) {
+                    builder.field(entry.getKey(), entry.getValue().name().toLowerCase(Locale.ROOT));
+                }
+                builder.endObject();
             }
-            builder.endObject();
+            if (passthroughByPrefix.isEmpty() == false) {
+                builder.startObject("passthrough");
+                for (Map.Entry<String, Integer> entry : passthroughByPrefix.entrySet()) {
+                    builder.field(entry.getKey(), entry.getValue());
+                }
+                builder.endObject();
+            }
             builder.endObject();
         }
     }
@@ -634,6 +651,15 @@ public class RootObjectMapper extends ObjectMapper {
                     builder.dynamicByPrefix.put(entry.getKey(), parsePrefixDynamic(entry.getKey(), entry.getValue()));
                 }
             }
+            Object passthroughNode = ((Map<String, Object>) fieldNode).get("passthrough");
+            if (passthroughNode != null) {
+                if ((passthroughNode instanceof Map) == false) {
+                    throw new MapperParsingException("[prefix_properties.passthrough] must be an object");
+                }
+                for (Map.Entry<String, Object> entry : ((Map<String, Object>) passthroughNode).entrySet()) {
+                    builder.passThroughByPrefix.put(entry.getKey(), parsePrefixPassthrough(entry.getKey(), entry.getValue()));
+                }
+            }
             return true;
         }
         return false;
@@ -656,6 +682,20 @@ public class RootObjectMapper extends ObjectMapper {
             return Dynamic.valueOf(str.toUpperCase(Locale.ROOT));
         } catch (IllegalArgumentException e) {
             throw new MapperParsingException("unknown [prefix_properties.dynamic] value: [" + str + "] at key [" + key + "]");
+        }
+    }
+
+    private static int parsePrefixPassthrough(String key, Object value) {
+        if (value instanceof Integer i) {
+            return i;
+        }
+        if (value instanceof Number n) {
+            return n.intValue();
+        }
+        try {
+            return Integer.parseInt(String.valueOf(value));
+        } catch (NumberFormatException e) {
+            throw new MapperParsingException("[prefix_properties.passthrough." + key + "] must be an integer value");
         }
     }
 

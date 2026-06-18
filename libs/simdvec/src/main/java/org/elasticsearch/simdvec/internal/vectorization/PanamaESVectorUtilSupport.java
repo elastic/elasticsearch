@@ -2312,6 +2312,36 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
     }
 
     @Override
+    public long popcount(byte[] data, int offset, int length) {
+        long cnt = 0;
+        int i = offset;
+        final int byteLen = BYTE_SPECIES.length();
+        final int upperBound = offset + BYTE_SPECIES.loopBound(length);
+        for (; i < upperBound; i += byteLen) {
+            var vec = ByteVector.fromArray(BYTE_SPECIES, data, i);
+            cnt += vec.reinterpretAsLongs().lanewise(VectorOperators.BIT_COUNT).reduceLanes(ADD);
+        }
+        for (; i < offset + length; i++) {
+            cnt += Integer.bitCount(data[i] & 0xFF);
+        }
+        return cnt;
+    }
+
+    @Override
+    public void orByteArrays(byte[] source, byte[] dest, int offset, int length) {
+        int i = offset;
+        final int upperBound = offset + BYTE_SPECIES.loopBound(length);
+        for (; i < upperBound; i += BYTE_SPECIES.length()) {
+            var s = ByteVector.fromArray(BYTE_SPECIES, source, i);
+            var d = ByteVector.fromArray(BYTE_SPECIES, dest, i);
+            d.or(s).intoArray(dest, i);
+        }
+        for (; i < offset + length; i++) {
+            dest[i] |= source[i];
+        }
+    }
+
+    @Override
     public void inRangeBitmask(long[] values, long lowerValue, long upperValue, long[] matches) {
         assert values.length % 8 == 0 && matches.length == values.length / 64;
         // values.length is a multiple of 8, and lane counts (2, 4, 8) all divide it,

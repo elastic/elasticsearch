@@ -189,4 +189,10 @@ public interface ESVectorUtilSupport {
     float logSumExpNQTDiff(float[] v1, float[] v2, float eps);
 
     void pow2DiffAndScaleNQT(float[] v1, float[] v2, float a, float eps, float[] result);
+
+    /** Counts the number of set bits in the byte array region {@code [offset, offset+length)}. */
+    long popcount(byte[] data, int offset, int length);
+
+    /** Bitwise OR: {@code dest[offset+i] |= source[offset+i]} for {@code i} in {@code [0, length)}. */
+    void orByteArrays(byte[] source, byte[] dest, int offset, int length);
 }

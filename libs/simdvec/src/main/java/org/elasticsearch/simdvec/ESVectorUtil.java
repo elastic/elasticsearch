@@ -1034,4 +1034,32 @@ public class ESVectorUtil {
     public static void inRangeBitmask(long[] values, long lowerValue, long upperValue, long[] matches) {
         IMPL.inRangeBitmask(values, lowerValue, upperValue, matches);
     }
+
+    /**
+     * Counts the number of set bits in the byte array region {@code [offset, offset+length)}.
+     *
+     * @param data   the byte array
+     * @param offset the starting index
+     * @param length the number of bytes to examine
+     * @return the total number of set bits
+     */
+    public static long popcount(byte[] data, int offset, int length) {
+        Objects.checkFromIndexSize(offset, length, data.length);
+        return IMPL.popcount(data, offset, length);
+    }
+
+    /**
+     * Bitwise OR of two byte array regions: {@code dest[offset+i] |= source[offset+i]}
+     * for {@code i} in {@code [0, length)}.
+     *
+     * @param source the source byte array
+     * @param dest   the destination byte array (modified in place)
+     * @param offset the starting index in both arrays
+     * @param length the number of bytes to OR
+     */
+    public static void orByteArrays(byte[] source, byte[] dest, int offset, int length) {
+        Objects.checkFromIndexSize(offset, length, source.length);
+        Objects.checkFromIndexSize(offset, length, dest.length);
+        IMPL.orByteArrays(source, dest, offset, length);
+    }
 }

@@ -40,7 +40,6 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.RandomAccessInput;
-import org.apache.lucene.util.BitUtil;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.store.IndexOutputOutputStream;
@@ -52,6 +51,7 @@ import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.simdvec.ESVectorUtil;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -437,18 +437,7 @@ public class ES94BloomFilterDocValuesFormat extends DocValuesFormat {
                     // (this mostly apply to the initial empty pages which are shared across all the byte buffers).
                     System.arraycopy(scratchRef.bytes, scratchRef.offset, targetPageScratch.bytes, 0, pageLen);
 
-                    int i = 0;
-                    for (; i + Long.BYTES <= pageLen; i += Long.BYTES) {
-                        long existing = (long) BitUtil.VH_LE_LONG.get(sourcePageScratch.bytes, i);
-                        long current = (long) BitUtil.VH_LE_LONG.get(targetPageScratch.bytes, i);
-                        BitUtil.VH_LE_LONG.set(targetPageScratch.bytes, i, existing | current);
-                    }
-
-                    // OR any remaining bytes if length isn't a multiple of 8.
-                    // In practice this only applies for segments with 1 document where the bloom filter size is 4 bytes
-                    for (; i < pageLen; i++) {
-                        targetPageScratch.bytes[i] |= sourcePageScratch.bytes[i];
-                    }
+                    ESVectorUtil.orByteArrays(sourcePageScratch.bytes, targetPageScratch.bytes, 0, pageLen);
 
                     bitSetBuffer.set(targetOffset + offset, targetPageScratch.bytes, 0, pageLen);
                 }
@@ -853,9 +842,7 @@ public class ES94BloomFilterDocValuesFormat extends DocValuesFormat {
             while (remaining > 0) {
                 int pageLen = Math.min(PageCacheRecycler.PAGE_SIZE_IN_BYTES, remaining);
                 bloomFilterIn.readBytes(offset, scratch, 0, pageLen);
-                for (int i = 0; i < pageLen; i++) {
-                    setBits += Integer.bitCount(scratch[i] & 0xFF);
-                }
+                setBits += ESVectorUtil.popcount(scratch, 0, pageLen);
                 offset += pageLen;
                 remaining -= pageLen;
             }

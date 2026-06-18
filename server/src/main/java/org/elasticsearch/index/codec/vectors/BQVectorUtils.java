@@ -20,7 +20,6 @@
 package org.elasticsearch.index.codec.vectors;
 
 import org.apache.lucene.util.ArrayUtil;
-import org.apache.lucene.util.BitUtil;
 import org.elasticsearch.simdvec.ESVectorUtil;
 
 /** Utility class for vector quantization calculations */
@@ -60,20 +59,11 @@ public class BQVectorUtils {
     }
 
     /**
-     * Copied from Lucene, replace with Lucene's implementation sometime after Lucene 10
      * @param d the byte array to count the number of set bits in
      * @return count of flipped bits in the byte array
      */
     public static int popcount(byte[] d) {
-        int r = 0;
-        int cnt = 0;
-        for (final int upperBound = d.length & -Integer.BYTES; r < upperBound; r += Integer.BYTES) {
-            cnt += Integer.bitCount((int) BitUtil.VH_NATIVE_INT.get(d, r));
-        }
-        for (; r < d.length; r++) {
-            cnt += Integer.bitCount(d[r] & 0xFF);
-        }
-        return cnt;
+        return (int) ESVectorUtil.popcount(d, 0, d.length);
     }
 
     // TODO: move to VectorUtil & vectorize?

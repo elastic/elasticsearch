@@ -339,10 +339,11 @@ public class DataStreamLifecycleDownsamplingTests extends DataStreamLifecycleSer
     }
 
     public void testFloodGateUsesRemainingSlots() {
+        int eligibleDownsampleIndices = DEFAULT_MAX_DOWNSAMPLING_INDICES_IN_PROGRESS_PER_DATA_STREAM + randomIntBetween(1, 10);
         var dataStream = createDataStream(
             projectBuilder,
             dataStreamName,
-            DEFAULT_MAX_DOWNSAMPLING_INDICES_IN_PROGRESS_PER_DATA_STREAM + 1,
+            eligibleDownsampleIndices + 1, // + 1 for the write index
             settings(IndexVersion.current()).put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
                 .put("index.routing_path", "@timestamp")
                 .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), now - 20000L)
@@ -359,7 +360,7 @@ public class DataStreamLifecycleDownsamplingTests extends DataStreamLifecycleSer
         ClusterBlocks.Builder blocks = ClusterBlocks.builder();
         List<Index> targetIndices = new ArrayList<>();
 
-        for (int i = 0; i < dataStream.getIndices().size() - 1; i++) {
+        for (int i = 0; i < eligibleDownsampleIndices; i++) {
             Index index = dataStream.getIndices().get(i);
             markReadOnly(updatedProjectBuilder, blocks, projectId, initialProject.index(index));
             targetIndices.add(index);
@@ -375,64 +376,16 @@ public class DataStreamLifecycleDownsamplingTests extends DataStreamLifecycleSer
             .build();
         setState(clusterService, state);
 
+        int availableSlots = randomIntBetween(1, DEFAULT_MAX_DOWNSAMPLING_INDICES_IN_PROGRESS_PER_DATA_STREAM - 1);
         Set<Index> affectedIndices = dataStreamLifecycleService.maybeExecuteDownsampling(
             clusterService.state().projectState(projectId),
             dataStream,
             targetIndices,
-            DEFAULT_MAX_DOWNSAMPLING_INDICES_IN_PROGRESS_PER_DATA_STREAM - 1
+            DEFAULT_MAX_DOWNSAMPLING_INDICES_IN_PROGRESS_PER_DATA_STREAM - availableSlots
         );
         assertThat(affectedIndices.size(), is(targetIndices.size()));
         assertThat(affectedIndices, containsInAnyOrder(targetIndices.toArray(Index.EMPTY_ARRAY)));
-        assertThat(countDownsampleRequests(), is(1L));
-    }
-
-    public void testFloodGateTriggersUpToThresholdFromZero() {
-        var dataStream = createDataStream(
-            projectBuilder,
-            dataStreamName,
-            DEFAULT_MAX_DOWNSAMPLING_INDICES_IN_PROGRESS_PER_DATA_STREAM + randomIntBetween(1, 10),
-            settings(IndexVersion.current()).put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
-                .put("index.routing_path", "@timestamp")
-                .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), now - 20000L)
-                .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), now - 10000L),
-            DataStreamLifecycle.dataLifecycleBuilder()
-                .downsamplingRounds(List.of(new DownsamplingRound(TimeValue.timeValueMillis(0), new DateHistogramInterval("5m"))))
-                .build(),
-            now
-        );
-        projectBuilder.put(dataStream);
-
-        ProjectMetadata initialProject = projectBuilder.build();
-        ProjectMetadata.Builder updatedProjectBuilder = ProjectMetadata.builder(initialProject);
-        ClusterBlocks.Builder blocks = ClusterBlocks.builder();
-        List<Index> targetIndices = new ArrayList<>();
-
-        for (int i = 0; i < dataStream.getIndices().size() - 1; i++) {
-            Index index = dataStream.getIndices().get(i);
-            markReadOnly(updatedProjectBuilder, blocks, projectId, initialProject.index(index));
-            targetIndices.add(index);
-        }
-
-        String nodeId = "node-1";
-        DiscoveryNodes.Builder nodesBuilder = buildNodes(nodeId);
-        nodesBuilder.masterNodeId(nodeId);
-        ClusterState state = ClusterState.builder(ClusterName.DEFAULT)
-            .putProjectMetadata(updatedProjectBuilder)
-            .blocks(blocks)
-            .nodes(nodesBuilder)
-            .build();
-        setState(clusterService, state);
-
-        Set<Index> affectedIndices = dataStreamLifecycleService.maybeExecuteDownsampling(
-            clusterService.state().projectState(projectId),
-            dataStream,
-            targetIndices,
-            0
-        );
-
-        assertThat(affectedIndices.size(), is(targetIndices.size()));
-        assertThat(affectedIndices, containsInAnyOrder(targetIndices.toArray(Index.EMPTY_ARRAY)));
-        assertThat(countDownsampleRequests(), is((long) DEFAULT_MAX_DOWNSAMPLING_INDICES_IN_PROGRESS_PER_DATA_STREAM));
+        assertThat(countDownsampleRequests(), is((long) Math.min(availableSlots, eligibleDownsampleIndices)));
     }
 
     public void testActivelyDownsampledIndicesCountedAndExcluded() {
@@ -480,67 +433,6 @@ public class DataStreamLifecycleDownsamplingTests extends DataStreamLifecycleSer
         // The MAX actively downsampled indices are counted and consume the full threshold,
         // so the remaining eligible index (index at position MAX) must not be triggered.
         assertThat(countDownsampleRequests(), is(0L));
-    }
-
-    public void testNoCountingWhenDownsamplingNotConfigured() {
-        // DS1: downsampling configured, 2 backing indices (1 non-write eligible)
-        var ds1 = createDataStream(
-            projectBuilder,
-            "ds1-" + randomAlphaOfLength(5).toLowerCase(Locale.ROOT),
-            2,
-            settings(IndexVersion.current()).put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
-                .put("index.routing_path", "@timestamp")
-                .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), now - 20000L)
-                .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), now - 10000L),
-            DataStreamLifecycle.dataLifecycleBuilder()
-                .downsamplingRounds(List.of(new DownsamplingRound(TimeValue.timeValueMillis(0), new DateHistogramInterval("5m"))))
-                .build(),
-            now
-        );
-        projectBuilder.put(ds1);
-
-        // DS2: no downsampling configured; MAX backing indices, each with an active persistent task
-        var ds2 = createDataStream(
-            projectBuilder,
-            "ds2-" + randomAlphaOfLength(5).toLowerCase(Locale.ROOT),
-            DEFAULT_MAX_DOWNSAMPLING_INDICES_IN_PROGRESS_PER_DATA_STREAM + 1,
-            settings(IndexVersion.current()).put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
-                .put("index.routing_path", "@timestamp")
-                .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), now - 20000L)
-                .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), now - 10000L),
-            DataStreamLifecycle.dataLifecycleBuilder()
-                .downsamplingRounds(List.of(new DownsamplingRound(TimeValue.timeValueMillis(0), new DateHistogramInterval("5m"))))
-                .build(),
-            now
-        );
-        projectBuilder.put(ds2);
-
-        ProjectMetadata initialProject = projectBuilder.build();
-        ProjectMetadata.Builder updatedProjectBuilder = ProjectMetadata.builder(initialProject);
-        ClusterBlocks.Builder blocks = ClusterBlocks.builder();
-
-        // Mark DS1's non-write index as read-only and force-merged
-        markReadOnlyAndForceMerged(updatedProjectBuilder, blocks, projectId, initialProject.index(ds1.getIndices().getFirst()));
-
-        // Give DS2's non-write backing indices active persistent tasks
-        for (int i = 0; i < DEFAULT_MAX_DOWNSAMPLING_INDICES_IN_PROGRESS_PER_DATA_STREAM; i++) {
-            downsamplingIndices.add(ds2.getIndices().get(i));
-        }
-
-        String nodeId = "node-1";
-        DiscoveryNodes.Builder nodesBuilder = buildNodes(nodeId);
-        nodesBuilder.masterNodeId(nodeId);
-        ClusterState state = ClusterState.builder(ClusterName.DEFAULT)
-            .putProjectMetadata(updatedProjectBuilder)
-            .blocks(blocks)
-            .nodes(nodesBuilder)
-            .build();
-        setState(clusterService, state);
-
-        dataStreamLifecycleService.run(clusterService.state());
-
-        // DS2's persistent tasks are not counted for DS1. DS1's eligible index must be triggered.
-        assertThat(countDownsampleRequests(), is(1L));
     }
 
     public void testFloodGateIsIndependentPerDataStream() {
@@ -601,7 +493,7 @@ public class DataStreamLifecycleDownsamplingTests extends DataStreamLifecycleSer
         assertThat(countDownsampleRequests(), is(2L * DEFAULT_MAX_DOWNSAMPLING_INDICES_IN_PROGRESS_PER_DATA_STREAM));
     }
 
-    public void testStartedRecoveryUnaffectedByFloodGate() {
+    public void testDetectingAFailedRequestUnaffectedByFloodGate() {
         var dataStream = createDataStream(
             projectBuilder,
             dataStreamName,

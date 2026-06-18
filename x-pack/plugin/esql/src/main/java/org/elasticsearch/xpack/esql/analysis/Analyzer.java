@@ -2663,7 +2663,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                         if (((UnionTypeEsField) fa.field()).getUnmappedConversionExpression() != null) {
                             throw new IllegalStateException("Unexpected potentially unmapped expression for [" + fa.fieldName() + "]");
                         }
-                        // Resolve surrogates immediately, since expressions stored in (Compact)MultiTypeEsField are serialized
+                        // Resolve surrogates immediately, since expressions stored in UnionTypeEsField are serialized
                         // to data nodes, and SurrogateExpressions cannot be serialized.
                         Expression resolvedConvertExpression = SubstituteSurrogateExpressions.rule(convertExpression);
                         return createIfDoesNotAlreadyExist(

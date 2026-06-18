@@ -644,3 +644,6 @@ tests:
 - class: org.elasticsearch.blobcache.common.SparseFileTrackerTests
   method: testThreadSafety
   issue: https://github.com/elastic/elasticsearch/issues/151599
+- class: org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingServiceIT
+  method: testCacheIsWarmedOnUnhollowing
+  issue: https://github.com/elastic/elasticsearch/issues/151600

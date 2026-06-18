@@ -40,12 +40,15 @@ public class StUnion extends BinarySpatialGeometryFunction {
 
     private static final SpatialBinaryGeometryBlockProcessor unspecifiedProcessor = new SpatialBinaryGeometryBlockProcessor(
         UNSPECIFIED,
-        Geometry::union
+        JtsGeometryOperator.UNION
     );
-    private static final SpatialBinaryGeometryBlockProcessor geoProcessor = new SpatialBinaryGeometryBlockProcessor(GEO, Geometry::union);
+    private static final SpatialBinaryGeometryBlockProcessor geoProcessor = new SpatialBinaryGeometryBlockProcessor(
+        GEO,
+        HybridGeometryOperator.union(BinarySpatialFunction.SpatialCrsType.GEO)
+    );
     private static final SpatialBinaryGeometryBlockProcessor cartesianProcessor = new SpatialBinaryGeometryBlockProcessor(
         CARTESIAN,
-        Geometry::union
+        HybridGeometryOperator.union(BinarySpatialFunction.SpatialCrsType.CARTESIAN)
     );
 
     @FunctionInfo(

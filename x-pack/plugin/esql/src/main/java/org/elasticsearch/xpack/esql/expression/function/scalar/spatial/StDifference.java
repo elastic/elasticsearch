@@ -46,15 +46,15 @@ public class StDifference extends BinarySpatialGeometryFunction {
 
     private static final SpatialBinaryGeometryBlockProcessor unspecifiedProcessor = new SpatialBinaryGeometryBlockProcessor(
         UNSPECIFIED,
-        Geometry::difference
+        JtsGeometryOperator.DIFFERENCE
     );
     private static final SpatialBinaryGeometryBlockProcessor geoProcessor = new SpatialBinaryGeometryBlockProcessor(
         GEO,
-        Geometry::difference
+        HybridGeometryOperator.difference(BinarySpatialFunction.SpatialCrsType.GEO)
     );
     private static final SpatialBinaryGeometryBlockProcessor cartesianProcessor = new SpatialBinaryGeometryBlockProcessor(
         CARTESIAN,
-        Geometry::difference
+        HybridGeometryOperator.difference(BinarySpatialFunction.SpatialCrsType.CARTESIAN)
     );
 
     @FunctionInfo(

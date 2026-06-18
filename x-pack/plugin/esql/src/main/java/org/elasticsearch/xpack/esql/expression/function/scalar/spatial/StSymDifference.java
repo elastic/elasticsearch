@@ -46,15 +46,15 @@ public class StSymDifference extends BinarySpatialGeometryFunction {
 
     private static final SpatialBinaryGeometryBlockProcessor unspecifiedProcessor = new SpatialBinaryGeometryBlockProcessor(
         UNSPECIFIED,
-        Geometry::symDifference
+        JtsGeometryOperator.SYM_DIFFERENCE
     );
     private static final SpatialBinaryGeometryBlockProcessor geoProcessor = new SpatialBinaryGeometryBlockProcessor(
         GEO,
-        Geometry::symDifference
+        HybridGeometryOperator.symDifference(BinarySpatialFunction.SpatialCrsType.GEO)
     );
     private static final SpatialBinaryGeometryBlockProcessor cartesianProcessor = new SpatialBinaryGeometryBlockProcessor(
         CARTESIAN,
-        Geometry::symDifference
+        HybridGeometryOperator.symDifference(BinarySpatialFunction.SpatialCrsType.CARTESIAN)
     );
 
     @FunctionInfo(

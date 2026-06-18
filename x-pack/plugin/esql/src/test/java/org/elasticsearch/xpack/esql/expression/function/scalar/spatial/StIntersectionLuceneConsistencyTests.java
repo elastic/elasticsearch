@@ -11,6 +11,7 @@ import org.apache.lucene.document.ShapeField;
 import org.apache.lucene.geo.Component2D;
 import org.apache.lucene.geo.GeoEncodingUtils;
 import org.elasticsearch.common.geo.Orientation;
+import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.Line;
 import org.elasticsearch.geometry.LinearRing;
@@ -137,6 +138,35 @@ public class StIntersectionLuceneConsistencyTests extends ESTestCase {
             Polygon a = quantize(randomRect());
             Polygon b = quantize(randomRect());
             assertConsistency("quantized random pair #" + i, a, b);
+        }
+    }
+
+    // -------------------------------------------------------------------------
+    // Random mixed-geometry-type consistency
+    // -------------------------------------------------------------------------
+
+    /**
+     * Verify both the boolean-intersection predicate and the area calculation against 100
+     * randomly generated geometry pairs spanning all supported non-circle geometry types:
+     * {@link org.elasticsearch.geometry.Point}, {@link org.elasticsearch.geometry.Line},
+     * {@link org.elasticsearch.geometry.Polygon},
+     * {@link org.elasticsearch.geometry.MultiPoint},
+     * {@link org.elasticsearch.geometry.MultiLine},
+     * {@link org.elasticsearch.geometry.MultiPolygon},
+     * {@link org.elasticsearch.geometry.Rectangle}, and
+     * {@link org.elasticsearch.geometry.GeometryCollection}.
+     * <p>
+     * For each pair both orderings (A,B) and (B,A) are exercised. Pairs that trigger JTS
+     * topology exceptions (self-intersecting or otherwise degenerate geometry) are skipped
+     * via {@code assumeNoException} and do not count as failures.
+     */
+    public void testRandomMixedGeometryTypesConsistency() throws IOException {
+        for (int i = 0; i < 100; i++) {
+            Geometry a = GeometryTestUtils.randomGeometryWithoutCircle(0, false);
+            Geometry b = GeometryTestUtils.randomGeometryWithoutCircle(0, false);
+            String label = "mixed pair #" + i + " (A=" + a.getClass().getSimpleName() + ", B=" + b.getClass().getSimpleName() + ")";
+            assertConsistency(label, a, b);
+            assertAreaConsistency(label, a, b);
         }
     }
 

@@ -10,21 +10,14 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.spatial;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.geometry.GeometryCollection;
+import org.elasticsearch.geometry.MultiPoint;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes;
-import org.locationtech.jts.geom.Coordinate;
-import org.locationtech.jts.geom.Geometry;
-import org.locationtech.jts.geom.GeometryCollection;
-import org.locationtech.jts.geom.GeometryFactory;
-import org.locationtech.jts.geom.MultiLineString;
-import org.locationtech.jts.geom.MultiPoint;
-import org.locationtech.jts.geom.MultiPolygon;
-import org.locationtech.jts.io.ParseException;
-import org.locationtech.jts.operation.union.UnaryUnionOp;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.function.BiFunction;
 
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.UNSPECIFIED;
 
@@ -34,10 +27,9 @@ import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.UNSP
  */
 class SpatialBinaryGeometryBlockProcessor {
     private final SpatialCoordinateTypes coordinateType;
-    private final GeometryFactory geometryFactory = new GeometryFactory();
-    private final BiFunction<Geometry, Geometry, Geometry> operation;
+    private final GeometryOperator operation;
 
-    SpatialBinaryGeometryBlockProcessor(SpatialCoordinateTypes coordinateType, BiFunction<Geometry, Geometry, Geometry> operation) {
+    SpatialBinaryGeometryBlockProcessor(SpatialCoordinateTypes coordinateType, GeometryOperator operation) {
         this.coordinateType = coordinateType;
         this.operation = operation;
     }
@@ -51,11 +43,11 @@ class SpatialBinaryGeometryBlockProcessor {
             return;
         }
         try {
-            Geometry leftJts = fromBytesRefBlock(left, p);
-            Geometry rightJts = fromBytesRefBlock(right, p);
-            builder.appendBytesRef(UNSPECIFIED.jtsGeometryToWkb(operation.apply(leftJts, rightJts)));
-        } catch (ParseException e) {
-            throw new IllegalArgumentException("could not parse the geometry expression: " + e.getMessage(), e);
+            BytesRef leftWkb = wkbFromBytesRef(left, p);
+            BytesRef rightWkb = wkbFromBytesRef(right, p);
+            builder.appendBytesRef(operation.apply(leftWkb, rightWkb));
+        } catch (IOException e) {
+            throw new IllegalArgumentException("could not evaluate the spatial geometry operation: " + e.getMessage(), e);
         }
     }
 
@@ -68,11 +60,11 @@ class SpatialBinaryGeometryBlockProcessor {
             return;
         }
         try {
-            Geometry leftJts = fromLongBlock(left, p);
-            Geometry rightJts = fromBytesRefBlock(right, p);
-            builder.appendBytesRef(UNSPECIFIED.jtsGeometryToWkb(operation.apply(leftJts, rightJts)));
-        } catch (ParseException e) {
-            throw new IllegalArgumentException("could not parse the geometry expression: " + e.getMessage(), e);
+            BytesRef leftWkb = wkbFromLongBlock(left, p);
+            BytesRef rightWkb = wkbFromBytesRef(right, p);
+            builder.appendBytesRef(operation.apply(leftWkb, rightWkb));
+        } catch (IOException e) {
+            throw new IllegalArgumentException("could not evaluate the spatial geometry operation: " + e.getMessage(), e);
         }
     }
 
@@ -85,11 +77,11 @@ class SpatialBinaryGeometryBlockProcessor {
             return;
         }
         try {
-            Geometry leftJts = fromBytesRefBlock(left, p);
-            Geometry rightJts = fromLongBlock(right, p);
-            builder.appendBytesRef(UNSPECIFIED.jtsGeometryToWkb(operation.apply(leftJts, rightJts)));
-        } catch (ParseException e) {
-            throw new IllegalArgumentException("could not parse the geometry expression: " + e.getMessage(), e);
+            BytesRef leftWkb = wkbFromBytesRef(left, p);
+            BytesRef rightWkb = wkbFromLongBlock(right, p);
+            builder.appendBytesRef(operation.apply(leftWkb, rightWkb));
+        } catch (IOException e) {
+            throw new IllegalArgumentException("could not evaluate the spatial geometry operation: " + e.getMessage(), e);
         }
     }
 
@@ -97,60 +89,41 @@ class SpatialBinaryGeometryBlockProcessor {
      * Process two doc-values (long-encoded) point blocks at position {@code p}.
      */
     void processBothDocValues(BytesRefBlock.Builder builder, int p, LongBlock left, LongBlock right) {
-        if (left.getValueCount(p) < 1 || right.getValueCount(p) < 1) {
-            builder.appendNull();
-            return;
+        try {
+            BytesRef leftWkb = wkbFromLongBlock(left, p);
+            BytesRef rightWkb = wkbFromLongBlock(right, p);
+            builder.appendBytesRef(operation.apply(leftWkb, rightWkb));
+        } catch (IOException e) {
+            throw new IllegalArgumentException("could not evaluate the spatial geometry operation: " + e.getMessage(), e);
         }
-        Geometry leftJts = fromLongBlock(left, p);
-        Geometry rightJts = fromLongBlock(right, p);
-        builder.appendBytesRef(UNSPECIFIED.jtsGeometryToWkb(operation.apply(leftJts, rightJts)));
     }
 
-    private Geometry fromBytesRefBlock(BytesRefBlock block, int p) throws ParseException {
+    private BytesRef wkbFromBytesRef(BytesRefBlock block, int p) throws IOException {
         int firstValueIndex = block.getFirstValueIndex(p);
         int valueCount = block.getValueCount(p);
         BytesRef scratch = new BytesRef();
         if (valueCount == 1) {
-            return flattenIfHeterogeneousCollection(UNSPECIFIED.wkbToJtsGeometry(block.getBytesRef(firstValueIndex, scratch)));
+            return block.getBytesRef(firstValueIndex, scratch);
         }
-        List<Geometry> geometries = new ArrayList<>(valueCount);
+        // Multiple WKB values: combine into a GeometryCollection
+        List<org.elasticsearch.geometry.Geometry> geoms = new ArrayList<>(valueCount);
         for (int i = 0; i < valueCount; i++) {
-            geometries.add(UNSPECIFIED.wkbToJtsGeometry(block.getBytesRef(firstValueIndex + i, scratch)));
+            geoms.add(UNSPECIFIED.wkbToGeometry(block.getBytesRef(firstValueIndex + i, scratch)));
         }
-        // Use UnaryUnionOp so the result is a homogeneous multi-type (e.g. MultiPolygon)
-        // that JTS binary overlay operations can accept.
-        return UnaryUnionOp.union(geometries);
+        return UNSPECIFIED.asWkb(new GeometryCollection<>(geoms));
     }
 
-    /**
-     * JTS binary overlay operations (union, intersection, difference, symdifference) reject
-     * heterogeneous {@link GeometryCollection} arguments with an IllegalArgumentException.
-     * Homogeneous subtypes (MultiPoint, MultiLineString, MultiPolygon) are supported.
-     * For anything else (a true heterogeneous collection), pre-flatten to a supported type
-     * using a self-union so the binary operation can proceed.
-     */
-    private static Geometry flattenIfHeterogeneousCollection(Geometry geom) {
-        if (geom instanceof MultiPoint || geom instanceof MultiLineString || geom instanceof MultiPolygon) {
-            return geom;
-        }
-        if (geom instanceof GeometryCollection) {
-            return UnaryUnionOp.union(geom);
-        }
-        return geom;
-    }
-
-    private Geometry fromLongBlock(LongBlock block, int p) {
+    private BytesRef wkbFromLongBlock(LongBlock block, int p) {
         int firstValueIndex = block.getFirstValueIndex(p);
         int valueCount = block.getValueCount(p);
         if (valueCount == 1) {
-            Point point = coordinateType.longAsPoint(block.getLong(firstValueIndex));
-            return geometryFactory.createPoint(new Coordinate(point.getX(), point.getY()));
+            Point pt = coordinateType.longAsPoint(block.getLong(firstValueIndex));
+            return coordinateType.asWkb(pt);
         }
-        Coordinate[] coords = new Coordinate[valueCount];
+        List<Point> pts = new ArrayList<>(valueCount);
         for (int i = 0; i < valueCount; i++) {
-            Point point = coordinateType.longAsPoint(block.getLong(firstValueIndex + i));
-            coords[i] = new Coordinate(point.getX(), point.getY());
+            pts.add(coordinateType.longAsPoint(block.getLong(firstValueIndex + i)));
         }
-        return geometryFactory.createMultiPointFromCoords(coords);
+        return coordinateType.asWkb(new MultiPoint(pts));
     }
 }

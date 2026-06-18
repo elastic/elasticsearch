@@ -25,9 +25,11 @@ import org.elasticsearch.lucene.spatial.Component2DVisitor;
 import org.elasticsearch.lucene.spatial.CoordinateEncoder;
 import org.elasticsearch.lucene.spatial.GeometryDocValueReader;
 import org.elasticsearch.lucene.spatial.GeometryDocValueWriter;
-import org.elasticsearch.lucene.spatial.TriangleTreeVisitor;
-import org.locationtech.jts.geom.Coordinate;
-import org.locationtech.jts.geom.GeometryFactory;
+import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.BinarySpatialFunction;
+import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.GeometryOperator;
+import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.HybridGeometryOperator;
+import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.JtsGeometryOperator;
+import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.TriangleDecompositionOperator;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -90,7 +92,6 @@ public class SpatialIntersectionBenchmark {
     public int vertexCount;
 
     private static final GeoShapeIndexer GEO_SHAPE_INDEXER = new GeoShapeIndexer(Orientation.CCW, "benchmark-field");
-    private static final GeometryFactory JTS_FACTORY = new GeometryFactory();
 
     /** Pre-built WKB representations of the two geometries. */
     private BytesRef wkbA;
@@ -105,8 +106,14 @@ public class SpatialIntersectionBenchmark {
     /** Pre-built Lucene {@link Component2D} for geometry B (avoids measuring conversion overhead). */
     private Component2D component2dB;
 
-    /** Pre-built JTS geometry for B, used by the triangle-decomposition area benchmark. */
-    private org.locationtech.jts.geom.Geometry jtsBPrebuilt;
+    /** Operator instances used by the operator benchmarks. */
+    private GeometryOperator jtsOperator;
+    private GeometryOperator hybridOperator;
+    private GeometryOperator triangleOperator;
+
+    /** Pre-decoded JTS geometries, used by the prebuilt-operator benchmark as a raw-JTS baseline. */
+    private org.locationtech.jts.geom.Geometry prebuiltJtsA;
+    private org.locationtech.jts.geom.Geometry prebuiltJtsB;
 
     @Setup
     public void setup() throws IOException {
@@ -139,10 +146,15 @@ public class SpatialIntersectionBenchmark {
         LatLonGeometry[] luceneGeoms = LuceneGeometriesUtils.toLatLonGeometry(b, true, t -> {});
         component2dB = LatLonGeometry.create(luceneGeoms);
 
+        jtsOperator = JtsGeometryOperator.INTERSECTION;
+        hybridOperator = HybridGeometryOperator.intersection(BinarySpatialFunction.SpatialCrsType.GEO);
+        triangleOperator = TriangleDecompositionOperator.intersection(BinarySpatialFunction.SpatialCrsType.GEO);
+
         try {
-            jtsBPrebuilt = UNSPECIFIED.wkbToJtsGeometry(wkbB);
+            prebuiltJtsA = UNSPECIFIED.wkbToJtsGeometry(wkbA);
+            prebuiltJtsB = UNSPECIFIED.wkbToJtsGeometry(wkbB);
         } catch (org.locationtech.jts.io.ParseException e) {
-            throw new IOException("Failed to parse WKB for geometry B", e);
+            throw new IOException("Failed to parse WKB for geometries", e);
         }
     }
 
@@ -189,106 +201,40 @@ public class SpatialIntersectionBenchmark {
     }
 
     /**
-     * Benchmark the full JTS intersection computation from source WKB, returning the intersection
-     * area. This is the apples-to-apples counterpart to {@link #luceneTriangleAreaFromDocValues}.
+     * Benchmark the full JTS intersection computation from source WKB (decode + operate + encode).
+     * The operator internally decodes WKB to JTS, applies the operation, and re-encodes to WKB.
      */
     @Benchmark
-    public double jtsIntersectionAreaFromSource(Blackhole bh) throws IOException {
-        org.locationtech.jts.geom.Geometry jtsA;
-        org.locationtech.jts.geom.Geometry jtsB;
-        try {
-            jtsA = UNSPECIFIED.wkbToJtsGeometry(wkbA);
-            jtsB = UNSPECIFIED.wkbToJtsGeometry(wkbB);
-        } catch (org.locationtech.jts.io.ParseException e) {
-            throw new IOException("Failed to parse WKB", e);
-        }
-        return jtsA.intersection(jtsB).getArea();
+    public BytesRef jtsOperatorFromSource() throws IOException {
+        return jtsOperator.apply(wkbA, wkbB);
     }
 
     /**
-     * Benchmark intersection-area computation via Lucene triangle-tree decomposition.
-     * Geometry A is read from pre-built doc-values; the triangle tree is visited and each triangle
-     * is intersected with geometry B (pre-built JTS) to accumulate the total intersection area.
-     * Because the triangle decomposition produces non-overlapping triangles, areas can be summed
-     * directly without a union step.
-     * <p>
-     * This is the apples-to-apples counterpart to {@link #jtsIntersectionAreaFromSource}: both
-     * return the area of the intersection, but via different algorithms.
+     * Benchmark the hybrid (Lucene pre-check + JTS fallback) intersection from source WKB
+     * (decode + operate + encode).
      */
     @Benchmark
-    public double luceneTriangleAreaFromDocValues(Blackhole bh) throws IOException {
-        GeometryDocValueReader reader = new GeometryDocValueReader();
-        reader.reset(docValuesA);
-        IntersectionAreaVisitor visitor = new IntersectionAreaVisitor(CoordinateEncoder.GEO, jtsBPrebuilt);
-        reader.visit(visitor);
-        return visitor.getArea();
+    public BytesRef hybridOperatorFromSource() throws IOException {
+        return hybridOperator.apply(wkbA, wkbB);
     }
 
-    // -------------------------------------------------------------------------
-    // Triangle-tree intersection-area visitor
-    // -------------------------------------------------------------------------
+    /**
+     * Benchmark the triangle-decomposition intersection from source WKB
+     * (decode + operate + encode).
+     */
+    @Benchmark
+    public BytesRef triangleOperatorFromSource() throws IOException {
+        return triangleOperator.apply(wkbA, wkbB);
+    }
 
     /**
-     * A {@link TriangleTreeVisitor.TriangleTreeDecodedVisitor} that accumulates the intersection
-     * area between each decoded triangle and a fixed query geometry. Because the triangle
-     * decomposition of a polygon produces non-overlapping triangles, the per-triangle areas can be
-     * summed without a union step.
+     * Benchmark the JTS intersection from pre-built JTS geometries (pure JTS cost, no
+     * WKB decode overhead). This serves as a baseline for measuring the decode/encode
+     * overhead in the {@code FromSource} variants.
      */
-    private static class IntersectionAreaVisitor extends TriangleTreeVisitor.TriangleTreeDecodedVisitor {
-
-        private final org.locationtech.jts.geom.Geometry queryGeom;
-        private double area = 0.0;
-
-        IntersectionAreaVisitor(CoordinateEncoder encoder, org.locationtech.jts.geom.Geometry queryGeom) {
-            super(encoder);
-            this.queryGeom = queryGeom;
-        }
-
-        double getArea() {
-            return area;
-        }
-
-        @Override
-        protected void visitDecodedTriangle(double aX, double aY, double bX, double bY, double cX, double cY, byte metadata) {
-            Coordinate[] coords = new Coordinate[] {
-                new Coordinate(aX, aY),
-                new Coordinate(bX, bY),
-                new Coordinate(cX, cY),
-                new Coordinate(aX, aY) };
-            org.locationtech.jts.geom.Geometry triangle = JTS_FACTORY.createPolygon(coords);
-            area += triangle.intersection(queryGeom).getArea();
-        }
-
-        @Override
-        protected void visitDecodedLine(double aX, double aY, double bX, double bY, byte metadata) {}
-
-        @Override
-        protected void visitDecodedPoint(double x, double y) {}
-
-        @Override
-        public boolean push() {
-            return true;
-        }
-
-        @Override
-        protected boolean pushDecodedX(double minX) {
-            return true;
-        }
-
-        @Override
-        protected boolean pushDecodedY(double minY) {
-            return true;
-        }
-
-        @Override
-        protected boolean pushDecoded(double maxX, double maxY) {
-            return true;
-        }
-
-        @Override
-        protected boolean pushDecoded(double minX, double minY, double maxX, double maxY) {
-            return true;
-        }
+    @Benchmark
+    public BytesRef jtsOperatorFromPrebuilt() {
+        return UNSPECIFIED.jtsGeometryToWkb(prebuiltJtsA.intersection(prebuiltJtsB));
     }
 
     // -------------------------------------------------------------------------

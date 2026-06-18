@@ -49,6 +49,7 @@ import static org.elasticsearch.xpack.esql.CsvTestUtils.isEnabled;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.CSV_DATASET;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.ENRICH_POLICIES;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.classpathResources;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.APPROXIMATION_LOOKUP_JOIN_V2;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.COMPLETION;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.DENSE_VECTOR_EQUALITY;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.EMBEDDING_FUNCTION;
@@ -158,7 +159,13 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
         "lookupJoinExpressionAfterLimitAndRemoteEnrich",
         "lookupJoinWithSemanticFilterDeduplicationComplex",
         // Lookup join after FORK is not support in CCS yet
-        "forkBeforeLookupJoin"
+        "forkBeforeLookupJoin",
+        // Lookup join after FROM-union subquery with remote indices is not supported in CCS yet
+        "inSubqueryWithInSubqueryInsideFromSubqueryWithLookupJoin",
+        // Lookup join after INLINE STATS (coordinator-only) is not supported in CCS yet
+        "Inline stats by and lookup join",
+        // Lookup join after STATS (coordinator-only) is not supported in CCS yet
+        "Lookup join after stats by"
     );
 
     @Override
@@ -213,7 +220,8 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
                 hasCapabilities(remoteClusterClient(), List.of(INLINE_STATS_SUPPORTS_REMOTE.capabilityName()))
             );
         }
-        if (testCase.requiredCapabilities.contains(JOIN_LOOKUP_V12.capabilityName())) {
+        if (testCase.requiredCapabilities.contains(JOIN_LOOKUP_V12.capabilityName())
+            || testCase.requiredCapabilities.contains(APPROXIMATION_LOOKUP_JOIN_V2.capabilityName())) {
             assumeTrue(
                 "LOOKUP JOIN not yet supported in CCS",
                 hasCapabilities(adminClient(), List.of(ENABLE_LOOKUP_JOIN_ON_REMOTE.capabilityName()))

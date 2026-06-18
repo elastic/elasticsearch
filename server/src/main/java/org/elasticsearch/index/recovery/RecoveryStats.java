@@ -159,19 +159,19 @@ public class RecoveryStats implements ToXContentFragment, Writeable {
     /// Records that a queued target-side (peer or non-peer) recovery for this shard was discarded without starting.
     public void targetQueuedRecoveryDiscarded(RecoverySource.Type type) {
         if (type == RecoverySource.Type.PEER) {
-            assert currentAsTargetQueued.decrementAndGet() >= 0;
+            currentAsTargetQueued.decrementAndGet();
         } else {
-            assert currentFromStoreQueued.decrementAndGet() >= 0;
+            currentFromStoreQueued.decrementAndGet();
         }
     }
 
     /// Records that a queued target-side (peer or non-peer) recovery has been dequeued and started for this shard.
     public void targetRecoveryDequeuedAndStarted(RecoverySource.Type type) {
         if (type == RecoverySource.Type.PEER) {
-            assert currentAsTargetQueued.decrementAndGet() >= 0;
+            currentAsTargetQueued.decrementAndGet();
             currentAsTarget.incrementAndGet();
         } else {
-            assert currentFromStoreQueued.decrementAndGet() >= 0;
+            currentFromStoreQueued.decrementAndGet();
             currentFromStore.incrementAndGet();
         }
     }
@@ -179,9 +179,9 @@ public class RecoveryStats implements ToXContentFragment, Writeable {
     /// Records that an active target-side (peer or non-peer) recovery has completed for this shard.
     public void targetRecoveryCompleted(RecoverySource.Type type) {
         if (type == RecoverySource.Type.PEER) {
-            assert currentAsTarget.decrementAndGet() >= 0;
+            currentAsTarget.decrementAndGet();
         } else {
-            assert currentFromStore.decrementAndGet() >= 0;
+            currentFromStore.decrementAndGet();
         }
     }
 

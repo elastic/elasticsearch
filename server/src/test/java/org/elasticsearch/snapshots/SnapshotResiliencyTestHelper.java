@@ -461,6 +461,8 @@ public class SnapshotResiliencyTestHelper {
 
             protected IndicesService indicesService;
 
+            protected ThrottlingRecoveryService throttlingRecoveryService;
+
             protected PeerRecoveryTargetService peerRecoveryTargetService;
 
             private IndicesClusterStateService indicesClusterStateService;
@@ -679,7 +681,7 @@ public class SnapshotResiliencyTestHelper {
                     .metaStateService(new MetaStateService(nodeEnv, namedXContentRegistry))
                     .mapperMetrics(MapperMetrics.NOOP)
                     .mergeMetrics(MergeMetrics.NOOP)
-                    .throttlingRecoveryService(new ThrottlingRecoveryService(threadPool.generic(), clusterService))
+                    .throttlingRecoveryService(throttlingRecoveryService)
                     .build();
 
                 this.searchService = new SearchService(
@@ -775,6 +777,8 @@ public class SnapshotResiliencyTestHelper {
                     SearchExecutionStatsCollector.makeWrapper(responseCollectorService)
                 );
                 searchTransportService.setSearchService(searchService);
+
+                throttlingRecoveryService = new ThrottlingRecoveryService(threadPool.generic(), clusterService);
 
                 indicesClusterStateService = new IndicesClusterStateService(
                     settings,
@@ -1259,6 +1263,7 @@ public class SnapshotResiliencyTestHelper {
                 indicesService.close();
                 clusterService.close();
                 nodeConnectionsService.stop();
+                throttlingRecoveryService.close();
                 indicesClusterStateService.close();
                 peerRecoverySourceService.stop();
                 if (coordinator != null) {

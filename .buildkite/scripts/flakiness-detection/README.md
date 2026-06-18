@@ -99,7 +99,7 @@ Runs **after** the batches complete. Reads JUnit XML written by Gradle (`*/build
 
 | File                  | Responsibility                                                                                                                                                                                    |
 | --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `analyzer/analyze.ts` | Walk the workspace for JUnit XML, parse via `fast-xml-parser`, classify failures, produce `FlakinessReport`. Pure; takes an optional `minMtimeMs` to skip pre-existing reports during local runs. |
+| `analyzer/analyze.ts` | Walk the workspace for JUnit XML, stream-parse via `sax`, classify failures, produce `FlakinessReport`. Streaming keeps peak memory bounded by test count (not file size), so the analyze step survives K8s agents even when a report grows into the hundreds of MiB. Pure; takes an optional `minMtimeMs` to skip pre-existing reports during local runs. |
 | `analyzer/render.ts`  | `FlakinessReport → markdown`. `severity()` derives the Buildkite annotation style.                                                                                                                |
 
 Failure classification (`classifyFailure`):

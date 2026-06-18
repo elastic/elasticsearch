@@ -158,7 +158,11 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin, Extensibl
     @Override
     public void loadExtensions(ExtensionLoader loader) {
         List<DownsamplingOperations> extensions = loader.loadExtensions(DownsamplingOperations.class);
-        assert extensions.size() <= 1 : "Expected at most one DownsamplingOperations implementation, found: " + extensions.size();
+        if (extensions.size() > 1) {
+            throw new IllegalStateException(
+                "Expected at most one DownsamplingOperations implementation, found: " + extensions.stream().map(Object::getClass).toList()
+            );
+        }
         if (extensions.isEmpty() == false) {
             downsamplingOperations = extensions.get(0);
         }
@@ -194,6 +198,7 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin, Extensibl
         pluginSettings.add(DataStreamLifecycleService.DATA_STREAM_LIFECYCLE_POLL_INTERVAL_SETTING);
         pluginSettings.add(DataStreamLifecycleService.DATA_STREAM_MERGE_POLICY_TARGET_FLOOR_SEGMENT_SETTING);
         pluginSettings.add(DataStreamLifecycleService.DATA_STREAM_MERGE_POLICY_TARGET_FACTOR_SETTING);
+        pluginSettings.add(DataStreamLifecycleService.DLM_CREATED_SETTING);
         pluginSettings.add(DataStreamLifecycleService.DATA_STREAM_MAX_DOWNSAMPLING_INDICES_IN_PROGRESS_SETTING);
         return pluginSettings;
     }
@@ -279,7 +284,7 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin, Extensibl
         handlers.add(new RestDataStreamsStatsAction());
         handlers.add(new RestMigrateToDataStreamAction());
         handlers.add(new RestPromoteDataStreamAction());
-        handlers.add(new RestModifyDataStreamsAction());
+        handlers.add(new RestModifyDataStreamsAction(clusterSupportsFeature));
         handlers.add(new RestPutDataStreamLifecycleAction());
         handlers.add(new RestGetDataStreamLifecycleAction());
         handlers.add(new RestDeleteDataStreamLifecycleAction());

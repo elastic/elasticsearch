@@ -167,6 +167,13 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
      */
     public static final String FORCE_MERGE_COMPLETED_TIMESTAMP_METADATA_KEY = "force_merge_completed_timestamp";
     public static final String FROZEN_CANDIDATE_REPOSITORY_METADATA_KEY = "dlm_freeze_with";
+    public static final String DLM_CREATED_SETTING_KEY = IndexMetadata.INDEX_SETTING_PREFIX + "dlm.frozen.created";
+    public static final Setting<Boolean> DLM_CREATED_SETTING = Setting.boolSetting(
+        DLM_CREATED_SETTING_KEY,
+        false,
+        Setting.Property.IndexScope,
+        Setting.Property.InternalIndex
+    );
     private final Settings settings;
     private final Client client;
     private final ClusterService clusterService;
@@ -424,6 +431,18 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
             // the following indices should not be considered for the remainder of this service run, for various reasons.
             Set<Index> indicesToExcludeForRemainingRun = new HashSet<>();
 
+            // Seed the exclusion set with any indices that have index.lifecycle.skip=true so they are ignored by every phase below.
+            for (Index index : dataStream.getIndices()) {
+                if (isLifecycleSkipped(project, index)) {
+                    indicesToExcludeForRemainingRun.add(index);
+                }
+            }
+            for (Index index : dataStream.getFailureIndices()) {
+                if (isLifecycleSkipped(project, index)) {
+                    indicesToExcludeForRemainingRun.add(index);
+                }
+            }
+
             // These are the pre-rollover write indices. They may or may not be the write index after maybeExecuteRollover has executed,
             // depending on rollover criteria, for this reason we exclude them for the remaining run.
             indicesToExcludeForRemainingRun.add(maybeExecuteRollover(project, dataStream, dataRetention, false));
@@ -512,6 +531,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                     nowSupplier,
                     getTargetIndices(dataStream, indicesToExcludeForRemainingRun, project::index, false)
                 );
+
                 // Exclude these candidates from the rest of the run
                 indicesToExcludeForRemainingRun.addAll(candidatesForFrozen);
                 // Add them to the list to be marked for conversion
@@ -599,6 +619,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
             }
             Optional.ofNullable(projectMetadata.index(index))
                 .filter(indexMeta -> indexMarkedForFrozen(indexMeta) == false)
+                .filter(indexMeta -> DLM_CREATED_SETTING.get(indexMeta.getSettings()) == false)
                 .ifPresent(metadata -> candidates.add(metadata.getIndex()));
         }
         return candidates;
@@ -1062,6 +1083,11 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
         return targetIndices;
     }
 
+    private static boolean isLifecycleSkipped(ProjectMetadata project, Index index) {
+        IndexMetadata indexMetadata = project.index(index);
+        return indexMetadata != null && IndexMetadata.LIFECYCLE_SKIP_SETTING.get(indexMetadata.getSettings());
+    }
+
     /**
      * This clears the error store for the case where a data stream or some backing indices were managed by data stream lifecycle, failed in
      * their lifecycle execution, and then they were not managed by the data stream lifecycle (maybe they were switched to ILM).
@@ -1099,7 +1125,8 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
             return null;
         }
         try {
-            if (dataStream.isIndexManagedByDataStreamLifecycle(currentRunWriteIndex, project::index)) {
+            if (isLifecycleSkipped(project, currentRunWriteIndex) == false
+                && dataStream.isIndexManagedByDataStreamLifecycle(currentRunWriteIndex, project::index)) {
                 RolloverRequest rolloverRequest = getDefaultRolloverRequest(
                     rolloverConfiguration,
                     dataStream.getName(),

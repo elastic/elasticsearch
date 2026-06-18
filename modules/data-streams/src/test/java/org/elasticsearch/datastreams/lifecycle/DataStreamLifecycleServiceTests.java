@@ -1489,6 +1489,155 @@ public class DataStreamLifecycleServiceTests extends DataStreamLifecycleServiceT
         assertTrue(DataStreamLifecycleService.indexMarkedForFrozen(indexWithFrozenCustom));
     }
 
+    public void testNonWriteIndexWithLifecycleSkipIsNotDeleted() {
+        String dataStreamName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        ProjectMetadata.Builder builder = ProjectMetadata.builder(randomProjectIdOrDefault());
+        DataStream dataStream = createDataStream(
+            builder,
+            dataStreamName,
+            3,
+            settings(IndexVersion.current()),
+            DataStreamLifecycle.dataLifecycleBuilder().dataRetention(TimeValue.ZERO).build(),
+            now
+        );
+        builder.put(dataStream);
+        final var project = builder.build();
+
+        ProjectMetadata.Builder newBuilder = ProjectMetadata.builder(project);
+        Index firstBackingIndex = dataStream.getIndices().getFirst();
+        IndexMetadata indexMetadata = project.index(firstBackingIndex);
+        newBuilder.put(
+            IndexMetadata.builder(indexMetadata)
+                .settings(Settings.builder().put(indexMetadata.getSettings()).put(IndexMetadata.LIFECYCLE_SKIP_SETTING.getKey(), true))
+        );
+        ClusterState state = ClusterState.builder(ClusterName.DEFAULT).putProjectMetadata(newBuilder).build();
+
+        dataStreamLifecycleService.run(state);
+
+        // Rollover the write index; only backing index 2 is deleted — the skip-flagged backing index 1 is left alone.
+        assertThat(clientSeenRequests.size(), is(2));
+        assertThat(clientSeenRequests.get(0), instanceOf(RolloverRequest.class));
+        assertThat(clientSeenRequests.get(1), instanceOf(DeleteIndexRequest.class));
+        assertThat(
+            ((DeleteIndexRequest) clientSeenRequests.get(1)).indices()[0],
+            DataStreamTestHelper.backingIndexEqualTo(dataStreamName, 2)
+        );
+    }
+
+    public void testWriteIndexWithLifecycleSkipIsNotRolledOver() {
+        String dataStreamName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        ProjectMetadata.Builder builder = ProjectMetadata.builder(randomProjectIdOrDefault());
+        DataStream dataStream = createDataStream(
+            builder,
+            dataStreamName,
+            3,
+            settings(IndexVersion.current()),
+            DataStreamLifecycle.dataLifecycleBuilder().dataRetention(TimeValue.ZERO).build(),
+            now
+        );
+        builder.put(dataStream);
+        final var project = builder.build();
+
+        ProjectMetadata.Builder newBuilder = ProjectMetadata.builder(project);
+        Index writeIndex = dataStream.getWriteIndex();
+        IndexMetadata indexMetadata = project.index(writeIndex);
+        newBuilder.put(
+            IndexMetadata.builder(indexMetadata)
+                .settings(Settings.builder().put(indexMetadata.getSettings()).put(IndexMetadata.LIFECYCLE_SKIP_SETTING.getKey(), true))
+        );
+        ClusterState state = ClusterState.builder(ClusterName.DEFAULT).putProjectMetadata(newBuilder).build();
+
+        dataStreamLifecycleService.run(state);
+
+        // Both non-write backing indices are deleted; the skip-flagged write index is not rolled over.
+        assertThat(clientSeenRequests.size(), is(2));
+        assertThat(clientSeenRequests.get(0), instanceOf(DeleteIndexRequest.class));
+        assertThat(clientSeenRequests.get(1), instanceOf(DeleteIndexRequest.class));
+    }
+
+    public void testFailureStoreIndexWithLifecycleSkipIsNotDeleted() {
+        String dataStreamName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        ProjectMetadata.Builder builder = ProjectMetadata.builder(randomProjectIdOrDefault());
+        DataStreamLifecycle zeroRetentionFailuresLifecycle = DataStreamLifecycle.failuresLifecycleBuilder()
+            .dataRetention(TimeValue.ZERO)
+            .build();
+        DataStream dataStream = createDataStream(
+            builder,
+            dataStreamName,
+            1,
+            2,
+            settings(IndexVersion.current()),
+            null,
+            zeroRetentionFailuresLifecycle,
+            now
+        );
+        builder.put(dataStream);
+        final var project = builder.build();
+
+        ProjectMetadata.Builder newBuilder = ProjectMetadata.builder(project);
+        Index skippedFailureIndex = dataStream.getFailureIndices().get(0);
+        IndexMetadata failureIndexMetadata = project.index(skippedFailureIndex);
+        newBuilder.put(
+            IndexMetadata.builder(failureIndexMetadata)
+                .settings(
+                    Settings.builder().put(failureIndexMetadata.getSettings()).put(IndexMetadata.LIFECYCLE_SKIP_SETTING.getKey(), true)
+                )
+        );
+        ClusterState state = ClusterState.builder(ClusterName.DEFAULT).putProjectMetadata(newBuilder).build();
+
+        dataStreamLifecycleService.run(state);
+
+        // The failure write index is rolled over; the skip-flagged non-write failure index is not deleted.
+        assertThat(clientSeenRequests.size(), is(1));
+        assertThat(clientSeenRequests.get(0), instanceOf(RolloverRequest.class));
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testLifecycleSkipPreventsForceMerge() throws Exception {
+        clientDelegate = (action, request, listener) -> {
+            if (action.name().equals("indices:admin/forcemerge")) {
+                listener.onResponse(new BroadcastResponse(5, 5, 0, List.of()));
+            }
+        };
+        String dataStreamName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        ProjectMetadata.Builder builder = ProjectMetadata.builder(randomProjectIdOrDefault());
+        DataStream dataStream = createDataStream(
+            builder,
+            dataStreamName,
+            3,
+            settings(IndexVersion.current()).put(MergePolicyConfig.INDEX_MERGE_POLICY_FLOOR_SEGMENT_SETTING.getKey(), ONE_HUNDRED_MB)
+                .put(MergePolicyConfig.INDEX_MERGE_POLICY_MERGE_FACTOR_SETTING.getKey(), TARGET_MERGE_FACTOR_VALUE),
+            DataStreamLifecycle.dataLifecycleBuilder().dataRetention(TimeValue.MAX_VALUE).build(),
+            now
+        );
+        builder.put(dataStream);
+        final var project = builder.build();
+
+        ProjectMetadata.Builder newBuilder = ProjectMetadata.builder(project);
+        Index skippedIndex = dataStream.getIndices().get(0);
+        IndexMetadata skippedIndexMetadata = project.index(skippedIndex);
+        newBuilder.put(
+            IndexMetadata.builder(skippedIndexMetadata)
+                .settings(
+                    Settings.builder().put(skippedIndexMetadata.getSettings()).put(IndexMetadata.LIFECYCLE_SKIP_SETTING.getKey(), true)
+                )
+        );
+
+        String nodeId = "localNode";
+        DiscoveryNodes.Builder nodesBuilder = buildNodes(nodeId);
+        nodesBuilder.masterNodeId(nodeId);
+        ClusterState state = ClusterState.builder(ClusterName.DEFAULT).putProjectMetadata(newBuilder).nodes(nodesBuilder).build();
+        setState(clusterService, state);
+        dataStreamLifecycleService.run(clusterService.state());
+
+        // Only the non-skipped non-write index (generation 2) is force-merged; the skip-flagged index (generation 1) is not.
+        Index expectedForceMergedIndex = dataStream.getIndices().get(1);
+        assertBusy(() -> assertThat(clientSeenRequests.size(), is(2)), 30, TimeUnit.SECONDS);
+        assertThat(clientSeenRequests.get(0), instanceOf(RolloverRequest.class));
+        ForceMergeRequest forceMergeRequest = (ForceMergeRequest) clientSeenRequests.get(1);
+        assertThat(forceMergeRequest.indices()[0], is(expectedForceMergedIndex.getName()));
+    }
+
     public void testGatheringCandidatesForFrozen() {
         ProjectMetadata.Builder builder = ProjectMetadata.builder(randomProjectIdOrDefault());
         int backingIndices = randomIntBetween(3, 10);
@@ -1561,6 +1710,58 @@ public class DataStreamLifecycleServiceTests extends DataStreamLifecycleServiceT
                         .subList(0, (int) dataStreamWithFrozen.getGeneration() - 1)
                         .stream()
                         .map(Index::getName)
+                        .toList()
+                )
+            )
+        );
+    }
+
+    public void testGatheringCandidatesForFrozenSkipsDlmCreatedIndices() {
+        ProjectMetadata.Builder builder = ProjectMetadata.builder(randomProjectIdOrDefault());
+        int backingIndices = randomIntBetween(3, 10);
+        DataStream dataStreamWithFrozen = createDataStream(
+            builder,
+            "my-datastream-with-frozen",
+            backingIndices,
+            settings(IndexVersion.current()),
+            DataStreamLifecycle.dataLifecycleBuilder().enabled(true).frozenAfter(TimeValue.timeValueMinutes(1)).build(),
+            now
+        );
+        builder.put(dataStreamWithFrozen);
+        ProjectMetadata projectMetadata = builder.build();
+
+        // Pick the first aged (non-write-index) backing index and mark it as DLM-created
+        Index dlmCreatedIndex = dataStreamWithFrozen.getIndices().getFirst();
+        IndexMetadata originalMeta = projectMetadata.index(dlmCreatedIndex);
+        IndexMetadata dlmCreatedMeta = IndexMetadata.builder(originalMeta)
+            .settings(
+                Settings.builder().put(originalMeta.getSettings()).put(DataStreamLifecycleService.DLM_CREATED_SETTING_KEY, true).build()
+            )
+            .build();
+        ProjectMetadata updatedProjectMetadata = ProjectMetadata.builder(projectMetadata).put(dlmCreatedMeta, false).build();
+
+        long nowPastFrozenAfter = now + TimeValue.timeValueMinutes(2).millis();
+
+        Set<Index> candidates = DataStreamLifecycleService.candidatesForFrozen(
+            updatedProjectMetadata,
+            dataStreamWithFrozen,
+            () -> nowPastFrozenAfter,
+            dataStreamWithFrozen.getIndices()
+        );
+
+        assertFalse(
+            "DLM-created index should not be a frozen candidate",
+            candidates.stream().anyMatch(i -> i.getName().equals(dlmCreatedIndex.getName()))
+        );
+        assertThat(
+            new TreeSet<>(candidates.stream().map(Index::getName).toList()),
+            equalTo(
+                new TreeSet<>(
+                    dataStreamWithFrozen.getIndices()
+                        .subList(0, (int) dataStreamWithFrozen.getGeneration() - 1)
+                        .stream()
+                        .map(Index::getName)
+                        .filter(name -> name.equals(dlmCreatedIndex.getName()) == false)
                         .toList()
                 )
             )

@@ -680,7 +680,8 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
                 action.accumulateDirectoryMetrics(storeMetrics(shardBytes));
             }
             action.recordStoreMetrics(action.getMergedDirectoryMetrics());
-            List<Measurement> measurements = meterRegistry.getRecorder().getMeasurements(InstrumentType.LONG_HISTOGRAM, STORE_BYTES_READ_HISTOGRAM_NAME);
+            List<Measurement> measurements = meterRegistry.getRecorder()
+                .getMeasurements(InstrumentType.LONG_HISTOGRAM, STORE_BYTES_READ_HISTOGRAM_NAME);
             assertThat(measurements, hasSize(1));
             assertThat(measurements.get(0).value(), equalTo(expectedBytesRead));
         }
@@ -696,7 +697,8 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
                 new AtomicLong()
             );
             action.recordStoreMetrics(DirectoryMetrics.EMPTY);
-            List<Measurement> measurements = meterRegistry.getRecorder().getMeasurements(InstrumentType.LONG_HISTOGRAM, STORE_BYTES_READ_HISTOGRAM_NAME);
+            List<Measurement> measurements = meterRegistry.getRecorder()
+                .getMeasurements(InstrumentType.LONG_HISTOGRAM, STORE_BYTES_READ_HISTOGRAM_NAME);
             assertThat(measurements, empty());
         }
     }

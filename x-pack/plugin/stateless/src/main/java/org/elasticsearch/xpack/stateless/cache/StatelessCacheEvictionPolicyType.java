@@ -26,6 +26,12 @@ public enum StatelessCacheEvictionPolicyType {
             return new DefaultEvictionPolicy<>();
         }
     },
+    PINNED_WINDOW {
+        @Override
+        EvictionPolicy<FileCacheKey> create(ClusterService clusterService) {
+            return new PinnedWindowEvictionPolicy(clusterService);
+        }
+    },
     INDEX_AGE {
         @Override
         EvictionPolicy<FileCacheKey> create(ClusterService clusterService) {

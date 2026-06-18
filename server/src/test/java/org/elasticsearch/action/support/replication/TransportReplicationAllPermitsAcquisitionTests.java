@@ -106,10 +106,8 @@ public class TransportReplicationAllPermitsAcquisitionTests extends IndexShardTe
     private boolean globalBlock;
     private ClusterBlock block;
 
-    @Override
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void initializeClusterAndShards() throws Exception {
         globalBlock = randomBoolean();
         RestStatus restStatus = randomFrom(RestStatus.values());
         block = new ClusterBlock(randomIntBetween(1, 10), randomAlphaOfLength(5), false, true, false, restStatus, ClusterBlockLevel.ALL);
@@ -209,13 +207,11 @@ public class TransportReplicationAllPermitsAcquisitionTests extends IndexShardTe
         shardStateAction = new ShardStateAction(clusterService, transportService, null, null, threadPool);
     }
 
-    @Override
     @After
-    public void tearDown() throws Exception {
+    public void closeClusterAndServices() throws Exception {
         closeShards(primary, replica);
         transportService.stop();
         clusterService.close();
-        super.tearDown();
     }
 
     public void testTransportReplicationActionWithAllPermits() throws Exception {

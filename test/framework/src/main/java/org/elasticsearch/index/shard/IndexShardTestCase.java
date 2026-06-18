@@ -97,6 +97,8 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentType;
+import org.junit.After;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -173,9 +175,8 @@ public abstract class IndexShardTestCase extends ESTestCase {
         }).when(shard).close(any(), anyBoolean(), any(), any());
     }
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void setUpShardTestResources() throws Exception {
         Settings settings = threadPoolSettings();
         threadPool = setUpThreadPool(settings);
         nodeEnvironment = newNodeEnvironment(settings);
@@ -189,17 +190,23 @@ public abstract class IndexShardTestCase extends ESTestCase {
         failOnShardFailures();
     }
 
+    @Override
+    public final void setUp() throws Exception {
+        super.setUp();
+    }
+
     protected ThreadPool setUpThreadPool(Settings settings) {
         return new TestThreadPool(getClass().getName(), settings);
     }
 
+    @After
+    public void tearDownShardTestResources() throws Exception {
+        IOUtils.close(nodeEnvironment, this::tearDownThreadPool);
+    }
+
     @Override
-    public void tearDown() throws Exception {
-        try {
-            IOUtils.close(nodeEnvironment, this::tearDownThreadPool);
-        } finally {
-            super.tearDown();
-        }
+    public final void tearDown() throws Exception {
+        super.tearDown();
     }
 
     protected void tearDownThreadPool() {

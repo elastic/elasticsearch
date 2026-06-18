@@ -40,8 +40,7 @@ public class CcrRestoreSourceServiceTests extends IndexShardTestCase {
     private DeterministicTaskQueue taskQueue;
 
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void initializeRestoreSourceService() throws Exception {
         taskQueue = new DeterministicTaskQueue();
         ClusterSettings clusterSettings = new ClusterSettings(
             Settings.EMPTY,

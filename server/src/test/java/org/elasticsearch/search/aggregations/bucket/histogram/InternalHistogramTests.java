@@ -18,6 +18,8 @@ import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.test.InternalAggregationTestCase;
 import org.elasticsearch.test.InternalMultiBucketAggregationTestCase;
 
+import org.junit.Before;
+
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -33,9 +35,8 @@ public class InternalHistogramTests extends InternalMultiBucketAggregationTestCa
     private InternalHistogram.EmptyBucketInfo emptyBucketInfo;
     private int offset;
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void initializeHistogramParams() throws Exception {
         keyed = randomBoolean();
         format = randomNumericDocValueFormat();
         // in order for reduction to work properly (and be realistic) we need to use the same interval, minDocCount, emptyBucketInfo

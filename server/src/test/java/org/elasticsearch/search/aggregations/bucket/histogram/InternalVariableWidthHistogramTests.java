@@ -27,6 +27,8 @@ import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.test.InternalAggregationTestCase;
 import org.elasticsearch.test.InternalMultiBucketAggregationTestCase;
 
+import org.junit.Before;
+
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -40,9 +42,8 @@ public class InternalVariableWidthHistogramTests extends InternalMultiBucketAggr
     private InternalVariableWidthHistogram.EmptyBucketInfo emptyBucktInfo;
     private int numBuckets;
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void initializeVariableWidthHistogramParams() throws Exception {
         format = randomNumericDocValueFormat();
         emptyBucktInfo = new InternalVariableWidthHistogram.EmptyBucketInfo(InternalAggregations.EMPTY);
         this.numBuckets = 3;

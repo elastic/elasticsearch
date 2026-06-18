@@ -15,6 +15,8 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 
+import org.junit.Before;
+
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -31,10 +33,8 @@ public class InternalBinaryRangeTests extends InternalRangeTestCase<InternalBina
         return 1;
     }
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
-
+    @Before
+    public void initializeBinaryRanges() throws Exception {
         List<Tuple<BytesRef, BytesRef>> listOfRanges = new ArrayList<>();
         if (randomBoolean()) {
             listOfRanges.add(Tuple.tuple(null, new BytesRef(randomAlphaOfLength(15))));

@@ -226,10 +226,8 @@ public abstract class EngineTestCase extends ESTestCase {
         return List.of();
     }
 
-    @Override
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void initializeEngineTestResources() throws Exception {
         primaryTerm.set(randomLongBetween(1, Long.MAX_VALUE));
         CodecService codecService = newCodecService();
         String name = Codec.getDefault().getName();
@@ -284,9 +282,12 @@ public abstract class EngineTestCase extends ESTestCase {
     }
 
     @Override
+    public final void setUp() throws Exception {
+        super.setUp();
+    }
+
     @After
-    public void tearDown() throws Exception {
-        super.tearDown();
+    public void verifyAndCloseEngines() throws Exception {
         try {
             if (engine != null && engine.isClosed.get() == false) {
                 engine.getTranslog().getDeletionPolicy().assertNoOpenTranslogRefs();
@@ -305,6 +306,11 @@ public abstract class EngineTestCase extends ESTestCase {
         } finally {
             IOUtils.close(replicaEngine, storeReplica, engine, store, () -> terminate(threadPool), nodeEnvironment);
         }
+    }
+
+    @Override
+    public final void tearDown() throws Exception {
+        super.tearDown();
     }
 
     protected static LuceneDocument testDocumentWithTextField() {

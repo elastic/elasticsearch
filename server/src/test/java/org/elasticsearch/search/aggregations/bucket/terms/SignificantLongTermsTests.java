@@ -14,6 +14,8 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.bucket.terms.heuristic.SignificanceHeuristic;
 
+import org.junit.Before;
+
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -25,9 +27,8 @@ public class SignificantLongTermsTests extends InternalSignificantTermsTestCase 
 
     private DocValueFormat format;
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void initializeFormat() throws Exception {
         format = randomNumericDocValueFormat();
     }
 

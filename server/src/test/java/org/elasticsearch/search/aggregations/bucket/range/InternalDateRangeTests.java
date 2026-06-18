@@ -15,6 +15,8 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 
+import org.junit.Before;
+
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
@@ -29,9 +31,8 @@ public class InternalDateRangeTests extends InternalRangeTestCase<InternalDateRa
     private DocValueFormat format;
     private List<Tuple<Double, Double>> dateRanges;
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void initializeDateRanges() throws Exception {
         format = randomDateDocValueFormat();
 
         Function<ZonedDateTime, ZonedDateTime> interval = randomFrom(

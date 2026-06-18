@@ -15,6 +15,8 @@ import org.elasticsearch.search.aggregations.metrics.Max;
 import org.elasticsearch.search.aggregations.metrics.Min;
 import org.elasticsearch.test.InternalAggregationTestCase;
 
+import org.junit.Before;
+
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -31,9 +33,8 @@ public abstract class InternalSingleBucketAggregationTestCase<T extends Internal
 
     public Supplier<InternalAggregations> subAggregationsSupplier;
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void initializeSubAggregations() throws Exception {
         hasInternalMax = randomBoolean();
         hasInternalMin = randomBoolean();
         subAggregationsSupplier = () -> {
@@ -46,6 +47,11 @@ public abstract class InternalSingleBucketAggregationTestCase<T extends Internal
             }
             return InternalAggregations.from(aggs);
         };
+    }
+
+    @Override
+    public final void setUp() throws Exception {
+        super.setUp();
     }
 
     protected abstract T createTestInstance(String name, long docCount, InternalAggregations aggregations, Map<String, Object> metadata);

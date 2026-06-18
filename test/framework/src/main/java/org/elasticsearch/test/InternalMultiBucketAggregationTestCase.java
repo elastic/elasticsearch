@@ -25,6 +25,8 @@ import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.PipelineTree;
 import org.elasticsearch.search.aggregations.support.SamplingContext;
 
+import org.junit.Before;
+
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
@@ -69,9 +71,8 @@ public abstract class InternalMultiBucketAggregationTestCase<T extends InternalA
         return subAggregationsSupplier.get();
     }
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void initializeSubAggregations() throws Exception {
         if (randomBoolean()) {
             subAggregationsSupplier = () -> InternalAggregations.EMPTY;
         } else {
@@ -84,6 +85,11 @@ public abstract class InternalMultiBucketAggregationTestCase<T extends InternalA
                 return InternalAggregations.from(aggs);
             };
         }
+    }
+
+    @Override
+    public final void setUp() throws Exception {
+        super.setUp();
     }
 
     @Override

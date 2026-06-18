@@ -98,6 +98,9 @@ import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.TestSearchContext;
 
+import org.junit.After;
+import org.junit.Before;
+
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -122,16 +125,14 @@ public class QueryPhaseTests extends IndexShardTestCase {
     private IndexReader reader;
     private IndexShard indexShard;
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void initializeShardAndDirectory() throws Exception {
         dir = newDirectory();
         indexShard = newShard(true);
     }
 
-    @Override
-    public void tearDown() throws Exception {
-        super.tearDown();
+    @After
+    public void closeResources() throws Exception {
         if (reader != null) {
             reader.close();
         }

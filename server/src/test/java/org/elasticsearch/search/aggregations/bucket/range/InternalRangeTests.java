@@ -15,6 +15,8 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 
+import org.junit.Before;
+
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -26,9 +28,8 @@ public class InternalRangeTests extends InternalRangeTestCase<InternalRange<Inte
     private DocValueFormat format;
     private List<Tuple<Double, Double>> ranges;
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void initializeRanges() throws Exception {
         format = randomNumericDocValueFormat();
 
         List<Tuple<Double, Double>> listOfRanges = new ArrayList<>();

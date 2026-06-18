@@ -20,6 +20,8 @@ import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.test.InternalMultiBucketAggregationTestCase;
 
+import org.junit.Before;
+
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
@@ -41,9 +43,8 @@ public class InternalDateHistogramTests extends InternalMultiBucketAggregationTe
     private long minDocCount;
     private InternalDateHistogram.EmptyBucketInfo emptyBucketInfo;
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void initializeDateHistogramParams() throws Exception {
         keyed = randomBoolean();
         format = randomDateDocValueFormat();
         // in order for reduction to work properly (and be realistic) we need to use the same interval, minDocCount, emptyBucketInfo

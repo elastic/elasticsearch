@@ -574,6 +574,28 @@ public abstract class DocumentParserContext {
         return dynamic;
     }
 
+    /**
+     * Resolves the effective {@link ObjectMapper.Dynamic} for an unmapped field named {@code currentFieldName}
+     * in the current parse context.
+     *
+     * <p>In strict columnar index modes, unmapped fields under a declared object prefix may have a
+     * per-prefix dynamic setting different from the root dynamic. This method performs a longest-prefix
+     * match against the per-object dynamic settings captured during auto-flattening, falling back to
+     * the context's inherited dynamic when no prefix matches.
+     *
+     * <p>For all other index modes the method returns {@link #dynamic()} unchanged, preserving the
+     * existing behaviour with zero overhead.
+     *
+     * @param currentFieldName the simple (un-prefixed) name of the field being parsed
+     * @return the resolved dynamic value to use for this field
+     */
+    public final ObjectMapper.Dynamic resolveDynamic(String currentFieldName) {
+        if (indexSettings().getMode().isStrictColumnar() == false) {
+            return dynamic();
+        }
+        return root().resolveDynamic(path().pathAsText(currentFieldName), dynamic());
+    }
+
     public void markFieldAsAppliedFromTemplate(String fieldName) {
         fieldsAppliedFromTemplates.add(fieldName);
     }

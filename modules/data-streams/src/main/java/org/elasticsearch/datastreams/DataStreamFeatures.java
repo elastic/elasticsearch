@@ -36,9 +36,11 @@ public class DataStreamFeatures implements FeatureSpecification {
 
     public static final NodeFeature DATA_STREAMS_MAPPINGS_API = new NodeFeature("data_stream.mappings_api");
 
+    public static final NodeFeature DATA_STREAMS_MODIFY_DELETE_INDEX = new NodeFeature("data_stream.modify.delete_index", true);
+
     @Override
     public Set<NodeFeature> getFeatures() {
-        return Set.of(DataStream.DATA_STREAM_FAILURE_STORE_FEATURE);
+        return Set.of(DataStream.DATA_STREAM_FAILURE_STORE_FEATURE, DATA_STREAMS_MODIFY_DELETE_INDEX);
     }
 
     @Override

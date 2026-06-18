@@ -42,6 +42,10 @@ public class LogsDbSubobjectsFalseVersusLogsDbColumnarChallengeRestIT extends Bu
         builder.startObject()
             // In columnar subobjects are not allowed
             .field("subobjects", false)
+            // In columnar _id is stored as doc values by default
+            .startObject("_id")
+            .field("mode", "columnar")
+            .endObject()
             // In columnar _routing is stored as doc values by default
             .startObject("_routing")
             .field("doc_values", true)

@@ -221,6 +221,10 @@ Machine Learning:
 * Restrict file system access for pytorch models [#2851](https://github.com/elastic/ml-cpp/pull/2851)
 * Update the PyTorch library to version 2.7.1 [#2863](https://github.com/elastic/ml-cpp/pull/2863)
 
+Packaging:
+* Update bundled JDK to Java 26 [#146167](https://github.com/elastic/elasticsearch/pull/146167)
+* Bump bundled JDK to Java 26.0.1 [#147424](https://github.com/elastic/elasticsearch/pull/147424)
+
 Security:
 * Update elastic-apm-agent-java8 to 1.55.6 [#148271](https://github.com/elastic/elasticsearch/pull/148271)
 
@@ -726,6 +730,7 @@ Monitoring:
 * Add mode and codec fields to Stack Monitoring index template [#143673](https://github.com/elastic/elasticsearch/pull/143673)
 
 Packaging:
+* Bump bundled JDK to Java 26.0.1 [#147424](https://github.com/elastic/elasticsearch/pull/147424)
 * Flip cloud-ess-fips default from FIPS 140-2 to FIPS 140-3 [#140788](https://github.com/elastic/elasticsearch/pull/140788)
 
 Performance:
@@ -1085,6 +1090,9 @@ Aggregations:
 
 ES|QL:
 * Skip time series field type merge for non-TS agg queries [#143262](https://github.com/elastic/elasticsearch/pull/143262)
+
+Packaging:
+* Update bundled JDK to Java 26 [#146167](https://github.com/elastic/elasticsearch/pull/146167)
 
 
 ### Fixes [elasticsearch-9.3.4-fixes]

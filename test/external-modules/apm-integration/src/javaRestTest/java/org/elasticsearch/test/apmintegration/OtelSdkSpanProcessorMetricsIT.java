@@ -47,6 +47,8 @@ public class OtelSdkSpanProcessorMetricsIT extends AbstractTelemetryIT {
         .setting("telemetry.otel.traces.sample_rate", "1.0")
         .setting("telemetry.otel.metrics.endpoint", () -> "http://" + recordingApmServer.getHttpAddress() + "/v1/metrics")
         .setting("telemetry.otel.metrics.interval", "100ms")
+        .setting("telemetry.otel.otlp.send_timeout", "80ms")
+        .setting("telemetry.otel.otlp.retry.initial_backoff", "20ms")
         .setting("telemetry.otel.metrics.disk_buffer_size", "0b")
         .build();
 

@@ -114,7 +114,7 @@ public class AesGcmEncryptionServiceTests extends ESTestCase {
 
         EncryptedData encrypted = service.encrypt(randomByteArrayOfLength(32));
         byte[] tampered = encrypted.payload().clone();
-        tampered[tampered.length - 1] ^= 0xFF;
+        tampered[tampered.length - 1] ^= (byte) 0xFF;
 
         ElasticsearchException e = expectThrows(
             ElasticsearchException.class,
@@ -227,7 +227,7 @@ public class AesGcmEncryptionServiceTests extends ESTestCase {
         EncryptedData encrypted = service.encrypt(randomByteArrayOfLength(32));
         byte[] tampered = encrypted.payload().clone();
         // IV starts at offset 1 (after version byte)
-        tampered[1] ^= 0xFF;
+        tampered[1] ^= (byte) 0xFF;
 
         ElasticsearchException e = expectThrows(
             ElasticsearchException.class,

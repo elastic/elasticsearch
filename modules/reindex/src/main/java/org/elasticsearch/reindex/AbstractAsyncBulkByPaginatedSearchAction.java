@@ -159,8 +159,8 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
     protected final SearchContextKeepaliveDeadline searchContextKeepaliveDeadline;
 
     @Nullable
-    private final BulkByScrollSearchContextMetrics bulkByScrollSearchContextMetrics;
-    private final BulkByScrollSearchContextMetrics.TaskKind bulkByScrollTaskKind;
+    private final BulkByPaginatedSearchSearchContextMetrics bulkByPaginatedSearchSearchContextMetrics;
+    private final BulkByPaginatedSearchSearchContextMetrics.TaskKind bulkByPaginatedSearchTaskKind;
     private final boolean remoteBulkByScrollSearch;
 
     /**
@@ -188,8 +188,8 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
         ActionListener<BulkByPaginatedSearchResponse> listener,
         @Nullable ScriptService scriptService,
         @Nullable ReindexSslConfig sslConfig,
-        @Nullable BulkByScrollSearchContextMetrics bulkByScrollSearchContextMetrics,
-        BulkByScrollSearchContextMetrics.TaskKind bulkByScrollTaskKind,
+        @Nullable BulkByPaginatedSearchSearchContextMetrics bulkByPaginatedSearchSearchContextMetrics,
+        BulkByPaginatedSearchSearchContextMetrics.TaskKind bulkByPaginatedSearchTaskKind,
         boolean remoteBulkByScrollSearch,
         TimeValue maxTaskShutdownGracePeriod,
         ReindexSettings reindexSettings,
@@ -210,8 +210,8 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
             scriptService,
             sslConfig,
             null,
-            bulkByScrollSearchContextMetrics,
-            bulkByScrollTaskKind,
+            bulkByPaginatedSearchSearchContextMetrics,
+            bulkByPaginatedSearchTaskKind,
             remoteBulkByScrollSearch,
             maxTaskShutdownGracePeriod,
             reindexSettings,
@@ -234,8 +234,8 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
         @Nullable ScriptService scriptService,
         @Nullable ReindexSslConfig sslConfig,
         @Nullable Version remoteVersion,
-        @Nullable BulkByScrollSearchContextMetrics bulkByScrollSearchContextMetrics,
-        BulkByScrollSearchContextMetrics.TaskKind bulkByScrollTaskKind,
+        @Nullable BulkByPaginatedSearchSearchContextMetrics bulkByPaginatedSearchSearchContextMetrics,
+        BulkByPaginatedSearchSearchContextMetrics.TaskKind bulkByPaginatedSearchTaskKind,
         boolean remoteBulkByScrollSearch,
         TimeValue maxTaskShutdownGracePeriod,
         ReindexSettings reindexSettings,
@@ -256,8 +256,8 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
         this.threadPool = threadPool;
         this.mainRequest = mainRequest;
         this.searchContextKeepaliveDeadline = new SearchContextKeepaliveDeadline(threadPool::absoluteTimeInMillis);
-        this.bulkByScrollSearchContextMetrics = bulkByScrollSearchContextMetrics;
-        this.bulkByScrollTaskKind = bulkByScrollTaskKind;
+        this.bulkByPaginatedSearchSearchContextMetrics = bulkByPaginatedSearchSearchContextMetrics;
+        this.bulkByPaginatedSearchTaskKind = bulkByPaginatedSearchTaskKind;
         this.remoteBulkByScrollSearch = remoteBulkByScrollSearch;
         this.relocationCooldownNanos = computeRelocationCooldownNanos(maxTaskShutdownGracePeriod);
         this.listener = listener;
@@ -939,16 +939,16 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
         boolean timedOut
     ) {
         logger.debug("[{}]: finishing without any catastrophic failures", task.getId());
-        if (bulkByScrollSearchContextMetrics != null
+        if (bulkByPaginatedSearchSearchContextMetrics != null
             && searchContextKeepaliveDeadline.shouldRecordKeepaliveExpiry(failure, searchFailures)) {
-            bulkByScrollSearchContextMetrics.recordKeepaliveExpiry(bulkByScrollTaskKind, remoteBulkByScrollSearch);
+            bulkByPaginatedSearchSearchContextMetrics.recordKeepaliveExpiry(bulkByPaginatedSearchTaskKind, remoteBulkByScrollSearch);
             logger.warn(
                 "[{}]: bulk-by-scroll [{}] ({}) likely failed because the {} keep-alive expired",
                 task.getId(),
-                bulkByScrollTaskKind.attributeValue(),
+                bulkByPaginatedSearchTaskKind.attributeValue(),
                 remoteBulkByScrollSearch
-                    ? BulkByScrollSearchContextMetrics.ATTRIBUTE_VALUE_SEARCH_SOURCE_REMOTE
-                    : BulkByScrollSearchContextMetrics.ATTRIBUTE_VALUE_SEARCH_SOURCE_LOCAL,
+                    ? BulkByPaginatedSearchSearchContextMetrics.ATTRIBUTE_VALUE_SEARCH_SOURCE_REMOTE
+                    : BulkByPaginatedSearchSearchContextMetrics.ATTRIBUTE_VALUE_SEARCH_SOURCE_LOCAL,
                 paginatedHitSource instanceof PitPaginatedHitSource ? "point-in-time" : "scroll"
             );
         }

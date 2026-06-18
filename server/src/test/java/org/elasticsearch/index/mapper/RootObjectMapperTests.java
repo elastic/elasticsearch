@@ -16,6 +16,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -704,6 +705,55 @@ public class RootObjectMapperTests extends MapperServiceTestCase {
             );
             assertThat(e.getMessage(), containsString("dynamic [runtime] is not supported in strict columnar mode"));
         }
+    }
+
+    private Settings sliceEnabledSettings() {
+        return Settings.builder()
+            .put(getIndexSettings())
+            .put(IndexSettings.SLICE_ENABLED.getKey(), true)
+            .put(IndexSettings.SLICE_VALIDATED.getKey(), true)
+            .build();
+    }
+
+    public void testSliceEnabledRejectsExplicitSliceFieldName() {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> createMapperService(sliceEnabledSettings(), mapping(b -> b.startObject("_slice").field("type", "keyword").endObject()))
+        );
+        assertThat(e.getMessage(), containsString("_slice"));
+        assertThat(e.getMessage(), containsString(IndexSettings.SLICE_ENABLED.getKey()));
+    }
+
+    public void testSliceEnabledRejectsRuntimeSliceFieldName() {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        MapperParsingException e = expectThrows(
+            MapperParsingException.class,
+            () -> createMapperService(sliceEnabledSettings(), topMapping(b -> {
+                b.startObject("runtime");
+                b.startObject("_slice").field("type", "keyword").endObject();
+                b.endObject();
+            }))
+        );
+        assertThat(e.getMessage(), containsString("_slice"));
+        assertThat(e.getMessage(), containsString(IndexSettings.SLICE_ENABLED.getKey()));
+    }
+
+    public void testSliceEnabledAllowsNestedSliceFieldName() throws Exception {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        createMapperService(sliceEnabledSettings(), mapping(b -> {
+            b.startObject("obj");
+            b.field("type", "object");
+            b.startObject("properties");
+            b.startObject("_slice").field("type", "keyword").endObject();
+            b.endObject();
+            b.endObject();
+        }));
+    }
+
+    public void testSliceDisabledAllowsSliceFieldName() throws Exception {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        createMapperService(mapping(b -> b.startObject("_slice").field("type", "keyword").endObject()));
     }
 
     public void testDynamicByPrefixSerializationRoundTrip() throws Exception {

@@ -374,9 +374,6 @@ tests:
   method: "builds distribution from branches via archives extractedAssemble [bwcDistVersion: 8.2.1, bwcProject: major3, expectedAssembleTaskName:
     extractedAssemble, #2]"
   issue: https://github.com/elastic/elasticsearch/issues/150410
-- class: org.elasticsearch.xpack.ccr.CcrSeqNoPruningIT
-  method: testSeqNoPartiallyRetainedByCcrLease
-  issue: https://github.com/elastic/elasticsearch/issues/150435
 - class: org.elasticsearch.xpack.esql.action.FileSourceSecretDecryptionAcrossNodesIT
   method: testJoinedDataNodeDecryptsTheSecret
   issue: https://github.com/elastic/elasticsearch/issues/150440
@@ -644,3 +641,6 @@ tests:
 - class: org.elasticsearch.gradle.internal.precommit.PomValidationPrecommitPluginFuncTest
   method: detects missing POM elements and reports structured problems
   issue: https://github.com/elastic/elasticsearch/issues/151636
+- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
+  method: test {csv-spec:lookup-join.byteEqualsLong}
+  issue: https://github.com/elastic/elasticsearch/issues/151650

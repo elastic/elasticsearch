@@ -333,8 +333,8 @@ public class BlobCacheMetrics {
     /// Record both eviction-scan histograms time taken and entries scanned for a single LFU eviction scan invocation.
     /// @param elapsedNanos elapsed time of the scan in nanoseconds; converted to microseconds inside this method
     /// @param scannedEntries number of LFU list iterations performed across all frequency buckets touched
-    /// @param mode the scope of the scan (see {@link EvictionScanMode})
-    /// @param outcome whether the scan evicted, got a free region, or exhausted its buckets (see {@link EvictionScanOutcome})
+    /// @param mode the scope of the scan (see [EvictionScanMode])
+    /// @param outcome whether the scan evicted, got a free region, or exhausted its buckets (see [EvictionScanOutcome])
     public void recordEvictionScan(long elapsedNanos, long scannedEntries, EvictionScanMode mode, EvictionScanOutcome outcome) {
         Map<String, Object> attrs = Map.of(
             EVICTION_SCAN_MODE_ATTRIBUTE_KEY,

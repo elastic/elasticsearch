@@ -1503,6 +1503,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             );
         }
     }
+    // TODO(szybia): write test to exercise the EvictionScanOutcome::Free outcome
 
     private static List<Measurement> evictionScanMeasurements(
         RecordingMeterRegistry recording,

@@ -2465,6 +2465,7 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
             final int freq,
             final int[] entriesScanned
         ) {
+            assert entriesScanned.length == 1 && entriesScanned[0] >= 0;
             for (LFUCacheEntry entry = freqs[freq].head; entry != null; entry = entry.next) {
                 entriesScanned[0]++;
                 if (evictionPolicy.canEvict(entry.chunk, incoming.chunk) == false) {

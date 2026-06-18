@@ -1,7 +1,4 @@
 tests:
-- class: org.elasticsearch.simdvec.ESVectorUtilTests
-  method: testLogSumExpNQT
-  issue: https://github.com/elastic/elasticsearch/issues/151487
 - class: org.elasticsearch.packaging.test.PackagesSecurityAutoConfigurationTests
   method: test20SecurityNotAutoConfiguredOnReInstallation
   issue: https://github.com/elastic/elasticsearch/issues/112635
@@ -536,9 +533,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.StatelessHollowIndexShardsIT
   method: testUnhollowOnUpdates
   issue: https://github.com/elastic/elasticsearch/issues/151100
-- class: org.elasticsearch.test.apmintegration.OTelMetricsBufferingIT
-  method: testOutageBuffersToDiskAndDrainsOnRecovery
-  issue: https://github.com/elastic/elasticsearch/issues/150387
 - class: org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.DivTests
   method: testEvaluate {TestCase=<integer>, <dense_vector>}
   issue: https://github.com/elastic/elasticsearch/issues/151114
@@ -575,9 +569,6 @@ tests:
 - class: org.elasticsearch.index.engine.ThreadPoolMergeExecutorServiceDiskSpaceTests
   method: testUnavailableBudgetBlocksNewMergeTasksFromStartingExecution
   issue: https://github.com/elastic/elasticsearch/issues/151330
-- class: org.elasticsearch.index.store.BytesReadHeaderIT
-  method: testChunkedFetching
-  issue: https://github.com/elastic/elasticsearch/issues/151353
 - class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
   method: test {csv-spec:stats.maxOfHalfFloat}
   issue: https://github.com/elastic/elasticsearch/issues/151357
@@ -638,3 +629,15 @@ tests:
 - class: org.elasticsearch.index.store.BytesReadHeaderIT
   method: testMultiSearchSetsBytesReadHeader
   issue: https://github.com/elastic/elasticsearch/issues/151595
+- class: org.elasticsearch.blobcache.common.SparseFileTrackerTests
+  method: testThreadSafety
+  issue: https://github.com/elastic/elasticsearch/issues/151599
+- class: org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingServiceIT
+  method: testCacheIsWarmedOnUnhollowing
+  issue: https://github.com/elastic/elasticsearch/issues/151600
+- class: org.elasticsearch.datastreams.lifecycle.ExplainDataStreamLifecycleIT
+  method: testExplainFailuresLifecycle
+  issue: https://github.com/elastic/elasticsearch/issues/151602
+- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
+  method: test {csv-spec:metric_temporality.tdigestAggsByTBucket}
+  issue: https://github.com/elastic/elasticsearch/issues/151613

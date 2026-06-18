@@ -12,6 +12,7 @@ products:
 
 These endpoints run under the `/_prometheus/` prefix.
 They are intended for Prometheus-compatible tooling such as Grafana data sources, autocompletion, variable queries, and similar clients.
+To connect Grafana to {{es}}, see [Use {{es}} as a Prometheus data source in Grafana](promql-grafana.md).
 
 These APIs only consider metric data stored in [time series data streams](docs-content://manage-data/data-store/data-streams/time-series-data-stream-tsds.md) (TSDS).
 
@@ -241,4 +242,5 @@ Server errors (HTTP 5xx) and timeout responses reflect operational failures insi
 - [Prometheus query API](https://prometheus.io/docs/prometheus/latest/querying/api/)
 - [Prometheus remote write](docs-content://manage-data/data-store/data-streams/tsds-ingest-prometheus-remote-write.md)
 - [`PROMQL` command ({{esql}})](/reference/query-languages/esql/commands/promql.md)
+- [Use {{es}} as a Prometheus data source in Grafana](promql-grafana.md)
 - [Limitations](promql-limitations.md)

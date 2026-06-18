@@ -120,6 +120,7 @@ public class SearchEngine extends Engine {
     private final CompletionStatsCache completionStatsCache;
     private final SearchCommitPrefetcher commitPrefetcher;
     private final SearchCommitPrefetcherDynamicSettings prefetcherDynamicSettings;
+    private final StatelessSharedBlobCacheService statelessSharedBlobCacheService;
     // Used for filtering unowned documents from a shard during resharding.
     private final ReshardSearchFilters reshardSearchFilters;
     // task runner used to process commit notifications and incoming PIT metadata merges sequentially
@@ -357,6 +358,7 @@ public class SearchEngine extends Engine {
                 readerManager.addListener(refreshListener);
             }
             this.prefetcherDynamicSettings = prefetcherDynamicSettings;
+            this.statelessSharedBlobCacheService = statelessSharedBlobCacheService;
             this.commitPrefetcher = new SearchCommitPrefetcher(
                 searchDirectory.getShardId(),
                 statelessSharedBlobCacheService,
@@ -576,7 +578,8 @@ public class SearchEngine extends Engine {
                 }
 
                 ListenableFuture<Map<String, BlobFileRanges>> listenableFuture = new ListenableFuture<>();
-                if (prefetcherDynamicSettings.internalFilesReplicatedContentForSearchShardsEnabled()) {
+                if (prefetcherDynamicSettings.internalFilesReplicatedContentForSearchShardsEnabled()
+                    || statelessSharedBlobCacheService.isCacheBoostPreferenceEnabled()) {
                     var newCommitFiles = new HashMap<>(latestCommit.commitFiles());
                     newCommitFiles.keySet().removeAll(searchDirectory.getKnownFileNames());
                     Map<String, BlobFileRanges> newBlobFileRanges = ConcurrentCollections.newConcurrentMap();

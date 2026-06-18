@@ -451,7 +451,7 @@ class StatelessIndexEventListener implements IndexEventListener {
                 searchDirectory.updateLatestCommitInfo(compoundCommit.primaryTermAndGeneration(), nodeId);
 
                 SubscribableListener.<Tuple<Map<String, BlobFileRanges>, Map<BlobFile, Long>>>newForked(l2 -> {
-                    if (useInternalFilesReplicatedContentForSearchShards) {
+                    if (useInternalFilesReplicatedContentForSearchShards || cacheService.isCacheBoostPreferenceEnabled()) {
                         Map<String, BlobFileRanges> blobFileRanges = ConcurrentCollections.newConcurrentMap();
                         Map<BlobFile, Long> offsetsToWarm = ConcurrentCollections.newConcurrentMap();
                         ObjectStoreService.readReferencedCompoundCommitsUsingCache(

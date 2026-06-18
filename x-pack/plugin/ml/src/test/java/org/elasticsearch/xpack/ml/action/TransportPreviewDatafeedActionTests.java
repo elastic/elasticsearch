@@ -10,6 +10,7 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.fieldcaps.FieldCapabilities;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesBuilder;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
@@ -141,6 +142,34 @@ public class TransportPreviewDatafeedActionTests extends ESTestCase {
         DatafeedConfig result = DatafeedConfig.withCrossProjectModeIfEnabled(builder.build(), decider);
 
         assertThat(result.getIndicesOptions().resolveCrossProjectIndexExpression(), is(true));
+    }
+
+    public void testBuildDateNanosFieldCapsRequest_GivenCpsIndicesOptions_ShouldRequestResolvedTo() {
+        assumeTrue("CPS feature flag must be enabled", DatafeedConfig.DATAFEED_CROSS_PROJECT.isEnabled());
+        DatafeedConfig.Builder builder = new DatafeedConfig.Builder("preview_cps_feed", "job_foo");
+        builder.setIndices(List.of("local-*", "linked_project:remote-*"));
+        builder.setIndicesOptions(org.elasticsearch.action.support.IndicesOptions.STRICT_EXPAND_OPEN);
+        CrossProjectModeDecider decider = new CrossProjectModeDecider(
+            Settings.builder().put("serverless.cross_project.enabled", true).build()
+        );
+        DatafeedConfig datafeed = DatafeedConfig.withCrossProjectModeIfEnabled(builder.build(), decider);
+        assertThat(datafeed.getIndicesOptions().resolveCrossProjectIndexExpression(), is(true));
+
+        FieldCapabilitiesRequest request = TransportPreviewDatafeedAction.buildDateNanosFieldCapsRequest(datafeed, "time");
+
+        // Without includeResolvedTo, the coordinator's cross-project resolution validator runs against an empty
+        // per-project map and trips a node-fatal assertion for explicitly qualified expressions.
+        assertThat(request.includeResolvedTo(), is(true));
+    }
+
+    public void testBuildDateNanosFieldCapsRequest_GivenNonCpsIndicesOptions_ShouldNotRequestResolvedTo() {
+        DatafeedConfig.Builder builder = new DatafeedConfig.Builder("preview_feed", "job_foo");
+        builder.setIndices(Collections.singletonList("my_index"));
+
+        FieldCapabilitiesRequest request = TransportPreviewDatafeedAction.buildDateNanosFieldCapsRequest(builder.build(), "time");
+
+        assertThat(request.includeResolvedTo(), is(false));
+        assertThat(request.indices(), equalTo(new String[] { "my_index" }));
     }
 
     public void testBuildPreviewDatafeed_GivenNoAggregations() {

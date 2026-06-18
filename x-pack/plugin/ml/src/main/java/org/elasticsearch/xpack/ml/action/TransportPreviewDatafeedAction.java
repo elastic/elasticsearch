@@ -244,17 +244,28 @@ public class TransportPreviewDatafeedAction extends HandledTransportAction<Previ
     }
 
     private void isDateNanos(Client previewClient, DatafeedConfig datafeed, String timeField, ActionListener<Boolean> listener) {
-        FieldCapabilitiesRequest fieldCapabilitiesRequest = new FieldCapabilitiesRequest();
-        fieldCapabilitiesRequest.indices(datafeed.getIndices().toArray(new String[0])).indicesOptions(datafeed.getIndicesOptions());
-        fieldCapabilitiesRequest.fields(timeField);
         executeWithHeadersAsync(
             datafeed.getHeaders(),
             ML_ORIGIN,
             previewClient,
             TransportFieldCapabilitiesAction.TYPE,
-            fieldCapabilitiesRequest,
+            buildDateNanosFieldCapsRequest(datafeed, timeField),
             listener.delegateFailureAndWrap((l, fieldCapsResponse) -> l.onResponse(timeFieldIsDateNanos(fieldCapsResponse, timeField)))
         );
+    }
+
+    static FieldCapabilitiesRequest buildDateNanosFieldCapsRequest(DatafeedConfig datafeed, String timeField) {
+        FieldCapabilitiesRequest fieldCapabilitiesRequest = new FieldCapabilitiesRequest();
+        fieldCapabilitiesRequest.indices(datafeed.getIndices().toArray(new String[0])).indicesOptions(datafeed.getIndicesOptions());
+        if (datafeed.getIndicesOptions().resolveCrossProjectIndexExpression()) {
+            // Cross-project field-caps resolution is validated on the coordinator whenever the request runs in
+            // cross-project mode; that validation relies on the per-project resolution map, which is only collected
+            // when includeResolvedTo is set. Omitting it leaves the map empty and trips a node-fatal assertion for
+            // explicitly qualified expressions (e.g. linked_project:foo-*), so we mirror the data-extractor request.
+            fieldCapabilitiesRequest.includeResolvedTo(true);
+        }
+        fieldCapabilitiesRequest.fields(timeField);
+        return fieldCapabilitiesRequest;
     }
 
     /**

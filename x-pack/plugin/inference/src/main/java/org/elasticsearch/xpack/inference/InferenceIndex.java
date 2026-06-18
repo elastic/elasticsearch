@@ -48,8 +48,130 @@ public class InferenceIndex {
      *
      * @return The index mappings
      */
-    public static String currentMappings() {
-        return mappingsV3();
+    public static String mappingsV4() {
+        return """
+            {
+              "_doc" : {
+                "_meta" : {
+                  "managed_index_mappings_version": 4
+                },
+                "dynamic": "strict",
+                "properties" : {
+                  "doc_type": {
+                    "type": "keyword"
+                  },
+                  "model_id": {
+                    "type": "keyword"
+                  },
+                  "task_type": {
+                    "type": "keyword"
+                  },
+                  "service": {
+                    "type": "keyword"
+                  },
+                  "service_settings": {
+                    "dynamic": false,
+                    "properties": {
+                    }
+                  },
+                  "task_settings": {
+                    "dynamic": false,
+                    "properties": {
+                    }
+                  },
+                  "chunking_settings": {
+                    "dynamic": false,
+                    "properties": {
+                      "strategy": {
+                        "type": "keyword"
+                      }
+                    }
+                  },
+                  "metadata": {
+                    "dynamic": false,
+                    "properties": {
+                      "heuristics": {
+                        "dynamic": false,
+                        "properties": {
+                          "properties": {
+                            "type": "keyword"
+                          },
+                          "status": {
+                            "type": "keyword"
+                          },
+                          "release_date": {
+                            "type": "date"
+                          },
+                          "end_of_life_date": {
+                            "type": "date"
+                          }
+                        }
+                      },
+                      "display": {
+                        "dynamic": false,
+                        "properties": {
+                          "name": {
+                            "type": "keyword"
+                          }
+                        }
+                      },
+                      "internal": {
+                        "dynamic": false,
+                        "properties": {
+                          "fingerprint": {
+                            "type": "keyword"
+                          },
+                          "version": {
+                            "type": "long"
+                          }
+                        }
+                      }
+                    }
+                  },
+                  "region_policy": {
+                    "dynamic": false,
+                    "properties": {
+                      "allowed_geos": {
+                        "type": "keyword"
+                      },
+                      "allowed_regions": {
+                        "properties": {
+                          "csp": {
+                            "type": "keyword"
+                          },
+                          "region": {
+                            "type": "keyword"
+                          }
+                        }
+                      },
+                      "fallback_region": {
+                        "properties": {
+                          "csp": {
+                            "type": "keyword"
+                          },
+                          "region": {
+                            "type": "keyword"
+                          }
+                        }
+                      }
+                    }
+                  },
+                  "created_at": {
+                    "type": "date"
+                  },
+                  "created_by": {
+                    "type": "keyword"
+                  },
+                  "updated_at": {
+                    "type": "date"
+                  },
+                  "updated_by": {
+                    "type": "keyword"
+                  }
+                }
+              }
+            }
+            """;
     }
 
     public static String mappingsV3() {

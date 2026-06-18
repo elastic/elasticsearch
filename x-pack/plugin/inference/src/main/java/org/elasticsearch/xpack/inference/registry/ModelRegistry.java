@@ -53,11 +53,13 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.reindex.BulkByPaginatedSearchResponse;
 import org.elasticsearch.index.reindex.DeleteByQueryAction;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
+import org.elasticsearch.inference.InferenceIndexDocTypeField;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.MinimalServiceSettings;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.inference.ToXContentParams;
 import org.elasticsearch.inference.UnparsedModel;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
@@ -74,6 +76,7 @@ import org.elasticsearch.xpack.core.inference.action.PutInferenceModelAction;
 import org.elasticsearch.xpack.core.inference.action.UpdateInferenceModelAction;
 import org.elasticsearch.xpack.core.inference.results.ModelStoreResponse;
 import org.elasticsearch.xpack.inference.InferenceIndex;
+import org.elasticsearch.xpack.inference.InferencePlugin;
 import org.elasticsearch.xpack.inference.InferenceSecretsIndex;
 import org.elasticsearch.xpack.inference.parser.EndpointMetadataParser;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
@@ -344,11 +347,14 @@ public class ModelRegistry implements ClusterStateListener {
         });
 
         QueryBuilder queryBuilder = documentIdQuery(inferenceEntityId);
-        SearchRequest modelSearch = client.prepareSearch(InferenceIndex.INDEX_PATTERN, InferenceSecretsIndex.INDEX_PATTERN)
+        var searchBuilder = client.prepareSearch(InferenceIndex.INDEX_PATTERN, InferenceSecretsIndex.INDEX_PATTERN)
             .setQuery(queryBuilder)
             .setSize(2)
-            .setAllowPartialSearchResults(false)
-            .request();
+            .setAllowPartialSearchResults(false);
+        if (InferencePlugin.INFERENCE_REGION_POLICY_FEATURE_FLAG.isEnabled()) {
+            searchBuilder.setFetchSource(null, InferenceIndexDocTypeField.DOC_TYPE_FIELD);
+        }
+        SearchRequest modelSearch = searchBuilder.request();
 
         client.search(modelSearch, searchListener);
     }
@@ -386,11 +392,11 @@ public class ModelRegistry implements ClusterStateListener {
         });
 
         QueryBuilder queryBuilder = documentIdQuery(inferenceEntityId);
-        SearchRequest modelSearch = client.prepareSearch(InferenceIndex.INDEX_PATTERN)
-            .setQuery(queryBuilder)
-            .setSize(1)
-            .setTrackTotalHits(false)
-            .request();
+        var searchBuilder = client.prepareSearch(InferenceIndex.INDEX_PATTERN).setQuery(queryBuilder).setSize(1).setTrackTotalHits(false);
+        if (InferencePlugin.INFERENCE_REGION_POLICY_FEATURE_FLAG.isEnabled()) {
+            searchBuilder.setFetchSource(null, InferenceIndexDocTypeField.DOC_TYPE_FIELD);
+        }
+        SearchRequest modelSearch = searchBuilder.request();
 
         client.search(modelSearch, searchListener);
     }
@@ -412,16 +418,37 @@ public class ModelRegistry implements ClusterStateListener {
             addAllDefaultConfigsIfMissing(true, modelConfigs, defaultConfigsForTaskType, delegate);
         });
 
-        QueryBuilder queryBuilder = QueryBuilders.constantScoreQuery(QueryBuilders.termsQuery(TASK_TYPE_FIELD, taskType.toString()));
+        QueryBuilder queryBuilder;
+        if (InferencePlugin.INFERENCE_REGION_POLICY_FEATURE_FLAG.isEnabled()) {
+            queryBuilder = QueryBuilders.boolQuery()
+                .filter(matchEndpointsQuery())
+                .filter(QueryBuilders.termsQuery(TASK_TYPE_FIELD, taskType.toString()));
+        } else {
+            queryBuilder = QueryBuilders.constantScoreQuery(QueryBuilders.termsQuery(TASK_TYPE_FIELD, taskType.toString()));
+        }
 
-        SearchRequest modelSearch = client.prepareSearch(InferenceIndex.INDEX_PATTERN)
+        var searchBuilder = client.prepareSearch(InferenceIndex.INDEX_PATTERN)
             .setQuery(queryBuilder)
             .setSize(10_000)
             .setTrackTotalHits(false)
-            .addSort(MODEL_ID_FIELD, SortOrder.ASC)
-            .request();
+            .addSort(MODEL_ID_FIELD, SortOrder.ASC);
+        if (InferencePlugin.INFERENCE_REGION_POLICY_FEATURE_FLAG.isEnabled()) {
+            searchBuilder.setFetchSource(null, InferenceIndexDocTypeField.DOC_TYPE_FIELD);
+        }
+        SearchRequest modelSearch = searchBuilder.request();
 
         client.search(modelSearch, searchListener);
+    }
+
+    private static QueryBuilder matchEndpointsQuery() {
+        return QueryBuilders.constantScoreQuery(
+            QueryBuilders.boolQuery()
+                .should(QueryBuilders.termQuery(InferenceIndexDocTypeField.DOC_TYPE_FIELD, InferenceIndexDocTypeField.ENDPOINT_CONFIG_TYPE))
+                // The second should clause checks that the doc_type field does not exist in order to handle endpoints created
+                // before the doc_type field was added
+                .should(QueryBuilders.boolQuery().mustNot(QueryBuilders.existsQuery(InferenceIndexDocTypeField.DOC_TYPE_FIELD)))
+                .minimumShouldMatch(1)
+        );
     }
 
     /**
@@ -442,17 +469,22 @@ public class ModelRegistry implements ClusterStateListener {
             addAllDefaultConfigsIfMissing(persistDefaultEndpoints, foundConfigs, defaultConfigIds.values(), delegate);
         });
 
-        // In theory the index should only contain model config documents
-        // and a match all query would be sufficient. But just in case the
-        // index has been polluted return only docs with a task_type field
-        QueryBuilder queryBuilder = QueryBuilders.constantScoreQuery(QueryBuilders.existsQuery(TASK_TYPE_FIELD));
+        QueryBuilder queryBuilder;
+        if (InferencePlugin.INFERENCE_REGION_POLICY_FEATURE_FLAG.isEnabled()) {
+            queryBuilder = matchEndpointsQuery();
+        } else {
+            queryBuilder = QueryBuilders.constantScoreQuery(QueryBuilders.existsQuery(TASK_TYPE_FIELD));
+        }
 
-        SearchRequest modelSearch = client.prepareSearch(InferenceIndex.INDEX_PATTERN)
+        var searchBuilder = client.prepareSearch(InferenceIndex.INDEX_PATTERN)
             .setQuery(queryBuilder)
             .setSize(10_000)
             .setTrackTotalHits(false)
-            .addSort(MODEL_ID_FIELD, SortOrder.ASC)
-            .request();
+            .addSort(MODEL_ID_FIELD, SortOrder.ASC);
+        if (InferencePlugin.INFERENCE_REGION_POLICY_FEATURE_FLAG.isEnabled()) {
+            searchBuilder.setFetchSource(null, InferenceIndexDocTypeField.DOC_TYPE_FIELD);
+        }
+        SearchRequest modelSearch = searchBuilder.request();
 
         client.search(modelSearch, searchListener);
     }
@@ -1206,10 +1238,15 @@ public class ModelRegistry implements ClusterStateListener {
         Client client
     ) {
         try (XContentBuilder xContentBuilder = XContentFactory.jsonBuilder()) {
-            XContentBuilder source = body.toXContent(
-                xContentBuilder,
-                new ToXContent.MapParams(Map.of(ModelConfigurations.USE_ID_FOR_INDEX, Boolean.TRUE.toString()))
-            );
+            Map<String, String> params = InferencePlugin.INFERENCE_REGION_POLICY_FEATURE_FLAG.isEnabled()
+                ? Map.of(
+                    ModelConfigurations.USE_ID_FOR_INDEX,
+                    Boolean.TRUE.toString(),
+                    ToXContentParams.FOR_INTERNAL_STORAGE,
+                    Boolean.TRUE.toString()
+                )
+                : Map.of(ModelConfigurations.USE_ID_FOR_INDEX, Boolean.TRUE.toString());
+            XContentBuilder source = body.toXContent(xContentBuilder, new ToXContent.MapParams(params));
 
             return new IndexRequestBuilder(client).setIndex(indexName)
                 .setCreate(allowOverwriting == false)

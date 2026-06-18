@@ -11,6 +11,9 @@ package org.elasticsearch.benchmark.codec.bloomfilter;
 
 import org.apache.lucene.util.BitUtil;
 import org.elasticsearch.benchmark.Utils;
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.simdvec.ESVectorUtil;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
@@ -45,6 +48,7 @@ public class BloomFilterBenchmark {
 
     static {
         Utils.configureBenchmarkLogging();
+        Loggers.setLevel(LogManager.getLogger("org.elasticsearch.simdvec"), Level.INFO);
     }
 
     @Param({ "128", "4096", "16384" })

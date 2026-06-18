@@ -280,22 +280,24 @@ FROM partial_mapping_sample_data
 
 // Complex pipeline with EVAL that conflicts with an unmapped source field and a wildcard DROP:
 // EVAL adds "language_code" to the excludes via Eval.unmappedFieldsToKeep(), so the source field
-// language_code does not appear in _unmapped_fields. DROP *ip* wildcard removes client_ip.
+// language_code does not appear in _unmapped_fields. DROP *duration* removes the mapped column
+// event_duration AND the unmapped source field unmapped_event_duration from _unmapped_fields,
+// because the glob pattern is propagated through patternForDrop into the exclude list.
 complexEvalDropWildcard
 required_capability: optional_fields_load_all
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM partial_mapping_sample_data
 | EVAL language_code = event_duration / 1000
-| DROP *ip*, event_duration
+| DROP *duration*, client_ip
 | SORT @timestamp
 | LIMIT 3
 ;
 
-@timestamp:datetime      | message:keyword        | _unmapped_fields:keyword                                                                                                                                    | language_code:long
-2024-10-23T12:15:03.360Z | Connected to 10.1.0.3! | "{""unmapped.nested"":""g"",""unmapped_event_duration"":""3450234"",""unmapped_message"":""Disconnected from 10.1.0.3""}"                                | 3450
-2024-10-23T12:27:28.948Z | Connected to 10.1.0.2! | "{""unmapped.nested"":""f"",""unmapped_event_duration"":""2764890"",""unmapped_message"":""Disconnected from 10.1.0.2""}"                                | 2764
-2024-10-23T13:33:34.937Z | 42                     | "{""unmapped.nested"":""e"",""unmapped_event_duration"":""1232383"",""unmapped_message"":""43""}"                                                        | 1232
+@timestamp:datetime      | message:keyword        | _unmapped_fields:keyword                                                                                                          | language_code:long
+2024-10-23T12:15:03.360Z | Connected to 10.1.0.3! | "{""unmapped.nested"":""g"",""unmapped_message"":""Disconnected from 10.1.0.3""}"                                             | 3450
+2024-10-23T12:27:28.948Z | Connected to 10.1.0.2! | "{""unmapped.nested"":""f"",""unmapped_message"":""Disconnected from 10.1.0.2""}"                                             | 2764
+2024-10-23T13:33:34.937Z | 42                     | "{""unmapped.nested"":""e"",""unmapped_message"":""43""}"                                                                     | 1232
 ;
 
 // DROP an unmapped field by name (gap): the user explicitly drops the demand-loaded unmapped_message

@@ -195,8 +195,11 @@ public class FileDataSourceValidator implements DataSourceValidator {
             validate(() -> FormatReader.SchemaResolution.parse(schemaResolution.toString()), errors);
         }
         Object targetSplitSize = settings.get(FileSplitProvider.CONFIG_TARGET_SPLIT_SIZE);
-        if (targetSplitSize != null && targetSplitSize.toString().trim().isEmpty() == false) {
-            validate(() -> FileSplitProvider.validateTargetSplitSize(targetSplitSize), errors);
+        if (targetSplitSize != null) {
+            String trimmedSplitSize = targetSplitSize.toString().trim();
+            if (trimmedSplitSize.isEmpty() == false) {
+                validate(() -> FileSplitProvider.validateTargetSplitSize(trimmedSplitSize), errors);
+            }
         }
 
         // Store every accepted setting that is present, as its raw value. Each query-time consumer

@@ -128,7 +128,6 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
                 ShardLongFieldRange eventIngestedMillisFieldRange
             ) {
                 assertThat("terminal callback should follow consumer return", consumerReturned.getCount(), equalTo(0L));
-                recoveryDone.countDown();
             }
 
             @Override
@@ -145,6 +144,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
             threadPool.generic().execute(() -> {
                 safeAwait(consumerReturned);
                 schedulingListener.onRecoveryDone(null, ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY);
+                recoveryDone.countDown();
             });
             consumerReturned.countDown();
         });

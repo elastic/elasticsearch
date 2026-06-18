@@ -79,7 +79,7 @@ public class TransportPastTimeSeriesIndexCreationAction extends TransportMasterN
      * Maximum gap between two existing backing indices, expressed as a multiple of {@link #INDEX_DURATION},
      * that is filled by a single new index instead of tiling backward from the next index.
      */
-    static final double GAP_FILL_THRESHOLD = 1.5;
+    static final double GAP_FILL_THRESHOLD = 1.3;
     private static final Logger logger = LogManager.getLogger(TransportPastTimeSeriesIndexCreationAction.class);
     private final MasterServiceTaskQueue<PastTsdbIndexCreationTask> taskQueue;
     private final ProjectResolver projectResolver;

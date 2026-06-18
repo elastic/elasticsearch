@@ -190,7 +190,7 @@ public class PastTimeSeriesIndexCreationActionTests extends ESTestCase {
 
     public void testFillGapBetweenIndices() throws Exception {
         Instant now = Instant.now();
-        // Smaller gap
+        // Smaller gap than index duration
         {
             Instant previousEndTime = Instant.parse("2024-06-17T02:02:02Z");
             Instant nextStartTime = Instant.parse("2024-06-17T23:02:02Z");
@@ -210,7 +210,7 @@ public class PastTimeSeriesIndexCreationActionTests extends ESTestCase {
             assertThat(im.getTimeSeriesEnd(), is(nextStartTime));
         }
 
-        // Larger gap
+        // Larger gap than index duration
         {
             Instant previousEndTime = Instant.parse("2024-06-17T02:02:02Z");
             Instant nextStartTime = Instant.parse("2024-06-18T05:02:02Z");

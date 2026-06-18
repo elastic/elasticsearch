@@ -236,7 +236,7 @@ public class Fleet extends Plugin implements SystemIndexPlugin {
         try {
             ComposableIndexTemplate composableIndexTemplate = TemplateUtils.loadTemplate(
                 "/fleet-actions-results.json",
-                Version.CURRENT.toString(),
+                Build.current().version(),
                 MAPPING_VERSION_VARIABLE,
                 Map.of("fleet.managed.index.version", Integer.toString(FLEET_ACTIONS_RESULTS_MAPPINGS_VERSION)),
                 false,

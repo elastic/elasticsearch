@@ -641,3 +641,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.cluster.coordination.BlobStoreSyncDirectoryTests
   method: testCloseCancelsOnGoingUploads
   issue: https://github.com/elastic/elasticsearch/issues/151622
+- class: org.elasticsearch.gradle.internal.precommit.PomValidationPrecommitPluginFuncTest
+  method: detects missing POM elements and reports structured problems
+  issue: https://github.com/elastic/elasticsearch/issues/151636

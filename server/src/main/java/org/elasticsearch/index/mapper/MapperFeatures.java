@@ -116,6 +116,9 @@ public class MapperFeatures implements FeatureSpecification {
     static final NodeFeature KEYWORD_COLUMNAR_DEFAULT_HIGH_CARDINALITY = new NodeFeature(
         "mapper.keyword.columnar_default_high_cardinality"
     );
+    static final NodeFeature TEXT_FIELDS_ENABLE_DOC_VALUES_BY_DEFAULT_IN_COLUMNAR_MODE = new NodeFeature(
+        "mapper.text_fields.enable_doc_values_by_default_in_columnar_mode"
+    );
     static final NodeFeature COLUMNAR_MAINTAIN_ARRAY_ORDER_IP_TEXT = new NodeFeature("mapper.columnar.maintain_array_order_ip_text");
     public static final NodeFeature COLUMNAR_DROPS_DYNAMIC_FALSE_FIELDS = new NodeFeature("mapper.columnar.drops_dynamic_false_fields");
 
@@ -197,6 +200,7 @@ public class MapperFeatures implements FeatureSpecification {
             COLUMNAR_MAINTAIN_ARRAY_ORDER,
             COLUMNAR_REJECTS_RUNTIME_DYNAMIC,
             KEYWORD_COLUMNAR_DEFAULT_HIGH_CARDINALITY,
+            TEXT_FIELDS_ENABLE_DOC_VALUES_BY_DEFAULT_IN_COLUMNAR_MODE,
             COLUMNAR_MAINTAIN_ARRAY_ORDER_IP_TEXT,
             COLUMNAR_DROPS_DYNAMIC_FALSE_FIELDS,
             DOC_VALUES_MULTI_VALUE_INDEX_SETTING

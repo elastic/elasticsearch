@@ -36,7 +36,6 @@ import java.util.Locale;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
 @LuceneTestCase.SuppressCodecs("*")
@@ -63,12 +62,7 @@ public class TSDBES95CodecDefaultIT extends ESIntegTestCase {
         final String backingIndex = backingIndexOf(dataStreamName);
         final Settings settings = indexSettingsFor(backingIndex);
 
-        assertThat(
-            "provider must stamp the setting into backing index metadata",
-            settings.hasValue(IndexSettings.TIME_SERIES_ES95_CODEC_ENABLED_SETTING.getKey()),
-            is(true)
-        );
-        assertThat(IndexSettings.TIME_SERIES_ES95_CODEC_ENABLED_SETTING.get(settings), equalTo(true));
+        assertThat(settings.get(IndexSettings.TIME_SERIES_ES95_CODEC_ENABLED_SETTING.getKey()), equalTo("true"));
     }
 
     public void testExplicitOptOutPreserved() throws Exception {

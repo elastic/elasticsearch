@@ -151,7 +151,7 @@ public class Bzip2DecompressionCodec implements SplittableDecompressionCodec {
         }
         long chunkLen = (rangeLen + numChunks - 1) / numChunks;
         @SuppressWarnings("unchecked")
-        CompletableFuture<long[]>[] futures = new CompletableFuture[numChunks];
+        CompletableFuture<long[]>[] futures = (CompletableFuture<long[]>[]) new CompletableFuture<?>[numChunks];
         for (int k = 0; k < numChunks; k++) {
             long segStart = k * chunkLen;
             long readStart = Math.max(0L, segStart - CHUNK_OVERLAP_BYTES);

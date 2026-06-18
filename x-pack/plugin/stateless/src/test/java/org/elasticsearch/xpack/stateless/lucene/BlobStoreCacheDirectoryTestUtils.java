@@ -24,6 +24,18 @@ public class BlobStoreCacheDirectoryTestUtils {
         return CacheFileReaderTestUtils.getCacheFile(target.getCacheFileReader());
     }
 
+    public static int getDesiredAdvice(BlobCacheIndexInput target) {
+        return CacheFileReaderTestUtils.getDesiredAdvice(target.getCacheFileReader());
+    }
+
+    public static long getExclusiveStart(BlobCacheIndexInput target) {
+        return CacheFileReaderTestUtils.getExclusiveStart(target.getCacheFileReader());
+    }
+
+    public static long getExclusiveEnd(BlobCacheIndexInput target) {
+        return CacheFileReaderTestUtils.getExclusiveEnd(target.getCacheFileReader());
+    }
+
     public static StatelessSharedBlobCacheService getCacheService(BlobStoreCacheDirectory target) {
         return target.getCacheService();
     }

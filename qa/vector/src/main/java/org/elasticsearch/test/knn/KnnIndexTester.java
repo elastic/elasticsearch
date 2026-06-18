@@ -564,8 +564,29 @@ public class KnnIndexTester {
         }
     }
 
+    private static final String DISKSTATS_DEVICE = System.getProperty("bench.device", "nvme1n1");
+
     private static void logDiagnostics(DirectoryTypeConfig dirConfig, Directory dir, String label) {
         dirConfig.diagnosticLogger().accept(dir, label);
+        logDiskStats(label);
+    }
+
+    private static void logDiskStats(String label) {
+        Path diskstats = Path.of("/proc/diskstats");
+        if (Files.exists(diskstats) == false) {
+            return;
+        }
+        try {
+            for (String line : Files.readAllLines(diskstats)) {
+                String[] fields = line.trim().split("\\s+");
+                if (fields.length >= 6 && fields[2].equals(DISKSTATS_DEVICE)) {
+                    logger.info("DISKSTATS[{}] device={} reads={} sectors_read={}", label, DISKSTATS_DEVICE, fields[3], fields[5]);
+                    return;
+                }
+            }
+        } catch (IOException e) {
+            logger.warn("Failed to read /proc/diskstats: {}", e.getMessage());
+        }
     }
 
     static void numSegments(Path indexPath, Results indexResults, Directory sharedDir) throws IOException {

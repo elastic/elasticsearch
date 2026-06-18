@@ -15,8 +15,10 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
+import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.mapper.DynamicTemplate.XContentFieldType;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.xcontent.ToXContent;
@@ -66,6 +68,7 @@ public class RootObjectMapper extends ObjectMapper {
         protected Explicit<Boolean> dateDetection = Defaults.DATE_DETECTION;
         protected Explicit<Boolean> numericDetection = Defaults.NUMERIC_DETECTION;
         protected RootObjectMapperNamespaceValidator namespaceValidator;
+        protected boolean sliceEnabled;
 
         public Builder(String name) {
             this(name, ObjectMapper.Defaults.SUBOBJECTS);
@@ -77,6 +80,11 @@ public class RootObjectMapper extends ObjectMapper {
 
         public Builder addNamespaceValidator(RootObjectMapperNamespaceValidator namespaceValidator) {
             this.namespaceValidator = namespaceValidator;
+            return this;
+        }
+
+        public Builder setSliceEnabled(boolean sliceEnabled) {
+            this.sliceEnabled = sliceEnabled;
             return this;
         }
 
@@ -113,6 +121,7 @@ public class RootObjectMapper extends ObjectMapper {
             builder.dynamic = this.dynamic;
             builder.sourceKeepMode = this.sourceKeepMode;
             builder.namespaceValidator = this.namespaceValidator;
+            builder.sliceEnabled = this.sliceEnabled;
             return builder;
         }
 
@@ -181,7 +190,8 @@ public class RootObjectMapper extends ObjectMapper {
                 dynamicTemplates,
                 dateDetection,
                 numericDetection,
-                namespaceValidator
+                namespaceValidator,
+                sliceEnabled
             );
         }
     }
@@ -192,6 +202,7 @@ public class RootObjectMapper extends ObjectMapper {
     private final Explicit<DynamicTemplate[]> dynamicTemplates;
     private final Map<String, RuntimeField> runtimeFields;
     private final RootObjectMapperNamespaceValidator namespaceValidator;
+    private final boolean sliceEnabled;
 
     RootObjectMapper(
         String name,
@@ -205,7 +216,8 @@ public class RootObjectMapper extends ObjectMapper {
         Explicit<DynamicTemplate[]> dynamicTemplates,
         Explicit<Boolean> dateDetection,
         Explicit<Boolean> numericDetection,
-        RootObjectMapperNamespaceValidator namespaceValidator
+        RootObjectMapperNamespaceValidator namespaceValidator,
+        boolean sliceEnabled
     ) {
         super(name, name, enabled, subobjects, sourceKeepMode, dynamic, mappers);
         this.runtimeFields = runtimeFields;
@@ -214,6 +226,7 @@ public class RootObjectMapper extends ObjectMapper {
         this.dateDetection = dateDetection;
         this.numericDetection = numericDetection;
         this.namespaceValidator = namespaceValidator == null ? new DefaultRootObjectMapperNamespaceValidator() : namespaceValidator;
+        this.sliceEnabled = sliceEnabled;
     }
 
     @Override
@@ -222,6 +235,7 @@ public class RootObjectMapper extends ObjectMapper {
         builder.enabled = enabled;
         builder.dynamic = dynamic;
         builder.sourceKeepMode = sourceKeepMode;
+        builder.sliceEnabled = sliceEnabled;
         return builder;
     }
 
@@ -239,7 +253,8 @@ public class RootObjectMapper extends ObjectMapper {
             dynamicTemplates,
             dateDetection,
             numericDetection,
-            namespaceValidator
+            namespaceValidator,
+            sliceEnabled
         );
     }
 
@@ -433,6 +448,7 @@ public class RootObjectMapper extends ObjectMapper {
         Explicit<Subobjects> subobjects = parseSubobjects(node, parserContext);
         RootObjectMapper.Builder builder = new Builder(name, subobjects);
         builder.addNamespaceValidator(parserContext.getNamespaceValidator());
+        builder.setSliceEnabled(parserContext.getIndexSettings().isSliceEnabled());
         Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator();
         while (iterator.hasNext()) {
             Map.Entry<String, Object> entry = iterator.next();
@@ -535,6 +551,15 @@ public class RootObjectMapper extends ObjectMapper {
     @Override
     protected void validateSubField(Mapper mapper, MappingLookup mappers) {
         namespaceValidator.validateNamespace(subobjects(), mapper.leafName());
+        if (sliceEnabled && SliceIndexing.PARAM_NAME.equals(mapper.leafName())) {
+            throw new IllegalArgumentException(
+                "["
+                    + SliceIndexing.PARAM_NAME
+                    + "] is a reserved field name and cannot be used when ["
+                    + IndexSettings.SLICE_ENABLED.getKey()
+                    + "] is true"
+            );
+        }
         super.validateSubField(mapper, mappers);
     }
 }

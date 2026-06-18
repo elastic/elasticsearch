@@ -153,7 +153,12 @@ public class LogsDbSubobjectsFalseVersusLogsDbColumnarRestIT extends BulkChallen
             if ("dynamic".equals(key) && "runtime".equals(value)) {
                 continue;
             }
-            // logsdb_columnar ignores index:false — strip it to keep field-caps in sync
+            // In logsdb_columnar some field types (e.g. text) enable doc_values by default because
+            // columnar storage is built on doc values. A field with index:false but doc_values:true
+            // gets IndexType=terms(false,true) which is not NONE, so isSearchable() returns true.
+            // On the logsdb baseline those same types default doc_values to false, so index:false
+            // yields NONE → searchable:false, causing field-caps divergence. Strip index:false from
+            // both sides so the comparison reflects the common supported subset.
             if ("index".equals(key) && (Boolean.FALSE.equals(value) || "false".equals(value))) {
                 continue;
             }

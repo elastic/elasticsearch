@@ -321,7 +321,11 @@ public class IndicesService extends AbstractLifecycleComponent
         this.indicesQueryCache = new IndicesQueryCache(settings);
         this.mapperRegistry = builder.mapperRegistry;
         this.namedWriteableRegistry = builder.namedWriteableRegistry;
+        IndexingMemoryLimits indexingMemoryLimits = builder.indexingMemoryLimits != null
+            ? builder.indexingMemoryLimits
+            : IndexingMemoryLimits.fromSettings(settings);
         indexingMemoryController = new IndexingMemoryController(
+            indexingMemoryLimits,
             settings,
             threadPool,
             // ensure we pull an iter with new shards - flatten makes a copy

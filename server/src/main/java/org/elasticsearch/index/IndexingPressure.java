@@ -18,6 +18,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.stats.IndexingPressureStats;
+import org.elasticsearch.indices.IndexingMemoryLimits;
 
 import java.util.List;
 import java.util.Optional;
@@ -131,15 +132,26 @@ public class IndexingPressure implements IndexingPressureMonitor {
 
     private final List<IndexingPressureListener> listeners = new CopyOnWriteArrayList<>();
 
-    public IndexingPressure(Settings settings) {
+    public IndexingPressure(IndexingMemoryLimits limits, Settings settings) {
         this.lowWatermark = SPLIT_BULK_LOW_WATERMARK.get(settings).getBytes();
         this.lowWatermarkSize = SPLIT_BULK_LOW_WATERMARK_SIZE.get(settings).getBytes();
         this.highWatermark = SPLIT_BULK_HIGH_WATERMARK.get(settings).getBytes();
         this.highWatermarkSize = SPLIT_BULK_HIGH_WATERMARK_SIZE.get(settings).getBytes();
-        this.coordinatingLimit = MAX_COORDINATING_BYTES.get(settings).getBytes();
-        this.primaryLimit = MAX_PRIMARY_BYTES.get(settings).getBytes();
-        this.replicaLimit = MAX_REPLICA_BYTES.get(settings).getBytes();
-        this.operationLimit = MAX_OPERATION_SIZE.get(settings).getBytes();
+        this.coordinatingLimit = limits.coordinatingLimitBytes();
+        this.primaryLimit = limits.primaryLimitBytes();
+        this.replicaLimit = limits.replicaLimitBytes();
+        this.operationLimit = limits.operationLimitBytes();
+        logger.debug(
+            "Indexing pressure limits: coordinating={}, primary={}, replica={}, operation={}",
+            ByteSizeValue.ofBytes(coordinatingLimit),
+            ByteSizeValue.ofBytes(primaryLimit),
+            ByteSizeValue.ofBytes(replicaLimit),
+            ByteSizeValue.ofBytes(operationLimit)
+        );
+    }
+
+    public IndexingPressure(Settings settings) {
+        this(IndexingMemoryLimits.fromSettings(settings), settings);
     }
 
     private static Releasable wrapReleasable(Releasable releasable) {

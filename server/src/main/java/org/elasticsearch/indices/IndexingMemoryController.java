@@ -126,32 +126,13 @@ public class IndexingMemoryController implements IndexingOperationListener, Clos
     private final Set<IndexShard> pendingWriteIndexingBufferSet = ConcurrentCollections.newConcurrentSet();
     private final Deque<IndexShard> pendingWriteIndexingBufferQueue = new ConcurrentLinkedDeque<>();
 
-    IndexingMemoryController(Settings settings, ThreadPool threadPool, Iterable<IndexShard> indexServices) {
+    IndexingMemoryController(IndexingMemoryLimits limits, Settings settings, ThreadPool threadPool, Iterable<IndexShard> indexServices) {
         this.indexShards = indexServices;
-
-        ByteSizeValue indexingBuffer = INDEX_BUFFER_SIZE_SETTING.get(settings);
-
-        String indexingBufferSetting = settings.get(INDEX_BUFFER_SIZE_SETTING.getKey());
-        // null means we used the default (10%)
-        if (indexingBufferSetting == null || indexingBufferSetting.endsWith("%")) {
-            // We only apply the min/max when % value was used for the index buffer:
-            ByteSizeValue minIndexingBuffer = MIN_INDEX_BUFFER_SIZE_SETTING.get(settings);
-            ByteSizeValue maxIndexingBuffer = MAX_INDEX_BUFFER_SIZE_SETTING.get(settings);
-            if (indexingBuffer.getBytes() < minIndexingBuffer.getBytes()) {
-                indexingBuffer = minIndexingBuffer;
-            }
-            if (maxIndexingBuffer.getBytes() != -1 && indexingBuffer.getBytes() > maxIndexingBuffer.getBytes()) {
-                indexingBuffer = maxIndexingBuffer;
-            }
-        }
-        this.indexingBuffer = indexingBuffer.getBytes();
-
+        this.indexingBuffer = limits.indexBufferBytes();
         this.inactiveTime = SHARD_INACTIVE_TIME_SETTING.get(settings);
         // we need to have this relatively small to free up heap quickly enough
         this.interval = SHARD_MEMORY_INTERVAL_TIME_SETTING.get(settings);
-
         this.statusChecker = new ShardsIndicesStatusChecker();
-
         logger.debug(
             "using indexing buffer size [{}] with {} [{}], {} [{}]",
             this.indexingBuffer,
@@ -161,9 +142,12 @@ public class IndexingMemoryController implements IndexingOperationListener, Clos
             this.interval
         );
         this.scheduler = scheduleTask(threadPool);
-
         // Need to save this so we can later launch async "write indexing buffer to disk" on shards:
         this.threadPool = threadPool;
+    }
+
+    IndexingMemoryController(Settings settings, ThreadPool threadPool, Iterable<IndexShard> indexServices) {
+        this(IndexingMemoryLimits.fromSettings(settings), settings, threadPool, indexServices);
     }
 
     protected Cancellable scheduleTask(ThreadPool threadPool) {

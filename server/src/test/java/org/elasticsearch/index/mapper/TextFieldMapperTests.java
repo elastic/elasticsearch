@@ -671,30 +671,10 @@ public class TextFieldMapperTests extends MapperTestCase {
         assertFalse(textMapper.fieldType().hasDocValues());
     }
 
-    public void testDocValuesLowCardinality() throws IOException {
-        assumeTrue("text field doc_values feature must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
-        assumeTrue("extended doc_values options must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
-
-        // note: we disable indexing as thats the expected use case for doc_values: indexing disabled and doc_values enabled
-        MapperService mapperService = createMapperService(
-            fieldMapping(
-                b -> b.field("type", "text").field("index", false).startObject("doc_values").field("cardinality", "low").endObject()
-            )
-
-        );
-        TextFieldMapper mapper = (TextFieldMapper) mapperService.documentMapper().mappers().getMapper("field");
-        assertTrue(mapper.fieldType().hasDocValues());
-        assertFalse(mapper.fieldType().usesBinaryDocValues());
-    }
-
     public void testDocValuesHighCardinality() throws IOException {
-        assumeTrue("text field doc_values feature must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
-        assumeTrue("extended doc_values options must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
-        MapperService mapperService = createMapperService(
-            fieldMapping(
-                b -> b.field("type", "text").field("index", false).startObject("doc_values").field("cardinality", "high").endObject()
-            )
-        );
+        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
+        MapperService mapperService = createMapperService(settings, fieldMapping(b -> b.field("type", "text")));
         TextFieldMapper mapper = (TextFieldMapper) mapperService.documentMapper().mappers().getMapper("field");
         assertTrue(mapper.fieldType().hasDocValues());
         assertTrue(mapper.fieldType().usesBinaryDocValues());
@@ -814,13 +794,9 @@ public class TextFieldMapperTests extends MapperTestCase {
     }
 
     public void testDocValuesHighCardinalityMultiValue() throws Exception {
-        assumeTrue("text field doc_values feature must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
-        assumeTrue("extended doc_values options must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
-        MapperService mapperService = createMapperService(
-            fieldMapping(
-                b -> b.field("type", "text").field("index", false).startObject("doc_values").field("cardinality", "high").endObject()
-            )
-        );
+        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
+        MapperService mapperService = createMapperService(settings, fieldMapping(b -> b.field("type", "text")));
 
         TextFieldType fieldType = (TextFieldType) mapperService.fieldType("field");
         assertTrue(fieldType.hasDocValues());
@@ -870,13 +846,8 @@ public class TextFieldMapperTests extends MapperTestCase {
     }
 
     public void testSyntheticSourceWithDocValuesHighCardinality() throws IOException {
-        assumeTrue("text field doc_values feature must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
-        assumeTrue("extended doc_values options must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
-        DocumentMapper mapper = createSytheticSourceMapperService(
-            fieldMapping(
-                b -> b.field("type", "text").field("index", false).startObject("doc_values").field("cardinality", "high").endObject()
-            )
-        ).documentMapper();
+        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        DocumentMapper mapper = createColumnarModeDocumentMapper(fieldMapping(b -> b.field("type", "text")));
 
         var syntheticSource = syntheticSource(mapper, b -> b.array("field", "value1", "value2"));
         assertEquals("{\"field\":[\"value1\",\"value2\"]}", syntheticSource);
@@ -2870,12 +2841,7 @@ public class TextFieldMapperTests extends MapperTestCase {
         // with HIGH cardinality (binary doc values), there's no length limit
         String longValue = "x".repeat(IndexWriter.MAX_TERM_LENGTH + 100);
 
-        MapperService mapperService = createMapperService(
-            fieldMapping(
-                b -> b.field("type", "text").field("index", false).startObject("doc_values").field("cardinality", "high").endObject()
-            )
-        );
-        DocumentMapper mapper = mapperService.documentMapper();
+        DocumentMapper mapper = createColumnarModeDocumentMapper(fieldMapping(b -> b.field("type", "text")));
 
         ParsedDocument doc = mapper.parse(source(b -> b.field("field", longValue)));
         List<IndexableField> fields = doc.rootDoc().getFields("field");

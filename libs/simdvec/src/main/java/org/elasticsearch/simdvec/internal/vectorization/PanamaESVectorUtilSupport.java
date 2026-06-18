@@ -46,14 +46,58 @@ import static jdk.incubator.vector.VectorOperators.S2I;
 
 public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport permits Native22ESVectorUtilSupport {
 
+    /*
+     * A number of notes about implementing SIMD using Panama:
+     *
+     * A small change in Java code can have a large impact in the result. Check what assembly code is actually generated
+     * using java option
+     *
+     * -XX:CompileCommand=print,*PanamaESVectorUtilSupport.<method>
+     *
+     * and passing the result through an AI to get the disassembly (the AI can probably help with understanding it too).
+     * Check all relevant instruction sets - AVX2, AVX512, NEON, SVE, as each one has different capabilities.
+     *
+     * A lot of Panama operations are implemented general-purpose, which means they are a lot more inefficient
+     * than you would otherwise expect. Again, check the disassembly. Ops that are known to be slow:
+     *
+     * - Vector masks on AVX2 and NEON
+     * - convertShape/castShape/slice with a non-zero part number on AVX2
+     *
+     * In general, prefer a scalar tail and/or nested vector calls rather than a masked tail.
+     *
+     * Note that AVX2 is minimum 256-bit, so 128-bit is only for NEON-only CPUs,
+     * which do have sensible sub-vector extraction instructions, so parts can be used
+     * without issue on 128-bit-specific implementations.
+     *
+     * Sky Lake and Cascade Lake CPUs have a slow int32 multiply instruction vpmulld,
+     * so for 512-bit the int16 operation is used instead, which doesn't have the same problem.
+     * Ice Lake onwards, and all AMD, don't have the same issue.
+     *
+     * Ideally, Panama would run efficiently with a single loop with an all-set mask,
+     * with the mask only taking effect in the final loop, but we're a long way from that at the moment.
+     *
+     * Oh, and check the disassembly.
+     */
+
     static final int VECTOR_BITSIZE = PanamaVectorConstants.PREFERRED_VECTOR_BITSIZE;
+    /** Whether integer vectors can be trusted to actually be fast. */
+    static final boolean HAS_FAST_INTEGER_VECTORS = PanamaVectorConstants.ENABLE_INTEGER_VECTORS;
 
     private static final VectorSpecies<Float> FLOAT_SPECIES = PanamaVectorConstants.PREFERRED_FLOAT_SPECIES;
     private static final VectorSpecies<Byte> BYTE_SPECIES = PanamaVectorConstants.PREFERRED_BYTE_SPECIES;
     private static final VectorSpecies<Integer> INTEGER_SPECIES = PanamaVectorConstants.PREFERRED_INTEGER_SPECIES;
     private static final VectorSpecies<Long> LONG_SPECIES = PanamaVectorConstants.PREFERRED_LONG_SPECIES;
-    /** Whether integer vectors can be trusted to actually be fast. */
-    static final boolean HAS_FAST_INTEGER_VECTORS = PanamaVectorConstants.ENABLE_INTEGER_VECTORS;
+
+    private static final VectorSpecies<Float> FLOAT_SPECIES_512 = FloatVector.SPECIES_512;
+    private static final VectorSpecies<Float> FLOAT_SPECIES_256 = FloatVector.SPECIES_256;
+    private static final VectorSpecies<Byte> BYTE_SPECIES_256 = ByteVector.SPECIES_256;
+    private static final VectorSpecies<Byte> BYTE_SPECIES_128 = ByteVector.SPECIES_128;
+    private static final VectorSpecies<Byte> BYTE_SPECIES_64 = ByteVector.SPECIES_64;
+    private static final VectorSpecies<Short> SHORT_SPECIES_256 = ShortVector.SPECIES_256;
+    private static final VectorSpecies<Short> SHORT_SPECIES_128 = ShortVector.SPECIES_128;
+    private static final VectorSpecies<Integer> INT_SPECIES_512 = IntVector.SPECIES_512;
+    private static final VectorSpecies<Integer> INT_SPECIES_256 = IntVector.SPECIES_256;
+    private static final VectorSpecies<Integer> INT_SPECIES_128 = IntVector.SPECIES_128;
 
     private static FloatVector fma(FloatVector a, FloatVector b, FloatVector c) {
         if (Constants.HAS_FAST_VECTOR_FMA) {
@@ -169,23 +213,22 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
             return dotProduct(a, b);
         }
 
-        int i = 0;
-        int vectorEnd = FLOAT_SPECIES.loopBound(length);
+        int i = offset;
+        int vectorEnd = offset + FLOAT_SPECIES.loopBound(length);
+        int end = offset + length;
+
         FloatVector acc = FloatVector.zero(FLOAT_SPECIES);
         for (; i < vectorEnd; i += FLOAT_SPECIES.length()) {
-            FloatVector av = FloatVector.fromArray(FLOAT_SPECIES, a, i + offset);
-            FloatVector bv = FloatVector.fromArray(FLOAT_SPECIES, b, i + offset);
+            FloatVector av = FloatVector.fromArray(FLOAT_SPECIES, a, i);
+            FloatVector bv = FloatVector.fromArray(FLOAT_SPECIES, b, i);
             acc = fma(av, bv, acc);
         }
 
-        int remaining = length - i;
-        if (remaining > 0) {
-            VectorMask<Float> mask = VectorMask.fromLong(FLOAT_SPECIES, (1L << remaining) - 1);
-            FloatVector av = FloatVector.fromArray(FLOAT_SPECIES, a, i + offset, mask);
-            FloatVector bv = FloatVector.fromArray(FLOAT_SPECIES, b, i + offset, mask);
-            acc = fma(av, bv, acc);
+        float result = acc.reduceLanes(ADD);
+        for (; i < end; i++) {
+            result = fma(a[i], b[i], result);
         }
-        return acc.reduceLanes(ADD);
+        return result;
     }
 
     @Override
@@ -194,19 +237,20 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
         if (normSq == 0f) {
             return;
         }
+
         float scale = (float) (1.0 / Math.sqrt(normSq));
         FloatVector scaleVec = FloatVector.broadcast(FLOAT_SPECIES, scale);
-        int end = offset + length;
-        int vectorEnd = offset + FLOAT_SPECIES.loopBound(length);
+
         int i = offset;
+        int vectorEnd = offset + FLOAT_SPECIES.loopBound(length);
+        int end = offset + length;
+
         for (; i < vectorEnd; i += FLOAT_SPECIES.length()) {
             FloatVector vv = FloatVector.fromArray(FLOAT_SPECIES, v, i);
             vv.mul(scaleVec).intoArray(v, i);
         }
-        if (i < end) {
-            VectorMask<Float> mask = FLOAT_SPECIES.indexInRange(i, end);
-            FloatVector vv = FloatVector.fromArray(FLOAT_SPECIES, v, i, mask);
-            vv.mul(scaleVec).intoArray(v, i, mask);
+        for (; i < end; i++) {
+            v[i] *= scale;
         }
     }
 
@@ -221,25 +265,24 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
             return squareDistance(a, b);
         }
 
-        int i = 0;
-        int vectorEnd = FLOAT_SPECIES.loopBound(length);
+        int i = offset;
+        int vectorEnd = offset + FLOAT_SPECIES.loopBound(length);
+        int end = offset + length;
+
         FloatVector acc = FloatVector.zero(FLOAT_SPECIES);
         for (; i < vectorEnd; i += FLOAT_SPECIES.length()) {
-            FloatVector av = FloatVector.fromArray(FLOAT_SPECIES, a, i + offset);
-            FloatVector bv = FloatVector.fromArray(FLOAT_SPECIES, b, i + offset);
+            FloatVector av = FloatVector.fromArray(FLOAT_SPECIES, a, i);
+            FloatVector bv = FloatVector.fromArray(FLOAT_SPECIES, b, i);
             FloatVector diff = av.sub(bv);
             acc = fma(diff, diff, acc);
         }
 
-        int remaining = length - i;
-        if (remaining > 0) {
-            VectorMask<Float> mask = VectorMask.fromLong(FLOAT_SPECIES, (1L << remaining) - 1);
-            FloatVector av = FloatVector.fromArray(FLOAT_SPECIES, a, i + offset, mask);
-            FloatVector bv = FloatVector.fromArray(FLOAT_SPECIES, b, i + offset, mask);
-            FloatVector diff = av.sub(bv);
-            acc = fma(diff, diff, acc);
+        float result = acc.reduceLanes(ADD);
+        for (; i < end; i++) {
+            float diff = a[i] - b[i];
+            result = fma(diff, diff, result);
         }
-        return acc.reduceLanes(ADD);
+        return result;
     }
 
     @Override
@@ -258,34 +301,75 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
             return dotProduct(a, b);
         }
 
-        int i = 0;
-        int vectorEnd = BYTE_SPECIES.loopBound(length);
-        IntVector acc = IntVector.zero(INTEGER_SPECIES);
-        for (; i < vectorEnd; i += BYTE_SPECIES.length()) {
-            ByteVector ba = ByteVector.fromArray(BYTE_SPECIES, a, i + offset);
-            ByteVector bb = ByteVector.fromArray(BYTE_SPECIES, b, i + offset);
-            for (int part = 0; part < BYTE_TO_FLOAT_PARTS; part++) {
-                Vector<Integer> ia = ba.castShape(INTEGER_SPECIES, part);
-                Vector<Integer> ib = bb.castShape(INTEGER_SPECIES, part);
-                acc = acc.add(ia.mul(ib));
+        int i = offset;
+        int end = offset + length;
+        int result = 0;
+
+        // check if we have at least 128-bits of vector to process
+        if (length >= 128 / Byte.SIZE && HAS_FAST_INTEGER_VECTORS) {
+            if (VECTOR_BITSIZE >= 512) {
+                i += BYTE_SPECIES_128.loopBound(length);
+                result += dotProductBody512(a, b, offset, i);
+            } else if (VECTOR_BITSIZE == 256) {
+                i += BYTE_SPECIES_64.loopBound(length);
+                result += dotProductBody256(a, b, offset, i);
+            } else {
+                i += BYTE_SPECIES_64.loopBound(length);
+                result += dotProductBody128(a, b, offset, i);
             }
         }
 
-        int remaining = length - i;
-        if (remaining > 0) {
-            VectorMask<Byte> mask = VectorMask.fromLong(BYTE_SPECIES, (1L << remaining) - 1);
-            ByteVector ba = ByteVector.fromArray(BYTE_SPECIES, a, i + offset, mask);
-            ByteVector bb = ByteVector.fromArray(BYTE_SPECIES, b, i + offset, mask);
-            for (int maskedPart = 0; remaining > 0; maskedPart++) {
-                assert maskedPart < BYTE_TO_FLOAT_PARTS;
-                Vector<Integer> ia = ba.castShape(INTEGER_SPECIES, maskedPart);
-                Vector<Integer> ib = bb.castShape(INTEGER_SPECIES, maskedPart);
-                acc = acc.add(ia.mul(ib));
-                remaining -= INTEGER_SPECIES.length();
-            }
+        for (; i < end; i++) {
+            result += a[i] * b[i];
         }
+        return result;
+    }
 
-        return acc.reduceLanes(VectorOperators.ADD);
+    private static int dotProductBody512(byte[] a, byte[] b, int offset, int limit) {
+        IntVector acc = IntVector.zero(INT_SPECIES_512);
+        for (int i = offset; i < limit; i += BYTE_SPECIES_128.length()) {
+            ByteVector va8 = ByteVector.fromArray(BYTE_SPECIES_128, a, i);
+            ByteVector vb8 = ByteVector.fromArray(BYTE_SPECIES_128, b, i);
+
+            // 16-bit multiply: avoid AVX-512 heavy multiply on zmm
+            Vector<Short> va16 = va8.convertShape(B2S, SHORT_SPECIES_256, 0);
+            Vector<Short> vb16 = vb8.convertShape(B2S, SHORT_SPECIES_256, 0);
+            Vector<Short> prod16 = va16.mul(vb16);
+
+            // 32-bit add
+            Vector<Integer> prod32 = prod16.convertShape(S2I, INT_SPECIES_512, 0);
+            acc = acc.add(prod32);
+        }
+        return acc.reduceLanes(ADD);
+    }
+
+    private static int dotProductBody256(byte[] a, byte[] b, int offset, int limit) {
+        IntVector acc = IntVector.zero(INT_SPECIES_256);
+        for (int i = offset; i < limit; i += BYTE_SPECIES_64.length()) {
+            ByteVector va8 = ByteVector.fromArray(BYTE_SPECIES_64, a, i);
+            ByteVector vb8 = ByteVector.fromArray(BYTE_SPECIES_64, b, i);
+
+            Vector<Integer> va32 = va8.convertShape(B2I, INT_SPECIES_256, 0);
+            Vector<Integer> vb32 = vb8.convertShape(B2I, INT_SPECIES_256, 0);
+            acc = acc.add(va32.mul(vb32));
+        }
+        return acc.reduceLanes(ADD);
+    }
+
+    private static int dotProductBody128(byte[] a, byte[] b, int offset, int limit) {
+        IntVector acc = IntVector.zero(IntVector.SPECIES_128);
+        for (int i = offset; i < limit; i += BYTE_SPECIES_64.length()) {
+            ByteVector va8 = ByteVector.fromArray(BYTE_SPECIES_64, a, i);
+            ByteVector vb8 = ByteVector.fromArray(BYTE_SPECIES_64, b, i);
+
+            Vector<Short> va16 = va8.convertShape(B2S, SHORT_SPECIES_128, 0);
+            Vector<Short> vb16 = vb8.convertShape(B2S, SHORT_SPECIES_128, 0);
+            Vector<Short> prod16 = va16.mul(vb16);
+
+            // no 256-bit available, so need to accumulate each half separately
+            acc = acc.add(prod16.convertShape(S2I, INT_SPECIES_128, 0)).add(prod16.convertShape(S2I, INT_SPECIES_128, 1));
+        }
+        return acc.reduceLanes(ADD);
     }
 
     @Override
@@ -309,42 +393,84 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
     @Override
     public float squareDistance(byte[] a, byte[] b, int offset, int length) {
         if (offset == 0 && length == a.length) {
-            // use a native implementation if available
             return squareDistance(a, b);
         }
 
-        int i = 0;
-        int vectorEnd = BYTE_SPECIES.loopBound(length);
-        IntVector acc = IntVector.zero(INTEGER_SPECIES);
-        for (; i < vectorEnd; i += BYTE_SPECIES.length()) {
-            ByteVector ba = ByteVector.fromArray(BYTE_SPECIES, a, i + offset);
-            ByteVector bb = ByteVector.fromArray(BYTE_SPECIES, b, i + offset);
-            for (int part = 0; part < BYTE_TO_FLOAT_PARTS; part++) {
-                Vector<Integer> ia = ba.castShape(INTEGER_SPECIES, part);
-                Vector<Integer> ib = bb.castShape(INTEGER_SPECIES, part);
-                Vector<Integer> diff = ia.sub(ib);
-                acc = acc.add(diff.mul(diff));
+        int i = offset;
+        int end = offset + length;
+        int result = 0;
+
+        // check if we have at least 128-bits of vector to process
+        if (length >= 128 / Byte.SIZE && HAS_FAST_INTEGER_VECTORS) {
+            if (VECTOR_BITSIZE >= 512) {
+                i += BYTE_SPECIES_128.loopBound(length);
+                result += squareDistanceBody512(a, b, offset, i);
+            } else if (VECTOR_BITSIZE == 256) {
+                i += BYTE_SPECIES_64.loopBound(length);
+                result += squareDistanceBody256(a, b, offset, i);
+            } else {
+                i += BYTE_SPECIES_64.loopBound(length);
+                result += squareDistanceBody128(a, b, offset, i);
             }
         }
 
-        int remaining = length - i;
-        if (remaining > 0) {
-            // masked tail, at most a single ByteVector left
-            VectorMask<Byte> mask = VectorMask.fromLong(BYTE_SPECIES, (1L << remaining) - 1);
-            ByteVector ba = ByteVector.fromArray(BYTE_SPECIES, a, i + offset, mask);
-            ByteVector bb = ByteVector.fromArray(BYTE_SPECIES, b, i + offset, mask);
-            // no need to do masking here. If part of this is masked, then the remainder will be zero, so will just not do anything
-            for (int maskedPart = 0; remaining > 0; maskedPart++) {
-                assert maskedPart < BYTE_TO_FLOAT_PARTS; // should always be less than byte vector length remaining
-                Vector<Integer> ia = ba.castShape(INTEGER_SPECIES, maskedPart);
-                Vector<Integer> ib = bb.castShape(INTEGER_SPECIES, maskedPart);
-                Vector<Integer> diff = ia.sub(ib);
-                acc = acc.add(diff.mul(diff));
-                remaining -= INTEGER_SPECIES.length();
-            }
+        for (; i < end; i++) {
+            int diff = a[i] - b[i];
+            result += diff * diff;
         }
+        return result;
+    }
 
-        return acc.reduceLanes(VectorOperators.ADD);
+    private static int squareDistanceBody512(byte[] a, byte[] b, int offset, int limit) {
+        IntVector acc = IntVector.zero(INT_SPECIES_512);
+        // the diff^2 operation can overflow a short
+        // so have to use AVX512 ops here regardless
+        for (int i = offset; i < limit; i += BYTE_SPECIES_128.length()) {
+            ByteVector va8 = ByteVector.fromArray(BYTE_SPECIES_128, a, i);
+            ByteVector vb8 = ByteVector.fromArray(BYTE_SPECIES_128, b, i);
+
+            Vector<Integer> va32 = va8.convertShape(B2I, INT_SPECIES_512, 0);
+            Vector<Integer> vb32 = vb8.convertShape(B2I, INT_SPECIES_512, 0);
+            Vector<Integer> diff = va32.sub(vb32);
+
+            acc = acc.add(diff.mul(diff));
+        }
+        return acc.reduceLanes(ADD);
+    }
+
+    private static int squareDistanceBody256(byte[] a, byte[] b, int offset, int limit) {
+        IntVector acc = IntVector.zero(INT_SPECIES_256);
+        for (int i = offset; i < limit; i += BYTE_SPECIES_64.length()) {
+            ByteVector va8 = ByteVector.fromArray(BYTE_SPECIES_64, a, i);
+            ByteVector vb8 = ByteVector.fromArray(BYTE_SPECIES_64, b, i);
+
+            Vector<Integer> va32 = va8.convertShape(B2I, INT_SPECIES_256, 0);
+            Vector<Integer> vb32 = vb8.convertShape(B2I, INT_SPECIES_256, 0);
+            Vector<Integer> diff = va32.sub(vb32);
+
+            acc = acc.add(diff.mul(diff));
+        }
+        return acc.reduceLanes(ADD);
+    }
+
+    private static int squareDistanceBody128(byte[] a, byte[] b, int offset, int limit) {
+        IntVector acc = IntVector.zero(IntVector.SPECIES_128);
+        for (int i = offset; i < limit; i += BYTE_SPECIES_64.length()) {
+            ByteVector va8 = ByteVector.fromArray(BYTE_SPECIES_64, a, i);
+            ByteVector vb8 = ByteVector.fromArray(BYTE_SPECIES_64, b, i);
+
+            Vector<Short> va16 = va8.convertShape(B2S, SHORT_SPECIES_128, 0);
+            Vector<Short> vb16 = vb8.convertShape(B2S, SHORT_SPECIES_128, 0);
+            Vector<Short> diff = va16.sub(vb16);
+
+            // have to keep within 128-bits, so can't go straight to ints
+            // instead have to do it by parts
+            Vector<Integer> d_lo = diff.convertShape(S2I, INT_SPECIES_128, 0);
+            acc = acc.add(d_lo.mul(d_lo));
+            Vector<Integer> d_hi = diff.convertShape(S2I, INT_SPECIES_128, 1);
+            acc = acc.add(d_hi.mul(d_hi));
+        }
+        return acc.reduceLanes(ADD);
     }
 
     @Override
@@ -375,6 +501,106 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
         return DefaultESVectorUtilSupport.ipByteBinByteImpl(q, d);
     }
 
+    private static long ipByteBin256(byte[] q, byte[] d) {
+        long subRet0 = 0;
+        long subRet1 = 0;
+        long subRet2 = 0;
+        long subRet3 = 0;
+        int i = 0;
+
+        if (d.length >= ByteVector.SPECIES_256.vectorByteSize() * 2) {
+            int limit = ByteVector.SPECIES_256.loopBound(d.length);
+            var sum0 = LongVector.zero(LongVector.SPECIES_256);
+            var sum1 = LongVector.zero(LongVector.SPECIES_256);
+            var sum2 = LongVector.zero(LongVector.SPECIES_256);
+            var sum3 = LongVector.zero(LongVector.SPECIES_256);
+            for (; i < limit; i += ByteVector.SPECIES_256.length()) {
+                var vq0 = ByteVector.fromArray(BYTE_SPECIES_256, q, i).reinterpretAsLongs();
+                var vq1 = ByteVector.fromArray(BYTE_SPECIES_256, q, i + d.length).reinterpretAsLongs();
+                var vq2 = ByteVector.fromArray(BYTE_SPECIES_256, q, i + d.length * 2).reinterpretAsLongs();
+                var vq3 = ByteVector.fromArray(BYTE_SPECIES_256, q, i + d.length * 3).reinterpretAsLongs();
+                var vd = ByteVector.fromArray(BYTE_SPECIES_256, d, i).reinterpretAsLongs();
+                sum0 = sum0.add(vq0.and(vd).lanewise(VectorOperators.BIT_COUNT));
+                sum1 = sum1.add(vq1.and(vd).lanewise(VectorOperators.BIT_COUNT));
+                sum2 = sum2.add(vq2.and(vd).lanewise(VectorOperators.BIT_COUNT));
+                sum3 = sum3.add(vq3.and(vd).lanewise(VectorOperators.BIT_COUNT));
+            }
+            subRet0 += sum0.reduceLanes(VectorOperators.ADD);
+            subRet1 += sum1.reduceLanes(VectorOperators.ADD);
+            subRet2 += sum2.reduceLanes(VectorOperators.ADD);
+            subRet3 += sum3.reduceLanes(VectorOperators.ADD);
+        }
+
+        if (d.length - i >= ByteVector.SPECIES_128.vectorByteSize()) {
+            var sum0 = LongVector.zero(LongVector.SPECIES_128);
+            var sum1 = LongVector.zero(LongVector.SPECIES_128);
+            var sum2 = LongVector.zero(LongVector.SPECIES_128);
+            var sum3 = LongVector.zero(LongVector.SPECIES_128);
+            int limit = ByteVector.SPECIES_128.loopBound(d.length);
+            for (; i < limit; i += ByteVector.SPECIES_128.length()) {
+                var vq0 = ByteVector.fromArray(BYTE_SPECIES_128, q, i).reinterpretAsLongs();
+                var vq1 = ByteVector.fromArray(BYTE_SPECIES_128, q, i + d.length).reinterpretAsLongs();
+                var vq2 = ByteVector.fromArray(BYTE_SPECIES_128, q, i + d.length * 2).reinterpretAsLongs();
+                var vq3 = ByteVector.fromArray(BYTE_SPECIES_128, q, i + d.length * 3).reinterpretAsLongs();
+                var vd = ByteVector.fromArray(BYTE_SPECIES_128, d, i).reinterpretAsLongs();
+                sum0 = sum0.add(vq0.and(vd).lanewise(VectorOperators.BIT_COUNT));
+                sum1 = sum1.add(vq1.and(vd).lanewise(VectorOperators.BIT_COUNT));
+                sum2 = sum2.add(vq2.and(vd).lanewise(VectorOperators.BIT_COUNT));
+                sum3 = sum3.add(vq3.and(vd).lanewise(VectorOperators.BIT_COUNT));
+            }
+            subRet0 += sum0.reduceLanes(VectorOperators.ADD);
+            subRet1 += sum1.reduceLanes(VectorOperators.ADD);
+            subRet2 += sum2.reduceLanes(VectorOperators.ADD);
+            subRet3 += sum3.reduceLanes(VectorOperators.ADD);
+        }
+        // tail as bytes
+        for (; i < d.length; i++) {
+            subRet0 += Integer.bitCount((q[i] & d[i]) & 0xFF);
+            subRet1 += Integer.bitCount((q[i + d.length] & d[i]) & 0xFF);
+            subRet2 += Integer.bitCount((q[i + 2 * d.length] & d[i]) & 0xFF);
+            subRet3 += Integer.bitCount((q[i + 3 * d.length] & d[i]) & 0xFF);
+        }
+        return subRet0 + (subRet1 << 1) + (subRet2 << 2) + (subRet3 << 3);
+    }
+
+    private static long ipByteBin128(byte[] q, byte[] d) {
+        long subRet0 = 0;
+        long subRet1 = 0;
+        long subRet2 = 0;
+        long subRet3 = 0;
+        int i = 0;
+
+        var sum0 = IntVector.zero(IntVector.SPECIES_128);
+        var sum1 = IntVector.zero(IntVector.SPECIES_128);
+        var sum2 = IntVector.zero(IntVector.SPECIES_128);
+        var sum3 = IntVector.zero(IntVector.SPECIES_128);
+        int limit = ByteVector.SPECIES_128.loopBound(d.length);
+        for (; i < limit; i += ByteVector.SPECIES_128.length()) {
+            var vd = ByteVector.fromArray(BYTE_SPECIES_128, d, i).reinterpretAsInts();
+            var vq0 = ByteVector.fromArray(BYTE_SPECIES_128, q, i).reinterpretAsInts();
+            var vq1 = ByteVector.fromArray(BYTE_SPECIES_128, q, i + d.length).reinterpretAsInts();
+            var vq2 = ByteVector.fromArray(BYTE_SPECIES_128, q, i + d.length * 2).reinterpretAsInts();
+            var vq3 = ByteVector.fromArray(BYTE_SPECIES_128, q, i + d.length * 3).reinterpretAsInts();
+            sum0 = sum0.add(vd.and(vq0).lanewise(VectorOperators.BIT_COUNT));
+            sum1 = sum1.add(vd.and(vq1).lanewise(VectorOperators.BIT_COUNT));
+            sum2 = sum2.add(vd.and(vq2).lanewise(VectorOperators.BIT_COUNT));
+            sum3 = sum3.add(vd.and(vq3).lanewise(VectorOperators.BIT_COUNT));
+        }
+        subRet0 += sum0.reduceLanes(VectorOperators.ADD);
+        subRet1 += sum1.reduceLanes(VectorOperators.ADD);
+        subRet2 += sum2.reduceLanes(VectorOperators.ADD);
+        subRet3 += sum3.reduceLanes(VectorOperators.ADD);
+        // tail as bytes
+        for (; i < d.length; i++) {
+            int dValue = d[i];
+            subRet0 += Integer.bitCount((dValue & q[i]) & 0xFF);
+            subRet1 += Integer.bitCount((dValue & q[i + d.length]) & 0xFF);
+            subRet2 += Integer.bitCount((dValue & q[i + 2 * d.length]) & 0xFF);
+            subRet3 += Integer.bitCount((dValue & q[i + 3 * d.length]) & 0xFF);
+        }
+        return subRet0 + (subRet1 << 1) + (subRet2 << 2) + (subRet3 << 3);
+    }
+
     @Override
     public int ipByteBit(byte[] q, byte[] d) {
         if (d.length >= 16 && HAS_FAST_INTEGER_VECTORS) {
@@ -385,6 +611,116 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
             }
         }
         return DefaultESVectorUtilSupport.ipByteBitImpl(q, d);
+    }
+
+    private static int limit(int length, int sectionSize) {
+        return length - (length % sectionSize);
+    }
+
+    static int ipByteBit512(byte[] q, byte[] d) {
+        assert q.length == d.length * Byte.SIZE;
+        int i = 0;
+        int sum = 0;
+
+        int sectionLength = INT_SPECIES_512.length() * 4;
+        if (q.length >= sectionLength) {
+            IntVector acc0 = IntVector.zero(INT_SPECIES_512);
+            IntVector acc1 = IntVector.zero(INT_SPECIES_512);
+            IntVector acc2 = IntVector.zero(INT_SPECIES_512);
+            IntVector acc3 = IntVector.zero(INT_SPECIES_512);
+            int limit = limit(q.length, sectionLength);
+            for (; i < limit; i += sectionLength) {
+                var vals0 = ByteVector.fromArray(BYTE_SPECIES_128, q, i).castShape(INT_SPECIES_512, 0);
+                var vals1 = ByteVector.fromArray(BYTE_SPECIES_128, q, i + INT_SPECIES_512.length()).castShape(INT_SPECIES_512, 0);
+                var vals2 = ByteVector.fromArray(BYTE_SPECIES_128, q, i + INT_SPECIES_512.length() * 2).castShape(INT_SPECIES_512, 0);
+                var vals3 = ByteVector.fromArray(BYTE_SPECIES_128, q, i + INT_SPECIES_512.length() * 3).castShape(INT_SPECIES_512, 0);
+
+                long maskBits = Long.reverse((long) BitUtil.VH_BE_LONG.get(d, i / 8));
+                var mask0 = VectorMask.fromLong(INT_SPECIES_512, maskBits);
+                var mask1 = VectorMask.fromLong(INT_SPECIES_512, maskBits >> 16);
+                var mask2 = VectorMask.fromLong(INT_SPECIES_512, maskBits >> 32);
+                var mask3 = VectorMask.fromLong(INT_SPECIES_512, maskBits >> 48);
+
+                acc0 = acc0.add(vals0, mask0);
+                acc1 = acc1.add(vals1, mask1);
+                acc2 = acc2.add(vals2, mask2);
+                acc3 = acc3.add(vals3, mask3);
+            }
+            sum += acc0.reduceLanes(VectorOperators.ADD) + acc1.reduceLanes(VectorOperators.ADD) + acc2.reduceLanes(VectorOperators.ADD)
+                + acc3.reduceLanes(VectorOperators.ADD);
+        }
+
+        sectionLength = INT_SPECIES_256.length();
+        if (q.length - i >= sectionLength) {
+            IntVector acc = IntVector.zero(INT_SPECIES_256);
+            int limit = limit(q.length, sectionLength);
+            for (; i < limit; i += sectionLength) {
+                var vals = ByteVector.fromArray(BYTE_SPECIES_64, q, i).castShape(INT_SPECIES_256, 0);
+
+                long maskBits = Integer.reverse(d[i / 8]) >> 24;
+                var mask = VectorMask.fromLong(INT_SPECIES_256, maskBits);
+
+                acc = acc.add(vals, mask);
+            }
+            sum += acc.reduceLanes(VectorOperators.ADD);
+        }
+
+        // that should have got them all (q.length is a multiple of 8, which fits in a 256-bit vector)
+        assert i == q.length;
+        return sum;
+    }
+
+    static int ipByteBit256(byte[] q, byte[] d) {
+        assert q.length == d.length * Byte.SIZE;
+        int i = 0;
+        int sum = 0;
+
+        int sectionLength = INT_SPECIES_256.length() * 4;
+        if (q.length >= sectionLength) {
+            IntVector acc0 = IntVector.zero(INT_SPECIES_256);
+            IntVector acc1 = IntVector.zero(INT_SPECIES_256);
+            IntVector acc2 = IntVector.zero(INT_SPECIES_256);
+            IntVector acc3 = IntVector.zero(INT_SPECIES_256);
+            int limit = limit(q.length, sectionLength);
+            for (; i < limit; i += sectionLength) {
+                var vals0 = ByteVector.fromArray(BYTE_SPECIES_64, q, i).castShape(INT_SPECIES_256, 0);
+                var vals1 = ByteVector.fromArray(BYTE_SPECIES_64, q, i + INT_SPECIES_256.length()).castShape(INT_SPECIES_256, 0);
+                var vals2 = ByteVector.fromArray(BYTE_SPECIES_64, q, i + INT_SPECIES_256.length() * 2).castShape(INT_SPECIES_256, 0);
+                var vals3 = ByteVector.fromArray(BYTE_SPECIES_64, q, i + INT_SPECIES_256.length() * 3).castShape(INT_SPECIES_256, 0);
+
+                long maskBits = Integer.reverse((int) BitUtil.VH_BE_INT.get(d, i / 8));
+                var mask0 = VectorMask.fromLong(INT_SPECIES_256, maskBits);
+                var mask1 = VectorMask.fromLong(INT_SPECIES_256, maskBits >> 8);
+                var mask2 = VectorMask.fromLong(INT_SPECIES_256, maskBits >> 16);
+                var mask3 = VectorMask.fromLong(INT_SPECIES_256, maskBits >> 24);
+
+                acc0 = acc0.add(vals0, mask0);
+                acc1 = acc1.add(vals1, mask1);
+                acc2 = acc2.add(vals2, mask2);
+                acc3 = acc3.add(vals3, mask3);
+            }
+            sum += acc0.reduceLanes(VectorOperators.ADD) + acc1.reduceLanes(VectorOperators.ADD) + acc2.reduceLanes(VectorOperators.ADD)
+                + acc3.reduceLanes(VectorOperators.ADD);
+        }
+
+        sectionLength = INT_SPECIES_256.length();
+        if (q.length - i >= sectionLength) {
+            IntVector acc = IntVector.zero(INT_SPECIES_256);
+            int limit = limit(q.length, sectionLength);
+            for (; i < limit; i += sectionLength) {
+                var vals = ByteVector.fromArray(BYTE_SPECIES_64, q, i).castShape(INT_SPECIES_256, 0);
+
+                long maskBits = Integer.reverse(d[i / 8]) >> 24;
+                var mask = VectorMask.fromLong(INT_SPECIES_256, maskBits);
+
+                acc = acc.add(vals, mask);
+            }
+            sum += acc.reduceLanes(VectorOperators.ADD);
+        }
+
+        // that should have got them all (q.length is a multiple of 8, which fits in a 256-bit vector)
+        assert i == q.length;
+        return sum;
     }
 
     @Override
@@ -399,12 +735,154 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
         return DefaultESVectorUtilSupport.ipFloatBitImpl(q, d);
     }
 
+    static float ipFloatBit512(float[] q, byte[] d) {
+        assert q.length == d.length * Byte.SIZE;
+        int i = 0;
+        float sum = 0;
+
+        int sectionLength = FLOAT_SPECIES_512.length() * 4;
+        if (q.length >= sectionLength) {
+            FloatVector acc0 = FloatVector.zero(FLOAT_SPECIES_512);
+            FloatVector acc1 = FloatVector.zero(FLOAT_SPECIES_512);
+            FloatVector acc2 = FloatVector.zero(FLOAT_SPECIES_512);
+            FloatVector acc3 = FloatVector.zero(FLOAT_SPECIES_512);
+            int limit = limit(q.length, sectionLength);
+            for (; i < limit; i += sectionLength) {
+                var floats0 = FloatVector.fromArray(FLOAT_SPECIES_512, q, i);
+                var floats1 = FloatVector.fromArray(FLOAT_SPECIES_512, q, i + FLOAT_SPECIES_512.length());
+                var floats2 = FloatVector.fromArray(FLOAT_SPECIES_512, q, i + FLOAT_SPECIES_512.length() * 2);
+                var floats3 = FloatVector.fromArray(FLOAT_SPECIES_512, q, i + FLOAT_SPECIES_512.length() * 3);
+
+                long maskBits = Long.reverse((long) BitUtil.VH_BE_LONG.get(d, i / 8));
+                var mask0 = VectorMask.fromLong(FLOAT_SPECIES_512, maskBits);
+                var mask1 = VectorMask.fromLong(FLOAT_SPECIES_512, maskBits >> 16);
+                var mask2 = VectorMask.fromLong(FLOAT_SPECIES_512, maskBits >> 32);
+                var mask3 = VectorMask.fromLong(FLOAT_SPECIES_512, maskBits >> 48);
+
+                acc0 = acc0.add(floats0, mask0);
+                acc1 = acc1.add(floats1, mask1);
+                acc2 = acc2.add(floats2, mask2);
+                acc3 = acc3.add(floats3, mask3);
+            }
+            sum += acc0.reduceLanes(VectorOperators.ADD) + acc1.reduceLanes(VectorOperators.ADD) + acc2.reduceLanes(VectorOperators.ADD)
+                + acc3.reduceLanes(VectorOperators.ADD);
+        }
+
+        sectionLength = FLOAT_SPECIES_256.length();
+        if (q.length - i >= sectionLength) {
+            FloatVector acc = FloatVector.zero(FLOAT_SPECIES_256);
+            int limit = limit(q.length, sectionLength);
+            for (; i < limit; i += sectionLength) {
+                var floats = FloatVector.fromArray(FLOAT_SPECIES_256, q, i);
+
+                long maskBits = Integer.reverse(d[i / 8]) >> 24;
+                var mask = VectorMask.fromLong(FLOAT_SPECIES_256, maskBits);
+
+                acc = acc.add(floats, mask);
+            }
+            sum += acc.reduceLanes(VectorOperators.ADD);
+        }
+
+        // that should have got them all (q.length is a multiple of 8, which fits in a 256-bit vector)
+        assert i == q.length;
+        return sum;
+    }
+
+    static float ipFloatBit256(float[] q, byte[] d) {
+        assert q.length == d.length * Byte.SIZE;
+        int i = 0;
+        float sum = 0;
+
+        int sectionLength = FLOAT_SPECIES_256.length() * 4;
+        if (q.length >= sectionLength) {
+            FloatVector acc0 = FloatVector.zero(FLOAT_SPECIES_256);
+            FloatVector acc1 = FloatVector.zero(FLOAT_SPECIES_256);
+            FloatVector acc2 = FloatVector.zero(FLOAT_SPECIES_256);
+            FloatVector acc3 = FloatVector.zero(FLOAT_SPECIES_256);
+            int limit = limit(q.length, sectionLength);
+            for (; i < limit; i += sectionLength) {
+                var floats0 = FloatVector.fromArray(FLOAT_SPECIES_256, q, i);
+                var floats1 = FloatVector.fromArray(FLOAT_SPECIES_256, q, i + FLOAT_SPECIES_256.length());
+                var floats2 = FloatVector.fromArray(FLOAT_SPECIES_256, q, i + FLOAT_SPECIES_256.length() * 2);
+                var floats3 = FloatVector.fromArray(FLOAT_SPECIES_256, q, i + FLOAT_SPECIES_256.length() * 3);
+
+                long maskBits = Integer.reverse((int) BitUtil.VH_BE_INT.get(d, i / 8));
+                var mask0 = VectorMask.fromLong(FLOAT_SPECIES_256, maskBits);
+                var mask1 = VectorMask.fromLong(FLOAT_SPECIES_256, maskBits >> 8);
+                var mask2 = VectorMask.fromLong(FLOAT_SPECIES_256, maskBits >> 16);
+                var mask3 = VectorMask.fromLong(FLOAT_SPECIES_256, maskBits >> 24);
+
+                acc0 = acc0.add(floats0, mask0);
+                acc1 = acc1.add(floats1, mask1);
+                acc2 = acc2.add(floats2, mask2);
+                acc3 = acc3.add(floats3, mask3);
+            }
+            sum += acc0.reduceLanes(VectorOperators.ADD) + acc1.reduceLanes(VectorOperators.ADD) + acc2.reduceLanes(VectorOperators.ADD)
+                + acc3.reduceLanes(VectorOperators.ADD);
+        }
+
+        sectionLength = FLOAT_SPECIES_256.length();
+        if (q.length - i >= sectionLength) {
+            FloatVector acc = FloatVector.zero(FLOAT_SPECIES_256);
+            int limit = limit(q.length, sectionLength);
+            for (; i < limit; i += sectionLength) {
+                var floats = FloatVector.fromArray(FLOAT_SPECIES_256, q, i);
+
+                long maskBits = Integer.reverse(d[i / 8]) >> 24;
+                var mask = VectorMask.fromLong(FLOAT_SPECIES_256, maskBits);
+
+                acc = acc.add(floats, mask);
+            }
+            sum += acc.reduceLanes(VectorOperators.ADD);
+        }
+
+        // that should have got them all (q.length is a multiple of 8, which fits in a 256-bit vector)
+        assert i == q.length;
+        return sum;
+    }
+
     @Override
     public float ipFloatByte(float[] q, byte[] d) {
-        if (BYTE_SPECIES_FOR_PREFFERED_FLOATS != null && q.length >= PREFERRED_FLOAT_SPECIES.length()) {
+        if (BYTE_SPECIES_FOR_FLOATS != null && q.length >= FLOAT_SPECIES.length()) {
             return ipFloatByteImpl(q, d);
         }
         return DefaultESVectorUtilSupport.ipFloatByteImpl(q, d);
+    }
+
+    private static final VectorSpecies<Byte> BYTE_SPECIES_FOR_FLOATS;
+
+    static {
+        VectorSpecies<Byte> byteForFloat;
+        try {
+            // calculate vector size to convert from single bytes to 4-byte floats
+            byteForFloat = VectorSpecies.of(byte.class, VectorShape.forBitSize(FLOAT_SPECIES.vectorBitSize() / Float.BYTES));
+        } catch (IllegalArgumentException e) {
+            // can't get a byte vector size small enough, just use default impl
+            byteForFloat = null;
+        }
+        BYTE_SPECIES_FOR_FLOATS = byteForFloat;
+    }
+
+    public static float ipFloatByteImpl(float[] q, byte[] d) {
+        assert BYTE_SPECIES_FOR_FLOATS != null;
+        FloatVector acc = FloatVector.zero(FLOAT_SPECIES);
+        int i = 0;
+
+        int limit = FLOAT_SPECIES.loopBound(q.length);
+        for (; i < limit; i += FLOAT_SPECIES.length()) {
+            FloatVector qv = FloatVector.fromArray(FLOAT_SPECIES, q, i);
+            ByteVector bv = ByteVector.fromArray(BYTE_SPECIES_FOR_FLOATS, d, i);
+            acc = qv.fma(bv.castShape(FLOAT_SPECIES, 0), acc);
+        }
+
+        float sum = acc.reduceLanes(VectorOperators.ADD);
+
+        // handle the tail
+        for (; i < q.length; i++) {
+            sum += q[i] * d[i];
+        }
+
+        return sum;
     }
 
     @Override
@@ -943,371 +1421,6 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
         return sqDist + soarLambda * proj * proj / rnorm;
     }
 
-    private static final VectorSpecies<Byte> BYTE_SPECIES_128 = ByteVector.SPECIES_128;
-    private static final VectorSpecies<Byte> BYTE_SPECIES_256 = ByteVector.SPECIES_256;
-
-    static long ipByteBin256(byte[] q, byte[] d) {
-        long subRet0 = 0;
-        long subRet1 = 0;
-        long subRet2 = 0;
-        long subRet3 = 0;
-        int i = 0;
-
-        if (d.length >= ByteVector.SPECIES_256.vectorByteSize() * 2) {
-            int limit = ByteVector.SPECIES_256.loopBound(d.length);
-            var sum0 = LongVector.zero(LongVector.SPECIES_256);
-            var sum1 = LongVector.zero(LongVector.SPECIES_256);
-            var sum2 = LongVector.zero(LongVector.SPECIES_256);
-            var sum3 = LongVector.zero(LongVector.SPECIES_256);
-            for (; i < limit; i += ByteVector.SPECIES_256.length()) {
-                var vq0 = ByteVector.fromArray(BYTE_SPECIES_256, q, i).reinterpretAsLongs();
-                var vq1 = ByteVector.fromArray(BYTE_SPECIES_256, q, i + d.length).reinterpretAsLongs();
-                var vq2 = ByteVector.fromArray(BYTE_SPECIES_256, q, i + d.length * 2).reinterpretAsLongs();
-                var vq3 = ByteVector.fromArray(BYTE_SPECIES_256, q, i + d.length * 3).reinterpretAsLongs();
-                var vd = ByteVector.fromArray(BYTE_SPECIES_256, d, i).reinterpretAsLongs();
-                sum0 = sum0.add(vq0.and(vd).lanewise(VectorOperators.BIT_COUNT));
-                sum1 = sum1.add(vq1.and(vd).lanewise(VectorOperators.BIT_COUNT));
-                sum2 = sum2.add(vq2.and(vd).lanewise(VectorOperators.BIT_COUNT));
-                sum3 = sum3.add(vq3.and(vd).lanewise(VectorOperators.BIT_COUNT));
-            }
-            subRet0 += sum0.reduceLanes(VectorOperators.ADD);
-            subRet1 += sum1.reduceLanes(VectorOperators.ADD);
-            subRet2 += sum2.reduceLanes(VectorOperators.ADD);
-            subRet3 += sum3.reduceLanes(VectorOperators.ADD);
-        }
-
-        if (d.length - i >= ByteVector.SPECIES_128.vectorByteSize()) {
-            var sum0 = LongVector.zero(LongVector.SPECIES_128);
-            var sum1 = LongVector.zero(LongVector.SPECIES_128);
-            var sum2 = LongVector.zero(LongVector.SPECIES_128);
-            var sum3 = LongVector.zero(LongVector.SPECIES_128);
-            int limit = ByteVector.SPECIES_128.loopBound(d.length);
-            for (; i < limit; i += ByteVector.SPECIES_128.length()) {
-                var vq0 = ByteVector.fromArray(BYTE_SPECIES_128, q, i).reinterpretAsLongs();
-                var vq1 = ByteVector.fromArray(BYTE_SPECIES_128, q, i + d.length).reinterpretAsLongs();
-                var vq2 = ByteVector.fromArray(BYTE_SPECIES_128, q, i + d.length * 2).reinterpretAsLongs();
-                var vq3 = ByteVector.fromArray(BYTE_SPECIES_128, q, i + d.length * 3).reinterpretAsLongs();
-                var vd = ByteVector.fromArray(BYTE_SPECIES_128, d, i).reinterpretAsLongs();
-                sum0 = sum0.add(vq0.and(vd).lanewise(VectorOperators.BIT_COUNT));
-                sum1 = sum1.add(vq1.and(vd).lanewise(VectorOperators.BIT_COUNT));
-                sum2 = sum2.add(vq2.and(vd).lanewise(VectorOperators.BIT_COUNT));
-                sum3 = sum3.add(vq3.and(vd).lanewise(VectorOperators.BIT_COUNT));
-            }
-            subRet0 += sum0.reduceLanes(VectorOperators.ADD);
-            subRet1 += sum1.reduceLanes(VectorOperators.ADD);
-            subRet2 += sum2.reduceLanes(VectorOperators.ADD);
-            subRet3 += sum3.reduceLanes(VectorOperators.ADD);
-        }
-        // tail as bytes
-        for (; i < d.length; i++) {
-            subRet0 += Integer.bitCount((q[i] & d[i]) & 0xFF);
-            subRet1 += Integer.bitCount((q[i + d.length] & d[i]) & 0xFF);
-            subRet2 += Integer.bitCount((q[i + 2 * d.length] & d[i]) & 0xFF);
-            subRet3 += Integer.bitCount((q[i + 3 * d.length] & d[i]) & 0xFF);
-        }
-        return subRet0 + (subRet1 << 1) + (subRet2 << 2) + (subRet3 << 3);
-    }
-
-    public static long ipByteBin128(byte[] q, byte[] d) {
-        long subRet0 = 0;
-        long subRet1 = 0;
-        long subRet2 = 0;
-        long subRet3 = 0;
-        int i = 0;
-
-        var sum0 = IntVector.zero(IntVector.SPECIES_128);
-        var sum1 = IntVector.zero(IntVector.SPECIES_128);
-        var sum2 = IntVector.zero(IntVector.SPECIES_128);
-        var sum3 = IntVector.zero(IntVector.SPECIES_128);
-        int limit = ByteVector.SPECIES_128.loopBound(d.length);
-        for (; i < limit; i += ByteVector.SPECIES_128.length()) {
-            var vd = ByteVector.fromArray(BYTE_SPECIES_128, d, i).reinterpretAsInts();
-            var vq0 = ByteVector.fromArray(BYTE_SPECIES_128, q, i).reinterpretAsInts();
-            var vq1 = ByteVector.fromArray(BYTE_SPECIES_128, q, i + d.length).reinterpretAsInts();
-            var vq2 = ByteVector.fromArray(BYTE_SPECIES_128, q, i + d.length * 2).reinterpretAsInts();
-            var vq3 = ByteVector.fromArray(BYTE_SPECIES_128, q, i + d.length * 3).reinterpretAsInts();
-            sum0 = sum0.add(vd.and(vq0).lanewise(VectorOperators.BIT_COUNT));
-            sum1 = sum1.add(vd.and(vq1).lanewise(VectorOperators.BIT_COUNT));
-            sum2 = sum2.add(vd.and(vq2).lanewise(VectorOperators.BIT_COUNT));
-            sum3 = sum3.add(vd.and(vq3).lanewise(VectorOperators.BIT_COUNT));
-        }
-        subRet0 += sum0.reduceLanes(VectorOperators.ADD);
-        subRet1 += sum1.reduceLanes(VectorOperators.ADD);
-        subRet2 += sum2.reduceLanes(VectorOperators.ADD);
-        subRet3 += sum3.reduceLanes(VectorOperators.ADD);
-        // tail as bytes
-        for (; i < d.length; i++) {
-            int dValue = d[i];
-            subRet0 += Integer.bitCount((dValue & q[i]) & 0xFF);
-            subRet1 += Integer.bitCount((dValue & q[i + d.length]) & 0xFF);
-            subRet2 += Integer.bitCount((dValue & q[i + 2 * d.length]) & 0xFF);
-            subRet3 += Integer.bitCount((dValue & q[i + 3 * d.length]) & 0xFF);
-        }
-        return subRet0 + (subRet1 << 1) + (subRet2 << 2) + (subRet3 << 3);
-    }
-
-    private static final VectorSpecies<Integer> INT_SPECIES_512 = IntVector.SPECIES_512;
-    private static final VectorSpecies<Integer> INT_SPECIES_256 = IntVector.SPECIES_256;
-    private static final VectorSpecies<Short> SHORT_SPECIES_256 = ShortVector.SPECIES_256;
-    private static final VectorSpecies<Short> SHORT_SPECIES_128 = ShortVector.SPECIES_128;
-    private static final VectorSpecies<Byte> BYTE_SPECIES_64 = ByteVector.SPECIES_64;
-
-    private static int limit(int length, int sectionSize) {
-        return length - (length % sectionSize);
-    }
-
-    static int ipByteBit512(byte[] q, byte[] d) {
-        assert q.length == d.length * Byte.SIZE;
-        int i = 0;
-        int sum = 0;
-
-        int sectionLength = INT_SPECIES_512.length() * 4;
-        if (q.length >= sectionLength) {
-            IntVector acc0 = IntVector.zero(INT_SPECIES_512);
-            IntVector acc1 = IntVector.zero(INT_SPECIES_512);
-            IntVector acc2 = IntVector.zero(INT_SPECIES_512);
-            IntVector acc3 = IntVector.zero(INT_SPECIES_512);
-            int limit = limit(q.length, sectionLength);
-            for (; i < limit; i += sectionLength) {
-                var vals0 = ByteVector.fromArray(BYTE_SPECIES_128, q, i).castShape(INT_SPECIES_512, 0);
-                var vals1 = ByteVector.fromArray(BYTE_SPECIES_128, q, i + INT_SPECIES_512.length()).castShape(INT_SPECIES_512, 0);
-                var vals2 = ByteVector.fromArray(BYTE_SPECIES_128, q, i + INT_SPECIES_512.length() * 2).castShape(INT_SPECIES_512, 0);
-                var vals3 = ByteVector.fromArray(BYTE_SPECIES_128, q, i + INT_SPECIES_512.length() * 3).castShape(INT_SPECIES_512, 0);
-
-                long maskBits = Long.reverse((long) BitUtil.VH_BE_LONG.get(d, i / 8));
-                var mask0 = VectorMask.fromLong(INT_SPECIES_512, maskBits);
-                var mask1 = VectorMask.fromLong(INT_SPECIES_512, maskBits >> 16);
-                var mask2 = VectorMask.fromLong(INT_SPECIES_512, maskBits >> 32);
-                var mask3 = VectorMask.fromLong(INT_SPECIES_512, maskBits >> 48);
-
-                acc0 = acc0.add(vals0, mask0);
-                acc1 = acc1.add(vals1, mask1);
-                acc2 = acc2.add(vals2, mask2);
-                acc3 = acc3.add(vals3, mask3);
-            }
-            sum += acc0.reduceLanes(VectorOperators.ADD) + acc1.reduceLanes(VectorOperators.ADD) + acc2.reduceLanes(VectorOperators.ADD)
-                + acc3.reduceLanes(VectorOperators.ADD);
-        }
-
-        sectionLength = INT_SPECIES_256.length();
-        if (q.length - i >= sectionLength) {
-            IntVector acc = IntVector.zero(INT_SPECIES_256);
-            int limit = limit(q.length, sectionLength);
-            for (; i < limit; i += sectionLength) {
-                var vals = ByteVector.fromArray(BYTE_SPECIES_64, q, i).castShape(INT_SPECIES_256, 0);
-
-                long maskBits = Integer.reverse(d[i / 8]) >> 24;
-                var mask = VectorMask.fromLong(INT_SPECIES_256, maskBits);
-
-                acc = acc.add(vals, mask);
-            }
-            sum += acc.reduceLanes(VectorOperators.ADD);
-        }
-
-        // that should have got them all (q.length is a multiple of 8, which fits in a 256-bit vector)
-        assert i == q.length;
-        return sum;
-    }
-
-    static int ipByteBit256(byte[] q, byte[] d) {
-        assert q.length == d.length * Byte.SIZE;
-        int i = 0;
-        int sum = 0;
-
-        int sectionLength = INT_SPECIES_256.length() * 4;
-        if (q.length >= sectionLength) {
-            IntVector acc0 = IntVector.zero(INT_SPECIES_256);
-            IntVector acc1 = IntVector.zero(INT_SPECIES_256);
-            IntVector acc2 = IntVector.zero(INT_SPECIES_256);
-            IntVector acc3 = IntVector.zero(INT_SPECIES_256);
-            int limit = limit(q.length, sectionLength);
-            for (; i < limit; i += sectionLength) {
-                var vals0 = ByteVector.fromArray(BYTE_SPECIES_64, q, i).castShape(INT_SPECIES_256, 0);
-                var vals1 = ByteVector.fromArray(BYTE_SPECIES_64, q, i + INT_SPECIES_256.length()).castShape(INT_SPECIES_256, 0);
-                var vals2 = ByteVector.fromArray(BYTE_SPECIES_64, q, i + INT_SPECIES_256.length() * 2).castShape(INT_SPECIES_256, 0);
-                var vals3 = ByteVector.fromArray(BYTE_SPECIES_64, q, i + INT_SPECIES_256.length() * 3).castShape(INT_SPECIES_256, 0);
-
-                long maskBits = Integer.reverse((int) BitUtil.VH_BE_INT.get(d, i / 8));
-                var mask0 = VectorMask.fromLong(INT_SPECIES_256, maskBits);
-                var mask1 = VectorMask.fromLong(INT_SPECIES_256, maskBits >> 8);
-                var mask2 = VectorMask.fromLong(INT_SPECIES_256, maskBits >> 16);
-                var mask3 = VectorMask.fromLong(INT_SPECIES_256, maskBits >> 24);
-
-                acc0 = acc0.add(vals0, mask0);
-                acc1 = acc1.add(vals1, mask1);
-                acc2 = acc2.add(vals2, mask2);
-                acc3 = acc3.add(vals3, mask3);
-            }
-            sum += acc0.reduceLanes(VectorOperators.ADD) + acc1.reduceLanes(VectorOperators.ADD) + acc2.reduceLanes(VectorOperators.ADD)
-                + acc3.reduceLanes(VectorOperators.ADD);
-        }
-
-        sectionLength = INT_SPECIES_256.length();
-        if (q.length - i >= sectionLength) {
-            IntVector acc = IntVector.zero(INT_SPECIES_256);
-            int limit = limit(q.length, sectionLength);
-            for (; i < limit; i += sectionLength) {
-                var vals = ByteVector.fromArray(BYTE_SPECIES_64, q, i).castShape(INT_SPECIES_256, 0);
-
-                long maskBits = Integer.reverse(d[i / 8]) >> 24;
-                var mask = VectorMask.fromLong(INT_SPECIES_256, maskBits);
-
-                acc = acc.add(vals, mask);
-            }
-            sum += acc.reduceLanes(VectorOperators.ADD);
-        }
-
-        // that should have got them all (q.length is a multiple of 8, which fits in a 256-bit vector)
-        assert i == q.length;
-        return sum;
-    }
-
-    private static final VectorSpecies<Float> FLOAT_SPECIES_512 = FloatVector.SPECIES_512;
-    private static final VectorSpecies<Float> FLOAT_SPECIES_256 = FloatVector.SPECIES_256;
-
-    static float ipFloatBit512(float[] q, byte[] d) {
-        assert q.length == d.length * Byte.SIZE;
-        int i = 0;
-        float sum = 0;
-
-        int sectionLength = FLOAT_SPECIES_512.length() * 4;
-        if (q.length >= sectionLength) {
-            FloatVector acc0 = FloatVector.zero(FLOAT_SPECIES_512);
-            FloatVector acc1 = FloatVector.zero(FLOAT_SPECIES_512);
-            FloatVector acc2 = FloatVector.zero(FLOAT_SPECIES_512);
-            FloatVector acc3 = FloatVector.zero(FLOAT_SPECIES_512);
-            int limit = limit(q.length, sectionLength);
-            for (; i < limit; i += sectionLength) {
-                var floats0 = FloatVector.fromArray(FLOAT_SPECIES_512, q, i);
-                var floats1 = FloatVector.fromArray(FLOAT_SPECIES_512, q, i + FLOAT_SPECIES_512.length());
-                var floats2 = FloatVector.fromArray(FLOAT_SPECIES_512, q, i + FLOAT_SPECIES_512.length() * 2);
-                var floats3 = FloatVector.fromArray(FLOAT_SPECIES_512, q, i + FLOAT_SPECIES_512.length() * 3);
-
-                long maskBits = Long.reverse((long) BitUtil.VH_BE_LONG.get(d, i / 8));
-                var mask0 = VectorMask.fromLong(FLOAT_SPECIES_512, maskBits);
-                var mask1 = VectorMask.fromLong(FLOAT_SPECIES_512, maskBits >> 16);
-                var mask2 = VectorMask.fromLong(FLOAT_SPECIES_512, maskBits >> 32);
-                var mask3 = VectorMask.fromLong(FLOAT_SPECIES_512, maskBits >> 48);
-
-                acc0 = acc0.add(floats0, mask0);
-                acc1 = acc1.add(floats1, mask1);
-                acc2 = acc2.add(floats2, mask2);
-                acc3 = acc3.add(floats3, mask3);
-            }
-            sum += acc0.reduceLanes(VectorOperators.ADD) + acc1.reduceLanes(VectorOperators.ADD) + acc2.reduceLanes(VectorOperators.ADD)
-                + acc3.reduceLanes(VectorOperators.ADD);
-        }
-
-        sectionLength = FLOAT_SPECIES_256.length();
-        if (q.length - i >= sectionLength) {
-            FloatVector acc = FloatVector.zero(FLOAT_SPECIES_256);
-            int limit = limit(q.length, sectionLength);
-            for (; i < limit; i += sectionLength) {
-                var floats = FloatVector.fromArray(FLOAT_SPECIES_256, q, i);
-
-                long maskBits = Integer.reverse(d[i / 8]) >> 24;
-                var mask = VectorMask.fromLong(FLOAT_SPECIES_256, maskBits);
-
-                acc = acc.add(floats, mask);
-            }
-            sum += acc.reduceLanes(VectorOperators.ADD);
-        }
-
-        // that should have got them all (q.length is a multiple of 8, which fits in a 256-bit vector)
-        assert i == q.length;
-        return sum;
-    }
-
-    static float ipFloatBit256(float[] q, byte[] d) {
-        assert q.length == d.length * Byte.SIZE;
-        int i = 0;
-        float sum = 0;
-
-        int sectionLength = FLOAT_SPECIES_256.length() * 4;
-        if (q.length >= sectionLength) {
-            FloatVector acc0 = FloatVector.zero(FLOAT_SPECIES_256);
-            FloatVector acc1 = FloatVector.zero(FLOAT_SPECIES_256);
-            FloatVector acc2 = FloatVector.zero(FLOAT_SPECIES_256);
-            FloatVector acc3 = FloatVector.zero(FLOAT_SPECIES_256);
-            int limit = limit(q.length, sectionLength);
-            for (; i < limit; i += sectionLength) {
-                var floats0 = FloatVector.fromArray(FLOAT_SPECIES_256, q, i);
-                var floats1 = FloatVector.fromArray(FLOAT_SPECIES_256, q, i + FLOAT_SPECIES_256.length());
-                var floats2 = FloatVector.fromArray(FLOAT_SPECIES_256, q, i + FLOAT_SPECIES_256.length() * 2);
-                var floats3 = FloatVector.fromArray(FLOAT_SPECIES_256, q, i + FLOAT_SPECIES_256.length() * 3);
-
-                long maskBits = Integer.reverse((int) BitUtil.VH_BE_INT.get(d, i / 8));
-                var mask0 = VectorMask.fromLong(FLOAT_SPECIES_256, maskBits);
-                var mask1 = VectorMask.fromLong(FLOAT_SPECIES_256, maskBits >> 8);
-                var mask2 = VectorMask.fromLong(FLOAT_SPECIES_256, maskBits >> 16);
-                var mask3 = VectorMask.fromLong(FLOAT_SPECIES_256, maskBits >> 24);
-
-                acc0 = acc0.add(floats0, mask0);
-                acc1 = acc1.add(floats1, mask1);
-                acc2 = acc2.add(floats2, mask2);
-                acc3 = acc3.add(floats3, mask3);
-            }
-            sum += acc0.reduceLanes(VectorOperators.ADD) + acc1.reduceLanes(VectorOperators.ADD) + acc2.reduceLanes(VectorOperators.ADD)
-                + acc3.reduceLanes(VectorOperators.ADD);
-        }
-
-        sectionLength = FLOAT_SPECIES_256.length();
-        if (q.length - i >= sectionLength) {
-            FloatVector acc = FloatVector.zero(FLOAT_SPECIES_256);
-            int limit = limit(q.length, sectionLength);
-            for (; i < limit; i += sectionLength) {
-                var floats = FloatVector.fromArray(FLOAT_SPECIES_256, q, i);
-
-                long maskBits = Integer.reverse(d[i / 8]) >> 24;
-                var mask = VectorMask.fromLong(FLOAT_SPECIES_256, maskBits);
-
-                acc = acc.add(floats, mask);
-            }
-            sum += acc.reduceLanes(VectorOperators.ADD);
-        }
-
-        // that should have got them all (q.length is a multiple of 8, which fits in a 256-bit vector)
-        assert i == q.length;
-        return sum;
-    }
-
-    private static final VectorSpecies<Float> PREFERRED_FLOAT_SPECIES = PanamaVectorConstants.PREFERRED_FLOAT_SPECIES;
-    private static final VectorSpecies<Byte> BYTE_SPECIES_FOR_PREFFERED_FLOATS;
-
-    static {
-        VectorSpecies<Byte> byteForFloat;
-        try {
-            // calculate vector size to convert from single bytes to 4-byte floats
-            byteForFloat = VectorSpecies.of(byte.class, VectorShape.forBitSize(PREFERRED_FLOAT_SPECIES.vectorBitSize() / Float.BYTES));
-        } catch (IllegalArgumentException e) {
-            // can't get a byte vector size small enough, just use default impl
-            byteForFloat = null;
-        }
-        BYTE_SPECIES_FOR_PREFFERED_FLOATS = byteForFloat;
-    }
-
-    public static float ipFloatByteImpl(float[] q, byte[] d) {
-        assert BYTE_SPECIES_FOR_PREFFERED_FLOATS != null;
-        FloatVector acc = FloatVector.zero(PREFERRED_FLOAT_SPECIES);
-        int i = 0;
-
-        int limit = PREFERRED_FLOAT_SPECIES.loopBound(q.length);
-        for (; i < limit; i += PREFERRED_FLOAT_SPECIES.length()) {
-            FloatVector qv = FloatVector.fromArray(PREFERRED_FLOAT_SPECIES, q, i);
-            ByteVector bv = ByteVector.fromArray(BYTE_SPECIES_FOR_PREFFERED_FLOATS, d, i);
-            acc = qv.fma(bv.castShape(PREFERRED_FLOAT_SPECIES, 0), acc);
-        }
-
-        float sum = acc.reduceLanes(VectorOperators.ADD);
-
-        // handle the tail
-        for (; i < q.length; i++) {
-            sum += q[i] * d[i];
-        }
-
-        return sum;
-    }
-
     @Override
     public int quantizeVectorWithIntervals(float[] vector, int[] destination, float lowInterval, float upperInterval, byte bits) {
         float nSteps = ((1 << bits) - 1);
@@ -1339,13 +1452,13 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
 
     @Override
     public void dotProductBulk(float[] query, float[] v0, float[] v1, float[] v2, float[] v3, int distancesOffset, float[] distances) {
+        int i = 0;
+        final int vectorEnd = FLOAT_SPECIES.loopBound(query.length);
+
         FloatVector sv0 = FloatVector.zero(FLOAT_SPECIES);
         FloatVector sv1 = FloatVector.zero(FLOAT_SPECIES);
         FloatVector sv2 = FloatVector.zero(FLOAT_SPECIES);
         FloatVector sv3 = FloatVector.zero(FLOAT_SPECIES);
-        final int vectorEnd = FLOAT_SPECIES.loopBound(query.length);
-        int i = 0;
-
         for (; i < vectorEnd; i += FLOAT_SPECIES.length()) {
             FloatVector qv = FloatVector.fromArray(FLOAT_SPECIES, query, i);
             FloatVector dv0 = FloatVector.fromArray(FLOAT_SPECIES, v0, i);
@@ -1389,14 +1502,14 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
         float[] distances,
         int length
     ) {
+        int i = queryOffset;
+        int vectorEnd = queryOffset + FLOAT_SPECIES.loopBound(length);
+        int end = queryOffset + length;
+
         FloatVector sv0 = FloatVector.zero(FLOAT_SPECIES);
         FloatVector sv1 = FloatVector.zero(FLOAT_SPECIES);
         FloatVector sv2 = FloatVector.zero(FLOAT_SPECIES);
         FloatVector sv3 = FloatVector.zero(FLOAT_SPECIES);
-        final int end = queryOffset + length;
-        final int vectorEnd = queryOffset + FLOAT_SPECIES.loopBound(length);
-        int i = queryOffset;
-
         for (; i < vectorEnd; i += FLOAT_SPECIES.length()) {
             FloatVector qv = FloatVector.fromArray(FLOAT_SPECIES, query, i);
             FloatVector dv0 = FloatVector.fromArray(FLOAT_SPECIES, v0, i);
@@ -1440,7 +1553,8 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
     public void dotProductBulk(byte[] query, byte[] v0, byte[] v1, byte[] v2, byte[] v3, int distancesOffset, float[] distances) {
         int i = 0;
         int[] result = new int[4];
-        if (query.length >= 16 && HAS_FAST_INTEGER_VECTORS) {
+
+        if (query.length >= 128 / Byte.SIZE && HAS_FAST_INTEGER_VECTORS) {
             if (VECTOR_BITSIZE >= 512) {
                 i = BYTE_SPECIES_128.loopBound(query.length);
                 dotProductBulkBody512(query, v0, v1, v2, v3, i, result);
@@ -1563,7 +1677,8 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
         int qNorm = 0;
         int[] vNorms = new int[4];
         int[] dots = new int[4];
-        if (query.length >= 16 && HAS_FAST_INTEGER_VECTORS) {
+
+        if (query.length >= 128 / Byte.SIZE && HAS_FAST_INTEGER_VECTORS) {
             if (VECTOR_BITSIZE >= 512) {
                 i = BYTE_SPECIES_128.loopBound(query.length);
                 qNorm = cosineBulkBody512(query, v0, v1, v2, v3, i, vNorms, dots);
@@ -1754,7 +1869,7 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
     @Override
     public void squareDistanceBulk(
         byte[] query,
-        int queryOffset,
+        int vectorOffset,
         byte[] v0,
         byte[] v1,
         byte[] v2,
@@ -1765,25 +1880,26 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
     ) {
         int i = 0;
         int[] result = new int[4];
-        if (length >= 16 && HAS_FAST_INTEGER_VECTORS) {
+
+        if (length >= 128 / Byte.SIZE && HAS_FAST_INTEGER_VECTORS) {
             if (VECTOR_BITSIZE >= 512) {
                 i = BYTE_SPECIES_128.loopBound(length);
-                squareDistanceBulkBody512(query, queryOffset, v0, v1, v2, v3, i, result);
+                squareDistanceBulkBody512(query, vectorOffset, v0, v1, v2, v3, i, result);
             } else if (VECTOR_BITSIZE == 256) {
                 i = BYTE_SPECIES_64.loopBound(length);
-                squareDistanceBulkBody256(query, queryOffset, v0, v1, v2, v3, i, result);
+                squareDistanceBulkBody256(query, vectorOffset, v0, v1, v2, v3, i, result);
             } else {
                 i = BYTE_SPECIES_64.loopBound(length);
-                squareDistanceBulkBody128(query, queryOffset, v0, v1, v2, v3, i, result);
+                squareDistanceBulkBody128(query, vectorOffset, v0, v1, v2, v3, i, result);
             }
         }
 
         for (; i < length; i++) {
-            int q = query[queryOffset + i];
-            int d0 = q - v0[queryOffset + i];
-            int d1 = q - v1[queryOffset + i];
-            int d2 = q - v2[queryOffset + i];
-            int d3 = q - v3[queryOffset + i];
+            int q = query[vectorOffset + i];
+            int d0 = q - v0[vectorOffset + i];
+            int d1 = q - v1[vectorOffset + i];
+            int d2 = q - v2[vectorOffset + i];
+            int d3 = q - v3[vectorOffset + i];
             result[0] += d0 * d0;
             result[1] += d1 * d1;
             result[2] += d2 * d2;
@@ -2114,7 +2230,6 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
         distances[3] = sqDist3 + soarLambda * proj3 * proj3 / rnorm;
     }
 
-    private static final VectorSpecies<Integer> INT_SPECIES_128 = IntVector.SPECIES_128;
     private static final IntVector SHIFTS_256;
     private static final IntVector HIGH_SHIFTS_128;
     private static final IntVector LOW_SHIFTS_128;

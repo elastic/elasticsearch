@@ -128,7 +128,7 @@ public interface ESVectorUtilSupport {
 
     void squareDistanceBulk(
         byte[] query,
-        int queryOffset,
+        int vectorOffset,
         byte[] v0,
         byte[] v1,
         byte[] v2,

@@ -3516,19 +3516,19 @@ public class TranslogTests extends ESTestCase {
     }
 
     /**
-     * For slice-enabled indices the {@code _id} term is the composite {@code encodeId("slice#id")}. The engine builds a
-     * delete against that term, so {@link Translog.Delete} simply carries the composite uid; it is self-describing and
-     * round-trips through serialization with no separate routing channel.
+     * For slice-enabled indices the {@code _id} identity term is the compound {@code encodeCompoundId(id, slice)}. The
+     * engine builds a delete against that term, so {@link Translog.Delete} carries the compound uid; it is self-describing
+     * (the plain id and slice are recoverable from it) and round-trips through serialization with no routing channel.
      */
-    public void testTranslogDeleteCompositeUidSerialization() throws Exception {
-        final BytesRef compositeUid = Uid.encodeId(Uid.compositeId("slice-1", "the-id"));
+    public void testTranslogDeleteCompoundUidSerialization() throws Exception {
+        final BytesRef compoundUid = Uid.encodeCompoundId("the-id", "slice-1");
         final long seqNo = randomNonNegativeLong();
         final long primaryTerm = randomLongBetween(1, Long.MAX_VALUE);
         final long version = randomLongBetween(1, Long.MAX_VALUE);
 
         Engine.Delete delete = new Engine.Delete(
             "the-id",
-            compositeUid,
+            compoundUid,
             seqNo,
             primaryTerm,
             version,
@@ -3539,13 +3539,14 @@ public class TranslogTests extends ESTestCase {
             0
         );
         Translog.Delete translogDelete = new Translog.Delete(delete, new Engine.DeleteResult(version, primaryTerm, seqNo, true, "the-id"));
-        assertEquals("translog Delete carries the composite term", compositeUid, translogDelete.uid());
+        assertEquals("translog Delete carries the compound term", compoundUid, translogDelete.uid());
 
         Translog.Delete roundTripped = copyDelete(translogDelete, TransportVersionUtils.randomCompatibleVersion());
         assertEquals(translogDelete, roundTripped);
-        assertEquals(compositeUid, roundTripped.uid());
-        // The plain id and slice are recoverable from the composite term, so replay needs no separate routing.
-        assertEquals("the-id", Uid.idFromCompositeId(Uid.decodeId(roundTripped.uid())));
+        assertEquals(compoundUid, roundTripped.uid());
+        // The plain id and slice are recoverable from the compound term, so replay needs no separate routing.
+        assertEquals("the-id", Uid.decodeCompoundId(roundTripped.uid()));
+        assertEquals("slice-1", Uid.sliceFromCompoundId(roundTripped.uid()));
     }
 
     private static Translog.Delete copyDelete(Translog.Delete delete, TransportVersion version) throws IOException {

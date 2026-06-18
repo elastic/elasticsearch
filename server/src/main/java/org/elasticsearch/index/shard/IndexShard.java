@@ -113,6 +113,7 @@ import org.elasticsearch.index.get.GetStats;
 import org.elasticsearch.index.get.ShardGetService;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.mapper.MapperService;
@@ -1117,9 +1118,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             // whether mappings were provided or not.
             doc.addDynamicMappingsUpdate(Mapping.emptyCompressed());
         }
-        final BytesRef uid = mapperService.getIndexSettings().isSliceEnabled() && source.routing() != null
-            ? Uid.encodeId(Uid.compositeId(source.routing(), doc.id()))
-            : Uid.encodeId(doc.id());
+        final BytesRef uid = IdFieldMapper.encodeIdentity(mapperService.getIndexSettings(), doc.id(), source.routing());
         return new Engine.Index(
             uid,
             doc,
@@ -1387,9 +1386,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         long ifPrimaryTerm
     ) {
         long startTime = System.nanoTime();
-        // On the primary write path routing is the slice, so build the composite term. On replay routing is null and id is
-        // already the composite "slice#id", so encodeId(id) reproduces the original term (no double-encode).
-        BytesRef uid = sliceEnabled && routing != null ? Uid.encodeId(Uid.compositeId(routing, id)) : Uid.encodeId(id);
+        // For a slice-enabled index the identity term is the compound encodeCompoundId(id, slice); slice writes/replays
+        // always supply the slice as routing (see IndexShard.applyTranslogOperation DELETE, which recovers it from the uid).
+        BytesRef uid = IdFieldMapper.encodeIdentity(sliceEnabled, id, routing);
         return new Engine.Delete(id, uid, seqNo, primaryTerm, version, versionType, origin, startTime, ifSeqNo, ifPrimaryTerm);
     }
 
@@ -2302,15 +2301,19 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             }
             case DELETE -> {
                 final Translog.Delete delete = (Translog.Delete) operation;
-                // The translog Delete uid is self-describing: for slice indices it is encodeId("slice#id"), so
-                // Uid.decodeId yields "slice#id" and prepareDelete (with routing=null) re-encodes it to the same term.
+                // The translog Delete uid is the engine identity term. For a slice index it is the compound
+                // encodeCompoundId(id, slice); recover (id, slice) from it so prepareDelete rebuilds the exact same term.
+                // For a non-slice index it is the plain encodeId(id).
+                final boolean sliceEnabled = mapperService.getIndexSettings().isSliceEnabled();
+                final String id = sliceEnabled ? Uid.decodeCompoundId(delete.uid()) : Uid.decodeId(delete.uid());
+                final String routing = sliceEnabled ? Uid.sliceFromCompoundId(delete.uid()) : null;
                 result = applyDeleteOperation(
                     engine,
                     delete.seqNo(),
                     delete.primaryTerm(),
                     delete.version(),
-                    Uid.decodeId(delete.uid()),
-                    null,
+                    id,
+                    routing,
                     versionType,
                     UNASSIGNED_SEQ_NO,
                     0,

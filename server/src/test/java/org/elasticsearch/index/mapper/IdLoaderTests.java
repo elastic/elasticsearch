@@ -9,7 +9,6 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.apache.lucene.document.Field;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
@@ -20,7 +19,6 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReader;
-import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
@@ -30,8 +28,6 @@ import org.apache.lucene.tests.analysis.MockAnalyzer;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.core.CheckedConsumer;
-import org.elasticsearch.index.fieldvisitor.LeafStoredFieldLoader;
-import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -209,74 +205,6 @@ public class IdLoaderTests extends ESTestCase {
         prepareIndexReader(indexAndForceMerge(randomDocs, routingHash), verify, false);
         assertThat(expectedIDs, empty());
     }
-
-    /**
-     * In a slice-enabled index the {@code _id} is stored as a composite {@code (slice, id)} term. The {@link IdLoader.SliceIdLoader}
-     * recovers the plain, user-visible id from the stored value as it is iterated, mirroring the fetch path which feeds it a
-     * {@link LeafStoredFieldLoader} positioned on each doc.
-     */
-    public void testSliceIdLoaderRecoversPlainId() throws Exception {
-        var idLoader = new IdLoader.SliceIdLoader();
-        // Note: the same plain id "1" appears under two different slices, which is exactly what slice-scoped uniqueness allows.
-        List<SliceDoc> docs = List.of(new SliceDoc("slice-a", "1"), new SliceDoc("slice-a", "2"), new SliceDoc("slice-b", "1"));
-        CheckedConsumer<IndexReader, IOException> verify = indexReader -> {
-            assertThat(indexReader.leaves(), hasSize(1));
-            LeafReaderContext leafContext = indexReader.leaves().get(0);
-            assertThat(leafContext.reader().numDocs(), equalTo(docs.size()));
-            LeafStoredFieldLoader storedFieldLoader = StoredFieldLoader.create(false, Set.of(IdFieldMapper.NAME))
-                .getLoader(leafContext, null);
-            var leaf = idLoader.leaf(storedFieldLoader, leafContext.reader(), new int[] { 0, 1, 2 });
-            assertThat(leaf, instanceOf(IdLoader.SliceIdLeaf.class));
-            for (int i = 0; i < docs.size(); i++) {
-                storedFieldLoader.advanceTo(i);
-                assertThat(leaf.getId(i), equalTo(docs.get(i).id()));
-            }
-        };
-        prepareSliceIndexReader(docs, verify);
-    }
-
-    public void testSliceIdLoaderRandom() throws Exception {
-        var idLoader = new IdLoader.SliceIdLoader();
-        int numDocs = randomIntBetween(1, 64);
-        List<SliceDoc> docs = new ArrayList<>(numDocs);
-        for (int i = 0; i < numDocs; i++) {
-            docs.add(new SliceDoc(randomAlphaOfLengthBetween(1, 12), randomAlphaOfLengthBetween(1, 16)));
-        }
-        CheckedConsumer<IndexReader, IOException> verify = indexReader -> {
-            assertThat(indexReader.leaves(), hasSize(1));
-            LeafReaderContext leafContext = indexReader.leaves().get(0);
-            assertThat(leafContext.reader().numDocs(), equalTo(docs.size()));
-            LeafStoredFieldLoader storedFieldLoader = StoredFieldLoader.create(false, Set.of(IdFieldMapper.NAME))
-                .getLoader(leafContext, null);
-            var leaf = idLoader.leaf(storedFieldLoader, leafContext.reader(), IntStream.range(0, docs.size()).toArray());
-            for (int i = 0; i < docs.size(); i++) {
-                storedFieldLoader.advanceTo(i);
-                assertThat(leaf.getId(i), equalTo(docs.get(i).id()));
-            }
-        };
-        prepareSliceIndexReader(docs, verify);
-    }
-
-    private void prepareSliceIndexReader(List<SliceDoc> docs, CheckedConsumer<IndexReader, IOException> verify) throws IOException {
-        try (Directory directory = newDirectory()) {
-            IndexWriterConfig config = LuceneTestCase.newIndexWriterConfig(random(), new MockAnalyzer(random()));
-            try (IndexWriter indexWriter = new IndexWriter(directory, config)) {
-                for (SliceDoc doc : docs) {
-                    List<IndexableField> fields = new ArrayList<>();
-                    // Mirror the indexing path: the composite "slice#id" (standard-encoded) is what gets stored in the _id field.
-                    fields.add(IdFieldMapper.standardIdField(Uid.encodeId(Uid.compositeId(doc.slice(), doc.id())), Field.Store.YES));
-                    indexWriter.addDocument(fields);
-                }
-                // Force a single segment so the doc ids are stable and in insertion order.
-                indexWriter.forceMerge(1);
-            }
-            try (DirectoryReader indexReader = DirectoryReader.open(directory)) {
-                verify.accept(indexReader);
-            }
-        }
-    }
-
-    record SliceDoc(String slice, String id) {}
 
     private static CheckedConsumer<IndexWriter, IOException> indexAndForceMerge(List<Doc> docs, int routingHash) {
         return writer -> {

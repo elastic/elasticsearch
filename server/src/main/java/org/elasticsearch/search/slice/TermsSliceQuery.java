@@ -42,8 +42,20 @@ public final class TermsSliceQuery extends SliceQuery {
     // Fixed seed for computing term hashCode
     public static final int SEED = 7919;
 
+    /**
+     * When slicing on {@code _id} in a slice-enabled index there are two terms per document (a search term ending in
+     * {@code 0x00} and a compound term ending in its slice length {@code >= 1}); hash only the search terms so each
+     * document falls into exactly one slice partition.
+     */
+    private final boolean idSearchTermsOnly;
+
     public TermsSliceQuery(String field, int id, int max) {
+        this(field, id, max, false);
+    }
+
+    public TermsSliceQuery(String field, int id, int max, boolean idSearchTermsOnly) {
         super(field, id, max);
+        this.idSearchTermsOnly = idSearchTermsOnly;
     }
 
     @Override
@@ -76,6 +88,11 @@ public final class TermsSliceQuery extends SliceQuery {
         final TermsEnum te = terms.iterator();
         PostingsEnum docsEnum = null;
         for (BytesRef term = te.next(); term != null; term = te.next()) {
+            // In a slice-enabled index each doc has two _id terms; hash only the search term (trailing 0x00) so a doc is
+            // counted once.
+            if (idSearchTermsOnly && (term.length == 0 || term.bytes[term.offset + term.length - 1] != 0)) {
+                continue;
+            }
             // use a fixed seed instead of term.hashCode() otherwise this query may return inconsistent results when
             // running on another replica (StringHelper sets its default seed at startup with current time)
             int hashCode = StringHelper.murmurhash3_x86_32(term, SEED);
@@ -85,5 +102,15 @@ public final class TermsSliceQuery extends SliceQuery {
             }
         }
         return builder.build();
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        return super.equals(o) && idSearchTermsOnly == ((TermsSliceQuery) o).idSearchTermsOnly;
+    }
+
+    @Override
+    public int hashCode() {
+        return 31 * super.hashCode() + Boolean.hashCode(idSearchTermsOnly);
     }
 }

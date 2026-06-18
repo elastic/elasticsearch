@@ -16,7 +16,9 @@ import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.query.SearchExecutionContext;
 
@@ -87,6 +89,22 @@ public abstract class IdFieldMapper extends MetadataFieldMapper {
      */
     public static Field standardIdField(BytesRef uid, Field.Store stored) {
         return new StringField(NAME, uid, stored);
+    }
+
+    /**
+     * Resolve the identity term bytes — the {@code _id} term used for uniqueness/versioning/GET/delete (i.e.
+     * {@link org.elasticsearch.index.engine.Engine.Operation#uid()}) — for the given index. This is the single
+     * source of truth for the encoding: a slice-enabled index uses the slice-scoped compound term
+     * {@link Uid#encodeCompoundId(String, String)}; every other index uses the plain {@link Uid#encodeId(String)}.
+     * Slice-enabled writes/gets always carry the slice as routing.
+     */
+    public static BytesRef encodeIdentity(IndexSettings indexSettings, String id, @Nullable String routing) {
+        return encodeIdentity(indexSettings.isSliceEnabled(), id, routing);
+    }
+
+    /** @see #encodeIdentity(IndexSettings, String, String) */
+    public static BytesRef encodeIdentity(boolean sliceEnabled, String id, @Nullable String routing) {
+        return sliceEnabled && routing != null ? Uid.encodeCompoundId(id, routing) : Uid.encodeId(id);
     }
 
     /**

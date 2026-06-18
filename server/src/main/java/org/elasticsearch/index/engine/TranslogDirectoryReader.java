@@ -356,7 +356,12 @@ final class TranslogDirectoryReader extends DirectoryReader {
             this.engineConfig = engineConfig;
             this.onSegmentCreated = onSegmentCreated;
             this.directory = directory;
-            this.uid = operation.uid();
+            // A realtime GET seeks the engine identity term. For a slice index that is the compound term, but the
+            // translog Index op carries the plain uid + routing, so reconstruct the compound here for the FakeTerms seek.
+            // (The fake stored _id below stays plain — it is read straight from operation.uid().)
+            this.uid = engineConfig.getIndexSettings().isSliceEnabled()
+                ? Uid.encodeCompoundId(Uid.decodeId(operation.uid()), operation.routing())
+                : operation.uid();
         }
 
         private LeafReader getDelegate() {
@@ -552,8 +557,11 @@ final class TranslogDirectoryReader extends DirectoryReader {
                 visitor.stringField(FAKE_ROUTING_FIELD, operation.routing());
             }
             if (visitor.needsField(FAKE_ID_FIELD) == StoredFieldVisitor.Status.YES) {
-                final byte[] id = new byte[uid.length];
-                System.arraycopy(uid.bytes, uid.offset, id, 0, uid.length);
+                // The stored _id is always the plain encodeId(id) (operation.uid()), even when the seek term (this.uid)
+                // is the slice compound.
+                final BytesRef plainUid = operation.uid();
+                final byte[] id = new byte[plainUid.length];
+                System.arraycopy(plainUid.bytes, plainUid.offset, id, 0, plainUid.length);
                 visitor.binaryField(FAKE_ID_FIELD, id);
             }
         }

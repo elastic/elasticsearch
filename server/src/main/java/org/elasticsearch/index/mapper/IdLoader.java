@@ -42,7 +42,7 @@ import java.util.TreeSet;
 /**
  * Responsible for loading the _id from stored fields or for TSDB synthesizing the _id from the routing, _tsid and @timestamp fields.
  */
-public sealed interface IdLoader permits IdLoader.TsIdLoader, IdLoader.StoredIdLoader, IdLoader.SliceIdLoader {
+public sealed interface IdLoader permits IdLoader.TsIdLoader, IdLoader.StoredIdLoader {
 
     /**
      * @return returns an {@link IdLoader} instance to load the value of the _id field.
@@ -70,9 +70,9 @@ public sealed interface IdLoader permits IdLoader.TsIdLoader, IdLoader.StoredIdL
                 }
             }
             return createTsIdLoader(indexRouting, routingPaths, indexSettings.useTimeSeriesSyntheticId());
-        } else if (indexSettings.isSliceEnabled()) {
-            return new SliceIdLoader();
         } else {
+            // Slice-enabled indices store the plain encodeId(id) as the _id stored field, so the standard
+            // stored-field loader returns the user-visible id directly.
             return fromLeafStoredFieldLoader();
         }
     }
@@ -102,7 +102,7 @@ public sealed interface IdLoader permits IdLoader.TsIdLoader, IdLoader.StoredIdL
     /**
      * Returns a leaf instance for a leaf reader that returns the _id for segment level doc ids.
      */
-    sealed interface Leaf permits StoredLeaf, TsIdLeaf, LazyTsIdLeaf, LazyLegacyTsIdLeaf, SliceIdLeaf {
+    sealed interface Leaf permits StoredLeaf, TsIdLeaf, LazyTsIdLeaf, LazyLegacyTsIdLeaf {
 
         /**
          * @param subDocId The segment level doc id for which the return the _id
@@ -542,34 +542,4 @@ public sealed interface IdLoader permits IdLoader.TsIdLoader, IdLoader.StoredIdL
         }
     }
 
-    /** loads IDs that dynamically contain the user provided _slice as a prefix */
-    final class SliceIdLoader implements IdLoader {
-        @Override
-        public Leaf leaf(LeafStoredFieldLoader loader, LeafReader reader, int[] docIdsInLeaf) throws IOException {
-            return new SliceIdLeaf(loader);
-        }
-
-        @Override
-        public BlockLoader blockLoader(ByteSizeValue ordinalsByteSize) {
-            return new BlockStoredFieldsReader.SliceIdBlockLoader();
-        }
-    }
-
-    /**
-     * Loads the plain id from a slice-enabled index, where {@code _id} is stored as {@code encodeId("slice#id")}. The
-     * standard {@link LeafStoredFieldLoader#id()} already decodes that to the composite string; we only strip the slice
-     * prefix to recover the user-visible id.
-     */
-    final class SliceIdLeaf implements Leaf {
-        private final LeafStoredFieldLoader loader;
-
-        SliceIdLeaf(LeafStoredFieldLoader loader) {
-            this.loader = loader;
-        }
-
-        @Override
-        public String getId(int subDocId) {
-            return Uid.idFromCompositeId(loader.id());
-        }
-    }
 }

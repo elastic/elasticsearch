@@ -33,6 +33,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.mapper.DocumentParser;
+import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
@@ -44,7 +45,6 @@ import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.StringFieldType;
 import org.elasticsearch.index.mapper.TextSearchInfo;
-import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.xcontent.XContentType;
@@ -89,9 +89,7 @@ public class TermVectorsService {
                     request.realtime(),
                     false,
                     request.id(),
-                    indexShard.indexSettings().isSliceEnabled() && request.routing() != null
-                        ? Uid.encodeId(Uid.compositeId(request.routing(), request.id()))
-                        : Uid.encodeId(request.id())
+                    IdFieldMapper.encodeIdentity(indexShard.indexSettings(), request.id(), request.routing())
                 ).version(request.version()).versionType(request.versionType()),
                 request.getSplitShardCountSummary()
             );

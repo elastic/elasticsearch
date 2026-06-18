@@ -200,43 +200,4 @@ public abstract class BlockStoredFieldsReader implements BlockLoader.RowStrideRe
         }
     }
 
-    /**
-     * Load {@link BytesRef} blocks from stored {@code _id} fields in slice-enabled indices,
-     * decoding the composite slice+id term to recover the plain id.
-     */
-    public static class SliceIdBlockLoader extends StoredFieldsBlockLoader {
-        public SliceIdBlockLoader() {
-            super(IdFieldMapper.NAME);
-        }
-
-        @Override
-        public Builder builder(BlockFactory factory, int expectedCount) {
-            return factory.bytesRefs(expectedCount);
-        }
-
-        @Override
-        public RowStrideReader rowStrideReader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
-            return new SliceId(breaker);
-        }
-    }
-
-    private static class SliceId extends BlockStoredFieldsReader {
-        private final BytesRef scratch = new BytesRef();
-
-        protected SliceId(CircuitBreaker breaker) {
-            super(breaker);
-        }
-
-        @Override
-        public void read(int docId, BlockLoader.StoredFields storedFields, BlockLoader.Builder builder) throws IOException {
-            // storedFields.id() is the standard-decoded composite "slice#id"; strip the slice prefix to emit the plain id,
-            // matching the non-slice IdBlockLoader.
-            ((BytesRefBuilder) builder).appendBytesRef(BlockSourceReader.toBytesRef(scratch, Uid.idFromCompositeId(storedFields.id())));
-        }
-
-        @Override
-        public String toString() {
-            return "BlockStoredFieldsReader.SliceId";
-        }
-    }
 }

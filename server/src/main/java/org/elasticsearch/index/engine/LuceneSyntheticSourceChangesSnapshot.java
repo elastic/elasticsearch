@@ -11,15 +11,19 @@ package org.elasticsearch.index.engine;
 
 import com.carrotsearch.hppc.IntArrayList;
 
+import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedDocValues;
+import org.apache.lucene.index.StoredFieldVisitor;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.util.ArrayUtil;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.fieldvisitor.LeafStoredFieldLoader;
 import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
+import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMetrics;
@@ -49,6 +53,7 @@ public final class LuceneSyntheticSourceChangesSnapshot extends SearchBasedChang
     private final SourceLoader sourceLoader;
 
     private final boolean routingDocValues;
+    private final boolean sliceEnabled;
     private int skippedOperations;
     private long lastSeenSeqNo;
 
@@ -95,6 +100,7 @@ public final class LuceneSyntheticSourceChangesSnapshot extends SearchBasedChang
         this.storedFieldLoader = StoredFieldLoader.create(false, storedFields, forceSequentialReader);
         RoutingFieldMapper routingMapper = (RoutingFieldMapper) mapperService.mappingLookup().getMapper(RoutingFieldMapper.NAME);
         this.routingDocValues = routingMapper != null && routingMapper.docValues();
+        this.sliceEnabled = mapperService.getIndexSettings().isSliceEnabled();
         this.lastSeenSeqNo = fromSeqNo - 1;
     }
 
@@ -256,13 +262,20 @@ public final class LuceneSyntheticSourceChangesSnapshot extends SearchBasedChang
         int segmentDocID,
         LeafReaderContext context
     ) throws IOException {
-        if (docRecord.isTombstone() && fieldLoader.id() == null) {
-            assert docRecord.version() == 1L : "Noop tombstone should have version 1L; actual version [" + docRecord.version() + "]";
-            assert assertDocSoftDeleted(context.reader(), segmentDocID) : "Noop but soft_deletes field is not set [" + docRecord + "]";
-            return new Translog.NoOp(docRecord.seqNo(), docRecord.primaryTerm(), "null");
-        } else if (docRecord.isTombstone()) {
+        if (docRecord.isTombstone()) {
+            // For a slice index the tombstone _id is the compound term (not a plain encodeId), so read the raw bytes
+            // and use them directly as the Delete's identity term; a noop tombstone has no _id field.
+            final BytesRef sliceIdBytes = sliceEnabled ? readRawId(context, segmentDocID) : null;
+            final boolean hasId = sliceEnabled ? sliceIdBytes != null : fieldLoader.id() != null;
+            if (hasId == false) {
+                assert docRecord.version() == 1L : "Noop tombstone should have version 1L; actual version [" + docRecord.version() + "]";
+                assert assertDocSoftDeleted(context.reader(), segmentDocID) : "Noop but soft_deletes field is not set [" + docRecord + "]";
+                return new Translog.NoOp(docRecord.seqNo(), docRecord.primaryTerm(), "null");
+            }
             assert assertDocSoftDeleted(context.reader(), segmentDocID) : "Delete op but soft_deletes field is not set [" + docRecord + "]";
-            return new Translog.Delete(fieldLoader.id(), docRecord.seqNo(), docRecord.primaryTerm(), docRecord.version());
+            return sliceEnabled
+                ? new Translog.Delete(sliceIdBytes, docRecord.seqNo(), docRecord.primaryTerm(), docRecord.version())
+                : new Translog.Delete(fieldLoader.id(), docRecord.seqNo(), docRecord.primaryTerm(), docRecord.version());
         } else {
             if (docRecord.hasRecoverySourceSize() == false) {
                 // TODO: Callers should ask for the range that source should be retained. Thus we should always
@@ -298,5 +311,26 @@ public final class LuceneSyntheticSourceChangesSnapshot extends SearchBasedChang
             return routingDocValues.lookupOrd(routingDocValues.ordValue()).utf8ToString();
         }
         return null;
+    }
+
+    /** Read the raw stored {@code _id} bytes (the compound term on a slice tombstone), or {@code null} if absent. */
+    private static BytesRef readRawId(LeafReaderContext context, int segmentDocID) throws IOException {
+        RawIdVisitor visitor = new RawIdVisitor();
+        context.reader().storedFields().document(segmentDocID, visitor);
+        return visitor.idBytes;
+    }
+
+    private static final class RawIdVisitor extends StoredFieldVisitor {
+        private BytesRef idBytes;
+
+        @Override
+        public Status needsField(FieldInfo fieldInfo) {
+            return IdFieldMapper.NAME.equals(fieldInfo.name) ? Status.YES : Status.NO;
+        }
+
+        @Override
+        public void binaryField(FieldInfo fieldInfo, byte[] value) {
+            idBytes = new BytesRef(value);
+        }
     }
 }

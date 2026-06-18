@@ -12,6 +12,7 @@ import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.test.ESTestCase;
 
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Base64;
 
@@ -81,36 +82,58 @@ public class UidTests extends ESTestCase {
         }
     }
 
-    public void testCompositeIdRoundTrip() {
+    public void testCompoundIdRoundTrip() {
         final int iters = 10000;
         for (int iter = 0; iter < iters; ++iter) {
             final String slice = randomSlice();
             final String id = randomId();
-            String composite = Uid.compositeId(slice, id);
-            // The composite string is slice + "#" + id, and the plain id is recovered by splitting on the first '#'.
-            assertEquals(slice + "#" + id, composite);
-            assertEquals(id, Uid.idFromCompositeId(composite));
-            // The composite is encoded/decoded with the standard id pipeline, so it round-trips through encodeId/decodeId.
-            assertEquals(composite, Uid.decodeId(Uid.encodeId(composite)));
-            assertEquals(id, Uid.idFromCompositeId(Uid.decodeId(Uid.encodeId(composite))));
+            BytesRef compound = Uid.encodeCompoundId(id, slice);
+            BytesRef search = Uid.searchTerm(id);
+            // The plain id and the slice round-trip from the compound term...
+            assertEquals(id, Uid.decodeCompoundId(compound));
+            assertEquals(slice, Uid.sliceFromCompoundId(compound));
+            // ...and the plain id round-trips from the search term (empty-slice member of the same format).
+            assertEquals(id, Uid.decodeCompoundId(search));
+            assertEquals("", Uid.sliceFromCompoundId(search));
+            // The plain encoded id is the prefix shared by both terms; the trailing byte holds the slice length.
+            BytesRef plain = Uid.encodeId(id);
+            assertEquals(plain.length + slice.getBytes(StandardCharsets.UTF_8).length + 1, compound.length);
+            assertEquals(plain.length + 1, search.length);
         }
     }
 
-    public void testIdFromCompositeIdSplitsOnFirstSeparator() {
-        // The slice cannot contain '#', but the id may. The split must happen on the FIRST '#'.
-        assertEquals("a#b", Uid.idFromCompositeId(Uid.compositeId("slice-1", "a#b")));
-        assertEquals("a#b#c", Uid.idFromCompositeId(Uid.compositeId("s", "a#b#c")));
-        assertEquals("", Uid.idFromCompositeId("slice#"));
+    public void testSearchAndCompoundTermSpacesAreDisjoint() {
+        // The hazard a bare search term would have: the WHOLE compound encodeId("12")++"34"++[2] is byte-identical to
+        // bare encodeId("12333402") (numeric ids pack two digits/byte). So a bare-id search term could land on an
+        // identity term. Tagging the search term with a trailing 0x00 makes it longer and disjoint.
+        assertEquals(Uid.encodeId("12333402"), Uid.encodeCompoundId("12", "34"));
+        assertNotEquals(Uid.searchTerm("12333402"), Uid.encodeCompoundId("12", "34"));
+
+        for (int iter = 0; iter < 5000; ++iter) {
+            String id1 = randomId();
+            String id2 = randomId();
+            String slice = randomSlice();
+            // A search term can never byte-equal any compound term: last byte is 0x00 vs the slice length (>= 1).
+            assertNotEquals(Uid.searchTerm(id1), Uid.encodeCompoundId(id2, slice));
+        }
     }
 
-    public void testDifferentSlicesProduceDistinctTerms() {
+    public void testCompoundSplitsOnTrailingLengthForAnyId() {
+        // ids may contain '#' or other bytes; the trailing length byte makes the (id, slice) split unambiguous.
+        for (String id : new String[] { "a#b", "a#b#c", "with space", "0", "00" }) {
+            BytesRef compound = Uid.encodeCompoundId(id, "the-slice");
+            assertEquals(id, Uid.decodeCompoundId(compound));
+            assertEquals("the-slice", Uid.sliceFromCompoundId(compound));
+        }
+    }
+
+    public void testSameIdDifferentSlicesAreDistinctCompoundTerms() {
         final String id = randomId();
-        BytesRef a = Uid.encodeId(Uid.compositeId("slice-a", id));
-        BytesRef b = Uid.encodeId(Uid.compositeId("slice-b", id));
+        BytesRef a = Uid.encodeCompoundId(id, "slice-a");
+        BytesRef b = Uid.encodeCompoundId(id, "slice-b");
         assertNotEquals(a, b);
-        // Same plain id is recovered regardless of slice.
-        assertEquals(id, Uid.idFromCompositeId(Uid.decodeId(a)));
-        assertEquals(id, Uid.idFromCompositeId(Uid.decodeId(b)));
+        assertEquals(id, Uid.decodeCompoundId(a));
+        assertEquals(id, Uid.decodeCompoundId(b));
     }
 
     private static String randomSlice() {

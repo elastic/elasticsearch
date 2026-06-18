@@ -14,6 +14,7 @@ import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.Strings;
 
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Base64;
 
@@ -201,30 +202,56 @@ public final class Uid {
     }
 
     /**
-     * Separator between the slice and the user id in the composite id string used by slice-enabled indices.
-     * It is the same character as {@link #DELIMITER_BYTE} ({@code '#'}) and is intentionally excluded from the
-     * allowed slice charset, so the first occurrence unambiguously splits the slice from the id (the id itself
-     * may contain {@code '#'}).
+     * Slice-enabled {@code _id} encoding.
+     * <p>
+     * A slice-enabled index indexes two terms per document into the {@code _id} field, both of the same shape —
+     * the standard {@link #encodeId(String) encoded id} followed by the slice bytes and a trailing byte holding the
+     * slice length:
+     * <pre>
+     *   term         = encodeId(id) ++ sliceBytes ++ [ byte: len(sliceBytes) ]
+     *   search term  : sliceBytes = ""     ->  encodeId(id) ++ [0x00]          (drives ids/term search)
+     *   compound term: sliceBytes = slice  ->  encodeId(id) ++ slice ++ [len]  (uid(): uniqueness/version/GET/delete)
+     * </pre>
+     * The trailing length byte is {@code 0} for the search term and {@code >= 1} for every compound (slices are
+     * non-empty), so the two term-spaces are structurally disjoint for any id type — a search seek can never land on
+     * an identity term, and the uniqueness gate is never polluted by a search term — without relying on the
+     * {@code _slice} filter. The stored {@code _id} field stays the plain {@link #encodeId(String)} value.
+     * <p>
+     * Slice values are validated to be non-empty and {@code <= 128} bytes, so the length is in {@code [1, 128]} and
+     * fits a single byte.
      */
-    public static final String SLICE_SEPARATOR = "#";
-
-    /**
-     * Build the composite id string {@code slice + "#" + id} used by slice-enabled indices. The result is fed
-     * through the standard {@link #encodeId(String)} so the slice is encoded into the {@code _id} term itself,
-     * scoping engine uniqueness by {@code (slice, id)}.
-     */
-    public static String compositeId(String slice, String id) {
-        return slice + SLICE_SEPARATOR + id;
+    public static BytesRef encodeCompoundId(String id, String slice) {
+        BytesRef encodedId = encodeId(id);
+        byte[] sliceBytes = slice.getBytes(StandardCharsets.UTF_8);
+        assert sliceBytes.length <= 128 : "slice length [" + sliceBytes.length + "] exceeds 128";
+        byte[] b = new byte[encodedId.length + sliceBytes.length + 1];
+        System.arraycopy(encodedId.bytes, encodedId.offset, b, 0, encodedId.length);
+        System.arraycopy(sliceBytes, 0, b, encodedId.length, sliceBytes.length);
+        b[b.length - 1] = (byte) sliceBytes.length;
+        return new BytesRef(b);
     }
 
     /**
-     * Recover the plain, user-visible id from a composite id string produced by {@link #compositeId(String, String)}.
-     * Splits on the first {@code '#'} (the slice cannot contain {@code '#'}, so this is unambiguous even when the
-     * id itself contains {@code '#'}).
+     * The slice-mode search term {@code encodeId(id) ++ [0x00]} — the empty-slice member of the compound format,
+     * derived only from the id (no slice context). {@code ids}/{@code term} queries seek this term.
      */
-    public static String idFromCompositeId(String compositeId) {
-        int i = compositeId.indexOf('#');
-        assert i >= 0 : "composite id missing separator: " + compositeId;
-        return compositeId.substring(i + 1);
+    public static BytesRef searchTerm(String id) {
+        BytesRef encodedId = encodeId(id);
+        byte[] b = new byte[encodedId.length + 1];
+        System.arraycopy(encodedId.bytes, encodedId.offset, b, 0, encodedId.length);
+        // trailing length byte left as 0x00
+        return new BytesRef(b);
+    }
+
+    /** Recover the plain, user-visible id from a compound (or search) term produced above. */
+    public static String decodeCompoundId(BytesRef term) {
+        int sliceLen = term.bytes[term.offset + term.length - 1] & 0xff;
+        return decodeId(term.bytes, term.offset, term.length - 1 - sliceLen);
+    }
+
+    /** Recover the slice from a compound term. Returns the empty string for a search term ({@code len == 0}). */
+    public static String sliceFromCompoundId(BytesRef term) {
+        int sliceLen = term.bytes[term.offset + term.length - 1] & 0xff;
+        return new String(term.bytes, term.offset + term.length - 1 - sliceLen, sliceLen, StandardCharsets.UTF_8);
     }
 }

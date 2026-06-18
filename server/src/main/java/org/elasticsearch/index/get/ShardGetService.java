@@ -33,6 +33,7 @@ import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.fieldvisitor.LeafStoredFieldLoader;
 import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
+import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.IgnoredFieldMapper;
 import org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -43,7 +44,6 @@ import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.SourceLoader;
-import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.MultiEngineGet;
@@ -148,6 +148,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
 
     public GetResult mget(
         String id,
+        String routing,
         String[] gFields,
         boolean realtime,
         long version,
@@ -160,7 +161,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
     ) throws IOException {
         return doGet(
             id,
-            null,
+            routing,
             gFields,
             realtime,
             version,
@@ -193,9 +194,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
         currentMetric.inc();
         final long now = System.nanoTime();
         try {
-            final BytesRef uid = indexSettings.isSliceEnabled() && routing != null
-                ? Uid.encodeId(Uid.compositeId(routing, id))
-                : Uid.encodeId(id);
+            final BytesRef uid = IdFieldMapper.encodeIdentity(indexSettings, id, routing);
             var engineGet = new Engine.Get(realtime, realtime, id, uid).version(version)
                 .versionType(versionType)
                 .setIfSeqNo(ifSeqNo)

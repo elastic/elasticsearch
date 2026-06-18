@@ -31,7 +31,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.get.GetResult;
-import org.elasticsearch.index.mapper.Uid;
+import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.index.shard.IndexShard;
@@ -189,10 +189,9 @@ public class TransportExplainAction extends TransportSingleShardAction<ExplainRe
         SearchContext context = searchService.createSearchContext(shardSearchLocalRequest, SearchService.NO_TIMEOUT);
         Engine.GetResult result = null;
         try {
-            // No need to check the type, IndexShard#get does it for us
-            final BytesRef uid = context.indexShard().indexSettings().isSliceEnabled() && request.isRoutingFromSlice()
-                ? Uid.encodeId(Uid.compositeId(request.routing(), request.id()))
-                : Uid.encodeId(request.id());
+            // No need to check the type, IndexShard#get does it for us. For slice indices the routing is the slice
+            // (validated upstream), so encodeIdentity builds the compound identity term.
+            final BytesRef uid = IdFieldMapper.encodeIdentity(context.indexShard().indexSettings(), request.id(), request.routing());
             result = context.indexShard().get(new Engine.Get(false, false, request.id(), uid), request.getSplitShardCountSummary());
             if (result.exists() == false) {
                 return new ExplainResponse(shardId.getIndexName(), request.id(), false);

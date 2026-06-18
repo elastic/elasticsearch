@@ -21,9 +21,9 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
- * Tests the {@code _id} field type used by slice-enabled indices, where {@code _id} is stored as a composite
- * {@code (slice, id)} term. The field type is exercised directly: its behaviour does not depend on the slice
- * feature flag, only on the composite encoding implemented by {@link Uid}.
+ * Tests the {@code _id} field type used by slice-enabled indices. The index carries two {@code _id} terms per doc
+ * (a slice-free search term and a compound identity term); {@code ids}/{@code term} search seeks the search term and
+ * is therefore slice-context-free. The field type is exercised directly via {@link SliceIdFieldMapper#INSTANCE}.
  */
 public class SliceIdFieldMapperTests extends MapperServiceTestCase {
 
@@ -31,15 +31,13 @@ public class SliceIdFieldMapperTests extends MapperServiceTestCase {
         return (AbstractIdFieldType) SliceIdFieldMapper.INSTANCE.fieldType();
     }
 
-    public void testDecodeStoredIdRecoversPlainId() {
+    public void testStoredIdDecodesPlain() {
+        // The stored _id is the plain encodeId(id), so the default decodeStoredId returns the user-visible id directly.
         String id = randomAlphaOfLengthBetween(1, 16);
-        String slice = randomAlphaOfLengthBetween(1, 16);
-        // The stored value is encodeId("slice#id"); decodeStoredId must hand back the user-visible id.
-        assertThat(fieldType().decodeStoredId(Uid.encodeId(Uid.compositeId(slice, id))), equalTo(id));
+        assertThat(fieldType().decodeStoredId(Uid.encodeId(id)), equalTo(id));
     }
 
     public void testFielddataIsNotSupported() {
-        // The composite term ordinals are meaningless, so fielddata must be rejected rather than silently producing garbage.
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
             () -> fieldType().fielddataBuilder(FieldDataContext.noRuntimeFields("test", "test"))
@@ -47,40 +45,18 @@ public class SliceIdFieldMapperTests extends MapperServiceTestCase {
         assertThat(e.getMessage(), containsString("Fielddata is not supported on [_id] field in slice-enabled indices"));
     }
 
-    public void testTermsQueryBuildsCompositeTermsForConcreteSlice() throws Exception {
+    public void testTermsQuerySeeksSearchTermSliceContextFree() throws Exception {
+        // No slice routing on the context: id search must still work (the search term is derived only from the id).
         SearchExecutionContext context = createSearchExecutionContext(createMapperService(mapping(b -> {})));
-        context.setSliceRouting("slice-1");
         Query query = fieldType().termsQuery(List.of("a", "b"), context);
-        Query expected = new TermInSetQuery(
-            IdFieldMapper.NAME,
-            List.of(Uid.encodeId(Uid.compositeId("slice-1", "a")), Uid.encodeId(Uid.compositeId("slice-1", "b")))
-        );
-        assertThat(query, equalTo(expected));
-    }
-
-    public void testTermsQueryExpandsAcrossMultipleSlices() throws Exception {
-        SearchExecutionContext context = createSearchExecutionContext(createMapperService(mapping(b -> {})));
-        context.setSliceRouting("slice-1,slice-2");
-        Query query = fieldType().termsQuery(List.of("a"), context);
-        Query expected = new TermInSetQuery(
-            IdFieldMapper.NAME,
-            List.of(Uid.encodeId(Uid.compositeId("slice-1", "a")), Uid.encodeId(Uid.compositeId("slice-2", "a")))
-        );
+        Query expected = new TermInSetQuery(IdFieldMapper.NAME, List.of(Uid.searchTerm("a"), Uid.searchTerm("b")));
         assertThat(query, equalTo(expected));
     }
 
     public void testTermQueryDelegatesToTermsQuery() throws Exception {
         SearchExecutionContext context = createSearchExecutionContext(createMapperService(mapping(b -> {})));
-        context.setSliceRouting("slice-1");
         Query query = fieldType().termQuery("a", context);
-        Query expected = new TermInSetQuery(IdFieldMapper.NAME, List.of(Uid.encodeId(Uid.compositeId("slice-1", "a"))));
+        Query expected = new TermInSetQuery(IdFieldMapper.NAME, List.of(Uid.searchTerm("a")));
         assertThat(query, equalTo(expected));
-    }
-
-    public void testTermsQueryRequiresConcreteSlice() throws Exception {
-        SearchExecutionContext context = createSearchExecutionContext(createMapperService(mapping(b -> {})));
-        // No slice routing set, which corresponds to a cross-slice (_all) query; that is not supported for id/terms queries.
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> fieldType().termsQuery(List.of("a"), context));
-        assertThat(e.getMessage(), containsString("queries require a concrete [_slice]"));
     }
 }

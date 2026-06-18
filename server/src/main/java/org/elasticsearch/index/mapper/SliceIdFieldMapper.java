@@ -10,6 +10,8 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.Field;
+import org.apache.lucene.document.StoredField;
+import org.apache.lucene.document.StringField;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.util.BytesRef;
@@ -22,8 +24,12 @@ import java.util.Collection;
 import java.util.List;
 
 /**
- * A mapper for the {@code _id} field that encodes slice+id as a composite term
- * so that uniqueness within a shard is scoped by {@code (slice, id)}.
+ * A mapper for the {@code _id} field of a slice-enabled index. Each document indexes two terms into {@code _id} —
+ * a slice-free <em>search</em> term {@code encodeId(id) ++ [0x00]} (drives {@code ids}/{@code term} search) and a
+ * <em>compound</em> term {@code encodeId(id) ++ slice ++ [len]} (the engine identity term: uniqueness/versioning/
+ * GET/delete). The stored {@code _id} value stays the plain {@code encodeId(id)}, so the user-visible id is plain.
+ * See {@link Uid#encodeCompoundId(String, String)} / {@link Uid#searchTerm(String)} for the layout and why the two
+ * term-spaces are structurally disjoint.
  */
 public class SliceIdFieldMapper extends IdFieldMapper {
 
@@ -47,21 +53,17 @@ public class SliceIdFieldMapper extends IdFieldMapper {
             throw new IllegalArgumentException("Fielddata is not supported on [_id] field in slice-enabled indices.");
         }
 
-        /** Build composite terms for an ids/terms query. Requires a concrete slice from the search context. */
+        /**
+         * Seek the slice-free search term {@code encodeId(x) ++ [0x00]} for each value. This is derived only from the
+         * id, so {@code ids}/{@code term} search needs no slice context and works across slices (incl. {@code _slice=_all}).
+         */
         @Override
         public Query termsQuery(Collection<?> values, SearchExecutionContext context) {
             failIfNotIndexed();
-            String sliceRouting = context.getSliceRouting();
-            if (sliceRouting == null) {
-                throw new IllegalArgumentException("[_id] / [ids] queries require a concrete [_slice]; [_slice=_all] is not supported");
-            }
-            String[] slices = sliceRouting.split(",");
-            List<BytesRef> terms = new ArrayList<>(values.size() * slices.length);
+            List<BytesRef> terms = new ArrayList<>(values.size());
             for (Object v : values) {
                 String idStr = (v instanceof BytesRef br) ? br.utf8ToString() : v.toString();
-                for (String slice : slices) {
-                    terms.add(Uid.encodeId(Uid.compositeId(slice.trim(), idStr)));
-                }
+                terms.add(Uid.searchTerm(idStr));
             }
             return new TermInSetQuery(name(), terms);
         }
@@ -75,17 +77,6 @@ public class SliceIdFieldMapper extends IdFieldMapper {
         public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
             return new StoredValueFetcher(context.lookup(), NAME);
         }
-
-        @Override
-        public String decodeStoredId(BytesRef bytes) {
-            // The stored _id is encodeId("slice#id"); recover the plain, user-visible id by stripping the slice prefix.
-            return Uid.idFromCompositeId(Uid.decodeId(bytes));
-        }
-
-        @Override
-        public BlockLoader blockLoader(BlockLoaderContext blContext) {
-            return IdLoader.create(blContext.indexSettings(), blContext.mappingLookup()).blockLoader(blContext.ordinalsByteSize());
-        }
     }
 
     @Override
@@ -96,10 +87,13 @@ public class SliceIdFieldMapper extends IdFieldMapper {
         context.id(context.sourceToParse().id());
         String slice = context.sourceToParse().routing();
         assert slice != null : "_slice (routing) must be set for slice-enabled indices";
-        // Store the composite (slice, id) as a standard-encoded id string so engine uniqueness is scoped by (slice, id).
-        // context.id() stays the plain user id, so write responses surface the plain id.
-        BytesRef uid = Uid.encodeId(Uid.compositeId(slice, context.id()));
-        context.doc().add(IdFieldMapper.standardIdField(uid, Field.Store.YES));
+        final String id = context.id();
+        // Stored _id stays plain so GET/_source/synthetic-source surface the user id unchanged.
+        context.doc().add(new StoredField(NAME, Uid.encodeId(id)));
+        // Slice-free search term drives ids/term search; the compound term (== Engine.Operation.uid()) scopes
+        // uniqueness/versioning/GET/delete by (slice, id). Both are indexed-only (not stored).
+        context.doc().add(new StringField(NAME, Uid.searchTerm(id), Field.Store.NO));
+        context.doc().add(new StringField(NAME, Uid.encodeCompoundId(id, slice), Field.Store.NO));
     }
 
     @Override

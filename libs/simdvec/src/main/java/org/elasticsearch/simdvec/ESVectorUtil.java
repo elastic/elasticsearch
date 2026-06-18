@@ -18,6 +18,7 @@ import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.simdvec.internal.vectorization.ESVectorUtilSupport;
 
 import java.io.IOException;
+import java.lang.foreign.MemorySegment;
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
@@ -1077,6 +1078,20 @@ public class ESVectorUtil {
             throw new IndexOutOfBoundsException("length=" + length + ", remaining=" + buf.remaining());
         }
         return IMPL.popcount(buf, length);
+    }
+
+    /**
+     * Counts the number of set bits in the first {@code length} bytes of the memory segment.
+     *
+     * @param seg    the memory segment
+     * @param length the number of bytes to examine
+     * @return the total number of set bits
+     */
+    public static long popcount(MemorySegment seg, int length) {
+        if (length < 0 || seg.byteSize() < length) {
+            throw new IndexOutOfBoundsException("length=" + length + ", segment size=" + seg.byteSize());
+        }
+        return IMPL.popcount(seg, length);
     }
 
     /**

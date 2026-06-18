@@ -2346,6 +2346,11 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
     @Override
     public long popcount(ByteBuffer buf, int length) {
         MemorySegment seg = MemorySegment.ofBuffer(buf);
+        return popcount(seg, length);
+    }
+
+    @Override
+    public long popcount(MemorySegment seg, int length) {
         long cnt = 0;
         final long upperBound = BYTE_SPECIES.loopBound(length);
         long i = 0;

@@ -19,6 +19,8 @@ import org.elasticsearch.simdvec.MultiBFloat16VectorsSource;
 import org.elasticsearch.simdvec.MultiByteVectorsSource;
 import org.elasticsearch.simdvec.MultiFloatVectorsSource;
 
+import java.lang.foreign.MemorySegment;
+import java.lang.foreign.ValueLayout;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 
@@ -951,6 +953,13 @@ public final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
     public long popcount(ByteBuffer buf, int length) {
         byte[] tmp = new byte[length];
         buf.get(buf.position(), tmp, 0, length);
+        return popcount(tmp, 0, length);
+    }
+
+    @Override
+    public long popcount(MemorySegment seg, int length) {
+        byte[] tmp = new byte[length];
+        MemorySegment.copy(seg, ValueLayout.JAVA_BYTE, 0, tmp, 0, length);
         return popcount(tmp, 0, length);
     }
 

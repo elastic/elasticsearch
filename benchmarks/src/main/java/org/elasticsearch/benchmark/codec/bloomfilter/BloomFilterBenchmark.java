@@ -58,6 +58,7 @@ public class BloomFilterBenchmark {
     private byte[] page;
     private byte[] popcountScratch;
     private ByteBuffer directPage;
+    private MemorySegment segmentPage;
     private byte[][] sourcePages;
     private ByteBuffer[] directSourcePages;
     private byte[][] destPagesScalar;
@@ -74,6 +75,8 @@ public class BloomFilterBenchmark {
         page = generatePage(random, pageSize, saturation);
         popcountScratch = new byte[pageSize];
         directPage = toSegmentBackedBuffer(page);
+        segmentPage = Arena.global().allocate(pageSize, 64);
+        MemorySegment.copy(page, 0, segmentPage, ValueLayout.JAVA_BYTE, 0, pageSize);
         sourcePages = new byte[NUM_PAGES][];
         directSourcePages = new ByteBuffer[NUM_PAGES];
         destPagesScalar = new byte[NUM_PAGES][];
@@ -123,6 +126,12 @@ public class BloomFilterBenchmark {
     @Fork(jvmArgsPrepend = { "--add-modules=jdk.incubator.vector" })
     public long popcountSimdDirect() {
         return ESVectorUtil.popcount(directPage, pageSize);
+    }
+
+    @Benchmark
+    @Fork(jvmArgsPrepend = { "--add-modules=jdk.incubator.vector" })
+    public long popcountSimdSegment() {
+        return ESVectorUtil.popcount(segmentPage, pageSize);
     }
 
     @Benchmark

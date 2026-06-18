@@ -1292,6 +1292,7 @@ FROM sample_data
 
 limitByMvExpandGroupingTarget
 required_capability: esql_limit_by
+required_capability: limit_by_mv_expand_grouping_fix
 
 // https://github.com/elastic/elasticsearch/issues/148513
 ROW x = [1, 1, 2, 2, 3]
@@ -1309,6 +1310,7 @@ x:integer
 limitByMvExpandGroupingTargetWithSort
 required_capability: esql_limit_by
 required_capability: esql_topn_by
+required_capability: limit_by_mv_expand_grouping_fix
 
 // Same bug when SORT combines with LIMIT BY into TopNBy
 FROM employees
@@ -1326,6 +1328,7 @@ emp_no:integer | languages:integer
 
 limitByMvExpandScalar
 required_capability: esql_limit_by
+required_capability: limit_by_mv_expand_grouping_fix
 
 ROW x = 1
 | MV_EXPAND x

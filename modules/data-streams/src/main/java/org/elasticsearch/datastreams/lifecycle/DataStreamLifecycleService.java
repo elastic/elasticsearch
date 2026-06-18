@@ -1670,43 +1670,27 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
         }
         var dataRetention = getEffectiveRetention(dataStream, globalRetentionSettings, false);
 
-        // PRTODO: All DLM operations (retention, downsample) are based off an index's
-        // "generation date". This is normally selected from an index's origination date
-        // first, and if that is not present, then it is based on either rollover time
-        // (if present) or creation date. We don't have an origination date for this
-        // theoretical index, and the creation date will likely be very close to now, so
-        // first determine what the max age rollover time is for an index created now
-        long now = nowSupplier.getAsLong();
-        long rolloverAge = RolloverConfiguration.evaluateMaxAgeCondition(dataRetention).getMillis();
-        long oldestPossibleGenerationTime = now - rolloverAge;
-
         // We delete indices that are older than `retentionPeriod` milliseconds in the past from `now`
-        long retentionPeriod = dataRetention.getMillis();
-        long candidateStartWindow = now - rolloverAge - retentionPeriod;
+        long shortestPeriod = dataRetention.getMillis();
 
         // Indices can be downsampled, which makes them unable to accept new documents.
         if (lifecycle.downsamplingRounds() != null) {
             for (DataStreamLifecycle.DownsamplingRound round : lifecycle.downsamplingRounds()) {
-                // The oldest the downsample round can happen is the after period minus the generation time.
                 long downsampleAfter = round.after().getMillis();
-                long oldestDownsamplePoint = oldestPossibleGenerationTime - downsampleAfter;
-                // If the oldestDownsamplePoint is more recent than the current candidate, use it as the new candidate
-                candidateStartWindow = Math.max(oldestDownsamplePoint, candidateStartWindow);
+                shortestPeriod = Math.min(downsampleAfter, shortestPeriod);
             }
         }
 
         // Indices can also be marked for frozen tier via DLM, which makes them readonly once snapshotted.
         if (DataStreamLifecycle.DLM_SEARCHABLE_SNAPSHOTS_FEATURE_FLAG.isEnabled()) {
             if (lifecycle.frozenAfter() != null) {
-                // The oldest frozen transition can happen is the after period minus the generation time
                 long frozenAfter = lifecycle.frozenAfter().getMillis();
-                long oldestFrozenTransition = oldestPossibleGenerationTime - frozenAfter;
-                // If the oldestFrozenTransition is more recent than the current candidate, use it as the new candidate
-                candidateStartWindow = Math.max(oldestFrozenTransition, candidateStartWindow);
+                shortestPeriod = Math.min(frozenAfter, shortestPeriod);
             }
         }
 
-        return Instant.ofEpochMilli(candidateStartWindow);
+        long now = nowSupplier.getAsLong();
+        return Instant.ofEpochMilli(now - shortestPeriod);
     }
 
     /**

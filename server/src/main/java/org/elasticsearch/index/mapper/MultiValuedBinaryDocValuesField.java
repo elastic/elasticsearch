@@ -337,14 +337,13 @@ public abstract class MultiValuedBinaryDocValuesField extends CustomDocValuesFie
          * being added to the field list yet) and its always-present {@code .counts} companion is added to the document immediately.
          */
         private static ArrayOrderInlineNull getOrCreate(LuceneDocument doc, String fieldName) {
-            var field = (ArrayOrderInlineNull) doc.getByKey(fieldName);
-            if (field == null) {
-                field = new ArrayOrderInlineNull(fieldName);
+            return (ArrayOrderInlineNull) doc.getOrAddWithKey(fieldName, key -> {
+                var field = new ArrayOrderInlineNull(fieldName);
                 field.countField = NumericDocValuesField.indexedField(field.countFieldName(), 0);
-                doc.onlyAddKey(fieldName, field);
+                // Only the always-present .counts companion is added here; the binary blob is added lazily on the first non-null value.
                 doc.add(field.countField);
-            }
-            return field;
+                return field;
+            });
         }
 
         @Override

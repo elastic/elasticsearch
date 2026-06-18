@@ -213,12 +213,12 @@ public final class TimeSeriesBlockHash extends BlockHash {
 
     @Override
     public Block[] getKeys(IntVector selected) {
-        final int positionCount = (int) finalHash.size();
+        final int positionCount = selected.getPositionCount();
         final Block[] blocks;
         if (OrdinalBytesRefBlock.isDense(positionCount, tsidHash.size())) {
-            blocks = buildOrdinalKeys(positionCount);
+            blocks = buildOrdinalKeys(selected);
         } else {
-            blocks = buildNonOrdinalKeys(positionCount);
+            blocks = buildNonOrdinalKeys(selected);
         }
         if (reverseOutput) {
             return new Block[] { blocks[1], blocks[0] };
@@ -226,15 +226,17 @@ public final class TimeSeriesBlockHash extends BlockHash {
         return blocks;
     }
 
-    private Block[] buildOrdinalKeys(int positionCount) {
+    private Block[] buildOrdinalKeys(IntVector selected) {
+        final int positionCount = selected.getPositionCount();
         final Block[] blocks = new Block[2];
         try (
             var tsidOrds = blockFactory.newIntVectorFixedBuilder(positionCount);
             var timestamps = blockFactory.newLongVectorFixedBuilder(positionCount)
         ) {
             for (int p = 0; p < positionCount; p++) {
-                tsidOrds.appendInt(p, (int) finalHash.getKey1(p));
-                timestamps.appendLong(p, finalHash.getKey2(p));
+                final int groupId = selected.getInt(p);
+                tsidOrds.appendInt(p, (int) finalHash.getKey1(groupId));
+                timestamps.appendLong(p, finalHash.getKey2(groupId));
             }
             final BytesRefArray bytes = tsidHash.getBytesRefs();
             var dict = blockFactory.newBytesRefArrayVector(bytes, Math.toIntExact(bytes.size()));
@@ -255,7 +257,8 @@ public final class TimeSeriesBlockHash extends BlockHash {
         return blocks;
     }
 
-    private Block[] buildNonOrdinalKeys(int positionCount) {
+    private Block[] buildNonOrdinalKeys(IntVector selected) {
+        final int positionCount = selected.getPositionCount();
         final Block[] blocks = new Block[2];
         try (
             var ordsBuilder = blockFactory.newIntVectorFixedBuilder(positionCount);
@@ -263,8 +266,9 @@ public final class TimeSeriesBlockHash extends BlockHash {
         ) {
             BytesRef scratch = new BytesRef();
             for (int p = 0; p < positionCount; p++) {
-                ordsBuilder.appendInt(p, (int) finalHash.getKey1(p));
-                timestamps.appendLong(p, finalHash.getKey2(p));
+                final int groupId = selected.getInt(p);
+                ordsBuilder.appendInt(p, (int) finalHash.getKey1(groupId));
+                timestamps.appendLong(p, finalHash.getKey2(groupId));
             }
             try (var tsidBuilder = blockFactory.newBytesRefVectorBuilder(positionCount); var ords = ordsBuilder.build()) {
                 for (int p = 0; p < positionCount; p++) {

@@ -47,6 +47,26 @@ import static java.util.stream.Collectors.joining;
  */
 public class TimeSeriesAggregationOperator extends HashAggregationOperator {
 
+    /**
+     * Default target rows per chunked partial-output page, i.e. the default of the
+     * {@code esql.time_series.target_chunk_size} setting. Equal to the default emit-keys threshold, so each partial-emit
+     * cycle is sent as roughly one page: chunking of the data node's total output comes from periodic partial emission
+     * rather than from sub-slicing a cycle, favouring fewer, larger pages (lower per-page overhead).
+     */
+    public static final int DEFAULT_TARGET_CHUNK_SIZE = 100_000;
+
+    /**
+     * @param partialEmitKeysThreshold number of grouping keys past which partial output is emitted periodically
+     *        (see {@link HashAggregationOperator#shouldEmitPartialResultsPeriodically()}).
+     *        Only takes effect in partial/intermediate mode.
+     * @param partialEmitUniquenessThreshold uniqueness ratio gating periodic partial emission.
+     * @param targetChunkRows target number of rows per chunked partial-output page. The slicer accumulates up to
+     *        this many rows then cuts at the next {@code _tsid} boundary, so a {@code _tsid} that started inside a
+     *        chunk is emitted whole. Only takes effect in partial/intermediate mode.
+     * @param maxChunkRows absolute upper bound on rows per chunked partial-output page; the only condition that can
+     *        split a single {@code _tsid} across pages, and only for a {@code _tsid} whose group count alone exceeds
+     *        it. Only takes effect in partial/intermediate mode.
+     */
     public record Factory(
         Rounding.Prepared timeBucket,
         boolean dateNanos,
@@ -54,7 +74,11 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
         AggregatorMode aggregatorMode,
         List<GroupingAggregator.Factory> aggregators,
         int aggregationBatchSize,
-        Rounding.Prepared outputTimeBucket
+        Rounding.Prepared outputTimeBucket,
+        int partialEmitKeysThreshold,
+        double partialEmitUniquenessThreshold,
+        int targetChunkRows,
+        int maxChunkRows
     ) implements OperatorFactory {
 
         public Factory(
@@ -68,9 +92,42 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
             this(timeBucket, dateNanos, groups, aggregatorMode, aggregators, aggregationBatchSize, null);
         }
 
+        /**
+         * Back-compat constructor that opts out of periodic partial emission and output chunking, preserving the
+         * historical single-page behaviour. Production code paths use the full constructor via the planner.
+         */
+        public Factory(
+            Rounding.Prepared timeBucket,
+            boolean dateNanos,
+            List<BlockHash.GroupSpec> groups,
+            AggregatorMode aggregatorMode,
+            List<GroupingAggregator.Factory> aggregators,
+            int aggregationBatchSize,
+            Rounding.Prepared outputTimeBucket
+        ) {
+            this(
+                timeBucket,
+                dateNanos,
+                groups,
+                aggregatorMode,
+                aggregators,
+                aggregationBatchSize,
+                outputTimeBucket,
+                Integer.MAX_VALUE,
+                1.0,
+                Integer.MAX_VALUE,
+                Integer.MAX_VALUE
+            );
+        }
+
         @Override
         public Operator get(DriverContext driverContext) {
-            final boolean outputFinal = aggregatorMode.isOutputPartial() == false;
+            final boolean outputPartial = aggregatorMode.isOutputPartial();
+            final boolean outputFinal = outputPartial == false;
+            final int effectiveKeysThreshold = outputPartial ? partialEmitKeysThreshold : Integer.MAX_VALUE;
+            final double effectiveUniquenessThreshold = outputPartial ? partialEmitUniquenessThreshold : 1.0;
+            final int effectiveTargetChunkRows = outputPartial ? targetChunkRows : Integer.MAX_VALUE;
+            final int effectiveMaxChunkRows = outputPartial ? maxChunkRows : Integer.MAX_VALUE;
             return new TimeSeriesAggregationOperator(
                 timeBucket,
                 dateNanos ? DateFieldMapper.Resolution.NANOSECONDS : DateFieldMapper.Resolution.MILLISECONDS,
@@ -91,6 +148,10 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
                     return BlockHash.build(groups, driverContext.blockFactory(), aggregationBatchSize, true);
                 },
                 outputTimeBucket,
+                effectiveKeysThreshold,
+                effectiveUniquenessThreshold,
+                effectiveTargetChunkRows,
+                effectiveMaxChunkRows,
                 driverContext
             );
         }
@@ -103,6 +164,22 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
                 + aggregators.stream().map(Describable::describe).collect(joining(", "))
                 + "]";
         }
+
+        /**
+         * Multiplier applied to {@code targetChunkRows} to obtain the {@link #maxChunkRows} ceiling, bounding how far a
+         * page may overshoot the target to finish a {@code _tsid}. The ceiling splits a {@code _tsid} across pages only
+         * when a single {@code _tsid} is large enough to push the page past it; normal multi-tsid packing cuts at a
+         * {@code _tsid} boundary first.
+         */
+        static final int MAX_CHUNK_ROWS_TARGET_MULTIPLIER = 2;
+
+        /**
+         * Derives the absolute per-page row ceiling ({@code maxChunkRows}) from the configured target chunk size
+         * ({@code targetChunkRows}): a fixed multiple of the target, guarding against {@code int} overflow.
+         */
+        public static int maxChunkRowsFor(int targetChunkRows) {
+            return (int) Math.min(Integer.MAX_VALUE, (long) MAX_CHUNK_ROWS_TARGET_MULTIPLIER * targetChunkRows);
+        }
     }
 
     private final Rounding.Prepared timeBucket;
@@ -110,6 +187,8 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
     private final Rounding.Prepared outputTimeBucket;
     private ExpandingGroups expandingGroups = null;
     private int numGroupsBeforeExpanding = -1;
+    private final int targetChunkRows;
+    private final int maxChunkRows;
 
     public TimeSeriesAggregationOperator(
         Rounding.Prepared timeBucket,
@@ -118,12 +197,26 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
         List<GroupingAggregator.Factory> aggregators,
         Supplier<BlockHash> blockHash,
         Rounding.Prepared outputTimeBucket,
+        int partialEmitKeysThreshold,
+        double partialEmitUniquenessThreshold,
+        int targetChunkRows,
+        int maxChunkRows,
         DriverContext driverContext
     ) {
-        super(aggregatorMode, aggregators, blockHash, Integer.MAX_VALUE, 1.0, Integer.MAX_VALUE, driverContext);
+        super(
+            aggregatorMode,
+            aggregators,
+            blockHash,
+            partialEmitKeysThreshold,
+            partialEmitUniquenessThreshold,
+            targetChunkRows,
+            driverContext
+        );
         this.timeBucket = timeBucket;
         this.timeResolution = timeResolution;
         this.outputTimeBucket = outputTimeBucket;
+        this.targetChunkRows = targetChunkRows;
+        this.maxChunkRows = maxChunkRows;
     }
 
     @Override
@@ -248,9 +341,40 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
         }
     }
 
+    /**
+     * Slices the chunked partial output so that page boundaries align with {@code _tsid} boundaries.
+     * <p>
+     *     Below {@link #targetChunkRows} the slicer accumulates rows freely, so several small {@code _tsid}s can share a
+     *     page. Once {@link #targetChunkRows} rows are reached it cuts at the next {@code _tsid} change, guaranteeing that a
+     *     {@code _tsid} which started inside a chunk is emitted whole (possibly overshooting {@code targetChunkRows}).
+     *     {@link #maxChunkRows} is the only condition that can split a single {@code _tsid} across pages, and it only
+     *     fires for a {@code _tsid} whose group count alone exceeds the ceiling.
+     * </p>
+     * <p>
+     *     Only the {@link TimeSeriesBlockHash} grouping (the {@code (tsid, timestamp)} pair) supports tsid-aligned
+     *     slicing; the broken-optimization fallback {@link BlockHash} uses the parent's plain row-count slicing.
+     * </p>
+     */
     @Override
-    protected boolean shouldEmitPartialResultsPeriodically() {
-        return false;
+    protected int nextPageSliceEnd(IntVector selected, int rowOffset) {
+        if (blockHash instanceof TimeSeriesBlockHash tsBlockHash) {
+            final int positionCount = selected.getPositionCount();
+            int prevTsid = tsBlockHash.tsidForGroup(selected.getInt(rowOffset));
+            int running = 0;
+            for (int p = rowOffset; p < positionCount; p++) {
+                int currTsid = tsBlockHash.tsidForGroup(selected.getInt(p));
+                if (running >= maxChunkRows) {
+                    return p;
+                }
+                if (running >= targetChunkRows && currTsid != prevTsid) {
+                    return p;
+                }
+                running++;
+                prevTsid = currTsid;
+            }
+            return positionCount;
+        }
+        return super.nextPageSliceEnd(selected, rowOffset);
     }
 
     private long largestWindowMillis() {

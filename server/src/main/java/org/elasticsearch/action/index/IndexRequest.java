@@ -423,7 +423,8 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     }
 
     public Map<String, Object> sourceAsMap(XContentParserDecorator parserDecorator) {
-        return XContentHelper.convertToMap(source, false, contentType, parserDecorator).v2();
+        var parserConfiguration = XContentParserConfiguration.EMPTY.withIncludeSourceOnError(includeSourceOnError);
+        return XContentHelper.parseToType(XContentParser::map, source, contentType, parserConfiguration, parserDecorator).v2();
     }
 
     /**

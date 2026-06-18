@@ -19,6 +19,7 @@ import org.elasticsearch.simdvec.MultiBFloat16VectorsSource;
 import org.elasticsearch.simdvec.MultiByteVectorsSource;
 import org.elasticsearch.simdvec.MultiFloatVectorsSource;
 
+import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 
 public final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
@@ -944,6 +945,20 @@ public final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
         for (; i < offset + length; i++) {
             dest[i] |= source[i];
         }
+    }
+
+    @Override
+    public long popcount(ByteBuffer buf, int length) {
+        byte[] tmp = new byte[length];
+        buf.get(buf.position(), tmp, 0, length);
+        return popcount(tmp, 0, length);
+    }
+
+    @Override
+    public void orByteArrays(ByteBuffer src, byte[] dest, int destOffset, int length) {
+        byte[] tmp = new byte[length];
+        src.get(src.position(), tmp, 0, length);
+        orByteArrays(tmp, dest, destOffset, length);
     }
 
 }

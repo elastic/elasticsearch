@@ -21,6 +21,7 @@ import java.io.IOException;
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
+import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.Objects;
 
@@ -1061,5 +1062,38 @@ public class ESVectorUtil {
         Objects.checkFromIndexSize(offset, length, source.length);
         Objects.checkFromIndexSize(offset, length, dest.length);
         IMPL.orByteArrays(source, dest, offset, length);
+    }
+
+    /**
+     * Counts the number of set bits in the first {@code length} bytes from the buffer's
+     * current position. The buffer's position is not modified.
+     *
+     * @param buf    the byte buffer (direct or heap-backed)
+     * @param length the number of bytes to examine
+     * @return the total number of set bits
+     */
+    public static long popcount(ByteBuffer buf, int length) {
+        if (length < 0 || buf.remaining() < length) {
+            throw new IndexOutOfBoundsException("length=" + length + ", remaining=" + buf.remaining());
+        }
+        return IMPL.popcount(buf, length);
+    }
+
+    /**
+     * Bitwise OR from a ByteBuffer source into a byte array destination:
+     * {@code dest[destOffset+i] |= src.get(src.position()+i)} for {@code i} in {@code [0, length)}.
+     * The buffer's position is not modified.
+     *
+     * @param src        the source byte buffer (direct or heap-backed)
+     * @param dest       the destination byte array (modified in place)
+     * @param destOffset the starting index in the destination array
+     * @param length     the number of bytes to OR
+     */
+    public static void orByteArrays(ByteBuffer src, byte[] dest, int destOffset, int length) {
+        if (length < 0 || src.remaining() < length) {
+            throw new IndexOutOfBoundsException("length=" + length + ", remaining=" + src.remaining());
+        }
+        Objects.checkFromIndexSize(destOffset, length, dest.length);
+        IMPL.orByteArrays(src, dest, destOffset, length);
     }
 }

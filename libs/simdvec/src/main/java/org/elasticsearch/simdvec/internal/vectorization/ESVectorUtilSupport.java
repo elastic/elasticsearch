@@ -14,6 +14,7 @@ import org.elasticsearch.simdvec.MultiBFloat16VectorsSource;
 import org.elasticsearch.simdvec.MultiByteVectorsSource;
 import org.elasticsearch.simdvec.MultiFloatVectorsSource;
 
+import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 
 public interface ESVectorUtilSupport {
@@ -193,6 +194,12 @@ public interface ESVectorUtilSupport {
     /** Counts the number of set bits in the byte array region {@code [offset, offset+length)}. */
     long popcount(byte[] data, int offset, int length);
 
+    /** Counts the number of set bits in the first {@code length} bytes from the buffer's current position. */
+    long popcount(ByteBuffer buf, int length);
+
     /** Bitwise OR: {@code dest[offset+i] |= source[offset+i]} for {@code i} in {@code [0, length)}. */
     void orByteArrays(byte[] source, byte[] dest, int offset, int length);
+
+    /** Bitwise OR: {@code dest[destOffset+i] |= src.get(src.position()+i)} for {@code i} in {@code [0, length)}. */
+    void orByteArrays(ByteBuffer src, byte[] dest, int destOffset, int length);
 }

@@ -1536,6 +1536,120 @@ public class ESVectorUtilTests extends BaseVectorizationTests {
         expectThrows(IOOBE, () -> ESVectorUtil.popcount(data, 0, 1));
     }
 
+    // -- ByteBuffer overloads
+
+    public void testPopcountByteBufferDirectDefaultEqualsPanama() {
+        for (int size : new int[] { 0, 1, 7, 8, 15, 16, 31, 32, 63, 64, 128, 256, 4096, 16384 }) {
+            ByteBuffer buf = ByteBuffer.allocateDirect(size);
+            byte[] data = new byte[size];
+            random().nextBytes(data);
+            buf.put(0, data, 0, size);
+            long expected = defaultedProvider.getVectorUtilSupport().popcount(buf, size);
+            long actual = panamaProvider.getVectorUtilSupport().popcount(buf, size);
+            assertEquals("popcount(ByteBuffer) mismatch for size=" + size, expected, actual);
+            assertEquals(referencePopcount(data, 0, size), actual);
+        }
+    }
+
+    public void testPopcountByteBufferHeapDefaultEqualsPanama() {
+        for (int size : new int[] { 0, 1, 7, 16, 64, 128, 4096 }) {
+            byte[] data = new byte[size];
+            random().nextBytes(data);
+            ByteBuffer buf = ByteBuffer.wrap(data);
+            long expected = defaultedProvider.getVectorUtilSupport().popcount(buf, size);
+            long actual = panamaProvider.getVectorUtilSupport().popcount(buf, size);
+            assertEquals("popcount(ByteBuffer) heap mismatch for size=" + size, expected, actual);
+            assertEquals(referencePopcount(data, 0, size), actual);
+        }
+    }
+
+    public void testPopcountByteBufferWithPosition() {
+        int size = 256;
+        byte[] data = new byte[size];
+        random().nextBytes(data);
+        int position = randomIntBetween(0, size / 2);
+        int length = randomIntBetween(0, size - position);
+        ByteBuffer buf = ByteBuffer.allocateDirect(size);
+        buf.put(0, data, 0, size);
+        buf.position(position).limit(size);
+        long expected = referencePopcount(data, position, length);
+        assertEquals(expected, ESVectorUtil.popcount(buf, length));
+    }
+
+    public void testPopcountByteBufferBoundsCheck() {
+        ByteBuffer buf = ByteBuffer.allocateDirect(64);
+        expectThrows(IndexOutOfBoundsException.class, () -> ESVectorUtil.popcount(buf, -1));
+        expectThrows(IndexOutOfBoundsException.class, () -> ESVectorUtil.popcount(buf, 65));
+    }
+
+    public void testOrByteArraysByteBufferDefaultEqualsPanama() {
+        for (int size : new int[] { 0, 1, 7, 8, 15, 16, 31, 32, 63, 64, 128, 256, 4096, 16384 }) {
+            byte[] srcData = new byte[size];
+            random().nextBytes(srcData);
+            ByteBuffer srcBuf = ByteBuffer.allocateDirect(size);
+            srcBuf.put(0, srcData, 0, size);
+
+            byte[] dest1 = new byte[size];
+            byte[] dest2 = new byte[size];
+            random().nextBytes(dest1);
+            System.arraycopy(dest1, 0, dest2, 0, size);
+
+            defaultedProvider.getVectorUtilSupport().orByteArrays(srcBuf, dest1, 0, size);
+            panamaProvider.getVectorUtilSupport().orByteArrays(srcBuf, dest2, 0, size);
+            assertArrayEquals("orByteArrays(ByteBuffer) mismatch for size=" + size, dest1, dest2);
+
+            byte[] expected = new byte[size];
+            random().nextBytes(expected);
+            System.arraycopy(dest1, 0, expected, 0, size);
+        }
+    }
+
+    public void testOrByteArraysByteBufferCorrectness() {
+        int size = randomIntBetween(0, 8192);
+        byte[] srcData = new byte[size];
+        byte[] dest = new byte[size];
+        byte[] expected = new byte[size];
+        random().nextBytes(srcData);
+        random().nextBytes(dest);
+        System.arraycopy(dest, 0, expected, 0, size);
+        for (int i = 0; i < size; i++) {
+            expected[i] |= srcData[i];
+        }
+        ByteBuffer srcBuf = ByteBuffer.allocateDirect(size);
+        srcBuf.put(0, srcData, 0, size);
+        ESVectorUtil.orByteArrays(srcBuf, dest, 0, size);
+        assertArrayEquals(expected, dest);
+    }
+
+    public void testOrByteArraysByteBufferWithPosition() {
+        int size = 256;
+        byte[] srcData = new byte[size];
+        random().nextBytes(srcData);
+        int position = randomIntBetween(0, size / 2);
+        int length = randomIntBetween(0, size - position);
+        ByteBuffer srcBuf = ByteBuffer.allocateDirect(size);
+        srcBuf.put(0, srcData, 0, size);
+        srcBuf.position(position).limit(size);
+
+        byte[] dest = new byte[length];
+        random().nextBytes(dest);
+        byte[] expected = new byte[length];
+        System.arraycopy(dest, 0, expected, 0, length);
+        for (int i = 0; i < length; i++) {
+            expected[i] |= srcData[position + i];
+        }
+        ESVectorUtil.orByteArrays(srcBuf, dest, 0, length);
+        assertArrayEquals(expected, dest);
+    }
+
+    public void testOrByteArraysByteBufferBoundsCheck() {
+        ByteBuffer srcBuf = ByteBuffer.allocateDirect(64);
+        byte[] dest = new byte[64];
+        expectThrows(IndexOutOfBoundsException.class, () -> ESVectorUtil.orByteArrays(srcBuf, dest, 0, -1));
+        expectThrows(IndexOutOfBoundsException.class, () -> ESVectorUtil.orByteArrays(srcBuf, dest, 0, 65));
+        expectThrows(IndexOutOfBoundsException.class, () -> ESVectorUtil.orByteArrays(srcBuf, dest, 60, 10));
+    }
+
     private static long referencePopcount(byte[] data, int offset, int length) {
         long cnt = 0;
         for (int i = offset; i < offset + length; i++) {

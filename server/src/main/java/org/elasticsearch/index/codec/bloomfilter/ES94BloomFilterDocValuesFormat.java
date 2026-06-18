@@ -50,6 +50,7 @@ import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.CheckedRunnable;
+import org.elasticsearch.core.DirectAccessInput;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.simdvec.ESVectorUtil;
 
@@ -416,6 +417,8 @@ public class ES94BloomFilterDocValuesFormat extends DocValuesFormat {
             assert targetPageScratch.bytes.length == PageCacheRecycler.PAGE_SIZE_IN_BYTES
                 : targetPageScratch.bytes.length + " vs " + PageCacheRecycler.PAGE_SIZE_IN_BYTES;
 
+            final DirectAccessInput directSource = source instanceof DirectAccessInput dai ? dai : null;
+
             // throwaway, just to call bitSetBuffer.get()
             BytesRef scratchRef = new BytesRef();
 
@@ -423,21 +426,27 @@ public class ES94BloomFilterDocValuesFormat extends DocValuesFormat {
             while (offset < length) {
                 int pageLen = Math.min(PageCacheRecycler.PAGE_SIZE_IN_BYTES, length - offset);
 
-                source.readBytes(sourceOffset + offset, sourcePageScratch.bytes, 0, pageLen);
                 var materialized = bitSetBuffer.get(targetOffset + offset, pageLen, scratchRef);
                 assert materialized == false : "Unexpected materialized array";
 
                 if (firstPass) {
-                    // If we're just processing the first bloom filter the first pass, we can just copy the
-                    // bytes from the source bloom filter into the new bloom filter and skip all the OR operations.
+                    source.readBytes(sourceOffset + offset, sourcePageScratch.bytes, 0, pageLen);
                     bitSetBuffer.set(targetOffset + offset, sourcePageScratch.bytes, 0, pageLen);
                 } else {
-                    // Unfortunately we have to copy the bytes that we read from bitSetBuffer since the
-                    // BigArrays ByteArray just provides a view from the page that shouldn't be mutated
-                    // (this mostly apply to the initial empty pages which are shared across all the byte buffers).
                     System.arraycopy(scratchRef.bytes, scratchRef.offset, targetPageScratch.bytes, 0, pageLen);
 
-                    ESVectorUtil.orByteArrays(sourcePageScratch.bytes, targetPageScratch.bytes, 0, pageLen);
+                    final int len = pageLen;
+                    final int srcOff = sourceOffset + offset;
+                    boolean direct = directSource != null
+                        && directSource.withByteBufferSlice(
+                            srcOff,
+                            len,
+                            buf -> ESVectorUtil.orByteArrays(buf, targetPageScratch.bytes, 0, len)
+                        );
+                    if (direct == false) {
+                        source.readBytes(srcOff, sourcePageScratch.bytes, 0, pageLen);
+                        ESVectorUtil.orByteArrays(sourcePageScratch.bytes, targetPageScratch.bytes, 0, pageLen);
+                    }
 
                     bitSetBuffer.set(targetOffset + offset, targetPageScratch.bytes, 0, pageLen);
                 }
@@ -836,15 +845,32 @@ public class ES94BloomFilterDocValuesFormat extends DocValuesFormat {
             }
             final int sizeInBytes = getBloomFilterBitSetSizeInBytes();
             long setBits = 0;
-            final byte[] scratch = new byte[PageCacheRecycler.PAGE_SIZE_IN_BYTES];
             int remaining = sizeInBytes;
             int offset = 0;
-            while (remaining > 0) {
-                int pageLen = Math.min(PageCacheRecycler.PAGE_SIZE_IN_BYTES, remaining);
-                bloomFilterIn.readBytes(offset, scratch, 0, pageLen);
-                setBits += ESVectorUtil.popcount(scratch, 0, pageLen);
-                offset += pageLen;
-                remaining -= pageLen;
+            if (bloomFilterIn instanceof DirectAccessInput dai) {
+                final long[] holder = { 0 };
+                while (remaining > 0) {
+                    int pageLen = Math.min(PageCacheRecycler.PAGE_SIZE_IN_BYTES, remaining);
+                    final int len = pageLen;
+                    final int off = offset;
+                    boolean direct = dai.withByteBufferSlice(off, len, buf -> holder[0] += ESVectorUtil.popcount(buf, len));
+                    if (direct == false) {
+                        break;
+                    }
+                    offset += pageLen;
+                    remaining -= pageLen;
+                }
+                setBits = holder[0];
+            }
+            if (remaining > 0) {
+                final byte[] scratch = new byte[PageCacheRecycler.PAGE_SIZE_IN_BYTES];
+                while (remaining > 0) {
+                    int pageLen = Math.min(PageCacheRecycler.PAGE_SIZE_IN_BYTES, remaining);
+                    bloomFilterIn.readBytes(offset, scratch, 0, pageLen);
+                    setBits += ESVectorUtil.popcount(scratch, 0, pageLen);
+                    offset += pageLen;
+                    remaining -= pageLen;
+                }
             }
             cachedSaturation = (double) setBits / bloomFilterBitSetSizeInBits;
             return cachedSaturation;

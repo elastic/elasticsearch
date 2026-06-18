@@ -24,6 +24,7 @@ import org.openjdk.jmh.annotations.Setup;
 import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.annotations.Warmup;
 
+import java.nio.ByteBuffer;
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
 
@@ -52,23 +53,42 @@ public class BloomFilterBenchmark {
     private static final int NUM_PAGES = 1024;
 
     private byte[] page;
+    private byte[] popcountScratch;
+    private ByteBuffer directPage;
     private byte[][] sourcePages;
+    private ByteBuffer[] directSourcePages;
     private byte[][] destPagesScalar;
     private byte[][] destPagesSimd;
+    private byte[][] destPagesDirectOr;
+    private byte[][] destPagesCopyThenOr;
+    private byte[] orCopyScratch;
     private int orIndex;
 
     @Setup
     public void setup() {
         Random random = new Random(42);
         page = generatePage(random, pageSize, saturation);
+        popcountScratch = new byte[pageSize];
+        directPage = ByteBuffer.allocateDirect(pageSize);
+        directPage.put(0, page, 0, pageSize);
         sourcePages = new byte[NUM_PAGES][];
+        directSourcePages = new ByteBuffer[NUM_PAGES];
         destPagesScalar = new byte[NUM_PAGES][];
         destPagesSimd = new byte[NUM_PAGES][];
+        destPagesDirectOr = new byte[NUM_PAGES][];
+        destPagesCopyThenOr = new byte[NUM_PAGES][];
+        orCopyScratch = new byte[pageSize];
         for (int i = 0; i < NUM_PAGES; i++) {
             sourcePages[i] = generatePage(random, pageSize, saturation);
+            directSourcePages[i] = ByteBuffer.allocateDirect(pageSize);
+            directSourcePages[i].put(0, sourcePages[i], 0, pageSize);
             destPagesScalar[i] = generatePage(random, pageSize, saturation);
             destPagesSimd[i] = new byte[pageSize];
+            destPagesDirectOr[i] = new byte[pageSize];
+            destPagesCopyThenOr[i] = new byte[pageSize];
             System.arraycopy(destPagesScalar[i], 0, destPagesSimd[i], 0, pageSize);
+            System.arraycopy(destPagesScalar[i], 0, destPagesDirectOr[i], 0, pageSize);
+            System.arraycopy(destPagesScalar[i], 0, destPagesCopyThenOr[i], 0, pageSize);
         }
     }
 
@@ -84,6 +104,19 @@ public class BloomFilterBenchmark {
     }
 
     @Benchmark
+    @Fork(jvmArgsPrepend = { "--add-modules=jdk.incubator.vector" })
+    public long popcountCopyThenSimd() {
+        directPage.get(0, popcountScratch, 0, pageSize);
+        return ESVectorUtil.popcount(popcountScratch, 0, pageSize);
+    }
+
+    @Benchmark
+    @Fork(jvmArgsPrepend = { "--add-modules=jdk.incubator.vector" })
+    public long popcountSimdDirect() {
+        return ESVectorUtil.popcount(directPage, pageSize);
+    }
+
+    @Benchmark
     public void orScalar() {
         int idx = orIndex++ & (NUM_PAGES - 1);
         scalarOr(sourcePages[idx], destPagesScalar[idx], 0, pageSize);
@@ -94,6 +127,21 @@ public class BloomFilterBenchmark {
     public void orSimd() {
         int idx = orIndex++ & (NUM_PAGES - 1);
         ESVectorUtil.orByteArrays(sourcePages[idx], destPagesSimd[idx], 0, pageSize);
+    }
+
+    @Benchmark
+    @Fork(jvmArgsPrepend = { "--add-modules=jdk.incubator.vector" })
+    public void orCopyThenSimd() {
+        int idx = orIndex++ & (NUM_PAGES - 1);
+        directSourcePages[idx].get(0, orCopyScratch, 0, pageSize);
+        ESVectorUtil.orByteArrays(orCopyScratch, destPagesCopyThenOr[idx], 0, pageSize);
+    }
+
+    @Benchmark
+    @Fork(jvmArgsPrepend = { "--add-modules=jdk.incubator.vector" })
+    public void orSimdDirect() {
+        int idx = orIndex++ & (NUM_PAGES - 1);
+        ESVectorUtil.orByteArrays(directSourcePages[idx], destPagesDirectOr[idx], 0, pageSize);
     }
 
     static long scalarPopcount(byte[] data, int offset, int length) {

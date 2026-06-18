@@ -25,6 +25,17 @@ import static org.mockito.Mockito.when;
 public class ProjectEncryptionKeyHealthIndicatorServiceTests extends ESTestCase {
 
     private static final String PASSWORD_ID = "v1";
+    private static final ProjectEncryptionKeyMetadata.PekEncryption NO_OP_ENCRYPTION = new ProjectEncryptionKeyMetadata.PekEncryption() {
+        @Override
+        public byte[] wrap(byte[] plaintextPek, String passwordId) {
+            return plaintextPek;
+        }
+
+        @Override
+        public byte[] unwrap(byte[] wrappedPek, String passwordId) {
+            return wrappedPek;
+        }
+    };
 
     private static byte[] randomWrappedBytes() {
         // Opaque blob at the canonical wrap length — the health indicator doesn't unwrap, it only reads metadata fields.
@@ -38,7 +49,9 @@ public class ProjectEncryptionKeyHealthIndicatorServiceTests extends ESTestCase 
         return new ProjectEncryptionKeyMetadata(
             Map.of(keyId, new ProjectEncryptionKeyMetadata.KeyEntry(randomWrappedBytes(), 0L)),
             keyId,
-            passwordId
+            passwordId,
+            Map.of(),
+            NO_OP_ENCRYPTION
         );
     }
 

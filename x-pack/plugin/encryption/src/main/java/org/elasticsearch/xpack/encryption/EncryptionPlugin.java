@@ -7,10 +7,12 @@
 package org.elasticsearch.xpack.encryption;
 
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.IOUtils;
@@ -25,6 +27,7 @@ import org.elasticsearch.plugins.ReloadablePlugin;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xpack.encryption.spi.EncryptedData;
 import org.elasticsearch.xpack.encryption.spi.EncryptedDataHandler;
 import org.elasticsearch.xpack.encryption.spi.EncryptedDataHandlerProvider;
 import org.elasticsearch.xpack.encryption.spi.EncryptionService;
@@ -37,23 +40,55 @@ import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 /**
- * Plugin for the project encryption key (PEK) lifecycle. Wires up the in-memory key cache, the AES-GCM encryption
- * service, the rotation coordinator, and the health indicator. Loads {@link EncryptedDataHandlerProvider} contributions from other
- * plugins via {@link ExtensiblePlugin#loadExtensions(ExtensionLoader)}. Forwards secure-settings reloads to the components so the
- * password material is picked up on the next access.
+ * Plugin for the project encryption key (PEK) lifecycle. Wires up the key cache, rotation coordinator, AES-GCM encryption service, and
+ * health indicator. Loads {@link EncryptedDataHandlerProvider} contributions from other plugins and forwards secure-settings reloads.
  */
 public class EncryptionPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin, ReloadablePlugin, HealthPlugin {
 
     private final Settings settings;
     private final List<EncryptedDataHandlerProvider> encryptedDataHandlerProviders = new ArrayList<>();
 
-    // Captured at createComponents time so we can route reload + health-indicator calls to them. Unset when the feature flag is off.
     private final SetOnce<ProjectEncryptionKeyService> pekService = new SetOnce<>();
     private final SetOnce<KeyRotationCoordinator> coordinator = new SetOnce<>();
     private final SetOnce<ProjectEncryptionKeyHealthIndicatorService> healthIndicatorService = new SetOnce<>();
 
+    private volatile Settings pekSettings;
+
+    private final ProjectEncryptionKeyMetadata.PekEncryption pekEncryption = new ProjectEncryptionKeyMetadata.PekEncryption() {
+        @Override
+        public byte[] wrap(byte[] plaintextPek, String passwordId) {
+            try (SecureString password = ProjectEncryptionKeyPasswordSettings.getPassword(pekSettings, passwordId)) {
+                if (password == null) {
+                    throw new ElasticsearchException(
+                        "cannot wrap PEK for disk: secure setting ["
+                            + ProjectEncryptionKeyPasswordSettings.PASSWORD_PREFIX
+                            + passwordId
+                            + "] is not configured"
+                    );
+                }
+                return PasswordBasedEncryption.wrap(plaintextPek, passwordId, password.getChars()).payload();
+            }
+        }
+
+        @Override
+        public byte[] unwrap(byte[] wrappedPek, String passwordId) {
+            try (SecureString password = ProjectEncryptionKeyPasswordSettings.getPassword(pekSettings, passwordId)) {
+                if (password == null) {
+                    throw new ElasticsearchException(
+                        "cannot unwrap PEK from disk: secure setting ["
+                            + ProjectEncryptionKeyPasswordSettings.PASSWORD_PREFIX
+                            + passwordId
+                            + "] is not configured"
+                    );
+                }
+                return PasswordBasedEncryption.unwrap(new EncryptedData(passwordId, wrappedPek), password.getChars());
+            }
+        }
+    };
+
     public EncryptionPlugin(Settings settings) {
         this.settings = settings;
+        this.pekSettings = ProjectEncryptionKeyPasswordSettings.cloneSettings(settings, settings);
     }
 
     @Override
@@ -72,7 +107,7 @@ public class EncryptionPlugin extends Plugin implements ActionPlugin, Extensible
         ProjectEncryptionKeyService pekService = ProjectEncryptionKeyService.create(
             services.clusterService(),
             services.projectResolver(),
-            settings
+            () -> this.pekSettings
         );
         AesGcmEncryptionService encryptionService = new AesGcmEncryptionService(pekService);
         List<EncryptedDataHandler<?>> handlers = encryptedDataHandlerProviders.stream().flatMap(p -> p.getHandlers().stream()).toList();
@@ -84,7 +119,8 @@ public class EncryptionPlugin extends Plugin implements ActionPlugin, Extensible
             services.featureService(),
             encryptionService,
             handlers,
-            settings
+            () -> this.pekSettings,
+            pekEncryption
         );
         ProjectEncryptionKeyHealthIndicatorService healthIndicator = new ProjectEncryptionKeyHealthIndicatorService(
             services.clusterService(),
@@ -119,13 +155,10 @@ public class EncryptionPlugin extends Plugin implements ActionPlugin, Extensible
 
     @Override
     public void reload(Settings settings) {
-        ProjectEncryptionKeyService localPekService = this.pekService.get();
-        if (localPekService != null) {
-            localPekService.reload(settings);
-        }
+        this.pekSettings = ProjectEncryptionKeyPasswordSettings.cloneSettings(this.settings, settings);
         KeyRotationCoordinator localCoordinator = this.coordinator.get();
         if (localCoordinator != null) {
-            localCoordinator.reload(settings);
+            localCoordinator.reload();
         }
     }
 
@@ -166,7 +199,7 @@ public class EncryptionPlugin extends Plugin implements ActionPlugin, Extensible
             new NamedWriteableRegistry.Entry(
                 Metadata.ProjectCustom.class,
                 ProjectEncryptionKeyMetadata.TYPE,
-                ProjectEncryptionKeyMetadata::new
+                in -> new ProjectEncryptionKeyMetadata(in, pekEncryption)
             ),
             new NamedWriteableRegistry.Entry(NamedDiff.class, ProjectEncryptionKeyMetadata.TYPE, ProjectEncryptionKeyMetadata::readDiffFrom)
         );
@@ -178,7 +211,7 @@ public class EncryptionPlugin extends Plugin implements ActionPlugin, Extensible
             new NamedXContentRegistry.Entry(
                 Metadata.ProjectCustom.class,
                 new ParseField(ProjectEncryptionKeyMetadata.TYPE),
-                ProjectEncryptionKeyMetadata::fromXContent
+                parser -> ProjectEncryptionKeyMetadata.fromXContent(parser, pekEncryption)
             )
         );
     }

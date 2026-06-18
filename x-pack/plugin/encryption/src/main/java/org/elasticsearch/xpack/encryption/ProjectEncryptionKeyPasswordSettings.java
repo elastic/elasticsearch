@@ -82,13 +82,16 @@ final class ProjectEncryptionKeyPasswordSettings {
     }
 
     /**
-     * Detaches the encryption-related secure settings from {@code source} so callers can keep using {@link Settings} accessors
-     * (e.g. {@link #getPassword}, {@link #getActivePasswordId}) after the original keystore has been closed by the
-     * {@link org.elasticsearch.plugins.ReloadablePlugin#reload}.
+     * Returns a {@link Settings} that merges all non-secure entries from {@code base} with a durable in-memory snapshot of the
+     * encryption-related secure settings read from {@code secureSource}. The returned instance does not hold a reference to the original
+     * keystore, so it remains valid after {@link org.elasticsearch.plugins.ReloadablePlugin#reload} closes it.
      */
-    static Settings cloneSettings(Settings source) {
+    static Settings cloneSettings(Settings base, Settings secureSource) {
         try {
-            return Settings.builder().setSecureSettings(InMemoryClonedSecureSettings.cloneSecureSettings(source, getSettings())).build();
+            return Settings.builder()
+                .put(base)
+                .setSecureSettings(InMemoryClonedSecureSettings.cloneSecureSettings(secureSource, getSettings()))
+                .build();
         } catch (GeneralSecurityException e) {
             throw new ElasticsearchException("failed to clone project encryption key secure settings", e);
         }

@@ -24,6 +24,9 @@ import org.openjdk.jmh.annotations.Setup;
 import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.annotations.Warmup;
 
+import java.lang.foreign.Arena;
+import java.lang.foreign.MemorySegment;
+import java.lang.foreign.ValueLayout;
 import java.nio.ByteBuffer;
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
@@ -64,13 +67,13 @@ public class BloomFilterBenchmark {
     private byte[] orCopyScratch;
     private int orIndex;
 
+    @SuppressWarnings("restricted")
     @Setup
     public void setup() {
         Random random = new Random(42);
         page = generatePage(random, pageSize, saturation);
         popcountScratch = new byte[pageSize];
-        directPage = ByteBuffer.allocateDirect(pageSize);
-        directPage.put(0, page, 0, pageSize);
+        directPage = toSegmentBackedBuffer(page);
         sourcePages = new byte[NUM_PAGES][];
         directSourcePages = new ByteBuffer[NUM_PAGES];
         destPagesScalar = new byte[NUM_PAGES][];
@@ -80,8 +83,7 @@ public class BloomFilterBenchmark {
         orCopyScratch = new byte[pageSize];
         for (int i = 0; i < NUM_PAGES; i++) {
             sourcePages[i] = generatePage(random, pageSize, saturation);
-            directSourcePages[i] = ByteBuffer.allocateDirect(pageSize);
-            directSourcePages[i].put(0, sourcePages[i], 0, pageSize);
+            directSourcePages[i] = toSegmentBackedBuffer(sourcePages[i]);
             destPagesScalar[i] = generatePage(random, pageSize, saturation);
             destPagesSimd[i] = new byte[pageSize];
             destPagesDirectOr[i] = new byte[pageSize];
@@ -90,6 +92,13 @@ public class BloomFilterBenchmark {
             System.arraycopy(destPagesScalar[i], 0, destPagesDirectOr[i], 0, pageSize);
             System.arraycopy(destPagesScalar[i], 0, destPagesCopyThenOr[i], 0, pageSize);
         }
+    }
+
+    @SuppressWarnings("restricted")
+    private static ByteBuffer toSegmentBackedBuffer(byte[] data) {
+        MemorySegment seg = Arena.global().allocate(data.length, 64);
+        MemorySegment.copy(data, 0, seg, ValueLayout.JAVA_BYTE, 0, data.length);
+        return seg.asByteBuffer();
     }
 
     @Benchmark

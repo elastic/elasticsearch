@@ -1127,6 +1127,7 @@ ignoreOrder:true
 ;
 
 lookupIPFromIndexKeepKeep
+skip_flattened_rewrite: enrich_output_type_mismatch
 required_capability: join_lookup_v12
 
 FROM sample_data
@@ -5045,6 +5046,7 @@ Connected to 10.1.0.1 | 1                     | English               | Success
 
 
 lookupJoinAfterLimitAndRemoteEnrich
+skip_flattened_rewrite: enrich_output_type_mismatch
 required_capability: join_lookup_v12
 
 FROM sample_data
@@ -5068,6 +5070,7 @@ Connected to 10.1.0.1 | English                      | null                  | U
 
 
 lookupJoinAfterTopNAndRemoteEnrich
+skip_flattened_rewrite: enrich_output_type_mismatch
 required_capability: join_lookup_v12
 
 FROM sample_data

@@ -82,6 +82,14 @@ public sealed interface StageSpec {
         }
     }
 
+    /** ALP transform: converts doubles to integer mantissas via a shared per-block (e, f). */
+    record AlpDoubleStage() implements TransformSpec {
+        @Override
+        public StageId stageId() {
+            return StageId.ALP_DOUBLE_STAGE;
+        }
+    }
+
     /** Bit-packing payload: packs values using the minimum number of bits. */
     record BitPackPayload() implements PayloadSpec {
         @Override

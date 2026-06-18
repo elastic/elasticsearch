@@ -128,7 +128,7 @@ public class RecoveryStats implements ToXContentFragment, Writeable {
 
     /// Records that a queued source-side peer recovery was discarded without starting.
     public void sourceQueuedRecoveryDiscarded() {
-        assert currentAsSourceQueued.decrementAndGet() >= 0;
+        currentAsSourceQueued.decrementAndGet();
     }
 
     /// Records that a source-side peer recovery has started directly, without a prior queue step.
@@ -138,13 +138,13 @@ public class RecoveryStats implements ToXContentFragment, Writeable {
 
     /// Records that a queued source-side peer recovery has been dequeued and started.
     public void sourceRecoveryDequeuedAndStarted() {
-        assert currentAsSourceQueued.decrementAndGet() >= 0;
+        currentAsSourceQueued.decrementAndGet();
         currentAsSource.incrementAndGet();
     }
 
     /// Records that an active source-side peer recovery has completed.
     public void sourceRecoveryCompleted() {
-        assert currentAsSource.decrementAndGet() >= 0;
+        currentAsSource.decrementAndGet();
     }
 
     /// Records that a target-side (peer or non-peer) recovery has been queued for this shard.

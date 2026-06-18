@@ -94,7 +94,6 @@ import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
-import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.merge.MergeStats;
 import org.elasticsearch.index.merge.OnGoingMerge;
 import org.elasticsearch.index.seqno.LocalCheckpointTracker;
@@ -4057,6 +4056,7 @@ public class InternalEngine extends Engine {
      */
     private void restoreVersionMapAndCheckpointTracker(DirectoryReader directoryReader, IndexVersion indexVersionCreated, IdLoader idLoader)
         throws IOException {
+        final boolean sliceEnabled = engineConfig.getIndexSettings().isSliceEnabled();
         final IndexSearcher searcher = new IndexSearcher(directoryReader);
         searcher.setQueryCache(null);
         final Query query = new BooleanQuery.Builder().add(
@@ -4092,7 +4092,9 @@ public class InternalEngine extends Engine {
                     assert dv.isTombstone(docId);
                     continue;
                 }
-                final BytesRef uid = Uid.encodeId(id);
+                // Key the version map by the same identity term live operations use. For a slice index that is the
+                // compound (slice, id) term (the slice is the doc's routing); otherwise the plain encodeId(id).
+                final BytesRef uid = IdFieldMapper.encodeIdentity(sliceEnabled, id, leafStoredFieldLoader.routing());
                 try (Releasable ignored = versionMap.acquireLock(uid)) {
                     final VersionValue curr = versionMap.getUnderLock(uid);
                     if (curr == null || compareOpToVersionMapOnSeqNo(id, seqNo, primaryTerm, curr) == OpVsLuceneDocStatus.OP_NEWER) {

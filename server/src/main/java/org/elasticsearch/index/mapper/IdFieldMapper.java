@@ -141,7 +141,7 @@ public abstract class IdFieldMapper extends MetadataFieldMapper {
         return new SyntheticIdField(uid);
     }
 
-    public abstract static class AbstractIdFieldType extends TermBasedFieldType {
+    protected abstract static class AbstractIdFieldType extends TermBasedFieldType {
 
         public AbstractIdFieldType() {
             this(false);

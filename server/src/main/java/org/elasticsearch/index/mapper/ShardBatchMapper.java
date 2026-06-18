@@ -78,6 +78,10 @@ public final class ShardBatchMapper {
             logger.debug("batch indexing disabled: mapping defines index-time scripts");
             return null;
         }
+        if (lookup.getMapping().getMetadataMapperByName(IdFieldMapper.NAME) instanceof SliceIdFieldMapper) {
+            logger.debug("batch indexing disabled: slice-enabled index");
+            return null;
+        }
 
         final int leafCount = schema.leafCount();
         final FieldMapper[] columnMappers = new FieldMapper[leafCount];

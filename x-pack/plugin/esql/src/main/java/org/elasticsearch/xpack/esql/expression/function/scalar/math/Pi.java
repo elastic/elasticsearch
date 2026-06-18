@@ -37,6 +37,7 @@ public class Pi extends DoubleConstantFunction {
 
     @FunctionInfo(
         returnType = "double",
+        briefSummary = "Returns the mathematical constant pi.",
         description = "Returns {wikipedia}/Pi[Pi], the ratio of a circle’s circumference to its diameter.",
         examples = @Example(file = "math", tag = "pi")
     )

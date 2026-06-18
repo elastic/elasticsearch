@@ -1,7 +1,4 @@
 tests:
-- class: org.elasticsearch.simdvec.ESVectorUtilTests
-  method: testLogSumExpNQT
-  issue: https://github.com/elastic/elasticsearch/issues/151487
 - class: org.elasticsearch.packaging.test.PackagesSecurityAutoConfigurationTests
   method: test20SecurityNotAutoConfiguredOnReInstallation
   issue: https://github.com/elastic/elasticsearch/issues/112635
@@ -635,3 +632,15 @@ tests:
 - class: org.elasticsearch.index.store.BytesReadHeaderIT
   method: testMultiSearchSetsBytesReadHeader
   issue: https://github.com/elastic/elasticsearch/issues/151595
+- class: org.elasticsearch.blobcache.common.SparseFileTrackerTests
+  method: testThreadSafety
+  issue: https://github.com/elastic/elasticsearch/issues/151599
+- class: org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingServiceIT
+  method: testCacheIsWarmedOnUnhollowing
+  issue: https://github.com/elastic/elasticsearch/issues/151600
+- class: org.elasticsearch.datastreams.lifecycle.ExplainDataStreamLifecycleIT
+  method: testExplainFailuresLifecycle
+  issue: https://github.com/elastic/elasticsearch/issues/151602
+- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
+  method: test {csv-spec:metric_temporality.tdigestAggsByTBucket}
+  issue: https://github.com/elastic/elasticsearch/issues/151613

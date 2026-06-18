@@ -1,0 +1,5 @@
+area: "Codec, Vector Search"
+issues: []
+pr: 151680
+summary: Add SIMD-accelerated popcount and `orByteArrays` kernels
+type: enhancement

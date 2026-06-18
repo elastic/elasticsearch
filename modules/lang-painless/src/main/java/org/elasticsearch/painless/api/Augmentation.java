@@ -87,14 +87,7 @@ public class Augmentation {
      * installed.
      */
     public static <T> void forEach(PainlessScript script, Iterable<T> receiver, Consumer<T> consumer) {
-        if (script._getCancellationCheck() == null) {
-            receiver.forEach(consumer);
-            return;
-        }
-        for (T t : receiver) {
-            consumer.accept(t);
-            script._pollCancellation();
-        }
+        receiver.forEach(wrap(script, consumer));
     }
 
     // some groovy methods on iterable
@@ -152,6 +145,16 @@ public class Augmentation {
             list.add(t);
         }
         return list;
+    }
+
+    /**
+     * Cancellation-aware {@code count}.  Counts the elements matching {@code predicate} by scanning the whole
+     * iterable; the wrapped predicate polls {@link PainlessScript#_pollCancellation()} once per element so
+     * counting a large collection honours search timeouts, and is the unwrapped predicate (JDK fast path) when
+     * the script has no cancellation check installed.
+     */
+    public static <T> int count(PainlessScript script, Iterable<T> receiver, Predicate<T> predicate) {
+        return count(receiver, wrap(script, predicate));
     }
 
     /** Counts the number of occurrences which satisfy the given predicate from inside this Iterable. */
@@ -638,14 +641,7 @@ public class Augmentation {
      * JDK when the script has no cancellation check installed.
      */
     public static <K, V> void forEach(PainlessScript script, Map<K, V> receiver, BiConsumer<K, V> consumer) {
-        if (script._getCancellationCheck() == null) {
-            receiver.forEach(consumer);
-            return;
-        }
-        for (Map.Entry<K, V> entry : receiver.entrySet()) {
-            consumer.accept(entry.getKey(), entry.getValue());
-            script._pollCancellation();
-        }
+        receiver.forEach(wrap(script, consumer));
     }
 
     /**
@@ -1036,14 +1032,7 @@ public class Augmentation {
      * check installed.
      */
     public static <T> void forEachRemaining(PainlessScript script, Iterator<T> receiver, Consumer<T> consumer) {
-        if (script._getCancellationCheck() == null) {
-            receiver.forEachRemaining(consumer);
-            return;
-        }
-        while (receiver.hasNext()) {
-            consumer.accept(receiver.next());
-            script._pollCancellation();
-        }
+        receiver.forEachRemaining(wrap(script, consumer));
     }
 
     /**
@@ -1054,18 +1043,72 @@ public class Augmentation {
      * the script has no cancellation check installed.
      */
     public static <T> void forEachRemaining(PainlessScript script, Spliterator<T> receiver, Consumer<T> consumer) {
-        if (script._getCancellationCheck() == null) {
-            receiver.forEachRemaining(consumer);
-            return;
-        }
-        while (receiver.tryAdvance(consumer)) {
-            script._pollCancellation();
-        }
+        receiver.forEachRemaining(wrap(script, consumer));
     }
 
-    // Wrap a primitive consumer so it polls _pollCancellation() once per element before delegating, or return it
-    // unchanged when no cancellation check is installed so the caller still takes the JDK fast path. Overloaded
-    // per primitive consumer type rather than one generic Consumer wrapper, which would box every element.
+    // Wrap a user-supplied functional interface so it polls _pollCancellation() once per element after delegating to
+    // the wrapped action, or return it unchanged when no cancellation check is installed so the caller still takes the
+    // JDK fast path. There is one overload per functional-interface type used by the native and stream-terminal
+    // wrappers; result-returning interfaces capture the result, poll, then return it. The primitive overloads are kept
+    // distinct (rather than a single generic Consumer wrapper) so they never box their elements.
+
+    @SuppressWarnings("overloads")
+    private static <T> Consumer<T> wrap(PainlessScript script, Consumer<T> action) {
+        if (script._getCancellationCheck() == null) {
+            return action;
+        }
+        return t -> {
+            action.accept(t);
+            script._pollCancellation();
+        };
+    }
+
+    @SuppressWarnings("overloads")
+    private static <A, B> BiConsumer<A, B> wrap(PainlessScript script, BiConsumer<A, B> action) {
+        if (script._getCancellationCheck() == null) {
+            return action;
+        }
+        return (a, b) -> {
+            action.accept(a, b);
+            script._pollCancellation();
+        };
+    }
+
+    @SuppressWarnings("overloads")
+    private static <T> Predicate<T> wrap(PainlessScript script, Predicate<T> action) {
+        if (script._getCancellationCheck() == null) {
+            return action;
+        }
+        return t -> {
+            boolean result = action.test(t);
+            script._pollCancellation();
+            return result;
+        };
+    }
+
+    @SuppressWarnings("overloads")
+    private static <T> BinaryOperator<T> wrap(PainlessScript script, BinaryOperator<T> action) {
+        if (script._getCancellationCheck() == null) {
+            return action;
+        }
+        return (a, b) -> {
+            T result = action.apply(a, b);
+            script._pollCancellation();
+            return result;
+        };
+    }
+
+    @SuppressWarnings("overloads")
+    private static <A, B, R> BiFunction<A, B, R> wrap(PainlessScript script, BiFunction<A, B, R> action) {
+        if (script._getCancellationCheck() == null) {
+            return action;
+        }
+        return (a, b) -> {
+            R result = action.apply(a, b);
+            script._pollCancellation();
+            return result;
+        };
+    }
 
     @SuppressWarnings("overloads")
     private static IntConsumer wrap(PainlessScript script, IntConsumer action) {
@@ -1073,8 +1116,8 @@ public class Augmentation {
             return action;
         }
         return i -> {
-            script._pollCancellation();
             action.accept(i);
+            script._pollCancellation();
         };
     }
 
@@ -1084,8 +1127,8 @@ public class Augmentation {
             return action;
         }
         return l -> {
-            script._pollCancellation();
             action.accept(l);
+            script._pollCancellation();
         };
     }
 
@@ -1095,8 +1138,113 @@ public class Augmentation {
             return action;
         }
         return d -> {
-            script._pollCancellation();
             action.accept(d);
+            script._pollCancellation();
+        };
+    }
+
+    @SuppressWarnings("overloads")
+    private static IntPredicate wrap(PainlessScript script, IntPredicate action) {
+        if (script._getCancellationCheck() == null) {
+            return action;
+        }
+        return i -> {
+            boolean result = action.test(i);
+            script._pollCancellation();
+            return result;
+        };
+    }
+
+    @SuppressWarnings("overloads")
+    private static LongPredicate wrap(PainlessScript script, LongPredicate action) {
+        if (script._getCancellationCheck() == null) {
+            return action;
+        }
+        return l -> {
+            boolean result = action.test(l);
+            script._pollCancellation();
+            return result;
+        };
+    }
+
+    @SuppressWarnings("overloads")
+    private static DoublePredicate wrap(PainlessScript script, DoublePredicate action) {
+        if (script._getCancellationCheck() == null) {
+            return action;
+        }
+        return d -> {
+            boolean result = action.test(d);
+            script._pollCancellation();
+            return result;
+        };
+    }
+
+    @SuppressWarnings("overloads")
+    private static IntBinaryOperator wrap(PainlessScript script, IntBinaryOperator action) {
+        if (script._getCancellationCheck() == null) {
+            return action;
+        }
+        return (a, b) -> {
+            int result = action.applyAsInt(a, b);
+            script._pollCancellation();
+            return result;
+        };
+    }
+
+    @SuppressWarnings("overloads")
+    private static LongBinaryOperator wrap(PainlessScript script, LongBinaryOperator action) {
+        if (script._getCancellationCheck() == null) {
+            return action;
+        }
+        return (a, b) -> {
+            long result = action.applyAsLong(a, b);
+            script._pollCancellation();
+            return result;
+        };
+    }
+
+    @SuppressWarnings("overloads")
+    private static DoubleBinaryOperator wrap(PainlessScript script, DoubleBinaryOperator action) {
+        if (script._getCancellationCheck() == null) {
+            return action;
+        }
+        return (a, b) -> {
+            double result = action.applyAsDouble(a, b);
+            script._pollCancellation();
+            return result;
+        };
+    }
+
+    @SuppressWarnings("overloads")
+    private static <R> ObjIntConsumer<R> wrap(PainlessScript script, ObjIntConsumer<R> action) {
+        if (script._getCancellationCheck() == null) {
+            return action;
+        }
+        return (r, i) -> {
+            action.accept(r, i);
+            script._pollCancellation();
+        };
+    }
+
+    @SuppressWarnings("overloads")
+    private static <R> ObjLongConsumer<R> wrap(PainlessScript script, ObjLongConsumer<R> action) {
+        if (script._getCancellationCheck() == null) {
+            return action;
+        }
+        return (r, l) -> {
+            action.accept(r, l);
+            script._pollCancellation();
+        };
+    }
+
+    @SuppressWarnings("overloads")
+    private static <R> ObjDoubleConsumer<R> wrap(PainlessScript script, ObjDoubleConsumer<R> action) {
+        if (script._getCancellationCheck() == null) {
+            return action;
+        }
+        return (r, d) -> {
+            action.accept(r, d);
+            script._pollCancellation();
         };
     }
 
@@ -1166,86 +1314,37 @@ public class Augmentation {
 
     /** Cancellation-aware wrapper around {@link Stream#forEach}. */
     public static <T> void forEach(PainlessScript script, Stream<T> receiver, Consumer<T> consumer) {
-        if (script._getCancellationCheck() == null) {
-            receiver.forEach(consumer);
-            return;
-        }
-        receiver.forEach(t -> {
-            consumer.accept(t);
-            script._pollCancellation();
-        });
+        receiver.forEach(wrap(script, consumer));
     }
 
     /** Cancellation-aware wrapper around {@link Stream#forEachOrdered}. */
     public static <T> void forEachOrdered(PainlessScript script, Stream<T> receiver, Consumer<T> consumer) {
-        if (script._getCancellationCheck() == null) {
-            receiver.forEachOrdered(consumer);
-            return;
-        }
-        receiver.forEachOrdered(t -> {
-            consumer.accept(t);
-            script._pollCancellation();
-        });
+        receiver.forEachOrdered(wrap(script, consumer));
     }
 
     /** Cancellation-aware wrapper around {@link Stream#allMatch}. */
     public static <T> boolean allMatch(PainlessScript script, Stream<T> receiver, Predicate<T> predicate) {
-        if (script._getCancellationCheck() == null) {
-            return receiver.allMatch(predicate);
-        }
-        return receiver.allMatch(t -> {
-            boolean result = predicate.test(t);
-            script._pollCancellation();
-            return result;
-        });
+        return receiver.allMatch(wrap(script, predicate));
     }
 
     /** Cancellation-aware wrapper around {@link Stream#anyMatch}. */
     public static <T> boolean anyMatch(PainlessScript script, Stream<T> receiver, Predicate<T> predicate) {
-        if (script._getCancellationCheck() == null) {
-            return receiver.anyMatch(predicate);
-        }
-        return receiver.anyMatch(t -> {
-            boolean result = predicate.test(t);
-            script._pollCancellation();
-            return result;
-        });
+        return receiver.anyMatch(wrap(script, predicate));
     }
 
     /** Cancellation-aware wrapper around {@link Stream#noneMatch}. */
     public static <T> boolean noneMatch(PainlessScript script, Stream<T> receiver, Predicate<T> predicate) {
-        if (script._getCancellationCheck() == null) {
-            return receiver.noneMatch(predicate);
-        }
-        return receiver.noneMatch(t -> {
-            boolean result = predicate.test(t);
-            script._pollCancellation();
-            return result;
-        });
+        return receiver.noneMatch(wrap(script, predicate));
     }
 
     /** Cancellation-aware wrapper around {@link Stream#reduce(BinaryOperator)}. */
     public static <T> Optional<T> reduce(PainlessScript script, Stream<T> receiver, BinaryOperator<T> op) {
-        if (script._getCancellationCheck() == null) {
-            return receiver.reduce(op);
-        }
-        return receiver.reduce((a, b) -> {
-            T result = op.apply(a, b);
-            script._pollCancellation();
-            return result;
-        });
+        return receiver.reduce(wrap(script, op));
     }
 
     /** Cancellation-aware wrapper around {@link Stream#reduce(Object, BinaryOperator)}. */
     public static <T> T reduce(PainlessScript script, Stream<T> receiver, T identity, BinaryOperator<T> op) {
-        if (script._getCancellationCheck() == null) {
-            return receiver.reduce(identity, op);
-        }
-        return receiver.reduce(identity, (a, b) -> {
-            T result = op.apply(a, b);
-            script._pollCancellation();
-            return result;
-        });
+        return receiver.reduce(identity, wrap(script, op));
     }
 
     /** Cancellation-aware wrapper around {@link Stream#reduce(Object, BiFunction, BinaryOperator)}. */
@@ -1256,14 +1355,7 @@ public class Augmentation {
         BiFunction<U, ? super T, U> accumulator,
         BinaryOperator<U> combiner
     ) {
-        if (script._getCancellationCheck() == null) {
-            return receiver.reduce(identity, accumulator, combiner);
-        }
-        return receiver.reduce(identity, (u, t) -> {
-            U result = accumulator.apply(u, t);
-            script._pollCancellation();
-            return result;
-        }, combiner);
+        return receiver.reduce(identity, wrap(script, accumulator), combiner);
     }
 
     /** Cancellation-aware wrapper around {@link Stream#collect(Supplier, BiConsumer, BiConsumer)}. */
@@ -1274,13 +1366,7 @@ public class Augmentation {
         BiConsumer<R, ? super T> accumulator,
         BiConsumer<R, R> combiner
     ) {
-        if (script._getCancellationCheck() == null) {
-            return receiver.collect(supplier, accumulator, combiner);
-        }
-        return receiver.collect(supplier, (r, t) -> {
-            accumulator.accept(r, t);
-            script._pollCancellation();
-        }, combiner);
+        return receiver.collect(supplier, wrap(script, accumulator), combiner);
     }
 
     /**
@@ -1307,86 +1393,37 @@ public class Augmentation {
 
     /** Cancellation-aware wrapper around {@link IntStream#forEach}. */
     public static void forEach(PainlessScript script, IntStream receiver, IntConsumer consumer) {
-        if (script._getCancellationCheck() == null) {
-            receiver.forEach(consumer);
-            return;
-        }
-        receiver.forEach(i -> {
-            consumer.accept(i);
-            script._pollCancellation();
-        });
+        receiver.forEach(wrap(script, consumer));
     }
 
     /** Cancellation-aware wrapper around {@link IntStream#forEachOrdered}. */
     public static void forEachOrdered(PainlessScript script, IntStream receiver, IntConsumer consumer) {
-        if (script._getCancellationCheck() == null) {
-            receiver.forEachOrdered(consumer);
-            return;
-        }
-        receiver.forEachOrdered(i -> {
-            consumer.accept(i);
-            script._pollCancellation();
-        });
+        receiver.forEachOrdered(wrap(script, consumer));
     }
 
     /** Cancellation-aware wrapper around {@link IntStream#allMatch}. */
     public static boolean allMatch(PainlessScript script, IntStream receiver, IntPredicate predicate) {
-        if (script._getCancellationCheck() == null) {
-            return receiver.allMatch(predicate);
-        }
-        return receiver.allMatch(i -> {
-            boolean result = predicate.test(i);
-            script._pollCancellation();
-            return result;
-        });
+        return receiver.allMatch(wrap(script, predicate));
     }
 
     /** Cancellation-aware wrapper around {@link IntStream#anyMatch}. */
     public static boolean anyMatch(PainlessScript script, IntStream receiver, IntPredicate predicate) {
-        if (script._getCancellationCheck() == null) {
-            return receiver.anyMatch(predicate);
-        }
-        return receiver.anyMatch(i -> {
-            boolean result = predicate.test(i);
-            script._pollCancellation();
-            return result;
-        });
+        return receiver.anyMatch(wrap(script, predicate));
     }
 
     /** Cancellation-aware wrapper around {@link IntStream#noneMatch}. */
     public static boolean noneMatch(PainlessScript script, IntStream receiver, IntPredicate predicate) {
-        if (script._getCancellationCheck() == null) {
-            return receiver.noneMatch(predicate);
-        }
-        return receiver.noneMatch(i -> {
-            boolean result = predicate.test(i);
-            script._pollCancellation();
-            return result;
-        });
+        return receiver.noneMatch(wrap(script, predicate));
     }
 
     /** Cancellation-aware wrapper around {@link IntStream#reduce(IntBinaryOperator)}. */
     public static OptionalInt reduce(PainlessScript script, IntStream receiver, IntBinaryOperator op) {
-        if (script._getCancellationCheck() == null) {
-            return receiver.reduce(op);
-        }
-        return receiver.reduce((a, b) -> {
-            int result = op.applyAsInt(a, b);
-            script._pollCancellation();
-            return result;
-        });
+        return receiver.reduce(wrap(script, op));
     }
 
     /** Cancellation-aware wrapper around {@link IntStream#reduce(int, IntBinaryOperator)}. */
     public static int reduce(PainlessScript script, IntStream receiver, int identity, IntBinaryOperator op) {
-        if (script._getCancellationCheck() == null) {
-            return receiver.reduce(identity, op);
-        }
-        return receiver.reduce(identity, (a, b) -> {
-            int result = op.applyAsInt(a, b);
-            script._pollCancellation();
-            return result;
-        });
+        return receiver.reduce(identity, wrap(script, op));
     }
 
     /** Cancellation-aware wrapper around {@link IntStream#collect(Supplier, ObjIntConsumer, BiConsumer)}. */
@@ -1397,97 +1434,42 @@ public class Augmentation {
         ObjIntConsumer<R> accumulator,
         BiConsumer<R, R> combiner
     ) {
-        if (script._getCancellationCheck() == null) {
-            return receiver.collect(supplier, accumulator, combiner);
-        }
-        return receiver.collect(supplier, (r, i) -> {
-            accumulator.accept(r, i);
-            script._pollCancellation();
-        }, combiner);
+        return receiver.collect(supplier, wrap(script, accumulator), combiner);
     }
 
     /** Cancellation-aware wrapper around {@link LongStream#forEach}. */
     public static void forEach(PainlessScript script, LongStream receiver, LongConsumer consumer) {
-        if (script._getCancellationCheck() == null) {
-            receiver.forEach(consumer);
-            return;
-        }
-        receiver.forEach(l -> {
-            consumer.accept(l);
-            script._pollCancellation();
-        });
+        receiver.forEach(wrap(script, consumer));
     }
 
     /** Cancellation-aware wrapper around {@link LongStream#forEachOrdered}. */
     public static void forEachOrdered(PainlessScript script, LongStream receiver, LongConsumer consumer) {
-        if (script._getCancellationCheck() == null) {
-            receiver.forEachOrdered(consumer);
-            return;
-        }
-        receiver.forEachOrdered(l -> {
-            consumer.accept(l);
-            script._pollCancellation();
-        });
+        receiver.forEachOrdered(wrap(script, consumer));
     }
 
     /** Cancellation-aware wrapper around {@link LongStream#allMatch}. */
     public static boolean allMatch(PainlessScript script, LongStream receiver, LongPredicate predicate) {
-        if (script._getCancellationCheck() == null) {
-            return receiver.allMatch(predicate);
-        }
-        return receiver.allMatch(l -> {
-            boolean result = predicate.test(l);
-            script._pollCancellation();
-            return result;
-        });
+        return receiver.allMatch(wrap(script, predicate));
     }
 
     /** Cancellation-aware wrapper around {@link LongStream#anyMatch}. */
     public static boolean anyMatch(PainlessScript script, LongStream receiver, LongPredicate predicate) {
-        if (script._getCancellationCheck() == null) {
-            return receiver.anyMatch(predicate);
-        }
-        return receiver.anyMatch(l -> {
-            boolean result = predicate.test(l);
-            script._pollCancellation();
-            return result;
-        });
+        return receiver.anyMatch(wrap(script, predicate));
     }
 
     /** Cancellation-aware wrapper around {@link LongStream#noneMatch}. */
     public static boolean noneMatch(PainlessScript script, LongStream receiver, LongPredicate predicate) {
-        if (script._getCancellationCheck() == null) {
-            return receiver.noneMatch(predicate);
-        }
-        return receiver.noneMatch(l -> {
-            boolean result = predicate.test(l);
-            script._pollCancellation();
-            return result;
-        });
+        return receiver.noneMatch(wrap(script, predicate));
     }
 
     /** Cancellation-aware wrapper around {@link LongStream#reduce(LongBinaryOperator)}. */
     public static OptionalLong reduce(PainlessScript script, LongStream receiver, LongBinaryOperator op) {
-        if (script._getCancellationCheck() == null) {
-            return receiver.reduce(op);
-        }
-        return receiver.reduce((a, b) -> {
-            long result = op.applyAsLong(a, b);
-            script._pollCancellation();
-            return result;
-        });
+        return receiver.reduce(wrap(script, op));
     }
 
     /** Cancellation-aware wrapper around {@link LongStream#reduce(long, LongBinaryOperator)}. */
     public static long reduce(PainlessScript script, LongStream receiver, long identity, LongBinaryOperator op) {
-        if (script._getCancellationCheck() == null) {
-            return receiver.reduce(identity, op);
-        }
-        return receiver.reduce(identity, (a, b) -> {
-            long result = op.applyAsLong(a, b);
-            script._pollCancellation();
-            return result;
-        });
+        return receiver.reduce(identity, wrap(script, op));
     }
 
     /** Cancellation-aware wrapper around {@link LongStream#collect(Supplier, ObjLongConsumer, BiConsumer)}. */
@@ -1498,97 +1480,42 @@ public class Augmentation {
         ObjLongConsumer<R> accumulator,
         BiConsumer<R, R> combiner
     ) {
-        if (script._getCancellationCheck() == null) {
-            return receiver.collect(supplier, accumulator, combiner);
-        }
-        return receiver.collect(supplier, (r, l) -> {
-            accumulator.accept(r, l);
-            script._pollCancellation();
-        }, combiner);
+        return receiver.collect(supplier, wrap(script, accumulator), combiner);
     }
 
     /** Cancellation-aware wrapper around {@link DoubleStream#forEach}. */
     public static void forEach(PainlessScript script, DoubleStream receiver, DoubleConsumer consumer) {
-        if (script._getCancellationCheck() == null) {
-            receiver.forEach(consumer);
-            return;
-        }
-        receiver.forEach(d -> {
-            consumer.accept(d);
-            script._pollCancellation();
-        });
+        receiver.forEach(wrap(script, consumer));
     }
 
     /** Cancellation-aware wrapper around {@link DoubleStream#forEachOrdered}. */
     public static void forEachOrdered(PainlessScript script, DoubleStream receiver, DoubleConsumer consumer) {
-        if (script._getCancellationCheck() == null) {
-            receiver.forEachOrdered(consumer);
-            return;
-        }
-        receiver.forEachOrdered(d -> {
-            consumer.accept(d);
-            script._pollCancellation();
-        });
+        receiver.forEachOrdered(wrap(script, consumer));
     }
 
     /** Cancellation-aware wrapper around {@link DoubleStream#allMatch}. */
     public static boolean allMatch(PainlessScript script, DoubleStream receiver, DoublePredicate predicate) {
-        if (script._getCancellationCheck() == null) {
-            return receiver.allMatch(predicate);
-        }
-        return receiver.allMatch(d -> {
-            boolean result = predicate.test(d);
-            script._pollCancellation();
-            return result;
-        });
+        return receiver.allMatch(wrap(script, predicate));
     }
 
     /** Cancellation-aware wrapper around {@link DoubleStream#anyMatch}. */
     public static boolean anyMatch(PainlessScript script, DoubleStream receiver, DoublePredicate predicate) {
-        if (script._getCancellationCheck() == null) {
-            return receiver.anyMatch(predicate);
-        }
-        return receiver.anyMatch(d -> {
-            boolean result = predicate.test(d);
-            script._pollCancellation();
-            return result;
-        });
+        return receiver.anyMatch(wrap(script, predicate));
     }
 
     /** Cancellation-aware wrapper around {@link DoubleStream#noneMatch}. */
     public static boolean noneMatch(PainlessScript script, DoubleStream receiver, DoublePredicate predicate) {
-        if (script._getCancellationCheck() == null) {
-            return receiver.noneMatch(predicate);
-        }
-        return receiver.noneMatch(d -> {
-            boolean result = predicate.test(d);
-            script._pollCancellation();
-            return result;
-        });
+        return receiver.noneMatch(wrap(script, predicate));
     }
 
     /** Cancellation-aware wrapper around {@link DoubleStream#reduce(DoubleBinaryOperator)}. */
     public static OptionalDouble reduce(PainlessScript script, DoubleStream receiver, DoubleBinaryOperator op) {
-        if (script._getCancellationCheck() == null) {
-            return receiver.reduce(op);
-        }
-        return receiver.reduce((a, b) -> {
-            double result = op.applyAsDouble(a, b);
-            script._pollCancellation();
-            return result;
-        });
+        return receiver.reduce(wrap(script, op));
     }
 
     /** Cancellation-aware wrapper around {@link DoubleStream#reduce(double, DoubleBinaryOperator)}. */
     public static double reduce(PainlessScript script, DoubleStream receiver, double identity, DoubleBinaryOperator op) {
-        if (script._getCancellationCheck() == null) {
-            return receiver.reduce(identity, op);
-        }
-        return receiver.reduce(identity, (a, b) -> {
-            double result = op.applyAsDouble(a, b);
-            script._pollCancellation();
-            return result;
-        });
+        return receiver.reduce(identity, wrap(script, op));
     }
 
     /** Cancellation-aware wrapper around {@link DoubleStream#collect(Supplier, ObjDoubleConsumer, BiConsumer)}. */
@@ -1599,13 +1526,7 @@ public class Augmentation {
         ObjDoubleConsumer<R> accumulator,
         BiConsumer<R, R> combiner
     ) {
-        if (script._getCancellationCheck() == null) {
-            return receiver.collect(supplier, accumulator, combiner);
-        }
-        return receiver.collect(supplier, (r, d) -> {
-            accumulator.accept(r, d);
-            script._pollCancellation();
-        }, combiner);
+        return receiver.collect(supplier, wrap(script, accumulator), combiner);
     }
 
     // CharSequence augmentation

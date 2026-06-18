@@ -281,16 +281,51 @@ public class TimeSeriesMetadataFieldBlockLoaderTests extends MapperServiceTestCa
     }
 
     /**
+     * Verify that the `withoutFields` parameter correctly excludes labels from the output.
+     * When using PromQL's `without(instance)` clause, the `instance` label must not appear
+     * in the emitted `_timeseries` JSON.
+     */
+    public void testWithoutFieldsExcludesLabelsFromOutput() throws IOException {
+        BytesReference cbor = bytes(XContentType.CBOR, b -> {
+            b.field("@timestamp", "2021-04-28T18:50:00Z");
+            b.startObject("labels");
+            b.field("__name__", "go_gc_cleanups_executed_cleanups_total");
+            b.field("instance", "localhost:9090");
+            b.field("job", "prometheus");
+            b.endObject();
+            b.startObject("metrics");
+            b.field("go_gc_cleanups_executed_cleanups_total", 1.0);
+            b.endObject();
+        });
+        BytesRef value = readTimeSeriesValue(
+            TSDB_PROMETHEUS_LIKE_SETTINGS,
+            PROMETHEUS_LIKE_MAPPING,
+            sourceToParse(cbor, XContentType.CBOR),
+            Set.of("labels.instance")
+        );
+        Map<String, Object> parsed = parseJsonObject(value);
+        assertThat(parsed.keySet(), equalTo(Set.of("labels")));
+        @SuppressWarnings("unchecked")
+        Map<String, Object> labels = (Map<String, Object>) parsed.get("labels");
+        assertThat(labels, equalTo(Map.of("__name__", "go_gc_cleanups_executed_cleanups_total", "job", "prometheus")));
+    }
+
+    /**
      * Build the {@code _timeseries} block loader, index a single document, and return the {@link BytesRef}
      * the loader writes into a one-row block. This mirrors how the production code wires
      * {@link TimeSeriesMetadataFieldBlockLoader} into a row-stride read at search time.
      */
     private BytesRef readTimeSeriesValue(Settings settings, String mapping, SourceToParse sourceToParse) throws IOException {
+        return readTimeSeriesValue(settings, mapping, sourceToParse, Set.of());
+    }
+
+    private BytesRef readTimeSeriesValue(Settings settings, String mapping, SourceToParse sourceToParse, Set<String> withoutFields)
+        throws IOException {
         MapperService mapperService = createMapperService(settings, mapping);
         BlockLoader loader = mapperService.documentMapper()
             .sourceMapper()
             .fieldType()
-            .blockLoader(new TestBlockLoaderContext(mapperService, new BlockLoaderFunctionConfig.TimeSeriesMetadata(false, Set.of())));
+            .blockLoader(new TestBlockLoaderContext(mapperService, new BlockLoaderFunctionConfig.TimeSeriesMetadata(false, withoutFields)));
         assertThat(loader, instanceOf(TimeSeriesMetadataFieldBlockLoader.class));
 
         AtomicReference<BytesRef> result = new AtomicReference<>();

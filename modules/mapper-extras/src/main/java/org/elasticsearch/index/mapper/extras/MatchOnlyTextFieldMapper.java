@@ -215,7 +215,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             if (FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled()) {
                 params.add(docValuesParameters);
             }
-            if (IndexSettings.INDEX_DISABLED_BY_DEFAULT_FEATURE_FLAG.isEnabled()) {
+            if (IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled()) {
                 params.add(indexed);
             }
             return params.toArray(Parameter[]::new);

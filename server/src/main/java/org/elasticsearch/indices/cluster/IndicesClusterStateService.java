@@ -77,6 +77,7 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.recovery.PeerRecoverySourceService;
 import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
 import org.elasticsearch.indices.recovery.RecoveryFailedException;
+import org.elasticsearch.indices.recovery.RecoveryListener;
 import org.elasticsearch.indices.recovery.RecoveryMetricsCollector;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.injection.guice.Inject;
@@ -901,7 +902,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 originalState.metadata().projectFor(shardRouting.index()).id(),
                 shardRouting,
                 recoveryTargetService,
-                new RecoveryListener(shardRouting, primaryTerm),
+                new ShardRecoveryListener(shardRouting, primaryTerm),
                 repositoriesService,
                 failedShardHandler,
                 this::updateGlobalCheckpointForShard,
@@ -1153,7 +1154,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
 
     private record PendingShardCreation(String clusterStateUUID, long startTimeMillis) {}
 
-    private class RecoveryListener implements PeerRecoveryTargetService.RecoveryListener {
+    private class ShardRecoveryListener implements RecoveryListener {
 
         /**
          * ShardRouting with which the shard was created
@@ -1165,7 +1166,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
          */
         private final long primaryTerm;
 
-        private RecoveryListener(final ShardRouting shardRouting, final long primaryTerm) {
+        private ShardRecoveryListener(final ShardRouting shardRouting, final long primaryTerm) {
             this.shardRouting = shardRouting;
             this.primaryTerm = primaryTerm;
         }
@@ -1189,6 +1190,13 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         @Override
         public void onRecoveryFailure(RecoveryFailedException e, boolean sendShardFailure) {
             handleRecoveryFailure(shardRouting, sendShardFailure, e);
+        }
+
+        @Override
+        public void onRecoveryAborted() {
+            // We don't need to notify master of anything here because recovery abortion is a
+            // symptom of a shard that is closing and this is communicated to master through other
+            // means (or the master already knows because the master initiated it, e.g. by moving the shard)
         }
     }
 
@@ -1476,7 +1484,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             ProjectId projectId,
             ShardRouting shardRouting,
             PeerRecoveryTargetService recoveryTargetService,
-            PeerRecoveryTargetService.RecoveryListener recoveryListener,
+            RecoveryListener recoveryListener,
             RepositoriesService repositoriesService,
             Consumer<IndexShard.ShardFailure> onShardFailure,
             GlobalCheckpointSyncer globalCheckpointSyncer,

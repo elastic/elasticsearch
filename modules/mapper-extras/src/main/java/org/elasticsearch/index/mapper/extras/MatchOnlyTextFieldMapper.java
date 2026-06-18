@@ -84,10 +84,12 @@ import org.elasticsearch.index.mapper.TextParams;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.mapper.blockloader.DelegatingBlockLoader;
+import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromBinaryBlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromBinaryMultiSeparateCountBlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromCustomBinaryBlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromOrdsBlockLoader;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.lucene.queries.SlowCustomBinaryDocValuesPrefixQuery;
 import org.elasticsearch.lucene.queries.SlowCustomBinaryDocValuesTermInSetQuery;
 import org.elasticsearch.lucene.queries.SlowCustomBinaryDocValuesTermQuery;
 import org.elasticsearch.lucene.queries.SlowCustomBinaryDocValuesWildcardQuery;
@@ -123,11 +125,15 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
 
     public static final String CONTENT_TYPE = "match_only_text";
 
-    private static final FieldMapper.DocValuesParameter.Values DEFAULT_DOC_VALUES_PARAMS = new FieldMapper.DocValuesParameter.Values(
-        false,
-        FieldMapper.DocValuesParameter.Values.Cardinality.HIGH,
-        true
-    );
+    private static FieldMapper.DocValuesParameter.Values defaultDocValuesParameters(IndexMode indexMode) {
+        return new FieldMapper.DocValuesParameter.Values(
+            // Strictly columnar indices read field values from doc values, so enable doc values by default for match_only_text in that
+            // mode.
+            indexMode.isStrictColumnar(),
+            FieldMapper.DocValuesParameter.Values.Cardinality.HIGH,
+            true
+        );
+    }
 
     public static class Defaults {
         public static final FieldType FIELD_TYPE;
@@ -147,10 +153,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
     public static class Builder extends TextFamilyBuilder {
 
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
-        private final FieldMapper.DocValuesParameter docValuesParameters = FieldMapper.DocValuesParameter.ofWithCardinality(
-            DEFAULT_DOC_VALUES_PARAMS,
-            m -> ((MatchOnlyTextFieldMapper) m).docValuesParameters
-        );
+        private final FieldMapper.DocValuesParameter docValuesParameters;
 
         private final Parameter<Boolean> indexed;
 
@@ -181,6 +184,14 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             this.storedFieldInBinaryFormat = storedFieldInBinaryFormat;
             this.usesBinaryDocValuesForFallbackFields = usesBinaryDocValuesForFallbackFields;
             this.indexMode = indexMode;
+            this.docValuesParameters = FieldMapper.DocValuesParameter.ofWithCardinality(() -> {
+                FieldMapper.DocValuesParameter.Values defaultDocValues = defaultDocValuesParameters(indexMode);
+                // In strict-columnar mode, skip the field's own doc values when a plain keyword multi-field already stores an identical
+                // copy of the raw values, so loading and synthetic source route through that delegate instead of duplicating the column.
+                boolean enabled = defaultDocValues.enabled()
+                    && multiFieldsBuilder.hasColumnarModeCompatibleKeywordDelegate(indexMode) == false;
+                return new FieldMapper.DocValuesParameter.Values(enabled, defaultDocValues.cardinality(), defaultDocValues.multiValue());
+            }, defaultDocValuesParameters(indexMode), m -> ((MatchOnlyTextFieldMapper) m).docValuesParameters);
         }
 
         public Builder(String name, MappingParserContext context) {
@@ -247,9 +258,9 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
                 usesBinaryDocValuesForFallbackFields,
                 indexCreatedVersion(),
                 indexed.get(),
-                docValuesParameters.getValue().enabled(),
                 usesBinaryDocValues(),
-                offsetsFieldName != null
+                offsetsFieldName != null,
+                docValuesParameters.getValue()
             );
         }
 
@@ -263,6 +274,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             this.offsetsFieldName = FieldArrayContext.getOffsetsFieldName(
                 context,
                 indexMode.isStrictColumnar(),
+                docValuesParameters.getValue().enabled(),
                 docValuesParameters.getValue().multiValue(),
                 this
             );
@@ -292,6 +304,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
         private final boolean usesBinaryDocValues;
         // Whether the block loader must emit values in indexed array order (via the offsets sidecar) rather than sorted doc-values order.
         private final boolean readInArrayOrder;
+        private final FieldMapper.DocValuesParameter.Values docValuesParams;
 
         public MatchOnlyTextFieldType(
             String name,
@@ -305,11 +318,11 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             boolean usesBinaryDocValuesForFallbackFields,
             IndexVersion indexVersion,
             boolean indexed,
-            boolean hasDocValues,
             boolean usesBinaryDocValues,
-            boolean readInArrayOrder
+            boolean readInArrayOrder,
+            FieldMapper.DocValuesParameter.Values docValuesParams
         ) {
-            super(name, IndexType.terms(indexed, hasDocValues), false, tsi, meta, isSyntheticSource, withinMultiField);
+            super(name, IndexType.terms(indexed, docValuesParams.enabled()), false, tsi, meta, isSyntheticSource, withinMultiField);
             this.indexAnalyzer = Objects.requireNonNull(indexAnalyzer);
             this.textFieldType = new TextFieldType(name, isSyntheticSource, withinMultiField, syntheticSourceDelegate);
             this.storedFieldInBinaryFormat = storedFieldInBinaryFormat;
@@ -317,6 +330,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             this.indexVersion = indexVersion;
             this.usesBinaryDocValues = usesBinaryDocValues;
             this.readInArrayOrder = readInArrayOrder;
+            this.docValuesParams = docValuesParams;
         }
 
         public MatchOnlyTextFieldType(String name) {
@@ -334,7 +348,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
                 true,
                 false,
                 false,
-                false
+                new FieldMapper.DocValuesParameter.Values(false, FieldMapper.DocValuesParameter.Values.Cardinality.HIGH, true)
             );
         }
 
@@ -655,13 +669,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             }
             failIfNotIndexedNorDocValuesFallback(context);
             if (usesBinaryDocValues) {
-                return new StringScriptFieldPrefixQuery(
-                    new Script(""),
-                    ctx -> new SortedBinaryDocValuesStringFieldScript(name(), context.lookup(), ctx, indexVersion),
-                    name(),
-                    value,
-                    caseInsensitive
-                );
+                return new SlowCustomBinaryDocValuesPrefixQuery(name(), value, caseInsensitive);
             }
             if (caseInsensitive == false) {
                 return new PrefixQuery(new Term(name(), value), MultiTermQuery.DOC_VALUES_REWRITE);
@@ -720,9 +728,6 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             }
             failIfNotIndexedNorDocValuesFallback(context);
             value = AutomatonQueries.collapseConsecutiveQuantifiers(value);
-            if (matchFlags != 0) {
-                throw new IllegalArgumentException("Match flags not yet implemented [" + matchFlags + "]");
-            }
             if (usesBinaryDocValues) {
                 return new StringScriptFieldRegexpQuery(
                     new Script(""),
@@ -898,6 +903,10 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             // Check if we can load from doc values
             if (hasDocValues()) {
                 if (usesBinaryDocValues) {
+                    if (docValuesParams.multiValue() == false) {
+                        // Single-valued binary doc values are written as plain (no separate counts column), so read them as plain.
+                        return new BytesRefsFromBinaryBlockLoader(name());
+                    }
                     return new BytesRefsFromBinaryMultiSeparateCountBlockLoader(name(), readInArrayOrder);
                 } else {
                     return new BytesRefsFromOrdsBlockLoader(name(), blContext.ordinalsByteSize());

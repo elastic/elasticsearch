@@ -28,8 +28,10 @@ import org.elasticsearch.xpack.esql.datasources.spi.SourceOperatorContext;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
+import java.util.stream.Stream;
 
 /**
  * Holds the pragmas for an ESQL query. Just a wrapper of settings for now.
@@ -183,6 +185,31 @@ public final class QueryPragmas implements Writeable {
     public static final Setting<Boolean> RUNTIME_LEXICAL_SEARCH = Setting.boolSetting("runtime_lexical_search", false);
 
     public static final QueryPragmas EMPTY = new QueryPragmas(Settings.EMPTY);
+
+    public static final List<String> VALID_PRAGMA_NAMES = Stream.of(
+        EXCHANGE_BUFFER_SIZE,
+        ENRICH_MAX_WORKERS,
+        TASK_CONCURRENCY,
+        DATA_PARTITIONING,
+        PAGE_SIZE,
+        STATUS_INTERVAL,
+        MAX_CONCURRENT_NODES_PER_CLUSTER,
+        MAX_CONCURRENT_SHARDS_PER_NODE,
+        UNAVAILABLE_SHARD_RESOLUTION_ATTEMPTS,
+        NODE_LEVEL_REDUCTION,
+        FOLD_LIMIT,
+        FIELD_EXTRACT_PREFERENCE,
+        ROUNDTO_PUSHDOWN_THRESHOLD,
+        MAX_KEYWORD_SORT_FIELDS,
+        EXTERNAL_DISTRIBUTION,
+        IN_SUBQUERY_HASH_JOIN_THRESHOLD,
+        BRANCH_PARALLEL_DEGREE,
+        PARSING_PARALLELISM,
+        MAX_CONCURRENT_OPEN_SEGMENTS,
+        MAX_RECORD_SIZE,
+        FORCE_DOC_SEQUENCE,
+        RUNTIME_LEXICAL_SEARCH
+    ).map(Setting::getKey).toList();
 
     private final Settings settings;
 

@@ -216,7 +216,14 @@ public class DoubleLongBucketedSort implements Releasable {
                 extraBuilder.endPositionEntry();
             }
             blocks[offset] = builder.build();
-            blocks[offset + 1] = extraBuilder.build();
+            try {
+                blocks[offset + 1] = extraBuilder.build();
+            } finally {
+                if (blocks[offset + 1] == null) {
+                    blocks[offset].close();
+                    blocks[offset] = null;
+                }
+            }
         }
     }
 

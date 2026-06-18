@@ -20,6 +20,5 @@
   "examples" : [
     "delta(cpu_temp_celsius[2h])"
   ],
-  "preview" : true,
   "snapshot_only" : false
 }

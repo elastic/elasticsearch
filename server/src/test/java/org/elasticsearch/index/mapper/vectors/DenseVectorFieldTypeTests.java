@@ -141,7 +141,8 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
                 IndexVersion.current(),
                 randomBoolean(),
                 randomFrom(1, 2, 4),
-                randomBoolean()
+                randomBoolean(),
+                false
             )
         );
 
@@ -949,7 +950,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
         } else {
             assertThat(query, instanceOf(DiversifyingChildrenIVFKnnFloatSlicedVectorQuery.class));
         }
-        assertThat(query.toString("ignored"), containsString("_routing=s1"));
+        assertThat(query.toString("ignored"), containsString("_routing=[s1]"));
     }
 
     public void testBBQIVFRejectsMissingSliceForKnnWhenSliceEnabled() {
@@ -1043,26 +1044,47 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
         assertThat(exception.getMessage(), containsString("[_slice] value [_all] is not supported for KNN"));
     }
 
-    public void testBBQIVFRejectsMultiValueSliceForKnn() {
+    public void testBBQIVFUsesSlicedQueryForMultiSliceRouting() {
         BitSetProducer parentFilter = random().nextBoolean() ? null : context -> null;
         DenseVectorFieldType fieldType = createBBQIVFFloatFieldType();
-        IllegalArgumentException exception = expectThrows(
-            IllegalArgumentException.class,
-            () -> fieldType.createKnnQuery(
-                VectorData.fromFloats(testQueryVector(64)),
-                5,
-                10,
-                10f,
-                null,
-                null,
-                null,
-                parentFilter,
-                randomFrom(DenseVectorFieldMapper.FilterHeuristic.values()),
-                randomBoolean(),
-                "s1,s2"
-            )
+        Query query = fieldType.createKnnQuery(
+            VectorData.fromFloats(testQueryVector(64)),
+            5,
+            10,
+            10f,
+            null,
+            null,
+            null,
+            parentFilter,
+            randomFrom(DenseVectorFieldMapper.FilterHeuristic.values()),
+            randomBoolean(),
+            "s1,s2"
         );
-        assertThat(exception.getMessage(), containsString("[_slice] must be a single value for KNN queries"));
+        if (parentFilter == null) {
+            assertThat(query, instanceOf(IVFKnnFloatVectorQuery.class));
+        } else {
+            assertThat(query, instanceOf(DiversifyingChildrenIVFKnnFloatSlicedVectorQuery.class));
+        }
+        assertThat(query.toString("ignored"), containsString("_routing=[s1,s2]"));
+    }
+
+    public void testBBQIVFDeduplicatesMultiSliceRoutingForKnn() {
+        BitSetProducer parentFilter = random().nextBoolean() ? null : context -> null;
+        DenseVectorFieldType fieldType = createBBQIVFFloatFieldType();
+        Query query = fieldType.createKnnQuery(
+            VectorData.fromFloats(testQueryVector(64)),
+            5,
+            10,
+            10f,
+            null,
+            null,
+            null,
+            parentFilter,
+            randomFrom(DenseVectorFieldMapper.FilterHeuristic.values()),
+            randomBoolean(),
+            "s1,s1,s2"
+        );
+        assertThat(query.toString("ignored"), containsString("_routing=[s1,s2]"));
     }
 
     private static DenseVectorFieldType createBBQIVFFloatFieldType() {
@@ -1075,7 +1097,8 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
             IndexVersion.current(),
             false,
             1,
-            true
+            true,
+            false
         );
         return new DenseVectorFieldType(
             "f",

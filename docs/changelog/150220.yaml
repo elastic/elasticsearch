@@ -16,4 +16,4 @@ issues:
  - 141596
 pr: 150220
 summary: Rewire FUSE to use FIRST for passthrough columns
-type: "breaking, enhancement"
+type: breaking

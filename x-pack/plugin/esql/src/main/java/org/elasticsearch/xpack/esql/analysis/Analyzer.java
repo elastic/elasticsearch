@@ -1558,19 +1558,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 return new Fuse(fuse.source(), fuse.child(), score, discriminator, keys, fuse.fuseType(), fuse.options());
             }
 
-            // Inject _fork_id (integer branch counter) into each FORK branch
-            LogicalPlan child = fuse.child().transformDown(Fork.class, fork -> {
-                List<LogicalPlan> newBranches = new ArrayList<>(fork.children().size());
-                int branchId = 1;
-                for (LogicalPlan branch : fork.children()) {
-                    Literal idLit = Literal.integer(fork.source(), branchId++);
-                    newBranches.add(new Eval(fork.source(), branch, List.of(new Alias(fork.source(), Fork.FORK_ID_FIELD, idLit))));
-                }
-                return fork.replaceSubPlans(newBranches).refreshOutput();
-            });
-            List<Attribute> augmentedOutput = child.output();
-
-            LogicalPlan scoreEval = new FuseScoreEval(source, child, score, discriminator, fuse.fuseType(), fuse.options());
+            LogicalPlan scoreEval = new FuseScoreEval(source, fuse.child(), score, discriminator, fuse.fuseType(), fuse.options());
 
             // create aggregations
             Expression aggFilter = new Literal(source, true, DataType.BOOLEAN);
@@ -1584,32 +1572,23 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 )
             );
 
-            // Prefer _fork_id (integer branch counter) as the FIRST sort key so the
-            // lowest-numbered branch deterministically wins when branches disagree on
-            // a passthrough column value. Falls back to NULL if FUSE is used outside
-            // a normal FORK context.
-            Attribute forkIdAttr = augmentedOutput.stream().filter(a -> a.name().equals(Fork.FORK_ID_FIELD)).findFirst().orElse(null);
-            Expression sortKey = forkIdAttr != null ? forkIdAttr : Literal.NULL;
-
-            for (Attribute attr : augmentedOutput) {
-                // _score is aggregated separately above;
-                // _fork_id is only consumed as the FIRST sort key (not an output column)
-                if (attr.name().equals(score.name()) || attr.name().equals(Fork.FORK_ID_FIELD)) {
+            for (Attribute attr : childrenOutput) {
+                if (attr.name().equals(score.name())) {
                     continue;
                 }
                 // _fork differs per branch for the same document, use VALUES to collect all
-                // branch names into a multi-value field.
-                // All other columns come from the same document in every branch;
-                // use FIRST(col, _fork_id) so branch 1 deterministically wins when values differ.
+                // branch names into a multi-value field
+                // All other columns come from the same document in every branch, use
+                // FIRST(col, NULL), as "any value"
                 Expression agg = attr.name().equals(discriminator.name())
                     ? new Values(source, attr, aggFilter, AggregateFunction.NO_WINDOW)
-                    : new First(source, attr, sortKey).withFilter(new IsNotNull(source, attr));
+                    : new First(source, attr, Literal.NULL).withFilter(new IsNotNull(source, attr));
                 if (agg.resolved()) {
                     aggregates.add(new Alias(source, attr.name(), agg));
                 }
             }
 
-            return resolveAggregate(new Aggregate(source, scoreEval, new ArrayList<>(keys), aggregates), augmentedOutput);
+            return resolveAggregate(new Aggregate(source, scoreEval, new ArrayList<>(keys), aggregates), childrenOutput);
         }
 
         private Attribute maybeResolveAttribute(UnresolvedAttribute ua, List<Attribute> childrenOutput) {

@@ -3052,13 +3052,6 @@ public class EsqlCapabilities {
         FUSE_PASSTHROUGH_WITH_FIRST,
 
         /**
-         * FUSE injects a _fork_id into each FORK branch so that FIRST deterministically
-         * picks the value from the lowest-numbered branch when branches produce
-         * different values for the same passthrough column.
-         */
-        FUSE_PASSTHROUGH_WITH_FIRST_DETERMINISTIC,
-
-        /**
          * Support for the {@code DEDUP} command, which removes duplicate rows from the result set.
          * Snapshot-only.
          */

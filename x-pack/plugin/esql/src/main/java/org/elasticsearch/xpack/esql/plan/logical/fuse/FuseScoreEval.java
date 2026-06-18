@@ -29,7 +29,6 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.First;
 import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn;
-import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.PipelineBreaker;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
@@ -155,9 +154,7 @@ public class FuseScoreEval extends UnaryPlan
         // a generic aggregation error.
 
         for (Attribute attr : child().output()) {
-            if (attr.name().equals(scoreAttr.name())
-                || attr.name().equals(discriminatorAttr.name())
-                || attr.name().equals(Fork.FORK_ID_FIELD)) {
+            if (attr.name().equals(scoreAttr.name()) || attr.name().equals(discriminatorAttr.name())) {
                 continue;
             }
             var firstAgg = new First(source(), attr, Literal.NULL);

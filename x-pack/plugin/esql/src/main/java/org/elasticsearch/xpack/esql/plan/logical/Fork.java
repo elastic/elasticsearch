@@ -40,7 +40,6 @@ import static org.elasticsearch.xpack.esql.core.expression.Expressions.toReferen
 public class Fork extends LogicalPlan implements PostAnalysisPlanVerificationAware, TelemetryAware, ExecutesOn.Coordinator {
 
     public static final String FORK_FIELD = "_fork";
-    public static final String FORK_ID_FIELD = "_fork_id";
     public static final int MAX_BRANCHES = 8;
     private final List<Attribute> output;
 

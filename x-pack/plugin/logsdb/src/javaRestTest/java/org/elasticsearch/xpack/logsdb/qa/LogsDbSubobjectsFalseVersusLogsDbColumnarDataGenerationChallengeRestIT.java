@@ -1,0 +1,204 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+package org.elasticsearch.xpack.logsdb.qa;
+
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.common.time.FormatNames;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentType;
+
+import java.io.IOException;
+import java.time.Instant;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
+
+/**
+ * Variant of {@link LogsDbSubobjectsFalseVersusLogsDbColumnarChallengeRestIT} that uses
+ * randomly generated mappings and documents from {@link DataGenerationHelper} instead of
+ * hand-coded ones, to exercise a wider set of field types and configurations.
+ *
+ * <p>Object depth and nested field limit are both set to zero so the generated mapping is
+ * always flat (no sub-objects of any kind). This is required because the baseline uses
+ * {@code subobjects: false} to match the flat field structure imposed by
+ * {@code index.mode=logsdb_columnar} on the contender side.
+ *
+ * <p>Mapping parameters unsupported or behaviorally different in {@code logsdb_columnar}
+ * are stripped from both sides before registration so that the challenge test compares
+ * the common supported subset:
+ * <ul>
+ *   <li>{@code store} – not allowed in columnar mode</li>
+ *   <li>{@code synthetic_source_keep} – not allowed in columnar mode</li>
+ *   <li>{@code subobjects} – not allowed in columnar mode</li>
+ *   <li>{@code dynamic: runtime} – not supported in strict columnar mode</li>
+ *   <li>{@code index: false} – ignored by columnar mode, causing field-caps divergence</li>
+ *   <li>{@code doc_values: false} – ignored by columnar mode, causing field-caps divergence</li>
+ * </ul>
+ *
+ * <p>{@code geo_shape} and {@code shape} fields are excluded entirely from both the mapping
+ * and documents: their JSON-object values are interpreted as flat dot-notation sub-fields
+ * under {@code subobjects: false}, which causes indexing failures when dynamic mapping is
+ * strict.
+ */
+public class LogsDbSubobjectsFalseVersusLogsDbColumnarDataGenerationChallengeRestIT extends BulkChallengeRestIT {
+
+    private static final Set<String> STRIPPED_PARAMS = Set.of("store", "synthetic_source_keep", "subobjects");
+    private static final Set<String> SHAPE_TYPES = Set.of("geo_shape", "shape");
+
+    private Set<String> shapeFieldPaths;
+
+    public LogsDbSubobjectsFalseVersusLogsDbColumnarDataGenerationChallengeRestIT() {
+        super(new DataGenerationHelper(b -> b.withMaxObjectDepth(0).withNestedFieldsLimit(0).withMaxFieldCountPerLevel(30)));
+    }
+
+    @Override
+    public void baselineSettings(Settings.Builder builder) {
+        dataGenerationHelper.logsDbSettings(builder);
+        // logsdb_columnar defaults disable_sequence_numbers to true; align the baseline
+        builder.put("index.disable_sequence_numbers", true);
+    }
+
+    @Override
+    public void contenderSettings(Settings.Builder builder) {
+        builder.put("index.mode", "logsdb_columnar");
+    }
+
+    @Override
+    @SuppressWarnings("unchecked")
+    public void baselineMappings(XContentBuilder builder) throws IOException {
+        // mapping.raw() wraps the actual mapping parameters under a "_doc" type key; extract the
+        // inner map so we can add top-level parameters alongside "properties" in typeless form.
+        var innerMapping = new LinkedHashMap<>(
+            stripShapeFields(strip((Map<String, Object>) dataGenerationHelper.mapping().raw().get("_doc")))
+        );
+        // logsdb_columnar does not support subobjects; mirror with subobjects:false on the baseline
+        innerMapping.put("subobjects", false);
+        // In columnar mode _id and _routing are stored as doc values by default
+        innerMapping.put("_id", Map.of("mode", "columnar"));
+        innerMapping.put("_routing", Map.of("doc_values", true));
+        // The contender data stream matches the built-in "logs" index template (logs-*-*),
+        // which maps dynamic string fields as keyword. Align the baseline.
+        innerMapping.put(
+            "dynamic_templates",
+            List.of(Map.of("strings_as_keyword", Map.of("match_mapping_type", "string", "mapping", Map.of("type", "keyword"))))
+        );
+        builder.map(innerMapping);
+    }
+
+    @Override
+    public void contenderMappings(XContentBuilder builder) throws IOException {
+        builder.map(stripShapeFields(strip(dataGenerationHelper.mapping().raw())));
+    }
+
+    @Override
+    protected XContentBuilder generateDocument(final Instant timestamp) throws IOException {
+        var document = XContentFactory.jsonBuilder();
+        dataGenerationHelper.generateDocument(
+            document,
+            Map.of("@timestamp", DateFormatter.forPattern(FormatNames.STRICT_DATE_OPTIONAL_TIME.getName()).format(timestamp))
+        );
+        Set<String> shapes = shapeFieldPaths();
+        if (shapes.isEmpty()) {
+            return document;
+        }
+        // geo_shape/shape JSON-object values are incompatible with subobjects:false;
+        // remove them from the document so indexing does not fail.
+        var docMap = new LinkedHashMap<>(XContentHelper.convertToMap(XContentType.JSON.xContent(), Strings.toString(document), true));
+        shapes.forEach(docMap::remove);
+        return XContentFactory.jsonBuilder().map(docMap);
+    }
+
+    @Override
+    protected boolean autoGenerateId() {
+        return false;
+    }
+
+    /**
+     * Recursively removes mapping parameters that are either unsupported or behaviorally
+     * different in {@code logsdb_columnar} from both sides of the challenge test so that
+     * only the common supported subset is compared.
+     */
+    @SuppressWarnings("unchecked")
+    private static Map<String, Object> strip(Map<String, Object> map) {
+        var result = new LinkedHashMap<String, Object>(map.size());
+        for (var entry : map.entrySet()) {
+            var key = entry.getKey();
+            var value = entry.getValue();
+            if (STRIPPED_PARAMS.contains(key)) {
+                continue;
+            }
+            // dynamic:runtime is not supported in strict columnar mode
+            if ("dynamic".equals(key) && "runtime".equals(value)) {
+                continue;
+            }
+            // logsdb_columnar ignores index:false — strip it to keep field-caps in sync
+            if ("index".equals(key) && (Boolean.FALSE.equals(value) || "false".equals(value))) {
+                continue;
+            }
+            // logsdb_columnar ignores doc_values:false — strip it to keep field-caps in sync
+            if ("doc_values".equals(key) && (Boolean.FALSE.equals(value) || "false".equals(value))) {
+                continue;
+            }
+            if (value instanceof Map<?, ?> nested) {
+                result.put(key, strip((Map<String, Object>) nested));
+            } else {
+                result.put(key, value);
+            }
+        }
+        return result;
+    }
+
+    /**
+     * Removes geo_shape and shape type fields from the {@code properties} map.
+     * These types produce JSON-object document values that are incompatible with
+     * {@code subobjects: false} and cause indexing failures under strict dynamic mapping.
+     */
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> stripShapeFields(Map<String, Object> mappingMap) {
+        if (shapeFieldPaths().isEmpty()) {
+            return mappingMap;
+        }
+        var result = new LinkedHashMap<>(mappingMap);
+        // Strip from _doc wrapper if present, otherwise from the map directly
+        if (result.get("_doc") instanceof Map<?, ?> doc) {
+            var inner = new LinkedHashMap<>((Map<String, Object>) doc);
+            stripShapeFieldsFromProperties(inner);
+            result.put("_doc", inner);
+        } else {
+            stripShapeFieldsFromProperties(result);
+        }
+        return result;
+    }
+
+    @SuppressWarnings("unchecked")
+    private void stripShapeFieldsFromProperties(Map<String, Object> mappingMap) {
+        if (mappingMap.get("properties") instanceof Map<?, ?> props) {
+            var filteredProps = new LinkedHashMap<>((Map<String, Object>) props);
+            shapeFieldPaths().forEach(filteredProps::remove);
+            mappingMap.put("properties", filteredProps);
+        }
+    }
+
+    private Set<String> shapeFieldPaths() {
+        if (shapeFieldPaths == null) {
+            shapeFieldPaths = dataGenerationHelper.getTemplateFieldTypes()
+                .entrySet()
+                .stream()
+                .filter(e -> SHAPE_TYPES.contains(e.getValue()))
+                .map(Map.Entry::getKey)
+                .collect(Collectors.toSet());
+        }
+        return shapeFieldPaths;
+    }
+}

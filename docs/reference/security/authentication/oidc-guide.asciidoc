@@ -110,7 +110,7 @@ xpack.security.authc.realms.oidc.oidc1:
   op.endsession_endpoint: "<op-example-url>/oauth2/v1/logout"
   rp.post_logout_redirect_uri: "<kibana-example-url>:5601/security/logged_out"
   claims.principal: sub
-  claims.groups: "<example-url>/claims/groups"
+  claims.groups: "<groups-claim-from-op>"
 -------------------------------------------------------------------------------------
 
 The configuration values used in the example above are:
@@ -274,14 +274,16 @@ The recommended steps for configuring OpenID Claims mapping are as follows:
      claim of the ID Token, thus offering guarantees that it will be available. It is, however,
      only used as an example here, the OP may provide another claim that is a better fit for your needs.
 
-  .. `claims.groups: "<example-url>/claims/groups"` : Similarly, this instructs {es} to look
-     for the claim with the name `<example-url>/claims/groups` (note that this is a URI - an
-     identifier, treated as a string and not a URL pointing to a location that will be retrieved)
-     either in the ID Token or in the UserInfo response, and map the value(s) of it to the user
-     property `groups` in {es}. There is no standard claim in the specification that is used for
-     expressing roles or group memberships of the authenticated user in the OP, so the name of the
-     claim that should be mapped here, will vary greatly between providers. Consult your OP
-     documentation for more details.
+  .. `claims.groups: "<groups-claim-from-op>"` : This instructs {es} to look
+     for the claim configured by your OpenID Provider (OP) to represent the
+     authenticated user's group or role memberships, either in the ID Token or
+     in the UserInfo response, and map its value(s) to the `groups` user
+     property in {es}. There is no standard claim name defined by OpenID
+     Connect for this purpose, so the value configured here varies between
+     providers. Some providers use simple claim names such as `groups`, while
+     others use URI-formatted identifiers. URI-formatted claim names are
+     treated as identifiers (strings) and are not URLs that will be retrieved.
+     Consult your OP documentation to determine which claim to use.
 
 [[oidc-user-properties]]
 ===== {es} user properties

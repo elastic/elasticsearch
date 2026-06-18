@@ -269,7 +269,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
      */
     public static final Setting<TimeValue> OBJECT_STORE_UPLOAD_HOT_THREADS_LOG_INTERVAL = Setting.timeSetting(
         "stateless.object_store.upload_hot_threads_log_interval",
-        TimeValue.timeValueSeconds(30L),
+        TimeValue.ZERO,
         TimeValue.ZERO,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic

@@ -1,0 +1,13 @@
+area: Infra/Logging
+deprecation:
+  area: Infra/Logging
+  details: Please describe the details of this change for the release notes. You can
+    use asciidoc.
+  impact: Please describe the impact of this change to users
+  title: Emit deprecation warning if logger update overrides explicitly configured
+    child logger
+issues: []
+pr: 151637
+summary: Emit deprecation warning if logger update overrides explicitly configured
+  child logger
+type: deprecation

@@ -347,7 +347,8 @@ public class CsvTestsDataLoader {
         new ViewConfig("view_k8s_early_window", List.of(EsqlCapabilities.Cap.SUBQUERY_WITH_TS)),
         new ViewConfig("view_k8s_downsampled_first_bucket", List.of(EsqlCapabilities.Cap.SUBQUERY_WITH_TS)),
         new ViewConfig("view_k8s_mixed_subqueries", List.of(EsqlCapabilities.Cap.SUBQUERY_WITH_TS, EsqlCapabilities.Cap.SUBQUERY_WITH_ROW)),
-        new ViewConfig("employees_in_subquery", List.of(WHERE_IN_SUBQUERY_WITHOUT_VIEW))
+        new ViewConfig("employees_in_subquery", List.of(WHERE_IN_SUBQUERY_WITHOUT_VIEW)),
+        new ViewConfig("view_partial_mapping_sample_data")
     ).collect(toMap(ViewConfig::name, Function.identity()));
 
     /**

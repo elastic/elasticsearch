@@ -233,6 +233,35 @@ TS ts_window_partial_mapping
 ;
 
 ############################
+# Subquery coverage
+############################
+
+// FROM with an inline subquery (gap): DetermineUnmappedFieldsToKeep annotates EsRelation nodes
+// reached during traversal of the main plan, but the inner EsRelation wrapped by a Subquery plan
+// node may not receive the annotation, or the _unmapped_fields attribute may not propagate
+// through the Subquery boundary into the outer query's output. This test documents the correct
+// intended behaviour; it will fail until the production gap is fixed.
+fromSubquery
+required_capability: optional_fields_load_all
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM (FROM partial_mapping_sample_data)
+| SORT @timestamp
+| KEEP @timestamp, _unmapped_fields
+;
+
+@timestamp:datetime      | _unmapped_fields:keyword
+2024-10-23T12:15:03.360Z | "{""language_code"":""4"",""unmapped.nested"":""g"",""unmapped_event_duration"":""3450234"",""unmapped_message"":""Disconnected from 10.1.0.3""}"
+2024-10-23T12:27:28.948Z | "{""language_code"":""3"",""unmapped.nested"":""f"",""unmapped_event_duration"":""2764890"",""unmapped_message"":""Disconnected from 10.1.0.2""}"
+2024-10-23T13:33:34.937Z | "{""language_code"":""2"",""unmapped.nested"":""e"",""unmapped_event_duration"":""1232383"",""unmapped_message"":""43""}"
+2024-10-23T13:51:54.732Z | "{""language_code"":""1"",""unmapped.nested"":""d"",""unmapped_event_duration"":""725449"",""unmapped_message"":""Disconnection error""}"
+2024-10-23T13:52:55.015Z | "{""language_code"":""3"",""unmapped.nested"":""c"",""unmapped_event_duration"":""8268154"",""unmapped_message"":""Disconnection error""}"
+2024-10-23T13:53:55.832Z | "{""language_code"":""2"",""unmapped.nested"":""b"",""unmapped_event_duration"":""5033756"",""unmapped_message"":""Disconnection error""}"
+2024-10-23T13:55:01.543Z | "{""language_code"":""1"",""unmapped.nested"":""a"",""unmapped_event_duration"":""1756468"",""unmapped_message"":""Disconnected from 10.1.0.1""}"
+;
+
+############################
 # Mapping diversity tests
 ############################
 

@@ -575,6 +575,8 @@ public class EsExecutors {
     public static class TaskTrackingConfig {
         // This is a random starting point alpha.
         public static final double DEFAULT_EXECUTION_TIME_EWMA_ALPHA_FOR_TEST = 0.3;
+        // Just a constant to clarify that we're disabling the EWMR utilization by configuring zero
+        private static final double DISABLE_UTILIZATION_EWMR = 0.0;
 
         private final boolean trackExecutionTime;
         private final boolean trackOngoingTasks;
@@ -582,7 +584,6 @@ public class EsExecutors {
         private final double executionTimeEwmaAlpha;
         private final double threadUtilizationEwmrLambda;
 
-        private static final double DISABLE_UTILIZATION_EWMR = 0.0;
         public static final TaskTrackingConfig DO_NOT_TRACK = new TaskTrackingConfig(
             false,
             false,

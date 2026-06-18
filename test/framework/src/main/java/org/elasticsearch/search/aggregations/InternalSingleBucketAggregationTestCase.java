@@ -14,7 +14,6 @@ import org.elasticsearch.search.aggregations.bucket.InternalSingleBucketAggregat
 import org.elasticsearch.search.aggregations.metrics.Max;
 import org.elasticsearch.search.aggregations.metrics.Min;
 import org.elasticsearch.test.InternalAggregationTestCase;
-
 import org.junit.Before;
 
 import java.util.ArrayList;

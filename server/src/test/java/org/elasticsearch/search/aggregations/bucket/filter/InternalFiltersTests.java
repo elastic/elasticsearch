@@ -17,7 +17,6 @@ import org.elasticsearch.search.aggregations.bucket.filter.InternalFilters.Inter
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.PipelineTree;
 import org.elasticsearch.test.InternalMultiBucketAggregationTestCase;
-
 import org.junit.Before;
 
 import java.util.ArrayList;

@@ -13,7 +13,6 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.test.InternalMultiBucketAggregationTestCase;
-
 import org.junit.Before;
 
 import java.util.List;

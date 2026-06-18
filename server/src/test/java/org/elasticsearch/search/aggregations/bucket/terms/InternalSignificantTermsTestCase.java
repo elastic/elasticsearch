@@ -17,7 +17,6 @@ import org.elasticsearch.search.aggregations.bucket.terms.heuristic.MutualInform
 import org.elasticsearch.search.aggregations.bucket.terms.heuristic.SignificanceHeuristic;
 import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.test.InternalMultiBucketAggregationTestCase;
-
 import org.junit.Before;
 
 import java.util.Arrays;

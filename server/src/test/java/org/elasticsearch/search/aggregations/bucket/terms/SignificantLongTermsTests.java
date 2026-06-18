@@ -13,7 +13,6 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.bucket.terms.heuristic.SignificanceHeuristic;
-
 import org.junit.Before;
 
 import java.util.ArrayList;

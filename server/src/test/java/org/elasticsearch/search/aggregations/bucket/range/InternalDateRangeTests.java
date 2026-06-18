@@ -14,7 +14,6 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
-
 import org.junit.Before;
 
 import java.time.ZoneOffset;

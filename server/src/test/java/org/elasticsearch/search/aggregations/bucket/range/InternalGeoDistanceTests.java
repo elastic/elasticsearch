@@ -13,7 +13,6 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
-
 import org.junit.Before;
 
 import java.util.ArrayList;

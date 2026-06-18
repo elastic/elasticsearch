@@ -55,7 +55,6 @@ import org.elasticsearch.xpack.stateless.cache.reader.SequentialRangeMissingHand
 import org.elasticsearch.xpack.stateless.cache.reader.SwitchingCacheBlobReader;
 import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
 import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
-
 import org.junit.After;
 import org.junit.Before;
 

@@ -97,7 +97,6 @@ import org.elasticsearch.tasks.TaskCancelHelper;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.TestSearchContext;
-
 import org.junit.After;
 import org.junit.Before;
 

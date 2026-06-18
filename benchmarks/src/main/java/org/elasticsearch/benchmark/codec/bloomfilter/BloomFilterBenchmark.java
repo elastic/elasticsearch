@@ -18,9 +18,9 @@ import org.apache.lucene.store.MMapDirectory;
 import org.apache.lucene.store.RandomAccessInput;
 import org.apache.lucene.util.BitUtil;
 import org.elasticsearch.benchmark.Utils;
-import org.elasticsearch.core.DirectAccessInput;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.simdvec.ESVectorUtil;
+import org.elasticsearch.simdvec.RandomAccessInputUtils;
 import org.elasticsearch.xpack.stateless.lucene.StatelessDirectoryFactory;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
@@ -52,7 +52,7 @@ import java.util.stream.Stream;
  * <ul>
  *   <li>{@code *ReadBytes} — readBytes into heap scratch, then scalar (baseline)</li>
  *   <li>{@code *ReadBytesThenSimd} — readBytes into heap scratch, then SIMD</li>
- *   <li>{@code *DirectAccess} — zero-copy via {@link DirectAccessInput} + SIMD</li>
+ *   <li>{@code *DirectAccess} — zero-copy via {@link RandomAccessInputUtils} + SIMD</li>
  * </ul>
  */
 @Warmup(iterations = 3, time = 1)
@@ -120,7 +120,9 @@ public class BloomFilterBenchmark {
                 + " randomAccessInput="
                 + randomAccessInput.getClass().getName()
                 + " directAccessInput="
-                + (randomAccessInput instanceof DirectAccessInput)
+                + (randomAccessInput instanceof org.elasticsearch.core.DirectAccessInput)
+                + " memorySegmentAccessInput="
+                + (randomAccessInput instanceof org.apache.lucene.store.MemorySegmentAccessInput)
         );
 
         scratch = new byte[pageSize];
@@ -184,16 +186,8 @@ public class BloomFilterBenchmark {
     @Fork(jvmArgsPrepend = { "--add-modules=jdk.incubator.vector" })
     public long popcountDirectAccessThenSimd() throws IOException {
         long offset = pageOffset();
-        if (randomAccessInput instanceof DirectAccessInput dai) {
-            long[] holder = { 0 };
-            int len = pageSize;
-            boolean direct = dai.withByteBufferSlice(offset, len, buf -> holder[0] = ESVectorUtil.popcount(buf, len));
-            if (direct) {
-                return holder[0];
-            }
-        }
-        randomAccessInput.readBytes(offset, scratch, 0, pageSize);
-        return ESVectorUtil.popcount(scratch, 0, pageSize);
+        int len = pageSize;
+        return RandomAccessInputUtils.withByteBufferSlice(randomAccessInput, offset, len, n -> scratch, buf -> ESVectorUtil.popcount(buf, len));
     }
 
     // --- OR benchmarks ---
@@ -217,15 +211,11 @@ public class BloomFilterBenchmark {
     @Fork(jvmArgsPrepend = { "--add-modules=jdk.incubator.vector" })
     public void orDirectAccessThenSimd() throws IOException {
         long offset = pageOffset();
-        if (randomAccessInput instanceof DirectAccessInput dai) {
-            int len = pageSize;
-            boolean direct = dai.withByteBufferSlice(offset, len, buf -> ESVectorUtil.orByteArrays(buf, destScratch, 0, len));
-            if (direct) {
-                return;
-            }
-        }
-        randomAccessInput.readBytes(offset, scratch, 0, pageSize);
-        ESVectorUtil.orByteArrays(scratch, destScratch, 0, pageSize);
+        int len = pageSize;
+        RandomAccessInputUtils.withByteBufferSlice(randomAccessInput, offset, len, n -> scratch, buf -> {
+            ESVectorUtil.orByteArrays(buf, destScratch, 0, len);
+            return null;
+        });
     }
 
     // --- helpers ---

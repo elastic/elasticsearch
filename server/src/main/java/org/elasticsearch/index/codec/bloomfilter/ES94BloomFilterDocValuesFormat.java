@@ -50,9 +50,9 @@ import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.CheckedRunnable;
-import org.elasticsearch.core.DirectAccessInput;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.simdvec.ESVectorUtil;
+import org.elasticsearch.simdvec.RandomAccessInputUtils;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -237,6 +237,7 @@ public class ES94BloomFilterDocValuesFormat extends DocValuesFormat {
         private final SegmentWriteState state;
         // Lazy initialized
         private BitSetBuffer bitSetBuffer;
+        private byte[] scratch;
 
         Writer(SegmentWriteState state) throws IOException {
             this.state = state;
@@ -403,6 +404,13 @@ public class ES94BloomFilterDocValuesFormat extends DocValuesFormat {
             });
         }
 
+        private byte[] getScratch(int len) {
+            if (scratch == null || scratch.length < len) {
+                scratch = new byte[len];
+            }
+            return scratch;
+        }
+
         private void orRegion(
             RandomAccessInput source,
             int sourceOffset,
@@ -416,8 +424,6 @@ public class ES94BloomFilterDocValuesFormat extends DocValuesFormat {
                 : sourcePageScratch.bytes.length + " vs " + PageCacheRecycler.PAGE_SIZE_IN_BYTES;
             assert targetPageScratch.bytes.length == PageCacheRecycler.PAGE_SIZE_IN_BYTES
                 : targetPageScratch.bytes.length + " vs " + PageCacheRecycler.PAGE_SIZE_IN_BYTES;
-
-            final DirectAccessInput directSource = source instanceof DirectAccessInput dai ? dai : null;
 
             // throwaway, just to call bitSetBuffer.get()
             BytesRef scratchRef = new BytesRef();
@@ -436,17 +442,10 @@ public class ES94BloomFilterDocValuesFormat extends DocValuesFormat {
                     System.arraycopy(scratchRef.bytes, scratchRef.offset, targetPageScratch.bytes, 0, pageLen);
 
                     final int len = pageLen;
-                    final int srcOff = sourceOffset + offset;
-                    boolean direct = directSource != null
-                        && directSource.withByteBufferSlice(
-                            srcOff,
-                            len,
-                            buf -> ESVectorUtil.orByteArrays(buf, targetPageScratch.bytes, 0, len)
-                        );
-                    if (direct == false) {
-                        source.readBytes(srcOff, sourcePageScratch.bytes, 0, pageLen);
-                        ESVectorUtil.orByteArrays(sourcePageScratch.bytes, targetPageScratch.bytes, 0, pageLen);
-                    }
+                    RandomAccessInputUtils.withByteBufferSlice(source, sourceOffset + offset, len, this::getScratch, buf -> {
+                        ESVectorUtil.orByteArrays(buf, targetPageScratch.bytes, 0, len);
+                        return null;
+                    });
 
                     bitSetBuffer.set(targetOffset + offset, targetPageScratch.bytes, 0, pageLen);
                 }
@@ -795,6 +794,7 @@ public class ES94BloomFilterDocValuesFormat extends DocValuesFormat {
         // identical (the filter is immutable), so the race is benign — the cost is redundant I/O,
         // not incorrect results. volatile ensures the write is visible once complete.
         private volatile double cachedSaturation = -1.0;
+        private byte[] scratch;
 
         private BloomFilterFieldReader(
             RandomAccessInput bloomFilterIn,
@@ -833,6 +833,13 @@ public class ES94BloomFilterDocValuesFormat extends DocValuesFormat {
             return Math.divideExact(bloomFilterBitSetSizeInBits, Byte.SIZE);
         }
 
+        private byte[] getScratch(int len) {
+            if (scratch == null || scratch.length < len) {
+                scratch = new byte[len];
+            }
+            return scratch;
+        }
+
         @Override
         public long sizeInBytes() {
             return getBloomFilterBitSetSizeInBytes();
@@ -847,30 +854,14 @@ public class ES94BloomFilterDocValuesFormat extends DocValuesFormat {
             long setBits = 0;
             int remaining = sizeInBytes;
             int offset = 0;
-            if (bloomFilterIn instanceof DirectAccessInput dai) {
-                final long[] holder = { 0 };
-                while (remaining > 0) {
-                    int pageLen = Math.min(PageCacheRecycler.PAGE_SIZE_IN_BYTES, remaining);
-                    final int len = pageLen;
-                    final int off = offset;
-                    boolean direct = dai.withByteBufferSlice(off, len, buf -> holder[0] += ESVectorUtil.popcount(buf, len));
-                    if (direct == false) {
-                        break;
-                    }
-                    offset += pageLen;
-                    remaining -= pageLen;
-                }
-                setBits = holder[0];
-            }
-            if (remaining > 0) {
-                final byte[] scratch = new byte[PageCacheRecycler.PAGE_SIZE_IN_BYTES];
-                while (remaining > 0) {
-                    int pageLen = Math.min(PageCacheRecycler.PAGE_SIZE_IN_BYTES, remaining);
-                    bloomFilterIn.readBytes(offset, scratch, 0, pageLen);
-                    setBits += ESVectorUtil.popcount(scratch, 0, pageLen);
-                    offset += pageLen;
-                    remaining -= pageLen;
-                }
+            while (remaining > 0) {
+                int pageLen = Math.min(PageCacheRecycler.PAGE_SIZE_IN_BYTES, remaining);
+                final int len = pageLen;
+                setBits += RandomAccessInputUtils.withByteBufferSlice(bloomFilterIn, offset, len, this::getScratch, buf -> {
+                    return ESVectorUtil.popcount(buf, len);
+                });
+                offset += pageLen;
+                remaining -= pageLen;
             }
             cachedSaturation = (double) setBits / bloomFilterBitSetSizeInBits;
             return cachedSaturation;

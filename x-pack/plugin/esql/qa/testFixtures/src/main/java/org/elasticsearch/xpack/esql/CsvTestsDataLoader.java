@@ -823,40 +823,38 @@ public class CsvTestsDataLoader {
     }
 
     private static boolean clusterHasViewSupport(RestClient client) throws IOException {
-        // Use /_capabilities to check ALL nodes via TransportNodesAction (allMatch).
-        //
-        // We check method=PUT path=/_query/view/{name} with capabilities=views_put_serverless_scope.
-        // That capability string is declared by RestPutViewAction only in code that also carries
-        // @ServerlessScope(Scope.PUBLIC). Old nodes that predate the annotation do not have the
-        // string in their supportedCapabilities(), so checkSupported() returns false for them, and
-        // the cluster-wide allMatch result is false. This is correct: in serverless mode those old
-        // nodes return 410 on an actual PUT, while the /_capabilities route-existence check alone
-        // (without the capability string) would have returned true because /_capabilities does not
-        // enforce @ServerlessScope.
-        //
-        // In serverless deployments ingest (write) and search (read) nodes are separated, so probing
-        // with method=PUT ensures we evaluate the PUT handler on every ingest node, not a search node
-        // that might have been independently upgraded.
+        // Step 1: check whether ALL nodes understand views via /_capabilities (allMatch semantics).
         Request capRequest = new Request("GET", "/_capabilities");
-        capRequest.addParameter("method", "PUT");
-        capRequest.addParameter("path", "/_query/view/test");
-        // Matches RestPutViewAction.VIEWS_PUT_SERVERLESS_SCOPE — keep in sync if renamed.
-        capRequest.addParameter("capabilities", "views_put_serverless_scope");
+        capRequest.addParameter("method", "POST");
+        capRequest.addParameter("path", "/_query");
+        capRequest.addParameter("capabilities", "views_crud_as_index_actions");
         try {
             Response capResponse = client.performRequest(capRequest);
             ObjectMapper mapper = new ObjectMapper();
             JsonNode json = mapper.readTree(capResponse.getEntity().getContent());
             JsonNode supported = json.get("supported");
-            if (supported != null && supported.isBoolean()) {
-                return supported.asBoolean();
+            if (supported == null || supported.asBoolean() == false) {
+                return false;
             }
-            // null means the capabilities check was inconclusive (e.g. node failures) — be conservative
+        } catch (ResponseException e) {
             return false;
+        }
+
+        // Step 2: probe the REST endpoint directly. In non-serverless mode all nodes (old or new)
+        // return 200 because @ServerlessScope is not enforced. In serverless mode an old node
+        // without @ServerlessScope(Scope.PUBLIC) on RestPutViewAction returns 410. A single probe
+        // cannot cover every node in a mixed-serverless cluster, but any 410 is a definitive signal
+        // that view loading will fail on at least some nodes.
+        try {
+            client.performRequest(new Request("GET", "/_query/view"));
+            return true;
         } catch (ResponseException e) {
             int code = e.getResponse().getStatusLine().getStatusCode();
-            // Different versions of Elasticsearch return different codes when views are not supported
-            if (code == 410 || code == 400 || code == 500 || code == 405) {
-                return false;
+            if (code == 410) {
+                return false; // serverless restriction — old node lacks @ServerlessScope
+            }
+            if (code == 400 || code == 500 || code == 405) {
+                return false; // older server that doesn't support the view API at all
             }
             throw e;
         }

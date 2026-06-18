@@ -38,7 +38,6 @@ import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.Mode;
 import org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.RequestObjectBuilder;
 import org.elasticsearch.xpack.esql.telemetry.TookMetrics;
-import org.elasticsearch.xpack.esql.view.RestPutViewAction;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -636,20 +635,35 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
 
     protected boolean supportsViews() {
         if (supportsViews == null) {
-            // Check the views_put_serverless_scope capability on the PUT /_query/view/{name} handler.
-            // That string is only declared by RestPutViewAction in code that also carries
-            // @ServerlessScope(Scope.PUBLIC). Old nodes that predate the annotation don't have it, so
-            // /_capabilities returns supported=false for any mixed cluster containing such a node.
-            // Using method=PUT ensures we evaluate the handler that actually performs view writes,
-            // which matters in serverless where ingest and search nodes are separated.
             try {
-                supportsViews = clusterHasCapability(
+                // Step 1: check via /_capabilities that ALL nodes understand views (allMatch semantics).
+                boolean esqlViewsSupported = clusterHasCapability(
                     adminClient(),
-                    "PUT",
-                    "/_query/view/test",
+                    "POST",
+                    "/_query",
                     List.of(),
-                    List.of(RestPutViewAction.VIEWS_PUT_SERVERLESS_SCOPE)
+                    List.of("views_crud_as_index_actions")
                 ).orElse(false);
+
+                if (esqlViewsSupported == false) {
+                    supportsViews = false;
+                } else {
+                    // Step 2: probe the REST endpoint directly. In non-serverless mode all nodes return
+                    // 200 regardless of @ServerlessScope. In serverless mode an old node without
+                    // @ServerlessScope(Scope.PUBLIC) returns 410. A single probe cannot cover every node
+                    // in a mixed-serverless cluster, but any 410 is a definitive signal that view loading
+                    // will fail on at least some nodes.
+                    try {
+                        adminClient().performRequest(new Request("GET", "/_query/view"));
+                        supportsViews = true;
+                    } catch (ResponseException e) {
+                        if (e.getResponse().getStatusLine().getStatusCode() == 410) {
+                            supportsViews = false;
+                        } else {
+                            throw e;
+                        }
+                    }
+                }
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }

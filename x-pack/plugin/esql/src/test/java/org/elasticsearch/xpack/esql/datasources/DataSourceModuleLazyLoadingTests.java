@@ -65,7 +65,8 @@ public class DataSourceModuleLazyLoadingTests extends ESTestCase {
             Settings.EMPTY,
             blockFactory,
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
-            new DataSourceCredentials()
+            new DataSourceCredentials(),
+            () -> false
         );
 
         assertFalse("Storage factory should not be called at construction", SPY_STORAGE_FACTORY_CALLED.get());
@@ -83,7 +84,8 @@ public class DataSourceModuleLazyLoadingTests extends ESTestCase {
             Settings.EMPTY,
             blockFactory,
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
-            new DataSourceCredentials()
+            new DataSourceCredentials(),
+            () -> false
         );
 
         module.formatReaderRegistry().byName("spy");
@@ -102,7 +104,8 @@ public class DataSourceModuleLazyLoadingTests extends ESTestCase {
             Settings.EMPTY,
             blockFactory,
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
-            new DataSourceCredentials()
+            new DataSourceCredentials(),
+            () -> false
         );
 
         module.formatReaderRegistry().byExtension("data.spy");
@@ -121,7 +124,8 @@ public class DataSourceModuleLazyLoadingTests extends ESTestCase {
             Settings.EMPTY,
             blockFactory,
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
-            new DataSourceCredentials()
+            new DataSourceCredentials(),
+            () -> false
         );
 
         assertFalse("Storage factory should not be called yet", SPY_STORAGE_FACTORY_CALLED.get());
@@ -141,7 +145,8 @@ public class DataSourceModuleLazyLoadingTests extends ESTestCase {
             Settings.EMPTY,
             blockFactory,
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
-            new DataSourceCredentials()
+            new DataSourceCredentials(),
+            () -> false
         );
 
         DataSourceCapabilities caps = module.capabilities();
@@ -166,7 +171,8 @@ public class DataSourceModuleLazyLoadingTests extends ESTestCase {
             Settings.EMPTY,
             blockFactory,
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
-            new DataSourceCredentials()
+            new DataSourceCredentials(),
+            () -> false
         );
 
         assertFalse("ftp scheme should not be supported", module.capabilities().supportsScheme("ftp"));
@@ -186,7 +192,8 @@ public class DataSourceModuleLazyLoadingTests extends ESTestCase {
             Settings.EMPTY,
             blockFactory,
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
-            new DataSourceCredentials()
+            new DataSourceCredentials(),
+            () -> false
         );
 
         // Storage-only plugin should NOT produce a LazyConnectorFactory entry
@@ -250,7 +257,8 @@ public class DataSourceModuleLazyLoadingTests extends ESTestCase {
             Settings.EMPTY,
             blockFactory,
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
-            new DataSourceCredentials()
+            new DataSourceCredentials(),
+            () -> false
         );
 
         assertTrue("Should have fmt1 format", module.formatReaderRegistry().hasFormat("fmt1"));

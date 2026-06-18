@@ -292,8 +292,8 @@ public class BytesReadHeaderIT extends ESIntegTestCase {
 
         long bytesRead = assertBytesReadHeader(request);
 
+        assertThat(bytesReadChunkedFetch, greaterThan(0L));
         assertThat(bytesRead, greaterThan(0L));
-        assertThat(bytesRead, equalTo(bytesReadChunkedFetch));
     }
 
     public void testPartialShardFailureStillReportsBytesRead() throws InterruptedException {

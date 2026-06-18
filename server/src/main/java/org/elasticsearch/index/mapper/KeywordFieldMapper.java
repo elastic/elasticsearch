@@ -75,6 +75,7 @@ import org.elasticsearch.index.mapper.blockloader.docvalues.fn.Utf8CodePointsFro
 import org.elasticsearch.index.query.AutomatonQueryWithDescription;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.similarity.SimilarityProvider;
+import org.elasticsearch.lucene.queries.SlowCustomBinaryDocValuesPrefixQuery;
 import org.elasticsearch.lucene.queries.SlowCustomBinaryDocValuesTermInSetQuery;
 import org.elasticsearch.lucene.queries.SlowCustomBinaryDocValuesTermQuery;
 import org.elasticsearch.lucene.queries.SlowCustomBinaryDocValuesWildcardQuery;
@@ -349,6 +350,16 @@ public final class KeywordFieldMapper extends FieldMapper {
 
         public boolean isNormalizerSkipStoreOriginalValue() {
             return this.normalizerSkipStoreOriginalValue.getValue();
+        }
+
+        // Returns true when an effective ignore_above limit applies (field-level or index-level), so the doc values omit longer values.
+        public boolean hasIgnoreAbove() {
+            return this.ignoreAbove.getValue() != Integer.MAX_VALUE;
+        }
+
+        // Returns true when a null_value is configured, so the doc values substitute it for nulls rather than mirroring the raw values.
+        public boolean hasNullValue() {
+            return this.nullValue.getValue() != null;
         }
 
         Builder nullValue(String nullValue) {
@@ -853,13 +864,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             if (indexType.hasTerms()) {
                 return super.prefixQuery(value, method, caseInsensitive, context);
             } else if (usesBinaryDocValues) {
-                return new StringScriptFieldPrefixQuery(
-                    new Script(""),
-                    ctx -> new SortedBinaryDocValuesStringFieldScript(name(), context.lookup(), ctx, indexVersion),
-                    name(),
-                    indexedValueForSearch(value).utf8ToString(),
-                    caseInsensitive
-                );
+                return new SlowCustomBinaryDocValuesPrefixQuery(name(), indexedValueForSearch(value).utf8ToString(), caseInsensitive);
             } else {
                 if (caseInsensitive == false) {
                     Term prefix = new Term(name(), indexedValueForSearch(value));
@@ -1310,6 +1315,11 @@ public final class KeywordFieldMapper extends FieldMapper {
          *  be skipped at parsing time. */
         public IgnoreAbove ignoreAbove() {
             return ignoreAbove;
+        }
+
+        // True when a null_value is configured; such a substitution mutates the doc values away from the raw indexed values.
+        public boolean hasNullValue() {
+            return nullValue != null;
         }
 
         @Override

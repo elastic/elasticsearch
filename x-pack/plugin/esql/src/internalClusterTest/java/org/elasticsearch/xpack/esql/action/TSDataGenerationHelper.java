@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.network.NetworkAddress;
+import org.elasticsearch.compute.aggregation.Temporality;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.datageneration.DataGeneratorSpecification;
 import org.elasticsearch.datageneration.DocumentGenerator;
@@ -24,6 +25,8 @@ import org.elasticsearch.xcontent.XContentFactory;
 
 import java.io.IOException;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -49,7 +52,7 @@ class TSDataGenerationHelper {
         }
     }
 
-    TSDataGenerationHelper(long numDocs, long timeRangeSeconds) {
+    TSDataGenerationHelper(long numDocs, long timeRangeSeconds, String temporalityFieldName, Collection<Temporality> allowedTemporalities) {
         // Metrics coming into our system have a pre-set group of attributes.
         // Making a list-to-set-to-list to ensure uniqueness.
         this.numDocs = numDocs;
@@ -64,7 +67,13 @@ class TSDataGenerationHelper {
             List<String> dimensionsInMetric = ESTestCase.randomNonEmptySubsetOf(tempAttributeSet);
             // TODO: How do we handle the case when there are no dimensions? (i.e. regular randomSubsetof(...)
             usedAttributeNames.addAll(dimensionsInMetric);
-            return dimensionsInMetric.stream().map(attr -> new Tuple<>(attr, randomDimensionValue(attr))).collect(Collectors.toList());
+            ArrayList<Tuple<String, Object>> dimensions = dimensionsInMetric.stream().map(attr -> new Tuple<>(attr, randomDimensionValue(attr))).collect(Collectors.toCollection(ArrayList::new));
+            Temporality temporality = ESTestCase.randomFrom(allowedTemporalities);
+            if (temporality != null) {
+                usedAttributeNames.add(temporalityFieldName);
+                dimensions.add(new Tuple<>(temporalityFieldName, temporality.bytesRef().utf8ToString()));
+            }
+            return (List<Tuple<String, Object>>) dimensions;
         }).toList();
         attributesForMetrics = List.copyOf(usedAttributeNames);
 

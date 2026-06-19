@@ -319,12 +319,7 @@ public class BlobStoreSyncDirectoryTests extends ESTestCase {
             dir.close();
             blockExecutionLatch.countDown();
 
-            try {
-                syncFuture.get();
-            } catch (Exception ignored) {
-                fail("we don't expect any exception to be thrown during sync");
-            }
-
+            assertThrows(Exception.class, syncFuture::get);
             assertThat(uploadedFiles, is(empty()));
         }
     }

@@ -481,7 +481,7 @@ null           | [Lillian, Kazuhito, Cristinel]
 ;
 
 fieldKeywordOutputFieldNumericGrouping
-required_capability: agg_top_with_output_field
+required_capability: agg_top_with_output_field_string
 
 FROM employees
 | STATS top_salaries = TOP(first_name, 3, "desc", salary) BY gender

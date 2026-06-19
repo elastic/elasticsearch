@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.inference.services.openai;
 
+import org.elasticsearch.cluster.project.DefaultProjectResolver;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.ServiceSettings;
@@ -14,6 +15,7 @@ import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.inference.common.oauth2.NoopTokenCache;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
 import org.elasticsearch.xpack.inference.services.AbstractInferenceServiceParameterizedTests;
@@ -67,7 +69,13 @@ public class OpenAiServiceParameterizedTestConfiguration {
             @Override
             protected OpenAiService createService(ThreadPool threadPool, HttpClientManager clientManager) {
                 var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
-                return new OpenAiService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty());
+                return new OpenAiService(
+                    senderFactory,
+                    createWithEmptySettings(threadPool),
+                    mockClusterServiceEmpty(),
+                    NoopTokenCache.INSTANCE,
+                    DefaultProjectResolver.INSTANCE
+                );
             }
 
             @Override

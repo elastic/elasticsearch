@@ -156,6 +156,13 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
         return true;
     }
 
+    public static final String PROJECT_ROUTING_REQUIRES_CPS_MESSAGE =
+        "project_routing is only supported in environments that support cross-project calls";
+
+    public static ElasticsearchStatusException projectRoutingRequiresCpsException() {
+        return new ElasticsearchStatusException(PROJECT_ROUTING_REQUIRES_CPS_MESSAGE, RestStatus.BAD_REQUEST);
+    }
+
     // Accessing `Job.ID` here causes an NPE in tests as a DatafeedConfig parser is referenced in the Job parser
     public static final ParseField JOB_ID = new ParseField("job_id");
     public static final ParseField ID = new ParseField("datafeed_id");
@@ -731,13 +738,15 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
             if (forInternalStorage) {
                 builder.field(CONFIG_TYPE.getPreferredName(), TYPE);
             }
-            if (headers.isEmpty() == false) {
-                if (forInternalStorage) {
+            if (forInternalStorage) {
+                if (headers.isEmpty() == false) {
                     assertNoAuthorizationHeader(headers);
                     builder.field(HEADERS.getPreferredName(), headers);
-                } else {
-                    XContentUtils.addAuthorizationInfo(builder, headers);
                 }
+            } else if (cloudInternalCredential != null) {
+                XContentUtils.addCloudApiKeyAuthorization(builder, cloudInternalCredential.id());
+            } else if (headers.isEmpty() == false) {
+                XContentUtils.addAuthorizationInfo(builder, headers);
             }
             builder.field(QUERY_DELAY.getPreferredName(), queryDelay.getStringRep());
             if (chunkingConfig != null) {

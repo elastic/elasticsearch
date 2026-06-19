@@ -190,16 +190,16 @@ formats include `hostname`, `hostname:port`,
 xpack.monitoring.exporters:
   example1:
     type: http
-    host: "10.1.2.3"
+    host: "<ES_MONITORING_HOST_IP>"
   example2:
     type: http
-    host: ["http://10.1.2.4"]
+    host: ["<ES_MONITORING_HOST_URL>"]
   example3:
     type: http
-    host: ["10.1.2.5", "10.1.2.6"]
+    host: ["<ES_MONITORING_HOST_IP>", "<ES_MONITORING_HOST2_IP>"]
   example4:
     type: http
-    host: ["https://10.1.2.3:9200"]
+    host: ["https://<ES_MONITORING_HOST_URL>:9200"]
 ----------------------------------
 
 `auth.username`::

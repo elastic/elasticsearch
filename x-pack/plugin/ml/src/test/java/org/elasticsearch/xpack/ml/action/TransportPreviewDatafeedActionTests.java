@@ -6,22 +6,34 @@
  */
 package org.elasticsearch.xpack.ml.action;
 
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.fieldcaps.FieldCapabilities;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesBuilder;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
+import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.TestThreadPool;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.action.PreviewDatafeedAction;
 import org.elasticsearch.xpack.core.ml.datafeed.ChunkingConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.SearchIntervalTests;
+import org.elasticsearch.xpack.core.security.cloud.CloudCredential;
+import org.elasticsearch.xpack.core.security.cloud.CloudCredentialManager;
+import org.elasticsearch.xpack.core.security.cloud.PersistedCloudCredential;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractor;
+import org.junit.After;
 import org.junit.Before;
 import org.mockito.stubbing.Answer;
 
@@ -33,11 +45,13 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
@@ -51,10 +65,12 @@ public class TransportPreviewDatafeedActionTests extends ESTestCase {
     private ActionListener<PreviewDatafeedAction.Response> actionListener;
     private String capturedResponse;
     private Exception capturedFailure;
+    private TestThreadPool threadPool;
 
     @Before
     @SuppressWarnings("unchecked")
     public void setUpTests() {
+        threadPool = new TestThreadPool(getTestName());
         dataExtractor = mock(DataExtractor.class);
         actionListener = mock(ActionListener.class);
 
@@ -68,6 +84,92 @@ public class TransportPreviewDatafeedActionTests extends ESTestCase {
             capturedFailure = (Exception) invocationOnMock.getArguments()[0];
             return null;
         }).when(actionListener).onFailure(any());
+    }
+
+    @After
+    public void tearDownTests() {
+        ThreadPool.terminate(threadPool, 30, TimeUnit.SECONDS);
+    }
+
+    public void testBuildPreviewDatafeed_GivenPersistedCredential_ShouldClearForPreview() {
+        DatafeedConfig.Builder datafeed = new DatafeedConfig.Builder("cred_feed", "job_foo");
+        datafeed.setIndices(Collections.singletonList("my_index"));
+        datafeed.setCloudInternalCredential(new PersistedCloudCredential("id", new SecureString("secret".toCharArray())));
+
+        DatafeedConfig previewDatafeed = TransportPreviewDatafeedAction.buildPreviewDatafeed(datafeed.build())
+            .setCloudInternalCredential(null)
+            .build();
+
+        assertThat(previewDatafeed.getCloudInternalCredential(), nullValue());
+    }
+
+    public void testExtractCallerCloudCredential_GivenCloudManagedCredential_ShouldReturnExtractedCredential() {
+        CloudCredentialManager cloudCredentialManager = mock(CloudCredentialManager.class);
+        ThreadContext threadContext = threadPool.getThreadContext();
+        CloudCredential expected = new CloudCredential(new SecureString("caller-cred".toCharArray()));
+        when(cloudCredentialManager.hasCloudManagedCredential(threadContext)).thenReturn(true);
+        when(cloudCredentialManager.extractCloudManagedCredential(threadContext)).thenReturn(expected);
+
+        assertThat(
+            TransportPreviewDatafeedAction.extractCallerCloudCredential(cloudCredentialManager, threadContext),
+            sameInstance(expected)
+        );
+    }
+
+    public void testExtractCallerCloudCredential_GivenNoCloudManagedCredential_ShouldReturnNull() {
+        CloudCredentialManager cloudCredentialManager = mock(CloudCredentialManager.class);
+        ThreadContext threadContext = threadPool.getThreadContext();
+        when(cloudCredentialManager.hasCloudManagedCredential(threadContext)).thenReturn(false);
+
+        assertThat(TransportPreviewDatafeedAction.extractCallerCloudCredential(cloudCredentialManager, threadContext), nullValue());
+    }
+
+    public void testProjectRoutingRequiresCpsException_ShouldMatchPutDatafeedMessage() {
+        ElasticsearchStatusException exception = DatafeedConfig.projectRoutingRequiresCpsException();
+        assertThat(exception.getMessage(), equalTo(DatafeedConfig.PROJECT_ROUTING_REQUIRES_CPS_MESSAGE));
+        assertThat(exception.status(), equalTo(org.elasticsearch.rest.RestStatus.BAD_REQUEST));
+    }
+
+    public void testWithCrossProjectModeIfEnabled_GivenCpsEnabled_ShouldEnableCrossProjectIndicesOptions() {
+        assumeTrue("CPS feature flag must be enabled", DatafeedConfig.DATAFEED_CROSS_PROJECT.isEnabled());
+        DatafeedConfig.Builder builder = new DatafeedConfig.Builder("preview_cps_feed", "job_foo");
+        builder.setIndices(Collections.singletonList("logs-*"));
+        builder.setIndicesOptions(org.elasticsearch.action.support.IndicesOptions.STRICT_EXPAND_OPEN);
+        CrossProjectModeDecider decider = new CrossProjectModeDecider(
+            Settings.builder().put("serverless.cross_project.enabled", true).build()
+        );
+
+        DatafeedConfig result = DatafeedConfig.withCrossProjectModeIfEnabled(builder.build(), decider);
+
+        assertThat(result.getIndicesOptions().resolveCrossProjectIndexExpression(), is(true));
+    }
+
+    public void testBuildDateNanosFieldCapsRequest_GivenCpsIndicesOptions_ShouldRequestResolvedTo() {
+        assumeTrue("CPS feature flag must be enabled", DatafeedConfig.DATAFEED_CROSS_PROJECT.isEnabled());
+        DatafeedConfig.Builder builder = new DatafeedConfig.Builder("preview_cps_feed", "job_foo");
+        builder.setIndices(List.of("local-*", "linked_project:remote-*"));
+        builder.setIndicesOptions(org.elasticsearch.action.support.IndicesOptions.STRICT_EXPAND_OPEN);
+        CrossProjectModeDecider decider = new CrossProjectModeDecider(
+            Settings.builder().put("serverless.cross_project.enabled", true).build()
+        );
+        DatafeedConfig datafeed = DatafeedConfig.withCrossProjectModeIfEnabled(builder.build(), decider);
+        assertThat(datafeed.getIndicesOptions().resolveCrossProjectIndexExpression(), is(true));
+
+        FieldCapabilitiesRequest request = TransportPreviewDatafeedAction.buildDateNanosFieldCapsRequest(datafeed, "time");
+
+        // Without includeResolvedTo, the coordinator's cross-project resolution validator runs against an empty
+        // per-project map and trips a node-fatal assertion for explicitly qualified expressions.
+        assertThat(request.includeResolvedTo(), is(true));
+    }
+
+    public void testBuildDateNanosFieldCapsRequest_GivenNonCpsIndicesOptions_ShouldNotRequestResolvedTo() {
+        DatafeedConfig.Builder builder = new DatafeedConfig.Builder("preview_feed", "job_foo");
+        builder.setIndices(Collections.singletonList("my_index"));
+
+        FieldCapabilitiesRequest request = TransportPreviewDatafeedAction.buildDateNanosFieldCapsRequest(builder.build(), "time");
+
+        assertThat(request.includeResolvedTo(), is(false));
+        assertThat(request.indices(), equalTo(new String[] { "my_index" }));
     }
 
     public void testBuildPreviewDatafeed_GivenNoAggregations() {

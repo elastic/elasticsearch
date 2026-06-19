@@ -814,4 +814,81 @@ public class ObjectMapperTests extends MapperServiceTestCase {
             );
         }
     }
+
+    public void testStrictColumnarModesAllowHeterogeneousDynamic() throws Exception {
+        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        for (IndexMode indexMode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
+            Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), indexMode.getName()).build();
+            // Root dynamic=true, attributes dynamic=false, resource dynamic=strict
+            MapperService mapperService = createMapperService(settings, mapping(b -> {
+                b.startObject("attributes");
+                {
+                    b.field("dynamic", "false");
+                    b.startObject("properties");
+                    b.startObject("host").field("type", "keyword").endObject();
+                    b.endObject();
+                }
+                b.endObject();
+                b.startObject("resource");
+                {
+                    b.field("dynamic", "strict");
+                    b.startObject("properties");
+                    b.startObject("service").field("type", "keyword").endObject();
+                    b.endObject();
+                }
+                b.endObject();
+            }));
+            // Objects flattened — no ObjectMapper in the tree
+            assertNull(mapperService.mappingLookup().objectMappers().get("attributes"));
+            assertNull(mapperService.mappingLookup().objectMappers().get("resource"));
+            // Leaf fields exist
+            assertNotNull(mapperService.fieldType("attributes.host"));
+            assertNotNull(mapperService.fieldType("resource.service"));
+            // Prefix→dynamic map is populated
+            RootObjectMapper root = mapperService.mappingLookup().getMapping().getRoot();
+            assertEquals(ObjectMapper.Dynamic.FALSE, root.getDynamicByPrefix().get("attributes"));
+            assertEquals(ObjectMapper.Dynamic.STRICT, root.getDynamicByPrefix().get("resource"));
+        }
+    }
+
+    public void testStrictColumnarModesHeterogeneousDynamicNestedPrefixes() throws Exception {
+        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        for (IndexMode indexMode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
+            Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), indexMode.getName()).build();
+            // foo dynamic=false, foo.bar dynamic=true (overrides parent)
+            MapperService mapperService = createMapperService(settings, mapping(b -> {
+                b.startObject("foo");
+                {
+                    b.field("dynamic", "false");
+                    b.startObject("properties");
+                    b.startObject("bar");
+                    {
+                        b.field("dynamic", "true");
+                        b.startObject("properties");
+                        b.startObject("x").field("type", "keyword").endObject();
+                        b.endObject();
+                    }
+                    b.endObject();
+                    b.endObject();
+                }
+                b.endObject();
+            }));
+            RootObjectMapper root = mapperService.mappingLookup().getMapping().getRoot();
+            assertEquals(ObjectMapper.Dynamic.FALSE, root.getDynamicByPrefix().get("foo"));
+            assertEquals(ObjectMapper.Dynamic.TRUE, root.getDynamicByPrefix().get("foo.bar"));
+        }
+    }
+
+    public void testNonColumnarSubobjectsFalseStillRejectsMismatchedDynamic() {
+        // Regression: plain subobjects:false (non-columnar) must still throw on dynamic mismatch
+        MapperBuilderContext rootContext = MapperBuilderContext.root(false, false);
+        ObjectMapper.Builder parentBuilder = new ObjectMapper.Builder("parent", Explicit.of(ObjectMapper.Subobjects.DISABLED)).add(
+            new ObjectMapper.Builder("child").dynamic(ObjectMapper.Dynamic.FALSE)
+        );
+        MapperParsingException exception = expectThrows(MapperParsingException.class, () -> parentBuilder.build(rootContext));
+        assertThat(
+            exception.getMessage(),
+            containsString("the value of [dynamic] (FALSE) is not compatible with the value from its parent context")
+        );
+    }
 }

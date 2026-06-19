@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.stateless.lucene.FileCacheKey;
 
 import java.util.Set;
 
+import static org.elasticsearch.blobcache.shared.SharedBlobCacheService.UNKNOWN_TIMESTAMP;
 import static org.elasticsearch.xpack.stateless.cache.PinnedWindowEvictionPolicy.PINNED_WINDOW_DURATION_SETTING;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -65,10 +66,24 @@ public class PinnedWindowEvictionPolicyTests extends ESTestCase {
         try (var clusterService = ClusterServiceUtils.createClusterService(taskQueue.getThreadPool(), clusterSettings)) {
             final var policy = new PinnedWindowEvictionPolicy(clusterService);
             final ShardId shardId = new ShardId("index", randomUUID(), 0);
-            final CacheRegion<FileCacheKey> region = () -> new FileCacheKey(shardId, 1L, "file-a");
-            final CacheRegion<FileCacheKey> incoming = () -> new FileCacheKey(shardId, 1L, "file-b");
+            final CacheRegion<FileCacheKey> region = region(shardId, 1L, "file-a");
+            final CacheRegion<FileCacheKey> incoming = region(shardId, 1L, "file-b");
             assertTrue(policy.canEvict(region, incoming));
         }
+    }
+
+    private static CacheRegion<FileCacheKey> region(ShardId shardId, long primaryTerm, String file) {
+        return new CacheRegion<>() {
+            @Override
+            public FileCacheKey key() {
+                return new FileCacheKey(shardId, primaryTerm, file);
+            }
+
+            @Override
+            public long timestampMillis() {
+                return UNKNOWN_TIMESTAMP;
+            }
+        };
     }
 
     private static ClusterSettings createClusterSettings(Settings settings) {

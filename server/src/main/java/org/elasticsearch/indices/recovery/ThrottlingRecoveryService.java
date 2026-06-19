@@ -9,11 +9,15 @@
 
 package org.elasticsearch.indices.recovery;
 
+import org.elasticsearch.cluster.ClusterChangedEvent;
+import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.routing.RecoverySource;
+import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.index.recovery.RecoveryStats;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 
@@ -21,7 +25,12 @@ import java.io.Closeable;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Deque;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.function.Consumer;
 
@@ -29,7 +38,7 @@ import java.util.function.Consumer;
 /// released when the recovery's [RecoveryListener] completes.
 /// The max number of concurrent recovery slots is controlled by the [#INDICES_RECOVERY_MAX_CONCURRENT_RECOVERIES_SETTING]
 /// dynamic setting.
-public final class ThrottlingRecoveryService implements Closeable {
+public final class ThrottlingRecoveryService implements ClusterStateListener, Closeable {
 
     private static final Logger logger = LogManager.getLogger(ThrottlingRecoveryService.class);
 
@@ -46,11 +55,14 @@ public final class ThrottlingRecoveryService implements Closeable {
     );
 
     private final Executor executor;
+    private final ClusterService clusterService;
     private final CompositeRecoverySchedulingListener schedulingListeners;
 
     private int maxConcurrentRecoveries;
     private int runningRecoveries = 0;
     private final Deque<PendingRecovery> pendingRecoveries = new ArrayDeque<>();
+
+    private final Map<String, ShardId> cancelledAllocationIds = new HashMap<>();
 
     private boolean closed;
 
@@ -61,6 +73,8 @@ public final class ThrottlingRecoveryService implements Closeable {
     ) {
         this.executor = executor;
         this.schedulingListeners = schedulingListeners;
+        this.clusterService = clusterService;
+        clusterService.addListener(this);
         clusterService.getClusterSettings()
             .initializeAndWatchIfRegistered(INDICES_RECOVERY_MAX_CONCURRENT_RECOVERIES_SETTING, this::setMaxConcurrentRecoveries);
     }
@@ -69,28 +83,117 @@ public final class ThrottlingRecoveryService implements Closeable {
     public void enqueue(
         RecoveryListener recoveryListener,
         RecoveryState recoveryState,
+        String allocationId,
         RecoveryStats stats,
         Consumer<RecoveryListener> task
     ) {
         final PendingRecovery pendingRecovery;
+        final boolean serviceClosed;
         synchronized (this) {
-            if (closed == false) {
-                pendingRecovery = new PendingRecovery(recoveryState, stats, task, recoveryListener);
+            serviceClosed = closed;
+            if (serviceClosed || cancelledAllocationIds.remove(allocationId) != null) {
+                pendingRecovery = null;
+            } else {
+                pendingRecovery = new PendingRecovery(recoveryState, allocationId, stats, task, recoveryListener);
                 pendingRecoveries.add(pendingRecovery);
                 stats.targetRecoveryQueued(recoveryState.getRecoverySource().getType());
-            } else {
-                pendingRecovery = null;
             }
         }
         if (pendingRecovery == null) {
-            logger.debug("service is closed, aborting recovery: {}", recoveryState);
-            recoveryListener.onRecoveryAborted();
+            if (serviceClosed) {
+                logger.debug("service is closed, aborting recovery: {}", recoveryState);
+                recoveryListener.onRecoveryAborted();
+            } else {
+                logger.debug("recovery cancelled at enqueue time: {}", recoveryState);
+                recoveryListener.onRecoveryFailure(
+                    new RecoveryCancelledException(
+                        recoveryState.getShardId(),
+                        recoveryState.getSourceNode(),
+                        recoveryState.getTargetNode()
+                    ),
+                    true
+                );
+            }
             return;
         }
         logger.trace("enqueued recovery: {}", recoveryState);
 
         schedulingListeners.onRecoveryQueued(recoveryState.getRecoverySource().getType(), RecoveryRole.TARGET);
         fillSlots();
+    }
+
+    /// Cancels recoveries matching the provided allocation ID batch.
+    ///
+    /// For each allocation ID, pre-emptively records the cancellation so that a future [#enqueue] call will reject it.
+    /// Any matching entries already in the pending queue are removed immediately and their listeners are notified via
+    /// `onRecoveryFailure` (with `sendShardFailure=false`, since the master is informed through the action response).
+    ///
+    /// Returns the set of allocation IDs that were found and removed from the pending queue. Allocation IDs whose
+    /// recoveries have already been dispatched or not yet enqueued are recorded in `cancelledAllocationIds` for
+    /// future [#enqueue] interception, and are NOT included in the returned set.
+    public Set<String> cancelRecoveries(Map<String, ShardId> cancellations) {
+        final List<PendingRecovery> cancelledInQueue = new ArrayList<>();
+        final Set<String> allocationIdsFound = new HashSet<>();
+        synchronized (this) {
+            cancelledAllocationIds.putAll(cancellations);
+            final Iterator<PendingRecovery> it = pendingRecoveries.iterator();
+            while (it.hasNext()) {
+                final PendingRecovery candidate = it.next();
+                if (cancellations.containsKey(candidate.allocationId())) {
+                    assert cancellations.get(candidate.allocationId()).equals(candidate.recoveryState().getShardId());
+                    it.remove();
+                    cancelledAllocationIds.remove(candidate.allocationId());
+                    cancelledInQueue.add(candidate);
+                    allocationIdsFound.add(candidate.allocationId());
+                    candidate.stats().targetQueuedRecoveryDiscarded(candidate.recoveryState().getRecoverySource().getType());
+                }
+            }
+        }
+        for (PendingRecovery cancelled : cancelledInQueue) {
+            final RecoveryState state = cancelled.recoveryState();
+            cancelled.listener()
+                .onRecoveryFailure(new RecoveryCancelledException(state.getShardId(), state.getSourceNode(), state.getTargetNode()), false);
+            schedulingListeners.onQueuedRecoveryDiscarded(state.getRecoverySource().getType(), RecoveryRole.TARGET);
+        }
+        return allocationIdsFound;
+    }
+
+    @Override
+    public void clusterChanged(ClusterChangedEvent event) {
+        final RoutingNode localNode = event.state().getRoutingNodes().node(clusterService.localNode().getId());
+        final List<PendingRecovery> staleRecoveries = new ArrayList<>();
+        synchronized (this) {
+            if (localNode == null) {
+                cancelledAllocationIds.clear();
+                staleRecoveries.addAll(pendingRecoveries);
+                pendingRecoveries.clear();
+            } else {
+                cancelledAllocationIds.entrySet().removeIf((cancellation) -> {
+                    final var routing = localNode.getByShardId(cancellation.getValue());
+                    return routing == null
+                        || routing.initializing() == false
+                        || routing.allocationId().getId().equals(cancellation.getKey()) == false;
+                });
+                pendingRecoveries.removeIf((pending) -> {
+                    final var routing = localNode.getByShardId(pending.recoveryState().getShardId());
+                    if (routing == null
+                        || routing.initializing() == false
+                        || routing.allocationId().getId().equals(pending.allocationId()) == false) {
+                        staleRecoveries.add(pending);
+                        pending.stats().targetQueuedRecoveryDiscarded(pending.recoveryState().getRecoverySource().getType());
+                        return true;
+                    }
+                    return false;
+                });
+            }
+        }
+        for (PendingRecovery stale : staleRecoveries) {
+            logger.debug("cancelling stale queued recovery: {}", stale.recoveryState());
+            final RecoveryState state = stale.recoveryState();
+            stale.listener()
+                .onRecoveryFailure(new RecoveryCancelledException(state.getShardId(), state.getSourceNode(), state.getTargetNode()), false);
+            schedulingListeners.onQueuedRecoveryDiscarded(state.getRecoverySource().getType(), RecoveryRole.TARGET);
+        }
     }
 
     // visible for testing
@@ -109,6 +212,7 @@ public final class ThrottlingRecoveryService implements Closeable {
             closed = true;
             recoveriesToAbort = new ArrayList<>(pendingRecoveries);
             pendingRecoveries.clear();
+            cancelledAllocationIds.clear();
             for (PendingRecovery pending : recoveriesToAbort) {
                 pending.stats().targetQueuedRecoveryDiscarded(pending.recoveryState().getRecoverySource().getType());
             }
@@ -118,6 +222,7 @@ public final class ThrottlingRecoveryService implements Closeable {
             pending.listener.onRecoveryAborted();
             schedulingListeners.onQueuedRecoveryDiscarded(pending.recoveryState().getRecoverySource().getType(), RecoveryRole.TARGET);
         }
+        clusterService.removeListener(this);
     }
 
     // visible for testing
@@ -176,6 +281,7 @@ public final class ThrottlingRecoveryService implements Closeable {
     /// at dispatch time, such that aborting a queued-but-never-dispatched task does not decrement a slot that was never taken
     private record PendingRecovery(
         RecoveryState recoveryState,
+        String allocationId,
         RecoveryStats stats,
         Consumer<RecoveryListener> task,
         RecoveryListener listener

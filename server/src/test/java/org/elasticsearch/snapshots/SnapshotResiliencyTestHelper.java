@@ -711,7 +711,8 @@ public class SnapshotResiliencyTestHelper {
                     transportService,
                     recoverySettings,
                     clusterService,
-                    snapshotFilesProvider
+                    snapshotFilesProvider,
+                    new CompositeRecoverySchedulingListener()
                 );
 
                 final ActionFilters actionFilters = new ActionFilters(emptySet());

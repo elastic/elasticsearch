@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -100,6 +101,7 @@ public class PeerRecoveryTargetService implements IndexEventListener {
     private final RecoverySettings recoverySettings;
     private final ClusterService clusterService;
     private final SnapshotFilesProvider snapshotFilesProvider;
+    private final CompositeRecoverySchedulingListener recoverySchedulingListeners;
 
     // visible for testing
     final RecoveriesCollection onGoingRecoveries;
@@ -110,7 +112,8 @@ public class PeerRecoveryTargetService implements IndexEventListener {
         TransportService transportService,
         RecoverySettings recoverySettings,
         ClusterService clusterService,
-        SnapshotFilesProvider snapshotFilesProvider
+        SnapshotFilesProvider snapshotFilesProvider,
+        CompositeRecoverySchedulingListener recoverySchedulingListeners
     ) {
         this.client = client;
         this.threadPool = threadPool;
@@ -118,6 +121,7 @@ public class PeerRecoveryTargetService implements IndexEventListener {
         this.recoverySettings = recoverySettings;
         this.clusterService = clusterService;
         this.snapshotFilesProvider = snapshotFilesProvider;
+        this.recoverySchedulingListeners = recoverySchedulingListeners;
         this.onGoingRecoveries = new RecoveriesCollection(logger);
 
         transportService.registerRequestHandler(
@@ -222,6 +226,13 @@ public class PeerRecoveryTargetService implements IndexEventListener {
         }
     }
 
+    /// Attempts to cancel and fail a specific recovery by allocation ID. The master will be notified.
+    public void directCancelRecovery(ShardId shardId, String allocationId) {
+        if (onGoingRecoveries.directCancelRecovery(shardId, allocationId, clusterService.localNode())) {
+            recoverySchedulingListeners.onStartedRecoveryCancelled(RecoverySource.Type.PEER, RecoveryRole.TARGET);
+        }
+    }
+
     public void startRecovery(
         final IndexShard indexShard,
         final DiscoveryNode sourceNode,
@@ -238,6 +249,16 @@ public class PeerRecoveryTargetService implements IndexEventListener {
             listener,
             snapshotFileDownloadsPermit
         );
+        try {
+            indexShard.ensureRecoveryNotCancelled();
+        } catch (RecoveryCancelledException e) {
+            onGoingRecoveries.directCancelRecovery(
+                indexShard.shardId(),
+                indexShard.routingEntry().allocationId().getId(),
+                clusterService.localNode()
+            );
+            return;
+        }
         // we fork off quickly here and go async but this is called from the cluster state applier thread too and that can cause
         // assertions to trip if we executed it on the same thread hence we fork off to the generic threadpool.
         threadPool.generic().execute(new RecoveryRunner(recoveryId));

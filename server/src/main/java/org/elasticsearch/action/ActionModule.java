@@ -238,6 +238,8 @@ import org.elasticsearch.index.seqno.GlobalCheckpointSyncAction;
 import org.elasticsearch.index.seqno.RetentionLeaseActions;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.elasticsearch.indices.recovery.CancelRecoveriesAction;
+import org.elasticsearch.indices.recovery.TransportCancelRecoveriesAction;
 import org.elasticsearch.indices.store.TransportNodesListShardStoreMetadata;
 import org.elasticsearch.injection.guice.AbstractModule;
 import org.elasticsearch.injection.guice.TypeLiteral;
@@ -750,6 +752,7 @@ public class ActionModule extends AbstractModule {
         actions.register(TransportClearScrollAction.TYPE, TransportClearScrollAction.class);
         actions.register(TransportFetchPhaseCoordinationAction.TYPE, TransportFetchPhaseCoordinationAction.class);
 
+        actions.register(CancelRecoveriesAction.TYPE, TransportCancelRecoveriesAction.class);
         actions.register(RecoveryAction.INSTANCE, TransportRecoveryAction.class);
         actions.register(TransportNodesReloadSecureSettingsAction.TYPE, TransportNodesReloadSecureSettingsAction.class);
         actions.register(AutoCreateAction.INSTANCE, AutoCreateAction.TransportAction.class);

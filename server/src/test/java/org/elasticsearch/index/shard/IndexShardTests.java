@@ -123,6 +123,7 @@ import org.elasticsearch.index.translog.TranslogStats;
 import org.elasticsearch.indices.IndicesQueryCache;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
+import org.elasticsearch.indices.recovery.RecoveryCancelledException;
 import org.elasticsearch.indices.recovery.RecoveryFailedException;
 import org.elasticsearch.indices.recovery.RecoveryListener;
 import org.elasticsearch.indices.recovery.RecoveryState;
@@ -3660,6 +3661,129 @@ public class IndexShardTests extends IndexShardTestCase {
             {"properties":{"foo":{"type":"text"}}}"""));
 
         closeShards(sourceShard, targetShard);
+    }
+
+    public void testRequestRecoveryCancellationThrowsWhenStarted() throws IOException {
+        final IndexShard shard = newStartedShard();
+        final DiscoveryNode localNode = DiscoveryNodeUtils.builder("foo").roles(emptySet()).build();
+        final RecoveryCancelledException cause = new RecoveryCancelledException(shard.shardId(), null, localNode);
+        expectThrows(IndexShardNotRecoveringException.class, () -> shard.requestRecoveryCancellation(cause));
+        shard.ensureRecoveryNotCancelled();
+        closeShards(shard);
+    }
+
+    public void testRequestRecoveryCancellationSetsFlagForCreatedShard() throws IOException {
+        final IndexShard shard = newShard(true);
+        assertThat(shard.state(), equalTo(IndexShardState.CREATED));
+        final DiscoveryNode localNode = DiscoveryNodeUtils.builder("foo").roles(emptySet()).build();
+        final RecoveryCancelledException cause = new RecoveryCancelledException(shard.shardId(), null, localNode);
+        shard.requestRecoveryCancellation(cause);
+        shard.markAsRecovering("store", new RecoveryState(shard.routingEntry(), localNode, null));
+        expectThrows(RecoveryCancelledException.class, shard::ensureRecoveryNotCancelled);
+        closeShards(shard);
+    }
+
+    public void testRequestRecoveryCancellationSetsFlagForStoreRecovery() throws IOException {
+        final IndexShard shard = reinitShard(newStartedShard(true));
+        final DiscoveryNode localNode = DiscoveryNodeUtils.builder("foo").roles(emptySet()).build();
+        shard.markAsRecovering("store", new RecoveryState(shard.routingEntry(), localNode, null));
+
+        final RecoveryCancelledException cause = new RecoveryCancelledException(shard.shardId(), null, localNode);
+        shard.requestRecoveryCancellation(cause);
+        expectThrows(RecoveryCancelledException.class, shard::ensureRecoveryNotCancelled);
+        closeShards(shard);
+    }
+
+    public void testRequestRecoveryCancellationSetsFlagForPeerRecovery() throws IOException {
+        final IndexMetadata metadata = newTestIndexMetadata();
+        final IndexShard primary = newShard(new ShardId(metadata.getIndex(), 0), true, "node1", metadata, null);
+        recoverShardFromStore(primary);
+        final IndexShard replica = newShard(primary.shardId(), false, "node2", metadata, null);
+        final DiscoveryNode node1 = getFakeDiscoNode(primary.routingEntry().currentNodeId());
+        final DiscoveryNode node2 = getFakeDiscoNode(replica.routingEntry().currentNodeId());
+        replica.markAsRecovering("peer", new RecoveryState(replica.routingEntry(), node1, node2));
+
+        final RecoveryCancelledException cause = new RecoveryCancelledException(replica.shardId(), node1, node2);
+        replica.requestRecoveryCancellation(cause);
+        expectThrows(RecoveryCancelledException.class, replica::ensureRecoveryNotCancelled);
+        closeShards(primary, replica);
+    }
+
+    public void testRequestRecoveryCancellationThrowsAfterPrimaryHandover() throws Exception {
+        final IndexShard source = newStartedShard(true);
+        IndexShardTestCase.updateRoutingEntry(source, ShardRoutingHelper.relocate(source.routingEntry(), randomAlphaOfLength(10)));
+        final IndexShard target = newShard(source.routingEntry().getTargetRelocatingShard());
+        updateMappings(target, source.indexSettings().getIndexMetadata());
+
+        final CountDownLatch handoverComplete = new CountDownLatch(1);
+        final CountDownLatch proceedWithDone = new CountDownLatch(1);
+        final Thread recoveryThread = new Thread(() -> {
+            try {
+                recoverReplica(
+                    target,
+                    source,
+                    (shard, sourceNode) -> new RecoveryTarget(shard, sourceNode, 0L, null, null, recoveryListener) {
+                        @Override
+                        public void markAsDone() {
+                            handoverComplete.countDown();
+                            try {
+                                assertTrue(proceedWithDone.await(10, TimeUnit.SECONDS));
+                            } catch (InterruptedException e) {
+                                throw new AssertionError(e);
+                            }
+                            super.markAsDone();
+                        }
+                    },
+                    true,
+                    false
+                );
+            } catch (IOException e) {
+                throw new AssertionError(e);
+            }
+        });
+        recoveryThread.start();
+        assertTrue(handoverComplete.await(10, TimeUnit.SECONDS));
+
+        final DiscoveryNode localNode = DiscoveryNodeUtils.builder("foo").roles(emptySet()).build();
+        final RecoveryCancelledException cause = new RecoveryCancelledException(target.shardId(), null, localNode);
+        final UnsupportedOperationException e = expectThrows(
+            UnsupportedOperationException.class,
+            () -> target.requestRecoveryCancellation(cause)
+        );
+        assertThat(e.getMessage(), containsString("cannot cancel primary relocation recovery after primary handover on shard"));
+
+        proceedWithDone.countDown();
+        recoveryThread.join(10_000L);
+        closeShards(source, target);
+    }
+
+    public void testCancellationFlagSetInCreatedStateCancelsNonPeerRecovery() throws IOException {
+        final IndexShard shard = reinitShard(newStartedShard(true));
+        assertThat(shard.state(), equalTo(IndexShardState.CREATED));
+        final DiscoveryNode localNode = DiscoveryNodeUtils.builder("foo").roles(emptySet()).build();
+
+        shard.requestRecoveryCancellation(new RecoveryCancelledException(shard.shardId(), null, localNode));
+
+        shard.markAsRecovering("store", new RecoveryState(shard.routingEntry(), localNode, null));
+        expectThrows(RecoveryCancelledException.class, shard::ensureRecoveryNotCancelled);
+        closeShards(shard);
+    }
+
+    public void testCancellationFlagSetInCreatedStateCancelsPeerRecovery() throws IOException {
+        final IndexMetadata metadata = newTestIndexMetadata();
+        final IndexShard primary = newShard(new ShardId(metadata.getIndex(), 0), true, "node1", metadata, null);
+        recoverShardFromStore(primary);
+        final IndexShard replica = newShard(primary.shardId(), false, "node2", metadata, null);
+        assertThat(replica.state(), equalTo(IndexShardState.CREATED));
+
+        final DiscoveryNode node1 = getFakeDiscoNode(primary.routingEntry().currentNodeId());
+        final DiscoveryNode node2 = getFakeDiscoNode(replica.routingEntry().currentNodeId());
+
+        replica.requestRecoveryCancellation(new RecoveryCancelledException(replica.shardId(), node1, node2));
+        replica.markAsRecovering("peer", new RecoveryState(replica.routingEntry(), node1, node2));
+        expectThrows(RecoveryCancelledException.class, replica::ensureRecoveryNotCancelled);
+
+        closeShards(primary, replica);
     }
 
     public void testCompletionStatsMarksSearcherAccessed() throws Exception {

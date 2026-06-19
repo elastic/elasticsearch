@@ -802,6 +802,90 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
         closeShards(shard);
     }
 
+    public void testDirectCancelRecovery() throws Exception {
+        IndexShard shard = newShard(false);
+        DiscoveryNode pNode = getFakeDiscoNode(randomAlphaOfLength(10));
+        DiscoveryNode rNode = getFakeDiscoNode(randomAlphaOfLength(10));
+        shard.markAsRecovering("test-peer-recovery", new RecoveryState(shard.routingEntry(), rNode, pNode));
+
+        AtomicBoolean onRecoveryFailureCalled = new AtomicBoolean(false);
+        RecoveryListener listener = new RecoveryListener() {
+            @Override
+            public void onRecoveryDone(
+                RecoveryState state,
+                ShardLongFieldRange timestampMillisFieldRange,
+                ShardLongFieldRange eventIngestedMillisFieldRange
+            ) {}
+
+            @Override
+            public void onRecoveryFailure(RecoveryFailedException e, boolean sendShardFailure) {
+                assertTrue(sendShardFailure);
+                onRecoveryFailureCalled.set(true);
+            }
+
+            @Override
+            public void onRecoveryAborted() {}
+        };
+
+        RecoveriesCollection ongoingRecoveries = new RecoveriesCollection(logger);
+        long recoveryId = ongoingRecoveries.startRecovery(shard, pNode, 0L, null, listener, null);
+
+        try (var recoveryRef = ongoingRecoveries.getRecovery(recoveryId)) {
+            assertNotNull(recoveryRef);
+        }
+
+        String allocationId = shard.routingEntry().allocationId().getId();
+        boolean cancelled = ongoingRecoveries.directCancelRecovery(shard.shardId(), allocationId, rNode);
+        assertTrue(cancelled);
+        assertTrue(onRecoveryFailureCalled.get());
+
+        assertNull(ongoingRecoveries.getRecovery(recoveryId));
+        closeShards(shard);
+    }
+
+    public void testDirectCancelRecoveryWhenNotFound() throws Exception {
+        IndexShard shard1 = newShard(false);
+        IndexShard shard2 = newShard(false);
+        DiscoveryNode rNode = getFakeDiscoNode(randomAlphaOfLength(10));
+        DiscoveryNode pNode = getFakeDiscoNode(randomAlphaOfLength(10));
+        RecoveriesCollection ongoingRecoveries = new RecoveriesCollection(logger);
+
+        RecoveryListener listener = new RecoveryListener() {
+            @Override
+            public void onRecoveryDone(
+                RecoveryState state,
+                ShardLongFieldRange timestampMillisFieldRange,
+                ShardLongFieldRange eventIngestedMillisFieldRange
+            ) {}
+
+            @Override
+            public void onRecoveryFailure(RecoveryFailedException e, boolean sendShardFailure) {}
+
+            @Override
+            public void onRecoveryAborted() {}
+        };
+
+        // Start recovery for shard2
+        shard2.markAsRecovering("test-peer-recovery", new RecoveryState(shard2.routingEntry(), rNode, pNode));
+        long recoveryId = ongoingRecoveries.startRecovery(shard2, pNode, 0L, null, listener, null);
+
+        // Try cancelling shard1
+        String allocationId = shard1.routingEntry().allocationId().getId();
+        boolean cancelled = ongoingRecoveries.directCancelRecovery(shard1.shardId(), allocationId, rNode);
+        assertFalse(cancelled);
+
+        // Use wrong allocationId for shard2
+        cancelled = ongoingRecoveries.directCancelRecovery(shard2.shardId(), allocationId, rNode);
+        assertFalse(cancelled);
+
+        try (var recoveryRef = ongoingRecoveries.getRecovery(recoveryId)) {
+            assertNotNull(recoveryRef);
+        }
+
+        ongoingRecoveries.cancelRecoveriesForShard(shard2.shardId(), "test cleanup");
+        closeShards(List.of(shard1, shard2));
+    }
+
     private Tuple<StoreFileMetadata, byte[]> createStoreFileMetadataWithRandomContent(String fileName) throws Exception {
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         try (OutputStreamIndexOutput indexOutput = new OutputStreamIndexOutput("test", "file", out, 1024)) {

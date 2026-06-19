@@ -144,6 +144,7 @@ import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.cluster.IndexRemovalReason;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
+import org.elasticsearch.indices.recovery.CompositeRecoverySchedulingListener;
 import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
 import org.elasticsearch.indices.recovery.RecoveryListener;
 import org.elasticsearch.indices.recovery.RecoveryState;
@@ -296,6 +297,7 @@ public class IndicesService extends AbstractLifecycleComponent
     private final PluggableDirectoryMetricsHolder<StoreMetrics> storeMetricHolder;
     private final Map<String, PluggableDirectoryMetricsHolder<?>> directoryMetricHolderMap;
     private final ThrottlingRecoveryService throttlingRecoveryService;
+    private final CompositeRecoverySchedulingListener recoverySchedulingListeners;
 
     @Override
     protected void doStart() {
@@ -422,12 +424,17 @@ public class IndicesService extends AbstractLifecycleComponent
         this.storeMetricHolder = builder.storeMetricsHolder;
         this.directoryMetricHolderMap = builder.directoryMetricHolderMap;
         this.throttlingRecoveryService = builder.throttlingRecoveryService;
+        this.recoverySchedulingListeners = builder.recoverySchedulingListeners;
     }
 
     private static final String DANGLING_INDICES_UPDATE_THREAD_NAME = "DanglingIndices#updateTask";
 
     public ClusterService clusterService() {
         return clusterService;
+    }
+
+    public ThrottlingRecoveryService throttlingRecoveryService() {
+        return throttlingRecoveryService;
     }
 
     @Override
@@ -992,11 +999,17 @@ public class IndicesService extends AbstractLifecycleComponent
         IndexService indexService = indexService(shardRouting.index());
         assert indexService != null;
         RecoveryState recoveryState = indexService.createRecoveryState(shardRouting, targetNode, sourceNode);
-        IndexShard indexShard = indexService.createShard(shardRouting, globalCheckpointSyncer, retentionLeaseSyncer);
+        IndexShard indexShard = indexService.createShard(
+            shardRouting,
+            globalCheckpointSyncer,
+            retentionLeaseSyncer,
+            recoverySchedulingListeners
+        );
         indexShard.addShardFailureCallback(onShardFailure);
         throttlingRecoveryService.enqueue(
             recoveryListener,
             recoveryState,
+            shardRouting.allocationId().getId(),
             indexShard.recoveryStats(),
             listener -> projectResolver.executeOnProject(
                 projectId,

@@ -150,9 +150,12 @@ import org.elasticsearch.indices.IndexingMemoryController;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService;
+import org.elasticsearch.indices.recovery.CompositeRecoverySchedulingListener;
 import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
+import org.elasticsearch.indices.recovery.RecoveryCancelledException;
 import org.elasticsearch.indices.recovery.RecoveryFailedException;
 import org.elasticsearch.indices.recovery.RecoveryListener;
+import org.elasticsearch.indices.recovery.RecoveryRole;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.indices.recovery.RecoveryTarget;
@@ -276,6 +279,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     @Nullable
     private volatile RecoveryState recoveryState;
 
+    @Nullable
+    private volatile RecoveryCancelledException recoveryCancellationRequest;
+
+    private final CompositeRecoverySchedulingListener recoverySchedulingListeners;
     private final RecoveryStats recoveryStats = new RecoveryStats();
     private final MeanMetric refreshMetric = new MeanMetric();
     private final MeanMetric externalRefreshMetric = new MeanMetric();
@@ -359,7 +366,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         final MapperMetrics mapperMetrics,
         final IndexingStatsSettings indexingStatsSettings,
         final SearchStatsSettings searchStatsSettings,
-        final MergeMetrics mergeMetrics
+        final MergeMetrics mergeMetrics,
+        final CompositeRecoverySchedulingListener recoverySchedulingListeners
     ) throws IOException {
         super(shardRouting.shardId(), indexSettings);
         assert shardRouting.initializing();
@@ -456,6 +464,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         this.relativeTimeInNanosSupplier = relativeTimeInNanosSupplier;
         this.indexCommitListener = indexCommitListener;
         this.mergeMetrics = mergeMetrics;
+        this.recoverySchedulingListeners = recoverySchedulingListeners;
     }
 
     public ThreadPool getThreadPool() {
@@ -2001,6 +2010,60 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         indexEventListener.beforeIndexShardRecovery(this, indexSettings, listener);
     }
 
+    /// Requests cancellation of a recovery that is not yet completed.
+    ///
+    /// Throws [IndexShardNotRecoveringException] when the shard is neither in `CREATED` state or `RECOVERING` state.
+    /// In `CREATED` state the flag is stored and checked when the recovery begins.
+    /// In `RECOVERING` state, `StoreRecovery` checks via [#ensureRecoveryNotCancelled] at phase boundaries for
+    /// non-PEER recoveries. For PEER recoveries the flag is checked immediately after [#markAsRecovering].
+    ///
+    /// Throws [IndexShardNotRecoveringException] if the shard is not in `CREATED` or `RECOVERING` state,
+    /// [IllegalStateException] if the ongoing recovery is not of a supported type (use `RecoveriesCollection` for peer), and
+    /// [UnsupportedOperationException] if called for a PEER recovery after the primary handover has already occurred.
+    public void requestRecoveryCancellation(RecoveryCancelledException cause) {
+        synchronized (mutex) {
+            if (state == IndexShardState.CREATED) {
+                // Recovery type not yet known. Store the flag.
+                recoveryCancellationRequest = cause;
+                return;
+            }
+            if (state != IndexShardState.RECOVERING) {
+                throw new IndexShardNotRecoveringException(shardId, state);
+            }
+            final RecoveryState currentRecoveryState = recoveryState;
+            assert currentRecoveryState != null;
+            final RecoverySource.Type recoveryType = currentRecoveryState.getRecoverySource().getType();
+            switch (recoveryType) {
+                case LOCAL_SHARDS, SNAPSHOT, EXISTING_STORE, EMPTY_STORE -> recoveryCancellationRequest = cause;
+                case PEER -> {
+                    if (replicationTracker.isPrimaryMode()) {
+                        throw new UnsupportedOperationException(
+                            "cannot cancel primary relocation recovery after primary handover on shard " + shardId
+                        );
+                    }
+                    recoveryCancellationRequest = cause;
+                }
+                default -> throw new IllegalStateException(
+                    "requestRecoveryCancellation called for an unsupported recovery type " + recoveryType + " on shard " + shardId
+                );
+            }
+        }
+    }
+
+    /// Throws [RecoveryCancelledException] if a cancellation has been requested via [#requestRecoveryCancellation].
+    ///
+    /// Must only be called from within the active recovery sequence [StoreRecovery] phase boundaries.
+    /// Callers must not either catch and swallow the exception, or handle it explicitly, otherwise we
+    /// risk causing the metric to overcount.
+    public void ensureRecoveryNotCancelled() throws RecoveryCancelledException {
+        assert recoveryState() != null : "ensureRecoveryNotCancelled should only be called while recovery is active";
+        final RecoveryCancelledException cancellation = recoveryCancellationRequest;
+        if (cancellation != null) {
+            recoverySchedulingListeners.onStartedRecoveryCancelled(recoveryState().getRecoverySource().getType(), RecoveryRole.TARGET);
+            throw cancellation;
+        }
+    }
+
     public void postRecovery(String reason, ActionListener<Void> listener) throws IndexShardStartedException, IndexShardRelocatedException,
         IndexShardClosedException {
         assert postRecoveryComplete == null;
@@ -2044,6 +2107,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     if (state == IndexShardState.STARTED) {
                         throw new IndexShardStartedException(shardId);
                     }
+                    // It's ok if we missed the request, finish shard recovery, and let the master sort it out.
+                    recoveryCancellationRequest = null;
                     changeState(IndexShardState.POST_RECOVERY, reason);
                 }
             }).addListener(finalListener);
@@ -3397,6 +3462,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             || indexSettings().getTranslogDurability() == Translog.Durability.ASYNC
             : "local checkpoint [" + getLocalCheckpoint() + "] does not match checkpoint from primary context [" + primaryContext + "]";
         synchronized (mutex) {
+            final RecoveryCancelledException cancellation = recoveryCancellationRequest;
+            if (cancellation != null) {
+                throw cancellation;
+            }
             replicationTracker.activateWithPrimaryContext(primaryContext); // make changes to primaryMode flag only under mutex
         }
         ensurePeerRecoveryRetentionLeasesExist();

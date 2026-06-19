@@ -1024,9 +1024,15 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
         );
         final CircuitBreaker request = service.getBreaker(CircuitBreaker.REQUEST);
 
-        request.addEstimateBytesAndMaybeBreak(100L, "wildcard-compiled");
-        request.addWithoutBreaking(-30L, "wildcard-compiled");
-        request.addEstimateBytesAndMaybeBreak(50L, "regexp");
+        request.addEstimateBytesAndMaybeBreak(100L, ChildMemoryCircuitBreaker.CATEGORY_WILDCARD);
+        request.addWithoutBreaking(-30L, ChildMemoryCircuitBreaker.CATEGORY_WILDCARD);
+        request.addEstimateBytesAndMaybeBreak(50L, ChildMemoryCircuitBreaker.CATEGORY_REGEXP);
+        request.addEstimateBytesAndMaybeBreak(40L, ChildMemoryCircuitBreaker.CATEGORY_QUERY);
+        request.addWithoutBreaking(-15L, ChildMemoryCircuitBreaker.CATEGORY_QUERY);
+        // Field-suffixed range labels for two distinct fields must collapse onto the single "range" category.
+        request.addEstimateBytesAndMaybeBreak(25L, ChildMemoryCircuitBreaker.CATEGORY_RANGE + ":field_a");
+        request.addEstimateBytesAndMaybeBreak(35L, ChildMemoryCircuitBreaker.CATEGORY_RANGE + ":field_b");
+        request.addWithoutBreaking(-10L, ChildMemoryCircuitBreaker.CATEGORY_RANGE + ":field_a");
         request.addWithoutBreaking(-7L);
 
         final Map<Map<String, Object>, Long> heldByAttrs = meter.getRecorder()
@@ -1041,7 +1047,7 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
                     ChildMemoryCircuitBreaker.BREAKER_METRIC_TYPE_ATTRIBUTE,
                     CircuitBreaker.REQUEST,
                     ChildMemoryCircuitBreaker.CIRCUIT_BREAKER_CATEGORY_ATTRIBUTE,
-                    "wildcard-compiled"
+                    ChildMemoryCircuitBreaker.CATEGORY_WILDCARD
                 )
             )
         );
@@ -1052,7 +1058,30 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
                     ChildMemoryCircuitBreaker.BREAKER_METRIC_TYPE_ATTRIBUTE,
                     CircuitBreaker.REQUEST,
                     ChildMemoryCircuitBreaker.CIRCUIT_BREAKER_CATEGORY_ATTRIBUTE,
-                    "regexp"
+                    ChildMemoryCircuitBreaker.CATEGORY_REGEXP
+                )
+            )
+        );
+        assertEquals(
+            Long.valueOf(25L),
+            heldByAttrs.get(
+                Map.of(
+                    ChildMemoryCircuitBreaker.BREAKER_METRIC_TYPE_ATTRIBUTE,
+                    CircuitBreaker.REQUEST,
+                    ChildMemoryCircuitBreaker.CIRCUIT_BREAKER_CATEGORY_ATTRIBUTE,
+                    ChildMemoryCircuitBreaker.CATEGORY_QUERY
+                )
+            )
+        );
+        // 25 (field_a) + 35 (field_b) - 10 (field_a release) collapsed onto a single "range" category.
+        assertEquals(
+            Long.valueOf(50L),
+            heldByAttrs.get(
+                Map.of(
+                    ChildMemoryCircuitBreaker.BREAKER_METRIC_TYPE_ATTRIBUTE,
+                    CircuitBreaker.REQUEST,
+                    ChildMemoryCircuitBreaker.CIRCUIT_BREAKER_CATEGORY_ATTRIBUTE,
+                    ChildMemoryCircuitBreaker.CATEGORY_RANGE
                 )
             )
         );
@@ -1070,6 +1099,43 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
 
         long sum = heldByAttrs.values().stream().mapToLong(Long::longValue).sum();
         assertEquals(request.getUsed(), sum);
+    }
+
+    /**
+     * Unbounded or user-defined labels (e.g. field names, action names) must not become distinct {@code es_breaker_category}
+     * values, otherwise the gauge's time-series cardinality would grow without bound. Such labels collapse into the single
+     * {@link ChildMemoryCircuitBreaker#UNCATEGORIZED_RELEASE} bucket.
+     */
+    public void testMemoryHeldBucketsUnknownLabelsUnderUncategorized() {
+        final RecordingMeterRegistry meter = new RecordingMeterRegistry();
+        final CircuitBreakerMetrics metrics = new CircuitBreakerMetrics(new TelemetryProvider.NoopTelemetryProvider() {
+            @Override
+            public MeterRegistry getMeterRegistry() {
+                return meter;
+            }
+        });
+
+        final HierarchyCircuitBreakerService service = new HierarchyCircuitBreakerService(
+            metrics,
+            Settings.EMPTY,
+            Collections.emptyList(),
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+        );
+        final CircuitBreaker request = service.getBreaker(CircuitBreaker.REQUEST);
+
+        // Two distinct, high-cardinality labels (think: field names) and one action-name style label.
+        request.addEstimateBytesAndMaybeBreak(10L, "field_name_a");
+        request.addEstimateBytesAndMaybeBreak(20L, "field_name_b");
+        request.addEstimateBytesAndMaybeBreak(30L, "indices:data/read/search");
+
+        final Set<Object> categories = meter.getRecorder()
+            .getMeasurements(InstrumentType.LONG_UP_DOWN_COUNTER, CircuitBreakerMetrics.ES_BREAKER_MEMORY_HELD)
+            .stream()
+            .filter(m -> CircuitBreaker.REQUEST.equals(m.attributes().get(ChildMemoryCircuitBreaker.BREAKER_METRIC_TYPE_ATTRIBUTE)))
+            .map(m -> m.attributes().get(ChildMemoryCircuitBreaker.CIRCUIT_BREAKER_CATEGORY_ATTRIBUTE))
+            .collect(Collectors.toSet());
+
+        assertEquals(Set.of(ChildMemoryCircuitBreaker.UNCATEGORIZED_RELEASE), categories);
     }
 
     public void testMemoryHeldNotUpdatedWhenParentTripsAdmission() {

@@ -19,6 +19,7 @@ import org.elasticsearch.telemetry.metric.LongCounter;
 import org.elasticsearch.telemetry.metric.LongUpDownCounter;
 
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static org.elasticsearch.core.Strings.format;
@@ -52,14 +53,40 @@ public class ChildMemoryCircuitBreaker implements CircuitBreaker {
     public static final String BREAKER_METRIC_TYPE_ATTRIBUTE = "es_breaker_type";
 
     /**
-     * Attribute key on the memory gauges identifying the caller-supplied label a charge was admitted/released under.
+     * Attribute key on the memory gauges identifying the (bounded) category a charge was admitted/released under. The value is
+     * derived from the caller-supplied label via {@link #categoryFor(String)} and is always one of {@link #KNOWN_CATEGORIES} or
+     * {@link #UNCATEGORIZED_RELEASE}, so this dimension can never explode the metric's time-series cardinality.
      */
     public static final String CIRCUIT_BREAKER_CATEGORY_ATTRIBUTE = "es_breaker_category";
 
     /**
-     * Category value used for releases that go through the unlabeled {@link #addWithoutBreaking(long)} path.
+     * Category value used for releases that go through the unlabeled {@link #addWithoutBreaking(long)} path, and the fallback
+     * bucket for any label that is not one of the {@link #KNOWN_CATEGORIES}.
      */
     public static final String UNCATEGORIZED_RELEASE = "uncategorized";
+
+    /** Per-phase retained query memory charged by {@link org.elasticsearch.index.query.AbstractQueryBuilder#toQuery}. */
+    public static final String CATEGORY_QUERY = "query";
+
+    /** Query-construction reservation for compiled wildcard automata. */
+    public static final String CATEGORY_WILDCARD = "wildcard";
+
+    /** Query-construction reservation for compiled regexp automata. */
+    public static final String CATEGORY_REGEXP = "regexp";
+
+    /** Range-query retained memory (label is {@code range:<field>}; the field suffix is stripped for the metric). */
+    public static final String CATEGORY_RANGE = "range";
+
+    /** Up-front reservation made by {@link PreallocatedCircuitBreakerService} (label is {@code preallocate[<detail>]}). */
+    public static final String CATEGORY_PREALLOCATE = "preallocate";
+
+    private static final Set<String> KNOWN_CATEGORIES = Set.of(
+        CATEGORY_QUERY,
+        CATEGORY_WILDCARD,
+        CATEGORY_REGEXP,
+        CATEGORY_RANGE,
+        CATEGORY_PREALLOCATE
+    );
 
     /**
      * Create a circuit breaker that will break if the number of estimated
@@ -177,7 +204,7 @@ public class ChildMemoryCircuitBreaker implements CircuitBreaker {
             throw e;
         }
         if (bytes > 0) {
-            this.memoryHeldMeter.add(bytes, Map.of(BREAKER_METRIC_TYPE_ATTRIBUTE, this.name, CIRCUIT_BREAKER_CATEGORY_ATTRIBUTE, label));
+            this.memoryHeldMeter.add(bytes, heldAttributes(label));
         }
         assert newUsed >= 0 : "Used bytes: [" + newUsed + "] must be >= 0";
     }
@@ -256,13 +283,55 @@ public class ChildMemoryCircuitBreaker implements CircuitBreaker {
     }
 
     /**
-     * Category-aware variant of {@link #addWithoutBreaking(long)} - records the delta on {@code es.breaker.memory.held.usage} under
-     * {@code es_breaker_category=label}, so that an admit / release pair sharing the same label cancels out on the per-category gauge.
+     * Category-aware variant of {@link #addWithoutBreaking(long)} - records the delta on {@code es.breaker.memory.held.usage}
+     * under the bounded {@code es_breaker_category} that {@code label} maps to (see {@link #categoryFor(String)}), so that an
+     * admit / release pair sharing the same label cancels out on the per-category gauge.
      */
     @Override
     public void addWithoutBreaking(long bytes, String label) {
         adjustUsedBytes(bytes);
-        this.memoryHeldMeter.add(bytes, Map.of(BREAKER_METRIC_TYPE_ATTRIBUTE, this.name, CIRCUIT_BREAKER_CATEGORY_ATTRIBUTE, label));
+        this.memoryHeldMeter.add(bytes, heldAttributes(label));
+    }
+
+    /**
+     * Builds the {@code es.breaker.memory.held.usage} attributes for {@code label}, mapping the free-text label to a bounded
+     * {@code es_breaker_category} via {@link #categoryFor(String)}. Reuses the cached {@link #uncategorizedHeldAttributes} for the
+     * common uncategorized case to avoid allocating a map on the hot path.
+     */
+    private Map<String, Object> heldAttributes(String label) {
+        final String category = categoryFor(label);
+        if (UNCATEGORIZED_RELEASE.equals(category)) {
+            return uncategorizedHeldAttributes;
+        }
+        return Map.of(BREAKER_METRIC_TYPE_ATTRIBUTE, this.name, CIRCUIT_BREAKER_CATEGORY_ATTRIBUTE, category);
+    }
+
+    /**
+     * Maps a free-text breaker label to one of the bounded {@link #KNOWN_CATEGORIES}, or {@link #UNCATEGORIZED_RELEASE} when the
+     * label is unrecognized or {@code null}. For composite labels of the form {@code <category>[<detail>]} (e.g.
+     * {@code preallocate[aggregations]}) or {@code <category>:<detail>} (e.g. {@code range:my_field}) only the {@code <category>}
+     * prefix - the text before the first {@code '['} or {@code ':'} - is matched, so the per-detail suffix adds no cardinality.
+     */
+    static String categoryFor(String label) {
+        if (label == null) {
+            return UNCATEGORIZED_RELEASE;
+        }
+        final int separator = firstSeparator(label);
+        final String base = separator >= 0 ? label.substring(0, separator) : label;
+        return KNOWN_CATEGORIES.contains(base) ? base : UNCATEGORIZED_RELEASE;
+    }
+
+    /** Index of the first {@code '['} or {@code ':'} in {@code label}, or {@code -1} when neither is present. */
+    private static int firstSeparator(String label) {
+        final int bracket = label.indexOf('[');
+        final int colon = label.indexOf(':');
+        if (bracket < 0) {
+            return colon;
+        }
+        if (colon < 0) {
+            return bracket;
+        }
+        return Math.min(bracket, colon);
     }
 
     private void adjustUsedBytes(long bytes) {

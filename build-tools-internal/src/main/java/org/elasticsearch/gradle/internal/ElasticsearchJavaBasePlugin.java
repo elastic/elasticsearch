@@ -203,7 +203,9 @@ public class ElasticsearchJavaBasePlugin implements Plugin<Project> {
      *
      * <p> Works by patching {@code java.base} at compile time with a stub JAR whose
      * {@code java.lang.foreign} classes have the {@code @PreviewFeature} annotation
-     * stripped. Call from a project's {@code build.gradle}:
+     * stripped. Also enables forbidden-API checking for renamed preview APIs, so that
+     * direct usage of methods like {@code getUtf8String} or {@code allocateUtf8String}
+     * is caught at build time. Call from a project's {@code build.gradle}:
      * <pre>{@code
      *   ElasticsearchJavaBasePlugin.enableForeignAccess(project)
      * }</pre>
@@ -229,6 +231,7 @@ public class ElasticsearchJavaBasePlugin implements Plugin<Project> {
                 }
             });
         });
+        project.getTasks().withType(CheckForbiddenApisTask.class).configureEach(CheckForbiddenApisTask::checkForeignApiUsage);
     }
 
     private static int taskRelease(Project project, Property<Integer> releaseProperty) {

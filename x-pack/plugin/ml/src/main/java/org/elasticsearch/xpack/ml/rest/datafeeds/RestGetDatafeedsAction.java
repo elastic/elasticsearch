@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.ml.rest.datafeeds;
 
 import org.elasticsearch.client.internal.node.NodeClient;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
@@ -16,18 +15,15 @@ import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestBuilderListener;
 import org.elasticsearch.rest.action.RestCancellableNodeClient;
-import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.ml.action.GetDatafeedsAction;
 import org.elasticsearch.xpack.core.ml.action.GetDatafeedsAction.Request;
 import org.elasticsearch.xpack.core.ml.action.GetDatafeedsStatsAction;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
-import org.elasticsearch.xpack.ml.datafeed.DatafeedManager;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
@@ -37,12 +33,6 @@ import static org.elasticsearch.xpack.ml.MachineLearning.BASE_PATH;
 
 @ServerlessScope(Scope.PUBLIC)
 public class RestGetDatafeedsAction extends BaseRestHandler {
-
-    private final boolean cpsAuthVisibilityEnabled;
-
-    public RestGetDatafeedsAction(Settings settings) {
-        this.cpsAuthVisibilityEnabled = DatafeedManager.crossProjectMlEnabled(settings);
-    }
 
     @Override
     public List<Route> routes() {
@@ -62,16 +52,13 @@ public class RestGetDatafeedsAction extends BaseRestHandler {
         }
         Request request = new Request(datafeedId);
         request.setAllowNoMatch(restRequest.paramAsBoolean(GetDatafeedsStatsAction.Request.ALLOW_NO_MATCH, request.allowNoMatch()));
-        final ToXContent.Params xContentParams = cpsAuthVisibilityEnabled
-            ? new ToXContent.DelegatingMapParams(Map.of(DatafeedConfig.CPS_AUTH_VISIBILITY_PARAM, "true"), restRequest)
-            : restRequest;
         return channel -> new RestCancellableNodeClient(client, restRequest.getHttpChannel()).execute(
             GetDatafeedsAction.INSTANCE,
             request,
             new RestBuilderListener<>(channel) {
                 @Override
                 public RestResponse buildResponse(GetDatafeedsAction.Response response, XContentBuilder builder) throws Exception {
-                    response.toXContent(builder, xContentParams);
+                    response.toXContent(builder, restRequest);
                     return new RestResponse(RestStatus.OK, builder);
                 }
             }

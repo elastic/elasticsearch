@@ -1539,15 +1539,13 @@ public class DatafeedConfigTests extends AbstractBWCSerializationTestCase<Datafe
         assertThat(config.getCloudInternalCredential(), nullValue());
     }
 
-    public void testCloudApiKeyIdVisibleOnPublicGetWhenCpsAuthVisibilityEnabled() throws IOException {
-        ToXContent.MapParams visibilityParams = new ToXContent.MapParams(Map.of(DatafeedConfig.CPS_AUTH_VISIBILITY_PARAM, "true"));
-
+    public void testCloudApiKeyIdVisibleOnPublicGet() throws IOException {
         PersistedCloudCredential cred = new PersistedCloudCredential("key-id", new SecureString("secret-value".toCharArray()));
         DatafeedConfig uiamConfig = new DatafeedConfig.Builder("uiam-datafeed", "test-job").setIndices(List.of("logs-*"))
             .setCloudInternalCredential(cred)
             .build();
         Map<String, Object> uiamSerialized = XContentHelper.convertToMap(
-            XContentHelper.toXContent(uiamConfig, XContentType.JSON, visibilityParams, false),
+            XContentHelper.toXContent(uiamConfig, XContentType.JSON, ToXContent.EMPTY_PARAMS, false),
             false,
             XContentType.JSON
         ).v2();
@@ -1565,13 +1563,18 @@ public class DatafeedConfigTests extends AbstractBWCSerializationTestCase<Datafe
             .setHeaders(callerHeaders)
             .setCloudInternalCredential(mintedCred)
             .build();
-        BytesReference mintedXContent = XContentHelper.toXContent(mintedWithCallerHeaders, XContentType.JSON, visibilityParams, false);
+        BytesReference mintedXContent = XContentHelper.toXContent(
+            mintedWithCallerHeaders,
+            XContentType.JSON,
+            ToXContent.EMPTY_PARAMS,
+            false
+        );
         String mintedJson = mintedXContent.utf8ToString();
         int authorizationFieldIndex = mintedJson.indexOf("\"authorization\"");
         assertThat(authorizationFieldIndex, greaterThanOrEqualTo(0));
         assertThat(mintedJson.lastIndexOf("\"authorization\""), equalTo(authorizationFieldIndex));
         Map<String, Object> mintedSerialized = XContentHelper.convertToMap(
-            XContentHelper.toXContent(mintedWithCallerHeaders, XContentType.JSON, visibilityParams, false),
+            XContentHelper.toXContent(mintedWithCallerHeaders, XContentType.JSON, ToXContent.EMPTY_PARAMS, false),
             false,
             XContentType.JSON
         ).v2();
@@ -1583,18 +1586,11 @@ public class DatafeedConfigTests extends AbstractBWCSerializationTestCase<Datafe
 
         DatafeedConfig neitherConfig = new DatafeedConfig.Builder("neither-datafeed", "test-job").setIndices(List.of("logs-*")).build();
         Map<String, Object> neitherSerialized = XContentHelper.convertToMap(
-            XContentHelper.toXContent(neitherConfig, XContentType.JSON, visibilityParams, false),
+            XContentHelper.toXContent(neitherConfig, XContentType.JSON, ToXContent.EMPTY_PARAMS, false),
             false,
             XContentType.JSON
         ).v2();
         assertThat(neitherSerialized.containsKey("authorization"), is(false));
-
-        Map<String, Object> withoutVisibilityParam = XContentHelper.convertToMap(
-            XContentHelper.toXContent(uiamConfig, XContentType.JSON, ToXContent.EMPTY_PARAMS, false),
-            false,
-            XContentType.JSON
-        ).v2();
-        assertThat(withoutVisibilityParam.containsKey("authorization"), is(false));
     }
 
     public void testCloudInternalApiKeyCopyConstructor() {

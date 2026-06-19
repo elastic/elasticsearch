@@ -177,12 +177,6 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
     public static final ParseField PROJECT_ROUTING = new ParseField("project_routing");
     public static final ParseField CLOUD_INTERNAL_CREDENTIAL = new ParseField("cloud_internal_credential");
 
-    /**
-     * When {@code true} on public GET, {@link #toXContent} may emit {@code authorization.cloud_api_key.id} for operator visibility
-     * during UIAM switchover.
-     */
-    public static final String CPS_AUTH_VISIBILITY_PARAM = "ml_cps_auth_visibility";
-
     // These parsers follow the pattern that metadata is parsed leniently (to allow for enhancements), whilst config is parsed strictly
     public static final ObjectParser<Builder, Void> LENIENT_PARSER = createParser(true);
     public static final ObjectParser<Builder, Void> STRICT_PARSER = createParser(false);
@@ -737,19 +731,15 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
             if (forInternalStorage) {
                 builder.field(CONFIG_TYPE.getPreferredName(), TYPE);
             }
-            if (headers.isEmpty() == false && forInternalStorage) {
-                assertNoAuthorizationHeader(headers);
-                builder.field(HEADERS.getPreferredName(), headers);
-            } else if (forInternalStorage == false) {
-                if (params.paramAsBoolean(CPS_AUTH_VISIBILITY_PARAM, false) && cloudInternalCredential != null) {
-                    builder.startObject("authorization");
-                    builder.startObject("cloud_api_key");
-                    builder.field("id", cloudInternalCredential.id());
-                    builder.endObject();
-                    builder.endObject();
-                } else if (headers.isEmpty() == false) {
-                    XContentUtils.addAuthorizationInfo(builder, headers);
+            if (forInternalStorage) {
+                if (headers.isEmpty() == false) {
+                    assertNoAuthorizationHeader(headers);
+                    builder.field(HEADERS.getPreferredName(), headers);
                 }
+            } else if (cloudInternalCredential != null) {
+                XContentUtils.addCloudApiKeyAuthorization(builder, cloudInternalCredential.id());
+            } else if (headers.isEmpty() == false) {
+                XContentUtils.addAuthorizationInfo(builder, headers);
             }
             builder.field(QUERY_DELAY.getPreferredName(), queryDelay.getStringRep());
             if (chunkingConfig != null) {

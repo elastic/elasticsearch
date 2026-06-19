@@ -1055,7 +1055,14 @@ public class CsvFormatReader implements SegmentableFormatReader {
         // mode is enabled the data path goes through CsvLogicalRecordReader and never reaches the
         // Jackson bulk iterator, so the wrap brings no defense-in-depth there either.
         boolean useBracketAware = options.multiValueSyntax() == CsvFormatOptions.MultiValueSyntax.BRACKETS && options.delimiter() == ',';
-        InputStream capped = useBracketAware ? stream : new CsvRecordCappingInputStream(stream, context.maxRecordBytes());
+        // _rowPosition projected (_id / _file.record_ref requested) forces the same CsvLogicalRecordReader
+        // data path as bracket mode: the Jackson bulk iterator bypasses recordReader's per-record byte
+        // accounting, so the composed file-global offset would stay pinned at the header boundary for every
+        // data row. That path enforces max_record_size per record (char-decoded), so it must not also carry
+        // the byte-level cap wrap, for the same mid-fill desync reason as bracket mode.
+        boolean rowPositionProjected = SyntheticColumns.rowPositionIndexInNames(context.projectedColumns()) >= 0;
+        boolean useRecordReaderPath = useBracketAware || rowPositionProjected;
+        InputStream capped = useRecordReaderPath ? stream : new CsvRecordCappingInputStream(stream, context.maxRecordBytes());
         BufferedReader reader = new BufferedReader(new InputStreamReader(capped, options.encoding()), READER_BUFFER_SIZE);
         CsvLogicalRecordReader recordReader = new CsvLogicalRecordReader(
             reader,
@@ -1931,7 +1938,14 @@ public class CsvFormatReader implements SegmentableFormatReader {
                     // Hot data path: Jackson reads directly from the BufferedReader and tokenizes records in its
                     // own bulk char buffer. The per-record byte cap is enforced upstream by the wrapping
                     // CsvRecordCappingInputStream, so we don't need CsvLogicalRecordReader's per-char loop here.
-                    csvIterator = newJacksonBulkIterator(reader);
+                    //
+                    // Exception: when _rowPosition is projected (rowPositionSlot >= 0, i.e. _id /
+                    // _file.record_ref is requested), route through the recordReader-backed iterator so each
+                    // record advances CsvLogicalRecordReader's byte accounting and the offset
+                    // (splitStartByte + bytesRead - lastRecordBytes) stays exact. The Jackson bulk path
+                    // bypasses recordReader and would pin every data row at the header boundary. read()
+                    // suppresses the byte-level cap wrap on this path to match (see useRecordReaderPath).
+                    csvIterator = rowPositionSlot >= 0 ? newCsvIterator(recordReader) : newJacksonBulkIterator(reader);
                 }
             }
             boolean useFusedBracketPath = csvIterator == null && bracketMultiValues && options.delimiter() == ',';

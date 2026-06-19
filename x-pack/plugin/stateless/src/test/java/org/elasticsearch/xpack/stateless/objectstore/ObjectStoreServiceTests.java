@@ -23,6 +23,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.blobcache.BlobCacheUtils;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.blobcache.shared.SharedBytes;
@@ -191,6 +192,26 @@ public class ObjectStoreServiceTests extends ESTestCase {
         assertThat(settings.get(bucketName), equalTo(bucket));
         assertThat(settings.get("client"), equalTo(client));
         assertThat(settings.get("base_path"), equalTo(basePath));
+    }
+
+    /**
+     * When the object store service is closed while an upload is still in flight, enqueueing the upload must notify its listener
+     * rather than throwing, so the caller can release the references it holds (e.g. commit refs) instead of leaking them.
+     */
+    public void testEnqueueAfterCloseNotifiesListener() throws IOException {
+        try (var testHarness = new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry())) {
+            final var objectStoreService = testHarness.objectStoreService;
+
+            objectStoreService.close();
+            assertThat(objectStoreService.lifecycleState(), equalTo(Lifecycle.State.CLOSED));
+
+            final var future = new PlainActionFuture<Void>();
+            objectStoreService.uploadTranslogFile("translog-1", new BytesArray(new byte[] { 1, 2, 3 }), future);
+
+            // The listener must be failed (not stranded by a thrown error) so the caller can release its references.
+            final var e = expectThrows(IllegalStateException.class, future::actionGet);
+            assertThat(e.getMessage(), startsWith("Object store service is not running"));
+        }
     }
 
     public void testStartingShardRetrievesSegmentsFromOneCommit() throws IOException {

@@ -79,6 +79,7 @@ public abstract class ExtractForeignApiTask extends DefaultTask {
 
     private static final String PREVIEW_FEATURE_DESCRIPTOR = "Ljdk/internal/javac/PreviewFeature;";
     private static final String FOREIGN_PACKAGE_PREFIX = "java/lang/foreign/";
+    private static final int PUBLIC_OR_PROTECTED = Opcodes.ACC_PUBLIC | Opcodes.ACC_PROTECTED;
 
     @OutputFile
     public abstract RegularFileProperty getOutputJar();
@@ -118,8 +119,6 @@ public abstract class ExtractForeignApiTask extends DefaultTask {
         }
         getLogger().lifecycle("Generated {} with {} class(es)", outputPath, count);
     }
-
-    private static final int PUBLIC_OR_PROTECTED = Opcodes.ACC_PUBLIC | Opcodes.ACC_PROTECTED;
 
     static byte[] createStub(InputStream classStream) throws IOException {
         ClassReader reader = new ClassReader(classStream);

@@ -24,6 +24,7 @@ import org.gradle.api.artifacts.ModuleDependency;
 import org.gradle.api.file.FileCollection;
 import org.gradle.api.plugins.JavaBasePlugin;
 import org.gradle.api.plugins.JavaPluginExtension;
+import org.gradle.api.provider.Property;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.tasks.compile.AbstractCompile;
 import org.gradle.api.tasks.compile.CompileOptions;
@@ -200,7 +201,7 @@ public class ElasticsearchJavaBasePlugin implements Plugin<Project> {
      * (e.g. {@code MemorySegment}) without {@code --enable-preview} on JDK 21. On JDK 22+
      * the Foreign Function and Memory API is standard, so this is a no-op.
      *
-     * <p>Works by patching {@code java.base} at compile time with a stub JAR whose
+     * <p> Works by patching {@code java.base} at compile time with a stub JAR whose
      * {@code java.lang.foreign} classes have the {@code @PreviewFeature} annotation
      * stripped. Call from a project's {@code build.gradle}:
      * <pre>{@code
@@ -210,13 +211,12 @@ public class ElasticsearchJavaBasePlugin implements Plugin<Project> {
     public static void enableForeignAccess(Project project) {
         project.getTasks().withType(JavaCompile.class).configureEach(compileTask -> {
             compileTask.doFirst(t -> {
-                int release = minimumRuntimeVersion(project);
+                int release = taskRelease(project, compileTask.getOptions().getRelease());
                 if (release == 21) {
                     Path jarPath = extractForeignApiJar(project);
                     compileTask.getOptions().getCompilerArgs().add("--patch-module");
                     compileTask.getOptions().getCompilerArgs().add("java.base=" + jarPath);
                 }
-                // release >= 22: no-op, MemorySegment is standard
             });
         });
         project.getTasks().withType(Javadoc.class).configureEach(javadocTask -> {
@@ -229,6 +229,10 @@ public class ElasticsearchJavaBasePlugin implements Plugin<Project> {
                 }
             });
         });
+    }
+
+    private static int taskRelease(Project project, Property<Integer> releaseProperty) {
+        return releaseProperty.getOrElse(minimumRuntimeVersion(project));
     }
 
     private static int minimumRuntimeVersion(Project project) {
@@ -246,7 +250,17 @@ public class ElasticsearchJavaBasePlugin implements Plugin<Project> {
                 throw new IllegalStateException("jdk21-foreign-api.jar resource not found on build classpath");
             }
             Files.createDirectories(dest.getParent());
-            Files.copy(is, dest, StandardCopyOption.REPLACE_EXISTING);
+            Path tmp = Files.createTempFile(dest.getParent(), "jdk21-foreign-api", ".jar.tmp");
+            try {
+                Files.copy(is, tmp, StandardCopyOption.REPLACE_EXISTING);
+                try {
+                    Files.move(tmp, dest, StandardCopyOption.ATOMIC_MOVE);
+                } catch (IOException ignored) {
+                    // another task won the race — dest already exists
+                }
+            } finally {
+                Files.deleteIfExists(tmp);
+            }
         } catch (IOException e) {
             throw new UncheckedIOException("Failed to extract jdk21-foreign-api.jar", e);
         }

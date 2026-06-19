@@ -55,7 +55,7 @@ public class RecoveryStats implements ToXContentFragment, Writeable {
         }
         // else the new counters (currentAsTargetQueued, currentFromStore, currentFromStoreQueued) are left at 0
         // Store recoveries were not tracked in RecoveryStats before STORE_AND_TARGET_QUEUED_STATS,
-        // and queued recoveries will be either be 0 or folded into the active stats for the nodes on newer versions.
+        // and queued recoveries will either be 0 or folded into the active stats for the nodes on newer versions.
         throttleTimeInNanos.set(in.readLong());
     }
 

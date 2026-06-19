@@ -379,7 +379,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 m -> toType(m).fieldType().similarity,
                 (Supplier<VectorSimilarity>) () -> {
                     if (indexedByDefaultVersionCheck && indexed.getValue()) {
-                        return elementType.getValue() == ElementType.BIT ? VectorSimilarity.L2_NORM : VectorSimilarity.COSINE;
+                        return elementType.getValue().defaultSimilarity();
                     }
                     return null;
                 },
@@ -584,10 +584,20 @@ public class DenseVectorFieldMapper extends FieldMapper {
     }
 
     public enum ElementType {
-        BYTE,
-        FLOAT,
-        BFLOAT16,
-        BIT;
+        BYTE(VectorSimilarity.COSINE),
+        FLOAT(VectorSimilarity.COSINE),
+        BFLOAT16(VectorSimilarity.COSINE),
+        BIT(VectorSimilarity.L2_NORM);
+
+        private final VectorSimilarity defaultSimilarity;
+
+        ElementType(VectorSimilarity defaultSimilarity) {
+            this.defaultSimilarity = defaultSimilarity;
+        }
+
+        public final VectorSimilarity defaultSimilarity() {
+            return defaultSimilarity;
+        }
 
         public static ElementType fromString(String name) {
             return valueOf(name.toUpperCase(Locale.ROOT));
@@ -3117,14 +3127,10 @@ public class DenseVectorFieldMapper extends FieldMapper {
             if (useQuantized && similarityOverride != null) {
                 throw new IllegalArgumentException("[similarity_function] cannot be used when [quantized] is true");
             }
-            // A non-indexed field has no configured [similarity] (it cannot be set when index:false). Default to
-            // cosine when the query does not override it (bit vectors only support l2_norm / Hamming).
-            VectorSimilarity defaultSimilarity = element.elementType() == ElementType.BIT
-                ? VectorSimilarity.L2_NORM
-                : VectorSimilarity.COSINE;
+            // similarity is null when a field is not indexed
             VectorSimilarity effectiveSimilarity = similarityOverride != null ? similarityOverride
                 : similarity != null ? similarity
-                : defaultSimilarity;
+                : element.elementType().defaultSimilarity();
             VectorData resolvedQueryVector = resolveQueryVector(queryVector);
             Query knnQuery = nonIndexed
                 ? createDocValuesExactKnnQuery(resolvedQueryVector, effectiveSimilarity)

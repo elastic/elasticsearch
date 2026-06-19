@@ -481,7 +481,7 @@ public class TSDBSyntheticIdFieldsProducer extends FieldsProducer {
 
         @Override
         public int freq() throws IOException {
-            return 0;
+            return 0; // not supported
         }
 
         @Override

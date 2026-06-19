@@ -250,6 +250,7 @@ sample_data            | 8268153.0
 // Reproducer for #151525.
 typeConflictShortUnmappedCastToInteger
 required_capability: optional_fields_v5
+required_capability: optional_fields_fix_partially_unmapped_small_numeric
 
 SET unmapped_fields="load"\;
 FROM all_types, all_types_no_short METADATA _index
@@ -905,6 +906,7 @@ heights        | null
 typeConflictShortLongUnmappedNotCast
 required_capability: optional_fields_v5
 required_capability: optional_fields_fix_load_partially_mapped
+required_capability: optional_fields_fix_partially_unmapped_small_numeric
 
 SET unmapped_fields="load"\;
 FROM all_types, all_types_short_as_long, all_types_no_short METADATA _index
@@ -932,6 +934,7 @@ all_types_short_as_long | null
 
 typeConflictShortLongUnmappedCastToInteger
 required_capability: optional_fields_v5
+required_capability: optional_fields_fix_partially_unmapped_small_numeric
 
 SET unmapped_fields="load"\;
 FROM all_types, all_types_short_as_long, all_types_no_short METADATA _index

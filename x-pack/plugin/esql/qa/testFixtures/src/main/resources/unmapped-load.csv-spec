@@ -1,10 +1,10 @@
 ####################
 # No loading tests #
 ####################
+// Reproducer for #151525: a partially unmapped small numeric field is implicitly widened (short -> integer) without a cast.
 partiallyUnmappedSmallNumericFieldIsWidened
-# This test is ignored pending a types widening bug fix in IndexResolver.
-# See https://github.com/elastic/elasticsearch/issues/151525
 required_capability: optional_fields_v5
+required_capability: optional_fields_fix_partially_unmapped_small_numeric
 
 SET unmapped_fields="load"\;
 FROM apps_short, partial_mapping_sample_data
@@ -22,6 +22,7 @@ id:integer | name:keyword
 // Reproducer for #151525: explicit cast on a partially unmapped small numeric field should not throw a ClassCastException.
 partiallyUnmappedSmallNumericFieldExplicitCast
 required_capability: optional_fields_v5
+required_capability: optional_fields_fix_partially_unmapped_small_numeric
 
 SET unmapped_fields="load"\;
 FROM all_types, all_types_no_short

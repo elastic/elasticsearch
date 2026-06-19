@@ -196,6 +196,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
@@ -260,6 +261,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             new ResolveTimestampBoundsAware(),
             new ResolveInference(),
             new DateMillisToNanosInEsRelation(),
+            new ResolveTwoLeggedPunksInEsRelation(),
             // Must happen before Translating PromQL plan to ESQL plan
             new ResolveAndVerifyPromqlRefs(),
             // Populates the TS_COLLAPSE wrapping a PromqlCommand with dimensions and bounds drawn from the
@@ -2597,6 +2599,21 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             return res;
         }
 
+        /**
+         * This method decides how to handle a convert function (e.g., {@code TO_INTEGER(foo)}, {@code foo::double}) when applied to a field
+         * that has different types across indices. It doesn't discover or collect type information; that's already done during index
+         * resolution.
+         *
+         * <p>There are three cases to handle.
+         * <ol>
+         *   <li>If the field has unresolved type conflicts ({@link TypeConflictedField}), we try to build a {@link UnionTypeEsField} with
+         *   per-type conversions.</li>
+         *   <li>If the field was already implicitly cast to a union type ({@link UnionTypeEsField}), rewrap with the explicit cast.</li>
+         *   <li>If the convert's input is itself a convert, e.g.: {@code foo::long::double}, recurse and resolve the inner one first.</li>
+         * </ol>
+         *
+         * @return The resolved expression
+         */
         private static Expression resolveConvertFunction(
             ConvertFunction convert,
             List<Attribute.IdIgnoringWrapper> unionFieldAttributes,
@@ -2604,7 +2621,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         ) {
             Expression convertExpression = (Expression) convert;
             if (convert.field() instanceof FieldAttribute fa && fa.field() instanceof TypeConflictedField tcf) {
-                HashMap<TypeResolutionKey, Expression> typeResolutions = new HashMap<>();
+                // The field has an unresolved type conflict (TypeConflictedField), so we attempt to create UnionTypeEsField with
+                // index-specific conversions
+                Map<TypeResolutionKey, Expression> typeResolutions = new HashMap<>();
                 Set<DataType> supportedTypes = convert.supportedTypes();
                 if (convert instanceof FoldablesConvertFunction fcf) {
                     // FoldablesConvertFunction does not accept fields as inputs, they only accept constants
@@ -2641,29 +2660,48 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     return createIfDoesNotAlreadyExist(fa, resolvedField, unionFieldAttributes);
                 }
             } else if (convert.field() instanceof FieldAttribute fa
-                && fa.synthetic() == false // UnionTypeEsField in EsRelation created by DateMillisToNanosInEsRelation has synthetic = false
+                && fa.synthetic() == false // UnionTypeEsField in EsRelation created by DateMillisToNanosInEsRelation or
+                                           // ResolveTwoLeggedPunksInEsRelation has synthetic = false
                 && fa.field() instanceof UnionTypeEsField unionTypeEsField) {
                     // This is an explicit casting of a union typed field that has been converted to UnionTypeEsField in EsRelation by
-                    // DateMillisToNanosInEsRelation, it is not necessary to cast it again to the same type, replace the implicit casting
+                    // DateMillisToNanosInEsRelation or ResolveTwoLeggedPunksInEsRelation, it is not necessary to cast it again to the same
+                    // type, replace the implicit casting
                     // with explicit casting. However, it is useful to differentiate implicit and explicit casting in some cases, for
                     // example, an expression like multiTypeEsField(synthetic=false, date_nanos)::date_nanos::datetime is rewritten to
                     // multiTypeEsField(synthetic=true, date_nanos)::datetime, the implicit casting is overwritten by explicit casting and
                     // the multiTypeEsField is not casted to datetime directly.
-                    if (((Expression) convert).dataType() == fa.field().getDataType()) {
+                    // TODO: clean-up once we can detect that a convert function is a no-op.
+                    // See https://github.com/elastic/elasticsearch/issues/150376
+                    if (convertExpression.dataType() == fa.field().getDataType()
+                        && (unionTypeEsField.getUnmappedConversionExpression() == null || convert.supportedTypes().contains(KEYWORD))) {
                         return createIfDoesNotAlreadyExist(fa, fa.field(), unionFieldAttributes);
                     }
 
-                    // Data type is different between implicit(date_nanos) and explicit casting, if the conversion is supported, create a
-                    // new UnionTypeEsField with explicit casting type, and add it to unionFieldAttributes.
                     Set<DataType> supportedTypes = convert.supportedTypes();
-                    if (supportedTypes.contains(fa.dataType()) && canConvertOriginalTypes(unionTypeEsField, supportedTypes)) {
-                        // The only code that creates UnionTypeEsField with synthetic=false (reaching this branch) is
-                        // DateMillisToNanosInEsRelation, which runs in the "Initialize" batch before ResolveUnmapped. At that point,
-                        // unmapped fields haven't been detected yet, so potentiallyUnmappedExpression is always null.
-                        if (((UnionTypeEsField) fa.field()).getUnmappedConversionExpression() != null) {
+                    if (canConvertOriginalTypes(unionTypeEsField, supportedTypes)) {
+                        Expression unmappedExpr = unionTypeEsField.getUnmappedConversionExpression();
+                        // Resolve surrogates immediately, since expressions stored in UnionTypeEsField are serialized
+                        // to data nodes, and SurrogateExpressions cannot be serialized.
+                        Expression resolvedConvertExpression = SubstituteSurrogateExpressions.rule(convertExpression);
+                        UnionTypeEsField rewrapped = unionTypeEsField.rewrapWithCast(resolvedConvertExpression);
+
+                        if (unmappedExpr instanceof AbstractConvertFunction existingConvert) {
+                            Expression keywordField = existingConvert.field();
+                            Expression rewrappedUnmapped = resolvedConvertExpression.replaceChildren(singletonList(keywordField));
+                            rewrapped = rewrapped.withPotentiallyUnmappedExpression(rewrappedUnmapped);
+                        } else if (unmappedExpr != null) {
                             throw new IllegalStateException("Unexpected potentially unmapped expression for [" + fa.fieldName() + "]");
                         }
-                        return createIfDoesNotAlreadyExist(fa, unionTypeEsField.rewrapWithCast(convertExpression), unionFieldAttributes);
+
+                        return createIfDoesNotAlreadyExist(fa, rewrapped, unionFieldAttributes);
+                    } else if (unionTypeEsField.getUnmappedConversionExpression() != null) {
+                        String msg = supportedTypes.contains(KEYWORD)
+                            ? "One or more mapped types of partially unmapped field [%s] cannot be accepted in [%s]"
+                            : "[%s] is loaded as [KEYWORD] where unmapped, but [%s] does not accept [KEYWORD]";
+
+                        msg = String.format(Locale.ROOT, msg, fa.name(), convertExpression.sourceText());
+
+                        return new UnresolvedAttribute(fa.source(), fa.name(), msg);
                     }
                 } else if (convert.field() instanceof AbstractConvertFunction subConvert) {
                     return convertExpression.replaceChildren(
@@ -2740,7 +2778,18 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     .withPotentiallyUnmappedExpression(unmappedConversionExpression);
         }
 
+        /**
+         * Check if all the original types in the {@code UnionTypeEsField} are supported by the convert function. If the field is partially
+         * unmapped, we additionally check if the convert function accept KEYWORD.
+         *
+         * @param unionTypeEsField
+         * @param supportedTypes The types supported by the convert function
+         * @return True if we can convert.
+         */
         private static boolean canConvertOriginalTypes(UnionTypeEsField unionTypeEsField, Set<DataType> supportedTypes) {
+            if (unionTypeEsField.getUnmappedConversionExpression() != null && supportedTypes.contains(KEYWORD) == false) {
+                return false;
+            }
             return unionTypeEsField.getConversionExpressions()
                 .stream()
                 .allMatch(
@@ -2794,38 +2843,30 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             // If not, we apply checkUnresolved to the field attributes of the original plan, resulting in unsupported attributes
             // This removes attributes such as converted types if they are aliased, but retains them otherwise, while also guaranteeing that
             // unsupported / unresolved fields can be explicitly retained
-            return cleanPlan.transformUp(
-                LogicalPlan.class,
-                p -> p.transformExpressionsOnly(FieldAttribute.class, UnionTypesCleanup::cleanTypeConflicts)
-            );
-        }
-
-        /**
-         * Return an {@link UnsupportedAttribute} so the verifier can flag illegal use of fields with type conflicts.
-         * <p>
-         * If the field is mapped to a single type in some indices but unmapped in others: Instead return a regular field attribute with a
-         * single type so that values are loaded from the indices where it is mapped (and null is returned from unmapped indices).
-         * This is a temporary solution until https://github.com/elastic/elasticsearch/issues/141995 is implemented.
-         */
-        private static Attribute cleanTypeConflicts(FieldAttribute fa) {
-            EsField field = fa.field();
-            if (field instanceof TypeConflictedField tcf && tcf.isPotentiallyUnmapped() && tcf.types().size() == 1) {
-                DataType type = tcf.types().iterator().next();
-                var restoredField = new EsField(tcf.getName(), type, tcf.getProperties(), false, tcf.getTimeSeriesFieldType());
-                // TODO: add test where not passing on the parent name fails the test
-                // TODO: add TS tests and tests with different time series field types
-                return new FieldAttribute(
-                    fa.source(),
-                    fa.parentName(),
-                    fa.qualifier(),
-                    fa.name(),
-                    restoredField,
-                    fa.nullable(),
-                    fa.id(),
-                    fa.synthetic()
-                );
-            }
-            return fa.flagTypeConflicts();
+            return cleanPlan.transformUp(LogicalPlan.class, p -> p.transformExpressionsOnly(FieldAttribute.class, fa -> {
+                // Return an UnsupportedAttribute so the verifier can flag illegal use of fields with type conflicts.
+                // If the field is mapped to a single type in some indices but unmapped in others: Instead return a regular field attribute
+                // with a single type so that values are loaded from the indices where it is mapped (and null is returned from unmapped
+                // indices).
+                EsField field = fa.field();
+                if (field instanceof TypeConflictedField tcf && tcf.isPotentiallyUnmapped() && tcf.types().size() == 1) {
+                    DataType type = tcf.types().iterator().next();
+                    var restoredField = new EsField(tcf.getName(), type, tcf.getProperties(), false, tcf.getTimeSeriesFieldType());
+                    // TODO: add test where not passing on the parent name fails the test
+                    // TODO: add TS tests and tests with different time series field types
+                    return new FieldAttribute(
+                        fa.source(),
+                        fa.parentName(),
+                        fa.qualifier(),
+                        fa.name(),
+                        restoredField,
+                        fa.nullable(),
+                        fa.id(),
+                        fa.synthetic()
+                    );
+                }
+                return fa.flagTypeConflicts();
+            }));
         }
 
         private static LogicalPlan planWithoutSyntheticAttributes(LogicalPlan plan) {
@@ -2861,7 +2902,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 }
                 return relation.transformExpressionsUp(FieldAttribute.class, f -> {
                     if (f.field() instanceof TypeConflictedField tcf && allDates(context, tcf)) {
-                        HashMap<ResolveUnionTypes.TypeResolutionKey, Expression> typeResolutions = new HashMap<>();
+                        Map<ResolveUnionTypes.TypeResolutionKey, Expression> typeResolutions = new HashMap<>();
                         var convert = new ToDateNanos(f.source(), f, context.configuration());
                         tcf.types().forEach(type -> typeResolutions(convert, type, f, tcf, typeResolutions));
                         // The allDates check filters out fields that are not mapped in all indices, which includes
@@ -2898,12 +2939,84 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
     }
 
+    /**
+     * When {@code SET unmapped_fields="load"}, this analyzer rule auto-casts any field in {@link EsRelation} nodes that meets all the
+     * criteria below, by re-writing it as {@link UnionTypeEsField}.
+     * <ol>
+     *     <li>Field is a PUNK (partially unmapped non-KEYWORD)</li>
+     *     <li>Field's type is consistent where mapped. It can't be mapped as two different non-KEYWORD types.</li>
+     *     <li>There exists a converter function to cast KEYWORD to the mapped type</li>
+     * </ol>
+     */
+    private static class ResolveTwoLeggedPunksInEsRelation extends ParameterizedRule<LogicalPlan, LogicalPlan, AnalyzerContext> {
+        @Override
+        public LogicalPlan apply(LogicalPlan plan, AnalyzerContext context) {
+            if (context.unmappedResolution() != UnmappedResolution.LOAD) {
+                return plan;
+            }
+
+            return plan.transformUp(EsRelation.class, esRelation -> {
+                if (esRelation.indexMode() == IndexMode.LOOKUP) {
+                    return esRelation;
+                }
+
+                return esRelation.transformExpressionsOnly(FieldAttribute.class, fa -> {
+                    // We're looking for partially unmapped fields with exactly one mapped type, i.e.: two-legged PUNKs
+                    if (fa.field() instanceof TypeConflictedField tcf && tcf.isPotentiallyUnmapped() && tcf.types().size() == 1) {
+                        DataType mappedType = tcf.types().iterator().next();
+
+                        var convertFactory = EsqlDataTypeConverter.converterFunctionFactory(mappedType);
+                        if (convertFactory == null) {
+                            // Skip implicit casting: no such converter function exists
+                            return fa;
+                        }
+                        ConvertFunction convert = convertFactory.apply(fa.source(), fa, context.configuration());
+                        if (convert.supportedTypes().contains(KEYWORD) == false) {
+                            // Skip implicit casting: converter doesn't support KEYWORD input
+                            return fa;
+                        }
+
+                        Map<ResolveUnionTypes.TypeResolutionKey, Expression> typeResolutions = new HashMap<>();
+                        typeResolutions(convert, mappedType, fa, tcf, typeResolutions);
+
+                        Expression potentiallyUnmappedConversion = ResolveUnionTypes.typeSpecificConvert(
+                            convert,
+                            fa.source(),
+                            KEYWORD,
+                            tcf
+                        );
+
+                        EsField resolvedField = ResolveUnionTypes.resolvedUnionTypeFields(
+                            fa,
+                            tcf,
+                            typeResolutions,
+                            potentiallyUnmappedConversion,
+                            context
+                        );
+
+                        return new FieldAttribute(
+                            fa.source(),
+                            fa.parentName(),
+                            fa.qualifier(),
+                            fa.name(),
+                            resolvedField,
+                            fa.nullable(),
+                            fa.id(),
+                            fa.synthetic()
+                        );
+                    }
+                    return fa;
+                });
+            });
+        }
+    }
+
     private static void typeResolutions(
         ConvertFunction convert,
         DataType type,
         FieldAttribute fa,
         TypeConflictedField tcf,
-        HashMap<ResolveUnionTypes.TypeResolutionKey, Expression> typeResolutions
+        Map<ResolveUnionTypes.TypeResolutionKey, Expression> typeResolutions
     ) {
         ResolveUnionTypes.TypeResolutionKey key = new ResolveUnionTypes.TypeResolutionKey(fa.name(), type);
         var concreteConvert = ResolveUnionTypes.typeSpecificConvert(convert, fa.source(), type, tcf);

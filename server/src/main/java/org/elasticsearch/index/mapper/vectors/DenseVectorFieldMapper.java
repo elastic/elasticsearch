@@ -39,6 +39,7 @@ import org.apache.lucene.util.BitUtil;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
@@ -119,6 +120,7 @@ import java.util.Arrays;
 import java.util.Base64;
 import java.util.Collections;
 import java.util.HexFormat;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -3387,8 +3389,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     mappingOversample,
                     queryOversample
                 );
-                final String singleSliceRouting = extractSingleSliceRouting(sliceRouting, sliceEnabled);
-                if (singleSliceRouting != null) {
+                final BytesRef[] sliceIds = extractSliceRouting(sliceRouting, sliceEnabled);
+                if (sliceIds != null) {
                     knnQuery = parentFilter != null
                         ? new DiversifyingChildrenIVFKnnFloatSlicedVectorQuery(
                             name(),
@@ -3400,7 +3402,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                             visitRatio,
                             ivfQueryConfigResolver,
                             RoutingFieldMapper.NAME,
-                            new BytesRef(singleSliceRouting)
+                            sliceIds
                         )
                         : new IVFKnnFloatSlicedVectorQuery(
                             name(),
@@ -3411,7 +3413,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                             visitRatio,
                             ivfQueryConfigResolver,
                             RoutingFieldMapper.NAME,
-                            new BytesRef(singleSliceRouting)
+                            sliceIds
                         );
                 } else {
                     knnQuery = parentFilter != null
@@ -3454,7 +3456,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
 
         @Nullable
-        private static String extractSingleSliceRouting(@Nullable String sliceRouting, boolean sliceEnabled) {
+        private static BytesRef[] extractSliceRouting(@Nullable String sliceRouting, boolean sliceEnabled) {
             if (sliceRouting == null) {
                 if (sliceEnabled) {
                     throw new IllegalArgumentException(
@@ -3463,21 +3465,33 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 }
                 return null;
             }
-            final String trimmed = sliceRouting.trim();
-            if (trimmed.isEmpty()) {
+            String[] sliceValues = Strings.splitStringByCommaToArray(sliceRouting.trim());
+            if (sliceValues.length == 0) {
                 throw new IllegalArgumentException("[" + SliceIndexing.PARAM_NAME + "] cannot be blank for KNN queries");
             }
-            if (SliceIndexing.SLICE_ALL.equals(trimmed)) {
+            final LinkedHashSet<String> uniqueSliceValues = new LinkedHashSet<>();
+            for (String sliceValue : sliceValues) {
+                uniqueSliceValues.add(validateSliceValue(sliceValue));
+            }
+            final BytesRef[] sliceIds = new BytesRef[uniqueSliceValues.size()];
+            int i = 0;
+            for (String sliceValue : uniqueSliceValues) {
+                sliceIds[i++] = new BytesRef(sliceValue);
+            }
+            return sliceIds;
+        }
+
+        private static String validateSliceValue(String sliceValue) {
+            final String value = sliceValue.trim();
+            if (value.isEmpty()) {
+                throw new IllegalArgumentException("[" + SliceIndexing.PARAM_NAME + "] cannot be blank for KNN queries");
+            }
+            if (SliceIndexing.SLICE_ALL.equals(value)) {
                 throw new IllegalArgumentException(
                     "[" + SliceIndexing.PARAM_NAME + "] value [" + SliceIndexing.SLICE_ALL + "] is not supported for KNN"
                 );
             }
-            if (trimmed.indexOf(',') >= 0) {
-                throw new IllegalArgumentException(
-                    "[" + SliceIndexing.PARAM_NAME + "] must be a single value for KNN queries, but received [" + trimmed + "]"
-                );
-            }
-            return trimmed;
+            return value;
         }
 
         public VectorSimilarity getSimilarity() {

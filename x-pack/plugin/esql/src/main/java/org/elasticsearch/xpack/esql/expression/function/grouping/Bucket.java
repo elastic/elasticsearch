@@ -301,7 +301,7 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
         ) Expression to,
         Configuration configuration
     ) {
-        this(source, field, buckets, from, to, configuration, 0L, DOWN);
+        this(source, field, buckets, from, to, configuration, 0L, null);
     }
 
     public Bucket(
@@ -321,7 +321,7 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
         this.to = to;
         this.configuration = configuration;
         this.offset = offset;
-        this.roundingConvention = roundingConvention;
+        this.roundingConvention = roundingConvention != null ? roundingConvention : DOWN;
     }
 
     private Bucket(StreamInput in) throws IOException {
@@ -335,7 +335,7 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
             in.getTransportVersion().supports(ESQL_BUCKET_OFFSET) ? in.readZLong() : 0L,
             in.getTransportVersion().supports(ESQL_SUPPORT_EXPLICIT_BUCKET_ROUNDING_CONFIGURATION)
                 ? in.readEnum(RoundingConvention.class)
-                : DOWN
+                : null
         );
     }
 

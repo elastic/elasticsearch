@@ -154,8 +154,8 @@ public class OtelSdkExportMeterSupplierTests extends ESTestCase {
             HistogramPointData point = (HistogramPointData) durationMetric.get().getData().getPoints().iterator().next();
             assertThat(
                 "expected sdkMeterProvider to register DURATION_HISTOGRAM_BUCKETS via View",
-                point.getBoundaries().size(),
-                equalTo(OtelSdkExportMeterSupplier.DURATION_HISTOGRAM_BUCKETS.size())
+                point.getBoundaries(),
+                equalTo(OtelSdkExportMeterSupplier.DURATION_HISTOGRAM_BUCKETS)
             );
         }
     }

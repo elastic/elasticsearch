@@ -141,7 +141,6 @@ public abstract class BinarySpatialGeometryFunction extends EsqlScalarFunction {
             return isSpatial(left, sourceText(), FIRST);
         }
         TypeResolution leftResolution = isSpatial(left, sourceText(), FIRST);
-        TypeResolution rightResolution = isSpatial(right, sourceText(), SECOND);
         if (leftResolution.resolved()) {
             return isType(
                 right,
@@ -150,7 +149,9 @@ public abstract class BinarySpatialGeometryFunction extends EsqlScalarFunction {
                 SECOND,
                 compatibleTypeNames(left.dataType())
             );
-        } else if (rightResolution.resolved()) {
+        }
+        TypeResolution rightResolution = isSpatial(right, sourceText(), SECOND);
+        if (rightResolution.resolved()) {
             return isType(
                 left,
                 dt -> DataType.isSpatial(dt) && spatialCRSCompatible(right.dataType(), dt),
@@ -158,9 +159,8 @@ public abstract class BinarySpatialGeometryFunction extends EsqlScalarFunction {
                 FIRST,
                 compatibleTypeNames(right.dataType())
             );
-        } else {
-            return leftResolution;
         }
+        return leftResolution;
     }
 
     @Override

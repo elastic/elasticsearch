@@ -131,6 +131,107 @@ public class CircuitBreakerTests extends ESTestCase {
         }
     }
 
+    /**
+     * Reproduces the multi-valued join-key OOM vulnerability: a single document whose join-key fields are
+     * all multi-valued causes {@code extractJoinKeys} in {@code TumblingWindow} to build a Cartesian product
+     * of all value combinations before any circuit-breaker check can fire. With 8 fields × 12 values the
+     * product is 12^8 ≈ 430 million key arrays, which exhausts heap.
+     *
+     * The fix probes the circuit breaker incrementally during expansion so that a {@link CircuitBreakingException}
+     * is raised instead of an {@link OutOfMemoryError}. The breaker must also be left at zero used bytes after
+     * the exception, confirming the probe leaves no permanent footprint.
+     */
+    public void testCircuitBreakerOnMultiValuedJoinKeyExpansion() {
+        CircuitBreakerService service = new HierarchyCircuitBreakerService(
+            CircuitBreakerMetrics.NOOP,
+            Settings.EMPTY,
+            Collections.singletonList(
+                new BreakerSettings(
+                    CIRCUIT_BREAKER_NAME,
+                    256 * 1024,
+                    CIRCUIT_BREAKER_OVERHEAD,
+                    CircuitBreaker.Type.MEMORY,
+                    CircuitBreaker.Durability.TRANSIENT
+                )
+            ),
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+        );
+        CircuitBreaker breaker = service.getBreaker(CIRCUIT_BREAKER_NAME);
+
+        Exception thrown = runMultiValuedJoinKeyExpansion(breaker);
+
+        assertNotNull("Expected CircuitBreakingException from multi-valued join key Cartesian product expansion", thrown);
+        assertEquals(CircuitBreakingException.class, thrown.getClass());
+        assertEquals(0, breaker.getUsed());
+    }
+
+    private Exception runMultiValuedJoinKeyExpansion(CircuitBreaker breaker) {
+        // 8 key fields, each returning 12 distinct values → 12^8 ≈ 430 million combinations per hit.
+        int numKeyFields = 8;
+        int valuesPerField = 12;
+
+        List<String> fieldValues = new ArrayList<>(valuesPerField);
+        for (int i = 0; i < valuesPerField; i++) {
+            fieldValues.add("v" + i);
+        }
+
+        List<HitExtractor> multiValuedExtractors = new ArrayList<>(numKeyFields);
+        for (int i = 0; i < numKeyFields; i++) {
+            multiValuedExtractors.add(new MultiValueKeyExtractor(fieldValues));
+        }
+
+        int sequenceStages = 2;
+        List<SequenceCriterion> criteria = new ArrayList<>(sequenceStages);
+        for (int i = 0; i < sequenceStages; i++) {
+            final int stageIdx = i;
+            criteria.add(
+                new SequenceCriterion(
+                    stageIdx,
+                    new BoxedQueryRequest(
+                        () -> SearchSourceBuilder.searchSource().size(10).query(matchAllQuery()).terminateAfter(stageIdx),
+                        "@timestamp",
+                        emptyList(),
+                        emptySet()
+                    ),
+                    multiValuedExtractors,
+                    tsExtractor,
+                    null,
+                    implicitTbExtractor,
+                    false,
+                    false
+                )
+            );
+        }
+
+        SequenceMatcher matcher = new SequenceMatcher(
+            sequenceStages,
+            false,
+            TimeValue.MINUS_ONE,
+            null,
+            booleanArrayOf(sequenceStages, false),
+            breaker
+        );
+
+        TumblingWindow window = new TumblingWindow(
+            new TestQueryClient(),
+            criteria,
+            null,
+            matcher,
+            Collections.emptyList(),
+            randomBoolean(),
+            randomBoolean()
+        );
+
+        Holder<Exception> thrownException = new Holder<>();
+        window.execute(
+            wrap(
+                p -> fail("Expected CircuitBreakingException from multi-valued join key Cartesian product expansion"),
+                thrownException::set
+            )
+        );
+        return thrownException.get();
+    }
+
     public void testCircuitBreakerTumblingWindow() {
         QueryClient client = new TestQueryClient();
         List<SequenceCriterion> criteria = buildCriteria(stages);
@@ -594,6 +695,38 @@ public class CircuitBreakerTests extends ESTestCase {
         @Override
         public void addWithoutBreaking(long bytes) {
             ramBytesUsed += bytes;
+        }
+    }
+
+    /**
+     * Returns a fixed list of strings for every hit, simulating a multi-valued join-key field.
+     * {@code TumblingWindow.extractJoinKeys} treats any {@link java.util.List} value as multi-valued
+     * and expands all combinations into a Cartesian product.
+     */
+    private static class MultiValueKeyExtractor implements HitExtractor {
+
+        private final List<String> values;
+
+        MultiValueKeyExtractor(List<String> values) {
+            this.values = values;
+        }
+
+        @Override
+        public String getWriteableName() {
+            return null;
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {}
+
+        @Override
+        public String hitName() {
+            return null;
+        }
+
+        @Override
+        public Object extract(SearchHit hit) {
+            return values;
         }
     }
 

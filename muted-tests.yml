@@ -352,6 +352,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.parser.LookupJoinParserTests
   method: testInvalidJoinPatternsExpressionJoin
   issue: https://github.com/elastic/elasticsearch/issues/151705
+- class: org.elasticsearch.xpack.transform.integration.TransformIT
+  method: testStopWaitForCheckpoint
+  issue: https://github.com/elastic/elasticsearch/issues/149663
 
 # Examples:
 #

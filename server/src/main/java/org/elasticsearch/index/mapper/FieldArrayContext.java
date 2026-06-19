@@ -171,7 +171,7 @@ public class FieldArrayContext {
         }
 
         // multi_value = true + columnar mode path
-        var columnarOffsetsFieldName = getOffsetsFieldName(context, isStrictColumnar, multiValue, fieldMapperBuilder);
+        var columnarOffsetsFieldName = getOffsetsFieldName(context, isStrictColumnar, hasDocValues, multiValue, fieldMapperBuilder);
         if (columnarOffsetsFieldName != null) {
             return columnarOffsetsFieldName;
         }
@@ -186,14 +186,20 @@ public class FieldArrayContext {
     public static String getOffsetsFieldName(
         MapperBuilderContext context,
         boolean isStrictColumnar,
+        boolean hasDocValues,
         boolean multiValue,
         FieldMapper.Builder fieldMapperBuilder
     ) {
         // Note, stored fields and nested docs will not be allowed in columnar mode - no need to check them explicitly
-        // Note, doc values cannot be disabled in columnar mode
+        // The offsets sidecar reconstructs array order from the field's own doc values, so it is only meaningful when those are present;
+        // a columnar text field that dedups against a plain keyword delegate disables its own doc values and records no offsets here.
         // TODO: copy_to is disabled since copy_to forces _ignored_source to be used for synthetic source, recording offsets in addition
         // to that is a big storage overhead. This will be addressed in a follow up
-        if (multiValue && isStrictColumnar && context.isSourceSynthetic() && fieldMapperBuilder.copyTo.copyToFields().isEmpty()) {
+        if (multiValue
+            && hasDocValues
+            && isStrictColumnar
+            && context.isSourceSynthetic()
+            && fieldMapperBuilder.copyTo.copyToFields().isEmpty()) {
             return context.buildFullName(offsetsFieldName(fieldMapperBuilder.leafName()));
         }
         return null;

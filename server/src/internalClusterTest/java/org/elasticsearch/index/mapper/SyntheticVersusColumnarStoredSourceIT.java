@@ -137,6 +137,7 @@ public class SyntheticVersusColumnarStoredSourceIT extends ESIntegTestCase {
                         // synthetic_source_keep is not allowed in columnar index mode
                         mapping.remove(Mapper.SYNTHETIC_SOURCE_KEEP_PARAM);
                         mapping.remove("store");
+                        mapping.remove("copy_to");
                         return mapping;
                     });
                 }

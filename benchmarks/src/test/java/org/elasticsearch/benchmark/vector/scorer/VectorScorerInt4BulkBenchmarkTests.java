@@ -14,6 +14,8 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.elasticsearch.simdvec.VectorSimilarityType;
 import org.junit.BeforeClass;
 
+import java.util.List;
+
 import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.supportsHeapSegments;
 
 public class VectorScorerInt4BulkBenchmarkTests extends BenchmarkTest {
@@ -30,6 +32,11 @@ public class VectorScorerInt4BulkBenchmarkTests extends BenchmarkTest {
     @BeforeClass
     public static void skipUnsupported() {
         assumeTrue("native requires JDK22+", supportsHeapSegments());
+    }
+
+    @Override
+    protected List<VectorImplementation> implementations() {
+        return List.of(VectorImplementation.SCALAR, VectorImplementation.LUCENE, VectorImplementation.NATIVE);
     }
 
     public void testSequential() throws Exception {

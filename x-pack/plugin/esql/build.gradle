@@ -100,6 +100,10 @@ dependencies {
   internalClusterTestImplementation project(xpackModule('mapper-aggregate-metric'))
   internalClusterTestImplementation project(path: xpackModule('esql-datasource-csv'))
   internalClusterTestImplementation project(path: xpackModule('esql-datasource-ndjson'))
+  internalClusterTestImplementation project(path: xpackModule('esql-datasource-s3'))
+  internalClusterTestImplementation project(path: xpackModule('esql-datasource-netty-commons'))
+  internalClusterTestImplementation project(':test:fixtures:s3-fixture')
+  internalClusterTestImplementation project(':test:fixtures:aws-fixture-utils')
   internalClusterTestImplementation project(path: xpackModule('esql-datasource-compression-libs'))
   internalClusterTestImplementation project(path: xpackModule('esql-datasource-bzip2'))
   internalClusterTestImplementation project(path: xpackModule('esql-datasource-gzip'))
@@ -108,6 +112,10 @@ dependencies {
   internalClusterTestImplementation "org.apache.parquet:parquet-hadoop-bundle:${versions.parquet}"
   internalClusterTestImplementation("org.apache.hadoop:hadoop-common:${versions.hadoop}") { transitive = false }
   internalClusterTestImplementation("org.apache.hadoop:hadoop-mapreduce-client-core:${versions.hadoop}") { transitive = false }
+}
+
+tasks.named('compileInternalClusterTestJava').configure {
+  options.compilerArgs << '-Xlint:-classfile'
 }
 
 tasks.named('splitPackagesAudit').configure {

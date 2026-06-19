@@ -320,9 +320,9 @@ public class BytesReadHeaderIT extends ESIntegTestCase {
         int fetchAll = numDocs * 2;
         SearchSourceBuilder source = new SearchSourceBuilder().query(QueryBuilders.termQuery("field", "value")).size(fetchAll);
 
+        long combinedBytesRead = assertBytesReadHeader(new SearchRequest(firstIndex, secondIndex).source(source));
         long firstBytesRead = assertBytesReadHeader(new SearchRequest(firstIndex).source(source));
         long secondBytesRead = assertBytesReadHeader(new SearchRequest(secondIndex).source(source));
-        long combinedBytesRead = assertBytesReadHeader(new SearchRequest(firstIndex, secondIndex).source(source));
 
         assertThat(firstBytesRead, greaterThan(0L));
         assertThat(secondBytesRead, greaterThan(0L));

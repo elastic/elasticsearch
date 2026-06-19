@@ -140,9 +140,9 @@ public final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
         if (normSq == 0) {
             return;
         }
-        float scale = (float) (1.0 / Math.sqrt(normSq));
+        double invNorm = 1.0 / Math.sqrt(normSq);
         for (int j = offset; j < end; j++) {
-            v[j] = (byte) (v[j] * scale);
+            v[j] = (byte) (v[j] * invNorm);
         }
     }
 

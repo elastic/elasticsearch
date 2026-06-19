@@ -701,7 +701,8 @@ public class MatchOnlyTextFieldTypeTests extends FieldTypeTestCase {
             false,
             false,
             false,
-            new FieldMapper.DocValuesParameter.Values(true, FieldMapper.DocValuesParameter.Values.Cardinality.HIGH, true, true)
+            new FieldMapper.DocValuesParameter.Values(true, FieldMapper.DocValuesParameter.Values.Cardinality.HIGH, true, true),
+            false
         );
     }
 
@@ -720,7 +721,8 @@ public class MatchOnlyTextFieldTypeTests extends FieldTypeTestCase {
             false,
             true,
             false,
-            new FieldMapper.DocValuesParameter.Values(true, FieldMapper.DocValuesParameter.Values.Cardinality.HIGH, true, true)
+            new FieldMapper.DocValuesParameter.Values(true, FieldMapper.DocValuesParameter.Values.Cardinality.HIGH, true, true),
+            false
         );
     }
 

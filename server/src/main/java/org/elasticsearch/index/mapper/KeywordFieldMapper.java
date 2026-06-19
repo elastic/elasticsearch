@@ -65,6 +65,7 @@ import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
 import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromBinaryBlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromBinaryMultiSeparateCountBlockLoader;
+import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromBinaryMultiSeparateCountBlockLoader.ArrayOrderSource;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromOrdsBlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.fn.ByteLengthFromBytesRefDocValuesBlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.fn.MvMaxBytesRefsFromBinaryBlockLoader;
@@ -253,6 +254,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         private final boolean storeIgnoredFieldsInBinaryDocValues;
 
         private String offsetsFieldName;
+        private boolean arrayOrderBinaryDocValues;
 
         public Builder(final String name, final MappingParserContext mappingParserContext) {
             this(
@@ -528,6 +530,13 @@ public final class KeywordFieldMapper extends FieldMapper {
                 indexSettings.getMode().isStrictColumnar(),
                 docValuesParameters().multiValue()
             );
+            // High-cardinality (binary doc values) fields in strict columnar mode store their values in document order directly in the
+            // binary doc values (ArrayOrderInlineNull) instead of recording a sidecar .offsets field; low-cardinality (sorted-set) fields
+            // keep using offsets.
+            if (offsetsFieldName != null && usesBinaryDocValues() && indexSettings.getMode().isStrictColumnar()) {
+                this.arrayOrderBinaryDocValues = true;
+                this.offsetsFieldName = null;
+            }
             return new KeywordFieldMapper(
                 leafName(),
                 fieldtype,
@@ -621,6 +630,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         private final DocValuesParameter.Values docValuesParams;
         private final IndexVersion indexVersion;
         private final boolean readInArrayOrder;
+        private final boolean useArrayOrderBinaryDocValues;
 
         public KeywordFieldType(
             String name,
@@ -656,6 +666,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             this.readInArrayOrder = builder.offsetsFieldName != null
                 && builder.docValuesParameters().multiValue()
                 && builder.indexSettings.getMode().isStrictColumnar();
+            this.useArrayOrderBinaryDocValues = builder.arrayOrderBinaryDocValues;
         }
 
         public KeywordFieldType(String name) {
@@ -685,6 +696,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             this.docValuesParams = null;
             this.indexVersion = IndexVersion.current();
             this.readInArrayOrder = false;
+            this.useArrayOrderBinaryDocValues = false;
         }
 
         public KeywordFieldType(String name, FieldType fieldType, boolean isSyntheticSource) {
@@ -708,6 +720,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             this.docValuesParams = null;
             this.indexVersion = IndexVersion.current();
             this.readInArrayOrder = false;
+            this.useArrayOrderBinaryDocValues = false;
         }
 
         public KeywordFieldType(String name, NamedAnalyzer analyzer) {
@@ -731,10 +744,19 @@ public final class KeywordFieldMapper extends FieldMapper {
             this.docValuesParams = null;
             this.indexVersion = IndexVersion.current();
             this.readInArrayOrder = false;
+            this.useArrayOrderBinaryDocValues = false;
         }
 
         public boolean usesBinaryDocValues() {
             return usesBinaryDocValues;
+        }
+
+        /**
+         * Whether this field stores its (high-cardinality) binary doc values in document order with inline nulls
+         * ({@link MultiValuedBinaryDocValuesField.ArrayOrderInlineNull}) rather than via a sidecar offsets field.
+         */
+        public boolean usesArrayOrderBinaryDocValues() {
+            return useArrayOrderBinaryDocValues;
         }
 
         public boolean usesBinaryDocValuesForIgnoredFields() {
@@ -968,7 +990,12 @@ public final class KeywordFieldMapper extends FieldMapper {
                         if (docValuesParams != null && docValuesParams.multiValue() == false) {
                             return new BytesRefsFromBinaryBlockLoader(name());
                         } else {
-                            return new BytesRefsFromBinaryMultiSeparateCountBlockLoader(name(), readInArrayOrder);
+                            return new BytesRefsFromBinaryMultiSeparateCountBlockLoader(
+                                name(),
+                                useArrayOrderBinaryDocValues ? ArrayOrderSource.INLINE
+                                    : readInArrayOrder ? ArrayOrderSource.FROM_OFFSETS
+                                    : ArrayOrderSource.NONE
+                            );
                         }
                     } else {
                         return new BytesRefsFromOrdsBlockLoader(name(), blContext.ordinalsByteSize(), readInArrayOrder);
@@ -1016,6 +1043,11 @@ public final class KeywordFieldMapper extends FieldMapper {
 
         @Override
         public boolean supportsBlockLoaderConfig(BlockLoaderFunctionConfig config, FieldExtractPreference preference) {
+            // The fn/ pushdown readers (MV_MAX/MV_MIN/BYTE_LENGTH/LENGTH) decode the [len] SeparateCount format; they don't yet
+            // understand the in-order [len+1]/inline-null encoding, so disable pushdown and let the values be loaded and computed on.
+            if (useArrayOrderBinaryDocValues) {
+                return false;
+            }
             if (hasDocValues() && (preference != FieldExtractPreference.STORED || isSyntheticSourceEnabled())) {
                 return switch (config.function()) {
                     // Only push BYTE_LENGTH to load if using doc values
@@ -1125,7 +1157,8 @@ public final class KeywordFieldMapper extends FieldMapper {
                     name(),
                     CoreValuesSourceType.KEYWORD,
                     KeywordDocValuesField::new,
-                    indexVersion
+                    indexVersion,
+                    useArrayOrderBinaryDocValues
                 );
             } else {
                 return new SortedSetOrdinalsIndexFieldData.Builder(
@@ -1417,6 +1450,11 @@ public final class KeywordFieldMapper extends FieldMapper {
     }
 
     @Override
+    public boolean storesArrayValuesInOrder() {
+        return fieldType().usesArrayOrderBinaryDocValues();
+    }
+
+    @Override
     public String getOffsetFieldName() {
         return offsetsFieldName;
     }
@@ -1461,7 +1499,13 @@ public final class KeywordFieldMapper extends FieldMapper {
         }
 
         boolean indexed = indexValue(context, value);
-        if (FieldArrayContext.shouldRecordOffsets(context, offsetsFieldName, docValuesParameters.multiValue())) {
+        if (fieldType().usesArrayOrderBinaryDocValues()) {
+            // In-order path: non-null values are recorded in indexValue (in document order); here we record null slots so their position
+            // is preserved. Values that tripped ignore_above (indexed == false, value != null) record no slot, matching the offsets path.
+            if (indexed == false && value == null) {
+                MultiValuedBinaryDocValuesField.ArrayOrderInlineNull.recordNull(context.doc(), fieldType().name());
+            }
+        } else if (FieldArrayContext.shouldRecordOffsets(context, offsetsFieldName, docValuesParameters.multiValue())) {
             if (indexed) {
                 context.getOffSetContext().recordOffset(offsetsFieldName, value.bytes());
             } else if (value == null) {
@@ -1565,12 +1609,17 @@ public final class KeywordFieldMapper extends FieldMapper {
         if (fieldType().usesBinaryDocValues()) {
             // KeywordField is built with a FieldType that omits Lucene doc values; binary values are accumulated on a parallel field.
             assert fieldType.docValuesType() == DocValuesType.NONE;
-            dvFactory.addBinaryField(
-                context.doc(),
-                fieldType().name(),
-                binaryValue,
-                MultiValuedBinaryDocValuesField.ValueOrdering.SORTED_UNIQUE
-            );
+            if (fieldType().usesArrayOrderBinaryDocValues()) {
+                // In-order path: write the value into the field's own binary doc-values column directly, in document order with nulls.
+                MultiValuedBinaryDocValuesField.ArrayOrderInlineNull.recordValue(context.doc(), fieldType().name(), binaryValue);
+            } else {
+                dvFactory.addBinaryField(
+                    context.doc(),
+                    fieldType().name(),
+                    binaryValue,
+                    MultiValuedBinaryDocValuesField.ValueOrdering.SORTED_UNIQUE
+                );
+            }
         }
 
         // If we're using binary doc values, then the values are stored in a separate MultiValuedBinaryDocValuesField (see above)
@@ -1716,7 +1765,9 @@ public final class KeywordFieldMapper extends FieldMapper {
                     });
                 }
             } else {
-                if (offsetsFieldName != null) {
+                if (fieldType().usesArrayOrderBinaryDocValues()) {
+                    layers.add(new ArrayOrderBinaryDocValuesSyntheticFieldLoaderLayer(fieldType().name()));
+                } else if (offsetsFieldName != null) {
                     layers.add(new BinaryWithOffsetsDocValuesSyntheticFieldLoaderLayer(fullPath(), offsetsFieldName));
                 } else {
                     layers.add(new BinaryDocValuesSyntheticFieldLoaderLayer(fieldType().name(), indexCreatedVersion));

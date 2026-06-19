@@ -37,6 +37,9 @@ import java.util.stream.IntStream;
 
 class TSDataGenerationHelper {
 
+    private static final String TEMPORALITY_SUBFIELD_NAME = "temporality";
+    static final String TEMPORALITY_FIELD_NAME = "attributes." + TEMPORALITY_SUBFIELD_NAME;
+
     private static Object randomDimensionValue(String dimensionName) {
         // We use dimensionName to determine the type of the value.
         var isNumeric = dimensionName.hashCode() % 5 == 0;
@@ -52,7 +55,7 @@ class TSDataGenerationHelper {
         }
     }
 
-    TSDataGenerationHelper(long numDocs, long timeRangeSeconds, String temporalityFieldName, Collection<Temporality> allowedTemporalities) {
+    TSDataGenerationHelper(long numDocs, long timeRangeSeconds, Collection<Temporality> allowedTemporalities) {
         // Metrics coming into our system have a pre-set group of attributes.
         // Making a list-to-set-to-list to ensure uniqueness.
         this.numDocs = numDocs;
@@ -70,8 +73,8 @@ class TSDataGenerationHelper {
             ArrayList<Tuple<String, Object>> dimensions = dimensionsInMetric.stream().map(attr -> new Tuple<>(attr, randomDimensionValue(attr))).collect(Collectors.toCollection(ArrayList::new));
             Temporality temporality = ESTestCase.randomFrom(allowedTemporalities);
             if (temporality != null) {
-                usedAttributeNames.add(temporalityFieldName);
-                dimensions.add(new Tuple<>(temporalityFieldName, temporality.bytesRef().utf8ToString()));
+                usedAttributeNames.add(TEMPORALITY_SUBFIELD_NAME);
+                dimensions.add(new Tuple<>(TEMPORALITY_SUBFIELD_NAME, temporality.bytesRef().utf8ToString()));
             }
             return (List<Tuple<String, Object>>) dimensions;
         }).toList();

@@ -62,7 +62,6 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
     private static final Long NUM_DOCS = 2000L;
     private static final Long TIME_RANGE_SECONDS = 3600L;
     private static final String DATASTREAM_NAME = "tsit_ds";
-    private static final String TEMPORALITY_FIELD = "temporality";
     private static final Integer SECONDS_IN_WINDOW = 60;
 
     record WindowOption(String label, int seconds) {}
@@ -618,7 +617,7 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
         settingsBuilder.put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, ESTestCase.randomIntBetween(1, 5));
         settingsBuilder.put(IndexSettings.TIME_SERIES_START_TIME.getKey(), "2025-07-31T00:00:00Z");
         settingsBuilder.put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "2025-07-31T12:00:00Z");
-        settingsBuilder.put(IndexSettings.TIME_SERIES_TEMPORALITY_FIELD.getKey(), TEMPORALITY_FIELD);
+        settingsBuilder.put(IndexSettings.TIME_SERIES_TEMPORALITY_FIELD.getKey(), TSDataGenerationHelper.TEMPORALITY_FIELD_NAME);
         settingsBuilder.put(IndexSettings.SYNTHETIC_ID.getKey(), randomBoolean());
         CompressedXContent mappings = mappingString == null ? null : CompressedXContent.fromJSON(mappingString);
         TransportPutComposableIndexTemplateAction.Request request = new TransportPutComposableIndexTemplateAction.Request(
@@ -637,8 +636,9 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
 
     @Before
     public void populateIndex() throws IOException {
-        List<Temporality> allowedTemporalities = randomNonEmptySubsetOf(Arrays.asList(Temporality.DELTA, Temporality.CUMULATIVE, null));
-        dataGenerationHelper = new TSDataGenerationHelper(NUM_DOCS, TIME_RANGE_SECONDS, TEMPORALITY_FIELD, allowedTemporalities);
+        //List<Temporality> allowedTemporalities = randomNonEmptySubsetOf(Arrays.asList(Temporality.DELTA, Temporality.CUMULATIVE, null));
+        List<Temporality> allowedTemporalities = Arrays.asList(Temporality.DELTA, Temporality.CUMULATIVE, null);
+        dataGenerationHelper = new TSDataGenerationHelper(NUM_DOCS, TIME_RANGE_SECONDS, allowedTemporalities);
         final XContentBuilder builder = XContentFactory.jsonBuilder();
         builder.map(dataGenerationHelper.mapping.raw());
         final String jsonMappings = Strings.toString(builder);

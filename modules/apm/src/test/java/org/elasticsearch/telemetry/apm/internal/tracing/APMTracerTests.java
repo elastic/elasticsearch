@@ -205,7 +205,7 @@ public class APMTracerTests extends ESTestCase {
     }
 
     /**
-     * Check that {@link APMTracer#setStatusToError} is a no-op when the traceable has no active span —
+     * Check that {@link APMTracer#setStatusToError} is a no-op when the traceable has no active span,
      * i.e. it was never started or has already been stopped.
      */
     public void test_setStatusToError_noopWhenSpanNotFound() {

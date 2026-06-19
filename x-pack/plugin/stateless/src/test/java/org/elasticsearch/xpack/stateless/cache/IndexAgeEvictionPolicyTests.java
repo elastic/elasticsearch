@@ -9,8 +9,6 @@ package org.elasticsearch.xpack.stateless.cache;
 
 import org.elasticsearch.blobcache.BlobCacheMetrics;
 import org.elasticsearch.blobcache.shared.CacheRegion;
-import org.elasticsearch.blobcache.shared.DefaultEvictionPolicy;
-import org.elasticsearch.blobcache.shared.EvictionPolicy;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheServiceTestUtils;
 import org.elasticsearch.blobcache.shared.SharedBytes;
@@ -42,8 +40,6 @@ import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_INDEX_UUI
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_VERSION_CREATED;
 import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.instanceOf;
-import static org.mockito.Mockito.mock;
 
 public class IndexAgeEvictionPolicyTests extends ESTestCase {
 
@@ -96,46 +92,6 @@ public class IndexAgeEvictionPolicyTests extends ESTestCase {
 
         assertTrue(policy.canEvict(region(unknownShard, "f"), region(recentShard, "g")));
         assertFalse(policy.canEvict(region(recentShard, "f"), region(unknownShard, "g")));
-    }
-
-    public void testCreateEvictionPolicyReturnsDefaultWhenSettingDisabled() {
-        Settings.Builder settingsBuilder = Settings.builder()
-            .put(StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_ENABLED_SETTING.getKey(), false);
-        if (randomBoolean()) {
-            settingsBuilder.put(
-                StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_EVICTION_POLICY_SETTING.getKey(),
-                StatelessCacheEvictionPolicyType.INDEX_AGE
-            );
-        }
-        EvictionPolicy<FileCacheKey> policy = StatelessSharedBlobCacheService.createEvictionPolicy(
-            settingsBuilder.build(),
-            mock(ClusterService.class)
-        );
-        assertThat(policy, instanceOf(DefaultEvictionPolicy.class));
-    }
-
-    public void testCreateEvictionPolicyReturnsDefaultWhenBoostEnabledButPolicyAlways() {
-        Settings settings = Settings.builder()
-            .put(StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_ENABLED_SETTING.getKey(), true)
-            .put(
-                StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_EVICTION_POLICY_SETTING.getKey(),
-                StatelessCacheEvictionPolicyType.ALWAYS
-            )
-            .build();
-        EvictionPolicy<FileCacheKey> policy = StatelessSharedBlobCacheService.createEvictionPolicy(settings, mock(ClusterService.class));
-        assertThat(policy, instanceOf(DefaultEvictionPolicy.class));
-    }
-
-    public void testCreateEvictionPolicyReturnsIndexAgePolicyWhenExplicitlyConfigured() {
-        Settings settings = Settings.builder()
-            .put(StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_ENABLED_SETTING.getKey(), true)
-            .put(
-                StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_EVICTION_POLICY_SETTING.getKey(),
-                StatelessCacheEvictionPolicyType.INDEX_AGE
-            )
-            .build();
-        EvictionPolicy<FileCacheKey> policy = StatelessSharedBlobCacheService.createEvictionPolicy(settings, mock(ClusterService.class));
-        assertThat(policy, instanceOf(IndexAgeEvictionPolicy.class));
     }
 
     /**

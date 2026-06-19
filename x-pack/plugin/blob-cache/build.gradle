@@ -5,6 +5,8 @@
  * 2.0.
  */
 
+import org.elasticsearch.gradle.internal.ElasticsearchJavaBasePlugin
+
 apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.internal-test-artifact'
 
@@ -13,6 +15,8 @@ esplugin {
     description = 'Provides a blob store cache'
     classname = 'org.elasticsearch.blobcache.BlobCachePlugin'
 }
+
+ElasticsearchJavaBasePlugin.enableForeignAccess(project)
 
 dependencies {
     compileOnly project(path: ':libs:native')

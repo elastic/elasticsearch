@@ -33,6 +33,12 @@ import org.gradle.api.tasks.testing.Test;
 import org.gradle.jvm.toolchain.JavaLanguageVersion;
 import org.gradle.jvm.toolchain.JavaToolchainService;
 
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.UncheckedIOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
@@ -185,6 +191,54 @@ public class ElasticsearchJavaBasePlugin implements Plugin<Project> {
             test.dependsOn(nativeConfigFiles);
             systemProperties.systemProperty("es.nativelibs.path", libraryPath);
         });
+    }
+
+    /**
+     * Configures the project so that source code can use {@code java.lang.foreign} types
+     * (e.g. {@code MemorySegment}) without {@code --enable-preview} on JDK 21. On JDK 22+
+     * the Foreign Function and Memory API is standard, so this is a no-op.
+     *
+     * <p>Works by patching {@code java.base} at compile time with a stub JAR whose
+     * {@code java.lang.foreign} classes have the {@code @PreviewFeature} annotation
+     * stripped. Call from a project's {@code build.gradle}:
+     * <pre>{@code
+     *   ElasticsearchJavaBasePlugin.enableForeignAccess(project)
+     * }</pre>
+     */
+    public static void enableForeignAccess(Project project) {
+        project.getTasks().withType(JavaCompile.class).configureEach(compileTask -> {
+            compileTask.doFirst(t -> {
+                int release = compileTask.getOptions().getRelease().getOrElse(0);
+                if (release < 21) {
+                    throw new IllegalStateException(
+                        "enableForeignAccess requires --release 21 or later (found " + release + ") in " + project.getPath()
+                    );
+                }
+                if (release == 21) {
+                    Path jarPath = extractForeignApiJar(project);
+                    compileTask.getOptions().getCompilerArgs().add("--patch-module");
+                    compileTask.getOptions().getCompilerArgs().add("java.base=" + jarPath);
+                }
+                // release >= 22: no-op, MemorySegment is standard
+            });
+        });
+    }
+
+    private static Path extractForeignApiJar(Project project) {
+        Path dest = project.getLayout().getBuildDirectory().getAsFile().get().toPath().resolve("jdk21-foreign-api.jar");
+        if (Files.exists(dest)) {
+            return dest;
+        }
+        try (InputStream is = ElasticsearchJavaBasePlugin.class.getResourceAsStream("/jdk/jdk21-foreign-api.jar")) {
+            if (is == null) {
+                throw new IllegalStateException("jdk21-foreign-api.jar resource not found on build classpath");
+            }
+            Files.createDirectories(dest.getParent());
+            Files.copy(is, dest, StandardCopyOption.REPLACE_EXISTING);
+        } catch (IOException e) {
+            throw new UncheckedIOException("Failed to extract jdk21-foreign-api.jar", e);
+        }
+        return dest;
     }
 
     private static Provider<Integer> releaseVersionProviderFromCompileTask(Project project, AbstractCompile compileTask) {

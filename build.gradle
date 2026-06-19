@@ -624,3 +624,9 @@ tasks.register("spotlessApply").configure {
   dependsOn gradle.includedBuild('build-tools').task(':reaper:spotlessApply')
   dependsOn gradle.includedBuild('build-tools-internal').task(':spotlessApply')
 }
+
+tasks.register("extractForeignApi", org.elasticsearch.gradle.internal.ExtractForeignApiTask) {
+  description = 'Regenerates jdk21-foreign-api.jar from the running JDK'
+  group = 'build'
+  outputJar = file("build-tools-internal/src/main/resources/jdk/jdk21-foreign-api.jar")
+}

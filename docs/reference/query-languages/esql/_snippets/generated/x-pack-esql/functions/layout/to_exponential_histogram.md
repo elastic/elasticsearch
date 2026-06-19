@@ -4,6 +4,10 @@
 stack: ga 9.4.0
 ```
 
+
+:::{include} ../briefSummary/to_exponential_histogram.md
+:::
+
 ## Syntax
 
 :::{image} /reference/query-languages/esql/images/generated/x-pack-esql/functions/to_exponential_histogram.svg

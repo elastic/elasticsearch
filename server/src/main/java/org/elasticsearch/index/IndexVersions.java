@@ -259,6 +259,8 @@ public class IndexVersions {
     public static final IndexVersion SEMANTIC_FIELD_TYPE = def(9_097_00_0, Version.LUCENE_10_4_0);
     public static final IndexVersion ES95_TSDB_CODEC_FEATURE_FLAG = def(9_098_0_00, Version.LUCENE_10_4_0);
     public static final IndexVersion SHARD_OBLIVIOUS_SLICING = def(9_099_0_00, Version.LUCENE_10_4_0);
+    public static final IndexVersion DOC_COUNT_FIELD_USES_NUMERIC_DOC_VALUES = def(9_100_0_00, Version.LUCENE_10_4_0);
+    public static final IndexVersion MAPPING_ID_MODE_DEFAULT = def(9_101_0_00, Version.LUCENE_10_4_0);
 
     /*
      * STOP! READ THIS FIRST! No, really,

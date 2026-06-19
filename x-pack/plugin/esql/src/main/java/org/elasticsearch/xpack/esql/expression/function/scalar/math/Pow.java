@@ -41,6 +41,7 @@ public class Pow extends EsqlScalarFunction {
 
     @FunctionInfo(
         returnType = "double",
+        briefSummary = "Returns a value raised to the power of an exponent.",
         description = "Returns the value of `base` raised to the power of `exponent`.",
         note = "It is still possible to overflow a double result here; in that case, null will be returned.",
         examples = { @Example(file = "math", tag = "powDI"), @Example(file = "math", tag = "powID-sqrt", description = """

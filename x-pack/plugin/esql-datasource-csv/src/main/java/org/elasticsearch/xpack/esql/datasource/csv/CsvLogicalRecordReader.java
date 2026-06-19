@@ -163,10 +163,4 @@ final class CsvLogicalRecordReader {
         }
         return 3;
     }
-
-    static final class CsvRecordTooLargeException extends IOException {
-        CsvRecordTooLargeException(int maxRecordBytes) {
-            super("CSV record exceeded max_record_size [" + maxRecordBytes + "]");
-        }
-    }
 }

@@ -173,6 +173,45 @@ public class CsvDialectReadTests extends ESTestCase {
         assertEquals("\"starts with a quote", values.get(0).get(1));
     }
 
+    /**
+     * Volume guard for the merge: after schema resolution the data rows flow through the Jackson
+     * BULK iterator (not the per-record sampler), which builds its schema from {@code newCsvSchema()}.
+     * If that schema is not dialect-aware ({@code withoutQuoteChar()} for plain), a field-leading
+     * {@code "} opens a region Jackson scans across newlines and rows glue. 500 rows span multiple
+     * read batches, so this exercises the bulk path repeatedly, not a single small sample.
+     */
+    public void testBulkPathPlainHandlesFieldLeadingQuoteAtVolume() throws IOException {
+        int rows = 500;
+        StringBuilder tsv = new StringBuilder("id:keyword\tnote:keyword\n");
+        for (int i = 0; i < rows; i++) {
+            String note = i % 50 == 0 ? "\"unbalanced quote " + i : "note " + i;
+            tsv.append("id").append(i).append('\t').append(note).append('\n');
+        }
+        List<List<String>> values = readAll(tsvReader(Map.of("dialect", "plain")), tsv.toString());
+        assertEquals(rows, values.size());
+        assertEquals("\"unbalanced quote 0", values.get(0).get(1)); // first quoted row, literal
+        assertEquals("\"unbalanced quote 450", values.get(450).get(1)); // a later batch, still literal
+    }
+
+    /**
+     * Volume guard: the escaped dialect decodes on the BULK data path (the merge's only per-value
+     * seam there), so {@code \t} un-escapes and a whole-field {@code \N} is null across many batches,
+     * exactly as on the per-record path.
+     */
+    public void testBulkPathEscapedDecodesAtVolume() throws IOException {
+        int rows = 500;
+        StringBuilder tsv = new StringBuilder("id:keyword\tnote:keyword\tmaybe:keyword\n");
+        for (int i = 0; i < rows; i++) {
+            tsv.append("id").append(i).append("\thas\\ttab").append('\t').append(i % 2 == 0 ? "\\N" : "present").append('\n');
+        }
+        List<List<String>> values = readAll(tsvReader(Map.of("dialect", "escaped")), tsv.toString());
+        assertEquals(rows, values.size());
+        assertEquals("has\ttab", values.get(0).get(1)); // \t decoded on the bulk path
+        assertEquals("has\ttab", values.get(499).get(1)); // still decoded in a later batch
+        assertNull(values.get(0).get(2)); // whole-field \N -> null
+        assertEquals("present", values.get(1).get(2));
+    }
+
     /** The no-quote splitter never reports a too-large record for well-formed newline-terminated data. */
     public void testNewlineSplitterBoundaries() throws IOException {
         NewlineRecordSplitter splitter = new NewlineRecordSplitter(32);

@@ -568,7 +568,7 @@ public class BooleanFieldMapper extends FieldMapper {
         this.docValuesParameters = builder.docValuesParameters.getValue();
         this.dvFactory = new DocValuesFieldFactory(
             docValuesParameters.multiValue(),
-            fieldType().indexType.hasDocValuesSkipper(),
+            ((BooleanFieldType) mappedFieldType).indexType.hasDocValuesSkipper(),
             builder.indexSettings.getIndexVersionCreated()
         );
         this.script = builder.script.get();

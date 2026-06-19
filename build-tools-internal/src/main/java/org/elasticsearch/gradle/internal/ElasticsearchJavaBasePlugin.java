@@ -29,7 +29,9 @@ import org.gradle.api.tasks.compile.AbstractCompile;
 import org.gradle.api.tasks.compile.CompileOptions;
 import org.gradle.api.tasks.compile.GroovyCompile;
 import org.gradle.api.tasks.compile.JavaCompile;
+import org.gradle.api.tasks.javadoc.Javadoc;
 import org.gradle.api.tasks.testing.Test;
+import org.gradle.external.javadoc.CoreJavadocOptions;
 import org.gradle.jvm.toolchain.JavaLanguageVersion;
 import org.gradle.jvm.toolchain.JavaToolchainService;
 
@@ -208,12 +210,7 @@ public class ElasticsearchJavaBasePlugin implements Plugin<Project> {
     public static void enableForeignAccess(Project project) {
         project.getTasks().withType(JavaCompile.class).configureEach(compileTask -> {
             compileTask.doFirst(t -> {
-                int release = compileTask.getOptions().getRelease().getOrElse(0);
-                if (release < 21) {
-                    throw new IllegalStateException(
-                        "enableForeignAccess requires --release 21 or later (found " + release + ") in " + project.getPath()
-                    );
-                }
+                int release = minimumRuntimeVersion(project);
                 if (release == 21) {
                     Path jarPath = extractForeignApiJar(project);
                     compileTask.getOptions().getCompilerArgs().add("--patch-module");
@@ -222,6 +219,21 @@ public class ElasticsearchJavaBasePlugin implements Plugin<Project> {
                 // release >= 22: no-op, MemorySegment is standard
             });
         });
+        project.getTasks().withType(Javadoc.class).configureEach(javadocTask -> {
+            javadocTask.doFirst(t -> {
+                int release = minimumRuntimeVersion(project);
+                if (release == 21) {
+                    Path jarPath = extractForeignApiJar(project);
+                    CoreJavadocOptions options = (CoreJavadocOptions) javadocTask.getOptions();
+                    options.addStringOption("-patch-module", "java.base=" + jarPath);
+                }
+            });
+        });
+    }
+
+    private static int minimumRuntimeVersion(Project project) {
+        BuildParameterExtension params = project.getRootProject().getExtensions().getByType(BuildParameterExtension.class);
+        return Integer.parseInt(params.getMinimumRuntimeVersion().getMajorVersion());
     }
 
     private static Path extractForeignApiJar(Project project) {

@@ -54,7 +54,7 @@ $$$data-streams-lifecycle-signalling-error-retry-interval$$$
 
 $$$data-streams-lifecycle-downsampling-max-indices-in-progress$$$
 
-`data_streams.lifecycle.downsampling.max_indices_in_progress` {applies_to}`serverless: ga`
+`data_streams.lifecycle.downsampling.max_indices_in_progress` {applies_to}`serverless: ga` {applies_to}`stack: ga 9.5`
 :   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting), integer) The maximum number of indices per data stream that can be submitted for downsampling by data stream lifecycle. Defaults to `10`.
 
 ## Frozen tier transition settings [_frozen_tier_transition_settings]
@@ -98,7 +98,7 @@ $$$index-lifecycle-prefer-ilm$$$
 
 $$$index-data-stream-lifecycle-origination-date$$$
 
-`index.lifecycle.origination_date` {applies_to}`serverless: ga all` {applies_to}`stack: ga 9.5`
+`index.lifecycle.origination_date` {applies_to}`serverless: ga all`
 :   ([Dynamic](../index-settings/index.md#index-modules-settings-description), long) If specified, this is the timestamp used to calculate the backing index generation age after this backing index has been [rolled over](docs-content://manage-data/lifecycle/index-lifecycle-management/rollover.md). The generation age is used to determine data retention, consequently, you can use this setting if you create a backing index that contains older data and want to ensure that the retention period or other parts of the lifecycle will be applied based on the data's original timestamp and not the timestamp when it was indexed. Specified as a Unix epoch value in milliseconds.
 
 $$$index-dlm-frozen-created$$$

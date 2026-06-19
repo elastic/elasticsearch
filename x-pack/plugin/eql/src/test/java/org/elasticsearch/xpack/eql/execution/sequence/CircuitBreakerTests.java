@@ -141,11 +141,35 @@ public class CircuitBreakerTests extends ESTestCase {
      * of all value combinations before any circuit-breaker check can fire. With 8 fields × 12 values the
      * product is 12^8 ≈ 430 million key arrays, which exhausts heap.
      *
-     * The fix must account for the expansion size against the circuit breaker (either by estimating upfront
-     * or checking incrementally during the expansion loop) so that a {@link CircuitBreakingException} is
-     * raised instead of an {@link OutOfMemoryError}.
+     * The fix probes the circuit breaker incrementally during expansion so that a {@link CircuitBreakingException}
+     * is raised instead of an {@link OutOfMemoryError}. The breaker must also be left at zero used bytes after
+     * the exception, confirming the probe leaves no permanent footprint.
      */
     public void testCircuitBreakerOnMultiValuedJoinKeyExpansion() {
+        CircuitBreakerService service = new HierarchyCircuitBreakerService(
+            CircuitBreakerMetrics.NOOP,
+            Settings.EMPTY,
+            Collections.singletonList(
+                new BreakerSettings(
+                    CIRCUIT_BREAKER_NAME,
+                    256 * 1024,
+                    CIRCUIT_BREAKER_OVERHEAD,
+                    CircuitBreaker.Type.MEMORY,
+                    CircuitBreaker.Durability.TRANSIENT
+                )
+            ),
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+        );
+        CircuitBreaker breaker = service.getBreaker(CIRCUIT_BREAKER_NAME);
+
+        Exception thrown = runMultiValuedJoinKeyExpansion(breaker);
+
+        assertNotNull("Expected CircuitBreakingException from multi-valued join key Cartesian product expansion", thrown);
+        assertEquals(CircuitBreakingException.class, thrown.getClass());
+        assertEquals(0, breaker.getUsed());
+    }
+
+    private Exception runMultiValuedJoinKeyExpansion(CircuitBreaker breaker) {
         // 8 key fields, each returning 12 distinct values → 12^8 ≈ 430 million combinations per hit.
         int numKeyFields = 8;
         int valuesPerField = 12;
@@ -159,10 +183,6 @@ public class CircuitBreakerTests extends ESTestCase {
         for (int i = 0; i < numKeyFields; i++) {
             multiValuedExtractors.add(new MultiValueKeyExtractor(fieldValues));
         }
-
-        // 512 KB limit: well above the cost of any per-hit sequence bookkeeping but far below
-        // the ~31 GB that 430 million Object[8] arrays would occupy.
-        EqlTestCircuitBreaker breaker = new EqlTestCircuitBreaker(512 * 1024);
 
         int sequenceStages = 2;
         List<SequenceCriterion> criteria = new ArrayList<>(sequenceStages);
@@ -213,8 +233,7 @@ public class CircuitBreakerTests extends ESTestCase {
                 thrownException::set
             )
         );
-        assertNotNull("Expected CircuitBreakingException from multi-valued join key Cartesian product expansion", thrownException.get());
-        assertEquals(CircuitBreakingException.class, thrownException.get().getClass());
+        return thrownException.get();
     }
 
     public void testCircuitBreakerTumblingWindow() {

@@ -42,8 +42,17 @@ import java.util.stream.Collectors;
  *   <li>{@code synthetic_source_keep} – not allowed in columnar mode</li>
  *   <li>{@code subobjects} – not allowed in columnar mode</li>
  *   <li>{@code dynamic: runtime} – not supported in strict columnar mode</li>
- *   <li>{@code index: false} – ignored by columnar mode, causing field-caps divergence</li>
- *   <li>{@code doc_values: false} – ignored by columnar mode, causing field-caps divergence</li>
+ *   <li>{@code index: false} – in columnar mode some field types (e.g. text) enable
+ *       {@code doc_values} by default, so {@code index:false} still yields a non-NONE
+ *       {@code IndexType} and {@code isSearchable()} returns {@code true}, while on the logsdb
+ *       baseline the same field would be NONE and non-searchable. Stripped from both sides.</li>
+ *   <li>{@code doc_values: false} on non-text types – stripped so both sides fall back to
+ *       their mode default ({@code true}); numeric/geo fields then take the doc-values-skippers
+ *       path in columnar mode and remain searchable and aggregatable, matching the baseline.</li>
+ *   <li>{@code text} / {@code match_only_text} without explicit {@code doc_values} –
+ *       {@code TextFieldMapper.defaultDocValuesParameters()} returns {@code enabled=true} when
+ *       {@code isStrictColumnar()}, making text fields aggregatable on the contender but not on
+ *       the baseline. Normalised to {@code doc_values:true} on both sides (the columnar default).</li>
  * </ul>
  *
  * <p>{@code geo_shape} and {@code shape} fields are excluded entirely from both the mapping
@@ -162,15 +171,28 @@ public class LogsDbSubobjectsFalseVersusLogsDbColumnarRestIT extends BulkChallen
             if ("index".equals(key) && (Boolean.FALSE.equals(value) || "false".equals(value))) {
                 continue;
             }
-            // logsdb_columnar ignores doc_values:false — strip it to keep field-caps in sync
-            if ("doc_values".equals(key) && (Boolean.FALSE.equals(value) || "false".equals(value))) {
-                continue;
-            }
             if (value instanceof Map<?, ?> nested) {
                 result.put(key, strip((Map<String, Object>) nested));
             } else {
                 result.put(key, value);
             }
+        }
+        // Type-specific post-loop normalizations
+        var fieldType = result.get("type");
+        // text/match_only_text: TextFieldMapper.defaultDocValuesParameters() returns enabled=true
+        // when isStrictColumnar(), so these fields are aggregatable=true by default on the contender
+        // but aggregatable=false on the logsdb baseline (doc_values defaults to false for text).
+        // Explicitly set doc_values:true on both sides to align with the contender default.
+        if ("text".equals(fieldType) || "match_only_text".equals(fieldType)) {
+            if (result.containsKey("doc_values") == false) {
+                result.put("doc_values", true);
+            }
+        } else if (Boolean.FALSE.equals(result.get("doc_values")) || "false".equals(result.get("doc_values"))) {
+            // For non-text types, strip doc_values:false. In columnar mode numeric/geo/etc. fields
+            // take the doc_values-skippers path when index:false, so they remain searchable and
+            // aggregatable like the baseline. Stripping lets both sides fall back to their
+            // mode default (doc_values=true) and produce matching field-caps.
+            result.remove("doc_values");
         }
         return result;
     }

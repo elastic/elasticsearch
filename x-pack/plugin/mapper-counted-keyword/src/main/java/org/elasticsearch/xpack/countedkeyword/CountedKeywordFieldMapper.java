@@ -121,11 +121,6 @@ public class CountedKeywordFieldMapper extends FieldMapper {
         }
 
         @Override
-        public boolean isSearchable() {
-            return indexType.hasTerms();
-        }
-
-        @Override
         public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
             return SourceValueFetcher.identity(name(), context, format);
         }

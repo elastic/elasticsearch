@@ -346,6 +346,9 @@ tests:
 - class: org.elasticsearch.repositories.gcs.GoogleCloudStorageBlobContainerRetriesTests
   method: testReadBlobWithPrematureConnectionClose
   issue: https://github.com/elastic/elasticsearch/issues/151476
+- class: org.elasticsearch.action.search.AbstractSearchAsyncActionTests
+  method: testMaybeReEncode
+  issue: https://github.com/elastic/elasticsearch/issues/151704
 
 # Examples:
 #

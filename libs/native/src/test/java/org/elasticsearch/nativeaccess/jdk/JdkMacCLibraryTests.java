@@ -13,7 +13,6 @@ import org.apache.lucene.util.Constants;
 import org.elasticsearch.nativeaccess.NativeAccess;
 import org.elasticsearch.nativeaccess.lib.MacCLibrary;
 import org.elasticsearch.nativeaccess.lib.NativeLibraryProvider;
-import org.elasticsearch.nativeaccess.lib.PosixCLibrary;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.nativeaccess.jdk.JdkMacCLibrary.JdkErrorReference;
 import org.junit.Before;
@@ -29,13 +28,10 @@ public class JdkMacCLibraryTests extends ESTestCase {
 
     @Before
     public void setup() {
+        assumeTrue("macCLibrary only available on Mac", Constants.MAC_OS_X);
         nativeAccess = NativeAccess.instance();
-        if (Constants.MAC_OS_X) {
-            macCLibrary = NativeLibraryProvider.instance().getLibrary(MacCLibrary.class);
-            assertNotNull(macCLibrary);
-        } else {
-            assumeFalse("macCLibrary only available on Mac", Constants.WINDOWS && Constants.LINUX);
-        }
+        macCLibrary = NativeLibraryProvider.instance().getLibrary(MacCLibrary.class);
+        assertNotNull(macCLibrary);
     }
 
     /**

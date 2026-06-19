@@ -234,27 +234,25 @@ cnt:long | max_dur:long
 7        | 8268152
 ;
 
-// INLINESTATS that creates a column whose name conflicts with an unmapped source field (gap):
-// InlineStats extends UnaryPlan and does not override unmappedFieldsToKeep(), so the output
-// column name "language_code" is never added to the exclude list. The intended correct behaviour
-// is that language_code does not appear in _unmapped_fields because it is shadowed by the
-// INLINESTATS output. This test documents that intended output; it will fail until fixed.
+// INLINE STATS creates a column whose name conflicts with an unmapped source field.
+// The INLINE STATS output column "language_code" shadows the unmapped source field, so
+// language_code does not appear in _unmapped_fields.
 inlineStatsConflictsWithUnmapped
 required_capability: optional_fields_load_all
 required_capability: inline_stats
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM partial_mapping_sample_data
-| INLINESTATS language_code = COUNT(*) BY message
+| INLINE STATS language_code = COUNT(*) BY message
 | SORT @timestamp
 | LIMIT 4
 ;
 
-@timestamp:datetime      | client_ip:ip | event_duration:long | message:keyword        | _unmapped_fields:keyword                                                                                                                                       | language_code:long
-2024-10-23T12:15:03.360Z | 173.21.2.162 | 3450232             | Connected to 10.1.0.3! | "{""unmapped.nested"":""g"",""unmapped_event_duration"":""3450234"",""unmapped_message"":""Disconnected from 10.1.0.3""}"                                   | 1
-2024-10-23T12:27:28.948Z | 173.21.2.113 | 2764888             | Connected to 10.1.0.2! | "{""unmapped.nested"":""f"",""unmapped_event_duration"":""2764890"",""unmapped_message"":""Disconnected from 10.1.0.2""}"                                   | 1
-2024-10-23T13:33:34.937Z | 173.21.0.5   | 1232381             | 42                     | "{""unmapped.nested"":""e"",""unmapped_event_duration"":""1232383"",""unmapped_message"":""43""}"                                                           | 1
-2024-10-23T13:51:54.732Z | 173.21.3.15  | 725447              | Connection error?      | "{""unmapped.nested"":""d"",""unmapped_event_duration"":""725449"",""unmapped_message"":""Disconnection error""}"                                           | 3
+@timestamp:datetime      | client_ip:ip | event_duration:long | _unmapped_fields:keyword                                                                                                                                       | language_code:long | message:keyword
+2024-10-23T12:15:03.360Z | 173.21.2.162 | 3450232             | "{""unmapped.nested"":""g"",""unmapped_event_duration"":""3450234"",""unmapped_message"":""Disconnected from 10.1.0.3""}"                                   | 1                  | Connected to 10.1.0.3!
+2024-10-23T12:27:28.948Z | 173.21.2.113 | 2764888             | "{""unmapped.nested"":""f"",""unmapped_event_duration"":""2764890"",""unmapped_message"":""Disconnected from 10.1.0.2""}"                                   | 1                  | Connected to 10.1.0.2!
+2024-10-23T13:33:34.937Z | 173.21.0.5   | 1232381             | "{""unmapped.nested"":""e"",""unmapped_event_duration"":""1232383"",""unmapped_message"":""43""}"                                                           | 1                  | 42
+2024-10-23T13:51:54.732Z | 173.21.3.15  | 725447              | "{""unmapped.nested"":""d"",""unmapped_event_duration"":""725449"",""unmapped_message"":""Disconnection error""}"                                           | 3                  | Connection error?
 ;
 
 // Complex pipeline combining EVAL, DROP, and RENAME on mapped columns: none of these operations
@@ -272,17 +270,17 @@ FROM partial_mapping_sample_data
 | LIMIT 3
 ;
 
-@timestamp:datetime      | msg:keyword            | _unmapped_fields:keyword                                                                                                                                                                 | duration_ms:long
-2024-10-23T12:15:03.360Z | Connected to 10.1.0.3! | "{""language_code"":""4"",""unmapped.nested"":""g"",""unmapped_event_duration"":""3450234"",""unmapped_message"":""Disconnected from 10.1.0.3""}"                               | 3450
-2024-10-23T12:27:28.948Z | Connected to 10.1.0.2! | "{""language_code"":""3"",""unmapped.nested"":""f"",""unmapped_event_duration"":""2764890"",""unmapped_message"":""Disconnected from 10.1.0.2""}"                               | 2764
-2024-10-23T13:33:34.937Z | 42                     | "{""language_code"":""2"",""unmapped.nested"":""e"",""unmapped_event_duration"":""1232383"",""unmapped_message"":""43""}"                                                       | 1232
+@timestamp:datetime      | msg:keyword            | duration_ms:long | _unmapped_fields:keyword
+2024-10-23T12:15:03.360Z | Connected to 10.1.0.3! | 3450             | "{""language_code"":""4"",""unmapped.nested"":""g"",""unmapped_event_duration"":""3450234"",""unmapped_message"":""Disconnected from 10.1.0.3""}"
+2024-10-23T12:27:28.948Z | Connected to 10.1.0.2! | 2764             | "{""language_code"":""3"",""unmapped.nested"":""f"",""unmapped_event_duration"":""2764890"",""unmapped_message"":""Disconnected from 10.1.0.2""}"
+2024-10-23T13:33:34.937Z | 42                     | 1232             | "{""language_code"":""2"",""unmapped.nested"":""e"",""unmapped_event_duration"":""1232383"",""unmapped_message"":""43""}"
 ;
 
-// Complex pipeline with EVAL that conflicts with an unmapped source field and a wildcard DROP:
-// EVAL adds "language_code" to the excludes via Eval.unmappedFieldsToKeep(), so the source field
-// language_code does not appear in _unmapped_fields. DROP *duration* removes the mapped column
-// event_duration AND the unmapped source field unmapped_event_duration from _unmapped_fields,
-// because the glob pattern is propagated through patternForDrop into the exclude list.
+// Complex pipeline with EVAL that conflicts with an unmapped source field and a wildcard DROP
+// (gap): EVAL adds "language_code" to the excludes via Eval.unmappedFieldsToKeep(), so the source
+// field language_code does not appear in _unmapped_fields. DROP *duration* should also propagate
+// the glob pattern into the _unmapped_fields exclude list, removing unmapped_event_duration. This
+// test documents the intended correct behaviour; it will fail until the glob propagation is fixed.
 complexEvalDropWildcard
 required_capability: optional_fields_load_all
 
@@ -294,10 +292,10 @@ FROM partial_mapping_sample_data
 | LIMIT 3
 ;
 
-@timestamp:datetime      | message:keyword        | _unmapped_fields:keyword                                                                                                          | language_code:long
-2024-10-23T12:15:03.360Z | Connected to 10.1.0.3! | "{""unmapped.nested"":""g"",""unmapped_message"":""Disconnected from 10.1.0.3""}"                                             | 3450
-2024-10-23T12:27:28.948Z | Connected to 10.1.0.2! | "{""unmapped.nested"":""f"",""unmapped_message"":""Disconnected from 10.1.0.2""}"                                             | 2764
-2024-10-23T13:33:34.937Z | 42                     | "{""unmapped.nested"":""e"",""unmapped_message"":""43""}"                                                                     | 1232
+@timestamp:datetime      | message:keyword        | language_code:long | _unmapped_fields:keyword
+2024-10-23T12:15:03.360Z | Connected to 10.1.0.3! | 3450               | "{""unmapped.nested"":""g"",""unmapped_message"":""Disconnected from 10.1.0.3""}"
+2024-10-23T12:27:28.948Z | Connected to 10.1.0.2! | 2764               | "{""unmapped.nested"":""f"",""unmapped_message"":""Disconnected from 10.1.0.2""}"
+2024-10-23T13:33:34.937Z | 42                     | 1232               | "{""unmapped.nested"":""e"",""unmapped_message"":""43""}"
 ;
 
 // DROP an unmapped field by name (gap): the user explicitly drops the demand-loaded unmapped_message

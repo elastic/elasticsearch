@@ -164,6 +164,7 @@ public class ExpressionWritables {
     public static List<NamedWriteableRegistry.Entry> namedExpressions() {
         List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();
         entries.addAll(ExpressionCoreWritables.namedExpressions());
+        entries.add(UnmappedFieldsAttribute.NAMED_EXPRESSION_ENTRY);
         entries.add(UnsupportedAttribute.NAMED_EXPRESSION_ENTRY);
         return entries;
     }
@@ -171,6 +172,7 @@ public class ExpressionWritables {
     public static List<NamedWriteableRegistry.Entry> expressions() {
         List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();
         entries.addAll(ExpressionCoreWritables.expressions());
+        entries.add(UnmappedFieldsAttribute.EXPRESSION_ENTRY);
         entries.add(UnsupportedAttribute.EXPRESSION_ENTRY);
         entries.add(Order.ENTRY);
         return entries;

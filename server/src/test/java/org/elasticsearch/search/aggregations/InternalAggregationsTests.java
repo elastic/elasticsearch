@@ -286,6 +286,7 @@ public class InternalAggregationsTests extends ESTestCase {
         if (randomBoolean()) {
             InternalDateHistogramTests dateHistogramTests = new InternalDateHistogramTests();
             dateHistogramTests.setUp();
+            dateHistogramTests.initializeDateHistogramParams();
             dateHistogramTests.initializeSubAggregations();
             aggsList.add(dateHistogramTests.createTestInstance());
         }

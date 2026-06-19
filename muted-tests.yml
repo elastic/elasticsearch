@@ -349,6 +349,9 @@ tests:
 - class: org.elasticsearch.action.search.AbstractSearchAsyncActionTests
   method: testMaybeReEncode
   issue: https://github.com/elastic/elasticsearch/issues/151704
+- class: org.elasticsearch.xpack.esql.parser.LookupJoinParserTests
+  method: testInvalidJoinPatternsExpressionJoin
+  issue: https://github.com/elastic/elasticsearch/issues/151705
 
 # Examples:
 #

@@ -104,17 +104,17 @@ public final class ManifoldModel {
         int[] corpusOrdinals,
         int k
     ) throws IOException {
-        return estimateManifoldParameters(similarityFunction, dim, queries, fvv, corpusOrdinals, k, ranksForK(k), SAMPLE_SIZES);
+        return estimateManifoldParameters(similarityFunction, dim, queries, fvv, corpusOrdinals, k, ranksForK(k));
     }
 
     static int[] ranksForK(int k) {
-        return ranksFromMultipliers(RANK_MULTIPLIERS, k);
+        return ranksFromMultipliers(k);
     }
 
-    private static int[] ranksFromMultipliers(int[] multipliers, int k) {
-        int[] ranks = new int[multipliers.length];
-        for (int i = 0; i < multipliers.length; i++) {
-            ranks[i] = Math.max(1, (multipliers[i] * k) / 5);
+    private static int[] ranksFromMultipliers(int k) {
+        int[] ranks = new int[ManifoldModel.RANK_MULTIPLIERS.length];
+        for (int i = 0; i < ManifoldModel.RANK_MULTIPLIERS.length; i++) {
+            ranks[i] = Math.max(1, (ManifoldModel.RANK_MULTIPLIERS[i] * k) / 5);
         }
         return ranks;
     }
@@ -124,10 +124,9 @@ public final class ManifoldModel {
      * ranks and sample sizes. Corpus vectors are accessed lazily via {@code fvv} and
      * {@code corpusOrdinals}.
      *
-     * @param fvv the underlying vector values source
+     * @param fvv            the underlying vector values source
      * @param corpusOrdinals ordinal indices into {@code fvv} for the corpus subset
-     * @param ranksForK the rank values to sweep
-     * @param sampleSizes the corpus sample sizes to sweep (must be same length as ranksForK)
+     * @param ranksForK      the rank values to sweep
      * @return double[2] containing {log(alpha), invDim}
      */
     static double[] estimateManifoldParameters(
@@ -137,13 +136,12 @@ public final class ManifoldModel {
         FloatVectorValues fvv,
         int[] corpusOrdinals,
         int k,
-        int[] ranksForK,
-        int[] sampleSizes
+        int[] ranksForK
     ) throws IOException {
         long startNanos = System.nanoTime();
         int nQueries = queries.size();
         int nDocsTotal = corpusOrdinals.length;
-        int m = Math.min(ranksForK.length, sampleSizes.length);
+        int m = Math.min(ranksForK.length, ManifoldModel.SAMPLE_SIZES.length);
 
         int logCount = 0;
         double[] logRanks = new double[m];
@@ -159,7 +157,7 @@ public final class ManifoldModel {
         int sampleStart = 0;
         for (int i = 0; i < m; i++) {
             int rank = ranksForK[i];
-            int sampleEnd = sampleSizes[i];
+            int sampleEnd = ManifoldModel.SAMPLE_SIZES[i];
             if (sampleEnd > nDocsTotal) {
                 break;
             }
@@ -172,7 +170,7 @@ public final class ManifoldModel {
             }
             avgDist = sum / nQueries;
             logRanks[logCount] = Math.log(rank);
-            logSampleSizes[logCount] = Math.log(sampleSizes[i]);
+            logSampleSizes[logCount] = Math.log(ManifoldModel.SAMPLE_SIZES[i]);
             logDistances[logCount] = Math.log(avgDist);
             logCount++;
             sampleStart = sampleEnd;

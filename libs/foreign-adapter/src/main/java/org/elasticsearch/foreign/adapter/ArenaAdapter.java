@@ -7,7 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.nativeaccess.jdk;
+package org.elasticsearch.foreign.adapter;
 
 import java.lang.foreign.Arena;
 import java.lang.foreign.MemoryLayout;
@@ -17,23 +17,17 @@ import java.nio.charset.Charset;
 import static java.lang.foreign.ValueLayout.JAVA_BYTE;
 
 /**
- * Utility methods to act on Arena apis which have changed in subsequent JDK releases.
+ * Adapts Arena APIs that changed between JDK 21 and 22+.
  */
-class ArenaUtil {
+public class ArenaAdapter {
 
-    /**
-     * Allocate an array of the given memory layout.
-     */
-    static MemorySegment allocate(Arena arena, MemoryLayout layout, int count) {
+    public static MemorySegment allocate(Arena arena, MemoryLayout layout, int count) {
         return arena.allocateArray(layout, count);
     }
 
-    /**
-     * Allocate and copy the given string into native memory.
-     */
-    static MemorySegment allocateFrom(Arena arena, String str, Charset charset) {
+    public static MemorySegment allocateFrom(Arena arena, String str, Charset charset) {
         return arena.allocateArray(JAVA_BYTE, str.getBytes(charset));
     }
 
-    private ArenaUtil() {}
+    private ArenaAdapter() {}
 }

@@ -9,7 +9,7 @@
 
 package org.elasticsearch.nativeaccess.jdk;
 
-import org.elasticsearch.foreign.MemorySegmentUtil;
+import org.elasticsearch.foreign.adapter.MemorySegmentAdapter;
 import org.elasticsearch.nativeaccess.lib.MacCLibrary;
 
 import java.lang.foreign.Arena;
@@ -55,7 +55,7 @@ class JdkMacCLibrary implements MacCLibrary {
         assert errorbuf instanceof JdkErrorReference;
         var jdkErrorbuf = (JdkErrorReference) errorbuf;
         try (Arena arena = Arena.ofConfined()) {
-            MemorySegment nativeProfile = MemorySegmentUtil.allocateString(arena, profile);
+            MemorySegment nativeProfile = MemorySegmentAdapter.allocateString(arena, profile);
             return (int) sandbox_init$mh.invokeExact(nativeProfile, flags, jdkErrorbuf.segment);
         } catch (Throwable t) {
             throw new AssertionError(t);

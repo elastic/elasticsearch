@@ -18,6 +18,7 @@ apply plugin: 'java-test-fixtures'
 dependencies {
   api project(':libs:core')
   api project(':libs:logging')
+  api project(':libs:foreign-adapter')
   testImplementation(project(":test:framework")) {
     exclude group: 'org.elasticsearch', module: 'native'
   }

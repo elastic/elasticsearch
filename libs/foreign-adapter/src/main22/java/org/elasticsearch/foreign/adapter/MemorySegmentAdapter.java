@@ -7,42 +7,31 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.foreign;
+package org.elasticsearch.foreign.adapter;
 
 import java.lang.foreign.Arena;
 import java.lang.foreign.MemoryLayout;
 import java.lang.foreign.MemorySegment;
+import java.lang.invoke.MethodHandles;
 import java.lang.invoke.VarHandle;
 
-/**
- * Utility methods to act on MemorySegment apis which have changed in subsequent JDK releases.
- */
-public class MemorySegmentUtil {
+public class MemorySegmentAdapter {
 
     public static String getString(MemorySegment segment, long offset) {
-        return segment.getUtf8String(offset);
+        return segment.getString(offset);
     }
 
     public static void setString(MemorySegment segment, long offset, String value) {
-        segment.setUtf8String(offset, value);
+        segment.setString(offset, value);
     }
 
     public static MemorySegment allocateString(Arena arena, String s) {
-        return arena.allocateUtf8String(s);
+        return arena.allocateFrom(s);
     }
 
-    /**
-     * Return a {@link VarHandle} to access an element within the given memory segment.
-     *
-     * Note: This is no-op in Java 21, see the Java 22 implementation.
-     *
-     * @param layout The layout of a struct to access
-     * @param element The element within the struct to access
-     * @return A {@link VarHandle} that accesses the element with a fixed offset of 0
-     */
     public static VarHandle varHandleWithoutOffset(MemoryLayout layout, MemoryLayout.PathElement element) {
-        return layout.varHandle(element);
+        return MethodHandles.insertCoordinates(layout.varHandle(element), 1, 0L);
     }
 
-    private MemorySegmentUtil() {}
+    private MemorySegmentAdapter() {}
 }

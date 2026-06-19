@@ -7,36 +7,42 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.foreign;
+package org.elasticsearch.foreign.adapter;
 
 import java.lang.foreign.Arena;
 import java.lang.foreign.MemoryLayout;
 import java.lang.foreign.MemorySegment;
-import java.lang.invoke.MethodHandles;
 import java.lang.invoke.VarHandle;
 
 /**
- * Utility methods to act on MemorySegment apis which have changed in subsequent JDK releases.
+ * Adapts MemorySegment APIs that changed between JDK 21 and 22+.
  */
-public class MemorySegmentUtil {
+public class MemorySegmentAdapter {
 
     public static String getString(MemorySegment segment, long offset) {
-        return segment.getString(offset);
+        return segment.getUtf8String(offset);
     }
 
     public static void setString(MemorySegment segment, long offset, String value) {
-        segment.setString(offset, value);
+        segment.setUtf8String(offset, value);
     }
 
     public static MemorySegment allocateString(Arena arena, String s) {
-        return arena.allocateFrom(s);
+        return arena.allocateUtf8String(s);
     }
 
-    // MemoryLayout.varHandle changed between Java 21 and 22 to require a new offset
-    // parameter for the returned VarHandle. This function exists to remove the need for that offset.
+    /**
+     * Returns a {@link VarHandle} to access an element within the given memory layout.
+     * On JDK 21 this is a no-op pass-through; on JDK 22+ the returned VarHandle has an
+     * extra offset coordinate that must be fixed up with {@code insertCoordinates}.
+     *
+     * @param layout  the layout of a struct to access
+     * @param element the element within the struct to access
+     * @return a {@link VarHandle} that accesses the element with a fixed offset of 0
+     */
     public static VarHandle varHandleWithoutOffset(MemoryLayout layout, MemoryLayout.PathElement element) {
-        return MethodHandles.insertCoordinates(layout.varHandle(element), 1, 0L);
+        return layout.varHandle(element);
     }
 
-    private MemorySegmentUtil() {}
+    private MemorySegmentAdapter() {}
 }

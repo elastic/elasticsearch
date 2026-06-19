@@ -44,7 +44,7 @@ import static org.elasticsearch.logging.LogManager.getLogger;
 class DLMFrozenCleanupService extends AbstractDLMPeriodicMasterOnlyService {
 
     static final Setting<TimeValue> POLL_INTERVAL_SETTING = Setting.timeSetting(
-        "dlm.frozen_cleanup.poll_interval",
+        "dlm.frozen.cleanup.poll_interval",
         TimeValue.timeValueDays(1),
         TimeValue.timeValueHours(1),
         Setting.Property.NodeScope

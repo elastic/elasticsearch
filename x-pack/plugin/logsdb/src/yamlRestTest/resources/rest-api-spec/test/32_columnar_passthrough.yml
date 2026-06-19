@@ -1,0 +1,590 @@
+---
+setup:
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: PUT
+          path: /{index}
+          capabilities: [ columnar_index_modes ]
+      reason: "Support for columnar index modes required"
+
+---
+"columnar: no prefix_properties when no passthrough objects":
+  - do:
+      indices.create:
+        index: test_columnar_no_passthrough
+        body:
+          settings:
+            index.mode: columnar
+          mappings:
+            properties:
+              host:
+                type: keyword
+
+  - do:
+      indices.get_mapping:
+        index: test_columnar_no_passthrough
+  - is_false: test_columnar_no_passthrough.mappings.prefix_properties
+
+---
+"columnar: passthrough priority stored in prefix_properties and alias resolves at root":
+  - do:
+      indices.create:
+        index: test_columnar_passthrough_basic
+        body:
+          settings:
+            index.mode: columnar
+          mappings:
+            properties:
+              attributes:
+                type: passthrough
+                priority: 1
+                dynamic: true
+                properties:
+                  env:
+                    type: keyword
+
+  - do:
+      indices.get_mapping:
+        index: test_columnar_passthrough_basic
+  - match: { test_columnar_passthrough_basic.mappings.prefix_properties.passthrough.attributes: 1 }
+  - match: { test_columnar_passthrough_basic.mappings.prefix_properties.dynamic.attributes: "true" }
+  # Child field is flattened to a dotted name at root level; the passthrough object itself is gone
+  - is_true: test_columnar_passthrough_basic.mappings.properties.attributes\.env
+  - is_false: test_columnar_passthrough_basic.mappings.properties.attributes
+
+  # Index using dotted notation
+  - do:
+      index:
+        index: test_columnar_passthrough_basic
+        refresh: true
+        body:
+          "attributes.env": "prod"
+
+  # Root alias "env" must resolve via passthrough
+  - do:
+      search:
+        index: test_columnar_passthrough_basic
+        body:
+          query:
+            term:
+              env: "prod"
+  - match: { hits.total.value: 1 }
+
+  # Full dotted path must also resolve
+  - do:
+      search:
+        index: test_columnar_passthrough_basic
+        body:
+          query:
+            term:
+              attributes.env: "prod"
+  - match: { hits.total.value: 1 }
+
+---
+"columnar: passthrough with object notation document":
+  - do:
+      indices.create:
+        index: test_columnar_passthrough_object_notation
+        body:
+          settings:
+            index.mode: columnar
+          mappings:
+            properties:
+              attributes:
+                type: passthrough
+                priority: 1
+                properties:
+                  service:
+                    type: keyword
+
+  - do:
+      indices.get_mapping:
+        index: test_columnar_passthrough_object_notation
+  - match: { test_columnar_passthrough_object_notation.mappings.prefix_properties.passthrough.attributes: 1 }
+  - is_true: test_columnar_passthrough_object_notation.mappings.properties.attributes\.service
+  - is_false: test_columnar_passthrough_object_notation.mappings.properties.attributes
+
+  # Index using object notation
+  - do:
+      index:
+        index: test_columnar_passthrough_object_notation
+        refresh: true
+        body:
+          attributes:
+            service: "web"
+
+  - do:
+      search:
+        index: test_columnar_passthrough_object_notation
+        body:
+          query:
+            term:
+              service: "web"
+  - match: { hits.total.value: 1 }
+
+---
+"columnar: higher-priority passthrough wins alias conflict":
+  - do:
+      indices.create:
+        index: test_columnar_passthrough_priority
+        body:
+          settings:
+            index.mode: columnar
+          mappings:
+            properties:
+              attributes:
+                type: passthrough
+                priority: 1
+                properties:
+                  region:
+                    type: keyword
+              resource:
+                type: passthrough
+                priority: 2
+                properties:
+                  region:
+                    type: keyword
+
+  - do:
+      indices.get_mapping:
+        index: test_columnar_passthrough_priority
+  - match: { test_columnar_passthrough_priority.mappings.prefix_properties.passthrough.attributes: 1 }
+  - match: { test_columnar_passthrough_priority.mappings.prefix_properties.passthrough.resource: 2 }
+  - is_true: test_columnar_passthrough_priority.mappings.properties.attributes\.region
+  - is_true: test_columnar_passthrough_priority.mappings.properties.resource\.region
+  - is_false: test_columnar_passthrough_priority.mappings.properties.attributes
+  - is_false: test_columnar_passthrough_priority.mappings.properties.resource
+
+  - do:
+      index:
+        index: test_columnar_passthrough_priority
+        refresh: true
+        body:
+          "attributes.region": "us-east"
+          "resource.region": "eu-west"
+
+  # Root alias "region" must resolve to resource.region (priority 2 > 1)
+  - do:
+      search:
+        index: test_columnar_passthrough_priority
+        body:
+          query:
+            term:
+              region: "eu-west"
+  - match: { hits.total.value: 1 }
+
+  # Full dotted paths are still independently queryable
+  - do:
+      search:
+        index: test_columnar_passthrough_priority
+        body:
+          query:
+            term:
+              attributes.region: "us-east"
+  - match: { hits.total.value: 1 }
+
+---
+"columnar: concrete root field wins over passthrough alias":
+  - do:
+      indices.create:
+        index: test_columnar_passthrough_concrete_wins
+        body:
+          settings:
+            index.mode: columnar
+          mappings:
+            properties:
+              env:
+                type: keyword
+              attributes:
+                type: passthrough
+                priority: 1
+                properties:
+                  env:
+                    type: keyword
+
+  - do:
+      indices.get_mapping:
+        index: test_columnar_passthrough_concrete_wins
+  - match: { test_columnar_passthrough_concrete_wins.mappings.prefix_properties.passthrough.attributes: 1 }
+  - is_true: test_columnar_passthrough_concrete_wins.mappings.properties.env
+  - is_true: test_columnar_passthrough_concrete_wins.mappings.properties.attributes\.env
+  - is_false: test_columnar_passthrough_concrete_wins.mappings.properties.attributes
+
+  - do:
+      index:
+        index: test_columnar_passthrough_concrete_wins
+        refresh: true
+        body:
+          env: "root-value"
+          "attributes.env": "passthrough-value"
+
+  # The root "env" field must resolve to the concrete field, not the passthrough alias
+  - do:
+      search:
+        index: test_columnar_passthrough_concrete_wins
+        body:
+          query:
+            term:
+              env: "root-value"
+  - match: { hits.total.value: 1 }
+
+---
+"columnar: nested dotted passthrough prefix stored as flat key in prefix_properties":
+  - do:
+      indices.create:
+        index: test_columnar_passthrough_dotted_prefix
+        body:
+          settings:
+            index.mode: columnar
+          mappings:
+            properties:
+              resource.attributes:
+                type: passthrough
+                priority: 1
+                dynamic: true
+                properties:
+                  env:
+                    type: keyword
+
+  - do:
+      indices.get_mapping:
+        index: test_columnar_passthrough_dotted_prefix
+  # The full dotted name is stored as a flat literal key — not as nested structure
+  - match:
+      test_columnar_passthrough_dotted_prefix.mappings.prefix_properties.passthrough:
+        resource.attributes: 1
+  - match:
+      test_columnar_passthrough_dotted_prefix.mappings.prefix_properties.dynamic:
+        resource.attributes: "true"
+  - is_true: test_columnar_passthrough_dotted_prefix.mappings.properties.resource\.attributes\.env
+  - is_false: test_columnar_passthrough_dotted_prefix.mappings.properties.resource\.attributes
+
+  - do:
+      index:
+        index: test_columnar_passthrough_dotted_prefix
+        refresh: true
+        body:
+          "resource.attributes.env": "prod"
+
+  - do:
+      search:
+        index: test_columnar_passthrough_dotted_prefix
+        body:
+          query:
+            term:
+              env: "prod"
+  - match: { hits.total.value: 1 }
+
+---
+"columnar: index created with prefix_properties.passthrough in body is preserved on get_mapping":
+  - do:
+      indices.create:
+        index: test_columnar_passthrough_body_input
+        body:
+          settings:
+            index.mode: columnar
+          mappings:
+            prefix_properties:
+              passthrough:
+                attributes: 1
+                resource: 2
+            properties:
+              attributes.env:
+                type: keyword
+              resource.service:
+                type: keyword
+
+  - do:
+      indices.get_mapping:
+        index: test_columnar_passthrough_body_input
+  - match: { test_columnar_passthrough_body_input.mappings.prefix_properties.passthrough.attributes: 1 }
+  - match: { test_columnar_passthrough_body_input.mappings.prefix_properties.passthrough.resource: 2 }
+  - is_true: test_columnar_passthrough_body_input.mappings.properties.attributes\.env
+  - is_true: test_columnar_passthrough_body_input.mappings.properties.resource\.service
+  - is_false: test_columnar_passthrough_body_input.mappings.properties.attributes
+  - is_false: test_columnar_passthrough_body_input.mappings.properties.resource
+
+  - do:
+      index:
+        index: test_columnar_passthrough_body_input
+        refresh: true
+        body:
+          "attributes.env": "prod"
+          "resource.service": "web"
+
+  # resource has priority 2, so it wins alias "service"
+  - do:
+      search:
+        index: test_columnar_passthrough_body_input
+        body:
+          query:
+            term:
+              service: "web"
+  - match: { hits.total.value: 1 }
+
+  - do:
+      search:
+        index: test_columnar_passthrough_body_input
+        body:
+          query:
+            term:
+              env: "prod"
+  - match: { hits.total.value: 1 }
+
+---
+"columnar: put_mapping merge adds new passthrough to prefix_properties":
+  - do:
+      indices.create:
+        index: test_columnar_passthrough_merge
+        body:
+          settings:
+            index.mode: columnar
+          mappings:
+            properties:
+              attributes:
+                type: passthrough
+                priority: 1
+                properties:
+                  env:
+                    type: keyword
+
+  - do:
+      indices.get_mapping:
+        index: test_columnar_passthrough_merge
+  - match: { test_columnar_passthrough_merge.mappings.prefix_properties.passthrough.attributes: 1 }
+  - is_false: test_columnar_passthrough_merge.mappings.prefix_properties.passthrough.resource
+  - is_true: test_columnar_passthrough_merge.mappings.properties.attributes\.env
+  - is_false: test_columnar_passthrough_merge.mappings.properties.attributes
+
+  - do:
+      indices.put_mapping:
+        index: test_columnar_passthrough_merge
+        body:
+          properties:
+            resource:
+              type: passthrough
+              priority: 2
+              properties:
+                service:
+                  type: keyword
+
+  - do:
+      indices.get_mapping:
+        index: test_columnar_passthrough_merge
+  - match: { test_columnar_passthrough_merge.mappings.prefix_properties.passthrough.attributes: 1 }
+  - match: { test_columnar_passthrough_merge.mappings.prefix_properties.passthrough.resource: 2 }
+  - is_true: test_columnar_passthrough_merge.mappings.properties.attributes\.env
+  - is_true: test_columnar_passthrough_merge.mappings.properties.resource\.service
+  - is_false: test_columnar_passthrough_merge.mappings.properties.attributes
+  - is_false: test_columnar_passthrough_merge.mappings.properties.resource
+
+---
+"columnar: invalid prefix_properties.passthrough value is rejected":
+  - do:
+      catch: bad_request
+      indices.create:
+        index: test_columnar_passthrough_invalid
+        body:
+          settings:
+            index.mode: columnar
+          mappings:
+            prefix_properties:
+              passthrough:
+                attributes: "not-a-number"
+            properties:
+              attributes.env:
+                type: keyword
+  - match: { error.type: "mapper_parsing_exception" }
+  - match: { error.reason: "/\\[prefix_properties\\.passthrough\\.attributes\\].must.be.an.integer.value/" }
+
+---
+"logsdb_columnar: no prefix_properties when no passthrough objects":
+  - do:
+      indices.create:
+        index: test_logsdb_columnar_no_passthrough
+        body:
+          settings:
+            index.mode: logsdb_columnar
+          mappings:
+            properties:
+              host:
+                type: keyword
+
+  - do:
+      indices.get_mapping:
+        index: test_logsdb_columnar_no_passthrough
+  - is_false: test_logsdb_columnar_no_passthrough.mappings.prefix_properties
+
+---
+"logsdb_columnar: passthrough priority stored in prefix_properties and alias resolves at root":
+  - do:
+      indices.create:
+        index: test_logsdb_columnar_passthrough_basic
+        body:
+          settings:
+            index.mode: logsdb_columnar
+          mappings:
+            properties:
+              attributes:
+                type: passthrough
+                priority: 1
+                dynamic: true
+                properties:
+                  env:
+                    type: keyword
+
+  - do:
+      indices.get_mapping:
+        index: test_logsdb_columnar_passthrough_basic
+  - match: { test_logsdb_columnar_passthrough_basic.mappings.prefix_properties.passthrough.attributes: 1 }
+  - match: { test_logsdb_columnar_passthrough_basic.mappings.prefix_properties.dynamic.attributes: "true" }
+  - is_true: test_logsdb_columnar_passthrough_basic.mappings.properties.attributes\.env
+  - is_false: test_logsdb_columnar_passthrough_basic.mappings.properties.attributes
+
+  - do:
+      index:
+        index: test_logsdb_columnar_passthrough_basic
+        refresh: true
+        body:
+          "@timestamp": "2024-01-01T00:00:00Z"
+          "attributes.env": "prod"
+
+  - do:
+      search:
+        index: test_logsdb_columnar_passthrough_basic
+        body:
+          query:
+            term:
+              env: "prod"
+  - match: { hits.total.value: 1 }
+
+---
+"logsdb_columnar: higher-priority passthrough wins alias conflict":
+  - do:
+      indices.create:
+        index: test_logsdb_columnar_passthrough_priority
+        body:
+          settings:
+            index.mode: logsdb_columnar
+          mappings:
+            properties:
+              attributes:
+                type: passthrough
+                priority: 1
+                properties:
+                  region:
+                    type: keyword
+              resource:
+                type: passthrough
+                priority: 2
+                properties:
+                  region:
+                    type: keyword
+
+  - do:
+      indices.get_mapping:
+        index: test_logsdb_columnar_passthrough_priority
+  - match: { test_logsdb_columnar_passthrough_priority.mappings.prefix_properties.passthrough.attributes: 1 }
+  - match: { test_logsdb_columnar_passthrough_priority.mappings.prefix_properties.passthrough.resource: 2 }
+  - is_true: test_logsdb_columnar_passthrough_priority.mappings.properties.attributes\.region
+  - is_true: test_logsdb_columnar_passthrough_priority.mappings.properties.resource\.region
+  - is_false: test_logsdb_columnar_passthrough_priority.mappings.properties.attributes
+  - is_false: test_logsdb_columnar_passthrough_priority.mappings.properties.resource
+
+  - do:
+      index:
+        index: test_logsdb_columnar_passthrough_priority
+        refresh: true
+        body:
+          "@timestamp": "2024-01-01T00:00:00Z"
+          "attributes.region": "us-east"
+          "resource.region": "eu-west"
+
+  - do:
+      search:
+        index: test_logsdb_columnar_passthrough_priority
+        body:
+          query:
+            term:
+              region: "eu-west"
+  - match: { hits.total.value: 1 }
+
+---
+"logsdb_columnar: index created with prefix_properties.passthrough in body is preserved on get_mapping":
+  - do:
+      indices.create:
+        index: test_logsdb_columnar_passthrough_body_input
+        body:
+          settings:
+            index.mode: logsdb_columnar
+          mappings:
+            prefix_properties:
+              passthrough:
+                attributes: 1
+            properties:
+              attributes.env:
+                type: keyword
+
+  - do:
+      indices.get_mapping:
+        index: test_logsdb_columnar_passthrough_body_input
+  - match: { test_logsdb_columnar_passthrough_body_input.mappings.prefix_properties.passthrough.attributes: 1 }
+  - is_true: test_logsdb_columnar_passthrough_body_input.mappings.properties.attributes\.env
+  - is_false: test_logsdb_columnar_passthrough_body_input.mappings.properties.attributes
+
+  - do:
+      index:
+        index: test_logsdb_columnar_passthrough_body_input
+        refresh: true
+        body:
+          "@timestamp": "2024-01-01T00:00:00Z"
+          "attributes.env": "prod"
+
+  - do:
+      search:
+        index: test_logsdb_columnar_passthrough_body_input
+        body:
+          query:
+            term:
+              env: "prod"
+  - match: { hits.total.value: 1 }
+
+---
+"logsdb_columnar: put_mapping merge adds new passthrough to prefix_properties":
+  - do:
+      indices.create:
+        index: test_logsdb_columnar_passthrough_merge
+        body:
+          settings:
+            index.mode: logsdb_columnar
+          mappings:
+            properties:
+              attributes:
+                type: passthrough
+                priority: 1
+                properties:
+                  env:
+                    type: keyword
+
+  - do:
+      indices.put_mapping:
+        index: test_logsdb_columnar_passthrough_merge
+        body:
+          properties:
+            resource:
+              type: passthrough
+              priority: 2
+              properties:
+                service:
+                  type: keyword
+
+  - do:
+      indices.get_mapping:
+        index: test_logsdb_columnar_passthrough_merge
+  - match: { test_logsdb_columnar_passthrough_merge.mappings.prefix_properties.passthrough.attributes: 1 }
+  - match: { test_logsdb_columnar_passthrough_merge.mappings.prefix_properties.passthrough.resource: 2 }
+  - is_true: test_logsdb_columnar_passthrough_merge.mappings.properties.attributes\.env
+  - is_true: test_logsdb_columnar_passthrough_merge.mappings.properties.resource\.service
+  - is_false: test_logsdb_columnar_passthrough_merge.mappings.properties.attributes
+  - is_false: test_logsdb_columnar_passthrough_merge.mappings.properties.resource

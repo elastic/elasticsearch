@@ -210,7 +210,8 @@ public final class MappingLookup {
 
         PassThroughObjectMapper.checkForDuplicatePriorities(passThroughSources);
         final Collection<RuntimeField> runtimeFields = mapping.getRoot().runtimeFields();
-        this.fieldTypeLookup = new FieldTypeLookup(mappers, aliasMappers, passThroughSources, runtimeFields);
+        final Map<String, Integer> passthroughByPrefix = mapping.getRoot().getPassthroughByPrefix();
+        this.fieldTypeLookup = new FieldTypeLookup(mappers, aliasMappers, passThroughSources, runtimeFields, passthroughByPrefix);
 
         Map<String, InferenceFieldMetadata> inferenceFields = new HashMap<>();
         List<String> syntheticVectorFields = new ArrayList<>();
@@ -229,7 +230,13 @@ public final class MappingLookup {
             // without runtime fields this is the same as the field type lookup
             this.indexTimeLookup = fieldTypeLookup;
         } else {
-            this.indexTimeLookup = new FieldTypeLookup(mappers, aliasMappers, passThroughSources, Collections.emptyList());
+            this.indexTimeLookup = new FieldTypeLookup(
+                mappers,
+                aliasMappers,
+                passThroughSources,
+                Collections.emptyList(),
+                passthroughByPrefix
+            );
         }
         // make all fields into compact+fast immutable maps
         this.fieldMappers = Map.copyOf(fieldMappers);

@@ -559,8 +559,8 @@ public class TextFieldMapperTests extends MapperTestCase {
         String v1 = randomAlphanumericOfLength(4);
         String v2 = randomAlphanumericOfLength(4);
         String v3 = randomAlphanumericOfLength(4);
-        // Duplicate v2 and an interleaved null: sorted-deduped doc-values order would reorder/collapse them and drop the null; the offsets
-        // sidecar must restore arrival order, the duplicate, and the null position.
+        // Duplicate v2 and an interleaved null: sorted-deduped doc-values order would reorder/collapse them and drop the null; the in-order
+        // binary doc values must restore arrival order, the duplicate, and the null position.
         assertThat(
             syntheticSource(mapper, b -> b.array("field", v2, v1, null, v3, v2)),
             containsString("\"field\":[\"" + v2 + "\",\"" + v1 + "\",null,\"" + v3 + "\",\"" + v2 + "\"]")
@@ -2644,7 +2644,8 @@ public class TextFieldMapperTests extends MapperTestCase {
         assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
 
         // A plain keyword multi-field (dv-backed, no normalizer/ignore_above/null_value) is a complete copy of the raw values, so the text
-        // field skips its own doc values (and offsets) and loads through the delegate; the keyword's doc values are the only copy written.
+        // field skips its own doc values and loads through the delegate; the keyword's doc values are the only copy written. When the text
+        // field instead keeps its own doc values, in strict columnar mode it stores them in document order (no offsets sidecar).
         assertTextDocValuesDedup(b -> {}, false);
         // null_value on the keyword delegate substitutes values, so the keyword copy is not byte-identical and the text field keeps its
         // own.
@@ -2694,7 +2695,10 @@ public class TextFieldMapperTests extends MapperTestCase {
             }
         }
         assertThat("text field's own binary doc values", hasOwnBinaryDocValues, equalTo(expectsOwnDocValues));
-        assertThat("text field's own offsets sidecar", hasOwnOffsets, equalTo(expectsOwnDocValues));
+        // High-cardinality columnar fields store values in document order in their own binary doc values, never via a sidecar offsets
+        // field.
+        assertFalse("text field's own offsets sidecar", hasOwnOffsets);
+        assertThat("text field stores array values in order", textMapper.storesArrayValuesInOrder(), equalTo(expectsOwnDocValues));
     }
 
     public void testConditionalBlockLoader() throws IOException {

@@ -1,0 +1,72 @@
+[[release-notes-8.19.17]]
+== {es} version 8.19.17
+
+coming[8.19.17]
+
+Also see <<breaking-changes-8.19,Breaking changes in 8.19>>.
+
+[[bug-8.19.17]]
+[float]
+=== Bug fixes
+
+Authentication::
+* Move SAML metadata resolution to background thread {es-pull}144381[#144381] (issue: {es-issue}138031[#138031])
+
+ES|QL::
+* Catch `StackOverflowError` in deeply nested RLIKE patterns {es-pull}150238[#150238] (issue: {es-issue}149838[#149838])
+* Catch-and-rethrow `TooComplexToDeterminizeException` within ESQL {es-pull}137024[#137024]
+* Enforce limit for max nested functions {es-pull}149971[#149971]
+* Fixes wrong warning in expressions with unrolled multivalues {es-pull}145968[#145968]
+
+ILM::
+* Truncate error for ILM's `step_info` instead of string {es-pull}150413[#150413]
+
+Inference::
+* When a streaming inference request is canceled, immediately release apache client networking resources {es-pull}149987[#149987]
+* [Inference API] Fix Streaming publisher shutdown race condition {es-pull}150789[#150789] (issue: {es-issue}150742[#150742])
+
+Infra/Core::
+* Don't apply time zones to epoch-based timestamps {es-pull}148663[#148663]
+* Filter `_source` field names by code point {es-pull}151146[#151146]
+* Fix OS stats for cgroup paths containing colons {es-pull}151095[#151095]
+
+Ingest Node::
+* Making enterprise IP location modified date consistent with non-enterprise {es-pull}149638[#149638]
+
+Machine Learning::
+* Add extra validation in `trained_model` creation {es-pull}150227[#150227]
+* Inference API disable partial search results {es-pull}132362[#132362]
+
+Query Languages::
+* EQL/SQL: enforce max expression depth checks {es-pull}150003[#150003]
+
+Security::
+* Make Automatons wildcard code-point aware {es-pull}151143[#151143]
+
+Transform::
+* Honor `ClusterHealth` timeout when waiting for transform internal index shards {es-pull}149462[#149462] (issue: {es-issue}149400[#149400])
+
+[[enhancement-8.19.17]]
+[float]
+=== Enhancements
+
+Authorization::
+* [Axonius] Replace the axonius.alert_and_incident index with the axonius.alert_finding and axonius.incident indices to `manage`, `create_index`, `read`, `index`, `write`, `delete`, permission for third party agent indices `kibana_system` {es-pull}149797[#149797]
+
+Security::
+* Optimize literal action automaton builds {es-pull}151093[#151093] (issues: {es-issue}123872[#123872], {es-issue}105723[#105723])
+
+Snapshot/Restore::
+* Optionally always sign S3 requests {es-pull}151196[#151196]
+
+[[upgrade-8.19.17]]
+[float]
+=== Upgrades
+
+Inference::
+* Upgrading commons-lang3 version for inference plugin {es-pull}150242[#150242]
+
+Network::
+* Upgrade netty to 4.1.135.Final {es-pull}151099[#151099]
+
+

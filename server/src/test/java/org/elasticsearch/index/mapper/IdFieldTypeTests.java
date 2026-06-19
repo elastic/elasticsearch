@@ -9,6 +9,7 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.Term;
+import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermQuery;
@@ -52,7 +53,7 @@ public class IdFieldTypeTests extends ESTestCase {
         Mockito.when(context.indexVersionCreated()).thenReturn(IndexVersion.current());
         MappedFieldType ft = new ProvidedIdFieldMapper.IdFieldType();
         Query query = ft.termQuery("a0", context);
-        assertEquals(new TermQuery(new Term("_id", Uid.encodeId("a0"))), query);
+        assertEquals(new ConstantScoreQuery(new TermQuery(new Term("_id", Uid.encodeId("a0")))), query);
         query = ft.termsQuery(List.of("a1", "a2"), context);
         assertEquals(new TermInSetQuery("_id", List.of(Uid.encodeId("a1"), Uid.encodeId("a2"))), query);
     }

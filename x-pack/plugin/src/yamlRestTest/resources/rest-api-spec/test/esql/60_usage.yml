@@ -66,6 +66,7 @@ setup:
             - fn_json_extract
             - esql_limit_by
             - dedup_command
+            - highlight_v0
       reason: "Test that should only be executed on snapshot versions"
 
   - do: { xpack.usage: { } }
@@ -107,6 +108,7 @@ setup:
   - set: { esql.features.user_agent: user_agent_counter }
   - set: { esql.features.mmr: mmr_counter }
   - set: { esql.features.dedup: dedup_counter }
+  - set: { esql.features.highlight: highlight_counter }
   - length: { esql.queries: 3 }
   - set: { esql.queries.rest.total: rest_total_counter }
   - set: { esql.queries.rest.failed: rest_failed_counter }
@@ -159,6 +161,7 @@ setup:
   - match: { esql.features.sample: $sample_counter }
   - match: { esql.features.mmr: $mmr_counter }
   - match: { esql.features.dedup: $dedup_counter }
+  - match: { esql.features.highlight: $highlight_counter }
   - gt: { esql.queries.rest.total: $rest_total_counter }
   - match: { esql.queries.rest.failed: $rest_failed_counter }
   - match: { esql.queries.kibana.total: $kibana_total_counter }
@@ -216,6 +219,7 @@ setup:
   - match: { esql.features.sample: $sample_counter }
   - match: { esql.features.mmr: $mmr_counter }
   - match: { esql.features.dedup: $dedup_counter }
+  - match: { esql.features.highlight: $highlight_counter }
   - gt: { esql.queries.rest.total: $rest_total_counter }
   - match: { esql.queries.rest.failed: $rest_failed_counter }
   - match: { esql.queries.kibana.total: $kibana_total_counter }
@@ -306,6 +310,7 @@ setup:
   - set: { esql.features.user_agent: user_agent_counter }
   - set: { esql.features.mmr: mmr_counter }
   - set: { esql.features.dedup: dedup_counter }
+  - set: { esql.features.highlight: highlight_counter }
   - length: { esql.queries: 3 }
   - set: { esql.queries.rest.total: rest_total_counter }
   - set: { esql.queries.rest.failed: rest_failed_counter }
@@ -358,6 +363,7 @@ setup:
   - match: { esql.features.ts: $ts_counter }
   - match: { esql.features.mmr: $mmr_counter }
   - match: { esql.features.dedup: $dedup_counter }
+  - match: { esql.features.highlight: $highlight_counter }
   - gt: { esql.queries.rest.total: $rest_total_counter }
   - match: { esql.queries.rest.failed: $rest_failed_counter }
   - match: { esql.queries.kibana.total: $kibana_total_counter }
@@ -413,6 +419,7 @@ setup:
   - match: { esql.features.sample: $sample_counter }
   - match: { esql.features.mmr: $mmr_counter }
   - match: { esql.features.dedup: $dedup_counter }
+  - match: { esql.features.highlight: $highlight_counter }
   - gt: { esql.queries.rest.total: $rest_total_counter }
   - match: { esql.queries.rest.failed: $rest_failed_counter }
   - match: { esql.queries.kibana.total: $kibana_total_counter }

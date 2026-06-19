@@ -75,14 +75,13 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
 
     private static final Logger logger = LogManager.getLogger(APMTracer.class);
 
-    /** Tracks per-span local depth in Context to enforce {@link OtelSdkSettings#TELEMETRY_OTEL_TRACES_MAX_TRACE_DEPTH}. */
+    /** Tracks per-span local depth in Context to enforce {@link OtelSdkSettings#TELEMETRY_TRACING_MAX_DEPTH}. */
     private static final ContextKey<Integer> SPAN_LOCAL_DEPTH_KEY = ContextKey.named("es.apm.span.local_depth");
 
     /** Holds in-flight span information. */
     private final Map<String, Context> spans = ConcurrentCollections.newConcurrentMap();
 
     private final TraceSupplier traceSupplier;
-    private final long flushTimeoutMillis;
 
     private volatile boolean enabled;
     private volatile APMServices services;
@@ -101,11 +100,11 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
      */
     private final boolean useOtelSdkTracesExport;
 
-    /** Maximum local span depth on the OTel SDK path; see {@link OtelSdkSettings#TELEMETRY_OTEL_TRACES_MAX_TRACE_DEPTH}. */
+    /** Maximum local span depth on the OTel SDK path; see {@link OtelSdkSettings#TELEMETRY_TRACING_MAX_DEPTH}. */
     private volatile int maxTraceDepth;
 
     /** Whether to attach exception stack traces on the OTel SDK path;
-     *  see {@link OtelSdkSettings#TELEMETRY_OTEL_TRACES_RECORD_EXCEPTION_STACKS}. */
+     *  see {@link OtelSdkSettings#TELEMETRY_TRACING_RECORD_EXCEPTION_STACKS}. */
     private volatile boolean recordExceptionStacks;
 
     public void setClusterName(String clusterName) {
@@ -140,7 +139,6 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
         boolean recordExceptionStacks
     ) {
         this.traceSupplier = traceSupplier;
-        this.flushTimeoutMillis = OtelSdkSettings.TELEMETRY_OTEL_FLUSH_TIMEOUT.get(settings).millis();
         this.includeNames = APMAgentSettings.TELEMETRY_TRACING_NAMES_INCLUDE_SETTING.get(settings);
         this.excludeNames = APMAgentSettings.TELEMETRY_TRACING_NAMES_EXCLUDE_SETTING.get(settings);
         this.labelFilters = APMAgentSettings.TELEMETRY_TRACING_SANITIZE_FIELD_NAMES.get(settings);
@@ -163,11 +161,11 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
     }
 
     private static int initialMaxTraceDepth(Settings settings) {
-        return otelTracesEnabled() ? OtelSdkSettings.TELEMETRY_OTEL_TRACES_MAX_TRACE_DEPTH.get(settings) : 0;
+        return otelTracesEnabled() ? OtelSdkSettings.TELEMETRY_TRACING_MAX_DEPTH.get(settings) : 0;
     }
 
     private static boolean initialRecordExceptionStacks(Settings settings) {
-        return otelTracesEnabled() && OtelSdkSettings.TELEMETRY_OTEL_TRACES_RECORD_EXCEPTION_STACKS.get(settings);
+        return otelTracesEnabled() && OtelSdkSettings.TELEMETRY_TRACING_RECORD_EXCEPTION_STACKS.get(settings);
     }
 
     public CompletableResultCode attemptFlushTraces() {
@@ -225,7 +223,7 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
     protected void doStop() {
         if (enabled) {
             try {
-                traceSupplier.attemptFlushTraces().join(flushTimeoutMillis, TimeUnit.MILLISECONDS);
+                traceSupplier.attemptFlushTraces().join(Long.MAX_VALUE, TimeUnit.NANOSECONDS);
             } catch (Exception e) {
                 logger.warn("Exception flushing trace supplier", e);
             }

@@ -25,6 +25,7 @@ import io.opentelemetry.sdk.metrics.export.PeriodicMetricReader;
 
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.telemetry.apm.internal.APMAgentSettings;
 import org.elasticsearch.telemetry.apm.internal.export.MeterSupplier;
 
@@ -42,6 +43,10 @@ import static org.elasticsearch.telemetry.TelemetryProvider.OTEL_METRICS_ENABLED
  * @see org.elasticsearch.telemetry.apm.internal.export.agent.AgentExportMeterSupplier
  */
 public class OtelSdkExportMeterSupplier implements MeterSupplier {
+
+    // Internal JVM system property that enables OTel {@link RuntimeTelemetry} JVM metrics.
+    private static final String OTEL_JVM_METRICS_ENABLED_SYSTEM_PROPERTY = "telemetry.metrics.otel_jvm.enabled";
+
     private final Settings settings;
     private final Path diskBufferPath;
     private volatile OTelMetricsResources resources;
@@ -77,8 +82,12 @@ public class OtelSdkExportMeterSupplier implements MeterSupplier {
         var otelSdk = OpenTelemetrySdk.builder().setMeterProvider(systemProvider).build();
 
         // RuntimeTelemetry uses JMX (Java 8+) and JFR (Java 17+) to collect JVM metrics. See https://ela.st/otel-runtime-telemetry
-        var runtimeTelemetry = OtelSdkSettings.TELEMETRY_OTEL_METRICS_ENABLED.get(settings) ? RuntimeTelemetry.create(otelSdk) : null;
+        var runtimeTelemetry = OTelJvmMetricsEnabled() ? RuntimeTelemetry.create(otelSdk) : null;
         return new OTelMetricsResources(systemProvider, runtimeTelemetry);
+    }
+
+    private static boolean OTelJvmMetricsEnabled() {
+        return Booleans.parseBoolean(System.getProperty(OTEL_JVM_METRICS_ENABLED_SYSTEM_PROPERTY, "false"));
     }
 
     private SdkMeterProvider buildSystemMeterProvider(Supplier<MeterProvider> meterProviderSupplier) {
@@ -91,7 +100,7 @@ public class OtelSdkExportMeterSupplier implements MeterSupplier {
         Path bufferPath,
         Supplier<MeterProvider> meterProviderSupplier
     ) {
-        if (OtelSdkSettings.TELEMETRY_OTEL_METRICS_DISK_BUFFER_SIZE.get(settings).getBytes() == 0) {
+        if (OtelSdkSettings.TELEMETRY_METRICS_BUFFER_DISK_SIZE.get(settings).getBytes() == 0) {
             return delegate;
         }
         return new BufferingMetricExporter(delegate, settings, bufferPath, meterProviderSupplier);
@@ -99,7 +108,7 @@ public class OtelSdkExportMeterSupplier implements MeterSupplier {
 
     private PeriodicMetricReader buildMetricReader(MetricExporter exporter) {
         return PeriodicMetricReader.builder(exporter)
-            .setInterval(OtelSdkSettings.TELEMETRY_OTEL_METRICS_INTERVAL.get(settings).toDuration())
+            .setInterval(OtelSdkSettings.TELEMETRY_EXPORT_INTERVAL.get(settings).toDuration())
             .build();
     }
 
@@ -108,37 +117,26 @@ public class OtelSdkExportMeterSupplier implements MeterSupplier {
     }
 
     private OtlpHttpMetricExporter createOTLPExporter(Supplier<MeterProvider> meterProviderSupplier) {
-        String endpoint = OtelSdkSettings.TELEMETRY_OTEL_METRICS_ENDPOINT.get(settings);
+        String endpoint = OtelSdkSettings.TELEMETRY_EXPORT_ENDPOINT.get(settings);
         if (endpoint == null || endpoint.isEmpty()) {
             throw new IllegalStateException(
-                OTEL_METRICS_ENABLED_SYSTEM_PROPERTY + "=true requires telemetry.otel.metrics.endpoint to be configured"
+                OTEL_METRICS_ENABLED_SYSTEM_PROPERTY + "=true requires telemetry.export.endpoint to be configured"
             );
         }
         OtlpHttpMetricExporterBuilder builder = OtlpHttpMetricExporter.builder()
-            .setEndpoint(endpoint)
+            // OTLP/HTTP requires the per-signal path; the shared telemetry.export.endpoint carries only the base URL.
+            .setEndpoint(endpoint + "/v1/metrics")
             .setMeterProvider(meterProviderSupplier)
             .setAggregationTemporalitySelector(AggregationTemporalitySelector.deltaPreferred())
             .setInternalTelemetryVersion(InternalTelemetryVersion.LATEST)
-            .setTimeout(OtelSdkSettings.TELEMETRY_OTEL_OTLP_SEND_TIMEOUT.get(settings).toDuration())
-            .setConnectTimeout(OtelSdkSettings.TELEMETRY_OTEL_OTLP_CONNECT_TIMEOUT.get(settings).toDuration())
-            .setRetryPolicy(buildRetryPolicy());
+            .setTimeout(OtelSdkSettings.TELEMETRY_EXPORT_SEND_TIMEOUT.get(settings).toDuration())
+            .setConnectTimeout(OtelSdkSettings.TELEMETRY_EXPORT_CONNECT_TIMEOUT.get(settings).toDuration())
+            .setRetryPolicy(RetryPolicy.builder().setMaxAttempts(3).build());
         String authHeader = buildOtlpAuthorizationHeader(settings);
         if (authHeader != null) {
             builder.addHeader("Authorization", authHeader);
         }
         return builder.build();
-    }
-
-    private RetryPolicy buildRetryPolicy() {
-        int maxAttempts = OtelSdkSettings.TELEMETRY_OTEL_OTLP_RETRY_MAX_ATTEMPTS.get(settings);
-        if (maxAttempts <= 1) {
-            return null;
-        }
-        return RetryPolicy.builder()
-            .setMaxAttempts(maxAttempts)
-            .setInitialBackoff(OtelSdkSettings.TELEMETRY_OTEL_OTLP_RETRY_INITIAL_BACKOFF.get(settings).toDuration())
-            .setBackoffMultiplier(OtelSdkSettings.TELEMETRY_OTEL_OTLP_RETRY_BACKOFF_MULTIPLIER.get(settings))
-            .build();
     }
 
     static String buildOtlpAuthorizationHeader(Settings settings) {

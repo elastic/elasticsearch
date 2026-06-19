@@ -20,6 +20,7 @@ import org.junit.rules.TestRule;
 import java.io.IOException;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
@@ -32,22 +33,22 @@ public class OTelMetricsBufferingIT extends AbstractMetricsIT {
 
     public static ElasticsearchCluster cluster = AbstractMetricsIT.baseClusterBuilder()
         .systemProperty("telemetry.otel.metrics.enabled", "true")
-        .setting("telemetry.otel.metrics.endpoint", () -> "http://" + recordingApmServer.getHttpAddress() + "/v1/metrics")
-        .setting("telemetry.otel.metrics.disk_buffer_size", "10mb")
-        .setting("telemetry.otel.metrics.buffer_ttl", "5m")
-        // Tight write/read windows so buffered files become drainable within the test budget.
-        .setting("telemetry.otel.metrics.disk_buffer_write_window", "100ms")
-        .setting("telemetry.otel.metrics.disk_buffer_read_min_age", "200ms")
-        // metrics.interval must be > otlp.send_timeout so that the OTLP exporter can fully fail, and so that PeriodicMetricReader does not
-        // skip an export cycle
-        .setting("telemetry.otel.metrics.interval", "500ms")
-        .setting("telemetry.otel.otlp.send_timeout", "300ms")
-        // initial_backoff that is way smaller than otlp.send_timeout allows the exporter to fully exhaust the retries
-        .setting("telemetry.otel.otlp.retry.initial_backoff", "100ms")
+        .systemProperty("telemetry.metrics.otel_jvm.enabled", "true")
+        .setting("telemetry.export.endpoint", () -> "http://" + recordingApmServer.getHttpAddress())
+        .setting("telemetry.metrics.buffer.disk_size", "10mb")
+        .setting("telemetry.metrics.buffer.ttl", "5m")
+        // export.interval must be > export.send_timeout so that the OTLP exporter can fully fail, and so that PeriodicMetricReader does
+        // not skip an export cycle
+        .setting("telemetry.export.interval", "500ms")
+        .setting("telemetry.export.send_timeout", "300ms")
         .build();
 
-    // make it bigger than otlp.send_timeout to allow the OTLP exporter to fully fail, and delegate to the disk buffering exporter
+    // make it bigger than export.send_timeout to allow the OTLP exporter to fully fail, and delegate to the disk buffering exporter
     private static final TimeValue SLEEP_BETWEEN_RUNS = TimeValue.timeValueMillis(400);
+
+    // The disk buffer uses fixed production rotation windows (read-min-age 33s), so a buffered batch only becomes
+    // drainable ~33s after it is written. Poll for more than that window for the post-recovery drain to complete.
+    private static final int BUFFER_DRAIN_TIMEOUT = 60;
 
     // use the same clock implementation as the OTel SDK itself
     private static final Clock otelClock = Clock.getDefault();
@@ -71,10 +72,10 @@ public class OTelMetricsBufferingIT extends AbstractMetricsIT {
         long outageStartEpochNanos = otelClock.now();
         recordingApmServer.setResponseCode(503);
 
-        // Produce BUFFER_BATCHES files to verify the drain loop iterates beyond the first.
-        // One file per iteration is all we can get: deltaPreferred() resets the SDK delta after
-        // each successful disk write, so subsequent flushes without new metric values produce nothing.
-        // The sleep ensures each file has aged past disk_buffer_read_min_age before the drain.
+        // Buffer several batches during the outage to exercise the drain loop over more than one stored entry.
+        // deltaPreferred() resets the SDK delta after each successful disk write, so each iteration contributes one
+        // batch; the sleep lets each export fully fail before the next. They become drainable once the fixed
+        // production read-min-age window elapses after recovery.
         final int BUFFER_BATCHES = 3;
         for (int i = 0; i < BUFFER_BATCHES; i++) {
             client().performRequest(new Request("GET", "/_use_apm_metrics"));
@@ -84,23 +85,19 @@ public class OTelMetricsBufferingIT extends AbstractMetricsIT {
 
         long outageEndEpochNanos = otelClock.now();
 
-        CountDownLatch backlogReplayed = new CountDownLatch(1);
-        CountDownLatch outageWindowBatchReplayed = new CountDownLatch(1);
         AtomicLong writtenFiles = new AtomicLong();
         AtomicLong replayedFiles = new AtomicLong();
+        AtomicBoolean outageWindowBatchReplayed = new AtomicBoolean();
 
         recordingApmServer.addMessageConsumer(msg -> {
             if (msg instanceof ReceivedTelemetry.ReceivedMetricSet m && "elasticsearch".equals(m.instrumentationScopeName())) {
                 long timestamp = m.collectionTime();
                 if (timestamp >= outageStartEpochNanos && timestamp <= outageEndEpochNanos) {
-                    outageWindowBatchReplayed.countDown();
+                    outageWindowBatchReplayed.set(true);
                 }
 
                 writtenFiles.getAndAdd(longSample(m, "es.apm.metrics.disk_buffer.writes"));
                 replayedFiles.getAndAdd(longSample(m, "es.apm.metrics.disk_buffer.replays"));
-                if (writtenFiles.get() > 0 && writtenFiles.get() == replayedFiles.get()) {
-                    backlogReplayed.countDown();
-                }
             }
         });
 
@@ -108,18 +105,23 @@ public class OTelMetricsBufferingIT extends AbstractMetricsIT {
 
         client().performRequest(new Request("GET", "/_flush_telemetry"));
 
-        assertTrue(
-            "expected the drain loop to replay all disk-buffered batches after recovery "
-                + "(es.apm.metrics.disk_buffer.writes peaked at "
-                + writtenFiles.get()
-                + ", es.apm.metrics.disk_buffer.replays peaked at "
-                + replayedFiles.get()
-                + ")",
-            backlogReplayed.await(TELEMETRY_TIMEOUT, TimeUnit.SECONDS)
-        );
-        assertTrue(
-            "expected a replayed metricset carrying an outage-window timestamp",
-            outageWindowBatchReplayed.await(TELEMETRY_TIMEOUT, TimeUnit.SECONDS)
+        assertBusy(() -> {
+            long written = writtenFiles.get();
+            long replayed = replayedFiles.get();
+            assertTrue(
+                "expected the drain loop to replay all disk-buffered batches after recovery "
+                    + "(es.apm.metrics.disk_buffer.writes peaked at "
+                    + written
+                    + ", es.apm.metrics.disk_buffer.replays peaked at "
+                    + replayed
+                    + ")",
+                written > 0 && written == replayed
+            );
+        }, BUFFER_DRAIN_TIMEOUT, TimeUnit.SECONDS);
+        assertBusy(
+            () -> assertTrue("expected a replayed metricset carrying an outage-window timestamp", outageWindowBatchReplayed.get()),
+            BUFFER_DRAIN_TIMEOUT,
+            TimeUnit.SECONDS
         );
     }
 

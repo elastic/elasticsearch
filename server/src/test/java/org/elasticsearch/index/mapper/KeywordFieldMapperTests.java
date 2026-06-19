@@ -1344,7 +1344,7 @@ public class KeywordFieldMapperTests extends MapperTestCase {
             fieldMapping(b -> b.field("type", "keyword").startObject("doc_values").field("nullability", false).endObject())
         );
         DocumentParsingException e = expectThrows(DocumentParsingException.class, () -> mapper.parse(source(b -> b.nullField("field"))));
-        assertThat(e.getCause().getMessage(), containsString("configured with [nullability=false] but encountered a null value"));
+        assertThat(e.getCause().getMessage(), containsString("configured with [nullability=false] but were null"));
     }
 
     public void testNullabilityFalseRejectsNullInArray() throws IOException {
@@ -1356,7 +1356,7 @@ public class KeywordFieldMapperTests extends MapperTestCase {
             DocumentParsingException.class,
             () -> mapper.parse(source(b -> b.startArray("field").nullValue().endArray()))
         );
-        assertThat(e.getCause().getMessage(), containsString("configured with [nullability=false] but encountered a null value"));
+        assertThat(e.getCause().getMessage(), containsString("configured with [nullability=false] but were null"));
     }
 
     /**
@@ -1392,7 +1392,7 @@ public class KeywordFieldMapperTests extends MapperTestCase {
             fieldMapping(b -> b.field("type", "keyword").startObject("doc_values").field("nullability", false).endObject())
         );
         DocumentParsingException e = expectThrows(DocumentParsingException.class, () -> mapper.parse(source(b -> {})));
-        assertThat(e.getCause().getMessage(), containsString("configured with [nullability=false] but encountered a null value"));
+        assertThat(e.getCause().getMessage(), containsString("configured with [nullability=false] but were null"));
     }
 
     /**

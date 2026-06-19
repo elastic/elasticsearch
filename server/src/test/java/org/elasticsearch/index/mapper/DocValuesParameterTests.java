@@ -259,7 +259,7 @@ public class DocValuesParameterTests extends MapperServiceTestCase {
             DocumentParsingException.class,
             () -> mapper.parse(source(b -> b.array("field", (Object) null)))
         );
-        assertThat(e.getCause().getMessage(), containsString("configured with [nullability=false] but encountered a null value"));
+        assertThat(e.getCause().getMessage(), containsString("configured with [nullability=false] but were null"));
     }
 
     public void testIndexSettingFalseMultiValueContainsNullDoesntReject() throws Exception {
@@ -296,7 +296,7 @@ public class DocValuesParameterTests extends MapperServiceTestCase {
             DocumentParsingException.class,
             () -> mapper.parse(source(b -> b.array("field", (Object) null)))
         );
-        assertThat(e.getCause().getMessage(), containsString("configured with [nullability=false] but encountered a null value"));
+        assertThat(e.getCause().getMessage(), containsString("configured with [nullability=false] but were null"));
     }
 
     /**
@@ -312,6 +312,6 @@ public class DocValuesParameterTests extends MapperServiceTestCase {
             DocumentParsingException.class,
             () -> mapper.parse(source(b -> b.array("field", (Object) null)))
         );
-        assertThat(e.getCause().getMessage(), containsString("configured with [nullability=false] but encountered a null value"));
+        assertThat(e.getCause().getMessage(), containsString("configured with [nullability=false] but were null"));
     }
 }

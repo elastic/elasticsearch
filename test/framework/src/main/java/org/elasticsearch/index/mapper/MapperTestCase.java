@@ -2344,7 +2344,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             b.startObject("doc_values").field("nullability", false).endObject();
         }));
         DocumentParsingException e = expectThrows(DocumentParsingException.class, () -> mapper.parse(source(b -> b.nullField("field"))));
-        assertThat(e.getCause().getMessage(), containsString("configured with [nullability=false] but encountered a null value"));
+        assertThat(e.getCause().getMessage(), containsString("configured with [nullability=false] but were null"));
     }
 
     public void testNullabilityFalseRejectsMissingField() throws Exception {
@@ -2355,7 +2355,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             b.startObject("doc_values").field("nullability", false).endObject();
         }));
         DocumentParsingException e = expectThrows(DocumentParsingException.class, () -> mapper.parse(source(b -> {})));
-        assertThat(e.getCause().getMessage(), containsString("configured with [nullability=false] but encountered a null value"));
+        assertThat(e.getCause().getMessage(), containsString("configured with [nullability=false] but were null"));
     }
 
     /**

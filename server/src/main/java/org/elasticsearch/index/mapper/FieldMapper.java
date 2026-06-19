@@ -327,21 +327,6 @@ public abstract class FieldMapper extends Mapper {
     }
 
     /**
-     * Checks if the document in the given context has a value for this field. Throws an exception if value is null or missing.
-     */
-    protected void throwIfNullValue(DocumentParserContext context) {
-        if (context.getIgnoredFields().contains(fullPath) || context.doc().getField(fullPath) != null) {
-            return;
-        }
-        for (var doc : context.nonRootDocuments()) {
-            if (doc.getField(fullPath) != null) {
-                return;
-            }
-        }
-        throw new IllegalArgumentException("Field [" + fullPath + "] is configured with [nullability=false] but encountered a null value");
-    }
-
-    /**
      * @return whether this field mapper uses a script to generate its values
      */
     public final boolean hasScript() {

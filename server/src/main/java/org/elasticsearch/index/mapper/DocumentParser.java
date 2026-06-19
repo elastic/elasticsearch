@@ -171,9 +171,7 @@ public final class DocumentParser {
             for (MetadataFieldMapper metadataMapper : metadataFieldsMappers) {
                 metadataMapper.postParse(context);
             }
-            for (FieldMapper mapper : context.mappingLookup().nonNullableMappers()) {
-                mapper.throwIfNullValue(context);
-            }
+            context.enforceNonNullableFields();
         } catch (Exception e) {
             throw wrapInDocumentParsingException(context, e);
         }
@@ -891,6 +889,7 @@ public final class DocumentParser {
             throwOnNoFieldName(context);
         }
         Mapper mapper = getLeafMapper(context, currentFieldName);
+        context.encounterNonNullableField(currentFieldName);
         if (mapper != null) {
             parseObjectOrField(context, mapper);
         } else {

@@ -62,7 +62,7 @@ public final class MappingLookup {
     private final FieldTypeLookup indexTimeLookup;  // for index-time scripts, a lookup that does not include runtime fields
     private final Map<String, NamedAnalyzer> indexAnalyzers;
     private final List<FieldMapper> indexTimeScriptMappers;
-    private final List<FieldMapper> nonNullableMappers;
+    private final Set<String> nonNullableFields;
     private final Mapping mapping;
     private final int totalFieldsCount;
     private final IndexMode indexMode;
@@ -187,7 +187,7 @@ public final class MappingLookup {
 
         final Map<String, NamedAnalyzer> indexAnalyzers = new HashMap<>();
         final List<FieldMapper> indexTimeScriptMappers = new ArrayList<>();
-        final List<FieldMapper> nonNullableMappers = new ArrayList<>();
+        final Set<String> nonNullableMappers = new HashSet<>();
         for (FieldMapper mapper : mappers) {
             if (objects.containsKey(mapper.fullPath())) {
                 throw new MapperParsingException("Field [" + mapper.fullPath() + "] is defined both as an object and a field");
@@ -200,7 +200,7 @@ public final class MappingLookup {
                 indexTimeScriptMappers.add(mapper);
             }
             if (mapper.isNullable() == false) {
-                nonNullableMappers.add(mapper);
+                nonNullableMappers.add(mapper.fullPath());
             }
         }
 
@@ -242,7 +242,7 @@ public final class MappingLookup {
         this.runtimeFieldMappersCount = runtimeFields.size();
         this.indexAnalyzers = Map.copyOf(indexAnalyzers);
         this.indexTimeScriptMappers = List.copyOf(indexTimeScriptMappers);
-        this.nonNullableMappers = List.copyOf(nonNullableMappers);
+        this.nonNullableFields = Set.copyOf(nonNullableMappers);
         this.indexMode = indexMode;
 
         runtimeFields.stream().flatMap(RuntimeField::asMappedFieldTypes).map(MappedFieldType::name).forEach(this::validateDoesNotShadow);
@@ -310,8 +310,8 @@ public final class MappingLookup {
         return indexTimeScriptMappers;
     }
 
-    List<FieldMapper> nonNullableMappers() {
-        return nonNullableMappers;
+    Set<String> nonNullableFields() {
+        return nonNullableFields;
     }
 
     public NamedAnalyzer indexAnalyzer(String field, Function<String, NamedAnalyzer> unmappedFieldAnalyzer) {

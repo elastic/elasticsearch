@@ -70,7 +70,11 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
     public void testSynchronousTaskRunsOnProvidedThreadPoolAndNotifiesUserListener() {
         // Use real threads instead of DeterministicTaskQueue to verify actual threading behavior below
         final var recoveryType = randomFrom(RecoverySource.Type.values());
-        final var service = new ThrottlingRecoveryService(threadPool.generic(), newClusterService(1), new RecoverySchedulingListeners());
+        final var service = new ThrottlingRecoveryService(
+            threadPool.generic(),
+            newClusterService(1),
+            new CompositeRecoverySchedulingListener()
+        );
         final var callerThread = Thread.currentThread();
         final var executionThread = new AtomicReference<Thread>();
         final var consumerReturned = new CountDownLatch(1);
@@ -117,7 +121,11 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
     /// Asynchronous task: consumer returns before the scheduling listener receives a terminal callback.
     public void testAsynchronousTaskListenerNotificationAfterConsumerReturns() {
         // Use real threads instead of DeterministicTaskQueue to be able to use safeAwait below
-        final var service = new ThrottlingRecoveryService(threadPool.generic(), newClusterService(1), new RecoverySchedulingListeners());
+        final var service = new ThrottlingRecoveryService(
+            threadPool.generic(),
+            newClusterService(1),
+            new CompositeRecoverySchedulingListener()
+        );
         final var consumerReturned = new CountDownLatch(1);
         final var recoveryDone = new CountDownLatch(1);
         final var userListener = new RecoveryListener() {
@@ -159,7 +167,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         final var service = new ThrottlingRecoveryService(
             executor,
             newClusterService(maxConcurrentRecoveries),
-            new RecoverySchedulingListeners()
+            new CompositeRecoverySchedulingListener()
         );
         final var running = new AtomicInteger();
         final var completed = new AtomicInteger();
@@ -231,7 +239,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         final var service = new ThrottlingRecoveryService(
             taskQueue.getThreadPool().generic(),
             clusterService,
-            new RecoverySchedulingListeners()
+            new CompositeRecoverySchedulingListener()
         );
         final var started = new AtomicInteger();
 
@@ -265,7 +273,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         final var service = new ThrottlingRecoveryService(
             taskQueue.getThreadPool().generic(),
             clusterService,
-            new RecoverySchedulingListeners()
+            new CompositeRecoverySchedulingListener()
         );
         final var started = new AtomicInteger();
         final var done = new AtomicInteger();
@@ -340,7 +348,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         final var service = new ThrottlingRecoveryService(
             taskQueue.getThreadPool().generic(),
             newClusterService(1),
-            new RecoverySchedulingListeners()
+            new CompositeRecoverySchedulingListener()
         );
         final int total = between(10, 20);
         final var completionOrder = new CopyOnWriteArrayList<Integer>();
@@ -388,7 +396,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         final var service = new ThrottlingRecoveryService(
             taskQueue.getThreadPool().generic(),
             newClusterService(1),
-            new RecoverySchedulingListeners()
+            new CompositeRecoverySchedulingListener()
         );
         final var firstTaskFailed = new AtomicBoolean(false);
         final var secondTaskCompleted = new AtomicBoolean(false);
@@ -456,7 +464,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         final var service = new ThrottlingRecoveryService(
             taskQueue.getThreadPool().generic(),
             newClusterService(1),
-            new RecoverySchedulingListeners()
+            new CompositeRecoverySchedulingListener()
         );
         final var firstTaskAborted = new AtomicBoolean(false);
         final var secondTaskCompleted = new AtomicBoolean(false);
@@ -519,7 +527,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         final var service = new ThrottlingRecoveryService(
             taskQueue.getThreadPool().generic(),
             newClusterService(1),
-            new RecoverySchedulingListeners()
+            new CompositeRecoverySchedulingListener()
         );
 
         final var queuedTaskAborted = new AtomicBoolean();
@@ -586,7 +594,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         final var service = new ThrottlingRecoveryService(
             taskQueue.getThreadPool().generic(),
             newClusterService(1),
-            new RecoverySchedulingListeners()
+            new CompositeRecoverySchedulingListener()
         );
         service.close();
 
@@ -628,7 +636,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         final var service = new ThrottlingRecoveryService(
             taskQueue.getThreadPool().generic(),
             clusterService,
-            new RecoverySchedulingListeners()
+            new CompositeRecoverySchedulingListener()
         );
 
         final var recoveryState = newRecoveryState();
@@ -742,9 +750,9 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
                 case PEER -> RecoverySource.PeerRecoverySource.INSTANCE;
                 case SNAPSHOT -> new RecoverySource.SnapshotRecoverySource(
                     randomUUID(),
-                    new Snapshot(ProjectId.DEFAULT, "repo", new SnapshotId("snapshot", randomUUID())),
+                    new Snapshot(ProjectId.DEFAULT, randomRepoName(), new SnapshotId(randomSnapshotName(), randomUUID())),
                     IndexVersion.current(),
-                    new IndexId("index", randomIndexName())
+                    new IndexId(indexName, randomUUID())
                 );
                 case LOCAL_SHARDS -> RecoverySource.LocalShardsRecoverySource.INSTANCE;
                 case RESHARD_SPLIT -> new RecoverySource.ReshardSplitRecoverySource(

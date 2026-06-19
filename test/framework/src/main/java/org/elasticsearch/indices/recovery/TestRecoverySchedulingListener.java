@@ -11,36 +11,35 @@ package org.elasticsearch.indices.recovery;
 
 import org.elasticsearch.cluster.routing.RecoverySource;
 
-/// A [RecoverySchedulingListener] that calls a provided [Runnable] on every scheduling event.
-public class TestRecoverySchedulingListener implements RecoverySchedulingListener {
-    private final Runnable onChange;
+/// A [RecoverySchedulingListener] that calls [#onRecoverySchedulingChange] on every scheduling event.
+/// Subclasses implement [#onRecoverySchedulingChange] to react to any recovery scheduling transition.
+public abstract class TestRecoverySchedulingListener implements RecoverySchedulingListener {
 
-    public TestRecoverySchedulingListener(Runnable onChange) {
-        this.onChange = onChange;
-    }
+    /// Called whenever any recovery scheduling event fires.
+    public abstract void onRecoverySchedulingChange();
 
     @Override
     public void onRecoveryQueued(RecoverySource.Type type, RecoveryRole role) {
-        onChange.run();
+        onRecoverySchedulingChange();
     }
 
     @Override
     public void onRecoveryStarted(RecoverySource.Type type, RecoveryRole role) {
-        onChange.run();
+        onRecoverySchedulingChange();
     }
 
     @Override
     public void onRecoveryDequeuedAndStarted(RecoverySource.Type type, RecoveryRole role) {
-        onChange.run();
+        onRecoverySchedulingChange();
     }
 
     @Override
     public void onQueuedRecoveryDiscarded(RecoverySource.Type type, RecoveryRole role) {
-        onChange.run();
+        onRecoverySchedulingChange();
     }
 
     @Override
     public void onRecoveryCompleted(RecoverySource.Type type, RecoveryRole role) {
-        onChange.run();
+        onRecoverySchedulingChange();
     }
 }

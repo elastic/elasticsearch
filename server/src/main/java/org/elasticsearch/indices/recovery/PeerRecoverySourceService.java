@@ -95,7 +95,7 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
         ClusterService clusterService,
         RecoverySettings recoverySettings,
         RecoveryPlannerService recoveryPlannerService,
-        RecoverySchedulingListeners schedulingListeners
+        CompositeRecoverySchedulingListener schedulingListeners
     ) {
         this.transportService = transportService;
         this.indicesService = indicesService;
@@ -231,7 +231,7 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
 
     final class OngoingRecoveries {
 
-        private final RecoverySchedulingListeners schedulingListeners;
+        private final CompositeRecoverySchedulingListener schedulingListeners;
 
         private final Map<IndexShard, ShardRecoveryContext> activeRecoveries = new HashMap<>();
 
@@ -241,7 +241,7 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
 
         private int activeRecoveryHandlerCount = 0;
 
-        OngoingRecoveries(RecoverySchedulingListeners schedulingListeners) {
+        OngoingRecoveries(CompositeRecoverySchedulingListener schedulingListeners) {
             this.schedulingListeners = schedulingListeners;
         }
 
@@ -497,7 +497,7 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
             try {
                 // Force a check in case we became empty while registering
                 if (isEmpty()) {
-                    emptyLatch.countDown();
+                    return;
                 }
                 emptyLatch.await();
             } catch (InterruptedException e) {

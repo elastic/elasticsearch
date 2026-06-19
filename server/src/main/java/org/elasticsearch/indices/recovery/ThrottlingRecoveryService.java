@@ -46,7 +46,7 @@ public final class ThrottlingRecoveryService implements Closeable {
     );
 
     private final Executor executor;
-    private final RecoverySchedulingListeners schedulingListeners;
+    private final CompositeRecoverySchedulingListener schedulingListeners;
 
     private int maxConcurrentRecoveries;
     private int runningRecoveries = 0;
@@ -54,7 +54,11 @@ public final class ThrottlingRecoveryService implements Closeable {
 
     private boolean closed;
 
-    public ThrottlingRecoveryService(Executor executor, ClusterService clusterService, RecoverySchedulingListeners schedulingListeners) {
+    public ThrottlingRecoveryService(
+        Executor executor,
+        ClusterService clusterService,
+        CompositeRecoverySchedulingListener schedulingListeners
+    ) {
         this.executor = executor;
         this.schedulingListeners = schedulingListeners;
         clusterService.getClusterSettings()

@@ -9,58 +9,6 @@
 
 package org.elasticsearch.indices.recovery;
 
-import org.elasticsearch.cluster.routing.RecoverySource;
-
-import java.util.List;
-import java.util.concurrent.CopyOnWriteArrayList;
-
-/// A mutable composite [RecoverySchedulingListener] that fans out every event to all registered subscribers.
-///
-/// Subscribers are added and removed dynamically via [#addListener] and [#removeListener].
-public class RecoverySchedulingListeners implements RecoverySchedulingListener {
-
-    private final List<RecoverySchedulingListener> listeners = new CopyOnWriteArrayList<>();
-
-    public void addListener(RecoverySchedulingListener listener) {
-        listeners.add(listener);
-    }
-
-    public void removeListener(RecoverySchedulingListener listener) {
-        listeners.remove(listener);
-    }
-
-    @Override
-    public void onRecoveryQueued(RecoverySource.Type type, RecoveryRole role) {
-        for (RecoverySchedulingListener listener : listeners) {
-            listener.onRecoveryQueued(type, role);
-        }
-    }
-
-    @Override
-    public void onRecoveryStarted(RecoverySource.Type type, RecoveryRole role) {
-        for (RecoverySchedulingListener listener : listeners) {
-            listener.onRecoveryStarted(type, role);
-        }
-    }
-
-    @Override
-    public void onRecoveryDequeuedAndStarted(RecoverySource.Type type, RecoveryRole role) {
-        for (RecoverySchedulingListener listener : listeners) {
-            listener.onRecoveryDequeuedAndStarted(type, role);
-        }
-    }
-
-    @Override
-    public void onQueuedRecoveryDiscarded(RecoverySource.Type type, RecoveryRole role) {
-        for (RecoverySchedulingListener listener : listeners) {
-            listener.onQueuedRecoveryDiscarded(type, role);
-        }
-    }
-
-    @Override
-    public void onRecoveryCompleted(RecoverySource.Type type, RecoveryRole role) {
-        for (RecoverySchedulingListener listener : listeners) {
-            listener.onRecoveryCompleted(type, role);
-        }
-    }
-}
+/// @deprecated use [CompositeRecoverySchedulingListener] instead.
+@Deprecated
+public final class RecoverySchedulingListeners extends CompositeRecoverySchedulingListener {}

@@ -49,10 +49,10 @@ import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.indices.recovery.CompositeRecoverySchedulingListener;
 import org.elasticsearch.indices.recovery.PeerRecoverySourceClusterStateDelay;
 import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
 import org.elasticsearch.indices.recovery.RecoveryRole;
-import org.elasticsearch.indices.recovery.RecoverySchedulingListeners;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.indices.recovery.StatelessPrimaryRelocationAction;
 import org.elasticsearch.injection.guice.Inject;
@@ -116,7 +116,7 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
     private final TransportService transportService;
     private final ClusterService clusterService;
     private final IndicesService indicesService;
-    private final RecoverySchedulingListeners recoverySchedulingListeners;
+    private final CompositeRecoverySchedulingListener recoverySchedulingListeners;
     private final PeerRecoveryTargetService peerRecoveryTargetService;
     private final StatelessCommitService statelessCommitService;
     private final Executor recoveryExecutor;
@@ -133,7 +133,7 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
         ClusterService clusterService,
         ActionFilters actionFilters,
         IndicesService indicesService,
-        RecoverySchedulingListeners recoverySchedulingListeners,
+        CompositeRecoverySchedulingListener recoverySchedulingListeners,
         PeerRecoveryTargetService peerRecoveryTargetService,
         StatelessCommitService statelessCommitService,
         IndexShardCacheWarmer indexShardCacheWarmer,

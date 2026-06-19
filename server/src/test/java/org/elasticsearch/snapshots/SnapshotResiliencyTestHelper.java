@@ -123,10 +123,10 @@ import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService;
+import org.elasticsearch.indices.recovery.CompositeRecoverySchedulingListener;
 import org.elasticsearch.indices.recovery.PeerRecoverySourceService;
 import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
 import org.elasticsearch.indices.recovery.RecoveryMetricsCollector;
-import org.elasticsearch.indices.recovery.RecoverySchedulingListeners;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.indices.recovery.SnapshotFilesProvider;
 import org.elasticsearch.indices.recovery.ThrottlingRecoveryService;
@@ -653,7 +653,7 @@ public class SnapshotResiliencyTestHelper {
                 throttlingRecoveryService = new ThrottlingRecoveryService(
                     threadPool.generic(),
                     clusterService,
-                    new RecoverySchedulingListeners()
+                    new CompositeRecoverySchedulingListener()
                 );
 
                 indicesService = new IndicesServiceBuilder().settings(settings)
@@ -775,7 +775,7 @@ public class SnapshotResiliencyTestHelper {
                     clusterService,
                     recoverySettings,
                     PeerOnlyRecoveryPlannerService.INSTANCE,
-                    new RecoverySchedulingListeners()
+                    new CompositeRecoverySchedulingListener()
                 );
 
                 final ResponseCollectorService responseCollectorService = new ResponseCollectorService(clusterService);

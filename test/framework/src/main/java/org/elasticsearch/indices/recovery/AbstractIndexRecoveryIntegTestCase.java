@@ -97,41 +97,42 @@ public abstract class AbstractIndexRecoveryIntegTestCase extends ESIntegTestCase
         final AtomicBoolean success = new AtomicBoolean();
 
         final Map<String, IndicesService> indicesServices = new ConcurrentHashMap<>();
-        final Map<String, RecoverySchedulingListeners> schedulingListeners = new ConcurrentHashMap<>();
+        final Map<String, CompositeRecoverySchedulingListener> schedulingListeners = new ConcurrentHashMap<>();
         for (String nodeName : predicatePerNode.keySet()) {
             indicesServices.put(nodeName, internalCluster().getInstance(IndicesService.class, nodeName));
-            schedulingListeners.put(nodeName, internalCluster().getInstance(RecoverySchedulingListeners.class, nodeName));
+            schedulingListeners.put(nodeName, internalCluster().getInstance(CompositeRecoverySchedulingListener.class, nodeName));
         }
 
-        final Runnable checkStats = () -> {
-            if (success.get()) {
-                return;
-            }
-            // Check if all conditions are met
-            for (final var nodePredicate : predicatePerNode.entrySet()) {
-                final var indicesService = indicesServices.get(nodePredicate.getKey());
-
-                final var stats = new RecoveryStats();
-                for (IndexService indexService : indicesService) {
-                    for (IndexShard shard : indexService) {
-                        stats.add(shard.recoveryStats());
-                    }
-                }
-                if (nodePredicate.getValue().test(stats) == false) {
+        final var listener = new TestRecoverySchedulingListener() {
+            @Override
+            public void onRecoverySchedulingChange() {
+                if (success.get()) {
                     return;
                 }
-            }
-            conditionLatch.countDown();
-            success.set(true);
-        };
+                // Check if all conditions are met
+                for (final var nodePredicate : predicatePerNode.entrySet()) {
+                    final var indicesService = indicesServices.get(nodePredicate.getKey());
 
-        final var listener = new TestRecoverySchedulingListener(checkStats);
+                    final var stats = new RecoveryStats();
+                    for (IndexService indexService : indicesService) {
+                        for (IndexShard shard : indexService) {
+                            stats.add(shard.recoveryStats());
+                        }
+                    }
+                    if (nodePredicate.getValue().test(stats) == false) {
+                        return;
+                    }
+                }
+                conditionLatch.countDown();
+                success.set(true);
+            }
+        };
         for (final var nodeName : predicatePerNode.keySet()) {
             schedulingListeners.get(nodeName).addListener(listener);
         }
         try {
             // In case conditions were already met before we added the listener everywhere
-            checkStats.run();
+            listener.onRecoverySchedulingChange();
             safeAwait(conditionLatch);
         } finally {
             // Clean up all listeners

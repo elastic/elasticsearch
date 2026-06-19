@@ -150,10 +150,10 @@ import org.elasticsearch.indices.breaker.CircuitBreakerMetrics;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
+import org.elasticsearch.indices.recovery.CompositeRecoverySchedulingListener;
 import org.elasticsearch.indices.recovery.PeerRecoverySourceService;
 import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
 import org.elasticsearch.indices.recovery.RecoveryMetricsCollector;
-import org.elasticsearch.indices.recovery.RecoverySchedulingListeners;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.indices.recovery.SnapshotFilesProvider;
 import org.elasticsearch.indices.recovery.ThrottlingRecoveryService;
@@ -927,7 +927,7 @@ class NodeConstruction {
             }
         };
 
-        final RecoverySchedulingListeners recoverySchedulingListeners = new RecoverySchedulingListeners();
+        final CompositeRecoverySchedulingListener recoverySchedulingListeners = new CompositeRecoverySchedulingListener();
         final ThrottlingRecoveryService throttlingRecoveryService = new ThrottlingRecoveryService(
             threadPool.generic(),
             clusterService,
@@ -1387,7 +1387,7 @@ class NodeConstruction {
             resourcesToClose.add(peerRecovery);
 
             b.bind(RecoveryMetricsCollector.class).toInstance(recoveryMetricsCollector);
-            b.bind(RecoverySchedulingListeners.class).toInstance(recoverySchedulingListeners);
+            b.bind(CompositeRecoverySchedulingListener.class).toInstance(recoverySchedulingListeners);
             b.bind(ThrottlingRecoveryService.class).toInstance(throttlingRecoveryService);
             b.bind(PeerRecoverySourceService.class).toInstance(peerRecovery);
             b.bind(PeerRecoveryTargetService.class)

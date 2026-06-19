@@ -55,7 +55,7 @@ public class BytesTransportResponse extends TransportResponse implements BytesTr
     public void writeThin(StreamOutput out) throws IOException {}
 
     @Override
-    public void writeTo(StreamOutput out) {
+    public final void writeTo(StreamOutput out) {
         assert false : "should not be called";
         throw new UnsupportedOperationException("writeTo() should not be used");
     }

@@ -55,7 +55,7 @@ public class GetVirtualBatchedCompoundCommitChunkResponse extends ActionResponse
     }
 
     @Override
-    public void writeTo(StreamOutput out) {
+    public final void writeTo(StreamOutput out) {
         assert false : "should not be called";
         throw new UnsupportedOperationException("writeTo() should not be used");
     }

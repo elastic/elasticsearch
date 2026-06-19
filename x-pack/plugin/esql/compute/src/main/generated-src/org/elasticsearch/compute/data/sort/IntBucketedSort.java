@@ -67,7 +67,6 @@ public class IntBucketedSort implements Releasable {
      * </ul>
      */
     private IntArray values;
-
     public IntBucketedSort(BigArrays bigArrays, SortOrder order, int bucketSize) {
         this.bigArrays = bigArrays;
         this.order = order;
@@ -264,7 +263,11 @@ public class IntBucketedSort implements Releasable {
         long oldMax = values.size();
         assert oldMax % bucketSize == 0;
 
-        long newSize = BigArrays.overSize(((long) bucket + 1) * bucketSize, PageCacheRecycler.INT_PAGE_SIZE, Integer.BYTES);
+        long newSize = BigArrays.overSize(
+            ((long) bucket + 1) * bucketSize,
+            PageCacheRecycler.INT_PAGE_SIZE,
+            Integer.BYTES
+        );
         // Round up to the next full bucket.
         newSize = (newSize + bucketSize - 1) / bucketSize;
         values = bigArrays.resize(values, newSize * bucketSize);

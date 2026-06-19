@@ -51,14 +51,17 @@ class Top$Name$$OutputFieldName$Aggregator {
     public static void combineIntermediate(SingleState state, $Type$Block values$if(hasOutputField)$, $OutputFieldType$Block outputValues$endif$) {
         int start = values.getFirstValueIndex(0);
         int end = start + values.getValueCount(0);
+$if(hasOutputField && OutputFieldBytesRef)$
+        var outputScratch = new BytesRef();
+$endif$
 $if(BytesRef || Ip)$
         var scratch = new BytesRef();
         for (int i = start; i < end; i++) {
-            combine(state, values.get$Type$(i, scratch)$if(hasOutputField)$, outputValues.get$OutputFieldType$(i)$endif$);
+            combine(state, values.get$Type$(i, scratch)$if(hasOutputField)$, $if(OutputFieldBytesRef)$outputValues.getBytesRef(i, outputScratch)$else$outputValues.get$OutputFieldType$(i)$endif$$endif$);
         }
 $else$
         for (int i = start; i < end; i++) {
-            combine(state, values.get$Type$(i)$if(hasOutputField)$, outputValues.get$OutputFieldType$(i)$endif$);
+            combine(state, values.get$Type$(i)$if(hasOutputField)$, $if(OutputFieldBytesRef)$outputValues.getBytesRef(i, outputScratch)$else$outputValues.get$OutputFieldType$(i)$endif$$endif$);
         }
 $endif$
     }
@@ -78,14 +81,17 @@ $endif$
     public static void combineIntermediate(GroupingState state, int groupId, $Type$Block values, $if(hasOutputField)$$OutputFieldType$Block outputValues, $endif$int position) {
         int start = values.getFirstValueIndex(position);
         int end = start + values.getValueCount(position);
+$if(hasOutputField && OutputFieldBytesRef)$
+        var outputScratch = new BytesRef();
+$endif$
 $if(BytesRef || Ip)$
         var scratch = new BytesRef();
         for (int i = start; i < end; i++) {
-            combine(state, groupId, values.get$Type$(i, scratch)$if(hasOutputField)$, outputValues.get$OutputFieldType$(i)$endif$);
+            combine(state, groupId, values.get$Type$(i, scratch)$if(hasOutputField)$, $if(OutputFieldBytesRef)$outputValues.getBytesRef(i, outputScratch)$else$outputValues.get$OutputFieldType$(i)$endif$$endif$);
         }
 $else$
         for (int i = start; i < end; i++) {
-            combine(state, groupId, values.get$Type$(i)$if(hasOutputField)$, outputValues.get$OutputFieldType$(i)$endif$);
+            combine(state, groupId, values.get$Type$(i)$if(hasOutputField)$, $if(OutputFieldBytesRef)$outputValues.getBytesRef(i, outputScratch)$else$outputValues.get$OutputFieldType$(i)$endif$$endif$);
         }
 $endif$
     }
@@ -98,7 +104,7 @@ $endif$
         private final $Name$$OutputFieldName$BucketedSort sort;
 
         private GroupingState(BigArrays bigArrays, int limit, boolean ascending) {
-$if(BytesRef)$
+$if(BytesRef && !hasOutputField)$
             // TODO pass the breaker in from the DriverContext
             CircuitBreaker breaker = bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
             this.sort = new BytesRefBucketedSort(breaker, "top", bigArrays, ascending ? SortOrder.ASC : SortOrder.DESC, limit);

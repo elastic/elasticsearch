@@ -67,7 +67,6 @@ public class DoubleBucketedSort implements Releasable {
      * </ul>
      */
     private DoubleArray values;
-
     public DoubleBucketedSort(BigArrays bigArrays, SortOrder order, int bucketSize) {
         this.bigArrays = bigArrays;
         this.order = order;
@@ -264,7 +263,11 @@ public class DoubleBucketedSort implements Releasable {
         long oldMax = values.size();
         assert oldMax % bucketSize == 0;
 
-        long newSize = BigArrays.overSize(((long) bucket + 1) * bucketSize, PageCacheRecycler.DOUBLE_PAGE_SIZE, Double.BYTES);
+        long newSize = BigArrays.overSize(
+            ((long) bucket + 1) * bucketSize,
+            PageCacheRecycler.DOUBLE_PAGE_SIZE,
+            Double.BYTES
+        );
         // Round up to the next full bucket.
         newSize = (newSize + bucketSize - 1) / bucketSize;
         values = bigArrays.resize(values, newSize * bucketSize);

@@ -67,7 +67,6 @@ public class FloatBucketedSort implements Releasable {
      * </ul>
      */
     private FloatArray values;
-
     public FloatBucketedSort(BigArrays bigArrays, SortOrder order, int bucketSize) {
         this.bigArrays = bigArrays;
         this.order = order;
@@ -264,7 +263,11 @@ public class FloatBucketedSort implements Releasable {
         long oldMax = values.size();
         assert oldMax % bucketSize == 0;
 
-        long newSize = BigArrays.overSize(((long) bucket + 1) * bucketSize, PageCacheRecycler.FLOAT_PAGE_SIZE, Float.BYTES);
+        long newSize = BigArrays.overSize(
+            ((long) bucket + 1) * bucketSize,
+            PageCacheRecycler.FLOAT_PAGE_SIZE,
+            Float.BYTES
+        );
         // Round up to the next full bucket.
         newSize = (newSize + bucketSize - 1) / bucketSize;
         values = bigArrays.resize(values, newSize * bucketSize);

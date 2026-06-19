@@ -97,7 +97,12 @@ public class DoubleLongBucketedSort implements Releasable {
     public void collect(double value, long extraValue, int bucket) {
         long rootIndex = (long) bucket * bucketSize;
         if (inHeapMode(bucket)) {
-            if (betterThan(value, values.get(rootIndex), extraValue, extraValues.get(rootIndex))) {
+            if (betterThan(
+                value,
+                values.get(rootIndex),
+                extraValue,
+                extraValues.get(rootIndex)
+            )) {
                 values.set(rootIndex, value);
                 extraValues.set(rootIndex, extraValue);
                 downHeap(rootIndex, 0, bucketSize);
@@ -296,7 +301,11 @@ public class DoubleLongBucketedSort implements Releasable {
         long oldMax = values.size();
         assert oldMax % bucketSize == 0;
 
-        long newSize = BigArrays.overSize(((long) bucket + 1) * bucketSize, PageCacheRecycler.DOUBLE_PAGE_SIZE, Double.BYTES);
+        long newSize = BigArrays.overSize(
+            ((long) bucket + 1) * bucketSize,
+            PageCacheRecycler.DOUBLE_PAGE_SIZE,
+            Double.BYTES
+        );
         // Round up to the next full bucket.
         newSize = (newSize + bucketSize - 1) / bucketSize;
         values = bigArrays.resize(values, newSize * bucketSize);
@@ -383,7 +392,12 @@ public class DoubleLongBucketedSort implements Releasable {
             int leftChild = parent * 2 + 1;
             long leftIndex = rootIndex + leftChild;
             if (leftChild < heapSize) {
-                if (betterThan(values.get(worstIndex), values.get(leftIndex), extraValues.get(worstIndex), extraValues.get(leftIndex))) {
+                if (betterThan(
+                    values.get(worstIndex),
+                    values.get(leftIndex),
+                    extraValues.get(worstIndex),
+                    extraValues.get(leftIndex)
+                )) {
                     worst = leftChild;
                     worstIndex = leftIndex;
                 }

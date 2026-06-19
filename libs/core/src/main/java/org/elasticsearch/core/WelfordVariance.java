@@ -10,12 +10,10 @@
 package org.elasticsearch.core;
 
 /**
- * Welford's online algorithm for computing mean and variance in a single pass.
+ * Welford's online algorithm for computing mean and variance in an online fashion.
  *
  * @see <a href="https://en.wikipedia.org/wiki/Algorithms_for_calculating_variance#Welford's_online_algorithm">
- *         Welford's online algorithm</a>
- * @see <a href="https://en.wikipedia.org/wiki/Algorithms_for_calculating_variance#Parallel_algorithm">
- *         Parallel algorithm</a>
+ *         Welford's online algorithm</a>.
  */
 public final class WelfordVariance {
 

@@ -7,25 +7,28 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.nativeaccess.jdk;
+package org.elasticsearch.foreign;
 
 import java.lang.foreign.Linker;
+import java.lang.invoke.MethodHandle;
+import java.lang.invoke.MethodHandles.Lookup;
 
 public class LinkerHelperUtil {
 
     static final Linker.Option[] ALLOW_HEAP_ACCESS = new Linker.Option[] { Linker.Option.critical(true) };
 
     /** Returns a linker option used to mark a foreign function as critical. */
-    static Linker.Option[] critical() {
+    public static Linker.Option[] critical() {
         return ALLOW_HEAP_ACCESS;
     }
 
     /**
-     * Whether downcalls may receive heap {@link java.lang.foreign.MemorySegment}s directly via
-     * {@code Linker.Option.critical(boolean)}. Always true on JDK 22+.
+     * JDK 22+ identity adapter: {@code Linker.Option.critical(true)} already lets the raw downcall accept heap
+     * segments, so the {@code @Critical} fallback adapter is never resolved. Mirrors the JDK 21 signature so
+     * the generated {@code $Impl} bytecode resolves on both releases.
      */
-    static boolean heapAccessAvailable() {
-        return true;
+    public static MethodHandle adaptCritical(Lookup lookup, MethodHandle rawHandle, Class<?> adapterClass, String methodName) {
+        return rawHandle;
     }
 
     private LinkerHelperUtil() {}

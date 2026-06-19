@@ -1285,7 +1285,7 @@ public class ScopedSettingsTests extends ESTestCase {
             settings.applySettings(Settings.builder().put("logger._root", "TRACE").build());
             assertEquals(Level.TRACE, LogManager.getRootLogger().getLevel());
             assertWarnings(
-                "Setting [logger.] overrides child loggers with explicitly configured levels."
+                "A settings update to logger levels overrides child loggers with explicitly configured levels."
                     + " This behavior is deprecated and will change in a future major version."
             );
             settings.applySettings(Settings.builder().build());
@@ -1295,7 +1295,7 @@ public class ScopedSettingsTests extends ESTestCase {
             // deprecation warning fires and must be consumed here.
             if (property != Level.TRACE && property.intLevel() >= Level.WARN.intLevel()) {
                 assertWarnings(
-                    "Setting [logger.] overrides child loggers with explicitly configured levels."
+                    "A settings update to logger levels overrides child loggers with explicitly configured levels."
                         + " This behavior is deprecated and will change in a future major version."
                 );
             }
@@ -1329,7 +1329,7 @@ public class ScopedSettingsTests extends ESTestCase {
             // Setting the parent via the cluster settings API should override the child and emit a deprecation warning.
             settings.applySettings(Settings.builder().put("logger.test.deprecation.parent", "INFO").build());
             assertWarnings(
-                "Setting [logger.test.deprecation.parent] overrides child loggers with explicitly configured levels."
+                "A settings update to logger levels overrides child loggers with explicitly configured levels."
                     + " This behavior is deprecated and will change in a future major version."
             );
         });
@@ -1365,7 +1365,7 @@ public class ScopedSettingsTests extends ESTestCase {
             settings.applySettings(Settings.builder().put("logger._root", "TRACE").build());
             assertEquals(Level.TRACE, LogManager.getRootLogger().getLevel());
             assertWarnings(
-                "Setting [logger.] overrides child loggers with explicitly configured levels."
+                "A settings update to logger levels overrides child loggers with explicitly configured levels."
                     + " This behavior is deprecated and will change in a future major version."
             );
             settings.applySettings(Settings.builder().build()); // here we fall back to 'logger.level' which is our default.

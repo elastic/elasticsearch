@@ -103,6 +103,14 @@ public class TransformContinuousIT extends TransformRestTestCase {
                 "logger.org.elasticsearch.xpack.transform.transforms.scheduling": "trace"
               }
             }""");
+        addFailureRetrySetting.setOptions(RequestOptions.DEFAULT.toBuilder().setWarningsHandler(warnings -> {
+            for (String warning : warnings) {
+                if (warning.equals(DEPRECATED_LOGGER_CHILD_OVERRIDE_WARNING) == false) {
+                    return true;
+                }
+            }
+            return false;
+        }).build());
         client().performRequest(addFailureRetrySetting);
     }
 

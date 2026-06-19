@@ -237,9 +237,8 @@ public class Loggers {
             DeprecationLoggerHolder.INSTANCE.warn(
                 DeprecationCategory.SETTINGS,
                 "logger_child_override_" + logger.getName(),
-                "Setting [logger.{}] overrides child loggers with explicitly configured levels."
-                    + " This behavior is deprecated and will change in a future major version.",
-                logger.getName()
+                "A settings update to logger levels overrides child loggers with explicitly configured levels."
+                    + " This behavior is deprecated and will change in a future major version."
             );
         }
 

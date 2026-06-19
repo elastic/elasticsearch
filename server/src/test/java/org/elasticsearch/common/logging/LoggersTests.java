@@ -156,7 +156,7 @@ public class LoggersTests extends ESTestCase {
             Loggers.setLevel(child, Level.TRACE); // re-establish child level (it was just overridden by the parent update above)
             Loggers.setLevel(parent, Level.INFO, true);
             assertWarnings(
-                "Setting [logger.test.parent] overrides child loggers with explicitly configured levels."
+                "A settings update to logger levels overrides child loggers with explicitly configured levels."
                     + " This behavior is deprecated and will change in a future major version."
             );
 

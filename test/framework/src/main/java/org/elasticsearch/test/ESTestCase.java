@@ -751,6 +751,10 @@ public abstract class ESTestCase extends LuceneTestCase {
             "[cluster.routing.allocation.type] setting was deprecated in Elasticsearch and will be removed "
                 + "in a future release. See the breaking changes documentation for the next major version."
         );
+        filtered.add(
+            "A settings update to logger levels overrides child loggers with explicitly configured levels."
+                + " This behavior is deprecated and will change in a future major version."
+        );
         return filtered;
     }
 

@@ -47,7 +47,8 @@ public class AllocationCounterTests extends ESTestCase {
     }
 
     public void testExecuteResetsCounter() {
-        PainlessTestScript script = compile("return 1;", "1mb");
+        // The script returns a constant-pool string so nothing is allocated after the reset (returning an int would autobox).
+        PainlessTestScript script = compile("return \"x\";", "1mb");
         PainlessScript tracked = (PainlessScript) script;
         tracked.$incAllocBytes(500L);
         assertEquals(500L, tracked.getAllocBytes());

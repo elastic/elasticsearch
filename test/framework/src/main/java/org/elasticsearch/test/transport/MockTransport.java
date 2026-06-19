@@ -102,8 +102,7 @@ public class MockTransport extends StubbableTransport {
             final Response deliveredResponse;
             try (BytesStreamOutput output = new BytesStreamOutput()) {
                 if (response instanceof BytesTransportMessage bytesResponse) {
-                    bytesResponse.writeThin(output);
-                    bytesResponse.bytes().writeTo(output);
+                    bytesResponse.writeThinWithBytes(output);
                 } else {
                     response.writeTo(output);
                 }

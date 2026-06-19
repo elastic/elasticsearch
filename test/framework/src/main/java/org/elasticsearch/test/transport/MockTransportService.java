@@ -570,8 +570,7 @@ public class MockTransportService extends TransportService {
                 // poor mans request cloning...
                 BytesStreamOutput bStream = new BytesStreamOutput();
                 if (request instanceof BytesTransportMessage bytesRequest) {
-                    bytesRequest.writeThin(bStream);
-                    bytesRequest.bytes().writeTo(bStream);
+                    bytesRequest.writeThinWithBytes(bStream);
                 } else {
                     request.writeTo(bStream);
                 }

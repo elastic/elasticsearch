@@ -23,4 +23,12 @@ public interface BytesTransportMessage {
      * the actual bytes will be appended right after this content.
      */
     void writeThin(StreamOutput out) throws IOException;
+
+    /**
+     * Writes this message using {@link #writeThin(StreamOutput)} followed by the raw bytes payload.
+     */
+    default void writeThinWithBytes(StreamOutput out) throws IOException {
+        writeThin(out);
+        bytes().writeTo(out);
+    }
 }

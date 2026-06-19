@@ -34,6 +34,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.IndexService;
@@ -1028,6 +1029,96 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
         ensureGreen(indexName);
     }
 
+    /**
+     * Verifies that the store ref acquired inside {@code warmCache} is released as soon as all warming tasks are enqueued,
+     * so the shard store can close promptly without waiting for queued tasks to drain.
+     *
+     * <p>Before the fix, {@code warmCache} held the store ref until all tasks completed via
+     * {@code ActionListener.runAfter(listener, store::decRef)}, preventing the shard from closing
+     * while tasks were still in the throttled-task-runner queue. This caused issues during
+     * search-recovery timeout in that relocating a shard to the node could time out.
+     *
+     * <p>After the fix the ref is released in a {@code finally} block immediately after enqueueing.
+     * Tasks that run after the store closes see {@code isCancelled() = true} (= {@code store.isClosing()})
+     * and skip all blob I/O, completing their listener chains without errors.
+     *
+     * <p>This test intercepts {@code scheduleWarmingTask} to capture tasks without running them,
+     * waits for {@code warmCache} to return (= ref released), then removes the replica to trigger
+     * {@code store.close()}, asserts the store closes immediately, reestablishes the shard and
+     * releases the captured tasks, and verifies no {@code "failed to warm blob"} log messages appear.
+     */
+    public void testStoreClosesPromptlyWithQueuedWarmingTasks() throws Exception {
+        startMasterOnlyNode();
+
+        final Settings nodeSettings = Settings.builder()
+            .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), CACHE_SIZE.getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), REGION_SIZE.getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_RANGE_SIZE_SETTING.getKey(), REGION_SIZE.getStringRep())
+            .put(StatelessCommitService.STATELESS_UPLOAD_MAX_AMOUNT_COMMITS.getKey(), 1)
+            .put(disableIndexingDiskAndMemoryControllersNodeSettings())
+            .build();
+
+        startIndexNode(nodeSettings);
+        final String searchNode = startSearchNode(nodeSettings);
+        ensureStableCluster(3);
+
+        final String indexName = randomIdentifier();
+        createIndex(indexName, indexSettings(1, 0).put(EngineConfig.USE_COMPOUND_FILE, randomBoolean()).build());
+        indexDocs(indexName, randomIntBetween(1, 100));
+        refresh(indexName);
+
+        // Capture warming tasks without running them; count down the latch after warmCache returns
+        // (= after the store ref is released in the finally block).
+        final var capturedTasks = new CopyOnWriteArrayList<ActionListener<Releasable>>();
+        final var warmCacheReturnedLatch = new CountDownLatch(1);
+        final var warmingService = getSharedBlobCacheWarmingService(searchNode);
+        warmingService.setScheduleWarmingTaskInterceptor(capturedTasks::add);
+        warmingService.setWarmCacheReturnedCallback(warmCacheReturnedLatch::countDown);
+
+        // Bootstrap the search shard: triggers warmCacheForSearchShardRecovery → warmCache.
+        setReplicaCount(1, indexName);
+
+        // Wait for warmCache to return — at this point tasks are enqueued and the store ref is released.
+        safeAwait(warmCacheReturnedLatch);
+        assertThat("expect at least one warming task to have been enqueued", capturedTasks.size(), greaterThan(0));
+
+        // Grab the store reference before triggering removal.
+        final var store = findSearchShard(indexName).store();
+        assertTrue(store.hasReferences());
+
+        // Remove the replica: the shard is closed and store.close() is called.
+        // With the fix the store can close immediately (no warming ref held).
+        // Before the fix the store would have been blocked until all tasks drained — which would
+        // never happen here because the interceptor prevents tasks from running.
+        try (var mockLog = MockLog.capture(SharedBlobCacheWarmingService.class)) {
+            mockLog.addExpectation(
+                new MockLog.UnseenEventExpectation(
+                    "no failed-to-warm-blob warnings",
+                    SharedBlobCacheWarmingService.class.getName(),
+                    Level.WARN,
+                    "*failed to warm blob*"
+                )
+            );
+
+            setReplicaCount(0, indexName);
+            assertBusy(() -> assertFalse("store must close promptly without waiting for queued warming tasks", store.hasReferences()));
+
+            // A new search copy can be established while the old warming tasks are still pending.
+            // Before the fix, the store ref blocked shard closure, so a new recovery on the same
+            // node could not start until the tasks were drained.
+            warmingService.setScheduleWarmingTaskInterceptor(null);
+            setReplicaCount(1, indexName);
+            ensureGreen(indexName);
+
+            // Release the old captured tasks: their store is closed, so isCancelled()=true → skip all blob I/O.
+            for (var task : capturedTasks) {
+                task.onResponse(() -> {});
+            }
+
+            mockLog.assertAllExpectationsMatched();
+        }
+    }
+
     public void testPreWarmingBasedOnIdLookupOnIndexShardRelocation() throws Exception {
         var nodeSettings = Settings.builder()
             .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), CACHE_SIZE.getStringRep())
@@ -1412,6 +1503,20 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
         private volatile boolean awaitWarmingForSearchRecovery = false;
         private volatile boolean awaitWarmingForIndexingRecovery = false;
 
+        /** When set, captures warming tasks instead of scheduling them. */
+        private volatile Consumer<ActionListener<Releasable>> scheduleWarmingTaskInterceptor = null;
+
+        /** Fired synchronously after each {@code warmCache} call returns (i.e. after the store ref is released). */
+        private volatile Runnable warmCacheReturnedCallback = null;
+
+        void setScheduleWarmingTaskInterceptor(Consumer<ActionListener<Releasable>> interceptor) {
+            this.scheduleWarmingTaskInterceptor = interceptor;
+        }
+
+        void setWarmCacheReturnedCallback(Runnable callback) {
+            this.warmCacheReturnedCallback = callback;
+        }
+
         ObservableSharedBlobCacheWarmingService(
             StatelessSharedBlobCacheService cacheService,
             ThreadPool threadPool,
@@ -1538,6 +1643,16 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
         }
 
         @Override
+        protected void scheduleWarmingTask(ActionListener<Releasable> task) {
+            var interceptor = scheduleWarmingTaskInterceptor;
+            if (interceptor != null) {
+                interceptor.accept(task);
+            } else {
+                super.scheduleWarmingTask(task);
+            }
+        }
+
+        @Override
         protected void warmCache(
             Type type,
             IndexShard indexShard,
@@ -1557,6 +1672,10 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
                 beforeWarmingStartsListener.accept(type);
             }
             super.warmCache(type, indexShard, commit, directory, endOffsetsToWarm, preWarmForIdLookup, wrappedListener);
+            var callback = warmCacheReturnedCallback;
+            if (callback != null) {
+                callback.run();
+            }
         }
     }
 

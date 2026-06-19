@@ -172,11 +172,11 @@ public class ResolveUnmapped extends AnalyzerRules.ParameterizedAnalyzerRule<Log
      * applied bottom-up, a field referenced inside one branch is loaded when the rule fires on that branch's subtree (which contains no
      * {@code UnionAll}, so it takes the simple, source-spanning path below) - sibling branches are not touched and are later null-filled by
      * {@code ResolveRefs#resolveFork} alignment (Decision A in #142033). When the rule instead fires on a node spanning a {@code UnionAll}
-     * (an outer reference), a field absent from every branch source cannot be attributed to a single independent source, so it is null-filled
-     * everywhere (Decision B); a field already present (mapped or already loaded) in some branch is left to resolve through the union output.
-     * Decision B null-fills at the branch sources, so the outer reference only resolves when the column survives each branch's pipeline up
-     * to the union; if every branch drops it (e.g. a non-grouping STATS), the reference correctly stays unresolved and fails verification.
-     * Cross-branch type conflicts are caught later by {@code UnionAll#checkUnionAll} (Decision C).
+     * (an outer reference), a field absent from every branch source cannot be attributed to a single independent source, so it is
+     * null-filled everywhere (Decision B); a field already present (mapped or already loaded) in some branch is left to resolve through
+     * the union output. Decision B null-fills at the branch sources, so the outer reference only resolves when the column survives each
+     * branch's pipeline up to the union; if every branch drops it (e.g. a non-grouping STATS), the reference correctly stays unresolved
+     * and fails verification. Cross-branch type conflicts are caught later by {@code UnionAll#checkUnionAll} (Decision C).
      */
     private static LogicalPlan load(LogicalPlan plan, Set<UnresolvedAttribute> unresolved) {
         // TODO: this will need to be revisited for non-lookup joining or scenarios where we won't want extraction from specific sources

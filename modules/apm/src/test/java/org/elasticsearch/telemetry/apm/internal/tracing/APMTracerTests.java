@@ -205,6 +205,21 @@ public class APMTracerTests extends ESTestCase {
     }
 
     /**
+     * Check that {@link APMTracer#setStatusToError} is a no-op when the traceable has no active span —
+     * i.e. it was never started or has already been stopped.
+     */
+    public void test_setStatusToError_noopWhenSpanNotFound() {
+        Settings settings = Settings.builder().put(APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING.getKey(), true).build();
+        APMTracer apmTracer = buildTracer(settings);
+
+        // TRACEABLE1 was never started — span map is empty
+        assertThat(apmTracer.getSpans(), anEmptyMap());
+        apmTracer.setStatusToError(TRACEABLE1, "should be ignored");
+        // no exception thrown and spans map remains empty
+        assertThat(apmTracer.getSpans(), anEmptyMap());
+    }
+
+    /**
      * Check that when a trace is started, then the thread context is updated with tracing information.
      * <p>
      * We expect the APM agent to inject the {@link Task#TRACE_PARENT_HTTP_HEADER} and {@link Task#TRACE_STATE}

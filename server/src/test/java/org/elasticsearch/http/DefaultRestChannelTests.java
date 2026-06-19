@@ -510,10 +510,16 @@ public class DefaultRestChannelTests extends ESTestCase {
      */
     public void testTraceStatusErrorSetFor5xx() {
         sendResponseAndCapture(new RestResponse(RestStatus.INTERNAL_SERVER_ERROR, "server error"));
-        verify(tracer).setStatusToError(argThat(id -> id.getSpanId().startsWith("rest-")), any(String.class));
+        verify(tracer).setStatusToError(
+            argThat(id -> id.getSpanId().startsWith("rest-")),
+            eq(RestStatus.INTERNAL_SERVER_ERROR.getStatus() + " " + RestStatus.INTERNAL_SERVER_ERROR.name())
+        );
 
         sendResponseAndCapture(new RestResponse(RestStatus.BAD_GATEWAY, "bad gateway"));
-        verify(tracer, times(2)).setStatusToError(argThat(id -> id.getSpanId().startsWith("rest-")), any(String.class));
+        verify(tracer, times(2)).setStatusToError(
+            argThat(id -> id.getSpanId().startsWith("rest-")),
+            eq(RestStatus.BAD_GATEWAY.getStatus() + " " + RestStatus.BAD_GATEWAY.name())
+        );
     }
 
     /**

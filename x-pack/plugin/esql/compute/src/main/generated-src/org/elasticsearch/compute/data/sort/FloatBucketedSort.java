@@ -167,7 +167,9 @@ public class FloatBucketedSort implements Releasable {
             return blockFactory.newConstantNullBlock(selected.getPositionCount());
         }
 
-        try (var builder = blockFactory.newFloatBlockBuilder(selected.getPositionCount())) {
+        try (
+            var builder = blockFactory.newFloatBlockBuilder(selected.getPositionCount())
+        ) {
             for (int s = 0; s < selected.getPositionCount(); s++) {
                 int bucket = selected.getInt(s);
 

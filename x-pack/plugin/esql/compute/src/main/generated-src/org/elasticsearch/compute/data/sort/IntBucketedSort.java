@@ -167,7 +167,9 @@ public class IntBucketedSort implements Releasable {
             return blockFactory.newConstantNullBlock(selected.getPositionCount());
         }
 
-        try (var builder = blockFactory.newIntBlockBuilder(selected.getPositionCount())) {
+        try (
+            var builder = blockFactory.newIntBlockBuilder(selected.getPositionCount())
+        ) {
             for (int s = 0; s < selected.getPositionCount(); s++) {
                 int bucket = selected.getInt(s);
 

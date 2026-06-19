@@ -167,7 +167,9 @@ public class LongBucketedSort implements Releasable {
             return blockFactory.newConstantNullBlock(selected.getPositionCount());
         }
 
-        try (var builder = blockFactory.newLongBlockBuilder(selected.getPositionCount())) {
+        try (
+            var builder = blockFactory.newLongBlockBuilder(selected.getPositionCount())
+        ) {
             for (int s = 0; s < selected.getPositionCount(); s++) {
                 int bucket = selected.getInt(s);
 

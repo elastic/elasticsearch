@@ -158,8 +158,12 @@ $else$
                 extraValues.set(rootIndex, extraValue);
 $endif$
 $else$
-            if (betterThan(value, values.get(rootIndex))) {
+            if (betterThan(value, $if(BytesRef)$bytesAt(rootIndex)$else$values.get(rootIndex)$endif$)) {
+$if(BytesRef)$
+                clearedBytesAt(rootIndex).append(value);
+$else$
                 values.set(rootIndex, value);
+$endif$
 $endif$
                 downHeap(rootIndex, 0, bucketSize);
             }
@@ -252,7 +256,12 @@ $else$
 $endif$
 $endif$
 $else$
+$if(BytesRef)$
+            BreakingBytesRefBuilder otherValue = other.values.get(i);
+            collect(otherValue == null ? new BytesRef() : otherValue.bytesRefView(), groupId);
+$else$
             collect(other.values.get(i), groupId);
+$endif$
 $endif$
         }
     }
@@ -355,7 +364,13 @@ $else$
             return blockFactory.newConstantNullBlock(selected.getPositionCount());
         }
 
-        try (var builder = blockFactory.new$Type$BlockBuilder(selected.getPositionCount())) {
+        try (
+$if(BytesRef)$
+            var builder = blockFactory.newBytesRefBlockBuilder(selected.getPositionCount())
+$else$
+            var builder = blockFactory.new$Type$BlockBuilder(selected.getPositionCount())
+$endif$
+        ) {
             for (int s = 0; s < selected.getPositionCount(); s++) {
                 int bucket = selected.getInt(s);
 
@@ -369,7 +384,11 @@ $else$
                 }
 
                 if (size == 1) {
+$if(BytesRef)$
+                    appendValue(builder, rootIndex);
+$else$
                     builder.append$Type$(values.get(rootIndex));
+$endif$
                     continue;
                 }
 
@@ -381,7 +400,11 @@ $else$
 
                 builder.beginPositionEntry();
                 for (int i = 0; i < size; i++) {
+$if(BytesRef)$
+                    appendValue(builder, rootIndex + i);
+$else$
                     builder.append$Type$(values.get(rootIndex + i));
+$endif$
                 }
                 builder.endPositionEntry();
             }
@@ -664,7 +687,11 @@ $if(hasExtra)$
                     $if(ExtraBytesRef)$extraBytesAt(leftIndex)$else$extraValues.get(leftIndex)$endif$
                 )) {
 $else$
+$if(BytesRef)$
+                if (betterThan(bytesAt(worstIndex), bytesAt(leftIndex))) {
+$else$
                 if (betterThan(values.get(worstIndex), values.get(leftIndex))) {
+$endif$
 $endif$
                     worst = leftChild;
                     worstIndex = leftIndex;
@@ -680,7 +707,11 @@ $if(hasExtra)$
                         $if(ExtraBytesRef)$extraBytesAt(rightIndex)$else$extraValues.get(rightIndex)$endif$
                     )) {
 $else$
+$if(BytesRef)$
+                if (rightChild < heapSize && betterThan(bytesAt(worstIndex), bytesAt(rightIndex))) {
+$else$
                 if (rightChild < heapSize && betterThan(values.get(worstIndex), values.get(rightIndex))) {
+$endif$
 $endif$
                     worst = rightChild;
                     worstIndex = rightIndex;

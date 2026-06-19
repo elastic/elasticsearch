@@ -9,7 +9,6 @@ package org.elasticsearch.compute.aggregation;
 
 // begin generated imports
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.ann.Aggregator;
 import org.elasticsearch.compute.ann.GroupingAggregator;
@@ -79,9 +78,7 @@ class TopBytesRefAggregator {
         private final BytesRefBucketedSort sort;
 
         private GroupingState(BigArrays bigArrays, int limit, boolean ascending) {
-            // TODO pass the breaker in from the DriverContext
-            CircuitBreaker breaker = bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
-            this.sort = new BytesRefBucketedSort(breaker, "top", bigArrays, ascending ? SortOrder.ASC : SortOrder.DESC, limit);
+            this.sort = new BytesRefBucketedSort(bigArrays, ascending ? SortOrder.ASC : SortOrder.DESC, limit);
         }
 
         public void add(int groupId, BytesRef value) {

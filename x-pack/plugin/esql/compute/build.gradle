@@ -1162,7 +1162,7 @@ tasks.named('stringTemplates').configure {
   }
 
   File bucketedSortInputFile = new File("${projectDir}/src/main/java/org/elasticsearch/compute/data/sort/X-BucketedSort.java.st")
-  [intProperties, longProperties, floatProperties, doubleProperties].forEach { props ->
+  [intProperties, longProperties, floatProperties, doubleProperties, bytesRefProperties].forEach { props ->
     {
       template {
         it.properties = propWithoutExtra(props, "Extra")

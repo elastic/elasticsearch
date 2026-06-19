@@ -50,13 +50,21 @@ public class KeywordFieldSyntheticSourceSupport implements MapperTestCase.Synthe
             if (allowIgnoredSource && ESTestCase.randomBoolean()) {
                 return FieldMapper.DocValuesParameter.Values.DISABLED;
             } else {
-                return new FieldMapper.DocValuesParameter.Values(true, FieldMapper.DocValuesParameter.Values.Cardinality.LOW);
+                return new FieldMapper.DocValuesParameter.Values(true, FieldMapper.DocValuesParameter.Values.Cardinality.LOW, true);
             }
         }
 
         return switch (ESTestCase.randomInt(allowIgnoredSource ? 2 : 1)) {
-            case 0 -> new FieldMapper.DocValuesParameter.Values(true, FieldMapper.DocValuesParameter.Values.Cardinality.LOW);
-            case 1 -> new FieldMapper.DocValuesParameter.Values(true, FieldMapper.DocValuesParameter.Values.Cardinality.HIGH);
+            case 0 -> new FieldMapper.DocValuesParameter.Values(
+                true,
+                FieldMapper.DocValuesParameter.Values.Cardinality.LOW,
+                ESTestCase.randomBoolean()
+            );
+            case 1 -> new FieldMapper.DocValuesParameter.Values(
+                true,
+                FieldMapper.DocValuesParameter.Values.Cardinality.HIGH,
+                ESTestCase.randomBoolean()
+            );
             case 2 -> FieldMapper.DocValuesParameter.Values.DISABLED;
             default -> throw new IllegalStateException();
         };
@@ -68,6 +76,11 @@ public class KeywordFieldSyntheticSourceSupport implements MapperTestCase.Synthe
     }
 
     @Override
+    public boolean enforcesSingleValue() {
+        return docValues.multiValue() == false;
+    }
+
+    @Override
     public boolean preservesExactSource() {
         // We opt in into fallback synthetic source implementation
         // if there is nothing else to use, and it preserves exact source data.
@@ -76,7 +89,7 @@ public class KeywordFieldSyntheticSourceSupport implements MapperTestCase.Synthe
 
     @Override
     public MapperTestCase.SyntheticSourceExample example(int maxValues) {
-        return example(maxValues, false, false);
+        return example(maxValues, false, false, false);
     }
 
     public MapperTestCase.SyntheticSourceExample example(int maxValues, boolean loadBlockFromSource, boolean flipOrder) {
@@ -89,7 +102,8 @@ public class KeywordFieldSyntheticSourceSupport implements MapperTestCase.Synthe
         boolean flipOrder,
         boolean ignoredValuesSorted
     ) {
-        if (ESTestCase.randomBoolean()) {
+        // When multi_value is disabled a document may only have a single value, so never take the multi-valued branch below.
+        if (enforcesSingleValue() || ESTestCase.randomBoolean()) {
             Tuple<String, String> v = generateValue();
             Object sourceValue = preservesExactSource() ? v.v1() : v.v2();
             return new MapperTestCase.SyntheticSourceExample(v.v1(), sourceValue, this::mapping);
@@ -162,6 +176,9 @@ public class KeywordFieldSyntheticSourceSupport implements MapperTestCase.Synthe
             } else {
                 b.startObject("doc_values");
                 b.field("cardinality", docValues.cardinality().toString());
+                if (docValues.multiValue() == false) {
+                    b.field("multi_value", false);
+                }
                 b.endObject();
             }
         }

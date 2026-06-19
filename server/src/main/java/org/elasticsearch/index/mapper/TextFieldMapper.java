@@ -10,7 +10,6 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.analysis.AnalyzerWrapper;
 import org.apache.lucene.analysis.CachingTokenFilter;
 import org.apache.lucene.analysis.TokenFilter;
 import org.apache.lucene.analysis.TokenStream;
@@ -21,8 +20,11 @@ import org.apache.lucene.analysis.tokenattributes.PositionIncrementAttribute;
 import org.apache.lucene.analysis.tokenattributes.TermToBytesRefAttribute;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
+import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.IndexOptions;
+import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.intervals.Intervals;
 import org.apache.lucene.queries.intervals.IntervalsSource;
@@ -43,8 +45,10 @@ import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.PhraseQuery;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.RegexpQuery;
 import org.apache.lucene.search.SynonymQuery;
 import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.search.WildcardQuery;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
@@ -61,6 +65,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.analysis.AnalyzerScope;
+import org.elasticsearch.index.analysis.ElasticsearchAnalyzerWrapper;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.FieldData;
@@ -69,14 +74,31 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.SourceValueFetcherSortedBinaryIndexFieldData;
 import org.elasticsearch.index.fielddata.StoredFieldSortedBinaryIndexFieldData;
+import org.elasticsearch.index.fielddata.plain.BytesBinaryIndexFieldData;
 import org.elasticsearch.index.fielddata.plain.PagedBytesIndexFieldData;
+import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
 import org.elasticsearch.index.mapper.blockloader.DelegatingBlockLoader;
+import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromBinaryBlockLoader;
+import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromBinaryMultiSeparateCountBlockLoader;
+import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromBinaryMultiSeparateCountBlockLoader.ArrayOrderSource;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromCustomBinaryBlockLoader;
+import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromOrdsBlockLoader;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.similarity.SimilarityProvider;
+import org.elasticsearch.lucene.queries.SlowCustomBinaryDocValuesPrefixQuery;
+import org.elasticsearch.lucene.queries.SlowCustomBinaryDocValuesTermInSetQuery;
+import org.elasticsearch.lucene.queries.SlowCustomBinaryDocValuesTermQuery;
+import org.elasticsearch.lucene.queries.SlowCustomBinaryDocValuesWildcardQuery;
+import org.elasticsearch.lucene.search.FuzzyQueries;
+import org.elasticsearch.script.Script;
+import org.elasticsearch.script.SortedBinaryDocValuesStringFieldScript;
+import org.elasticsearch.script.SortedSetDocValuesStringFieldScript;
 import org.elasticsearch.script.field.DelegateDocValuesField;
 import org.elasticsearch.script.field.TextDocValuesField;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
+import org.elasticsearch.search.runtime.StringScriptFieldPrefixQuery;
+import org.elasticsearch.search.runtime.StringScriptFieldRegexpQuery;
+import org.elasticsearch.search.runtime.StringScriptFieldWildcardQuery;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -84,6 +106,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -241,14 +264,21 @@ public final class TextFieldMapper extends FieldMapper {
         return new FielddataFrequencyFilter(minFrequency, maxFrequency, minSegmentSize);
     }
 
+    private static DocValuesParameter.Values defaultDocValuesParameters(IndexSettings indexSettings) {
+        boolean multiValue = DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled() == false
+            || FieldMapper.DOC_VALUES_MULTI_VALUE_SETTING.get(indexSettings.getSettings());
+        // Strictly columnar indices read field values from doc values, so enable doc values by default for text fields in that mode.
+        boolean enabled = indexSettings.getMode().isStrictColumnar();
+        return new DocValuesParameter.Values(enabled, DocValuesParameter.Values.Cardinality.HIGH, multiValue);
+    }
+
     public static class Builder extends TextFamilyBuilder {
 
         private final Parameter<Boolean> store;
         private final Parameter<Boolean> norms;
+        private final Parameter<Boolean> index;
 
-        private final IndexMode indexMode;
-
-        private final Parameter<Boolean> index = Parameter.indexParam(m -> ((TextFieldMapper) m).index, true);
+        final DocValuesParameter docValuesParameters;
 
         final Parameter<SimilarityProvider> similarity = TextParams.similarity(m -> ((TextFieldMapper) m).similarity);
 
@@ -291,36 +321,32 @@ public final class TextFieldMapper extends FieldMapper {
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
         final TextParams.Analyzers analyzers;
-        private final boolean usesBinaryDocValues;
+        final IndexSettings indexSettings;
 
-        public Builder(String name, IndexAnalyzers indexAnalyzers) {
-            this(name, IndexVersion.current(), null, indexAnalyzers, false, false, false);
-        }
-
-        public Builder(
-            String name,
-            IndexVersion indexCreatedVersion,
-            IndexMode indexMode,
-            IndexAnalyzers indexAnalyzers,
-            boolean isSyntheticSourceEnabled,
-            boolean isWithinMultiField,
-            boolean usesBinaryDocValues
-        ) {
-            super(name, indexCreatedVersion, isWithinMultiField);
-
-            this.indexMode = indexMode;
-            this.usesBinaryDocValues = usesBinaryDocValues;
+        public Builder(String name, IndexSettings indexSettings, IndexAnalyzers indexAnalyzers, boolean isWithinMultiField) {
+            super(name, indexSettings.getIndexVersionCreated(), isWithinMultiField);
+            this.indexSettings = indexSettings;
+            this.docValuesParameters = DocValuesParameter.ofWithCardinality(() -> {
+                DocValuesParameter.Values defaultDocValues = defaultDocValuesParameters(indexSettings);
+                // In strict-columnar mode, skip the text field's own doc values when a plain keyword multi-field already stores an
+                // identical copy of the raw values, so loading and synthetic source route through that delegate instead of duplicating.
+                boolean enabled = defaultDocValues.enabled()
+                    && multiFieldsBuilder.hasColumnarModeCompatibleKeywordDelegate(indexSettings.getMode()) == false;
+                return new DocValuesParameter.Values(enabled, defaultDocValues.cardinality(), defaultDocValues.multiValue());
+            }, defaultDocValuesParameters(indexSettings), m -> ((TextFieldMapper) m).docValuesParameters);
+            this.index = Parameter.indexParam(m -> ((TextFieldMapper) m).index, true);
             this.analyzers = new TextParams.Analyzers(
                 indexAnalyzers,
                 m -> ((TextFieldMapper) m).indexAnalyzer,
                 m -> (((TextFieldMapper) m).positionIncrementGap),
-                indexCreatedVersion
+                indexSettings.getIndexVersionCreated()
             );
 
+            IndexMode indexMode = indexSettings.getMode();
             this.norms = Parameter.normsParam(m -> ((TextFieldMapper) m).norms, () -> {
-                if (indexCreatedVersion.onOrAfter(IndexVersions.DISABLE_NORMS_BY_DEFAULT_FOR_LOGSDB_AND_TSDB)) {
-                    // don't enable norms by default if the index is LOGSDB or TSDB based
-                    return indexMode != IndexMode.LOGSDB && indexMode != IndexMode.TIME_SERIES;
+                if (indexSettings.getIndexVersionCreated().onOrAfter(IndexVersions.DISABLE_NORMS_BY_DEFAULT_FOR_LOGSDB_AND_TSDB)) {
+                    // don't enable norms by default if the index mode is columnar.
+                    return indexMode == null || !indexMode.isColumnar();
                 }
                 // bwc - historically, norms were enabled by default on text fields regardless of which index mode was used
                 return true;
@@ -328,12 +354,13 @@ public final class TextFieldMapper extends FieldMapper {
 
             this.store = Parameter.storeParam(m -> ((TextFieldMapper) m).store, () -> {
                 // ideally and for simplicity, store should be set to false by default
-                if (keywordMultiFieldsNotStoredWhenIgnoredIndexVersionCheck(indexCreatedVersion)) {
+                if (keywordMultiFieldsNotStoredWhenIgnoredIndexVersionCheck(indexSettings.getIndexVersionCreated())) {
                     return false;
                 }
 
+                boolean isSyntheticSourceEnabled = SourceFieldMapper.isSynthetic(indexSettings);
                 // however, because historically we set store to true to support synthetic source, we must also keep that logic:
-                if (multiFieldsNotStoredByDefaultIndexVersionCheck(indexCreatedVersion)) {
+                if (multiFieldsNotStoredByDefaultIndexVersionCheck(indexSettings.getIndexVersionCreated())) {
                     return isSyntheticSourceEnabled
                         && isWithinMultiField == false
                         && multiFieldsBuilder.hasSyntheticSourceCompatibleKeywordField() == false;
@@ -343,30 +370,8 @@ public final class TextFieldMapper extends FieldMapper {
             });
         }
 
-        public Builder(String name, IndexSettings indexSettings, IndexAnalyzers indexAnalyzers, boolean isWithinMultiField) {
-            this(
-                name,
-                indexSettings.getIndexVersionCreated(),
-                indexSettings.getMode(),
-                indexAnalyzers,
-                SourceFieldMapper.isSynthetic(indexSettings),
-                isWithinMultiField,
-                usesBinaryDocValues(indexSettings)
-            );
-        }
-
         private Builder(String name, MappingParserContext context) {
             this(name, context.getIndexSettings(), context.getIndexAnalyzers(), context.isWithinMultiField());
-        }
-
-        private static boolean usesBinaryDocValues(final IndexSettings indexSettings) {
-            IndexVersion indexVersion = indexSettings.getIndexVersionCreated();
-            if (indexVersion.onOrAfter(IndexVersions.FALLBACK_TEXT_FIELDS_BINARY_DOC_VALUES_FORMAT_CHECK)) {
-                return indexSettings.useTimeSeriesDocValuesFormat();
-            }
-            // for BWC - indices created before TEXT_FIELDS_BINARY_DOC_VALUES_TSDB_DOC_VALUES_FORMAT_CHECK, stored fallback fields only in
-            // binary doc values
-            return indexVersion.onOrAfter(IndexVersions.STORE_FALLBACK_TEXT_FIELDS_IN_BINARY_DOC_VALUES);
         }
 
         public Builder index(boolean index) {
@@ -394,25 +399,65 @@ public final class TextFieldMapper extends FieldMapper {
             return this;
         }
 
+        // The companion ".offsets" field name, used to reconstruct array order and null positions in strict-columnar mode; null otherwise.
+        private String offsetsFieldName;
+
+        // High-cardinality columnar text fields store their values in document order with inline nulls instead of a sidecar offsets field.
+        private boolean arrayOrderBinaryDocValues;
+
+        boolean usesBinaryDocValues() {
+            if (docValuesParameters.getValue().enabled() == false) {
+                return false;
+            }
+            // Columnar multi-value fields route through binary doc values. Other fields use binary storage only for HIGH cardinality.
+            if (docValuesParameters.getValue().multiValue() && indexSettings.getMode().isStrictColumnar()) {
+                return true;
+            }
+            return docValuesParameters.getValue().cardinality() == DocValuesParameter.Values.Cardinality.HIGH;
+        }
+
         @Override
         protected Parameter<?>[] getParameters() {
-            return new Parameter<?>[] {
-                index,
-                store,
-                indexOptions,
-                norms,
-                termVectors,
-                analyzers.indexAnalyzer,
-                analyzers.searchAnalyzer,
-                analyzers.searchQuoteAnalyzer,
-                similarity,
-                analyzers.positionIncrementGap,
-                fieldData,
-                freqFilter,
-                eagerGlobalOrdinals,
-                indexPhrases,
-                indexPrefixes,
-                meta };
+            // when EXTENDED_DOC_VALUES_PARAMS_FF is disabled, exclude docValuesParameters from parsing
+            // so doc_values configuration in the mapping is ignored and the default (disabled) is used
+            if (DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled()) {
+                return new Parameter<?>[] {
+                    index,
+                    store,
+                    docValuesParameters,
+                    indexOptions,
+                    norms,
+                    termVectors,
+                    analyzers.indexAnalyzer,
+                    analyzers.searchAnalyzer,
+                    analyzers.searchQuoteAnalyzer,
+                    similarity,
+                    analyzers.positionIncrementGap,
+                    fieldData,
+                    freqFilter,
+                    eagerGlobalOrdinals,
+                    indexPhrases,
+                    indexPrefixes,
+                    meta };
+            } else {
+                return new Parameter<?>[] {
+                    index,
+                    store,
+                    indexOptions,
+                    norms,
+                    termVectors,
+                    analyzers.indexAnalyzer,
+                    analyzers.searchAnalyzer,
+                    analyzers.searchQuoteAnalyzer,
+                    similarity,
+                    analyzers.positionIncrementGap,
+                    fieldData,
+                    freqFilter,
+                    eagerGlobalOrdinals,
+                    indexPhrases,
+                    indexPrefixes,
+                    meta };
+            }
         }
 
         private TextFieldType buildFieldType(
@@ -436,10 +481,12 @@ public final class TextFieldMapper extends FieldMapper {
                 ft = new LegacyTextFieldType(context.buildFullName(leafName()), index.getValue(), store.getValue(), tsi, meta.getValue());
                 // ignore fieldData and eagerGlobalOrdinals
             } else {
+                boolean usesBinaryDocValuesForFallbackFields = useBinaryDocValuesForFallbackFields(indexSettings);
                 ft = new TextFieldType(
                     context.buildFullName(leafName()),
                     index.getValue(),
                     store.getValue(),
+                    docValuesParameters.getValue().enabled(),
                     tsi,
                     context.isSourceSynthetic(),
                     isWithinMultiField(),
@@ -448,7 +495,11 @@ public final class TextFieldMapper extends FieldMapper {
                     eagerGlobalOrdinals.getValue(),
                     indexPhrases.getValue(),
                     indexCreatedVersion,
-                    usesBinaryDocValues
+                    usesBinaryDocValuesForFallbackFields,
+                    usesBinaryDocValues(),
+                    docValuesParameters.getValue(),
+                    offsetsFieldName != null,
+                    arrayOrderBinaryDocValues
                 );
                 if (fieldData.getValue()) {
                     ft.setFielddata(true, freqFilter.getValue());
@@ -517,15 +568,39 @@ public final class TextFieldMapper extends FieldMapper {
         }
 
         @Override
+        public String contentType() {
+            return CONTENT_TYPE;
+        }
+
+        @Override
         public TextFieldMapper build(MapperBuilderContext context) {
+            this.offsetsFieldName = FieldArrayContext.getOffsetsFieldName(
+                context,
+                indexSettings.getMode().isStrictColumnar(),
+                docValuesParameters.getValue().enabled(),
+                docValuesParameters.getValue().multiValue(),
+                this
+            );
+            // High-cardinality (binary doc values) text fields in strict columnar mode store their values in document order directly in the
+            // binary doc values (ArrayOrderInlineNull) instead of recording a sidecar .offsets field.
+            if (offsetsFieldName != null && usesBinaryDocValues() && indexSettings.getMode().isStrictColumnar()) {
+                this.arrayOrderBinaryDocValues = true;
+                this.offsetsFieldName = null;
+            }
             FieldType fieldType = TextParams.buildFieldType(
                 index,
                 store,
+                () -> docValuesParameters.getValue().enabled(),
                 indexOptions,
                 // legacy indices do not have access to norms
                 indexCreatedVersion().isLegacyIndexVersion() ? () -> false : norms,
                 termVectors
             );
+
+            // Note, we don't set docValuesType on the FieldType here. This is because text fields are tokenized, and setting docValuesType
+            // would cause Lucene to store doc_values for each token. Instead, we manually create a SortedSetDocValuesField in
+            // parseCreateField()
+
             BuilderParams builderParams = builderParams(this, context);
             TextFieldType tft = buildFieldType(fieldType, builderParams.multiFields(), context, indexCreatedVersion());
             SubFieldInfo phraseFieldInfo = buildPhraseInfo(fieldType, tft);
@@ -541,13 +616,13 @@ public final class TextFieldMapper extends FieldMapper {
 
     public static final TypeParser PARSER = createTypeParserWithLegacySupport(Builder::new);
 
-    private static class PhraseWrappedAnalyzer extends AnalyzerWrapper {
+    private static class PhraseWrappedAnalyzer extends ElasticsearchAnalyzerWrapper {
 
         private final Analyzer delegate;
         private final int posIncGap;
 
         PhraseWrappedAnalyzer(Analyzer delegate, int posIncGap) {
-            super(delegate.getReuseStrategy());
+            super(delegate);
             this.delegate = delegate;
             this.posIncGap = posIncGap;
         }
@@ -568,7 +643,7 @@ public final class TextFieldMapper extends FieldMapper {
         }
     }
 
-    private static class PrefixWrappedAnalyzer extends AnalyzerWrapper {
+    private static class PrefixWrappedAnalyzer extends ElasticsearchAnalyzerWrapper {
 
         private final int minChars;
         private final int maxChars;
@@ -576,7 +651,7 @@ public final class TextFieldMapper extends FieldMapper {
         private final Analyzer delegate;
 
         PrefixWrappedAnalyzer(Analyzer delegate, int posIncGap, int minChars, int maxChars) {
-            super(delegate.getReuseStrategy());
+            super(delegate);
             this.delegate = delegate;
             this.posIncGap = posIncGap;
             this.minChars = minChars;
@@ -720,7 +795,13 @@ public final class TextFieldMapper extends FieldMapper {
         private final boolean indexPhrases;
         private final boolean eagerGlobalOrdinals;
         private final IndexVersion indexCreatedVersion;
+        private final boolean usesBinaryDocValuesForFallbackFields;
         private final boolean usesBinaryDocValues;
+        private final DocValuesParameter.Values docValuesParams;
+        // Whether the block loader must emit values in indexed array order (via the offsets sidecar) rather than sorted doc-values order.
+        private final boolean readInArrayOrder;
+        // Whether the (high-cardinality) binary doc values store their values in document order with inline nulls (ArrayOrderInlineNull).
+        private final boolean useArrayOrderBinaryDocValues;
 
         /**
          * In some configurations text fields use a sub-keyword field to provide
@@ -733,6 +814,7 @@ public final class TextFieldMapper extends FieldMapper {
             String name,
             boolean indexed,
             boolean stored,
+            boolean hasDocValues,
             TextSearchInfo tsi,
             boolean isSyntheticSource,
             boolean isWithinMultiField,
@@ -741,16 +823,24 @@ public final class TextFieldMapper extends FieldMapper {
             boolean eagerGlobalOrdinals,
             boolean indexPhrases,
             IndexVersion indexCreatedVersion,
-            boolean usesBinaryDocValues
+            boolean usesBinaryDocValuesForFallbackFields,
+            boolean usesBinaryDocValues,
+            DocValuesParameter.Values docValuesParams,
+            boolean readInArrayOrder,
+            boolean useArrayOrderBinaryDocValues
         ) {
-            super(name, indexed ? IndexType.terms(true, false) : IndexType.NONE, stored, tsi, meta, isSyntheticSource, isWithinMultiField);
+            super(name, IndexType.terms(indexed, hasDocValues), stored, tsi, meta, isSyntheticSource, isWithinMultiField);
             this.fielddata = false;
             // TODO block loader could use a "fast loading" delegate which isn't always the same - but frequently is.
             this.syntheticSourceDelegate = Optional.ofNullable(syntheticSourceDelegate);
             this.eagerGlobalOrdinals = eagerGlobalOrdinals;
             this.indexPhrases = indexPhrases;
             this.indexCreatedVersion = indexCreatedVersion;
+            this.usesBinaryDocValuesForFallbackFields = usesBinaryDocValuesForFallbackFields;
             this.usesBinaryDocValues = usesBinaryDocValues;
+            this.docValuesParams = docValuesParams;
+            this.readInArrayOrder = readInArrayOrder;
+            this.useArrayOrderBinaryDocValues = useArrayOrderBinaryDocValues;
         }
 
         public TextFieldType(
@@ -769,6 +859,7 @@ public final class TextFieldMapper extends FieldMapper {
                 name,
                 indexed,
                 stored,
+                false,
                 tsi,
                 isSyntheticSource,
                 isWithinMultiField,
@@ -777,6 +868,10 @@ public final class TextFieldMapper extends FieldMapper {
                 eagerGlobalOrdinals,
                 indexPhrases,
                 IndexVersion.current(),
+                false,
+                false,
+                null,
+                false,
                 false
             );
         }
@@ -796,7 +891,11 @@ public final class TextFieldMapper extends FieldMapper {
             this.eagerGlobalOrdinals = false;
             this.indexPhrases = false;
             this.indexCreatedVersion = IndexVersion.current();
+            this.usesBinaryDocValuesForFallbackFields = false;
             this.usesBinaryDocValues = false;
+            this.docValuesParams = null;
+            this.readInArrayOrder = false;
+            this.useArrayOrderBinaryDocValues = false;
         }
 
         public TextFieldType(String name, boolean isSyntheticSource, boolean isWithinMultiField) {
@@ -836,6 +935,18 @@ public final class TextFieldMapper extends FieldMapper {
 
         public boolean fielddata() {
             return fielddata;
+        }
+
+        public boolean usesBinaryDocValues() {
+            return usesBinaryDocValues;
+        }
+
+        /**
+         * Whether this field stores its (high-cardinality) binary doc values in document order with inline nulls
+         * ({@link MultiValuedBinaryDocValuesField.ArrayOrderInlineNull}) rather than via a sidecar offsets field.
+         */
+        public boolean usesArrayOrderBinaryDocValues() {
+            return useArrayOrderBinaryDocValues;
         }
 
         @Override
@@ -883,23 +994,152 @@ public final class TextFieldMapper extends FieldMapper {
         }
 
         @Override
+        public boolean isSearchable() {
+            return indexType().hasTerms() || hasDocValues();
+        }
+
+        @Override
+        public Query termQuery(Object value, SearchExecutionContext context) {
+            if (indexType().hasTerms()) {
+                return super.termQuery(value, context);
+            }
+
+            failIfNotIndexedNorDocValuesFallback(context);
+
+            if (usesBinaryDocValues) {
+                return new SlowCustomBinaryDocValuesTermQuery(name(), indexedValueForSearch(value));
+            } else {
+                return SortedSetDocValuesField.newSlowExactQuery(name(), indexedValueForSearch(value));
+            }
+        }
+
+        @Override
+        public Query termsQuery(Collection<?> values, SearchExecutionContext context) {
+            if (indexType().hasTerms()) {
+                return super.termsQuery(values, context);
+            }
+
+            failIfNotIndexedNorDocValuesFallback(context);
+
+            List<BytesRef> bytesRefs = values.stream().map(this::indexedValueForSearch).toList();
+            if (usesBinaryDocValues) {
+                return new SlowCustomBinaryDocValuesTermInSetQuery(name(), bytesRefs);
+            } else {
+                return SortedSetDocValuesField.newSlowSetQuery(name(), bytesRefs);
+            }
+        }
+
+        @Override
         public Query prefixQuery(
             String value,
             MultiTermQuery.RewriteMethod method,
             boolean caseInsensitive,
             SearchExecutionContext context
         ) {
-            if (prefixFieldType == null || prefixFieldType.accept(value.length()) == false) {
+            if (prefixFieldType != null && prefixFieldType.accept(value.length())) {
+                Query tq = prefixFieldType.prefixQuery(value, method, caseInsensitive, context);
+                if (method == null
+                    || method == MultiTermQuery.CONSTANT_SCORE_REWRITE
+                    || method == MultiTermQuery.CONSTANT_SCORE_BOOLEAN_REWRITE
+                    || method == MultiTermQuery.CONSTANT_SCORE_BLENDED_REWRITE) {
+                    return new ConstantScoreQuery(tq);
+                }
+                return tq;
+            }
+            if (indexType().hasTerms()) {
                 return super.prefixQuery(value, method, caseInsensitive, context);
             }
-            Query tq = prefixFieldType.prefixQuery(value, method, caseInsensitive, context);
-            if (method == null
-                || method == MultiTermQuery.CONSTANT_SCORE_REWRITE
-                || method == MultiTermQuery.CONSTANT_SCORE_BOOLEAN_REWRITE
-                || method == MultiTermQuery.CONSTANT_SCORE_BLENDED_REWRITE) {
-                return new ConstantScoreQuery(tq);
+            failIfNotIndexedNorDocValuesFallback(context);
+            if (usesBinaryDocValues) {
+                return new SlowCustomBinaryDocValuesPrefixQuery(name(), value, caseInsensitive);
             }
-            return tq;
+            if (caseInsensitive == false) {
+                return new PrefixQuery(new Term(name(), value), MultiTermQuery.DOC_VALUES_REWRITE);
+            }
+            return new StringScriptFieldPrefixQuery(
+                new Script(""),
+                ctx -> new SortedSetDocValuesStringFieldScript(name(), context.lookup(), ctx),
+                name(),
+                value,
+                caseInsensitive
+            );
+        }
+
+        @Override
+        public Query wildcardQuery(
+            String value,
+            MultiTermQuery.RewriteMethod method,
+            boolean caseInsensitive,
+            SearchExecutionContext context
+        ) {
+            if (indexType().hasTerms()) {
+                return super.wildcardQuery(value, method, caseInsensitive, context);
+            }
+            failIfNotIndexedNorDocValuesFallback(context);
+            if (usesBinaryDocValues) {
+                return new SlowCustomBinaryDocValuesWildcardQuery(name(), value, caseInsensitive);
+            }
+            if (caseInsensitive == false) {
+                Term term = new Term(name(), value);
+                if (context.getCircuitBreaker() != null) {
+                    Automaton dfa = AutomatonQueries.toWildcardAutomaton(term, context.getCircuitBreaker());
+                    return new AutomatonQuery(term, dfa, false, MultiTermQuery.DOC_VALUES_REWRITE);
+                }
+                return new WildcardQuery(term, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT, MultiTermQuery.DOC_VALUES_REWRITE);
+            }
+            return new StringScriptFieldWildcardQuery(
+                new Script(""),
+                ctx -> new SortedSetDocValuesStringFieldScript(name(), context.lookup(), ctx),
+                name(),
+                value,
+                true
+            );
+        }
+
+        @Override
+        public Query regexpQuery(
+            String value,
+            int syntaxFlags,
+            int matchFlags,
+            int maxDeterminizedStates,
+            MultiTermQuery.RewriteMethod method,
+            SearchExecutionContext context
+        ) {
+            if (indexType().hasTerms()) {
+                return super.regexpQuery(value, syntaxFlags, matchFlags, maxDeterminizedStates, method, context);
+            }
+            failIfNotIndexedNorDocValuesFallback(context);
+            value = AutomatonQueries.collapseConsecutiveQuantifiers(value);
+            if (usesBinaryDocValues) {
+                return new StringScriptFieldRegexpQuery(
+                    new Script(""),
+                    ctx -> new SortedBinaryDocValuesStringFieldScript(name(), context.lookup(), ctx, indexCreatedVersion),
+                    name(),
+                    value,
+                    syntaxFlags,
+                    matchFlags,
+                    maxDeterminizedStates
+                );
+            }
+            if (context.getCircuitBreaker() != null) {
+                Term term = new Term(name(), value);
+                Automaton dfa = AutomatonQueries.toRegexpAutomaton(
+                    term,
+                    syntaxFlags,
+                    matchFlags,
+                    maxDeterminizedStates,
+                    context.getCircuitBreaker()
+                );
+                return new AutomatonQuery(term, dfa, false, MultiTermQuery.DOC_VALUES_REWRITE);
+            }
+            return new RegexpQuery(
+                new Term(name(), value),
+                syntaxFlags,
+                matchFlags,
+                RegexpQuery.DEFAULT_PROVIDER,
+                maxDeterminizedStates,
+                MultiTermQuery.DOC_VALUES_REWRITE
+            );
         }
 
         @Override
@@ -952,12 +1192,15 @@ public final class TextFieldMapper extends FieldMapper {
             if (getTextSearchInfo().hasPositions() == false) {
                 throw new IllegalArgumentException("Cannot create intervals over field [" + name() + "] with no positions indexed");
             }
-            FuzzyQuery fq = new FuzzyQuery(
+            FuzzyQuery fq = FuzzyQueries.create(
                 new Term(name(), term),
                 maxDistance,
                 prefixLength,
                 IndexSearcher.getMaxClauseCount(),
-                transpositions
+                transpositions,
+                null,
+                context,
+                name()
             );
             return Intervals.multiterm(fq.getAutomata(), IndexSearcher.getMaxClauseCount(), term);
         }
@@ -1085,7 +1328,7 @@ public final class TextFieldMapper extends FieldMapper {
 
         @Override
         public boolean isAggregatable() {
-            return fielddata;
+            return fielddata || hasDocValues();
         }
 
         /**
@@ -1131,7 +1374,11 @@ public final class TextFieldMapper extends FieldMapper {
             return syntheticSourceDelegate.get().ignoreAbove().isIgnored(str) == false;
         }
 
-        public boolean storeFieldForSyntheticSource(final IndexVersion indexCreatedVersion) {
+        public boolean needsFallbackStorageForSyntheticSource(final IndexVersion indexCreatedVersion) {
+            // If the field is already stored (via stored field or doc_values), no fallback storage is needed
+            if (isStored() || hasDocValues()) {
+                return false;
+            }
             if (multiFieldsNotStoredByDefaultIndexVersionCheck(indexCreatedVersion)) {
                 // if we're within a multi field, then supporting synthetic source isn't necessary as that's the responsibility of the
                 // parent
@@ -1142,8 +1389,8 @@ public final class TextFieldMapper extends FieldMapper {
 
         @Override
         public BlockLoader blockLoader(BlockLoaderContext blContext) {
-            // Check if we can load from a synthetic source delegate
-            if (canUseSyntheticSourceDelegateForLoading()) {
+            // Prefer the delegate only when this field has no own doc values
+            if (hasDocValues() == false && canUseSyntheticSourceDelegateForLoading()) {
                 return new DelegatingBlockLoader(syntheticSourceDelegate.get().blockLoader(blContext)) {
                     @Override
                     public String delegatingTo() {
@@ -1165,6 +1412,23 @@ public final class TextFieldMapper extends FieldMapper {
         }
 
         private BlockLoader nonDelegateBlockLoader(BlockLoaderContext blContext) {
+            // Check if we can load from doc values
+            if (hasDocValues()) {
+                if (usesBinaryDocValues()) {
+                    if (docValuesParams != null && docValuesParams.multiValue() == false) {
+                        return new BytesRefsFromBinaryBlockLoader(name());
+                    }
+                    return new BytesRefsFromBinaryMultiSeparateCountBlockLoader(
+                        name(),
+                        useArrayOrderBinaryDocValues ? ArrayOrderSource.INLINE
+                            : readInArrayOrder ? ArrayOrderSource.FROM_OFFSETS
+                            : ArrayOrderSource.NONE
+                    );
+                } else {
+                    return new BytesRefsFromOrdsBlockLoader(name(), blContext.ordinalsByteSize());
+                }
+            }
+
             /*
              * Check if we can load from a parent field
              * If this is a sub-text field try and return the parent's loader. Text
@@ -1199,9 +1463,16 @@ public final class TextFieldMapper extends FieldMapper {
                 return new BlockStoredFieldsReader.BytesFromStringsBlockLoader(name());
             }
 
-            // Check if we can load from a fallback field
-            if (isSyntheticSourceEnabled() && syntheticSourceDelegate.isEmpty() && parentField == null) {
-                if (usesBinaryDocValues) {
+            // Check if we can load from a fallback field.
+            // columnar_stored pre-builds _source as a single blob and drops the fallback field
+            if (isSyntheticSourceEnabled()
+                && blContext.mappingLookup().isSourceColumnarStored() == false
+                && syntheticSourceDelegate.isEmpty()
+                && parentField == null) {
+                if (usesBinaryDocValuesForFallbackFields) {
+                    if (indexCreatedVersion.onOrAfter(IndexVersions.DEPRECATE_INTEGRATED_COUNTS_BINARY_DOC_VALUES)) {
+                        return new BytesRefsFromBinaryMultiSeparateCountBlockLoader(syntheticSourceFallbackFieldName());
+                    }
                     return new BytesRefsFromCustomBinaryBlockLoader(syntheticSourceFallbackFieldName());
                 }
                 return new BlockStoredFieldsReader.BytesFromStringsBlockLoader(syntheticSourceFallbackFieldName());
@@ -1253,7 +1524,7 @@ public final class TextFieldMapper extends FieldMapper {
             return new FallbackSyntheticSourceBlockLoader(
                 reader,
                 name(),
-                IgnoredSourceFieldMapper.ignoredSourceFormat(blContext.indexSettings().getIndexVersionCreated())
+                IgnoredSourceFieldMapper.ignoredSourceFormat(blContext.indexSettings())
             ) {
                 @Override
                 public Builder builder(BlockFactory factory, int expectedCount) {
@@ -1285,6 +1556,11 @@ public final class TextFieldMapper extends FieldMapper {
         @Override
         public IndexFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
             FielddataOperation operation = fieldDataContext.fielddataOperation();
+
+            if (hasDocValues()) {
+                return fieldDataFromDocValues();
+            }
+
             if (operation == FielddataOperation.SEARCH) {
                 if (fielddata == false) {
                     throw new IllegalArgumentException(
@@ -1353,6 +1629,23 @@ public final class TextFieldMapper extends FieldMapper {
             );
         }
 
+        private IndexFieldData.Builder fieldDataFromDocValues() {
+            if (usesBinaryDocValues()) {
+                return new BytesBinaryIndexFieldData.Builder(
+                    name(),
+                    CoreValuesSourceType.KEYWORD,
+                    TextDocValuesField::new,
+                    indexCreatedVersion
+                );
+            } else {
+                return new SortedSetOrdinalsIndexFieldData.Builder(
+                    name(),
+                    CoreValuesSourceType.KEYWORD,
+                    (dv, n) -> new TextDocValuesField(FieldData.toString(dv), n)
+                );
+            }
+        }
+
         public Optional<KeywordFieldMapper.KeywordFieldType> syntheticSourceDelegate() {
             return syntheticSourceDelegate;
         }
@@ -1361,7 +1654,25 @@ public final class TextFieldMapper extends FieldMapper {
     public static class ConstantScoreTextFieldType extends TextFieldType {
 
         public ConstantScoreTextFieldType(String name, boolean indexed, boolean stored, TextSearchInfo tsi, Map<String, String> meta) {
-            super(name, indexed, stored, tsi, false, false, null, meta, false, false, IndexVersion.current(), false);
+            super(
+                name,
+                indexed,
+                stored,
+                false,
+                tsi,
+                false,
+                false,
+                null,
+                meta,
+                false,
+                false,
+                IndexVersion.current(),
+                false,
+                false,
+                null,
+                false,
+                false
+            );
         }
 
         public ConstantScoreTextFieldType(String name) {
@@ -1460,10 +1771,10 @@ public final class TextFieldMapper extends FieldMapper {
 
     }
 
-    private final IndexVersion indexCreatedVersion;
-    private final IndexMode indexMode;
     private final boolean index;
     private final boolean store;
+    private final DocValuesParameter.Values docValuesParameters;
+    private final DocValuesFieldFactory dvFactory;
     private final String indexOptions;
     private final boolean norms;
     private final String termVectors;
@@ -1477,7 +1788,10 @@ public final class TextFieldMapper extends FieldMapper {
     private final FieldType fieldType;
     private final SubFieldInfo prefixFieldInfo;
     private final SubFieldInfo phraseFieldInfo;
-    private final boolean usesBinaryDocValues;
+    private final boolean usesBinaryDocValuesForFallbackFields;
+    private final IndexSettings indexSettings;
+    // The companion ".offsets" field used to reconstruct array order and null positions in strict-columnar mode; null otherwise.
+    private final String offsetsFieldName;
 
     private TextFieldMapper(
         String simpleName,
@@ -1491,23 +1805,23 @@ public final class TextFieldMapper extends FieldMapper {
         super(simpleName, mappedFieldType, builderParams);
 
         assert mappedFieldType.getTextSearchInfo().isTokenized();
-        assert mappedFieldType.hasDocValues() == false;
 
         final boolean isIndexed = fieldType.indexOptions() != IndexOptions.NONE;
         if (isIndexed == false && fieldType().fielddata()) {
             throw new IllegalArgumentException("Cannot enable fielddata on a [text] field that is not indexed: [" + fullPath() + "]");
         }
 
-        this.indexCreatedVersion = builder.indexCreatedVersion();
+        this.indexSettings = builder.indexSettings;
         this.fieldType = freezeAndDeduplicateFieldType(fieldType);
         this.prefixFieldInfo = prefixFieldInfo;
         this.phraseFieldInfo = phraseFieldInfo;
-        this.indexMode = builder.indexMode;
         this.indexAnalyzer = builder.analyzers.getIndexAnalyzer();
         this.indexAnalyzers = builder.analyzers.indexAnalyzers;
         this.positionIncrementGap = builder.analyzers.positionIncrementGap.getValue();
         this.index = builder.index.getValue();
         this.store = builder.store.getValue();
+        this.docValuesParameters = builder.docValuesParameters.getValue();
+        this.dvFactory = new DocValuesFieldFactory(docValuesParameters.multiValue(), false, indexSettings.getIndexVersionCreated());
         this.similarity = builder.similarity.getValue();
         this.indexOptions = builder.indexOptions.getValue();
         this.norms = builder.norms.getValue();
@@ -1515,7 +1829,18 @@ public final class TextFieldMapper extends FieldMapper {
         this.indexPrefixes = builder.indexPrefixes.getValue();
         this.freqFilter = builder.freqFilter.getValue();
         this.fieldData = builder.fieldData.get();
-        this.usesBinaryDocValues = builder.usesBinaryDocValues;
+        this.usesBinaryDocValuesForFallbackFields = useBinaryDocValuesForFallbackFields(builder.indexSettings);
+        this.offsetsFieldName = builder.offsetsFieldName;
+    }
+
+    @Override
+    public String getOffsetFieldName() {
+        return offsetsFieldName;
+    }
+
+    @Override
+    public boolean storesArrayValuesInOrder() {
+        return fieldType().usesArrayOrderBinaryDocValues();
     }
 
     @Override
@@ -1539,29 +1864,73 @@ public final class TextFieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(
-            leafName(),
-            indexCreatedVersion,
-            indexMode,
-            indexAnalyzers,
-            fieldType().isSyntheticSourceEnabled(),
-            fieldType().isWithinMultiField(),
-            usesBinaryDocValues
-        ).init(this);
+        return new Builder(leafName(), indexSettings, indexAnalyzers, fieldType().isWithinMultiField()).init(this);
+    }
+
+    @Override
+    protected boolean isSingleValueEnforced() {
+        return docValuesParameters.multiValue() == false;
+    }
+
+    @Override
+    public boolean supportsBatchIndexing() {
+        // Plain text mappers can be driven through parseCreateField by the bulk batch path.
+        // index_prefixes and index_phrases add sub-field documents that the batch path does
+        // not write, and synthetic-source fallback storage requires extra coordination across
+        // doc fields that we do not handle yet. fielddata is search-time only and is allowed.
+        return hasScript() == false
+            && copyTo().copyToFields().isEmpty()
+            && multiFields().iterator().hasNext() == false
+            && prefixFieldInfo == null
+            && phraseFieldInfo == null
+            && fieldType().needsFallbackStorageForSyntheticSource(indexSettings.getIndexVersionCreated()) == false;
     }
 
     @Override
     protected void parseCreateField(DocumentParserContext context) throws IOException {
         final String value = context.parser().textOrNull();
+        final boolean recordOffsets = FieldArrayContext.shouldRecordOffsets(context, offsetsFieldName, docValuesParameters.multiValue());
 
         if (value == null) {
+            // Record the null slot so synthetic source can rebuild the array with its nulls in the original positions (columnar mode).
+            if (fieldType().usesArrayOrderBinaryDocValues()) {
+                MultiValuedBinaryDocValuesField.ArrayOrderInlineNull.recordNull(context.doc(), fieldType().name());
+            } else if (recordOffsets) {
+                context.getOffSetContext().recordNull(offsetsFieldName);
+            }
             return;
+        }
+
+        if (docValuesParameters.enabled()) {
+            BytesRef binaryValue = new BytesRef(value);
+            if (fieldType().usesArrayOrderBinaryDocValues()) {
+                // In-order path: write the value into the field's own binary doc-values column directly, in document order with nulls. The
+                // BytesRef built from the String above already owns a fresh byte[], so no defensive copy is needed.
+                MultiValuedBinaryDocValuesField.ArrayOrderInlineNull.recordValue(context.doc(), fieldType().name(), binaryValue);
+            } else if (fieldType().usesBinaryDocValues()) {
+                dvFactory.addBinaryField(
+                    context.doc(),
+                    fieldType().name(),
+                    binaryValue,
+                    MultiValuedBinaryDocValuesField.ValueOrdering.SORTED_UNIQUE
+                );
+            } else if (binaryValue.length > IndexWriter.MAX_TERM_LENGTH) {
+                // if the binary value's length exceeds Lucene's max term length, then we cannot store it in SortedSetDocValuesField
+                // in such cases, store the value in binary doc values instead, which don't have these length limitations
+                storeValueInFallbackField(fieldType().syntheticSourceFallbackFieldName(), binaryValue, context);
+            } else {
+                dvFactory.addSortedField(context.doc(), fieldType().name(), binaryValue);
+            }
+        }
+
+        if (recordOffsets) {
+            context.getOffSetContext().recordOffset(offsetsFieldName, new BytesRef(value));
         }
 
         if (isIndexed() || fieldType.stored()) {
             Field field = new Field(fieldType().name(), value, fieldType);
             context.doc().add(field);
-            if (fieldType.omitNorms()) {
+            if (fieldType.omitNorms() && fieldType().hasDocValues() == false) {
                 context.addToFieldNames(fieldType().name());
             }
             if (prefixFieldInfo != null) {
@@ -1572,30 +1941,32 @@ public final class TextFieldMapper extends FieldMapper {
             }
         }
 
-        // if we need to support synthetic source, yet the field isn't stored, then we need an alternative way of loading the field
-        if (fieldType().storeFieldForSyntheticSource(indexCreatedVersion) && fieldType.stored() == false) {
+        if (fieldType().needsFallbackStorageForSyntheticSource(indexSettings.getIndexVersionCreated())) {
             // rely on the delegate field if we can
             if (fieldType().canUseSyntheticSourceDelegateForSyntheticSource(value)) {
                 return;
             }
 
             // otherwise, just store the field ourselves
-            final String fallbackFieldName = fieldType().syntheticSourceFallbackFieldName();
-            final BytesRef bytesRef = new BytesRef(value);
+            String fallbackFieldName = fieldType().syntheticSourceFallbackFieldName();
 
-            if (usesBinaryDocValues) {
+            if (usesBinaryDocValuesForFallbackFields) {
                 // store the value in a binary doc values field, create one if it doesn't exist
-                MultiValuedBinaryDocValuesField field = (MultiValuedBinaryDocValuesField) context.doc().getByKey(fallbackFieldName);
-                if (field == null) {
-                    field = new MultiValuedBinaryDocValuesField.IntegratedCount(fallbackFieldName, true);
-                    context.doc().addWithKey(fallbackFieldName, field);
-                }
-                field.add(bytesRef);
+                storeValueInFallbackField(fallbackFieldName, new BytesRef(value), context);
             } else {
                 // otherwise for bwc, store the value in a stored fields like we used to
                 context.doc().add(new StoredField(fallbackFieldName, value));
             }
         }
+    }
+
+    private void storeValueInFallbackField(String fallbackFieldName, BytesRef bytesRef, DocumentParserContext context) {
+        dvFactory.addBinaryFieldLegacyEncodingAware(
+            context.doc(),
+            fallbackFieldName,
+            bytesRef,
+            MultiValuedBinaryDocValuesField.ValueOrdering.SORTED
+        );
     }
 
     /**
@@ -1754,6 +2125,9 @@ public final class TextFieldMapper extends FieldMapper {
         final Builder b = (Builder) getMergeBuilder();
         b.index.toXContent(builder, includeDefaults);
         b.store.toXContent(builder, includeDefaults);
+        if (DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled()) {
+            b.docValuesParameters.toXContent(builder, includeDefaults);
+        }
         multiFields().toXContent(builder, params);
         copyTo().toXContent(builder);
         if (sourceKeepMode().isPresent()) {
@@ -1791,9 +2165,13 @@ public final class TextFieldMapper extends FieldMapper {
             });
         }
 
+        if (docValuesParameters.enabled()) {
+            return new SyntheticSourceSupport.Native(this::syntheticFieldLoaderFromDocValues);
+        }
+
         // this check exists for BWC purposes - there was a bug that resulted in some text fields being stored in ignored source
         if (fieldType().syntheticSourceDelegate.isEmpty()
-            && indexCreatedVersion.before(IndexVersions.TEXT_FIELDS_STORED_IN_IGNORED_SOURCE_FIX)) {
+            && indexSettings.getIndexVersionCreated().before(IndexVersions.TEXT_FIELDS_STORED_IN_IGNORED_SOURCE_FIX)) {
             return super.syntheticSourceSupport();
         }
 
@@ -1806,8 +2184,8 @@ public final class TextFieldMapper extends FieldMapper {
 
         // layer for loading from a fallback field created during indexing by this text field mapper
         final String fallbackFieldName = fieldType().syntheticSourceFallbackFieldName();
-        if (usesBinaryDocValues) {
-            layers.add(new BinaryDocValuesSyntheticFieldLoaderLayer(fallbackFieldName));
+        if (usesBinaryDocValuesForFallbackFields) {
+            layers.add(new BinaryDocValuesSyntheticFieldLoaderLayer(fallbackFieldName, indexSettings.getIndexVersionCreated()));
         } else {
             // for bwc - fallback fields were originally stored in StoredFields
             layers.add(new CompositeSyntheticFieldLoader.StoredFieldLayer(fallbackFieldName) {
@@ -1826,6 +2204,54 @@ public final class TextFieldMapper extends FieldMapper {
         }
 
         return new CompositeSyntheticFieldLoader(leafFieldName, fullFieldName, layers);
+    }
+
+    private CompositeSyntheticFieldLoader syntheticFieldLoaderFromDocValues() {
+        var layers = new ArrayList<CompositeSyntheticFieldLoader.Layer>();
+        if (fieldType().usesBinaryDocValues()) {
+            if (fieldType().usesArrayOrderBinaryDocValues()) {
+                // Columnar mode (high cardinality): reconstruct array order, duplicates and null positions from the in-order binary blob.
+                layers.add(new ArrayOrderBinaryDocValuesSyntheticFieldLoaderLayer(fieldType().name()));
+            } else if (offsetsFieldName != null) {
+                // Columnar mode: reconstruct array order, duplicates and null positions from the offsets sidecar.
+                layers.add(new BinaryWithOffsetsDocValuesSyntheticFieldLoaderLayer(fullPath(), offsetsFieldName));
+            } else {
+                layers.add(new BinaryDocValuesSyntheticFieldLoaderLayer(fullPath(), indexSettings.getIndexVersionCreated()));
+            }
+        } else {
+            layers.add(new SortedSetDocValuesSyntheticFieldLoaderLayer(fullPath()) {
+                @Override
+                public DocValuesLoader docValuesLoader(LeafReader reader, int[] docIdsInLeaf) throws IOException {
+                    // text fields with doc_values may have all values stored in fallback fields; if every value exceeds MAX_TERM_LENGTH.
+                    // In that case, there will be no doc values at all, but the "main" field is still going to be indexed. As a result,
+                    // we can't use SortedSetDocValuesSyntheticFieldLoaderLayer since it uses DocValues.getSortedSet(), which will throw.
+                    // Check for both SORTED_SET (multi-valued) and SORTED (multi_value=false) doc values types.
+                    if (reader.getSortedSetDocValues(fieldName()) == null && reader.getSortedDocValues(fieldName()) == null) {
+                        return null;
+                    }
+                    return super.docValuesLoader(reader, docIdsInLeaf);
+                }
+
+                @Override
+                protected BytesRef convert(BytesRef value) {
+                    return value;
+                }
+
+                @Override
+                protected BytesRef preserve(BytesRef value) {
+                    return BytesRef.deepCopyOf(value);
+                }
+            });
+
+            // also load from fallback field for values that exceeded MAX_TERM_LENGTH
+            layers.add(
+                new BinaryDocValuesSyntheticFieldLoaderLayer(
+                    fieldType().syntheticSourceFallbackFieldName(),
+                    indexSettings.getIndexVersionCreated()
+                )
+            );
+        }
+        return new CompositeSyntheticFieldLoader(leafName(), fullPath(), layers);
     }
 
     public static class SyntheticSourceHelper {
@@ -1865,5 +2291,15 @@ public final class TextFieldMapper extends FieldMapper {
             return (keyword.hasNormalizer() == false || keyword.isNormalizerSkipStoreOriginalValue())
                 && (keyword.fieldType().hasDocValues() || keyword.fieldType().isStored());
         }
+    }
+
+    static boolean useBinaryDocValuesForFallbackFields(final IndexSettings indexSettings) {
+        IndexVersion indexVersion = indexSettings.getIndexVersionCreated();
+        if (indexVersion.onOrAfter(IndexVersions.FALLBACK_TEXT_FIELDS_BINARY_DOC_VALUES_FORMAT_CHECK)) {
+            return indexSettings.useTimeSeriesDocValuesFormat();
+        }
+        // for BWC - indices created before TEXT_FIELDS_BINARY_DOC_VALUES_TSDB_DOC_VALUES_FORMAT_CHECK, stored fallback fields only in
+        // binary doc values
+        return indexVersion.onOrAfter(IndexVersions.STORE_FALLBACK_TEXT_FIELDS_IN_BINARY_DOC_VALUES);
     }
 }

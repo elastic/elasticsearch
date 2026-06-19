@@ -9,6 +9,8 @@
 
 package org.elasticsearch.nativeaccess;
 
+import org.elasticsearch.foreign.CloseableByteBuffer;
+
 import java.io.IOException;
 import java.nio.channels.FileChannel;
 import java.nio.channels.FileChannel.MapMode;
@@ -176,6 +178,11 @@ public interface NativeAccess {
      * Returns the vector similarity functions, or an empty optional.
      */
     Optional<VectorSimilarityFunctions> getVectorSimilarityFunctions();
+
+    /**
+     * Returns Parquet-rs native functions, or an empty optional if unavailable on this platform.
+     */
+    Optional<ParquetRsFunctions> getParquetRsFunctions();
 
     /**
      * Creates a new {@link CloseableByteBuffer} using a shared arena. The buffer can be used

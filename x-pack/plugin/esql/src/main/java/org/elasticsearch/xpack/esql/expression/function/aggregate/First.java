@@ -10,12 +10,30 @@ package org.elasticsearch.xpack.esql.expression.function.aggregate;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
-import org.elasticsearch.compute.aggregation.AllFirstBooleanByTimestampAggregatorFunctionSupplier;
-import org.elasticsearch.compute.aggregation.AllFirstBytesRefByTimestampAggregatorFunctionSupplier;
-import org.elasticsearch.compute.aggregation.AllFirstDoubleByTimestampAggregatorFunctionSupplier;
-import org.elasticsearch.compute.aggregation.AllFirstFloatByTimestampAggregatorFunctionSupplier;
-import org.elasticsearch.compute.aggregation.AllFirstIntByTimestampAggregatorFunctionSupplier;
-import org.elasticsearch.compute.aggregation.AllFirstLongByTimestampAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.AllFirstBooleanByIntAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.AllFirstBooleanByLongAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.AllFirstBytesRefByIntAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.AllFirstBytesRefByLongAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.AllFirstDoubleByIntAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.AllFirstDoubleByLongAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.AllFirstExponentialHistogramByIntAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.AllFirstExponentialHistogramByLongAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.AllFirstFloatByIntAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.AllFirstFloatByLongAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.AllFirstIntByIntAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.AllFirstIntByLongAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.AllFirstLongByIntAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.AllFirstLongByLongAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.AllFirstTDigestByIntAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.AllFirstTDigestByLongAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.AnyBooleanAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.AnyBytesRefAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.AnyDoubleAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.AnyExponentialHistogramAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.AnyFloatAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.AnyIntAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.AnyLongAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.AnyTDigestAggregatorFunctionSupplier;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -25,6 +43,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.Param;
@@ -40,20 +59,42 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isTyp
 
 public class First extends AggregateFunction implements ToAggregator {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "First", First::readFrom);
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(First.class).binary(First::new).name("first");
 
     private final Expression sort;
 
     @FunctionInfo(
         type = FunctionType.AGGREGATE,
-        preview = true,
-        returnType = { "long", "integer", "double", "keyword", "ip", "boolean" },
+        returnType = {
+            "boolean",
+            "cartesian_point",
+            "cartesian_shape",
+            "date",
+            "date_nanos",
+            "dense_vector",
+            "double",
+            "exponential_histogram",
+            "geo_point",
+            "geo_shape",
+            "geohash",
+            "geotile",
+            "geohex",
+            "integer",
+            "ip",
+            "keyword",
+            "long",
+            "tdigest",
+            "unsigned_long",
+            "version" },
+        briefSummary = "Returns the earliest occurrence of a field based on a sort field.",
         description = """
             This function calculates the earliest occurrence of the search field
             (the first parameter), where sorting order is determined by the sort
-            field (the second parameter). Both fields support null, single-valued,
-            and multi-valued input. If the earliest sort field value appears in
-            multiple documents, this function is allowed to return any corresponding
-            search field value. Null values of the sort field always sort last.""",
+            field (the second parameter). This sorting order is always ascending
+            and null values always sort last. Both fields support null,
+            single-valued, and multi-valued input. If the earliest sort field
+            value appears in multiple documents, this function is allowed to
+            return any corresponding search field value.""",
         appendix = """
             ::::{warning}
             This can use a significant amount of memory and ES|QL doesn’t yet
@@ -65,17 +106,38 @@ public class First extends AggregateFunction implements ToAggregator {
             number of unique values, and even more so if the search field
             has multi-values of high cardinality.
             ::::""",
-        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW) },
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA, version = "9.4.0") },
         examples = @Example(file = "stats_first_last", tag = "first")
     )
     public First(
         Source source,
         @Param(
-            name = "value",
-            type = { "long", "integer", "double", "keyword", "text", "ip", "boolean" },
-            description = "Values to return"
+            name = "field",
+            type = {
+                "boolean",
+                "cartesian_point",
+                "cartesian_shape",
+                "date",
+                "date_nanos",
+                "dense_vector",
+                "double",
+                "exponential_histogram",
+                "geo_point",
+                "geo_shape",
+                "geohash",
+                "geotile",
+                "geohex",
+                "integer",
+                "ip",
+                "keyword",
+                "long",
+                "tdigest",
+                "unsigned_long",
+                "text",
+                "version" },
+            description = "The search field"
         ) Expression field,
-        @Param(name = "sort", type = { "long", "date", "date_nanos" }, description = "Sort key") Expression sort
+        @Param(name = "sortField", type = { "integer", "long", "date", "date_nanos" }, description = "The sort field") Expression sort
     ) {
         this(source, field, Literal.TRUE, NO_WINDOW, sort);
     }
@@ -134,39 +196,96 @@ public class First extends AggregateFunction implements ToAggregator {
             field(),
             dt -> dt == DataType.BOOLEAN
                 || dt == DataType.DATETIME
+                || dt == DataType.DATE_NANOS
                 || DataType.isString(dt)
                 || dt == DataType.IP
-                || (dt.isNumeric() && dt != DataType.UNSIGNED_LONG),
+                || dt.isNumeric()
+                || dt == DataType.VERSION
+                || dt == DataType.CARTESIAN_POINT
+                || dt == DataType.CARTESIAN_SHAPE
+                || dt == DataType.GEO_POINT
+                || dt == DataType.GEO_SHAPE
+                || dt == DataType.GEOHASH
+                || dt == DataType.GEOTILE
+                || dt == DataType.GEOHEX
+                || dt == DataType.DENSE_VECTOR
+                || dt == DataType.EXPONENTIAL_HISTOGRAM
+                || dt == DataType.TDIGEST,
             sourceText(),
             FIRST,
             "boolean",
             "date",
+            "dense_vector",
+            "exponential_histogram",
             "ip",
             "string",
-            "numeric except unsigned_long or counter types"
+            "tdigest",
+            "numeric except counter types"
         ).and(
             isType(
                 sort,
-                dt -> dt == DataType.LONG || dt == DataType.DATETIME || dt == DataType.DATE_NANOS,
+                dt -> dt == DataType.INTEGER || dt == DataType.LONG || dt == DataType.DATETIME || dt == DataType.DATE_NANOS,
                 sourceText(),
                 SECOND,
-                "long or date_nanos or datetime"
+                "int or long or date_nanos or datetime"
             )
         );
     }
 
     @Override
     public AggregatorFunctionSupplier supplier() {
-        final DataType type = field().dataType();
-        return switch (type) {
-            case LONG -> new AllFirstLongByTimestampAggregatorFunctionSupplier();
-            case INTEGER -> new AllFirstIntByTimestampAggregatorFunctionSupplier();
-            case DOUBLE -> new AllFirstDoubleByTimestampAggregatorFunctionSupplier();
-            case FLOAT -> new AllFirstFloatByTimestampAggregatorFunctionSupplier();
-            case KEYWORD, TEXT, IP -> new AllFirstBytesRefByTimestampAggregatorFunctionSupplier();
-            case BOOLEAN -> new AllFirstBooleanByTimestampAggregatorFunctionSupplier();
-            default -> throw EsqlIllegalArgumentException.illegalDataType(type);
-        };
+        final DataType searchFieldType = field().dataType();
+        final DataType sortFieldType = sort().dataType();
+
+        if (sortFieldType == DataType.NULL || sort().foldable()) {
+            return switch (searchFieldType) {
+                // Any value from the search field will do, so just pick the first one we encounter while still accounting for the type.
+                case LONG, DATETIME, DATE_NANOS, GEOHASH, GEOTILE, GEOHEX, UNSIGNED_LONG -> new AnyLongAggregatorFunctionSupplier();
+                case INTEGER -> new AnyIntAggregatorFunctionSupplier();
+                case DOUBLE -> new AnyDoubleAggregatorFunctionSupplier();
+                case FLOAT, DENSE_VECTOR -> new AnyFloatAggregatorFunctionSupplier();
+                case EXPONENTIAL_HISTOGRAM -> new AnyExponentialHistogramAggregatorFunctionSupplier();
+                case TDIGEST -> new AnyTDigestAggregatorFunctionSupplier();
+                case KEYWORD, TEXT, IP, VERSION, CARTESIAN_POINT, CARTESIAN_SHAPE, GEO_POINT, GEO_SHAPE ->
+                    new AnyBytesRefAggregatorFunctionSupplier();
+                case BOOLEAN -> new AnyBooleanAggregatorFunctionSupplier();
+                default -> throw EsqlIllegalArgumentException.illegalDataType(searchFieldType);
+            };
+        }
+
+        if (sortFieldType == DataType.LONG || sortFieldType == DataType.DATETIME || sortFieldType == DataType.DATE_NANOS) {
+            return switch (searchFieldType) {
+                case LONG, DATETIME, DATE_NANOS, GEOHASH, GEOTILE, GEOHEX, UNSIGNED_LONG ->
+                    new AllFirstLongByLongAggregatorFunctionSupplier();
+                case INTEGER -> new AllFirstIntByLongAggregatorFunctionSupplier();
+                case DOUBLE -> new AllFirstDoubleByLongAggregatorFunctionSupplier();
+                case FLOAT, DENSE_VECTOR -> new AllFirstFloatByLongAggregatorFunctionSupplier();
+                case EXPONENTIAL_HISTOGRAM -> new AllFirstExponentialHistogramByLongAggregatorFunctionSupplier();
+                case TDIGEST -> new AllFirstTDigestByLongAggregatorFunctionSupplier();
+                case KEYWORD, TEXT, IP, VERSION, CARTESIAN_POINT, CARTESIAN_SHAPE, GEO_POINT, GEO_SHAPE ->
+                    new AllFirstBytesRefByLongAggregatorFunctionSupplier();
+                case BOOLEAN -> new AllFirstBooleanByLongAggregatorFunctionSupplier();
+                default -> throw EsqlIllegalArgumentException.illegalDataType(searchFieldType);
+            };
+        }
+
+        if (sortFieldType == DataType.INTEGER) {
+            return switch (searchFieldType) {
+                case LONG, DATETIME, DATE_NANOS, GEOHASH, GEOTILE, GEOHEX, UNSIGNED_LONG ->
+                    new AllFirstLongByIntAggregatorFunctionSupplier();
+                case INTEGER -> new AllFirstIntByIntAggregatorFunctionSupplier();
+                case DOUBLE -> new AllFirstDoubleByIntAggregatorFunctionSupplier();
+                case FLOAT, DENSE_VECTOR -> new AllFirstFloatByIntAggregatorFunctionSupplier();
+                case EXPONENTIAL_HISTOGRAM -> new AllFirstExponentialHistogramByIntAggregatorFunctionSupplier();
+                case TDIGEST -> new AllFirstTDigestByIntAggregatorFunctionSupplier();
+                case KEYWORD, TEXT, IP, VERSION, CARTESIAN_POINT, CARTESIAN_SHAPE, GEO_POINT, GEO_SHAPE ->
+                    new AllFirstBytesRefByIntAggregatorFunctionSupplier();
+                case BOOLEAN -> new AllFirstBooleanByIntAggregatorFunctionSupplier();
+                default -> throw EsqlIllegalArgumentException.illegalDataType(searchFieldType);
+            };
+        }
+
+        throw EsqlIllegalArgumentException.illegalDataType(sortFieldType);
     }
 
     @Override

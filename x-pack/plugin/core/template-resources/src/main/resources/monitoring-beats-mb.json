@@ -820,6 +820,18 @@
                                 },
                                 "value_log_size": {
                                   "type": "long"
+                                },
+                                "storage_limit": {
+                                  "type": "long"
+                                },
+                                "disk_used": {
+                                  "type": "long"
+                                },
+                                "disk_total": {
+                                  "type": "long"
+                                },
+                                "disk_usage_threshold_pct": {
+                                  "type": "float"
                                 }
                               }
                             }
@@ -1172,6 +1184,9 @@
                               "type": "long"
                             },
                             "failed": {
+                              "type": "long"
+                            },
+                            "failure_store": {
                               "type": "long"
                             },
                             "toomany": {
@@ -2301,6 +2316,22 @@
                                 "value_log_size": {
                                   "type": "alias",
                                   "path": "beat.stats.apm_server.sampling.tail.storage.value_log_size"
+                                },
+                                "storage_limit": {
+                                  "type": "alias",
+                                  "path": "beat.stats.apm_server.sampling.tail.storage.storage_limit"
+                                },
+                                "disk_used": {
+                                  "type": "alias",
+                                  "path": "beat.stats.apm_server.sampling.tail.storage.disk_used"
+                                },
+                                "disk_total": {
+                                  "type": "alias",
+                                  "path": "beat.stats.apm_server.sampling.tail.storage.disk_total"
+                                },
+                                "disk_usage_threshold_pct": {
+                                  "type": "alias",
+                                  "path": "beat.stats.apm_server.sampling.tail.storage.disk_usage_threshold_pct"
                                 }
                               }
                             }
@@ -2711,6 +2742,10 @@
                             "failed": {
                               "type": "alias",
                               "path": "beat.stats.libbeat.output.events.failed"
+                            },
+                            "failure_store": {
+                              "type": "alias",
+                              "path": "beat.stats.libbeat.output.events.failure_store"
                             },
                             "toomany": {
                               "type": "alias",

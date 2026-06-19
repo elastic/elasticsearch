@@ -13,6 +13,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.SortField;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
@@ -31,15 +32,30 @@ public class BytesBinaryIndexFieldData implements IndexFieldData<MultiValuedBina
     protected final String fieldName;
     protected final ValuesSourceType valuesSourceType;
     protected final ToScriptFieldFactory<SortedBinaryDocValues> toScriptFieldFactory;
+    protected final IndexVersion indexVersion;
+    protected final boolean arrayOrder;
 
     public BytesBinaryIndexFieldData(
         String fieldName,
         ValuesSourceType valuesSourceType,
-        ToScriptFieldFactory<SortedBinaryDocValues> toScriptFieldFactory
+        ToScriptFieldFactory<SortedBinaryDocValues> toScriptFieldFactory,
+        IndexVersion indexVersion
+    ) {
+        this(fieldName, valuesSourceType, toScriptFieldFactory, indexVersion, false);
+    }
+
+    public BytesBinaryIndexFieldData(
+        String fieldName,
+        ValuesSourceType valuesSourceType,
+        ToScriptFieldFactory<SortedBinaryDocValues> toScriptFieldFactory,
+        IndexVersion indexVersion,
+        boolean arrayOrder
     ) {
         this.fieldName = fieldName;
         this.valuesSourceType = valuesSourceType;
         this.toScriptFieldFactory = toScriptFieldFactory;
+        this.indexVersion = indexVersion;
+        this.arrayOrder = arrayOrder;
     }
 
     @Override
@@ -75,7 +91,7 @@ public class BytesBinaryIndexFieldData implements IndexFieldData<MultiValuedBina
 
     @Override
     public MultiValuedBinaryDVLeafFieldData load(LeafReaderContext context) {
-        return new MultiValuedBinaryDVLeafFieldData(fieldName, context.reader(), toScriptFieldFactory);
+        return new MultiValuedBinaryDVLeafFieldData(fieldName, context.reader(), toScriptFieldFactory, indexVersion, arrayOrder);
     }
 
     @Override
@@ -87,17 +103,36 @@ public class BytesBinaryIndexFieldData implements IndexFieldData<MultiValuedBina
         private final String name;
         private final ToScriptFieldFactory<SortedBinaryDocValues> toScriptFieldFactory;
         private final ValuesSourceType valuesSourceType;
+        private final IndexVersion indexVersion;
+        private final boolean arrayOrder;
 
-        public Builder(String name, ValuesSourceType valuesSourceType, ToScriptFieldFactory<SortedBinaryDocValues> toScriptFieldFactory) {
+        public Builder(
+            String name,
+            ValuesSourceType valuesSourceType,
+            ToScriptFieldFactory<SortedBinaryDocValues> toScriptFieldFactory,
+            IndexVersion indexVersion
+        ) {
+            this(name, valuesSourceType, toScriptFieldFactory, indexVersion, false);
+        }
+
+        public Builder(
+            String name,
+            ValuesSourceType valuesSourceType,
+            ToScriptFieldFactory<SortedBinaryDocValues> toScriptFieldFactory,
+            IndexVersion indexVersion,
+            boolean arrayOrder
+        ) {
             this.name = name;
             this.valuesSourceType = valuesSourceType;
             this.toScriptFieldFactory = toScriptFieldFactory;
+            this.indexVersion = indexVersion;
+            this.arrayOrder = arrayOrder;
         }
 
         @Override
         public IndexFieldData<?> build(IndexFieldDataCache cache, CircuitBreakerService breakerService) {
             // Ignore breaker
-            return new BytesBinaryIndexFieldData(name, valuesSourceType, toScriptFieldFactory);
+            return new BytesBinaryIndexFieldData(name, valuesSourceType, toScriptFieldFactory, indexVersion, arrayOrder);
         }
     }
 }

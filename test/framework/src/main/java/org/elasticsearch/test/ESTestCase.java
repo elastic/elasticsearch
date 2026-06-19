@@ -35,11 +35,14 @@ import org.apache.logging.log4j.status.StatusData;
 import org.apache.logging.log4j.status.StatusLogger;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.tests.util.LuceneTestCase.SuppressCodecs;
 import org.apache.lucene.tests.util.TestRuleMarkFailure;
 import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.tests.util.TimeUnits;
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchWrapperException;
 import org.elasticsearch.ExceptionsHelper;
@@ -64,6 +67,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.metadata.TemplateDecoratorRule;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.breaker.CircuitBreaker;
@@ -92,8 +96,10 @@ import org.elasticsearch.common.time.FormatNames;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.common.util.LimitedBreaker;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.MockBigArrays;
+import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -126,6 +132,7 @@ import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.index.analysis.TokenizerFactory;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.analysis.AnalysisModule;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.logging.internal.spi.LoggerFactory;
 import org.elasticsearch.plugins.AnalysisPlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -140,6 +147,8 @@ import org.elasticsearch.test.junit.listeners.ReproduceInfoPrinter;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.BytesTransportMessage;
+import org.elasticsearch.transport.BytesTransportMessageTestUtils;
 import org.elasticsearch.transport.LeakTracker;
 import org.elasticsearch.transport.netty4.Netty4Plugin;
 import org.elasticsearch.xcontent.MediaType;
@@ -152,9 +161,11 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParser.Token;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
+import org.hamcrest.Description;
 import org.hamcrest.Matcher;
 import org.hamcrest.MatcherAssert;
 import org.hamcrest.Matchers;
+import org.hamcrest.TypeSafeMatcher;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -163,6 +174,8 @@ import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.internal.AssumptionViolatedException;
 import org.junit.rules.RuleChain;
+import org.junit.rules.TestRule;
+import org.junit.rules.TestWatcher;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -214,7 +227,6 @@ import java.util.function.IntConsumer;
 import java.util.function.IntFunction;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
-import java.util.stream.Collectors;
 import java.util.stream.DoubleStream;
 import java.util.stream.IntStream;
 import java.util.stream.LongStream;
@@ -223,12 +235,12 @@ import java.util.stream.Stream;
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.common.util.CollectionUtils.arrayAsArrayList;
 import static org.hamcrest.Matchers.anyOf;
-import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.empty;
-import static org.hamcrest.Matchers.emptyCollectionOf;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.everyItem;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.startsWith;
+import static org.junit.Assume.assumeFalse;
 
 /**
  * Base testcase for randomized unit testing with Elasticsearch
@@ -296,7 +308,6 @@ public abstract class ESTestCase extends LuceneTestCase {
         TEST_WORKER_VM_ID = System.getProperty(TEST_WORKER_SYS_PROPERTY, DEFAULT_TEST_WORKER_ID);
         setTestSysProps(random);
         // TODO: consolidate logging initialization for tests so it all occurs in logconfigurator
-        LogConfigurator.loadLog4jPlugins();
         LogConfigurator.configureESLogging();
         MockLog.init();
 
@@ -327,8 +338,16 @@ public abstract class ESTestCase extends LuceneTestCase {
             @Override
             public void append(LogEvent event) {
                 if (Level.WARN.equals(event.getLevel())) {
+                    final String message = event.getMessage().getFormattedMessage();
+                    // gRPC's Netty transport can sometimes throw from an internal ChannelFutureListener during stream shutdown,
+                    // which Netty logs as a WARN on DefaultPromise:
+                    // "An exception was thrown by io.grpc.netty.NettyServerHandler$X.operationComplete()"
+                    // This is a known source of test flakiness for Arrow Flight based tests and is not actionable here.
+                    if (message.contains("An exception was thrown by io.grpc.netty.NettyServerHandler")) {
+                        return;
+                    }
                     synchronized (loggedLeaks) {
-                        loggedLeaks.add(event.getMessage().getFormattedMessage());
+                        loggedLeaks.add(message);
                     }
                 }
             }
@@ -452,7 +471,7 @@ public abstract class ESTestCase extends LuceneTestCase {
     }
 
     protected final Logger logger = LogManager.getLogger(getClass());
-    private ThreadContext threadContext;
+    protected ThreadContext threadContext;
 
     // -----------------------------------------------------------------
     // Suite and test case setup/cleanup.
@@ -528,6 +547,9 @@ public abstract class ESTestCase extends LuceneTestCase {
     @ClassRule
     public static final TestEntitlementsRule TEST_ENTITLEMENTS = new TestEntitlementsRule();
 
+    @ClassRule
+    public static final TestRule TEMPLATE_DECORATOR_RULE = TemplateDecoratorRule.initDefault();
+
     // setup mock filesystems for this test run. we change PathUtils
     // so that all accesses are plumbed thru any mock wrappers
 
@@ -597,9 +619,23 @@ public abstract class ESTestCase extends LuceneTestCase {
         }
     }
 
+    private static LeakTracker.TrackingWindow suiteLeakWindow;
+
+    @BeforeClass
+    public static void openSuiteLeakWindow() {
+        suiteLeakWindow = LeakTracker.newWindow();
+    }
+
+    @AfterClass
+    public static void assertNoSuiteLeaks() {
+        suiteLeakWindow.assertNoLeaks();
+    }
+
+    private LeakTracker.TrackingWindow testLeakWindow;
+
     @Before
     public final void before() {
-        LeakTracker.setContextHint(getTestName());
+        testLeakWindow = LeakTracker.newWindow();
         logger.info("{}before test", getTestParamsForLogging());
         assertNull("Thread context initialized twice", threadContext);
         if (enableWarningsCheck()) {
@@ -611,9 +647,15 @@ public abstract class ESTestCase extends LuceneTestCase {
     private static final List<CircuitBreaker> breakers = Collections.synchronizedList(new ArrayList<>());
 
     protected static CircuitBreaker newLimitedBreaker(ByteSizeValue max) {
-        CircuitBreaker breaker = new MockBigArrays.LimitedBreaker("<es-test-case>", max);
+        CircuitBreaker breaker = new LimitedBreaker("<es-test-case>", max);
         breakers.add(breaker);
         return breaker;
+    }
+
+    protected static CircuitBreakerService newLimitedBreakerService(ByteSizeValue max) {
+        CircuitBreakerService service = LimitedBreaker.service("<es-test-case>", max);
+        breakers.add(service.getBreaker(CircuitBreaker.REQUEST));
+        return service;
     }
 
     @After
@@ -626,6 +668,23 @@ public abstract class ESTestCase extends LuceneTestCase {
         }
     }
 
+    // Declared before after() so that under JUnit 4's reverse-declaration @After ordering it runs after after(),
+    // giving after() a chance to release resources before the leak check fires.
+    @After
+    public final void verifyNoOutstandingLeakTrackerLeaks() throws Exception {
+        if (testLeakWindow == null) {
+            // before() never ran (e.g. setUp() threw AssumptionViolatedException before @Before executed)
+            return;
+        }
+        // Poll briefly to let any in-flight ref-count decrements (e.g. respondAndRelease finally blocks
+        // running on a search thread) finish before asserting, since those can race with the test thread.
+        long deadline = System.nanoTime() + 500_000_000L;
+        while (testLeakWindow.hasLeaks() && System.nanoTime() < deadline) {
+            Thread.sleep(5);
+        }
+        testLeakWindow.assertNoLeaks();
+    }
+
     /**
      * Whether or not we check after each test whether it has left warnings behind. That happens if any deprecated feature or syntax
      * was used by the test and the test didn't assert on it using {@link #assertWarnings(String...)}.
@@ -634,14 +693,21 @@ public abstract class ESTestCase extends LuceneTestCase {
         return true;
     }
 
-    protected boolean enableBigArraysReleasedCheck() {
+    protected boolean enableArraysReleasedCheck() {
+        return true;
+    }
+
+    protected boolean enableAllPagesReleasedCheck() {
         return true;
     }
 
     @After
     public final void after() throws Exception {
-        if (enableBigArraysReleasedCheck()) {
+        if (enableArraysReleasedCheck()) {
             MockBigArrays.ensureAllArraysAreReleased();
+        }
+        if (enableAllPagesReleasedCheck()) {
+            MockPageCacheRecycler.ensureAllPagesAreReleased();
         }
         checkStaticState();
         // We check threadContext != null rather than enableWarningsCheck()
@@ -656,7 +722,6 @@ public abstract class ESTestCase extends LuceneTestCase {
         ensureAllSearchContextsReleased();
         ensureCheckIndexPassed();
         logger.info("{}after test", getTestParamsForLogging());
-        LeakTracker.setContextHint("");
     }
 
     private String getTestParamsForLogging() {
@@ -668,23 +733,12 @@ public abstract class ESTestCase extends LuceneTestCase {
         return "[" + name.substring(start + 1, end) + "] ";
     }
 
+    /**
+     * Check that there are no unaccounted warning headers. These should be checked with {@link #assertWarnings(String...)} in the
+     * appropriate test.
+     */
     public void ensureNoWarnings() {
-        // Check that there are no unaccounted warning headers. These should be checked with {@link #assertWarnings(String...)} in the
-        // appropriate test
-        try {
-            final List<String> warnings = threadContext.getResponseHeaders().get("Warning");
-            if (warnings != null) {
-                // unit tests do not run with the bundled JDK, if there are warnings we need to filter the no-jdk deprecation warning
-                final List<String> filteredWarnings = warnings.stream()
-                    .filter(k -> filteredWarnings().stream().noneMatch(s -> k.contains(s)))
-                    .collect(Collectors.toList());
-                assertThat("unexpected warning headers", filteredWarnings, empty());
-            } else {
-                assertNull("unexpected warning headers", warnings);
-            }
-        } finally {
-            resetDeprecationLogger();
-        }
+        assertThat("unexpected warning headers", filterOutExcludedWarnings(getActualWarningStrings(true)), empty());
     }
 
     protected List<String> filteredWarnings() {
@@ -704,103 +758,97 @@ public abstract class ESTestCase extends LuceneTestCase {
 
     /**
      * Convenience method to assert warnings for settings deprecations and general deprecation warnings.
+     *
      * @param settings the settings that are expected to be deprecated
      * @param warnings other expected general deprecation warnings
      */
-    protected final void assertSettingDeprecationsAndWarnings(final Setting<?>[] settings, final DeprecationWarning... warnings) {
-        assertWarnings(true, Stream.concat(Arrays.stream(settings).map(setting -> {
+    protected final void assertSettingDeprecationsAndWarnings(final Setting<?>[] settings, final String... warnings) {
+        assertWarnings(Stream.concat(Arrays.stream(settings).map(setting -> {
             Level level = setting.getProperties().contains(Setting.Property.Deprecated) ? DeprecationLogger.CRITICAL : Level.WARN;
-            String warningMessage = Strings.format(
+            return Strings.format(
                 "[%s] setting was deprecated in Elasticsearch and will be removed in a future release. "
                     + "See the %s documentation for the next major version.",
                 setting.getKey(),
                 (level == Level.WARN) ? "deprecation" : "breaking changes"
             );
-            return new DeprecationWarning(level, warningMessage);
-        }), Arrays.stream(warnings)).toArray(DeprecationWarning[]::new));
+        }), Arrays.stream(warnings)).toArray(String[]::new));
     }
 
     /**
-     * Convenience method to assert warnings for settings deprecations and general deprecation warnings. All warnings passed to this method
-     * are assumed to be at WARNING level.
+     * Convenience method to assert warnings for settings deprecations and general deprecation warnings.
+     *
      * @param expectedWarnings expected general deprecation warning messages.
      */
     protected final void assertWarnings(String... expectedWarnings) {
+        assertWarnings(true, expectedWarnings);
+    }
+
+    /**
+     * Convenience method to assert warnings for settings deprecations and general deprecation warnings.
+     *
+     * @param stripXContentPosition whether to remove XContent location information or not.
+     * @param expectedWarnings expected general deprecation warning messages.
+     */
+    protected final void assertWarnings(boolean stripXContentPosition, String... expectedWarnings) {
         assertWarnings(
-            true,
-            Arrays.stream(expectedWarnings)
-                .map(expectedWarning -> new DeprecationWarning(Level.WARN, expectedWarning))
-                .toArray(DeprecationWarning[]::new)
+            stripXContentPosition,
+            Arrays.stream(expectedWarnings).map(expectedWarning -> equalTo(HeaderWarning.escapeAndEncode(expectedWarning))).toList()
         );
     }
 
     /**
-     * Convenience method to assert warnings for settings deprecations and general deprecation warnings. All warnings passed to this method
-     * are assumed to be at CRITICAL level.
-     * @param expectedWarnings expected general deprecation warning messages.
+     * Convenience method to assert warnings for settings deprecations and general deprecation warnings.
+     *
+     * @param stripXContentPosition whether to remove XContent location information or not.
+     * @param expectedWarnings matchers describing the expected general deprecation warning messages.
      */
-    protected final void assertCriticalWarnings(String... expectedWarnings) {
-        assertWarnings(
-            true,
-            Arrays.stream(expectedWarnings)
-                .map(expectedWarning -> new DeprecationWarning(DeprecationLogger.CRITICAL, expectedWarning))
-                .toArray(DeprecationWarning[]::new)
-        );
-    }
-
-    protected final void assertWarnings(boolean stripXContentPosition, DeprecationWarning... expectedWarnings) {
+    protected final void assertWarnings(boolean stripXContentPosition, Collection<Matcher<String>> expectedWarnings) {
         if (enableWarningsCheck() == false) {
             throw new IllegalStateException("unable to check warning headers if the test is not set to do so");
         }
-        try {
-            final List<String> actualWarningStrings = threadContext.getResponseHeaders().get("Warning");
-            if (expectedWarnings == null || expectedWarnings.length == 0) {
-                assertNull("expected 0 warnings, actual: " + actualWarningStrings, actualWarningStrings);
-            } else {
-                assertNotNull("no warnings, expected: " + Arrays.asList(expectedWarnings), actualWarningStrings);
-                final Set<DeprecationWarning> actualDeprecationWarnings = actualWarningStrings.stream().map(warningString -> {
-                    String warningText = HeaderWarning.extractWarningValueFromWarningHeader(warningString, stripXContentPosition);
-                    final Level level;
-                    if (warningString.startsWith(Integer.toString(DeprecationLogger.CRITICAL.intLevel()))) {
-                        level = DeprecationLogger.CRITICAL;
-                    } else if (warningString.startsWith(Integer.toString(Level.WARN.intLevel()))) {
-                        level = Level.WARN;
-                    } else {
-                        throw new IllegalArgumentException("Unknown level in deprecation message " + warningString);
-                    }
-                    return new DeprecationWarning(level, warningText);
-                }).collect(Collectors.toSet());
-                for (DeprecationWarning expectedWarning : expectedWarnings) {
-                    DeprecationWarning escapedExpectedWarning = new DeprecationWarning(
-                        expectedWarning.level,
-                        HeaderWarning.escapeAndEncode(expectedWarning.message)
-                    );
-                    assertThat(actualDeprecationWarnings, hasItem(escapedExpectedWarning));
+        var actual = new ArrayList<>(getActualWarningStrings(stripXContentPosition));
+        var expected = new ArrayList<>(expectedWarnings);
+
+        var expectedIt = expected.iterator();
+        while (expectedIt.hasNext()) {
+            var expectedMatcher = expectedIt.next();
+
+            var actualIt = actual.iterator();
+            while (actualIt.hasNext()) {
+                if (expectedMatcher.matches(actualIt.next())) {
+                    actualIt.remove();
+                    expectedIt.remove();
                 }
-                assertEquals(
-                    "Expected "
-                        + expectedWarnings.length
-                        + " warnings but found "
-                        + actualWarningStrings.size()
-                        + "\nExpected: "
-                        + Arrays.asList(expectedWarnings)
-                        + "\nActual: "
-                        + actualWarningStrings,
-                    expectedWarnings.length,
-                    actualWarningStrings.size()
-                );
             }
-        } finally {
-            resetDeprecationLogger();
+        }
+
+        var remainingWarnings = filterOutExcludedWarnings(actual);
+
+        if (!expected.isEmpty()) {
+            throw new AssertionError("Expected warnings " + expected + " not found in " + remainingWarnings);
+        }
+        if (!remainingWarnings.isEmpty()) {
+            throw new AssertionError("Unexpected warnings found " + remainingWarnings);
         }
     }
 
-    /**
-     * Reset the deprecation logger by clearing the current thread context.
-     */
-    private void resetDeprecationLogger() {
-        // "clear" context by stashing current values and dropping the returned StoredContext
-        threadContext.stashContext();
+    private List<String> getActualWarningStrings(boolean stripXContentPosition) {
+        try {
+            return threadContext.getResponseHeaders()
+                .getOrDefault("Warning", List.of())
+                .stream()
+                .map(warningString -> HeaderWarning.extractWarningValueFromWarningHeader(warningString, stripXContentPosition))
+                .toList();
+        } finally {
+            // Reset the deprecation logger: clear the current thread context by stashing current values and dropping the returned
+            // StoredContext
+            threadContext.stashContext();
+        }
+    }
+
+    private List<String> filterOutExcludedWarnings(List<String> warnings) {
+        var excluded = filteredWarnings();
+        return warnings.stream().filter(message -> excluded.stream().noneMatch(message::contains)).toList();
     }
 
     private static final List<StatusData> statusData = new ArrayList<>();
@@ -823,11 +871,16 @@ public abstract class ESTestCase extends LuceneTestCase {
 
     // Tolerate the absence or otherwise denial of these specific lookup classes.
     // At some future time, we should require the JDNI warning.
-    private static final List<String> LOG_4J_MSG_PREFIXES = List.of(
-        "JNDI lookup class is not available because this JRE does not support JNDI. "
-            + "JNDI string lookups will not be available, continuing configuration.",
-        "JMX runtime input lookup class is not available because this JRE does not support JMX. "
-            + "JMX lookups will not be available, continuing configuration. "
+    private static final Matcher<String> LOG_4J_MSG_PREFIXES = anyOf(
+        startsWith(
+            "JNDI lookup class is not available because this JRE does not support JNDI. "
+                + "JNDI string lookups will not be available, continuing configuration."
+        ),
+        startsWith(
+            "JMX runtime input lookup class is not available because this JRE does not support JMX. "
+                + "JMX lookups will not be available, continuing configuration. "
+        ),
+        startsWith("No Root logger was configured, creating default ERROR-level Root logger with Console appender")
     );
 
     // separate method so that this can be checked again after suite scoped cluster is shut down
@@ -836,16 +889,25 @@ public abstract class ESTestCase extends LuceneTestCase {
         assertThat(StatusLogger.getLogger().getLevel(), equalTo(Level.WARN));
         synchronized (statusData) {
             try {
-                // ensure that there are no status logger messages which would indicate a problem with our Log4j usage; we map the
-                // StatusData instances to Strings as otherwise their toString output is useless
-                assertThat(
-                    statusData.stream().map(status -> status.getMessage().getFormattedMessage()).collect(Collectors.toList()),
-                    anyOf(
-                        emptyCollectionOf(String.class),
-                        contains(startsWith(LOG_4J_MSG_PREFIXES.get(0)), startsWith(LOG_4J_MSG_PREFIXES.get(1))),
-                        contains(startsWith(LOG_4J_MSG_PREFIXES.get(1)))
-                    )
-                );
+                // ensure that there are no status logger messages which would indicate a problem with our Log4j usage;
+                assertThat(statusData, everyItem(new TypeSafeMatcher<StatusData>() {
+                    @Override
+                    protected boolean matchesSafely(StatusData item) {
+                        return LOG_4J_MSG_PREFIXES.matches(item.getMessage().getFormattedMessage());
+                    }
+
+                    @Override
+                    public void describeTo(Description description) {
+                        LOG_4J_MSG_PREFIXES.describeTo(description);
+                    }
+
+                    @Override
+                    protected void describeMismatchSafely(StatusData item, Description mismatchDescription) {
+                        // make sure we see log4j exceptions in case of issues
+                        mismatchDescription.appendText("was ").appendValue(item.getFormattedStatus());
+                    }
+                }));
+
             } finally {
                 // we clear the list so that status data from other tests do not interfere with tests within the same JVM
                 statusData.clear();
@@ -1178,6 +1240,11 @@ public abstract class ESTestCase extends LuceneTestCase {
 
     public static long randomLong() {
         return random().nextLong();
+    }
+
+    /** A random long from 0..max (inclusive). */
+    public static long randomLong(long max) {
+        return RandomNumbers.randomLongBetween(random(), 0L, max);
     }
 
     public static LongStream randomLongs() {
@@ -1632,15 +1699,20 @@ public abstract class ESTestCase extends LuceneTestCase {
     }
 
     /**
-     * Runs the code block for 10 seconds waiting for no assertion to trip.
+     * Runs the code block for 10 seconds waiting for no assertion to trip. Retries on {@link AssertionError} with
+     * exponential backoff, sleeping on the test thread between attempts.
+     * <p>
+     * If the wait condition can be expressed as a predicate on applied {@link ClusterState}, prefer
+     * {@link ESIntegTestCase#awaitClusterState(Predicate)} instead of polling {@code clusterService().state()} inside {@code assertBusy}.
      */
     public static void assertBusy(CheckedRunnable<Exception> codeBlock) throws Exception {
         assertBusy(codeBlock, 10, TimeUnit.SECONDS);
     }
 
     /**
-     * Runs the code block for the provided interval, waiting for no assertions to trip. Retries on AssertionError
-     * with exponential backoff until provided time runs out
+     * Runs the code block for the provided interval, waiting for no assertions to trip. Retries on {@link AssertionError}
+     * with exponential backoff until the timeout is reached. See {@link #assertBusy(CheckedRunnable)} for when to prefer
+     * alternatives such as {@link ESIntegTestCase#awaitClusterState(Predicate)}.
      */
     public static void assertBusy(CheckedRunnable<Exception> codeBlock, long maxWaitTime, TimeUnit unit) throws Exception {
         long maxTimeInMillis = TimeUnit.MILLISECONDS.convert(maxWaitTime, unit);
@@ -2079,7 +2151,10 @@ public abstract class ESTestCase extends LuceneTestCase {
         Writeable.Reader<T> reader,
         TransportVersion version
     ) throws IOException {
-        return copyInstance(original, namedWriteableRegistry, StreamOutput::writeWriteable, reader, version);
+        final Writeable.Writer<T> writer = original instanceof BytesTransportMessage
+            ? (out, value) -> BytesTransportMessageTestUtils.writeThinWithBytes(out, (BytesTransportMessage) value)
+            : StreamOutput::writeWriteable;
+        return copyInstance(original, namedWriteableRegistry, writer, reader, version);
     }
 
     /**
@@ -2244,30 +2319,56 @@ public abstract class ESTestCase extends LuceneTestCase {
         assertEquals(expected.isNativeMethod(), actual.isNativeMethod());
     }
 
+    protected static final float DEFAULT_DELTA = 1e-6f;
+
     /**
      * Compares two float arrays, checking that each element is within a certain percentage to the one in the second array.
      * This works better than comparing with a delta if the elements in the arrays are of different magnitude.
+     * The function combines this with a separate absolute delta {@link ESTestCase#DEFAULT_DELTA}; numbers are still considered equal if
+     * they differ less than one *or* the other deltas. A separate absolute delta is useful for tiny numbers, or when one of the numbers
+     * is 0.
      *
      * @param expected      float array with expected values.
-     * @param actual        float array with actual values
+     * @param actual        float array with actual values.
      * @param deltaPercent  the maximum difference (in percentage of expected[i], 0.0 to 1.0) between expected[i] and actual[i]
-     *                      for which both numbers are still considered equal
+     *                      for which both numbers are still considered equal.
      */
     public static void assertArrayEqualsPercent(float[] expected, float[] actual, float deltaPercent) {
-        assertArrayEqualsPercent(null, expected, actual, deltaPercent);
+        assertArrayEqualsPercent(null, expected, actual, deltaPercent, DEFAULT_DELTA);
     }
 
     /**
      * Compares two float arrays, checking that each element is within a certain percentage to the one in the second array.
      * This works better than comparing with a delta if the elements in the arrays are of different magnitude.
+     * The function also accepts a separate absolute delta; numbers are still considered equal if they differ less than one *or*
+     * the other deltas. A separate absolute delta is useful for tiny numbers, or when one of the numbers is 0. Specify 0 if you don't
+     * want to use an absolute delta.
      *
-     * @param message       the identifying message for the AssertionError
      * @param expected      float array with expected values.
-     * @param actual        float array with actual values
+     * @param actual        float array with actual values.
      * @param deltaPercent  the maximum difference (in percentage of expected[i], 0.0 to 1.0) between expected[i] and actual[i]
-     *                      for which both numbers are still considered equal
+     *                      for which both numbers are still considered equal.
+     * @param absoluteDelta the absolute maximum difference for which both numbers are still considered equal.
      */
-    public static void assertArrayEqualsPercent(String message, float[] expected, float[] actual, float deltaPercent) {
+    public static void assertArrayEqualsPercent(float[] expected, float[] actual, float deltaPercent, float absoluteDelta) {
+        assertArrayEqualsPercent(null, expected, actual, deltaPercent, absoluteDelta);
+    }
+
+    /**
+     * Compares two float arrays, checking that each element is within a certain percentage to the one in the second array.
+     * This works better than comparing with a delta if the elements in the arrays are of different magnitude.
+     * The function also accepts a separate absolute delta; numbers are still considered equal if they differ less than one *or*
+     * the other deltas. A separate absolute delta is useful for tiny numbers, or when one of the numbers is 0. Specify 0 if you don't
+     *  want to use an absolute delta.
+     *
+     * @param message       the identifying message for the AssertionError.
+     * @param expected      float array with expected values.
+     * @param actual        float array with actual values.
+     * @param deltaPercent  the maximum difference (in percentage of expected[i], 0.0 to 1.0) between expected[i] and actual[i]
+     *                      for which both numbers are still considered equal.
+     * @param absoluteDelta the absolute maximum difference for which both numbers are still considered equal.
+     */
+    public static void assertArrayEqualsPercent(String message, float[] expected, float[] actual, float deltaPercent, float absoluteDelta) {
         String header = message == null || message.isEmpty() ? "" : message + ": ";
 
         if (expected == null) {
@@ -2282,20 +2383,30 @@ public abstract class ESTestCase extends LuceneTestCase {
 
         for (int i = 0; i < expected.length; i++) {
             var expectedValue = expected[i];
-            var actualDelta = Math.abs(expectedValue - actual[i]) - (expectedValue * deltaPercent);
+            var actualValue = actual[i];
+            var error = Math.max(expectedValue * deltaPercent, absoluteDelta);
+            var actualDelta = Math.abs(expectedValue - actualValue) - error;
             if (actualDelta > 0) {
                 fail(
                     Strings.format(
-                        "%sarrays first differed at element [%d]; <%f> and <%f> differed by <%f> (more than %f%%)",
+                        "%sarrays first differed at element [%d]; <%e> and <%e> differed by <%e> (more than %f%%)",
                         header,
                         i,
                         expectedValue,
-                        actual[i],
+                        actualValue,
                         actualDelta,
                         (deltaPercent * 100)
                     )
                 );
             }
+        }
+    }
+
+    public static void assertEqualsPercent(float expectedValue, float actualValue, float deltaPercent) {
+        var error = Math.max(expectedValue * deltaPercent, DEFAULT_DELTA);
+        var actualDelta = Math.abs(expectedValue - actualValue) - error;
+        if (actualDelta > 0) {
+            fail(Strings.format("expected:<%f> but was:<%f>", expectedValue, actualValue));
         }
     }
 
@@ -2481,34 +2592,6 @@ public abstract class ESTestCase extends LuceneTestCase {
             }
         } catch (UnknownHostException e) {
             throw new AssertionError();
-        }
-    }
-
-    public static final class DeprecationWarning {
-        private final Level level; // Intentionally ignoring level for the sake of equality for now
-        private final String message;
-
-        public DeprecationWarning(Level level, String message) {
-            this.level = level;
-            this.message = message;
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(message);
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            DeprecationWarning that = (DeprecationWarning) o;
-            return Objects.equals(message, that.message);
-        }
-
-        @Override
-        public String toString() {
-            return Strings.format("%s: %s", level.name(), message);
         }
     }
 
@@ -2998,6 +3081,11 @@ public abstract class ESTestCase extends LuceneTestCase {
      * @param taskFactory task factory
      */
     public static void runInParallel(int numberOfTasks, IntConsumer taskFactory) {
+        assertThat("runInParallel: negative numberOfTasks", numberOfTasks, greaterThanOrEqualTo(0));
+        if (numberOfTasks == 0) {
+            return;
+        }
+
         final ArrayList<Future<?>> futures = new ArrayList<>(numberOfTasks);
         final Thread[] threads = new Thread[numberOfTasks - 1];
         for (int i = 0; i < numberOfTasks; i++) {
@@ -3122,5 +3210,77 @@ public abstract class ESTestCase extends LuceneTestCase {
      */
     public static ProjectMetadata emptyProject() {
         return ProjectMetadata.builder(randomProjectIdOrDefault()).build();
+    }
+
+    /**
+     * Insert random garbage {@link BytesRef}
+     */
+    public static BytesRef embedInRandomBytes(BytesRef bytesRef) {
+        var offset = randomIntBetween(0, 10);
+        var extraLength = randomIntBetween(offset == 0 ? 1 : 0, 10);
+        var newBytesArray = randomByteArrayOfLength(bytesRef.length + offset + extraLength);
+
+        for (int i = 0; i < offset; i++) {
+            newBytesArray[i] = randomByte();
+        }
+        System.arraycopy(bytesRef.bytes, bytesRef.offset, newBytesArray, offset, bytesRef.length);
+        for (int i = offset + bytesRef.length; i < newBytesArray.length; i++) {
+            newBytesArray[i] = randomByte();
+        }
+
+        return new BytesRef(newBytesArray, offset, bytesRef.length);
+    }
+
+    /**
+     * Randomly wraps a {@link Directory} in zero or more {@link FilterDirectory} layers, simulating how Elasticsearch
+     * wraps directories in production (e.g. {@code Store.StoreDirectory -> ByteSizeCachingDirectory -> MMapDirectory}).
+     * Use this when testing code that receives a {@link Directory} and must tolerate wrapper layers.
+     */
+    public static Directory maybeWrapDirectoryInFilterDirectory(Directory dir) {
+        Directory wrapped = dir;
+        int layers = randomIntBetween(0, 3);
+        for (int i = 0; i < layers; i++) {
+            wrapped = new FilterDirectory(wrapped) {};
+        }
+        return wrapped;
+    }
+
+    private static boolean previousFailureSkipsRemaining;
+    @Rule
+    public final TestWatcher previousFailureSkipsRemainingRule = new TestWatcher() {
+        @Override
+        protected void failed(Throwable e, org.junit.runner.Description description) {
+            previousFailureSkipsRemaining = shouldFailureSkipRemainingTests();
+        }
+    };
+
+    @Before
+    public final void checkPreviousFailureSkipsRemaining() {
+        assumeFalse("previous failures broke system under test", previousFailureSkipsRemaining);
+    }
+
+    /**
+     * Should a failure cause subsequent tests to be skipped?
+     */
+    protected boolean shouldFailureSkipRemainingTests() {
+        return false;
+    }
+
+    /**
+     * Have previous failures forced us to skip the test?
+     * <p>
+     *     This should only be used in rare cases where the system being tested
+     *     is typically poisoned by test failures. ESQL's HeapAttack tests are
+     *     like this. As are packaging tests.
+     * </p>
+     * <p>
+     *     If you find yourself reaching for this, ask yourself if it's the right
+     *     tool three times before actually picking it up. If you are writing a
+     *     unit test without dependencies this is almost certainly not the right
+     *     tool.
+     * </p>
+     */
+    protected boolean previousFailureSkipsRemaining() {
+        return previousFailureSkipsRemaining;
     }
 }

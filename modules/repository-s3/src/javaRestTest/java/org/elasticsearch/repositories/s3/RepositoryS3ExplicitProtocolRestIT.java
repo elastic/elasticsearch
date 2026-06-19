@@ -14,7 +14,6 @@ import fixture.s3.S3ConsistencyModel;
 import fixture.s3.S3HttpFixture;
 
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
-import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope;
 
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.fixtures.testcontainers.TestContainersThreadFilter;
@@ -28,7 +27,6 @@ import static fixture.aws.AwsCredentialsUtils.fixedAccessKey;
 import static org.hamcrest.Matchers.startsWith;
 
 @ThreadLeakFilters(filters = { TestContainersThreadFilter.class })
-@ThreadLeakScope(ThreadLeakScope.Scope.NONE) // https://github.com/elastic/elasticsearch/issues/102482
 public class RepositoryS3ExplicitProtocolRestIT extends AbstractRepositoryS3RestTestCase {
 
     private static final String PREFIX = getIdentifierPrefix("RepositoryS3ExplicitProtocolRestIT");
@@ -41,6 +39,7 @@ public class RepositoryS3ExplicitProtocolRestIT extends AbstractRepositoryS3Rest
     private static final Supplier<String> regionSupplier = new DynamicRegionSupplier();
     private static final S3HttpFixture s3Fixture = new S3HttpFixture(
         true,
+        null,
         BUCKET,
         BASE_PATH,
         S3ConsistencyModel::randomConsistencyModel,
@@ -50,7 +49,7 @@ public class RepositoryS3ExplicitProtocolRestIT extends AbstractRepositoryS3Rest
     private static String getEndpoint() {
         final var s3FixtureAddress = s3Fixture.getAddress();
         assertThat(s3FixtureAddress, startsWith("http://"));
-        return s3FixtureAddress.substring("http://".length());
+        return "\"" + s3FixtureAddress.substring("http://".length()) + "\"";
     }
 
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()

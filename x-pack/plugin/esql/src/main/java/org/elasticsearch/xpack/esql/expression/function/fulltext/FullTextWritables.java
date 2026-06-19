@@ -15,6 +15,6 @@ import java.util.List;
 public class FullTextWritables {
 
     public static List<NamedWriteableRegistry.Entry> getNamedWriteables() {
-        return List.of(QueryString.ENTRY, Match.ENTRY, MultiMatch.ENTRY, Kql.ENTRY, MatchPhrase.ENTRY, Score.ENTRY, Decay.ENTRY);
+        return List.of(QueryString.ENTRY, Match.ENTRY, Kql.ENTRY, MatchPhrase.ENTRY, Score.ENTRY, Decay.ENTRY);
     }
 }

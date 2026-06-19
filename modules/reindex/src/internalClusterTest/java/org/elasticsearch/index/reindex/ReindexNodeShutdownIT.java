@@ -29,9 +29,10 @@ import static org.elasticsearch.node.ShutdownPrepareService.MAXIMUM_REINDEXING_T
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 
 /**
- * Test that a wait added during shutdown is necessary for a large reindexing task to complete.
+ * Test that a node waits for a length of time for reindex jobs to complete before shutting down.
+ * Note: Does not cover relocations, which are covered elsewhere.
  * The test works as follows:
- * 1. Start a large (reasonably long running) reindexing request on the coordinator-only node.
+ * 1. Start a large (reasonably long-running) reindexing request on the coordinator-only node.
  * 2. Check that the reindexing task appears on the coordinating node
  * 3. With a 60s timeout value for MAXIMUM_REINDEXING_TIMEOUT_SETTING,
  *    wait for the reindexing task to complete before closing the node
@@ -89,16 +90,16 @@ public class ReindexNodeShutdownIT extends ESIntegTestCase {
     }
 
     private void createReindexTaskAndShutdown(final String coordNodeName) throws Exception {
-        AbstractBulkByScrollRequestBuilder<?, ?> builder = reindex(coordNodeName).source(INDEX).destination(DEST_INDEX);
-        AbstractBulkByScrollRequest<?> reindexRequest = builder.request();
+        AbstractBulkByPaginatedSearchRequestBuilder<?, ?> builder = reindex(coordNodeName).source(INDEX).destination(DEST_INDEX);
+        AbstractBulkByPaginatedSearchRequest<?> reindexRequest = builder.request();
         ShutdownPrepareService shutdownPrepareService = internalCluster().getInstance(ShutdownPrepareService.class, coordNodeName);
 
         // Now execute the reindex action...
-        ActionListener<BulkByScrollResponse> reindexListener = new ActionListener<BulkByScrollResponse>() {
+        ActionListener<BulkByPaginatedSearchResponse> reindexListener = new ActionListener<BulkByPaginatedSearchResponse>() {
             @Override
-            public void onResponse(BulkByScrollResponse bulkByScrollResponse) {
-                assertNull(bulkByScrollResponse.getReasonCancelled());
-                logger.debug(bulkByScrollResponse.toString());
+            public void onResponse(BulkByPaginatedSearchResponse bulkByPaginatedSearchResponse) {
+                assertNull(bulkByPaginatedSearchResponse.getReasonCancelled());
+                logger.debug(bulkByPaginatedSearchResponse.toString());
             }
 
             @Override

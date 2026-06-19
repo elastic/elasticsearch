@@ -17,7 +17,6 @@ import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.huggingface.HuggingFaceRateLimitServiceSettings;
-import org.elasticsearch.xpack.inference.services.huggingface.HuggingFaceService;
 import org.elasticsearch.xpack.inference.services.settings.FilteredXContentObject;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
@@ -60,24 +59,32 @@ public class HuggingFaceChatCompletionServiceSettings extends FilteredXContentOb
      * @return a new instance of {@link HuggingFaceChatCompletionServiceSettings}
      */
     public static HuggingFaceChatCompletionServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
-        ValidationException validationException = new ValidationException();
+        var validationException = new ValidationException();
 
-        String modelId = extractOptionalString(map, MODEL_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        var modelId = extractOptionalString(map, MODEL_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
 
         var uri = extractUri(map, URL, validationException);
 
-        RateLimitSettings rateLimitSettings = RateLimitSettings.of(
-            map,
-            DEFAULT_RATE_LIMIT_SETTINGS,
+        var rateLimitSettings = RateLimitSettings.of(map, DEFAULT_RATE_LIMIT_SETTINGS, validationException, context);
+
+        validationException.throwIfValidationErrorsExist();
+        return new HuggingFaceChatCompletionServiceSettings(modelId, uri, rateLimitSettings);
+    }
+
+    @Override
+    public HuggingFaceChatCompletionServiceSettings updateServiceSettings(Map<String, Object> serviceSettings) {
+        var validationException = new ValidationException();
+
+        var extractedRateLimitSettings = RateLimitSettings.of(
+            serviceSettings,
+            this.rateLimitSettings,
             validationException,
-            HuggingFaceService.NAME,
-            context
+            ConfigurationParseContext.REQUEST
         );
 
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
-        return new HuggingFaceChatCompletionServiceSettings(modelId, uri, rateLimitSettings);
+        validationException.throwIfValidationErrorsExist();
+
+        return new HuggingFaceChatCompletionServiceSettings(this.modelId, this.uri, extractedRateLimitSettings);
     }
 
     private final String modelId;

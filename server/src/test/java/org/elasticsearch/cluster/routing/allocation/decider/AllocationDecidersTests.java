@@ -15,7 +15,10 @@ import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.GlobalRoutingTable;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodesHelper;
@@ -25,6 +28,7 @@ import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
+import org.elasticsearch.cluster.routing.allocation.TestRoutingAllocationFactory;
 import org.elasticsearch.core.Predicates;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
@@ -157,9 +161,10 @@ public class AllocationDecidersTests extends ESAllocationTestCase {
         final RoutingTable projectRoutingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
             .addAsNew(index)
             .build();
+        final ProjectId projectId = randomProjectIdOrDefault();
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
-            .metadata(Metadata.builder().put(index, false).build())
-            .routingTable(projectRoutingTable)
+            .metadata(Metadata.builder().put(ProjectMetadata.builder(projectId).put(index, false)).build())
+            .routingTable(GlobalRoutingTable.builder().put(projectId, projectRoutingTable).build())
             .build();
 
         ShardRouting startedShard = TestShardRouting.newShardRouting(shardId, "node", true, ShardRoutingState.STARTED);
@@ -186,7 +191,7 @@ public class AllocationDecidersTests extends ESAllocationTestCase {
                 return decision;
             })).toList());
 
-            RoutingAllocation allocation = new RoutingAllocation(deciders, clusterState, null, null, 0L);
+            RoutingAllocation allocation = TestRoutingAllocationFactory.forClusterState(clusterState).allocationDeciders(deciders).build();
             allocation.setDebugMode(debugMode);
 
             var decision = operation.apply(allocation, deciders);
@@ -263,7 +268,9 @@ public class AllocationDecidersTests extends ESAllocationTestCase {
     }
 
     private static RoutingAllocation createRoutingAllocation(AllocationDeciders deciders) {
-        return new RoutingAllocation(deciders, ClusterState.builder(new ClusterName("test")).build(), null, null, 0L);
+        return TestRoutingAllocationFactory.forClusterState(ClusterState.builder(new ClusterName("test")).build())
+            .allocationDeciders(deciders)
+            .build();
     }
 
     private static final class AnyNodeInitialShardAllocationDecider extends AllocationDecider {

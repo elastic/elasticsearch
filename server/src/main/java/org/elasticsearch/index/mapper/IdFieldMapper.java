@@ -16,6 +16,7 @@ import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.query.SearchExecutionContext;
 
@@ -33,7 +34,26 @@ public abstract class IdFieldMapper extends MetadataFieldMapper {
 
     public static final String CONTENT_TYPE = "_id";
 
-    public static final TypeParser PARSER = new FixedTypeParser(MappingParserContext::idFieldMapper);
+    public static final TypeParser PARSER = new ConfigurableTypeParser(mappingParserContext -> {
+        var indexMode = mappingParserContext.getIndexSettings().getMode();
+        if (indexMode == IndexMode.TIME_SERIES) {
+            return new ConstantBuilder(TsidExtractingIdFieldMapper.INSTANCE);
+        } else {
+            boolean useColumnarIdByDefault = mappingParserContext.getIndexSettings().isUseColumnarIdByDefault();
+            return new ProvidedIdFieldMapper.Builder(useColumnarIdByDefault);
+        }
+    }) {
+
+        @Override
+        public Builder parse(String name, Map<String, Object> node, MappingParserContext parserContext) throws MapperParsingException {
+            var indexMode = parserContext.getIndexSettings().getMode();
+            if (indexMode == IndexMode.TIME_SERIES) {
+                throw new MapperParsingException(name + " is not configurable if index mode is time_series");
+            } else {
+                return super.parse(name, node, parserContext);
+            }
+        }
+    };
 
     private static final Map<String, NamedAnalyzer> ANALYZERS = Map.of(NAME, Lucene.KEYWORD_ANALYZER);
 
@@ -65,29 +85,38 @@ public abstract class IdFieldMapper extends MetadataFieldMapper {
     public abstract String documentDescription(ParsedDocument parsedDocument);
 
     /**
-     * Build the {@code _id} to use on requests reindexing into indices using
-     * this {@code _id}.
+     * Returns {@code true} when the {@code _id} is stored as sorted doc values rather than a stored field.
      */
-    public abstract String reindexId(String id);
-
-    /**
-     * Create a {@link Field} to store the provided {@code _id} that "stores"
-     * the {@code _id} so it can be fetched easily from the index.
-     */
-    public static Field standardIdField(String id) {
-        return new StringField(NAME, Uid.encodeId(id), Field.Store.YES);
+    public boolean isColumnarMode() {
+        return false;
     }
 
     /**
-     * Create a {@link Field} corresponding to a synthetic {@code _id} field, which is not indexed but instead resolved at runtime.
+     * Create an indexed and stored {@link Field} for the provided {@code _id}.
+     */
+    public static Field standardIdField(String id) {
+        return standardIdField(Uid.encodeId(id), Field.Store.YES);
+    }
+
+    /**
+     * Create an indexed {@link Field} for the provided {@code _id}, optionally stored.
+     * The id must already be encoded using {@link Uid#encodeId(String)}.
+     */
+    public static Field standardIdField(BytesRef uid, Field.Store stored) {
+        return new StringField(NAME, uid, stored);
+    }
+
+    /**
+     * Create a {@link Field} corresponding to a synthetic {@code _id} field, which is not indexed and not stored but instead computed at
+     * runtime.
      */
     public static Field syntheticIdField(String id) {
         return new SyntheticIdField(Uid.encodeId(id));
     }
 
     /**
-     * Create a {@link Field} corresponding to a synthetic {@code _id} field, which is not indexed but instead resolved at runtime. The id
-     * must be already encoded using {@link Uid#encodeId(String)}.
+     * Create a {@link Field} corresponding to a synthetic {@code _id} field, which is not indexed and not stored but instead resolved at
+     * runtime. The id must be already encoded using {@link Uid#encodeId(String)}.
      */
     public static Field syntheticIdField(BytesRef uid) {
         return new SyntheticIdField(uid);
@@ -96,7 +125,11 @@ public abstract class IdFieldMapper extends MetadataFieldMapper {
     protected abstract static class AbstractIdFieldType extends TermBasedFieldType {
 
         public AbstractIdFieldType() {
-            super(NAME, IndexType.terms(true, false), true, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
+            this(false);
+        }
+
+        public AbstractIdFieldType(boolean hasDocValues) {
+            super(NAME, IndexType.terms(true, hasDocValues), true, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
         }
 
         @Override
@@ -135,7 +168,7 @@ public abstract class IdFieldMapper extends MetadataFieldMapper {
 
         @Override
         public BlockLoader blockLoader(BlockLoaderContext blContext) {
-            return IdLoader.create(blContext.indexSettings(), blContext.mappingLookup()).blockLoader();
+            return IdLoader.create(blContext.indexSettings(), blContext.mappingLookup()).blockLoader(blContext.ordinalsByteSize());
         }
 
         @Override

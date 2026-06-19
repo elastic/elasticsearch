@@ -16,7 +16,6 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
-import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.ml.action.CreateTrainedModelAssignmentAction;
@@ -42,37 +41,9 @@ public abstract class ElasticsearchInternalModel extends Model {
         this.internalServiceSettings = internalServiceSettings;
     }
 
-    public ElasticsearchInternalModel(
-        String inferenceEntityId,
-        TaskType taskType,
-        String service,
-        ElasticsearchInternalServiceSettings internalServiceSettings
-    ) {
-        super(new ModelConfigurations(inferenceEntityId, taskType, service, internalServiceSettings));
-        this.internalServiceSettings = internalServiceSettings;
-    }
-
-    public ElasticsearchInternalModel(
-        String inferenceEntityId,
-        TaskType taskType,
-        String service,
-        ElasticsearchInternalServiceSettings internalServiceSettings,
-        TaskSettings taskSettings
-    ) {
-        super(new ModelConfigurations(inferenceEntityId, taskType, service, internalServiceSettings, taskSettings));
-        this.internalServiceSettings = internalServiceSettings;
-    }
-
-    public ElasticsearchInternalModel(
-        String inferenceEntityId,
-        TaskType taskType,
-        String service,
-        ElasticsearchInternalServiceSettings internalServiceSettings,
-        TaskSettings taskSettings,
-        ChunkingSettings chunkingSettings
-    ) {
-        super(new ModelConfigurations(inferenceEntityId, taskType, service, internalServiceSettings, taskSettings, chunkingSettings));
-        this.internalServiceSettings = internalServiceSettings;
+    public ElasticsearchInternalModel(ModelConfigurations modelConfigurations) {
+        super(modelConfigurations);
+        this.internalServiceSettings = (ElasticsearchInternalServiceSettings) modelConfigurations.getServiceSettings();
     }
 
     public StartTrainedModelDeploymentAction.Request getStartTrainedModelDeploymentActionRequest(TimeValue timeout) {

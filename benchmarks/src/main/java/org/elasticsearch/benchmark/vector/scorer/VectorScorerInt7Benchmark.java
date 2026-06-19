@@ -15,10 +15,10 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.MMapDirectory;
 import org.apache.lucene.util.quantization.OptimizedScalarQuantizer;
-import org.elasticsearch.common.logging.LogConfigurator;
+import org.elasticsearch.benchmark.Utils;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.simdvec.ES92Int7VectorsScorer;
-import org.elasticsearch.simdvec.internal.vectorization.ESVectorizationProvider;
+import org.elasticsearch.simdvec.ESVectorizationProvider;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -50,7 +50,7 @@ import java.util.concurrent.TimeUnit;
 public class VectorScorerInt7Benchmark {
 
     static {
-        LogConfigurator.configureESLogging(); // native access requires logging to be initialized
+        Utils.configureBenchmarkLogging();
     }
 
     @Param({ "384", "782", "1024" })
@@ -109,7 +109,7 @@ public class VectorScorerInt7Benchmark {
         }
 
         scratch = new byte[dims];
-        scorer = ESVectorizationProvider.getInstance().newES92Int7VectorsScorer(in, dims, bulkSize);
+        scorer = ESVectorizationProvider.getInstance().getVectorScorerFactory().newES92Int7VectorsScorer(in, dims, bulkSize);
     }
 
     @TearDown

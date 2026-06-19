@@ -19,7 +19,6 @@ plugins {
     id 'java-test-fixtures'
     id 'elasticsearch.publish'
     id 'elasticsearch.build-tools'
-    id 'elasticsearch.eclipse'
     id 'elasticsearch.versions'
     id 'elasticsearch.formatting'
 }
@@ -32,6 +31,17 @@ version = versions.getProperty("elasticsearch")
 java {
   targetCompatibility = versions.get("minimumRuntimeJava")
   sourceCompatibility = versions.get("minimumRuntimeJava")
+}
+
+sourceSets {
+  integTest {
+    compileClasspath += sourceSets["main"].output + configurations["testRuntimeClasspath"]
+    runtimeClasspath += output + compileClasspath
+  }
+}
+
+tasks.named("pluginUnderTestMetadata").configure {
+  getPluginClasspath().from(sourceSets.testFixtures.runtimeClasspath)
 }
 
 gradlePlugin {
@@ -94,13 +104,6 @@ tasks.named("processResources").configure {
     }
 }
 
-sourceSets {
-    integTest {
-        compileClasspath += sourceSets["main"].output + configurations["testRuntimeClasspath"]
-        runtimeClasspath += output + compileClasspath
-    }
-}
-
 // we do not publish the test fixtures of build-tools
 components.java.withVariantsFromConfiguration(configurations.testFixturesApiElements) { skip() }
 components.java.withVariantsFromConfiguration(configurations.testFixturesRuntimeElements) { skip() }
@@ -139,7 +142,9 @@ dependencies {
     implementation buildLibs.asm
     implementation buildLibs.jackson.core
     implementation buildLibs.jackson.databind
+    implementation "io.opentelemetry.proto:opentelemetry-proto:1.7.0-alpha"
 
+    testFixturesApi buildLibs.commmons.io
     testFixturesApi gradleApi()
     testFixturesApi gradleTestKit()
     testFixturesApi buildLibs.junit
@@ -176,6 +181,7 @@ tasks.withType(JavaCompile).configureEach {
 tasks.named('test').configure {
     useJUnitPlatform()
 }
+
 tasks.register("integTest", Test) {
     testClassesDirs = sourceSets.integTest.output.classesDirs
     classpath = sourceSets.integTest.runtimeClasspath

@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 149589
+pr: 149783
+summary: Fix subquery/fork with inline stats pruning
+type: bug

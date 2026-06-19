@@ -7,21 +7,35 @@
 
 package org.elasticsearch.xpack.esql.plan.logical.inference;
 
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.expression.function.ReferenceAttributeTests;
 import org.elasticsearch.xpack.esql.plan.logical.AbstractLogicalPlanSerializationTests;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
+
+import static org.elasticsearch.xpack.esql.expression.function.ReferenceAttributeTestUtils.randomReferenceAttribute;
 
 public class CompletionSerializationTests extends AbstractLogicalPlanSerializationTests<Completion> {
 
     @Override
     protected Completion createTestInstance() {
-        return new Completion(randomSource(), randomChild(0), randomInferenceId(), randomRowLimit(), randomPrompt(), randomAttribute());
+        return new Completion(
+            randomSource(),
+            randomChild(0),
+            randomInferenceId(),
+            randomRowLimit(),
+            randomPrompt(),
+            randomAttribute(),
+            randomTaskSettings(),
+            randomTimeout()
+        );
     }
 
     @Override
@@ -31,15 +45,67 @@ public class CompletionSerializationTests extends AbstractLogicalPlanSerializati
         Expression rowLimit = instance.rowLimit();
         Expression prompt = instance.prompt();
         Attribute targetField = instance.targetField();
+        MapExpression taskSettings = instance.taskSettings();
+        TimeValue timeout = instance.timeout();
 
-        switch (between(0, 4)) {
+        switch (between(0, 6)) {
             case 0 -> child = randomValueOtherThan(child, () -> randomChild(0));
             case 1 -> inferenceId = randomValueOtherThan(inferenceId, this::randomInferenceId);
             case 2 -> rowLimit = randomValueOtherThan(rowLimit, this::randomRowLimit);
             case 3 -> prompt = randomValueOtherThan(prompt, this::randomPrompt);
             case 4 -> targetField = randomValueOtherThan(targetField, this::randomAttribute);
+            case 5 -> taskSettings = randomValueOtherThan(taskSettings, this::randomTaskSettings);
+            case 6 -> timeout = randomValueOtherThan(timeout, this::randomTimeout);
         }
-        return new Completion(instance.source(), child, inferenceId, rowLimit, prompt, targetField);
+        return new Completion(instance.source(), child, inferenceId, rowLimit, prompt, targetField, taskSettings, timeout);
+    }
+
+    private TimeValue randomTimeout() {
+        return randomBoolean() ? null : TimeValue.timeValueMillis(randomLongBetween(1, 300_000));
+    }
+
+    private MapExpression randomTaskSettings() {
+        return randomTaskSettings(0);
+    }
+
+    private MapExpression randomTaskSettings(int depth) {
+        int numEntries = randomIntBetween(0, depth > 2 ? 2 : 5);
+        if (numEntries == 0) {
+            return new MapExpression(Source.EMPTY, List.of());
+        }
+
+        List<Expression> entries = new ArrayList<>();
+        for (int i = 0; i < numEntries; i++) {
+            Expression key = Literal.keyword(Source.EMPTY, randomIdentifier());
+            Expression value = randomTaskSettingsValue(depth);
+            entries.add(key);
+            entries.add(value);
+        }
+
+        return new MapExpression(Source.EMPTY, entries);
+    }
+
+    private Expression randomTaskSettingsValue(int depth) {
+        // Limit nesting depth to avoid stack overflow
+        if (depth >= 4) {
+            return randomPrimitiveValue();
+        }
+
+        int choice = randomIntBetween(0, 4);
+        return switch (choice) {
+            case 0 -> Literal.keyword(Source.EMPTY, randomIdentifier());
+            case 1 -> Literal.fromDouble(Source.EMPTY, randomDouble());
+            case 2 -> new Literal(Source.EMPTY, randomInt(), org.elasticsearch.xpack.esql.core.type.DataType.INTEGER);
+            case 3 -> randomBoolean() ? Literal.TRUE : Literal.FALSE;
+            case 4 -> randomTaskSettings(depth + 1); // Nested map
+            default -> randomPrimitiveValue();
+        };
+    }
+
+    private Expression randomPrimitiveValue() {
+        return randomBoolean() ? Literal.keyword(Source.EMPTY, randomIdentifier())
+            : randomBoolean() ? Literal.fromDouble(Source.EMPTY, randomDouble())
+            : new Literal(Source.EMPTY, randomInt(), org.elasticsearch.xpack.esql.core.type.DataType.INTEGER);
     }
 
     private Literal randomInferenceId() {
@@ -55,6 +121,6 @@ public class CompletionSerializationTests extends AbstractLogicalPlanSerializati
     }
 
     private Attribute randomAttribute() {
-        return ReferenceAttributeTests.randomReferenceAttribute(randomBoolean());
+        return randomReferenceAttribute(randomBoolean());
     }
 }

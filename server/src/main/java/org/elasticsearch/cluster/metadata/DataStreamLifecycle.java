@@ -59,6 +59,7 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
     private static final TransportVersion INTRODUCE_LIFECYCLE_TEMPLATE = TransportVersion.fromName("introduce_lifecycle_template");
     public static final TransportVersion ADD_SAMPLE_METHOD_DOWNSAMPLE_DLM = TransportVersion.fromName("add_sample_method_downsample_dlm");
     public static final TransportVersion SEARCHABLE_SNAPSHOTS_DLM_TV = TransportVersion.fromName("searchable_snapshots_dlm");
+    public static final TransportVersion DLM_FROZEN_TIER_GA_TV = TransportVersion.fromName("dlm_frozen_tier_ga");
     public static final String EFFECTIVE_RETENTION_REST_API_CAPABILITY = "data_stream_lifecycle_effective_retention";
 
     public static final String DATA_STREAMS_LIFECYCLE_ONLY_SETTING_NAME = "data_streams.lifecycle_only.mode";
@@ -191,7 +192,8 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
         if (lifecycleType == LifecycleType.FAILURES && downsamplingRounds != null) {
             throw new IllegalArgumentException(DOWNSAMPLING_NOT_SUPPORTED_ERROR_MESSAGE);
         }
-        DownsamplingRound.validateRounds(downsamplingRounds);
+        // Validate incorrectly because this may be constructed from state where an invalid configuration exists.
+        DownsamplingRound.validateRoundsIncorrectly(downsamplingRounds);
         this.downsamplingRounds = downsamplingRounds;
         if (downsamplingMethod != null && downsamplingRounds == null) {
             throw new IllegalArgumentException(DOWNSAMPLING_METHOD_WITHOUT_ROUNDS_ERROR);
@@ -381,7 +383,8 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
         if (out.getTransportVersion().supports(ADD_SAMPLE_METHOD_DOWNSAMPLE_DLM)) {
             out.writeOptionalWriteable(downsamplingMethod);
         }
-        if (DLM_SEARCHABLE_SNAPSHOTS_FEATURE_FLAG.isEnabled() && out.getTransportVersion().supports(SEARCHABLE_SNAPSHOTS_DLM_TV)) {
+        if (out.getTransportVersion().supports(DLM_FROZEN_TIER_GA_TV)
+            || (DLM_SEARCHABLE_SNAPSHOTS_FEATURE_FLAG.isEnabled() && out.getTransportVersion().supports(SEARCHABLE_SNAPSHOTS_DLM_TV))) {
             out.writeOptionalTimeValue(frozenAfter);
         }
     }
@@ -402,9 +405,8 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
         downsamplingMethod = in.getTransportVersion().supports(ADD_SAMPLE_METHOD_DOWNSAMPLE_DLM)
             ? in.readOptionalWriteable(DownsampleConfig.SamplingMethod::read)
             : null;
-        frozenAfter = DLM_SEARCHABLE_SNAPSHOTS_FEATURE_FLAG.isEnabled() && in.getTransportVersion().supports(SEARCHABLE_SNAPSHOTS_DLM_TV)
-            ? in.readOptionalTimeValue()
-            : null;
+        frozenAfter = ((DLM_SEARCHABLE_SNAPSHOTS_FEATURE_FLAG.isEnabled() && in.getTransportVersion().supports(SEARCHABLE_SNAPSHOTS_DLM_TV))
+            || in.getTransportVersion().supports(DLM_FROZEN_TIER_GA_TV)) ? in.readOptionalTimeValue() : null;
     }
 
     /**
@@ -494,7 +496,7 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
         if (downsamplingMethod != null) {
             builder.field(DOWNSAMPLING_METHOD_FIELD.getPreferredName(), downsamplingMethod.toString());
         }
-        if (DLM_SEARCHABLE_SNAPSHOTS_FEATURE_FLAG.isEnabled() && frozenAfter != null) {
+        if (frozenAfter != null) {
             builder.field(FROZEN_AFTER_FIELD.getPreferredName(), frozenAfter.getStringRep());
         }
         if (rolloverConfiguration != null) {
@@ -579,7 +581,17 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
             );
         }
 
-        static void validateRounds(List<DownsamplingRound> rounds) {
+        /**
+         * Validates the downsampling rounds, but incorrectly. By "incorrectly" we mean that it
+         * only checks that the rounds are multiples of the _first_ downsampling round's interval,
+         * instead of being a multiple of the _previous_ downsampling round's interval. However,
+         * there may be instances of an invalid configuration already stored on disk in cluster
+         * state in the template or data stream metadata. This method remains as the "old" version
+         * of the validation. Use {@link #validateRounds(List)} to validate with the correct
+         * behavior.
+         */
+        @Deprecated(since = "8.19.12,9.3.1,9.4.0")
+        public static void validateRoundsIncorrectly(List<DownsamplingRound> rounds) {
             if (rounds == null) {
                 return;
             }
@@ -607,6 +619,40 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
                     }
                     DownsampleConfig.validateSourceAndTargetIntervals(previous.fixedInterval(), round.fixedInterval());
                 }
+            }
+        }
+
+        /**
+         * Validates that the downsampling rounds are non-empty, there are fewer than 10 present,
+         * and that each round's `fixed_interval` is a multiple of the previous round's interval.
+         */
+        public static void validateRounds(List<DownsamplingRound> rounds) {
+            if (rounds == null) {
+                return;
+            }
+            if (rounds.isEmpty()) {
+                throw new IllegalArgumentException("Downsampling configuration should have at least one round configured.");
+            }
+            if (rounds.size() > 10) {
+                throw new IllegalArgumentException(
+                    "Downsampling configuration supports maximum 10 configured rounds. Found: " + rounds.size()
+                );
+            }
+            DownsamplingRound previous = null;
+            for (DownsamplingRound round : rounds) {
+                if (previous != null) {
+                    if (round.after.compareTo(previous.after) < 0) {
+                        throw new IllegalArgumentException(
+                            "A downsampling round must have a later 'after' value than the proceeding, "
+                                + round.after.getStringRep()
+                                + " is not after "
+                                + previous.after.getStringRep()
+                                + "."
+                        );
+                    }
+                    DownsampleConfig.validateSourceAndTargetIntervals(previous.fixedInterval(), round.fixedInterval());
+                }
+                previous = round;
             }
         }
 
@@ -673,7 +719,9 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
                 throw new IllegalArgumentException(DOWNSAMPLING_NOT_SUPPORTED_ERROR_MESSAGE);
             }
             if (downsamplingRounds.isDefined() && downsamplingRounds.get() != null) {
-                DownsamplingRound.validateRounds(downsamplingRounds.get());
+                // Validate incorrectly because the Template object may be constructed by
+                // state on disk which cannot be validated correctly without breaking.
+                DownsamplingRound.validateRoundsIncorrectly(downsamplingRounds.get());
             } else if (downsamplingMethod.isDefined() && downsamplingMethod.get() != null) {
                 throw new IllegalArgumentException(DOWNSAMPLING_METHOD_WITHOUT_ROUNDS_ERROR);
             }
@@ -742,7 +790,8 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
             if (out.getTransportVersion().supports(ADD_SAMPLE_METHOD_DOWNSAMPLE_DLM)) {
                 ResettableValue.write(out, downsamplingMethod, StreamOutput::writeWriteable);
             }
-            if (DLM_SEARCHABLE_SNAPSHOTS_FEATURE_FLAG.isEnabled() && out.getTransportVersion().supports(SEARCHABLE_SNAPSHOTS_DLM_TV)) {
+            if ((DLM_SEARCHABLE_SNAPSHOTS_FEATURE_FLAG.isEnabled() && out.getTransportVersion().supports(SEARCHABLE_SNAPSHOTS_DLM_TV)
+                || out.getTransportVersion().supports(DLM_FROZEN_TIER_GA_TV))) {
                 ResettableValue.write(out, frozenAfter, StreamOutput::writeTimeValue);
             }
         }
@@ -805,8 +854,9 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
                 .supports(ADD_SAMPLE_METHOD_DOWNSAMPLE_DLM)
                     ? ResettableValue.read(in, DownsampleConfig.SamplingMethod::read)
                     : ResettableValue.undefined();
-            ResettableValue<TimeValue> frozenAfter = DLM_SEARCHABLE_SNAPSHOTS_FEATURE_FLAG.isEnabled()
+            ResettableValue<TimeValue> frozenAfter = (DLM_SEARCHABLE_SNAPSHOTS_FEATURE_FLAG.isEnabled()
                 && in.getTransportVersion().supports(SEARCHABLE_SNAPSHOTS_DLM_TV)
+                || in.getTransportVersion().supports(DLM_FROZEN_TIER_GA_TV))
                     ? ResettableValue.read(in, StreamInput::readTimeValue)
                     : ResettableValue.undefined();
             return new Template(lifecycleTarget, enabled, dataRetention, downsamplingRounds, downsamplingMethod, frozenAfter);
@@ -850,9 +900,7 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
                 DOWNSAMPLING_METHOD_FIELD.getPreferredName(),
                 DownsampleConfig.SamplingMethod::toString
             );
-            if (DLM_SEARCHABLE_SNAPSHOTS_FEATURE_FLAG.isEnabled()) {
-                frozenAfter.toXContent(builder, params, FROZEN_AFTER_FIELD.getPreferredName(), TimeValue::getStringRep);
-            }
+            frozenAfter.toXContent(builder, params, FROZEN_AFTER_FIELD.getPreferredName(), TimeValue::getStringRep);
             if (rolloverConfiguration != null) {
                 builder.field(ROLLOVER_FIELD.getPreferredName());
                 rolloverConfiguration.evaluateAndConvertToXContent(

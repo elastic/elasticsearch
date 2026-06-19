@@ -32,12 +32,15 @@ import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 import java.io.IOException;
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.datastreams.DataStreamsPlugin.LOOK_AHEAD_TIME_DEFAULT;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.downsample.DownsampleDataStreamTests.TIMEOUT;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.AGGREGATE_METRIC_DOUBLE_V0;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.COLUMN_METADATA_BUCKET;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
@@ -70,7 +73,10 @@ public class DownsampleIT extends DownsamplingIntegTestCase {
         // Create data stream by indexing documents
         final Instant now = Instant.now();
         Supplier<XContentBuilder> sourceSupplier = () -> {
-            String ts = randomDateForRange(now.minusSeconds(60 * 60).toEpochMilli(), now.plusSeconds(60 * 29).toEpochMilli());
+            String ts = randomDateForRange(
+                now.minusSeconds(60 * 60).toEpochMilli(),
+                now.plusSeconds(60 * (LOOK_AHEAD_TIME_DEFAULT - 1)).toEpochMilli()
+            );
             try {
                 return XContentFactory.jsonBuilder()
                     .startObject()
@@ -120,7 +126,10 @@ public class DownsampleIT extends DownsamplingIntegTestCase {
         // Create data stream by indexing documents
         final Instant now = Instant.now();
         Supplier<XContentBuilder> sourceSupplier = () -> {
-            String ts = randomDateForRange(now.minusSeconds(60 * 60).toEpochMilli(), now.plusSeconds(60 * 29).toEpochMilli());
+            String ts = randomDateForRange(
+                now.minusSeconds(60 * 60).toEpochMilli(),
+                now.plusSeconds(60 * (LOOK_AHEAD_TIME_DEFAULT - 1)).toEpochMilli()
+            );
             try {
                 return XContentFactory.jsonBuilder()
                     .startObject()
@@ -177,8 +186,12 @@ public class DownsampleIT extends DownsamplingIntegTestCase {
                   "type": "exponential_histogram",
                   "time_series_metric": "histogram"
                 },
-                "metrics.tdigest": {
+                "metrics.legacy": {
                   "type": "histogram",
+                  "time_series_metric": "histogram"
+                },
+                "metrics.tdigest": {
+                  "type": "tdigest",
                   "time_series_metric": "histogram"
                 },
                 "my_labels": {
@@ -203,7 +216,10 @@ public class DownsampleIT extends DownsamplingIntegTestCase {
         // Create data stream by indexing documents
         final Instant now = Instant.now();
         Supplier<XContentBuilder> sourceSupplier = () -> {
-            String ts = randomDateForRange(now.minusSeconds(60 * 60).toEpochMilli(), now.plusSeconds(60 * 29).toEpochMilli());
+            String ts = randomDateForRange(
+                now.minusSeconds(60 * 60).toEpochMilli(),
+                now.plusSeconds(60 * (LOOK_AHEAD_TIME_DEFAULT - 1)).toEpochMilli()
+            );
             try {
                 int maxHistogramSize = randomIntBetween(2, 10);
                 return XContentFactory.jsonBuilder()
@@ -233,6 +249,11 @@ public class DownsampleIT extends DownsamplingIntegTestCase {
                     .endObject()
 
                     .startObject("metrics.tdigest")
+                    .array("centroids", randomHistogramValues(maxHistogramSize))
+                    .array("counts", randomHistogramValueCounts(maxHistogramSize))
+                    .endObject()
+
+                    .startObject("metrics.legacy")
                     .array("values", randomHistogramValues(maxHistogramSize))
                     .array("counts", randomHistogramValueCounts(maxHistogramSize))
                     .endObject()
@@ -354,7 +375,10 @@ public class DownsampleIT extends DownsamplingIntegTestCase {
         // Create data stream by indexing documents
         final Instant now = Instant.now();
         Supplier<XContentBuilder> sourceSupplier = () -> {
-            String ts = randomDateForRange(now.minusSeconds(60 * 60).toEpochMilli(), now.plusSeconds(60 * 29).toEpochMilli());
+            String ts = randomDateForRange(
+                now.minusSeconds(60 * 60).toEpochMilli(),
+                now.plusSeconds(60 * (LOOK_AHEAD_TIME_DEFAULT - 1)).toEpochMilli()
+            );
             try {
                 return XContentFactory.jsonBuilder()
                     .startObject()
@@ -376,7 +400,10 @@ public class DownsampleIT extends DownsamplingIntegTestCase {
         // index to the next backing index; random time between 31 and 59m in the future to because default look_ahead_time is 30m and we
         // don't want to conflict with the previous backing index
         Supplier<XContentBuilder> nextSourceSupplier = () -> {
-            String ts = randomDateForRange(now.plusSeconds(60 * 31).toEpochMilli(), now.plusSeconds(60 * 59).toEpochMilli());
+            String ts = randomDateForRange(
+                now.plusSeconds(60 * (LOOK_AHEAD_TIME_DEFAULT + 1)).toEpochMilli(),
+                now.plusSeconds(60 * (2 * LOOK_AHEAD_TIME_DEFAULT - 1)).toEpochMilli()
+            );
             try {
                 return XContentFactory.jsonBuilder()
                     .startObject()
@@ -452,7 +479,10 @@ public class DownsampleIT extends DownsamplingIntegTestCase {
         // Create data stream by indexing documents with no values in numerics
         final Instant now = Instant.now();
         Supplier<XContentBuilder> sourceSupplier = () -> {
-            String ts = randomDateForRange(now.minusSeconds(60 * 60).toEpochMilli(), now.minusSeconds(60 * 15).toEpochMilli());
+            String ts = randomDateForRange(
+                now.minusSeconds(60 * 60).toEpochMilli(),
+                now.minusSeconds(60 * (LOOK_AHEAD_TIME_DEFAULT - 1)).toEpochMilli()
+            );
             try {
                 return XContentFactory.jsonBuilder()
                     .startObject()
@@ -467,7 +497,10 @@ public class DownsampleIT extends DownsamplingIntegTestCase {
         bulkIndex(dataStreamName, sourceSupplier, 100);
         // And index documents with values
         sourceSupplier = () -> {
-            String ts = randomDateForRange(now.minusSeconds(60 * 14).toEpochMilli(), now.plusSeconds(60 * 29).toEpochMilli());
+            String ts = randomDateForRange(
+                now.minusSeconds(60 * 14).toEpochMilli(),
+                now.plusSeconds(60 * (LOOK_AHEAD_TIME_DEFAULT - 1)).toEpochMilli()
+            );
             try {
                 return XContentFactory.jsonBuilder()
                     .startObject()
@@ -486,7 +519,10 @@ public class DownsampleIT extends DownsamplingIntegTestCase {
         String secondBackingIndex = rolloverAndDownsample(dataStreamName, downsampleConfig);
 
         Supplier<XContentBuilder> nextSourceSupplier = () -> {
-            String ts = randomDateForRange(now.plusSeconds(60 * 31).toEpochMilli(), now.plusSeconds(60 * 59).toEpochMilli());
+            String ts = randomDateForRange(
+                now.plusSeconds(60 * (LOOK_AHEAD_TIME_DEFAULT + 1)).toEpochMilli(),
+                now.plusSeconds(60 * ((2 * LOOK_AHEAD_TIME_DEFAULT - 1))).toEpochMilli()
+            );
             try {
                 return XContentFactory.jsonBuilder()
                     .startObject()
@@ -514,6 +550,9 @@ public class DownsampleIT extends DownsamplingIntegTestCase {
     }
 
     private void testEsqlMetrics(String dataStreamName, String nonDownsampledIndex) throws Exception {
+        Map<String, Object> bucketMeta = COLUMN_METADATA_BUCKET.isEnabled()
+            ? Map.of("bucket", Map.of("interval", 1L, "unit", "hour"))
+            : null;
         // test _over_time commands with implicit casting of aggregate_metric_double
         for (String outerCommand : List.of("min", "max", "sum", "count")) {
             String expectedType = outerCommand.equals("count") ? "long" : "double";
@@ -528,7 +567,7 @@ public class DownsampleIT extends DownsamplingIntegTestCase {
                             List.of(
                                 new ColumnInfoImpl(command, innerCommand.equals("count_over_time") ? "long" : expectedType, null),
                                 new ColumnInfoImpl("cluster", "keyword", null),
-                                new ColumnInfoImpl("bucket(@timestamp, 1 hour)", "date", null)
+                                new ColumnInfoImpl("bucket(@timestamp, 1 hour)", "date", null, bucketMeta)
                             )
                         )
                     );
@@ -552,7 +591,7 @@ public class DownsampleIT extends DownsamplingIntegTestCase {
                             List.of(
                                 new ColumnInfoImpl(command, expectedType, null),
                                 new ColumnInfoImpl("cluster", "keyword", null),
-                                new ColumnInfoImpl("bucket(@timestamp, 1 hour)", "date", null)
+                                new ColumnInfoImpl("bucket(@timestamp, 1 hour)", "date", null, bucketMeta)
                             )
                         )
                     );
@@ -576,7 +615,7 @@ public class DownsampleIT extends DownsamplingIntegTestCase {
                             List.of(
                                 new ColumnInfoImpl(command, expectedType, null),
                                 new ColumnInfoImpl("cluster", "keyword", null),
-                                new ColumnInfoImpl("bucket(@timestamp, 1 hour)", "date", null)
+                                new ColumnInfoImpl("bucket(@timestamp, 1 hour)", "date", null, bucketMeta)
                             )
                         )
                     );

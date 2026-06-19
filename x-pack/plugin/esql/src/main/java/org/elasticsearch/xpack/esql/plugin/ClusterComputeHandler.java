@@ -50,22 +50,22 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
     private final ComputeService computeService;
     private final ExchangeService exchangeService;
     private final TransportService transportService;
-    private final Executor esqlExecutor;
+    private final Executor searchExecutor;
     private final DataNodeComputeHandler dataNodeComputeHandler;
 
     ClusterComputeHandler(
         ComputeService computeService,
         ExchangeService exchangeService,
         TransportService transportService,
-        Executor esqlExecutor,
+        Executor searchExecutor,
         DataNodeComputeHandler dataNodeComputeHandler
     ) {
         this.computeService = computeService;
         this.exchangeService = exchangeService;
-        this.esqlExecutor = esqlExecutor;
+        this.searchExecutor = searchExecutor;
         this.transportService = transportService;
         this.dataNodeComputeHandler = dataNodeComputeHandler;
-        transportService.registerRequestHandler(ComputeService.CLUSTER_ACTION_NAME, esqlExecutor, ClusterComputeRequest::new, this);
+        transportService.registerRequestHandler(ComputeService.CLUSTER_ACTION_NAME, searchExecutor, ClusterComputeRequest::new, this);
     }
 
     void startComputeOnRemoteCluster(
@@ -105,7 +105,7 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
             cluster.connection,
             childSessionId,
             queryPragmas.exchangeBufferSize(),
-            esqlExecutor,
+            searchExecutor,
             listener.delegateFailure((l, unused) -> {
                 final CancellableTask groupTask;
                 final Runnable onGroupFailure;
@@ -139,7 +139,7 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
                         clusterRequest,
                         groupTask,
                         TransportRequestOptions.EMPTY,
-                        new ActionListenerResponseHandler<>(clusterListener, ComputeResponse::new, esqlExecutor)
+                        new ActionListenerResponseHandler<>(clusterListener, ComputeResponse::new, searchExecutor)
                     );
                     var remoteSink = exchangeService.newRemoteSink(groupTask, childSessionId, transportService, cluster.connection);
                     exchangeSource.addRemoteSink(
@@ -262,9 +262,10 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
         parentTask.addListener(
             () -> exchangeService.finishSinkHandler(globalSessionId, new TaskCancelledException(parentTask.getReasonCancelled()))
         );
+        exchangeSink.addCompletionListener(ActionListener.running(() -> exchangeService.finishSinkHandler(globalSessionId, null)));
         final String localSessionId = clusterAlias + ":" + globalSessionId;
         ReductionPlan reductionPlan = ComputeService.reductionPlan(
-            computeService.plannerSettings(),
+            computeService.plannerSettings().get(),
             computeService.createFlags(),
             configuration,
             configuration.newFoldContext(),
@@ -303,6 +304,10 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
                         () -> exchangeSink.createExchangeSink(() -> {})
                     ),
                     coordinatorPlan,
+                    computeService.plannerSettings().get(),
+                    // Local physical optimization is aimed at data nodes, e.g., inserting field extractions, which don't apply here.
+                    // Cluster-level reduction uses simple query plans that just perform a single reduction step between exchanges.
+                    LocalPhysicalOptimization.DISABLED,
                     configuration.profile() ? new PlanTimeProfile() : null,
                     computeListener.acquireCompute()
                 );

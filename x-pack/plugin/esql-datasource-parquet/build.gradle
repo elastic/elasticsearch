@@ -1,0 +1,118 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+apply plugin: 'elasticsearch.internal-es-plugin'
+apply plugin: 'elasticsearch.publish'
+apply plugin: 'elasticsearch.esql-release'
+
+subprojects {
+  apply plugin: 'elasticsearch.esql-release'
+}
+
+versions << [
+  'hadoop' : '3.4.3',
+]
+
+tasks.withType(JavaCompile).configureEach {
+  options.compilerArgs << '-Xlint:-classfile'
+}
+
+esplugin {
+  name = 'esql-datasource-parquet'
+  description = 'Parquet format support for ESQL external data sources'
+  classname = 'org.elasticsearch.xpack.esql.datasource.parquet.ParquetDataSourcePlugin'
+  extendedPlugins = ['x-pack-esql', 'esql-datasource-compression-libs']
+}
+
+base {
+  archivesName = 'esql-datasource-parquet'
+}
+
+dependencies {
+  // SPI interfaces from ESQL core
+  compileOnly project(path: xpackModule('esql'))
+  compileOnly project(path: xpackModule('esql-core'))
+  compileOnly project(path: xpackModule('core'))
+  compileOnly project(':server')
+  compileOnly project(xpackModule('esql:compute'))
+  // Shared Panama FFI zstd helper (PanamaZstd) and bundled compression libraries. Provided
+  // at runtime via the esql-datasource-compression-libs parent plugin classloader chain
+  // declared by extendedPlugins.
+  compileOnly project(':x-pack:plugin:esql-datasource-compression-libs')
+
+  // Parquet format support - using parquet-hadoop-bundle to avoid jar hell from duplicate shaded classes
+  implementation("org.apache.parquet:parquet-hadoop-bundle:${versions.parquet}")
+
+  // Hadoop JARs are needed at compile time because parquet-hadoop-bundle's API surface
+  // references Hadoop types (Configuration, Path, FileInputFormat). At runtime, our
+  // PlainParquetReadOptions bypasses the Builder's unconditional loading of
+  // ParquetInputFormat/HadoopCodecs, and PlainParquetConfiguration/PlainCompressionCodecFactory
+  // bypass all Hadoop-dependent code paths in both the read and write paths.
+  compileOnly("org.apache.hadoop:hadoop-common:${versions.hadoop}") {
+    transitive = false
+  }
+  compileOnly("org.apache.hadoop:hadoop-mapreduce-client-core:${versions.hadoop}") {
+    transitive = false
+  }
+
+  // Compression libraries — inherited at runtime via extendedPlugins from
+  // esql-datasource-compression-libs; declared compileOnly so PlainCompressionCodecFactory
+  // can reference their classes at compile time. zstd-jni was removed in Phase 2: the codec
+  // factory now routes zstd through PanamaZstd (Panama FFI binding) on both code paths.
+  compileOnly "io.airlift:aircompressor:${versions.aircompressor}"
+  compileOnly "org.xerial.snappy:snappy-java:${versions.snappyJava}"
+
+  testImplementation project(':test:framework')
+  testImplementation(testArtifact(project(xpackModule('core'))))
+}
+
+tasks.named("test").configure {
+  // Needed for Arrow's direct memory access (UnsafeAllocationManager)
+  jvmArgs('--add-opens=java.base/java.nio=ALL-UNNAMED')
+  // Run the whole suite under Arrow's debug allocator so any use-after-free, double-free, or
+  // unreleased ArrowBuf on the direct-memory read path fails deterministically with a stack
+  // trace at the offending allocation instead of surfacing as a flaky native corruption
+  // (e.g. zstd "Src size is incorrect") in an unrelated test later in the same JVM.
+  systemProperty 'arrow.memory.debug.allocator', 'true'
+  // The wall-time perf smoke runs in its own JVM on the production allocator — see perfSmokeTest.
+  exclude '**/OptimizedReaderPerformanceTests.class'
+}
+
+// OptimizedReaderPerformanceTests asserts a wall-time ratio (optimized vs baseline). The Arrow
+// debug allocator's per-buffer ledger inflates the Arrow path ~20x and only penalizes the
+// optimized side, so the ratio is meaningless under it — and the flag is a static-final JVM
+// global that cannot be toggled per-test. Run this one class in its own JVM on the production
+// (non-debug) allocator so it always executes in CI with a meaningful measurement.
+tasks.register('perfSmokeTest', Test) {
+  include '**/OptimizedReaderPerformanceTests.class'
+  jvmArgs('--add-opens=java.base/java.nio=ALL-UNNAMED')
+  testClassesDirs = sourceSets.test.output.classesDirs
+  classpath = sourceSets.test.runtimeClasspath
+}
+
+tasks.named("check").configure { dependsOn "perfSmokeTest" }
+
+tasks.named("dependencyLicenses").configure {
+  mapping from: /lucene-.*/, to: 'lucene'
+  mapping from: /parquet-.*/, to: 'parquet'
+}
+
+tasks.named("thirdPartyAudit").configure {
+  ignoreMissingClasses()
+  ignoreViolations(
+    // Parquet shaded hashing uses sun.misc.Unsafe
+    'shaded.parquet.net.openhft.hashing.HotSpotPrior7u6StringHash',
+    'shaded.parquet.net.openhft.hashing.LongHashFunction',
+    'shaded.parquet.net.openhft.hashing.LongTupleHashFunction',
+    'shaded.parquet.net.openhft.hashing.ModernCompactStringHash',
+    'shaded.parquet.net.openhft.hashing.ModernHotSpotStringHash',
+    'shaded.parquet.net.openhft.hashing.UnsafeAccess',
+    'shaded.parquet.net.openhft.hashing.UnsafeAccess$OldUnsafeAccessBigEndian',
+    'shaded.parquet.net.openhft.hashing.UnsafeAccess$OldUnsafeAccessLittleEndian',
+    'shaded.parquet.net.openhft.hashing.Util',
+  )
+}

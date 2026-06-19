@@ -7,56 +7,38 @@
 
 package org.elasticsearch.compute.aggregation.blockhash;
 
-$if(BytesRef)$
+// begin generated imports
 import org.apache.lucene.util.BytesRef;
-$endif$
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BitArray;
 import org.elasticsearch.common.util.$Hash$Table;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.SeenGroupIds;
-$if(BytesRef)$
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
-import org.elasticsearch.compute.data.IntBlock;
-import org.elasticsearch.compute.data.IntVector;
-import org.elasticsearch.compute.data.OrdinalBytesRefBlock;
-import org.elasticsearch.compute.data.OrdinalBytesRefVector;
-$elseif(double)$
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
-$elseif(int)$
-import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.BlockFactory;
-import org.elasticsearch.compute.data.IntBlock;
-import org.elasticsearch.compute.data.IntVector;
-$elseif(long)$
-import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.BlockFactory;
-import org.elasticsearch.compute.data.IntBlock;
-import org.elasticsearch.compute.data.IntVector;
+import org.elasticsearch.compute.data.OrdinalBytesRefBlock;
+import org.elasticsearch.compute.data.OrdinalBytesRefVector;
 import org.elasticsearch.compute.data.$Type$Block;
 import org.elasticsearch.compute.data.$Type$Vector;
-$endif$
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupe;
 import org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupe$Type$;
-$if(BytesRef)$
 import org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupeInt;
-$endif$
 import org.elasticsearch.core.ReleasableIterator;
-
 $if(BytesRef)$
-$else$
-import java.util.BitSet;
-
+import org.elasticsearch.swisshash.BytesRefSwissHash;
 $endif$
+import java.util.BitSet;
+// end generated imports
+
 /**
  * Maps a {@link $Type$Block} column to group ids.
  * This class is generated. Edit {@code X-BlockHash.java.st} instead.
@@ -73,6 +55,18 @@ final class $Type$BlockHash extends BlockHash {
      * </p>
      */
     private boolean seenNull;
+
+$if(BytesRef)$
+    private static final int PREFETCH_BATCH = 128;
+    private final PrefetchBarrier prefetchBarrier = new PrefetchBarrier();
+    private final long[] batchHashes = new long[PREFETCH_BATCH];
+    private final BytesRef[] batchKeys = new BytesRef[PREFETCH_BATCH];
+    {
+        for (int i = 0; i < PREFETCH_BATCH; i++) {
+            batchKeys[i] = new BytesRef();
+        }
+    }
+$endif$
 
     $Type$BlockHash(int channel, BlockFactory blockFactory) {
         super(blockFactory);
@@ -118,6 +112,9 @@ $if(BytesRef)$
         if (ordinals != null) {
             return addOrdinalsVector(ordinals);
         }
+        if (hash instanceof BytesRefSwissHash swiss && swiss.shouldPrefetch()) {
+            return addWithPrefetch(vector, swiss);
+        }
         BytesRef scratch = new BytesRef();
 $endif$
         int positions = vector.getPositionCount();
@@ -135,6 +132,34 @@ $endif$
             return builder.build();
         }
     }
+
+$if(BytesRef)$
+    private IntVector addWithPrefetch(BytesRefVector vector, BytesRefSwissHash swiss) {
+        int positions = vector.getPositionCount();
+        int dummy = 0;
+        try (var builder = blockFactory.newIntVectorFixedBuilder(positions)) {
+            for (int offset = 0; offset < positions; offset += PREFETCH_BATCH) {
+                int batchSize = Math.min(PREFETCH_BATCH, positions - offset);
+                for (int i = 0; i < batchSize; i++) {
+                    vector.getBytesRef(offset + i, batchKeys[i]);
+                    batchHashes[i] = BytesRefSwissHash.hash64(batchKeys[i]);
+                    dummy ^= swiss.prefetch(batchHashes[i]);
+                }
+                for (int i = 0; i < batchSize; i++) {
+                    final long id = swiss.addWithHash(batchKeys[i], batchHashes[i]);
+                    builder.appendInt(Math.toIntExact(hashOrdToGroupNullReserved(id)));
+                }
+            }
+            for (int i = 0; i < PREFETCH_BATCH; i++) {
+                batchKeys[i].bytes = BytesRef.EMPTY_BYTES;
+                batchKeys[i].offset = 0;
+                batchKeys[i].length = 0;
+            }
+            prefetchBarrier.consume(dummy);
+            return builder.build();
+        }
+    }
+$endif$
 
     /**
      *  Adds the block values to the hash, and returns a new vector with the group IDs for those positions.
@@ -253,64 +278,32 @@ $endif$
     }
 
     @Override
-    public $Type$Block[] getKeys() {
+    public $Type$Block[] getKeys(IntVector selected) {
 $if(BytesRef)$
-        /*
-         * Create an un-owned copy of the data so we can close our BytesRefHash
-         * without and still read from the block.
-         */
         // TODO replace with takeBytesRefsOwnership ?!
         final BytesRef spare = new BytesRef();
-        if (seenNull) {
-            try (var builder = blockFactory.newBytesRefBlockBuilder(Math.toIntExact(hash.size() + 1))) {
-                builder.appendNull();
-                for (long i = 0; i < hash.size(); i++) {
-                    builder.appendBytesRef(hash.get(i, spare));
+$endif$
+        try ($Type$Block.Builder builder = blockFactory.new$Type$BlockBuilder(selected.getPositionCount())) {
+            for (int i = 0; i < selected.getPositionCount(); i++) {
+                int groupId = selected.getInt(i);
+                if (groupId == 0) {
+                    builder.appendNull();
+                } else {
+$if(BytesRef)$
+                    builder.appendBytesRef(hash.get(groupId - 1, spare));
+$elseif(int)$
+                    builder.appendInt((int) hash.get(groupId - 1));
+$elseif(double)$
+                    builder.appendDouble(Double.longBitsToDouble(hash.get(groupId - 1)));
+$elseif(long)$
+                    builder.appendLong(hash.get(groupId - 1));
+$else$
+                    syntax error because we didn't cover this case
+$endif$
                 }
-                return new BytesRefBlock[] { builder.build() };
             }
+            return new $Type$Block[] { builder.build() };
         }
-        try (var builder = blockFactory.newBytesRefBlockBuilder(Math.toIntExact(hash.size()))) {
-            for (long i = 0; i < hash.size(); i++) {
-                builder.appendBytesRef(hash.get(i, spare));
-            }
-            return new BytesRefBlock[] { builder.build() };
-        }
-$else$
-        if (seenNull) {
-            final int size = Math.toIntExact(hash.size() + 1);
-            final $type$[] keys = new $type$[size];
-            for (int i = 1; i < size; i++) {
-$if(int)$
-                keys[i] = (int) hash.get(i - 1);
-$elseif(double)$
-                keys[i] = Double.longBitsToDouble(hash.get(i - 1));
-$elseif(long)$
-                keys[i] = hash.get(i - 1);
-$else$
-                syntax error because we didn't cover this case
-$endif$
-            }
-            BitSet nulls = new BitSet(1);
-            nulls.set(0);
-            return new $Type$Block[] {
-                blockFactory.new$Type$ArrayBlock(keys, keys.length, null, nulls, Block.MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING) };
-        }
-        final int size = Math.toIntExact(hash.size());
-        final $type$[] keys = new $type$[size];
-        for (int i = 0; i < size; i++) {
-$if(int)$
-            keys[i] = (int) hash.get(i);
-$elseif(double)$
-            keys[i] = Double.longBitsToDouble(hash.get(i));
-$elseif(long)$
-            keys[i] = hash.get(i);
-$else$
-            syntax error because we didn't cover this case
-$endif$
-        }
-        return new $Type$Block[] { blockFactory.new$Type$ArrayVector(keys, keys.length).asBlock() };
-$endif$
     }
 
     @Override
@@ -334,6 +327,9 @@ $endif$
 
     @Override
     public void close() {
+$if(BytesRef)$
+        prefetchBarrier.flush();
+$endif$
         hash.close();
     }
 

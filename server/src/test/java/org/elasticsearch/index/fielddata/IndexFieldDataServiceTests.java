@@ -131,7 +131,7 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
         SearchLookup searchLookup = new SearchLookup(null, null, (ctx, doc) -> null);
         ifdService.getForField(
             ft,
-            new FieldDataContext("qualified", null, () -> searchLookup, null, MappedFieldType.FielddataOperation.SEARCH)
+            new FieldDataContext("qualified", null, () -> searchLookup, null, () -> false, MappedFieldType.FielddataOperation.SEARCH)
         );
         assertSame(searchLookup, searchLookupSetOnce.get().get());
     }
@@ -147,10 +147,12 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
         );
 
         final MapperBuilderContext context = MapperBuilderContext.root(false, false);
-        final MappedFieldType mapper1 = new TextFieldMapper.Builder("field_1", createDefaultIndexAnalyzers()).fielddata(true)
+        final MappedFieldType mapper1 = new TextFieldMapper.Builder("field_1", defaultIndexSettings(), createDefaultIndexAnalyzers(), false)
+            .fielddata(true)
             .build(context)
             .fieldType();
-        final MappedFieldType mapper2 = new TextFieldMapper.Builder("field_2", createDefaultIndexAnalyzers()).fielddata(true)
+        final MappedFieldType mapper2 = new TextFieldMapper.Builder("field_2", defaultIndexSettings(), createDefaultIndexAnalyzers(), false)
+            .fielddata(true)
             .build(context)
             .fieldType();
         final IndexWriter writer = new IndexWriter(new ByteBuffersDirectory(), new IndexWriterConfig(new KeywordAnalyzer()));
@@ -212,7 +214,8 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
         );
 
         final MapperBuilderContext context = MapperBuilderContext.root(false, false);
-        final MappedFieldType mapper1 = new TextFieldMapper.Builder("s", createDefaultIndexAnalyzers()).fielddata(true)
+        final MappedFieldType mapper1 = new TextFieldMapper.Builder("s", defaultIndexSettings(), createDefaultIndexAnalyzers(), false)
+            .fielddata(true)
             .build(context)
             .fieldType();
         final IndexWriter writer = new IndexWriter(new ByteBuffersDirectory(), new IndexWriterConfig(new KeywordAnalyzer()));
@@ -310,6 +313,7 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
                 false,
                 null,
                 null,
+                false,
                 false
             )
         );
@@ -330,6 +334,7 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
                 false,
                 null,
                 null,
+                false,
                 false
             )
         );
@@ -354,14 +359,12 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
     public void testFieldDataCacheExpire() {
         {
             Settings settings = Settings.EMPTY;
-            IndicesFieldDataCache cache = new IndicesFieldDataCache(settings, new IndexFieldDataCache.Listener() {
-            });
+            IndicesFieldDataCache cache = new IndicesFieldDataCache(settings, new IndexFieldDataCache.Listener() {});
             assertThat(cache.getCache().getExpireAfterAccessNanos(), equalTo(3_600_000_000_000L));
         }
         {
             Settings settings = Settings.builder().put(IndicesFieldDataCache.INDICES_FIELDDATA_CACHE_EXPIRE.getKey(), "5s").build();
-            IndicesFieldDataCache cache = new IndicesFieldDataCache(settings, new IndexFieldDataCache.Listener() {
-            });
+            IndicesFieldDataCache cache = new IndicesFieldDataCache(settings, new IndexFieldDataCache.Listener() {});
             assertThat(cache.getCache().getExpireAfterAccessNanos(), equalTo(5_000_000_000L));
         }
     }

@@ -12,10 +12,12 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.inference.UnifiedCompletionRequest;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.anthropic.AnthropicModel;
+import org.elasticsearch.xpack.inference.services.anthropic.AnthropicRateLimitServiceSettings;
 import org.elasticsearch.xpack.inference.services.anthropic.action.AnthropicActionVisitor;
 import org.elasticsearch.xpack.inference.services.anthropic.request.AnthropicRequestUtils;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
@@ -23,6 +25,7 @@ import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.Map;
+import java.util.Objects;
 
 public class AnthropicChatCompletionModel extends AnthropicModel {
 
@@ -35,6 +38,32 @@ public class AnthropicChatCompletionModel extends AnthropicModel {
         return new AnthropicChatCompletionModel(
             model,
             AnthropicChatCompletionTaskSettings.of(model.getTaskSettings(), requestTaskSettings)
+        );
+    }
+
+    /**
+     * Returns a copy of {@code model} with the model id from {@code request} applied to its service settings,
+     * leaving the original instance untouched. Used by the {@code chat_completion} task type so that the model id
+     * supplied in each unified inference call overrides the value persisted on the endpoint.
+     */
+    public static AnthropicChatCompletionModel of(AnthropicChatCompletionModel model, UnifiedCompletionRequest request) {
+        if (request.model() == null || Objects.equals(request.model(), model.getServiceSettings().modelId())) {
+            return model;
+        }
+
+        var originalServiceSettings = model.getServiceSettings();
+        var overriddenServiceSettings = new AnthropicChatCompletionServiceSettings(
+            request.model(),
+            originalServiceSettings.rateLimitSettings()
+        );
+
+        return new AnthropicChatCompletionModel(
+            model.getInferenceEntityId(),
+            model.getTaskType(),
+            model.getConfigurations().getService(),
+            overriddenServiceSettings,
+            model.getTaskSettings(),
+            model.getSecretSettings()
         );
     }
 
@@ -53,11 +82,11 @@ public class AnthropicChatCompletionModel extends AnthropicModel {
             service,
             AnthropicChatCompletionServiceSettings.fromMap(serviceSettings, context),
             AnthropicChatCompletionTaskSettings.fromMap(taskSettings, context),
-            DefaultSecretSettings.fromMap(secrets)
+            DefaultSecretSettings.fromMap(secrets, context)
         );
     }
 
-    AnthropicChatCompletionModel(
+    public AnthropicChatCompletionModel(
         String inferenceEntityId,
         TaskType taskType,
         String service,
@@ -65,12 +94,16 @@ public class AnthropicChatCompletionModel extends AnthropicModel {
         AnthropicChatCompletionTaskSettings taskSettings,
         @Nullable DefaultSecretSettings secrets
     ) {
+        this(new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings), new ModelSecrets(secrets));
+    }
+
+    public AnthropicChatCompletionModel(ModelConfigurations modelConfigurations, ModelSecrets modelSecrets) {
         super(
-            new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings),
-            new ModelSecrets(secrets),
-            serviceSettings,
+            modelConfigurations,
+            modelSecrets,
+            (AnthropicRateLimitServiceSettings) modelConfigurations.getServiceSettings(),
             AnthropicChatCompletionModel::buildDefaultUri,
-            secrets
+            (DefaultSecretSettings) modelSecrets.getSecretSettings()
         );
     }
 

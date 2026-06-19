@@ -15,6 +15,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.search.ConstantScoreScorer;
 import org.apache.lucene.search.ConstantScoreWeight;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
@@ -49,27 +50,16 @@ abstract class AbstractBinaryDocValuesQuery extends Query {
             @Override
             public ScorerSupplier scorerSupplier(LeafReaderContext context) throws IOException {
                 final BinaryDocValues values = context.reader().getBinaryDocValues(fieldName);
-                final NumericDocValues counts = context.reader().getNumericDocValues(fieldName + COUNT_FIELD_SUFFIX);
-
                 if (values == null) {
                     return null;
                 }
-
-                final TwoPhaseIterator iterator = new TwoPhaseIterator(counts) {
-                    final MultiValueSeparateCountBinaryDocValuesReader reader = new MultiValueSeparateCountBinaryDocValuesReader();
-
-                    @Override
-                    public boolean matches() throws IOException {
-                        values.advance(counts.docID());
-                        return reader.match(values.binaryValue(), counts.longValue(), matcher);
-                    }
-
-                    @Override
-                    public float matchCost() {
-                        return matchCost;
-                    }
-                };
-
+                final NumericDocValues counts = context.reader().getNumericDocValues(fieldName + COUNT_FIELD_SUFFIX);
+                final DocIdSetIterator iterator;
+                if (counts != null) {
+                    iterator = multiValuedIterator(values, counts, matcher, matchCost);
+                } else {
+                    iterator = singleValuedIterator(values, matcher, matchCost);
+                }
                 return new DefaultScorerSupplier(new ConstantScoreScorer(score(), scoreMode, iterator));
             }
 
@@ -87,5 +77,43 @@ abstract class AbstractBinaryDocValuesQuery extends Query {
         if (visitor.acceptField(fieldName)) {
             visitor.visitLeaf(this);
         }
+    }
+
+    static DocIdSetIterator multiValuedIterator(
+        BinaryDocValues values,
+        NumericDocValues counts,
+        Predicate<BytesRef> predicate,
+        float cost
+    ) {
+        return TwoPhaseIterator.asDocIdSetIterator(new TwoPhaseIterator(counts) {
+            final MultiValueSeparateCountBinaryDocValuesReader reader = new MultiValueSeparateCountBinaryDocValuesReader();
+
+            @Override
+            public boolean matches() throws IOException {
+                values.advance(counts.docID());
+                return reader.match(values.binaryValue(), counts.longValue(), predicate);
+            }
+
+            @Override
+            public float matchCost() {
+                return cost;
+            }
+        });
+    }
+
+    static DocIdSetIterator singleValuedIterator(BinaryDocValues values, Predicate<BytesRef> predicate, float cost) {
+        return TwoPhaseIterator.asDocIdSetIterator(new TwoPhaseIterator(values) {
+            final MultiValueSeparateCountBinaryDocValuesReader reader = new MultiValueSeparateCountBinaryDocValuesReader();
+
+            @Override
+            public boolean matches() throws IOException {
+                return reader.match(values.binaryValue(), 1, predicate);
+            }
+
+            @Override
+            public float matchCost() {
+                return cost;
+            }
+        });
     }
 }

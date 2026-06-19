@@ -8,8 +8,10 @@
 package org.elasticsearch.xpack.esql.expression.function.inference;
 
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -34,15 +36,15 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isTyp
  * <p>
  * When a {@code COMPLETION} command has a foldable prompt (e.g., a literal or foldable expression),
  * the analyzer transforms it into an {@code EVAL} node with a {@code CompletionFunction} expression:
- * <pre>{@code
+ * {@snippet lang="esql" :
  * FROM books
  * | COMPLETION "Translate this text" WITH { "inference_id": "my-model" }
- * }</pre>
+ * }
  * is internally rewritten into:
- * <pre>{@code
+ * {@snippet lang="esql" :
  * FROM books
  * | EVAL completion = COMPLETION("Translate this text", "my-model")
- * }</pre>
+ * }
  * The pre-optimizer then evaluates this function using {@code InferenceFunctionEvaluator} and
  * replaces it with a literal result.
  */
@@ -50,11 +52,19 @@ public class CompletionFunction extends InferenceFunction<CompletionFunction> {
 
     private final Expression inferenceId;
     private final Expression prompt;
+    private final MapExpression taskSettings;
+    private final TimeValue timeout;
 
-    public CompletionFunction(Source source, Expression prompt, Expression inferenceId) {
-        super(source, List.of(prompt, inferenceId));
+    public CompletionFunction(Source source, Expression prompt, Expression inferenceId, MapExpression taskSettings) {
+        this(source, prompt, inferenceId, taskSettings, null);
+    }
+
+    public CompletionFunction(Source source, Expression prompt, Expression inferenceId, MapExpression taskSettings, TimeValue timeout) {
+        super(source, List.of(prompt, inferenceId, taskSettings));
         this.inferenceId = inferenceId;
         this.prompt = prompt;
+        this.taskSettings = taskSettings;
+        this.timeout = timeout;
     }
 
     @Override
@@ -71,6 +81,14 @@ public class CompletionFunction extends InferenceFunction<CompletionFunction> {
         return prompt;
     }
 
+    public MapExpression taskSettings() {
+        return taskSettings;
+    }
+
+    public TimeValue timeout() {
+        return timeout;
+    }
+
     @Override
     public Expression inferenceId() {
         return inferenceId;
@@ -78,7 +96,18 @@ public class CompletionFunction extends InferenceFunction<CompletionFunction> {
 
     @Override
     public boolean foldable() {
-        return inferenceId.foldable() && prompt.foldable();
+        if (inferenceId.foldable() == false || prompt.foldable() == false) {
+            return false;
+        }
+        if (taskSettings.resolved() == false) {
+            return false;
+        }
+        for (Expression e : taskSettings.children()) {
+            if (e.foldable() == false) {
+                return false;
+            }
+        }
+        return true;
     }
 
     @Override
@@ -117,21 +146,27 @@ public class CompletionFunction extends InferenceFunction<CompletionFunction> {
 
     @Override
     public CompletionFunction withInferenceResolutionError(String inferenceId, String error) {
-        return new CompletionFunction(source(), prompt, new UnresolvedAttribute(inferenceId().source(), inferenceId, error));
+        return new CompletionFunction(
+            source(),
+            prompt,
+            new UnresolvedAttribute(inferenceId().source(), inferenceId, error),
+            taskSettings,
+            timeout
+        );
     }
 
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
-        return new CompletionFunction(source(), newChildren.get(0), newChildren.get(1));
+        return new CompletionFunction(source(), newChildren.get(0), newChildren.get(1), (MapExpression) newChildren.get(2), timeout);
     }
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, CompletionFunction::new, prompt, inferenceId);
+        return NodeInfo.create(this, CompletionFunction::new, prompt, inferenceId, taskSettings, timeout);
     }
 
     @Override
     public String toString() {
-        return "COMPLETION(" + prompt + ", " + inferenceId + ")";
+        return "COMPLETION(" + prompt + ", " + inferenceId + ", " + taskSettings + ")";
     }
 }

@@ -254,29 +254,23 @@ abstract class IdentifierBuilder extends AbstractBuilder {
 
         /*
          * Precedence:
-         * 1. Cannot mix cluster and selector strings.
-         * 2. Cluster string must be valid.
-         * 3. Index name must be valid.
-         * 4. Selector string must be valid.
+         * 1. Cluster string must be valid.
+         * 2. Index name must be valid.
+         * 3. Selector string must be valid.
          *
          * Since cluster string and/or selector string can be clubbed with the index name, we must try to
-         * manually extract them before we attempt to do #2, #3, and #4.
+         * manually extract them before we attempt the checks.
          */
 
         // It is possible to specify a pattern like "remote_cluster:index_name". Try to extract such details from the index string.
         if (clusterString == null && selectorString == null) {
             try {
                 var split = splitIndexName(indexName);
-                clusterString = split[0];
-                indexName = split[1];
+                clusterString = split.clusterAlias();
+                indexName = split.indexExpression();
             } catch (IllegalArgumentException e) {
                 throw new ParsingException(e, source(ctx), e.getMessage());
             }
-        }
-
-        // At the moment, selector strings for remote indices is not allowed.
-        if (clusterString != null && selectorString != null) {
-            throwOnMixingSelectorWithCluster(reassembleIndexName(clusterString, indexName, selectorString), ctx);
         }
 
         // Validation in the right precedence.
@@ -289,21 +283,17 @@ abstract class IdentifierBuilder extends AbstractBuilder {
          * It is possible for selector string to be attached to the index: "index_name::selector_string".
          * Try to extract the selector string.
          */
-        try {
-            Tuple<String, String> splitPattern = IndexNameExpressionResolver.splitSelectorExpression(indexName);
-            if (splitPattern.v2() != null) {
-                // Cluster string too was clubbed with the index name like selector string.
-                if (clusterString != null) {
-                    throwOnMixingSelectorWithCluster(reassembleIndexName(clusterString, splitPattern.v1(), splitPattern.v2()), ctx);
-                } else {
+        if (selectorString == null) {
+            try {
+                Tuple<String, String> splitPattern = IndexNameExpressionResolver.splitSelectorExpression(indexName);
+                if (splitPattern.v2() != null) {
                     // We've seen a selectorString. Use it.
                     selectorString = splitPattern.v2();
                 }
+                indexName = splitPattern.v1();
+            } catch (InvalidIndexNameException e) {
+                throw new ParsingException(e, source(ctx), e.getMessage());
             }
-
-            indexName = splitPattern.v1();
-        } catch (InvalidIndexNameException e) {
-            throw new ParsingException(e, source(ctx), e.getMessage());
         }
 
         resolveAndValidateIndex(indexName, ctx, hasSeenStar);
@@ -324,6 +314,7 @@ abstract class IdentifierBuilder extends AbstractBuilder {
             throwInvalidIndexNameException(index, BLANK_INDEX_ERROR_MESSAGE, ctx);
         }
 
+        boolean startsWithStar = index.startsWith("*");
         hasSeenStar = hasSeenStar || index.contains(WILDCARD);
         index = index.replace(WILDCARD, "").strip();
         if (index.isBlank()) {
@@ -347,6 +338,11 @@ abstract class IdentifierBuilder extends AbstractBuilder {
         } catch (InvalidIndexNameException e) {
             // ignore invalid index name if it has exclusions and there is an index with wildcard before it
             if (hasSeenStar && hasExclusion) {
+                return;
+            }
+
+            // The "must not start with ..." rules do not apply if the pattern begins with '*'.
+            if (startsWithStar && e.getMessage().contains("must not start with")) {
                 return;
             }
 

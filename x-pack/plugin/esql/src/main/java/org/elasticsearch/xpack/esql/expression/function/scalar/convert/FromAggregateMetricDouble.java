@@ -16,8 +16,8 @@ import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
@@ -29,7 +29,7 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.type.MultiTypeEsField;
+import org.elasticsearch.xpack.esql.core.type.UnionTypeEsField;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.blockloader.BlockLoaderExpression;
@@ -59,7 +59,11 @@ public class FromAggregateMetricDouble extends EsqlScalarFunction implements Con
     private final Expression field;
     private final Expression subfieldIndex;
 
-    @FunctionInfo(returnType = { "long", "double" }, description = "Convert aggregate double metric to a block of a single subfield.")
+    @FunctionInfo(
+        returnType = { "long", "double" },
+        briefSummary = "Converts an aggregate double metric to a single subfield block.",
+        description = "Convert aggregate double metric to a block of a single subfield."
+    )
     public FromAggregateMetricDouble(
         Source source,
         @Param(
@@ -134,9 +138,9 @@ public class FromAggregateMetricDouble extends EsqlScalarFunction implements Con
     }
 
     @Override
-    public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
+    public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         var fieldEvaluator = toEvaluator.apply(field);
-        return new EvalOperator.ExpressionEvaluator.Factory() {
+        return new ExpressionEvaluator.Factory() {
 
             @Override
             public String toString() {
@@ -144,17 +148,15 @@ public class FromAggregateMetricDouble extends EsqlScalarFunction implements Con
             }
 
             @Override
-            public EvalOperator.ExpressionEvaluator get(DriverContext context) {
-                final EvalOperator.ExpressionEvaluator eval = fieldEvaluator.get(context);
+            public ExpressionEvaluator get(DriverContext context) {
+                final ExpressionEvaluator eval = fieldEvaluator.get(context);
                 final int subFieldIndex = ((Number) subfieldIndex.fold(FoldContext.small())).intValue();
                 return new Evaluator(context.blockFactory(), eval, subFieldIndex);
             }
         };
     }
 
-    private record Evaluator(BlockFactory blockFactory, EvalOperator.ExpressionEvaluator eval, int subFieldIndex)
-        implements
-            EvalOperator.ExpressionEvaluator {
+    private record Evaluator(BlockFactory blockFactory, ExpressionEvaluator eval, int subFieldIndex) implements ExpressionEvaluator {
 
         private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(Evaluator.class);
 
@@ -203,7 +205,7 @@ public class FromAggregateMetricDouble extends EsqlScalarFunction implements Con
     public PushedBlockLoaderExpression tryPushToFieldLoading(SearchStats stats) {
         if (field() instanceof FieldAttribute f
             && f.dataType() == AGGREGATE_METRIC_DOUBLE
-            && (f.field() instanceof MultiTypeEsField) == false) {
+            && (f.field() instanceof UnionTypeEsField) == false) {
             var folded = subfieldIndex.fold(FoldContext.small());
             if (folded == null) {
                 throw new IllegalArgumentException("Subfield Index was null");

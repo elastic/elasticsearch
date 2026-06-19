@@ -344,7 +344,7 @@ public class CompositeRuntimeFieldTests extends MapperServiceTestCase {
             SearchLookup searchLookup = new SearchLookup(
                 mapperService::fieldType,
                 (mft, lookupSupplier, fdo) -> mft.fielddataBuilder(
-                    new FieldDataContext("test", null, lookupSupplier, mapperService.mappingLookup()::sourcePaths, fdo)
+                    new FieldDataContext("test", null, lookupSupplier, mapperService.mappingLookup()::sourcePaths, () -> false, fdo)
                 ).build(null, null),
                 SourceProvider.fromLookup(mapperService.mappingLookup(), null, mapperService.getMapperMetrics().sourceFieldMetrics())
             );
@@ -426,7 +426,7 @@ public class CompositeRuntimeFieldTests extends MapperServiceTestCase {
         assertNotNull(doc1.rootDoc().get("obj.bool"));
 
         assertEquals("""
-            {"_doc":{"properties":{"obj":{"properties":{"bool":{"type":"boolean"}}}}}}""", Strings.toString(doc1.dynamicMappingsUpdate()));
+            {"_doc":{"properties":{"obj":{"properties":{"bool":{"type":"boolean"}}}}}}""", doc1.dynamicMappingsUpdate().string());
 
         MapperService mapperService2 = createMapperService(topMapping(b -> {
             b.field("dynamic", "runtime");
@@ -445,6 +445,6 @@ public class CompositeRuntimeFieldTests extends MapperServiceTestCase {
         assertNull(doc2.rootDoc().get("obj.long"));
         assertNull(doc2.rootDoc().get("obj.bool"));
         assertEquals("""
-            {"_doc":{"dynamic":"runtime","runtime":{"obj.bool":{"type":"boolean"}}}}""", Strings.toString(doc2.dynamicMappingsUpdate()));
+            {"_doc":{"dynamic":"runtime","runtime":{"obj.bool":{"type":"boolean"}}}}""", doc2.dynamicMappingsUpdate().string());
     }
 }

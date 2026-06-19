@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 
@@ -55,6 +56,9 @@ public class SpatialDisjoint extends SpatialRelatesFunction {
         "SpatialDisjoint",
         SpatialDisjoint::new
     );
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(SpatialDisjoint.class)
+        .binary(SpatialDisjoint::new)
+        .name("st_disjoint");
 
     // public for test access with reflection
     public static final SpatialRelations GEO = new SpatialRelations(
@@ -73,6 +77,7 @@ public class SpatialDisjoint extends SpatialRelatesFunction {
 
     @FunctionInfo(
         returnType = { "boolean" },
+        briefSummary = "Returns whether two geometries are disjoint, sharing no points in common.",
         description = """
             Returns whether the two geometries or geometry columns are disjoint.
             This is the inverse of the <<esql-st_intersects,ST_INTERSECTS>> function.

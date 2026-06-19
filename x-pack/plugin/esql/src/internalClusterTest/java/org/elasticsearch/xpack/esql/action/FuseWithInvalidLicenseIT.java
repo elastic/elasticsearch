@@ -13,6 +13,7 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.esql.VerificationException;
+import org.elasticsearch.xpack.esql.datasources.datasource.TestEncryptionServicePlugin;
 import org.junit.Before;
 
 import java.util.Collection;
@@ -26,7 +27,7 @@ public class FuseWithInvalidLicenseIT extends AbstractEsqlIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return List.of(EsqlPluginWithNonEnterpriseOrExpiredLicense.class);
+        return List.of(EsqlPluginWithNonEnterpriseOrExpiredLicense.class, TestEncryptionServicePlugin.class);
     }
 
     @Before
@@ -49,8 +50,8 @@ public class FuseWithInvalidLicenseIT extends AbstractEsqlIntegTestCase {
         var query = """
             FROM test METADATA _score, _id, _index
             | FORK
-               ( WHERE content:"fox" )
-               ( WHERE content:"dog" )
+               ( WHERE content:"fox" | SORT _score | LIMIT 10 )
+               ( WHERE content:"dog" | SORT _score | LIMIT 10 )
             | FUSE
             """;
 

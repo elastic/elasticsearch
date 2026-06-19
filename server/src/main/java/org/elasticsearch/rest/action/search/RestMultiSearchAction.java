@@ -22,6 +22,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.features.NodeFeature;
+import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
@@ -53,11 +54,16 @@ public class RestMultiSearchAction extends BaseRestHandler {
     private final Predicate<NodeFeature> clusterSupportsFeature;
     private final CrossProjectModeDecider crossProjectModeDecider;
 
-    public RestMultiSearchAction(Settings settings, SearchUsageHolder searchUsageHolder, Predicate<NodeFeature> clusterSupportsFeature) {
+    public RestMultiSearchAction(
+        Settings settings,
+        SearchUsageHolder searchUsageHolder,
+        Predicate<NodeFeature> clusterSupportsFeature,
+        CrossProjectModeDecider crossProjectModeDecider
+    ) {
         this.allowExplicitIndex = MULTI_ALLOW_EXPLICIT_INDEX.get(settings);
         this.searchUsageHolder = searchUsageHolder;
         this.clusterSupportsFeature = clusterSupportsFeature;
-        this.crossProjectModeDecider = new CrossProjectModeDecider(settings);
+        this.crossProjectModeDecider = crossProjectModeDecider;
     }
 
     @Override
@@ -133,7 +139,7 @@ public class RestMultiSearchAction extends BaseRestHandler {
         MultiSearchRequest multiRequest = new MultiSearchRequest();
         IndicesOptions indicesOptions = IndicesOptions.fromRequest(restRequest, multiRequest.indicesOptions());
 
-        if (multiRequest.allowsCrossProject() && crossProjectEnabled.orElse(false)) {
+        if (crossProjectEnabled.orElse(false)) {
             // These indices options trickle down and apply to each search request.
             indicesOptions = IndicesOptions.builder(indicesOptions)
                 .crossProjectModeOptions(new IndicesOptions.CrossProjectModeOptions(true))
@@ -211,7 +217,7 @@ public class RestMultiSearchAction extends BaseRestHandler {
         String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
         String searchType = request.param("search_type");
         boolean ccsMinimizeRoundtrips = SearchParamsParser.parseCcsMinimizeRoundtrips(crossProjectEnabled, request);
-        String routing = request.param("routing");
+        SliceIndexing.ParsedRouting parsedRouting = SliceIndexing.parseSearchRoutingOrSliceWithProvenance(request);
 
         final Tuple<XContentType, ReleasableBytesReference> sourceTuple = request.contentOrSourceParam();
         final XContent xContent = sourceTuple.v1().xContent();
@@ -223,7 +229,7 @@ public class RestMultiSearchAction extends BaseRestHandler {
             consumer,
             indices,
             indicesOptions,
-            routing,
+            parsedRouting,
             searchType,
             ccsMinimizeRoundtrips,
             allowExplicitIndex,

@@ -52,6 +52,7 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
@@ -146,6 +147,8 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         Property.IndexScope
     );
 
+    public static final FeatureFlag DIRECTORY_METRICS_FEATURE_FLAG = new FeatureFlag("directory_metrics");
+
     /**
      * A {@link org.apache.lucene.store.IOContext.FileOpenHint} that we will only read the Lucene file footer
      */
@@ -184,11 +187,36 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         OnClose onClose,
         boolean hasIndexSort
     ) {
-        super(shardId, indexSettings);
-        this.directory = new StoreDirectory(
-            byteSizeDirectory(directory, indexSettings, logger),
-            Loggers.getLogger("index.store.deletes", shardId)
+        this(
+            shardId,
+            indexSettings,
+            directory,
+            shardLock,
+            onClose,
+            hasIndexSort,
+            new ThreadLocalDirectoryMetricHolder<>(StoreMetrics::new)
         );
+    }
+
+    public Store(
+        ShardId shardId,
+        IndexSettings indexSettings,
+        Directory directory,
+        ShardLock shardLock,
+        OnClose onClose,
+        boolean hasIndexSort,
+        PluggableDirectoryMetricsHolder<StoreMetrics> metricHolder
+    ) {
+        super(shardId, indexSettings);
+        ByteSizeDirectory byteSizeDirectory = byteSizeDirectory(directory, indexSettings, logger);
+        if (DIRECTORY_METRICS_FEATURE_FLAG.isEnabled()) {
+            byteSizeDirectory = new StoreMetricsDirectory(byteSizeDirectory, metricHolder);
+        }
+        // Insert FieldInfoCachingDirectory (when enabled) between byteSizeDirectory and StoreDirectory so that
+        // store.directory() continues to return the same StoreDirectory external callers expect (its getDelegate()
+        // simply has one more layer underneath).
+        byteSizeDirectory = (ByteSizeDirectory) FieldInfoCachingDirectory.wrapIfEnabled(byteSizeDirectory);
+        this.directory = new StoreDirectory(byteSizeDirectory, Loggers.getLogger("index.store.deletes", shardId));
         this.shardLock = shardLock;
         this.onClose = onClose;
         this.hasIndexSort = hasIndexSort;
@@ -824,7 +852,8 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
 
         public static final MetadataSnapshot EMPTY = new MetadataSnapshot(emptyMap(), emptyMap(), 0L);
 
-        static MetadataSnapshot loadFromIndexCommit(@Nullable IndexCommit commit, Directory directory, Logger logger) throws IOException {
+        public static MetadataSnapshot loadFromIndexCommit(@Nullable IndexCommit commit, Directory directory, Logger logger)
+            throws IOException {
             final long numDocs;
             final Map<String, StoreFileMetadata> metadataByFile = new HashMap<>();
             final Map<String, String> commitUserData;
@@ -1484,6 +1513,19 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
                 throw new IllegalArgumentException("a new [" + key + "] can't be equal to existing one. got [" + newValue + "]");
             }
             updateCommitData(writer, Map.of(key, newValue));
+        } finally {
+            metadataLock.writeLock().unlock();
+        }
+    }
+
+    /**
+     * Associate the lucene index with a new set of user data. This is useful when we need to remove entries from existing ones.
+     */
+    public void associateIndexWithNewUserData(Map<String, String> userData) throws IOException {
+        metadataLock.writeLock().lock();
+        try (IndexWriter writer = newTemporaryAppendingIndexWriter(directory, null)) {
+            writer.setLiveCommitData(userData.entrySet());
+            writer.commit();
         } finally {
             metadataLock.writeLock().unlock();
         }

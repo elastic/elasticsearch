@@ -45,6 +45,11 @@ $$$cluster-routing-allocation-same-shard-host$$$
 `cluster.routing.allocation.same_shard.host`
 :   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) If `true`, forbids multiple copies of a shard from being allocated to distinct nodes on the same host, i.e. which have the same network address. Defaults to `false`, meaning that copies of a shard may sometimes be allocated to nodes on the same host. This setting is only relevant if you run multiple nodes on each host.
 
+$$$cluster-routing-allocation-total-shards-per-node$$$
+
+`cluster.routing.allocation.total_shards_per_node`
+:   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) Maximum number of primary and replica shards on each node, counted across all indices. Defaults to `-1` (unlimited).
+
 `cluster.routing.allocation.node_concurrent_incoming_recoveries`
 :   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) How many concurrent incoming shard recoveries are allowed to happen on a node. Incoming recoveries are the recoveries where the target shard (most likely the replica unless a shard is relocating) is allocated on the node. Defaults to `2`. Increasing this setting may cause shard movements to have a performance impact on other activity in your cluster, but may not make shard movements complete noticeably sooner. We do not recommend adjusting this setting from its default of `2`.
 
@@ -87,7 +92,7 @@ Rebalancing is important to ensure the cluster returns to a healthy and fully re
 :   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) Defines the number of concurrent shard rebalances are allowed across the whole cluster. Defaults to `2`. Note that this setting only controls the number of concurrent shard relocations due to imbalances in the cluster. This setting does not limit shard relocations due to [allocation filtering](#cluster-shard-allocation-filtering) or [forced awareness](docs-content://deploy-manage/distributed-architecture/shard-allocation-relocation-recovery/shard-allocation-awareness.md#forced-awareness). Increasing this setting may cause the cluster to use additional resources moving shards between nodes, so we generally do not recommend adjusting this setting from its default of `2`.
 
 `cluster.routing.allocation.type`
-:   Selects the algorithm used for computing the cluster balance. Defaults to `desired_balance` which selects the *desired balance allocator*. This allocator runs a background task which computes the desired balance of shards in the cluster. Once this background task completes, {{es}} moves shards to their desired locations.
+:   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) Selects the algorithm used for computing the cluster balance. Defaults to `desired_balance` which selects the *desired balance allocator*. This allocator runs a background task which computes the desired balance of shards in the cluster. Once this background task completes, {{es}} moves shards to their desired locations.
 
 
 :::{admonition} Deprecated in 8.8
@@ -163,7 +168,7 @@ Max headroom settings have their default values only if their respective waterma
 ::::{tip}
 :name: disk-based-shard-allocation-does-not-balance
 
-It is normal for the nodes in your cluster to be using very different amounts of disk space. The [balance](#shards-rebalancing-settings) of the cluster depends on a combination of factors which includes the number of shards on each node, the indices to which those shards belong, and the resource needs of each shard in terms of its size on disk and its CPU usage. {{es}} must trade off all of these factors against each other, and a cluster which is balanced when looking at the combination of all of these factors may not appear to be balanced if you focus attention on just one of them.
+It is normal for the nodes in your cluster to be using very different amounts of disk space, especially if the cluster has more disk space in total than it really needs. Disk usage does not correlate with other more important resource requirements, so it is a mistake to try and make your cluster's disk usage equal across nodes. The [balance](#shards-rebalancing-settings) of the cluster depends on a combination of factors which includes the number of shards on each node, the indices to which those shards belong, and the resource needs of each shard in terms of its size on disk and its CPU usage. {{es}} must trade off all of these factors against each other, and a cluster which is balanced when looking at the combination of all of these factors may not appear to be balanced if you focus attention on just one of them.
 
 ::::
 

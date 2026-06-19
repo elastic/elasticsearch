@@ -64,8 +64,8 @@ import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.protocol.xpack.graph.GraphExploreRequest;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
+import org.elasticsearch.search.crossproject.NoMatchingProjectException;
 import org.elasticsearch.search.crossproject.ProjectRoutingInfo;
-import org.elasticsearch.search.crossproject.ProjectRoutingResolver;
 import org.elasticsearch.search.crossproject.ProjectTags;
 import org.elasticsearch.search.crossproject.TargetProjects;
 import org.elasticsearch.search.internal.ShardSearchRequest;
@@ -285,7 +285,8 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
                 new DocumentSubsetBitsetCache(Settings.EMPTY),
                 RESTRICTED_INDICES,
                 EsExecutors.DIRECT_EXECUTOR_SERVICE,
-                rds -> {}
+                rds -> {},
+                List.of()
             )
         );
         userAuthorizedIndices = new String[] {
@@ -405,7 +406,9 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
                     fieldPermissionsCache,
                     null,
                     RESTRICTED_INDICES,
-                    ActionListener.wrap(r -> callback.onResponse(r), callback::onFailure)
+                    ActionListener.wrap(r -> callback.onResponse(r), callback::onFailure),
+                    List.of(),
+                    false
                 );
             }
             return Void.TYPE;
@@ -438,8 +441,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
             settings,
             new ClusterSettingsLinkedProjectConfigService(settings, clusterService.getClusterSettings(), projectResolver),
             indexNameExpressionResolver,
-            crossProjectModeDecider,
-            ProjectRoutingResolver.NOOP
+            crossProjectModeDecider
         );
     }
 
@@ -3287,6 +3289,73 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
             resolved.expressions(),
             contains(resolvedIndexExpression("P*:_all", Set.of(), NONE, Set.of("P1:_all", "P2:_all", "P3:_all")))
         );
+    }
+
+    public void testResolveAllWithMissingProjectAndNoWildcardExpansion() {
+        when(crossProjectModeDecider.resolvesCrossProject(any(IndicesRequest.Replaceable.class))).thenReturn(true);
+
+        var request = new SearchRequest().indices("not_a_project:_all");
+        request.indicesOptions(IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), false, false));
+        var exception = expectThrows(
+            NoMatchingProjectException.class,
+            () -> defaultIndicesResolver.resolveIndicesAndAliases(
+                "indices:/" + randomAlphaOfLength(8),
+                request,
+                projectMetadata,
+                buildAuthorizedIndices(user, TransportSearchAction.TYPE.name()),
+                new TargetProjects(
+                    createRandomProjectWithAlias("local"),
+                    List.of(createRandomProjectWithAlias("P1"), createRandomProjectWithAlias("P2"))
+                )
+            )
+        );
+        assertThat(exception.getMessage(), containsString("No such project: [not_a_project]"));
+    }
+
+    public void testResolveAllWithExistingProjectAndNoWildcardExpansion() {
+        when(crossProjectModeDecider.resolvesCrossProject(any(IndicesRequest.Replaceable.class))).thenReturn(true);
+
+        var request = new SearchRequest().indices("P1:_all");
+        request.indicesOptions(IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), false, false));
+        var resolvedIndices = defaultIndicesResolver.resolveIndicesAndAliases(
+            "indices:/" + randomAlphaOfLength(8),
+            request,
+            projectMetadata,
+            buildAuthorizedIndices(user, TransportSearchAction.TYPE.name()),
+            new TargetProjects(
+                createRandomProjectWithAlias("local"),
+                List.of(createRandomProjectWithAlias("P1"), createRandomProjectWithAlias("P2"))
+            )
+        );
+
+        assertThat(resolvedIndices.getLocal(), contains(NO_INDEX_PLACEHOLDER));
+        assertThat(resolvedIndices.getRemote(), emptyIterable());
+        assertThat(request.indices(), arrayContaining(NO_INDICES_OR_ALIASES_ARRAY));
+        assertThat(request.getResolvedIndexExpressions(), is(notNullValue()));
+        assertThat(request.getResolvedIndexExpressions().expressions(), empty());
+    }
+
+    public void testResolveAllWithWildcardProjectAndNoWildcardExpansion() {
+        when(crossProjectModeDecider.resolvesCrossProject(any(IndicesRequest.Replaceable.class))).thenReturn(true);
+
+        var request = new SearchRequest().indices("P*:_all");
+        request.indicesOptions(IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), false, false));
+        var resolvedIndices = defaultIndicesResolver.resolveIndicesAndAliases(
+            "indices:/" + randomAlphaOfLength(8),
+            request,
+            projectMetadata,
+            buildAuthorizedIndices(user, TransportSearchAction.TYPE.name()),
+            new TargetProjects(
+                createRandomProjectWithAlias("local"),
+                List.of(createRandomProjectWithAlias("P1"), createRandomProjectWithAlias("P2"))
+            )
+        );
+
+        assertThat(resolvedIndices.getLocal(), contains(NO_INDEX_PLACEHOLDER));
+        assertThat(resolvedIndices.getRemote(), emptyIterable());
+        assertThat(request.indices(), arrayContaining(NO_INDICES_OR_ALIASES_ARRAY));
+        assertThat(request.getResolvedIndexExpressions(), is(notNullValue()));
+        assertThat(request.getResolvedIndexExpressions().expressions(), empty());
     }
 
     public void testResolveIndexWithRemotePrefix() {

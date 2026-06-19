@@ -17,6 +17,7 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.index.query.SearchExecutionContextHelper;
 
 import java.util.Collections;
 import java.util.List;
@@ -26,9 +27,9 @@ public class IndexModeFieldTypeTests extends ConstantFieldTypeTestCase {
 
     public void testTermQuery() {
         MappedFieldType ft = getMappedFieldType();
-        for (IndexMode mode : IndexMode.values()) {
+        for (IndexMode mode : IndexMode.availableModes()) {
             SearchExecutionContext context = createContext(mode);
-            for (IndexMode other : IndexMode.values()) {
+            for (IndexMode other : IndexMode.availableModes()) {
                 Query query = ft.termQuery(other.getName(), context);
                 if (other.equals(mode)) {
                     assertEquals(Queries.ALL_DOCS_INSTANCE, query);
@@ -53,6 +54,28 @@ public class IndexModeFieldTypeTests extends ConstantFieldTypeTestCase {
         assertEquals(Queries.NO_DOCS_INSTANCE, ft.wildcardQuery("logs*", null, createContext(IndexMode.STANDARD)));
         assertEquals(Queries.NO_DOCS_INSTANCE, ft.wildcardQuery("logs*", null, createContext(IndexMode.TIME_SERIES)));
         assertEquals(Queries.ALL_DOCS_INSTANCE, ft.wildcardQuery("logs*", null, createContext(IndexMode.LOGSDB)));
+
+        assertEquals(Queries.NO_DOCS_INSTANCE, ft.wildcardQuery("columnar", null, createContext(IndexMode.STANDARD)));
+        assertEquals(Queries.NO_DOCS_INSTANCE, ft.wildcardQuery("columnar", null, createContext(IndexMode.TIME_SERIES)));
+        assertEquals(Queries.NO_DOCS_INSTANCE, ft.wildcardQuery("columnar", null, createContext(IndexMode.LOGSDB)));
+
+        assertEquals(Queries.NO_DOCS_INSTANCE, ft.wildcardQuery("columnar_*", null, createContext(IndexMode.STANDARD)));
+        assertEquals(Queries.NO_DOCS_INSTANCE, ft.wildcardQuery("columnar_*", null, createContext(IndexMode.TIME_SERIES)));
+        assertEquals(Queries.NO_DOCS_INSTANCE, ft.wildcardQuery("columnar_*", null, createContext(IndexMode.LOGSDB)));
+
+        if (IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled()) {
+            assertEquals(Queries.NO_DOCS_INSTANCE, ft.wildcardQuery("stand*", null, createContext(IndexMode.COLUMNAR)));
+            assertEquals(Queries.NO_DOCS_INSTANCE, ft.wildcardQuery("stand*", null, createContext(IndexMode.LOGSDB_COLUMNAR)));
+
+            assertEquals(Queries.NO_DOCS_INSTANCE, ft.wildcardQuery("time*", null, createContext(IndexMode.COLUMNAR)));
+            assertEquals(Queries.NO_DOCS_INSTANCE, ft.wildcardQuery("time*", null, createContext(IndexMode.LOGSDB_COLUMNAR)));
+
+            assertEquals(Queries.NO_DOCS_INSTANCE, ft.wildcardQuery("logs*", null, createContext(IndexMode.COLUMNAR)));
+            assertEquals(Queries.ALL_DOCS_INSTANCE, ft.wildcardQuery("logs*", null, createContext(IndexMode.LOGSDB_COLUMNAR)));
+
+            assertEquals(Queries.ALL_DOCS_INSTANCE, ft.wildcardQuery("columnar", null, createContext(IndexMode.COLUMNAR)));
+            assertEquals(Queries.NO_DOCS_INSTANCE, ft.wildcardQuery("columnar", null, createContext(IndexMode.LOGSDB_COLUMNAR)));
+        }
     }
 
     @Override
@@ -92,7 +115,9 @@ public class IndexModeFieldTypeTests extends ConstantFieldTypeTestCase {
             () -> true,
             null,
             Collections.emptyMap(),
-            MapperMetrics.NOOP
+            null,
+            MapperMetrics.NOOP,
+            SearchExecutionContextHelper.SHARD_SEARCH_STATS
         );
     }
 }

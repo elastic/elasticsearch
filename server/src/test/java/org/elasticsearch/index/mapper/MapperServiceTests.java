@@ -20,7 +20,9 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
+import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
+import org.elasticsearch.index.mapper.SourceFieldMapper.Mode;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -47,7 +49,10 @@ public class MapperServiceTests extends MapperServiceTestCase {
 
     public void testPreflightUpdateDoesNotChangeMapping() throws Throwable {
         final MapperService mapperService = createMapperService(mapping(b -> {}));
-        merge(mapperService, MergeReason.MAPPING_AUTO_UPDATE_PREFLIGHT, mapping(b -> createMappingSpecifyingNumberOfFields(b, 1)));
+        String update = """
+            {"_doc":{"properties":{"field0":{"type":"keyword"}}}}
+            """;
+        mapperService.isNoOpUpdate(new CompressedXContent(update));
         assertThat("field was not created by preflight check", mapperService.fieldType("field0"), nullValue());
         merge(
             mapperService,
@@ -129,6 +134,40 @@ public class MapperServiceTests extends MapperServiceTestCase {
         createMapperService(settings, topMapping(b -> b.startObject("_routing").field("required", true).endObject()));
     }
 
+    public void testSliceEnabledRequiresRouting() throws IOException {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        Settings settings = Settings.builder()
+            .put(IndexSettings.SLICE_ENABLED.getKey(), true)
+            .put(IndexSettings.SLICE_VALIDATED.getKey(), true)
+            .build();
+
+        MapperService mapperService = createMapperService(settings, mapping(b -> {}));
+        assertTrue(mapperService.documentMapper().routingFieldMapper().required());
+        assertTrue(mapperService.documentMapper().routingFieldMapper().docValues());
+
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> createMapperService(settings, topMapping(b -> b.startObject("_routing").field("required", false).endObject()))
+        );
+        assertThat(e.getMessage(), containsString("must not configure [_routing] settings when [index.slice.enabled] is true"));
+
+        IllegalArgumentException docValuesException = expectThrows(
+            IllegalArgumentException.class,
+            () -> createMapperService(settings, topMapping(b -> b.startObject("_routing").field("doc_values", false).endObject()))
+        );
+        assertThat(
+            docValuesException.getMessage(),
+            containsString("must not configure [_routing] settings when [index.slice.enabled] is true")
+        );
+
+        MapperService explicitRequired = createMapperService(
+            settings,
+            topMapping(b -> b.startObject("_routing").field("required", true).field("doc_values", true).endObject())
+        );
+        assertTrue(explicitRequired.documentMapper().routingFieldMapper().required());
+        assertTrue(explicitRequired.documentMapper().routingFieldMapper().docValues());
+    }
+
     public void testIndexSortWithNestedFields() throws IOException {
         IndexVersion oldVersion = IndexVersionUtils.getPreviousVersion(IndexVersions.INDEX_SORTING_ON_NESTED);
         IllegalArgumentException invalidNestedException = expectThrows(
@@ -176,6 +215,35 @@ public class MapperServiceTests extends MapperServiceTestCase {
             b.endObject();
         })));
         assertEquals("cannot apply index sort to field [foo.bar] under nested object [foo]", invalidNestedException.getMessage());
+    }
+
+    public void testRuntimeFieldShadowingIndexSortFieldOnUpdate() throws IOException {
+        Settings settings = Settings.builder().put("index.sort.field", "@timestamp").build();
+        MapperService mapperService = createMapperService(
+            settings,
+            mapping(b -> b.startObject("@timestamp").field("type", "date").endObject())
+        );
+
+        MapperParsingException e = expectThrows(
+            MapperParsingException.class,
+            () -> merge(mapperService, runtimeMapping(b -> b.startObject("@timestamp").field("type", "date").endObject()))
+        );
+        assertThat(e.getMessage(), containsString("runtime field [@timestamp] shadows an index sort field"));
+    }
+
+    public void testRuntimeFieldShadowingIndexSortField() throws IOException {
+        Settings settings = Settings.builder().put("index.sort.field", "@timestamp").build();
+        MapperParsingException e = expectThrows(MapperParsingException.class, () -> {
+            createMapperService(settings, topMapping(b -> {
+                b.startObject("runtime");
+                b.startObject("@timestamp").field("type", "date").endObject();
+                b.endObject();
+                b.startObject("properties");
+                b.startObject("@timestamp").field("type", "date").endObject();
+                b.endObject();
+            }));
+        });
+        assertThat(e.getMessage(), containsString("runtime field [@timestamp] shadows an index sort field"));
     }
 
     public void testFieldAliasWithMismatchedNestedScope() throws Throwable {
@@ -355,37 +423,9 @@ public class MapperServiceTests extends MapperServiceTestCase {
             }
         };
 
-        for (IndexMode indexMode : IndexMode.values()) {
+        for (IndexMode indexMode : IndexMode.availableModes()) {
             MapperService mapperService = initMapperService.apply(indexMode);
             assertMapperService.accept(mapperService);
-        }
-    }
-
-    public void testMappingUpdateChecks() throws IOException {
-        MapperService mapperService = createMapperService(fieldMapping(b -> b.field("type", "text")));
-
-        {
-            IndexMetadata.Builder builder = new IndexMetadata.Builder("test");
-            builder.settings(indexSettings(IndexVersion.current(), 1, 0));
-
-            // Text fields are not stored by default, so an incoming update that is identical but
-            // just has `stored:false` should not require an update
-            builder.putMapping("""
-                {"properties":{"field":{"type":"text","store":"false"}}}""");
-            assertTrue(mapperService.assertNoUpdateRequired(builder.build()));
-        }
-
-        {
-            IndexMetadata.Builder builder = new IndexMetadata.Builder("test");
-            builder.settings(indexSettings(IndexVersion.current(), 1, 0));
-
-            // However, an update that really does need a rebuild will throw an exception
-            builder.putMapping("""
-                {"properties":{"field":{"type":"text","store":"true"}}}""");
-            Exception e = expectThrows(IllegalStateException.class, () -> mapperService.assertNoUpdateRequired(builder.build()));
-
-            assertThat(e.getMessage(), containsString("expected current mapping ["));
-            assertThat(e.getMessage(), containsString("to be the same as new mapping"));
         }
     }
 
@@ -605,6 +645,43 @@ public class MapperServiceTests extends MapperServiceTestCase {
         DocumentMapper subobjectsFirst = mapperService.merge("_doc", List.of(mapping1, mapping2), MergeReason.INDEX_TEMPLATE);
         DocumentMapper subobjectsLast = mapperService.merge("_doc", List.of(mapping2, mapping1), MergeReason.INDEX_TEMPLATE);
         assertEquals(subobjectsFirst.mappingSource(), subobjectsLast.mappingSource());
+    }
+
+    public void testBulkMergeSubobjectsFalseWithDottedNotation() throws IOException {
+        // Simulates template composition where one component template defines host.os.name via
+        // dotted notation (creating an intermediate host object), and another defines host as
+        // an explicit object with subobjects: false. Uses a fresh mapper service (no existing
+        // mapper) to exercise the applyFieldsBudget path.
+        final MapperService mapperService = createMapperService(IndexVersion.current(), Settings.EMPTY, () -> true);
+        CompressedXContent dottedMapping = new CompressedXContent("""
+            {
+              "_doc": {
+                "properties": {
+                  "host.os.name": {
+                    "type": "keyword"
+                  }
+                }
+              }
+            }""");
+        CompressedXContent objectMapping = new CompressedXContent("""
+            {
+              "_doc": {
+                "properties": {
+                  "host": {
+                    "type": "object",
+                    "subobjects": false,
+                    "properties": {
+                      "ip": {
+                        "type": "ip"
+                      }
+                    }
+                  }
+                }
+              }
+            }""");
+        DocumentMapper merged = mapperService.merge("_doc", List.of(dottedMapping, objectMapping), MergeReason.INDEX_TEMPLATE);
+        assertNotNull(merged.mappers().objectMappers().get("host"));
+        assertEquals(ObjectMapper.Subobjects.DISABLED, merged.mappers().objectMappers().get("host").subobjects());
     }
 
     public void testMergeMultipleRoots() throws IOException {
@@ -1756,7 +1833,7 @@ public class MapperServiceTests extends MapperServiceTestCase {
         assertThat(
             e.getMessage(),
             containsString(
-                "Failed to parse mapping: Object mapper [parent] was found in a context where subobjects is set to false. "
+                "Object mapper [parent] was found in a context where subobjects is set to false. "
                     + "Auto-flattening [parent] failed because the value of [dynamic] (FALSE) is not compatible "
                     + "with the value from its parent context (TRUE)"
             )
@@ -1797,7 +1874,7 @@ public class MapperServiceTests extends MapperServiceTestCase {
         assertThat(
             e.getMessage(),
             containsString(
-                "Failed to parse mapping: Object mapper [parent] was found in a context where subobjects is set to false. "
+                "Object mapper [parent] was found in a context where subobjects is set to false. "
                     + "Auto-flattening [parent] failed because the value of [dynamic] (TRUE) is not compatible "
                     + "with the value from its parent context (FALSE)"
             )
@@ -1971,5 +2048,90 @@ public class MapperServiceTests extends MapperServiceTestCase {
         // simulates a series of mapping updates
         mappingSources.forEach(m -> mapperServiceSequential.merge("_doc", m, MergeReason.INDEX_TEMPLATE));
         assertEquals(expected, Strings.toString(mapperServiceSequential.documentMapper().mapping(), true, true));
+    }
+
+    public void testColumnarModesRejectSyntheticSourceKeepOnField() {
+        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        for (IndexMode indexMode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
+            for (String value : List.of("all", "arrays", "none")) {
+                Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), indexMode.getName()).build();
+                MapperParsingException e = expectThrows(MapperParsingException.class, () -> createMapperService(settings, mapping(b -> {
+                    b.startObject("kw");
+                    b.field("type", "keyword");
+                    b.field(Mapper.SYNTHETIC_SOURCE_KEEP_PARAM, value);
+                    b.endObject();
+                })));
+                assertThat(
+                    e.getMessage(),
+                    containsString(
+                        "parameter ["
+                            + Mapper.SYNTHETIC_SOURCE_KEEP_PARAM
+                            + "] is not allowed on field [kw] in index using ["
+                            + indexMode
+                            + "] index mode"
+                    )
+                );
+            }
+        }
+    }
+
+    public void testColumnarModesRejectCopyToOnField() throws IOException {
+        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        for (IndexMode indexMode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
+            Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), indexMode.getName()).build();
+            String targetField = randomAlphanumericOfLength(8);
+            MapperParsingException e = expectThrows(MapperParsingException.class, () -> createMapperService(settings, mapping(b -> {
+                b.startObject("kw");
+                b.field("type", "keyword");
+                b.field("copy_to", targetField);
+                b.endObject();
+                b.startObject(targetField);
+                b.field("type", "keyword");
+                b.endObject();
+            })));
+            assertThat(e.getMessage(), containsString("[copy_to] is not allowed on field [kw] in [" + indexMode + "] index mode"));
+        }
+    }
+
+    public void testColumnarStoredSourceModeRejectsCopyToOnField() throws IOException {
+        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        for (IndexMode indexMode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
+            Settings settings = Settings.builder()
+                .put(IndexSettings.MODE.getKey(), indexMode.getName())
+                .put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), Mode.COLUMNAR_STORED.toString())
+                .build();
+            String targetField = randomAlphanumericOfLength(8);
+            MapperParsingException e = expectThrows(MapperParsingException.class, () -> createMapperService(settings, mapping(b -> {
+                b.startObject("kw");
+                b.field("type", "keyword");
+                b.field("copy_to", targetField);
+                b.endObject();
+                b.startObject(targetField);
+                b.field("type", "keyword");
+                b.endObject();
+            })));
+            assertThat(e.getMessage(), containsString("[copy_to] is not allowed on field [kw]"));
+        }
+    }
+
+    public void testColumnarModesRejectSyntheticSourceKeepIndexSetting() {
+        // The "all"" value is already rejected globally by the setting's value validator, so we only need to cover "arrays" here
+        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        for (IndexMode indexMode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
+            Settings settings = Settings.builder()
+                .put(IndexSettings.MODE.getKey(), indexMode.getName())
+                .put(Mapper.SYNTHETIC_SOURCE_KEEP_INDEX_SETTING_KEY, "arrays")
+                .build();
+            IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> createMapperService(settings, mapping(b -> {}))
+            );
+            assertThat(
+                e.getMessage(),
+                containsString(
+                    "[" + Mapper.SYNTHETIC_SOURCE_KEEP_INDEX_SETTING_KEY + "] is not allowed in index using [" + indexMode + "] index mode"
+                )
+            );
+        }
     }
 }

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.transform.persistence;
 
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
@@ -33,8 +34,10 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.transform.TransformMessages;
 import org.elasticsearch.xpack.core.transform.transforms.persistence.TransformInternalIndexConstants;
 import org.junit.Before;
 
@@ -43,7 +46,10 @@ import java.io.UncheckedIOException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
@@ -290,6 +296,44 @@ public class TransformInternalIndexTests extends ESTestCase {
         verifyNoMoreInteractions(adminClient);
         verify(indicesClient, times(1)).create(any(), any());
         verifyNoMoreInteractions(indicesClient);
+        verify(clusterClient, times(1)).health(any(), any());
+        verifyNoMoreInteractions(clusterClient);
+    }
+
+    public void testCreateLatestVersionedIndexIfRequired_GivenClusterHealthTimeout() {
+        // The index already exists but shards are not active; the cluster health request times out waiting for them.
+        // The listener must be failed with SERVICE_UNAVAILABLE rather than completed successfully (see #149400).
+        ClusterService clusterService = mock(ClusterService.class);
+        when(clusterService.state()).thenReturn(randomTransformClusterState(false));
+
+        ClusterAdminClient clusterClient = mock(ClusterAdminClient.class);
+        doAnswer(invocationOnMock -> {
+            @SuppressWarnings("unchecked")
+            ActionListener<ClusterHealthResponse> listener = (ActionListener<ClusterHealthResponse>) invocationOnMock.getArguments()[1];
+            ClusterHealthResponse timeoutResponse = new ClusterHealthResponse();
+            timeoutResponse.setTimedOut(true);
+            listener.onResponse(timeoutResponse);
+            return null;
+        }).when(clusterClient).health(any(), any());
+
+        AdminClient adminClient = mock(AdminClient.class);
+        when(adminClient.cluster()).thenReturn(clusterClient);
+        Client client = mock(Client.class);
+        when(client.admin()).thenReturn(adminClient);
+
+        ThreadPool threadPool = mock(ThreadPool.class);
+        when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
+        when(client.threadPool()).thenReturn(threadPool);
+
+        AtomicReference<Exception> caughtException = new AtomicReference<>();
+        ActionListener<Void> testListener = ActionListener.wrap(aVoid -> fail("Expected failure due to timeout"), caughtException::set);
+
+        TransformInternalIndex.createLatestVersionedIndexIfRequired(clusterService, client, Settings.EMPTY, testListener);
+
+        Exception exception = caughtException.get();
+        assertThat(exception, instanceOf(ElasticsearchStatusException.class));
+        assertThat(((ElasticsearchStatusException) exception).status(), equalTo(RestStatus.SERVICE_UNAVAILABLE));
+        assertThat(exception.getMessage(), equalTo(TransformMessages.TRANSFORM_WAIT_FOR_INDEX_SHARDS_ACTIVE_TIMEOUT));
         verify(clusterClient, times(1)).health(any(), any());
         verifyNoMoreInteractions(clusterClient);
     }

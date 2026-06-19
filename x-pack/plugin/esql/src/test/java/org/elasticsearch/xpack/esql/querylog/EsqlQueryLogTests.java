@@ -92,12 +92,12 @@ public class EsqlQueryLogTests extends ESTestCase {
     }
 
     public static ActionLoggingFieldsProvider mockLogFieldProvider() {
-        return context -> new ActionLoggingFields(context) {
-        };
+        return context -> new ActionLoggingFields(context) {};
     }
 
     public void testPrioritiesOnSuccess() {
         EsqlQueryLog queryLog = new EsqlQueryLog(settings, mockLogFieldProvider());
+        assertWarnings(EsqlQueryLog.DEPRECATION_MESSAGE);
         String query = "from " + randomAlphaOfLength(10);
 
         long[] actualTook = {
@@ -111,7 +111,7 @@ public class EsqlQueryLogTests extends ESTestCase {
             EsqlExecutionInfo warnQuery = getEsqlExecutionInfo(actualTook[i]);
             queryLog.onQueryPhase(
                 new Versioned<>(
-                    new Result(List.of(), List.of(), EsqlTestUtils.TEST_CFG, DriverCompletionInfo.EMPTY, warnQuery),
+                    new Result(List.of(), List.of(), null, EsqlTestUtils.TEST_CFG, DriverCompletionInfo.EMPTY, warnQuery),
                     TransportVersion.current()
                 ),
                 query
@@ -149,6 +149,7 @@ public class EsqlQueryLogTests extends ESTestCase {
 
     public void testPrioritiesOnFailure() {
         EsqlQueryLog queryLog = new EsqlQueryLog(settings, mockLogFieldProvider());
+        assertWarnings(EsqlQueryLog.DEPRECATION_MESSAGE);
         String query = "from " + randomAlphaOfLength(10);
 
         long[] actualTook = {
@@ -199,6 +200,10 @@ public class EsqlQueryLogTests extends ESTestCase {
                     randomTimeSpan(),
                     randomTimeSpan(),
                     randomTimeSpan(),
+                    randomTimeSpan(),
+                    randomTimeSpan(),
+                    randomTimeSpan(),
+                    randomTimeSpan(),
                     randomIntBetween(0, 100)
                 );
             }
@@ -212,4 +217,5 @@ public class EsqlQueryLogTests extends ESTestCase {
         long stopNanos = startNanos + randomLongBetween(1, 100_000);
         return new TimeSpan(startNanos / 1_000_000, startNanos, stopNanos / 1_000_000, stopNanos);
     }
+
 }

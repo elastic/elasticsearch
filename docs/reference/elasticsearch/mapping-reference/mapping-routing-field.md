@@ -1,7 +1,7 @@
 ---
 applies_to:
   stack:
-  serverless:
+  serverless: unavailable
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/mapping-routing-field.html
 ---
@@ -99,6 +99,28 @@ PUT my-index-000002/_doc/1 <2>
 2. This index request throws a `routing_missing_exception`.
 
 
+
+## Storing routing as doc values [_storing_routing_as_doc_values]
+```{applies_to}
+stack: ga 9.5.0
+serverless: ga
+```
+
+By default, the `_routing` value is stored as an indexed field with a stored field.
+Setting `doc_values` to `true` stores routing as only a doc value field.
+
+```console
+PUT my-index-000003
+{
+  "mappings": {
+    "_routing": {
+      "required": true,
+      "doc_values": true
+    }
+  }
+}
+```
+% TEST
 
 ## Unique IDs with custom routing [_unique_ids_with_custom_routing]
 

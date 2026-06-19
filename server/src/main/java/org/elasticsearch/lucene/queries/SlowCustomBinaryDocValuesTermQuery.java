@@ -9,6 +9,8 @@
 
 package org.elasticsearch.lucene.queries;
 
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 
 import java.util.Objects;
@@ -30,13 +32,22 @@ public final class SlowCustomBinaryDocValuesTermQuery extends AbstractBinaryDocV
     }
 
     @Override
+    public Query rewrite(IndexSearcher searcher) {
+        if (term.length == 0) {
+            return new BinaryDocValuesLengthQuery(fieldName, 0);
+        } else {
+            return this;
+        }
+    }
+
+    @Override
     protected float matchCost() {
         return 10; // because one comparison
     }
 
     @Override
     public String toString(String field) {
-        return "SlowCustomBinaryDocValuesTermQuery(fieldName=" + field + ",term=" + term.utf8ToString() + ")";
+        return "SlowCustomBinaryDocValuesTermQuery(fieldName=" + field + ",term=" + term.toString() + ")";
     }
 
     @Override

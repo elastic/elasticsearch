@@ -12,12 +12,11 @@ package org.elasticsearch.index.codec;
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.FieldInfosFormat;
 import org.apache.lucene.codecs.FilterCodec;
-import org.apache.lucene.codecs.lucene103.Lucene103Codec;
+import org.apache.lucene.codecs.lucene104.Lucene104Codec;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.codec.tsdb.ES93TSDBDefaultCompressionLucene103Codec;
+import org.elasticsearch.index.codec.tsdb.ES94TSDBBestCompressionLucene104Codec;
 import org.elasticsearch.index.codec.zstd.Zstd814StoredFieldsFormat;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -34,8 +33,6 @@ import java.util.stream.Collectors;
  */
 public class CodecService implements CodecProvider {
 
-    public static final boolean ZSTD_STORED_FIELDS_FEATURE_FLAG = new FeatureFlag("zstd_stored_fields").isEnabled();
-
     private final Map<String, Codec> codecs;
 
     public static final String DEFAULT_CODEC = "default";
@@ -49,32 +46,31 @@ public class CodecService implements CodecProvider {
     public CodecService(@Nullable MapperService mapperService, BigArrays bigArrays, @Nullable ThreadPool threadPool) {
         final var codecs = new HashMap<String, Codec>();
 
-        boolean useSyntheticId = mapperService != null
-            && mapperService.getIndexSettings().useTimeSeriesSyntheticId()
-            && mapperService.getIndexSettings()
-                .getIndexVersionCreated()
-                .onOrAfter(IndexVersions.TIME_SERIES_USE_STORED_FIELDS_BLOOM_FILTER_FOR_ID);
+        boolean useSyntheticId = mapperService != null && mapperService.getIndexSettings().useTimeSeriesSyntheticId();
 
-        var legacyBestSpeedCodec = new LegacyPerFieldMapperCodec(Lucene103Codec.Mode.BEST_SPEED, mapperService, bigArrays, threadPool);
+        var bestSpeedCodec = new LegacyPerFieldMapperCodec(Lucene104Codec.Mode.BEST_SPEED, mapperService, bigArrays, threadPool);
         if (useSyntheticId) {
             // Use the default Lucene compression when the synthetic id is used even if the ZSTD feature flag is enabled
-            codecs.put(DEFAULT_CODEC, new ES93TSDBDefaultCompressionLucene103Codec(legacyBestSpeedCodec));
-        } else if (ZSTD_STORED_FIELDS_FEATURE_FLAG) {
-            codecs.put(
-                DEFAULT_CODEC,
-                new PerFieldMapperCodec(Zstd814StoredFieldsFormat.Mode.BEST_SPEED, mapperService, bigArrays, threadPool)
-            );
+            codecs.put(DEFAULT_CODEC, new ES93TSDBDefaultCompressionLucene103Codec(bestSpeedCodec));
         } else {
-            codecs.put(DEFAULT_CODEC, legacyBestSpeedCodec);
+            codecs.put(DEFAULT_CODEC, bestSpeedCodec);
         }
-        codecs.put(LEGACY_DEFAULT_CODEC, legacyBestSpeedCodec);
+        // We can't remove this now
+        codecs.put(LEGACY_DEFAULT_CODEC, bestSpeedCodec);
 
-        codecs.put(
-            BEST_COMPRESSION_CODEC,
-            new PerFieldMapperCodec(Zstd814StoredFieldsFormat.Mode.BEST_COMPRESSION, mapperService, bigArrays, threadPool)
+        PerFieldMapperCodec bestCompressionCodec = new PerFieldMapperCodec(
+            Zstd814StoredFieldsFormat.Mode.BEST_COMPRESSION,
+            mapperService,
+            bigArrays,
+            threadPool
         );
+        if (useSyntheticId) {
+            codecs.put(BEST_COMPRESSION_CODEC, new ES94TSDBBestCompressionLucene104Codec(bestCompressionCodec));
+        } else {
+            codecs.put(BEST_COMPRESSION_CODEC, bestCompressionCodec);
+        }
         Codec legacyBestCompressionCodec = new LegacyPerFieldMapperCodec(
-            Lucene103Codec.Mode.BEST_COMPRESSION,
+            Lucene104Codec.Mode.BEST_COMPRESSION,
             mapperService,
             bigArrays,
             threadPool
@@ -115,17 +111,22 @@ public class CodecService implements CodecProvider {
 
     public static class DeduplicateFieldInfosCodec extends FilterCodec {
 
-        private final DeduplicatingFieldInfosFormat deduplicatingFieldInfosFormat;
+        private final FieldInfosFormat fieldInfosFormat;
 
         @SuppressWarnings("this-escape")
         protected DeduplicateFieldInfosCodec(String name, Codec delegate) {
             super(name, delegate);
-            this.deduplicatingFieldInfosFormat = new DeduplicatingFieldInfosFormat(super.fieldInfosFormat());
+            // When the per-Directory FieldInfo cache is enabled, use the variant that interns whole FieldInfo instances
+            // against the FieldInfoCachingDirectory wrapping the shard's Store. Otherwise, keep the legacy behavior that
+            // only interns names and attribute maps via static caches.
+            this.fieldInfosFormat = org.elasticsearch.index.store.FieldInfoCachingDirectory.FEATURE_FLAG.isEnabled()
+                ? new CachingFieldInfosFormat(super.fieldInfosFormat())
+                : new DeduplicatingFieldInfosFormat(super.fieldInfosFormat());
         }
 
         @Override
         public final FieldInfosFormat fieldInfosFormat() {
-            return deduplicatingFieldInfosFormat;
+            return fieldInfosFormat;
         }
 
         public final Codec delegate() {

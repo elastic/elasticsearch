@@ -14,11 +14,11 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.TaskSettings;
+import org.elasticsearch.inference.TopNProvider;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.openshiftai.OpenShiftAiUtils;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
@@ -28,7 +28,7 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOpt
 /**
  * Defines the task settings for the OpenShift AI rerank service.
  */
-public class OpenShiftAiRerankTaskSettings implements TaskSettings {
+public class OpenShiftAiRerankTaskSettings implements TaskSettings, TopNProvider {
 
     public static final String NAME = "openshift_ai_rerank_task_settings";
     public static final String RETURN_DOCUMENTS = "return_documents";
@@ -52,9 +52,7 @@ public class OpenShiftAiRerankTaskSettings implements TaskSettings {
         Boolean returnDocuments = extractOptionalBoolean(map, RETURN_DOCUMENTS, validationException);
         Integer topN = extractOptionalPositiveInteger(map, TOP_N, ModelConfigurations.TASK_SETTINGS, validationException);
 
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
+        validationException.throwIfValidationErrorsExist();
 
         return of(topN, returnDocuments);
     }
@@ -172,6 +170,7 @@ public class OpenShiftAiRerankTaskSettings implements TaskSettings {
         return Objects.hash(returnDocuments, topN);
     }
 
+    @Override
     public Integer getTopN() {
         return topN;
     }
@@ -182,7 +181,7 @@ public class OpenShiftAiRerankTaskSettings implements TaskSettings {
 
     @Override
     public TaskSettings updatedTaskSettings(Map<String, Object> newSettings) {
-        OpenShiftAiRerankTaskSettings updatedSettings = OpenShiftAiRerankTaskSettings.fromMap(new HashMap<>(newSettings));
+        OpenShiftAiRerankTaskSettings updatedSettings = OpenShiftAiRerankTaskSettings.fromMap(newSettings);
         return OpenShiftAiRerankTaskSettings.of(this, updatedSettings);
     }
 }

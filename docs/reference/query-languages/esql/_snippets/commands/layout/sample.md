@@ -1,22 +1,26 @@
 ```yaml {applies_to}
-serverless: preview
-stack: preview 9.1.0
+serverless: ga
+stack: preview 9.1-9.4, ga 9.5+
 ```
 
 The `SAMPLE` command samples a fraction of the table rows.
 
-**Syntax**
+::::{note}
+For automatic sampling with extrapolation and confidence intervals, see [Approximate `STATS` queries](/reference/query-languages/esql/esql-query-approximation.md).
+::::
+
+## Syntax
 
 ```esql
 SAMPLE probability
 ```
 
-**Parameters**
+## Parameters
 
 `probability`
 :   The probability that a row is included in the sample. The value must be between 0 and 1, exclusive.
 
-**Examples**
+## Examples
 
-:::{include} ../examples/sample.csv-spec/sampleForDocs.md
+:::{include} ../../generated/x-pack-esql/commands/examples/sample.csv-spec/sampleForDocs.md
 :::

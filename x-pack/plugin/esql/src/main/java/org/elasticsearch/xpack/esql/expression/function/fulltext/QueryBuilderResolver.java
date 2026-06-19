@@ -13,6 +13,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.Rewriteable;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.esql.capabilities.RewriteableAware;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -42,7 +43,7 @@ public final class QueryBuilderResolver {
         var hasRewriteableAwareFunctions = plan.anyMatch(p -> {
             Holder<Boolean> hasRewriteable = new Holder<>(false);
             p.forEachExpression(expr -> {
-                if (expr instanceof RewriteableAware) {
+                if (expr instanceof RewriteableAware rewriteableAware && rewriteableAware.requiresQueryBuilderRewrite()) {
                     hasRewriteable.set(true);
                 }
             });
@@ -52,6 +53,7 @@ public final class QueryBuilderResolver {
             Rewriteable.rewriteAndFetch(
                 new FunctionsRewriteable(plan),
                 queryRewriteContext(services, indexNames(plan)),
+                services.transportService().getThreadPool().executor(ThreadPool.Names.SEARCH_COORDINATION),
                 listener.delegateFailureAndWrap((l, r) -> l.onResponse(r.plan))
             );
         } else {
@@ -96,7 +98,7 @@ public final class QueryBuilderResolver {
             Holder<Boolean> updated = new Holder<>(false);
             LogicalPlan newPlan = plan.transformExpressionsDown(Expression.class, expr -> {
                 Expression finalExpression = expr;
-                if (expr instanceof RewriteableAware rewriteableAware) {
+                if (expr instanceof RewriteableAware rewriteableAware && rewriteableAware.requiresQueryBuilderRewrite()) {
                     QueryBuilder builder = rewriteableAware.queryBuilder(), initial = builder;
                     builder = builder == null
                         ? rewriteableAware.asQuery(LucenePushdownPredicates.DEFAULT, TranslatorHandler.TRANSLATOR_HANDLER).toQueryBuilder()

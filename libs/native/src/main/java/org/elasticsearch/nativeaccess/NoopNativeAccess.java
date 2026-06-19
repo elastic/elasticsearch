@@ -9,6 +9,7 @@
 
 package org.elasticsearch.nativeaccess;
 
+import org.elasticsearch.foreign.CloseableByteBuffer;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 
@@ -99,6 +100,11 @@ class NoopNativeAccess implements NativeAccess {
     @Override
     public Optional<VectorSimilarityFunctions> getVectorSimilarityFunctions() {
         logger.warn("cannot get vector distance because native access is not available");
+        return Optional.empty();
+    }
+
+    @Override
+    public Optional<ParquetRsFunctions> getParquetRsFunctions() {
         return Optional.empty();
     }
 }

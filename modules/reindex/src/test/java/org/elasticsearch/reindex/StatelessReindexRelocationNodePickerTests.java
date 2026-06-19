@@ -20,9 +20,11 @@ import org.elasticsearch.test.ESTestCase;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.test.hamcrest.OptionalMatchers.isEmpty;
 import static org.elasticsearch.test.hamcrest.OptionalMatchers.isPresentWith;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.oneOf;
 
 public class StatelessReindexRelocationNodePickerTests extends ESTestCase {
@@ -196,6 +198,23 @@ public class StatelessReindexRelocationNodePickerTests extends ESTestCase {
             .build();
         Optional<String> id = picker.pickNode(nodes, NodesShutdownMetadata.EMPTY);
         assertThat(id, isEmpty());
+    }
+
+    public void testPickNodeCanBeCalledFromDifferentThreads() throws InterruptedException {
+        final String[] holder = new String[1];
+        final Thread thread = new Thread(() -> {
+            DiscoveryNodes nodes = DiscoveryNodes.builder()
+                .add(createNode("indexingNode1", INDEXING_NODE_ROLES))
+                .add(createNode("indexingNode2Local", INDEXING_NODE_ROLES))
+                .masterNodeId("indexingNode2Local")
+                .localNodeId("indexingNode2Local")
+                .build();
+            holder[0] = picker.pickNode(nodes, NodesShutdownMetadata.EMPTY).orElseThrow();
+        });
+        thread.start();
+        thread.join(TimeUnit.SECONDS.toMillis(10));
+
+        assertThat(holder[0], equalTo("indexingNode1"));
     }
 
     private static DiscoveryNode createNode(String id, Set<DiscoveryNodeRole> roles) {

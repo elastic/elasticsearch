@@ -13,9 +13,7 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.document.StoredField;
-import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.IndexOptions;
-import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.index.IndexSettings;
@@ -211,6 +209,11 @@ public class PatternTextFieldMapper extends FieldMapper {
         }
 
         @Override
+        public String contentType() {
+            return PatternTextFieldType.CONTENT_TYPE;
+        }
+
+        @Override
         public PatternTextFieldMapper build(MapperBuilderContext context) {
             FieldType fieldType = buildLuceneFieldType(indexOptions);
             PatternTextFieldType patternTextFieldType = buildFieldType(fieldType, context);
@@ -219,7 +222,8 @@ public class PatternTextFieldMapper extends FieldMapper {
                 patternTextFieldType.templateIdFieldName(leafName()),
                 indexSettings,
                 isWithinMultiField()
-            ).indexed(false).build(context);
+                // Enforce LOW cardinality even if cardinality defaults to HIGH:
+            ).indexed(false).docValues(DocValuesParameter.Values.Cardinality.LOW).build(context);
             return new PatternTextFieldMapper(leafName(), fieldType, patternTextFieldType, builderParams, this, templateIdMapper);
         }
     }
@@ -357,11 +361,6 @@ public class PatternTextFieldMapper extends FieldMapper {
         return (PatternTextFieldType) super.fieldType();
     }
 
-    @FunctionalInterface
-    interface DocValuesSupplier {
-        BinaryDocValues get(LeafReader leafReader) throws IOException;
-    }
-
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport() {
         return new SyntheticSourceSupport.Native(this::getSyntheticFieldLoader);
@@ -393,7 +392,7 @@ public class PatternTextFieldMapper extends FieldMapper {
             fullPath(),
             new PatternTextSyntheticFieldLoaderLayer(
                 fieldType().name(),
-                leafReader -> PatternTextFallbackDocValues.from(leafReader, fieldType())
+                leafReader -> PatternTextFallbackDocValues.fromEnabledPatternText(leafReader, fieldType())
             )
         );
     }

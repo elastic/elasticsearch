@@ -10,12 +10,16 @@
 package org.elasticsearch.lucene.queries;
 
 import org.apache.lucene.index.Term;
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.Query;
 import org.apache.lucene.search.WildcardQuery;
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.ByteRunAutomaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
 
+import java.io.IOException;
 import java.util.Objects;
 
 /**
@@ -50,6 +54,37 @@ public final class SlowCustomBinaryDocValuesWildcardQuery extends AbstractBinary
             automaton = WildcardQuery.toAutomaton(term, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
         }
         return new ByteRunAutomaton(automaton);
+    }
+
+    @Override
+    public Query rewrite(IndexSearcher indexSearcher) throws IOException {
+        if (caseInsensitive == false) {
+            var innerPattern = getContainsPattern(pattern);
+            if (innerPattern != null) {
+                return new BinaryDocValuesContainsTermQuery(fieldName, new BytesRef(innerPattern));
+            }
+        }
+        return super.rewrite(indexSearcher);
+    }
+
+    /**
+     * Extracts the inner literal from patterns of the form {@code *literal*} that can be rewritten to a contains query.
+     * Returns {@code null} if the pattern cannot be rewritten (contains wildcards, single-char wildcards, or escapes).
+     * Backslash-containing patterns are rejected because wildcard syntax uses {@code \} to escape special characters
+     * (e.g. {@code \*} for a literal asterisk), so the raw pattern string doesn't match the intended literal bytes.
+     */
+    static String getContainsPattern(String pattern) {
+        if (pattern.length() < 3) {
+            return null;
+        }
+        if (pattern.charAt(0) != '*' || pattern.charAt(pattern.length() - 1) != '*') {
+            return null;
+        }
+        var inner = pattern.substring(1, pattern.length() - 1);
+        if (inner.indexOf('*') >= 0 || inner.indexOf('?') >= 0 || inner.indexOf('\\') >= 0) {
+            return null;
+        }
+        return inner;
     }
 
     @Override

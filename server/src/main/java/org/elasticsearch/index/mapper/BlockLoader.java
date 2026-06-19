@@ -10,12 +10,18 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
+import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.search.TwoPhaseIterator;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.IOFunction;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.mapper.blockloader.ConstantBytes;
 import org.elasticsearch.index.mapper.blockloader.ConstantNull;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BlockDocValuesReader;
@@ -36,6 +42,11 @@ import java.util.Map;
  *     The compute engine operates on arrays because the good folks that build CPUs have
  *     spent the past 40 years making them really really good at running tight loops over
  *     arrays of data. So we play along with the CPU and make arrays.
+ * </p>
+ * <p>
+ *     Implementers will return non-null from either {@link #columnAtATimeReader} or
+ *     {@link #rowStrideReader}. As of 2026-2-4 many will return non-null from both
+ *     but that's deprecated and will be removed.
  * </p>
  * <h2>How to implement</h2>
  * <p>
@@ -135,14 +146,14 @@ import java.util.Map;
  *     but to disable {@code _source} and {@code doc_values}. Nothing's perfect. Especially
  *     code.
  * </p>
- * <h2>Why is {@link AllReader}?</h2>
+ * <h2>Column-at-a-time vs row-stride</h2>
  * <p>
- *     When we described how to read from {@code doc_values} we said we <strong>prefer</strong>
- *     to use {@link ColumnAtATimeReader}. But some callers don't support reading column-at-a-time
- *     and need to read row-by-row. So we also need an implementation of {@link RowStrideReader}
- *     that reads from {@code doc_values}. Usually it's most convenient to implement both of those
- *     in the same {@code class}. {@link AllReader} is an interface for those sorts of classes, and
- *     you'll see it in the {@code doc_values} code frequently.
+ *     Readers may load {@link ColumnAtATimeReader column-at-a-time} or {@link RowStrideReader row-by-row}.
+ *     They need only return non-null from {@link #columnAtATimeReader} or {@link #rowStrideReader}.
+ *     {@link ColumnAtATimeReader}s have the lowest overhead and get access to a large batch of document
+ *     ids to load at once, making them must faster for loading dense on disk structures like doc values
+ *     or vector distances. {@link RowStrideReader}s can use {@link StoredFields} to access Lucene's
+ *     compressed {@code stored} fields, include Elasticsearch's {@code _source}.
  * </p>
  * <h2>Why is {@link #rowStrideStoredFieldSpec}?</h2>
  * <p>
@@ -172,13 +183,26 @@ public interface BlockLoader {
         return new ConstantBytes(value);
     }
 
-    interface Reader {
+    interface Reader extends Releasable {
         /**
          * Checks if the reader can be used to read a range documents starting with the given docID by the current thread.
          */
         boolean canReuse(int startingDocID);
+
+        /**
+         * A string representation of the {@link Reader}. It's important that this
+         * have a nice implementation because this is used in the {@code profile}.
+         */
+        String toString();
     }
 
+    /**
+     * Load an entire block at a time.
+     * <p>
+     *     It's <strong>important</strong> that these have a nice {@link #toString()}. It's used
+     *     in the {@code profile}.
+     * </p>
+     */
     interface ColumnAtATimeReader extends Reader {
         /**
          * Reads the values of all documents in {@code docs}.
@@ -209,7 +233,7 @@ public interface BlockLoader {
          *                       see {@link ColumnAtATimeReader#read(BlockFactory, Docs, int, boolean)}
          * @param toDouble       a function to convert long values to double, or null if no conversion is needed/supported
          * @param toInt          whether to convert to int in case int block / vector is needed
-         * @param binaryMultiValuedFormat whether the multi-valued binary format is used (CustomBinaryDocValuesField).
+         * @param binaryMultiValuedFormat whether the multi-valued binary format is used (MultiValuedBinaryDocValuesField).
          */
         @Nullable
         BlockLoader.Block tryRead(
@@ -221,6 +245,53 @@ public interface BlockLoader {
             boolean toInt,
             boolean binaryMultiValuedFormat
         ) throws IOException;
+
+        /**
+         * Returns a {@link DocIdSetIterator} that matches documents whose value contains the given term,
+         * or {@code null} if this optimization is not supported by the underlying data.
+         *
+         * <p>Implementations should return a {@link TwoPhaseIterator}-backed iterator (wrapped via
+         * {@link TwoPhaseIterator#asDocIdSetIterator}) so that Lucene's default BulkScorer drives the
+         * dense {@code approximation} forward and calls {@code matches()} per doc within the caller's
+         * {@code [min, max)} window — sub-segment slicing (e.g. {@code DataPartitioning.DOC}) then
+         * pays cost proportional to slice size, with no over-scan into adjacent slices when matches
+         * are sparse.
+         */
+        default DocIdSetIterator tryContainsIterator(BytesRef containsTerm) throws IOException {
+            return null;
+        }
+    }
+
+    /**
+     * An interface for numeric doc values readers that can optionally produce a {@link DocIdSetIterator}
+     * optimized for range queries using SIMD bitmask scanning, with internal skipper-based block skipping
+     * when a skipper is available for the field.
+     * <p>
+     * The returned iterator shares internal block-decoding state with the reader that produced it.
+     * Callers must not use the originating reader after obtaining the iterator; the iterator assumes
+     * exclusive ownership of that shared state.
+     * <p>
+     * The default implementation returns {@code null}, indicating no optimized iterator is available.
+     */
+    interface OptionalNumericRangeReader {
+        /**
+         * Returns a {@link DocIdSetIterator} matching documents whose numeric value falls in
+         * {@code [lowerValue, upperValue]}, or {@code null} if this optimization is not supported.
+         *
+         * <p>Implementations should override {@link DocIdSetIterator#intoBitSet} and
+         * {@link DocIdSetIterator#docIDRunEnd} (both honoring the caller's {@code upTo} bound)
+         * so Lucene's {@code DenseConjunctionBulkScorer} can bulk-collect dense ranges
+         * window-by-window — including a {@code bitSet.set(start, end+1)} fast path for
+         * skipper blocks that are entirely in range. These bulk overrides keep sub-segment
+         * slicing ({@code DataPartitioning.DOC}) linear while preserving the dense-range
+         * optimization on whole-leaf scans; the {@link TwoPhaseIterator} pattern used by
+         * {@link OptionalColumnAtATimeReader#tryContainsIterator} is intentionally not adopted
+         * here because the wrapper produced by {@link TwoPhaseIterator#asDocIdSetIterator}
+         * doesn't carry those bulk overrides through.
+         */
+        default DocIdSetIterator tryRangeIterator(long lowerValue, long upperValue) throws IOException {
+            return null;
+        }
     }
 
     /**
@@ -240,16 +311,58 @@ public interface BlockLoader {
          */
         @Nullable
         BlockLoader.Block tryReadLength(BlockFactory factory, Docs docs, int offset, boolean nullsFiltered) throws IOException;
+
+        /**
+         * Converts the length of each binary value associated with documents into a {@link NumericDocValues} representation.
+         * The {@code NumericDocValues} returned provides access to the length of each binary value for each document and
+         * this can be accesed via {@link NumericDocValues#longValue()}.
+         *
+         * @return a {@link NumericDocValues} instance containing the length values, or {@code null} if
+         *         unable to load the values due to unsupported underlying data or other constraints.
+         */
+        NumericDocValues toLengthValues();
+
+        /**
+         * Creates a {@link DocIdSetIterator} that matches documents whose length equals {@code length}.
+         *
+         * <p>Implementations should return a {@link TwoPhaseIterator}-backed iterator (wrapped via
+         * {@link TwoPhaseIterator#asDocIdSetIterator}) — see the rationale on
+         * {@link OptionalColumnAtATimeReader#tryContainsIterator}.
+         *
+         * @param length the length value to match against the documents.
+         * @return a {@link DocIdSetIterator} to iterate over documents matching the specified length value.
+         * @throws IOException if an I/O error occurs while reading the length values.
+         */
+        default DocIdSetIterator tryLengthIterator(int length) throws IOException {
+            NumericDocValues lengthReader = toLengthValues();
+            assert lengthReader != null;
+            return TwoPhaseIterator.asDocIdSetIterator(new TwoPhaseIterator(lengthReader) {
+                @Override
+                public boolean matches() throws IOException {
+                    return lengthReader.longValue() == length;
+                }
+
+                @Override
+                public float matchCost() {
+                    return 10;
+                }
+            });
+        }
     }
 
+    /**
+     * Load the values for one row at a time.
+     * <p>
+     *     It's <strong>important</strong> that these have a nice {@link #toString()}. It's used
+     *     in the {@code profile}.
+     * </p>
+     */
     interface RowStrideReader extends Reader {
         /**
          * Reads the values of the given document into the builder.
          */
         void read(int docId, StoredFields storedFields, Builder builder) throws IOException;
     }
-
-    interface AllReader extends ColumnAtATimeReader, RowStrideReader {}
 
     interface StoredFields {
         /**
@@ -289,18 +402,19 @@ public interface BlockLoader {
      * Build a column-at-a-time reader. <strong>May</strong> return {@code null}
      * if the underlying storage needs to be loaded row-by-row. Callers should try
      * this first, only falling back to {@link #rowStrideReader} if this returns
-     * {@code null} or if they can't load column-at-a-time themselves.
+     * {@code null}. If this returns null then {@link #rowStrideReader} may not.
      */
     @Nullable
-    ColumnAtATimeReader columnAtATimeReader(LeafReaderContext context) throws IOException;
+    IOFunction<CircuitBreaker, ColumnAtATimeReader> columnAtATimeReader(LeafReaderContext context) throws IOException;
 
     /**
-     * Build a row-by-row reader. Must <strong>never</strong> return {@code null},
-     * evan if the underlying storage prefers to be loaded column-at-a-time. Some
-     * callers simply can't load column-at-a-time so all implementations must support
-     * this method.
+     * Build a row-by-row reader. <strong>May</strong> return {@code null} if the
+     * underlying storage prefers to be loaded column-at-a-time. Callers should try
+     * {@link #columnAtATimeReader} first, only falling back to this if
+     * {@link #columnAtATimeReader} returns null. This may not return null if
+     * {@link #columnAtATimeReader} does.
      */
-    RowStrideReader rowStrideReader(LeafReaderContext context) throws IOException;
+    RowStrideReader rowStrideReader(CircuitBreaker breaker, LeafReaderContext context) throws IOException;
 
     /**
      * What {@code stored} fields are needed by this reader.
@@ -367,7 +481,7 @@ public interface BlockLoader {
         protected abstract boolean canUsePreferLoaderForDoc(int docId) throws IOException;
 
         @Override
-        public ColumnAtATimeReader columnAtATimeReader(LeafReaderContext context) throws IOException {
+        public IOFunction<CircuitBreaker, ColumnAtATimeReader> columnAtATimeReader(LeafReaderContext context) throws IOException {
             if (canUsePreferLoaderForLeaf(context)) {
                 return preferLoader.columnAtATimeReader(context);
             } else {
@@ -376,30 +490,66 @@ public interface BlockLoader {
         }
 
         @Override
-        public RowStrideReader rowStrideReader(LeafReaderContext context) throws IOException {
+        public RowStrideReader rowStrideReader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
             if (preferLoader.rowStrideStoredFieldSpec().noRequirements() == false) {
-                return fallbackLoader.rowStrideReader(context);
+                return fallbackLoader.rowStrideReader(breaker, context);
             }
-            RowStrideReader preferReader = preferLoader.rowStrideReader(context);
-            if (canUsePreferLoaderForLeaf(context)) {
-                return preferReader;
-            }
-            RowStrideReader fallbackReader = fallbackLoader.rowStrideReader(context);
-            return new RowStrideReader() {
-                @Override
-                public void read(int docId, StoredFields storedFields, Builder builder) throws IOException {
-                    if (storedFields.loaded() == false && canUsePreferLoaderForDoc(docId)) {
-                        preferReader.read(docId, storedFields, builder);
-                    } else {
-                        fallbackReader.read(docId, storedFields, builder);
-                    }
+            RowStrideReader preferReader = null;
+            RowStrideReader fallbackReader = null;
+            boolean success = false;
+            try {
+                preferReader = preferLoader.rowStrideReader(breaker, context);
+                if (preferReader == null) {
+                    throw new IllegalStateException(
+                        "ConditionalBlockLoader requires sub-readers to support both row-at-a-time and column-at-a-time: " + preferLoader
+                    );
                 }
+                if (canUsePreferLoaderForLeaf(context)) {
+                    success = true;
+                    return preferReader;
+                }
+                fallbackReader = fallbackLoader.rowStrideReader(breaker, context);
+                success = true;
+                return new ConditionalRowStrideReader(preferReader, fallbackReader);
+            } finally {
+                if (success == false) {
+                    Releasables.close(preferReader, fallbackReader);
+                }
+            }
+        }
 
-                @Override
-                public boolean canReuse(int startingDocID) {
-                    return fallbackReader.canReuse(startingDocID) && preferReader.canReuse(startingDocID);
+        class ConditionalRowStrideReader implements RowStrideReader {
+            private final RowStrideReader preferReader;
+            private final RowStrideReader fallbackReader;
+
+            ConditionalRowStrideReader(RowStrideReader preferReader, RowStrideReader fallbackReader) {
+                this.preferReader = preferReader;
+                this.fallbackReader = fallbackReader;
+            }
+
+            @Override
+            public void read(int docId, StoredFields storedFields, Builder builder) throws IOException {
+                if (storedFields.loaded() == false && canUsePreferLoaderForDoc(docId)) {
+                    preferReader.read(docId, storedFields, builder);
+                } else {
+                    fallbackReader.read(docId, storedFields, builder);
                 }
-            };
+            }
+
+            @Override
+            public boolean canReuse(int startingDocID) {
+                return fallbackReader.canReuse(startingDocID) && preferReader.canReuse(startingDocID);
+            }
+
+            @Override
+            public void close() {
+                Releasables.close(preferReader, fallbackReader);
+            }
+
+            @Override
+            public String toString() {
+                return "[" + preferReader + "/" + fallbackReader + "]";
+            }
         }
 
         @Override
@@ -425,6 +575,30 @@ public interface BlockLoader {
         int count();
 
         int get(int i);
+
+        /**
+         * Can this vector reference duplicate documents? Some {@link BlockLoader}s will
+         * run more slowly if this is {@code true}. These {@linkplain BlockLoader}s will
+         * return incorrect results if there are duplicates and this is {@code false}.
+         * This exists because of a hierarchy of speeds:
+         * <ul>
+         *     <li>
+         *         We can better optimize some {@link BlockLoader}s when they receive
+         *         {@linkplain Docs}s that don't contain duplicates.
+         *     </li>
+         *     <li>
+         *         It's rare that we want to load from duplicate doc ids. We don't need
+         *         to spend that much time optimizing it.
+         *     </li>
+         *     <li>
+         *         We sometimes really <strong>want</strong> to load from duplicate
+         *         doc ids to minimize total amount of loading we have to do in fairly
+         *         specific cases like resolving dimension values after time series
+         *         aggregations.
+         *     </li>
+         * </ul>
+         */
+        boolean mayContainDuplicates();
     }
 
     /**
@@ -568,6 +742,12 @@ public interface BlockLoader {
         Block constantInt(int value, int count);
 
         /**
+         * Build a block that contains {@code value} repeated
+         * {@code count} times.
+         */
+        Block constantLong(long value, int count);
+
+        /**
          * Build a reader for reading {@link SortedDocValues}
          */
         SingletonOrdinalsBuilder singletonOrdinalsBuilder(SortedDocValues ordinals, int count, boolean isDense);
@@ -576,6 +756,13 @@ public interface BlockLoader {
          * Build a reader for reading {@link SortedSetDocValues}
          */
         SortedSetOrdinalsBuilder sortedSetOrdinalsBuilder(SortedSetDocValues ordinals, int count);
+
+        /**
+         * Build a reader that emits an ord-encoded BytesRef block that preserves append order (duplicates retained, no sort/dedupe). Use
+         * this when the caller drives ord ordering from a companion offsets doc value, rather than reading the natural sorted-deduped
+         * stream from {@link SortedSetDocValues}.
+         */
+        SortedSetOrdinalsBuilder arrayOrderOrdinalsBuilder(SortedSetDocValues ordinals, int count);
 
         AggregateMetricDoubleBuilder aggregateMetricDoubleBuilder(int count);
 
@@ -660,12 +847,12 @@ public interface BlockLoader {
          * Append multiple BytesRef. Offsets contains offsets of each BytesRef in the byte array.
          * The length of the offsets array is one more than the number of BytesRefs.
          */
-        SingletonBytesRefBuilder appendBytesRefs(byte[] bytes, long[] offsets) throws IOException;
+        SingletonBytesRefBuilder appendBytesRefs(byte[] bytes, int[] offsets) throws IOException;
 
         /**
          * Append multiple BytesRefs, all with the same length.
          */
-        SingletonBytesRefBuilder appendBytesRefs(byte[] bytes, long bytesRefLengths) throws IOException;
+        SingletonBytesRefBuilder appendBytesRefs(byte[] bytes, int bytesRefLengths) throws IOException;
     }
 
     interface FloatBuilder extends Builder {
@@ -706,10 +893,12 @@ public interface BlockLoader {
     }
 
     /**
-     * Specialized builder for collecting dense arrays of double values.
+     * Specialized builder for collecting dense arrays of int values.
      */
     interface SingletonIntBuilder extends Builder {
         SingletonIntBuilder appendLongs(long[] values, int from, int length);
+
+        SingletonIntBuilder appendInts(int[] values, int from, int length);
     }
 
     interface LongBuilder extends Builder {

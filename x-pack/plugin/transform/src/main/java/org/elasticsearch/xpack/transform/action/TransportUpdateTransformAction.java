@@ -21,6 +21,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -55,6 +56,8 @@ import org.elasticsearch.xpack.transform.transforms.FunctionFactory;
 import org.elasticsearch.xpack.transform.transforms.TransformTask;
 
 import java.util.List;
+import java.util.Objects;
+import java.util.function.BooleanSupplier;
 
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.transform.utils.SecondaryAuthorizationUtils.getSecurityHeadersPreferringSecondary;
@@ -70,6 +73,9 @@ public class TransportUpdateTransformAction extends TransportTasksAction<Transfo
     private final ThreadPool threadPool;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final Settings destIndexSettings;
+    private final BooleanSupplier hasLinkedProjects;
+    private final ProjectResolver projectResolver;
+    private final TransformCloudCredentialManager cloudCredentialManager;
 
     @Inject
     public TransportUpdateTransformAction(
@@ -81,7 +87,8 @@ public class TransportUpdateTransformAction extends TransportTasksAction<Transfo
         ClusterService clusterService,
         TransformServices transformServices,
         Client client,
-        TransformExtensionHolder transformExtensionHolder
+        TransformExtensionHolder transformExtensionHolder,
+        ProjectResolver projectResolver
     ) {
         super(
             UpdateTransformAction.NAME,
@@ -103,13 +110,16 @@ public class TransportUpdateTransformAction extends TransportTasksAction<Transfo
         this.threadPool = threadPool;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.destIndexSettings = transformExtensionHolder.getTransformExtension().getTransformDestinationIndexSettings();
+        this.hasLinkedProjects = () -> transformServices.hasLinkedProjects().apply(projectResolver.getProjectId());
+        this.projectResolver = projectResolver;
+        this.cloudCredentialManager = transformServices.cloudCredentialManager();
     }
 
     @Override
     protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
         final ClusterState clusterState = clusterService.state();
         XPackPlugin.checkReadyForXPackCustomMetadata(clusterState);
-        if (TransformMetadata.upgradeMode(clusterState)) {
+        if (TransformMetadata.isUpgradeMode(projectResolver.getProjectMetadata(clusterState))) {
             listener.onFailure(
                 new ElasticsearchStatusException(
                     "Cannot update any Transform while the Transform feature is upgrading.",
@@ -158,8 +168,11 @@ public class TransportUpdateTransformAction extends TransportTasksAction<Transfo
                     request.isDeferValidation(),
                     false, // dryRun
                     true, // checkAccess
+                    hasLinkedProjects.getAsBoolean(),
                     request.getTimeout(),
                     destIndexSettings,
+                    cloudCredentialManager,
+                    true, // mintCloudCredential
                     ActionListener.wrap(updateResult -> {
                         TransformConfig originalConfig = configAndVersion.v1();
                         TransformConfig updatedConfig = updateResult.getConfig();
@@ -167,31 +180,44 @@ public class TransportUpdateTransformAction extends TransportTasksAction<Transfo
                         auditor.info(updatedConfig.getId(), "Updated transform.");
                         logger.info("[{}] Updated transform [{}]", updatedConfig.getId(), updateResult.getStatus());
 
+                        auditProjectRoutingChanges(originalConfig, updatedConfig);
+
                         checkTransformConfigAndLogWarnings(updatedConfig);
+
+                        PersistentTasksCustomMetadata.PersistentTask<?> transformTask = TransformTask.getTransformTask(
+                            request.getId(),
+                            projectResolver.getProjectMetadata(clusterState)
+                        );
+                        // a task can receive runtime settings updates only when it exists, is assigned
+                        // to a node, and is not in the failed state (stopped transforms have no task)
+                        boolean isRunning = transformTask != null
+                            && transformTask.isAssigned()
+                            && transformTask.getState() instanceof TransformState
+                            && ((TransformState) transformTask.getState()).getTaskState() != TransformTaskState.FAILED;
+
+                        // If the credentialId changed and the task is NOT running, revoke + delete the
+                        // prior credential here — the indexer will never see the new config to do it.
+                        // For running tasks, the indexer's onStart hook handles the swap on next reload.
+                        ActionListener<Response> afterCredentialCleanup = wrapWithPriorCredentialCleanupIfNeeded(
+                            listener,
+                            originalConfig.getCredentialId(),
+                            updatedConfig.getCredentialId(),
+                            updatedConfig.getId(),
+                            isRunning
+                        );
 
                         boolean updateChangesSettings = update.changesSettings(originalConfig);
                         boolean updateChangesHeaders = update.changesHeaders(originalConfig);
                         boolean updateChangesDestIndex = update.changesDestIndex(originalConfig);
                         boolean updateFrequency = update.changesFrequency(originalConfig);
                         if (updateChangesSettings || updateChangesHeaders || updateChangesDestIndex || updateFrequency) {
-                            PersistentTasksCustomMetadata.PersistentTask<?> transformTask = TransformTask.getTransformTask(
-                                request.getId(),
-                                clusterState
-                            );
+                            if (isRunning) {
 
-                            // to send a request to apply new settings at runtime, several requirements must be met:
-                            // - transform must be running, meaning a task exists
-                            // - transform is not failed (stopped transforms do not have a task)
-                            if (transformTask != null
-                                && transformTask.isAssigned()
-                                && transformTask.getState() instanceof TransformState
-                                && ((TransformState) transformTask.getState()).getTaskState() != TransformTaskState.FAILED) {
-
-                                ActionListener<Response> taskUpdateListener = ActionListener.wrap(listener::onResponse, e -> {
+                                ActionListener<Response> taskUpdateListener = ActionListener.wrap(afterCredentialCleanup::onResponse, e -> {
                                     // benign: A transform might be stopped meanwhile, this is not a problem
                                     if (e instanceof TransformTaskDisappearedDuringUpdateException) {
                                         logger.debug("[{}] transform task disappeared during update, ignoring", request.getId());
-                                        listener.onResponse(new Response(updatedConfig));
+                                        afterCredentialCleanup.onResponse(new Response(updatedConfig));
                                         return;
                                     }
 
@@ -206,11 +232,11 @@ public class TransportUpdateTransformAction extends TransportTasksAction<Transfo
                                             e
                                         );
 
-                                        listener.onResponse(new Response(updatedConfig));
+                                        afterCredentialCleanup.onResponse(new Response(updatedConfig));
                                         return;
                                     }
 
-                                    listener.onFailure(e);
+                                    afterCredentialCleanup.onFailure(e);
                                 });
 
                                 request.setNodes(transformTask.getExecutorNode());
@@ -224,19 +250,48 @@ public class TransportUpdateTransformAction extends TransportTasksAction<Transfo
                                     transformConfigManager,
                                     updatedConfig.getId(),
                                     authState,
-                                    ActionListener.wrap(aVoid -> listener.onResponse(new Response(updatedConfig)), listener::onFailure)
+                                    ActionListener.wrap(
+                                        aVoid -> afterCredentialCleanup.onResponse(new Response(updatedConfig)),
+                                        afterCredentialCleanup::onFailure
+                                    )
                                 );
                             } else {
-                                listener.onResponse(new Response(updatedConfig));
+                                afterCredentialCleanup.onResponse(new Response(updatedConfig));
                             }
                         } else {
-                            listener.onResponse(new Response(updatedConfig));
+                            afterCredentialCleanup.onResponse(new Response(updatedConfig));
                         }
                     }, listener::onFailure)
                 ),
                 listener::onFailure
             )
         );
+    }
+
+    private void auditProjectRoutingChanges(TransformConfig originalConfig, TransformConfig updatedConfig) {
+        if (Objects.equals(originalConfig.getSource().getProjectRouting(), updatedConfig.getSource().getProjectRouting()) == false) {
+            var originalProjectRouting = originalConfig.getSource().getProjectRouting();
+            var updatedProjectRouting = updatedConfig.getSource().getProjectRouting();
+
+            if (originalProjectRouting == null) {
+                auditor.info(updatedConfig.getId(), format("project_routing has been set to [%s].", updatedProjectRouting));
+                logger.info("[{}] project_routing has been set to [{}].", updatedConfig.getId(), updatedProjectRouting);
+            } else if (updatedProjectRouting == null) {
+                auditor.info(updatedConfig.getId(), format("project_routing [%s] has been removed.", originalProjectRouting));
+                logger.info("[{}] project_routing [{}] has been removed.", updatedConfig.getId(), originalProjectRouting);
+            } else {
+                auditor.info(
+                    updatedConfig.getId(),
+                    format("project_routing updated from [%s] to [%s].", originalProjectRouting, updatedProjectRouting)
+                );
+                logger.info(
+                    "[{}] project_routing updated from [{}] to [{}].",
+                    updatedConfig.getId(),
+                    originalProjectRouting,
+                    updatedProjectRouting
+                );
+            }
+        }
     }
 
     private void checkTransformConfigAndLogWarnings(TransformConfig config) {
@@ -256,11 +311,44 @@ public class TransportUpdateTransformAction extends TransportTasksAction<Transfo
         TransformTask transformTask,
         ActionListener<Response> listener
     ) {
+        // Apply settings synchronously to the running task. The new cloud credential, if any, is
+        // picked up by the indexer's onStart hook on the next config-reload — there is no separate
+        // refresh-from-store path for credentials anymore.
         transformTask.applyNewSettings(request.getConfig().getSettings());
         transformTask.applyNewAuthState(request.getAuthState());
         transformTask.checkAndResetDestinationIndexBlock(request.getConfig());
         transformTask.applyNewFrequency(request.getConfig());
         listener.onResponse(new Response(request.getConfig()));
+    }
+
+    /**
+     * Wraps the given listener so that — on success — the prior credential is revoked and deleted
+     * before the response is delivered to the caller. Skipped when (a) the cloud credential manager
+     * is not available (Reset / Upgrade paths), (b) the credentialId did not change, or (c) the
+     * task is still running (the indexer's onStart hook will handle the swap + revoke on next
+     * config reload). Otherwise — task stopped/failed/disappeared — the master node must perform
+     * the cleanup itself because the indexer will never see the new config.
+     */
+    private ActionListener<Response> wrapWithPriorCredentialCleanupIfNeeded(
+        ActionListener<Response> listener,
+        String priorCredentialId,
+        String newCredentialId,
+        String transformId,
+        boolean isRunning
+    ) {
+        if (cloudCredentialManager == null
+            || priorCredentialId == null
+            || Objects.equals(priorCredentialId, newCredentialId)
+            || isRunning) {
+            return listener;
+        }
+        return listener.delegateFailureAndWrap(
+            (l, response) -> cloudCredentialManager.loadRevokeAndDeleteByTokenId(
+                transformId,
+                priorCredentialId,
+                ActionListener.running(() -> l.onResponse(response))
+            )
+        );
     }
 
     @Override

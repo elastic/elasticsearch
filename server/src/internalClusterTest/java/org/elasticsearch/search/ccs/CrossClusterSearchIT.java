@@ -18,10 +18,6 @@ import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
@@ -31,20 +27,16 @@ import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.query.SlowRunningQueryBuilder;
 import org.elasticsearch.search.query.ThrowingQueryBuilder;
-import org.elasticsearch.test.AbstractMultiClustersTestCase;
-import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.RemoteTransportException;
 
 import java.util.Collection;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
@@ -53,30 +45,11 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
 
-public class CrossClusterSearchIT extends AbstractMultiClustersTestCase {
-
-    private static final String REMOTE_CLUSTER = "cluster_a";
-    private static long EARLIEST_TIMESTAMP = 1691348810000L;
-    private static long LATEST_TIMESTAMP = 1691348820000L;
-
-    @Override
-    protected List<String> remoteClusterAlias() {
-        return List.of(REMOTE_CLUSTER);
-    }
-
-    @Override
-    protected Map<String, Boolean> skipUnavailableForRemoteClusters() {
-        return Map.of(REMOTE_CLUSTER, randomBoolean());
-    }
-
-    @Override
-    protected boolean reuseClusters() {
-        return false;
-    }
+public class CrossClusterSearchIT extends AbstractCrossClusterSearchTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins(String clusterAlias) {
-        return CollectionUtils.appendToCopy(super.nodePlugins(clusterAlias), CrossClusterSearchIT.TestQueryBuilderPlugin.class);
+        return CollectionUtils.appendToCopy(super.nodePlugins(clusterAlias), TestQueryBuilderPlugin.class);
     }
 
     public static class TestQueryBuilderPlugin extends Plugin implements SearchPlugin {
@@ -739,15 +712,128 @@ public class CrossClusterSearchIT extends AbstractMultiClustersTestCase {
         });
     }
 
-    public void testNegativeRemoteIndexNameThrows() {
-        SearchRequest searchRequest = new SearchRequest("*:*", "-" + REMOTE_CLUSTER + ":prod");
-        searchRequest.setCcsMinimizeRoundtrips(true);
+    public void testNegativeRemoteIndexNameEquivalentToRemoteNegativeIndexSyntax() throws Exception {
+        Map<String, Object> testClusterInfo = setupTwoClusters();
+        String remoteIndex = (String) testClusterInfo.get("remote.index");
+
+        SearchRequest clusterPrefixExclusion = new SearchRequest(REMOTE_CLUSTER + ":*", "-" + REMOTE_CLUSTER + ":prod");
+        clusterPrefixExclusion.setCcsMinimizeRoundtrips(randomBoolean());
+        clusterPrefixExclusion.allowPartialSearchResults(false);
+        clusterPrefixExclusion.source(new SearchSourceBuilder().query(new MatchAllQueryBuilder()).size(5000));
+
+        SearchRequest indexPrefixExclusion = new SearchRequest(REMOTE_CLUSTER + ":*", REMOTE_CLUSTER + ":-prod");
+        indexPrefixExclusion.setCcsMinimizeRoundtrips(randomBoolean());
+        indexPrefixExclusion.allowPartialSearchResults(false);
+        indexPrefixExclusion.source(new SearchSourceBuilder().query(new MatchAllQueryBuilder()).size(5000));
+
+        final long[] clusterPrefixTotalHits = new long[1];
+        assertResponse(client(LOCAL_CLUSTER).search(clusterPrefixExclusion), clusterPrefixResponse -> {
+            assertNotNull(clusterPrefixResponse);
+            Clusters clusters = clusterPrefixResponse.getClusters();
+            assertThat(clusters.getTotal(), equalTo(1));
+            assertNull(clusters.getCluster(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY));
+            Cluster clusterPrefixCluster = clusters.getCluster(REMOTE_CLUSTER);
+            assertNotNull(clusterPrefixCluster);
+            assertThat(clusterPrefixCluster.getStatus(), equalTo(Cluster.Status.SUCCESSFUL));
+            assertThat(clusterPrefixCluster.getIndexExpression(), equalTo("*,-prod"));
+            for (var hit : clusterPrefixResponse.getHits()) {
+                assertThat(hit.getIndex(), equalTo(remoteIndex));
+            }
+            clusterPrefixTotalHits[0] = Objects.requireNonNull(clusterPrefixResponse.getHits().getTotalHits()).value();
+        });
+        assertResponse(client(LOCAL_CLUSTER).search(indexPrefixExclusion), indexPrefixResponse -> {
+            assertNotNull(indexPrefixResponse);
+            assertThat(Objects.requireNonNull(indexPrefixResponse.getHits().getTotalHits()).value(), equalTo(clusterPrefixTotalHits[0]));
+            Cluster indexPrefixCluster = indexPrefixResponse.getClusters().getCluster(REMOTE_CLUSTER);
+            assertNotNull(indexPrefixCluster);
+            assertThat(indexPrefixCluster.getStatus(), equalTo(Cluster.Status.SUCCESSFUL));
+            assertThat(indexPrefixCluster.getIndexExpression(), equalTo("*,-prod"));
+        });
+    }
+
+    public void testNegativeRemoteIndexNameBeforeInclusionIsAccepted() throws Exception {
+        String remoteIndex = (String) setupTwoClusters().get("remote.index");
+        boolean minimizeRoundtrips = randomBoolean();
+
+        SearchRequest controlRequest = new SearchRequest(REMOTE_CLUSTER + ":*");
+        controlRequest.setCcsMinimizeRoundtrips(minimizeRoundtrips);
+        controlRequest.allowPartialSearchResults(false);
+        controlRequest.source(new SearchSourceBuilder().query(new MatchAllQueryBuilder()).size(5000));
+
+        SearchRequest searchRequest = new SearchRequest("-" + REMOTE_CLUSTER + ":prod", REMOTE_CLUSTER + ":*");
+        searchRequest.setCcsMinimizeRoundtrips(minimizeRoundtrips);
         searchRequest.allowPartialSearchResults(false);
         searchRequest.source(new SearchSourceBuilder().query(new MatchAllQueryBuilder()).size(5000));
-        var queryFuture = client(LOCAL_CLUSTER).search(searchRequest);
-        // This should throw the wildcard error
-        ExecutionException ee = expectThrows(ExecutionException.class, queryFuture::get);
-        assertNotNull(ee.getCause());
+
+        final long[] controlTotalHits = new long[1];
+        assertResponse(client(LOCAL_CLUSTER).search(controlRequest), controlResponse -> {
+            controlTotalHits[0] = Objects.requireNonNull(controlResponse.getHits().getTotalHits()).value();
+        });
+        assertResponse(client(LOCAL_CLUSTER).search(searchRequest), response -> {
+            assertNotNull(response);
+            Clusters clusters = response.getClusters();
+            assertThat(clusters.getTotal(), equalTo(1));
+            Cluster localClusterSearchInfo = clusters.getCluster(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
+            assertNull(localClusterSearchInfo);
+            Cluster remoteClusterSearchInfo = clusters.getCluster(REMOTE_CLUSTER);
+            assertNotNull(remoteClusterSearchInfo);
+            assertThat(remoteClusterSearchInfo.getStatus(), equalTo(Cluster.Status.SUCCESSFUL));
+            assertThat(remoteClusterSearchInfo.getIndexExpression(), equalTo("-prod,*"));
+            assertThat(Objects.requireNonNull(response.getHits().getTotalHits()).value(), equalTo(controlTotalHits[0]));
+            for (var hit : response.getHits()) {
+                assertThat(hit.getIndex(), equalTo(remoteIndex));
+            }
+        });
+    }
+
+    public void testMixedRemoteIndexAndClusterExclusionsClusterExclusionLast() throws Exception {
+        Map<String, Object> testClusterInfo = setupTwoClusters();
+        String localIndex = (String) testClusterInfo.get("local.index");
+        SearchRequest searchRequest = new SearchRequest(
+            localIndex,
+            REMOTE_CLUSTER + ":*",
+            "-" + REMOTE_CLUSTER + ":prod",
+            "-" + REMOTE_CLUSTER + ":*"
+        );
+        searchRequest.setCcsMinimizeRoundtrips(randomBoolean());
+        searchRequest.allowPartialSearchResults(false);
+        searchRequest.source(new SearchSourceBuilder().query(new MatchAllQueryBuilder()).size(5000));
+        assertResponse(client(LOCAL_CLUSTER).search(searchRequest), response -> {
+            assertNotNull(response);
+            Clusters clusters = response.getClusters();
+            assertNull(clusters.getCluster(REMOTE_CLUSTER));
+            assertThat(Objects.requireNonNull(response.getHits().getTotalHits()).value(), greaterThan(0L));
+            for (var hit : response.getHits()) {
+                assertThat(hit.getIndex(), equalTo(localIndex));
+            }
+        });
+    }
+
+    public void testMixedRemoteIndexAndClusterExclusionsClusterExclusionFirst() throws Exception {
+        Map<String, Object> testClusterInfo = setupTwoClusters();
+        String localIndex = (String) testClusterInfo.get("local.index");
+        SearchRequest searchRequest = new SearchRequest(
+            localIndex,
+            REMOTE_CLUSTER + ":*",
+            "-" + REMOTE_CLUSTER + ":*",
+            "-" + REMOTE_CLUSTER + ":prod"
+        );
+        searchRequest.setCcsMinimizeRoundtrips(randomBoolean());
+        searchRequest.allowPartialSearchResults(false);
+        searchRequest.source(new SearchSourceBuilder().query(new MatchAllQueryBuilder()).size(5000));
+        assertResponse(client(LOCAL_CLUSTER).search(searchRequest), response -> {
+            assertNotNull(response);
+            Clusters clusters = response.getClusters();
+            Cluster remoteClusterSearchInfo = clusters.getCluster(REMOTE_CLUSTER);
+            assertNotNull(remoteClusterSearchInfo);
+            assertThat(remoteClusterSearchInfo.getStatus(), equalTo(Cluster.Status.SUCCESSFUL));
+            assertThat(remoteClusterSearchInfo.getIndexExpression(), equalTo("-prod"));
+            assertThat(remoteClusterSearchInfo.getTotalShards(), equalTo(0));
+            assertThat(Objects.requireNonNull(response.getHits().getTotalHits()).value(), greaterThan(0L));
+            for (var hit : response.getHits()) {
+                assertThat(hit.getIndex(), equalTo(localIndex));
+            }
+        });
     }
 
     public void testClusterDetailsWhenLocalClusterHasNoMatchingIndex() throws Exception {
@@ -827,73 +913,4 @@ public class CrossClusterSearchIT extends AbstractMultiClustersTestCase {
         assertThat(remoteShardSearchFailure.reason(), containsString("index corrupted"));
     }
 
-    private Map<String, Object> setupTwoClusters(String[] localIndices, String[] remoteIndices) {
-        int numShardsLocal = randomIntBetween(2, 10);
-        Settings localSettings = indexSettings(numShardsLocal, randomIntBetween(0, 1)).build();
-        for (String localIndex : localIndices) {
-            assertAcked(
-                client(LOCAL_CLUSTER).admin()
-                    .indices()
-                    .prepareCreate(localIndex)
-                    .setSettings(localSettings)
-                    .setMapping("@timestamp", "type=date", "f", "type=text")
-            );
-            indexDocs(client(LOCAL_CLUSTER), localIndex);
-        }
-
-        int numShardsRemote = randomIntBetween(2, 10);
-        final InternalTestCluster remoteCluster = cluster(REMOTE_CLUSTER);
-        remoteCluster.ensureAtLeastNumDataNodes(randomIntBetween(1, 3));
-        for (String remoteIndex : remoteIndices) {
-            assertAcked(
-                client(REMOTE_CLUSTER).admin()
-                    .indices()
-                    .prepareCreate(remoteIndex)
-                    .setSettings(indexSettings(numShardsRemote, randomIntBetween(0, 1)))
-                    .setMapping("@timestamp", "type=date", "f", "type=text")
-            );
-            assertFalse(
-                client(REMOTE_CLUSTER).admin()
-                    .cluster()
-                    .prepareHealth(TEST_REQUEST_TIMEOUT, remoteIndex)
-                    .setWaitForYellowStatus()
-                    .setTimeout(TimeValue.timeValueSeconds(10))
-                    .get()
-                    .isTimedOut()
-            );
-            indexDocs(client(REMOTE_CLUSTER), remoteIndex);
-        }
-
-        String skipUnavailableKey = Strings.format("cluster.remote.%s.skip_unavailable", REMOTE_CLUSTER);
-        Setting<?> skipUnavailableSetting = cluster(REMOTE_CLUSTER).clusterService().getClusterSettings().get(skipUnavailableKey);
-        boolean skipUnavailable = (boolean) cluster(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY).clusterService()
-            .getClusterSettings()
-            .get(skipUnavailableSetting);
-
-        Map<String, Object> clusterInfo = new HashMap<>();
-        clusterInfo.put("local.num_shards", numShardsLocal);
-        clusterInfo.put("remote.num_shards", numShardsRemote);
-        clusterInfo.put("remote.skip_unavailable", skipUnavailable);
-        return clusterInfo;
-    }
-
-    private Map<String, Object> setupTwoClusters() {
-        var clusterInfo = setupTwoClusters(new String[] { "demo" }, new String[] { "prod" });
-        clusterInfo.put("local.index", "demo");
-        clusterInfo.put("remote.index", "prod");
-        return clusterInfo;
-    }
-
-    private int indexDocs(Client client, String index) {
-        int numDocs = between(500, 1200);
-        for (int i = 0; i < numDocs; i++) {
-            long ts = EARLIEST_TIMESTAMP + i;
-            if (i == numDocs - 1) {
-                ts = LATEST_TIMESTAMP;
-            }
-            client.prepareIndex(index).setSource("f", "v", "@timestamp", ts).get();
-        }
-        client.admin().indices().prepareRefresh(index).get();
-        return numDocs;
-    }
 }

@@ -14,6 +14,7 @@ import org.apache.http.util.EntityUtils;
 import org.elasticsearch.Build;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
@@ -32,6 +33,8 @@ import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.hamcrest.BaseMatcher;
+import org.hamcrest.Description;
 import org.hamcrest.Matcher;
 import org.junit.Before;
 import org.junit.Rule;
@@ -58,8 +61,10 @@ import static org.elasticsearch.xpack.esql.action.EsqlResolveFieldsResponse.RESO
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_RANGE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.HISTOGRAM;
 import static org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolver.ESQL_USE_MINIMUM_VERSION_FOR_ENRICH_RESOLUTION;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.any;
 import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -91,6 +96,21 @@ import static org.hamcrest.Matchers.startsWith;
  */
 public class AllSupportedFieldsTestCase extends ESRestTestCase {
 
+    private static final RequestOptions DEPRECATED_DEFAULT_METRIC_WARNING_HANDLER = RequestOptions.DEFAULT.toBuilder()
+        .setWarningsHandler(warnings -> {
+            if (warnings.isEmpty()) {
+                return false;
+            } else {
+                for (String warning : warnings) {
+                    if ("Parameter [default_metric] is deprecated and will be removed in a future version".equals(warning) == false) {
+                        return true;
+                    }
+                }
+                return false;
+            }
+        })
+        .build();
+
     @Rule(order = Integer.MIN_VALUE)
     public ProfileLogger profileLogger = new ProfileLogger();
 
@@ -102,7 +122,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
             MappedFieldType.FieldExtractPreference.NONE,
             MappedFieldType.FieldExtractPreference.STORED
         )) {
-            for (IndexMode indexMode : IndexMode.values()) {
+            for (IndexMode indexMode : IndexMode.availableModes()) {
                 args.add(new Object[] { extractPreference, indexMode });
             }
         }
@@ -163,6 +183,23 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
 
     protected boolean fetchDenseVectorAggMetricDoubleIfVersion() throws IOException {
         return clusterHasCapability("GET", "/_query", List.of(), List.of("DENSE_VECTOR_AGG_METRIC_DOUBLE_IF_VERSION")).orElse(false);
+    }
+
+    protected boolean fetchVectordbDocumentIndexModeSupported() throws IOException {
+        return clusterHasCapability("PUT", "/{index}", List.of(), List.of("vectordb_document_index_mode")).orElse(false);
+    }
+
+    private static Boolean flattenedDatatypeSortedKeysSupported;
+
+    private boolean flattenedDatatypeSortedKeysSupported() throws IOException {
+        if (flattenedDatatypeSortedKeysSupported == null) {
+            flattenedDatatypeSortedKeysSupported = fetchFlattenedDatatypeSortedKeysSupported();
+        }
+        return flattenedDatatypeSortedKeysSupported;
+    }
+
+    protected boolean fetchFlattenedDatatypeSortedKeysSupported() throws IOException {
+        return clusterHasCapability("GET", "/_query", List.of(), List.of("FLATTENED_DATATYPE_SORTED_KEYS")).orElse(false);
     }
 
     protected boolean lookupJoinOnAllIndicesSupported() throws IOException {
@@ -233,6 +270,27 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
 
     @Before
     public void createIndices() throws IOException {
+        if (indexMode == IndexMode.VECTORDB_DOCUMENT) {
+            assumeTrue(
+                "Cluster has nodes that do not support index.mode=vectordb_document",
+                minVersion().supports(IndexMode.VECTORDB_DOCUMENT_INDEX_MODE)
+            );
+        }
+        if (indexMode == IndexMode.COLUMNAR || indexMode == IndexMode.LOGSDB_COLUMNAR) {
+            assumeTrue("Columnar index modes require a snapshot build", Build.current().isSnapshot());
+            assumeTrue(
+                "Cluster has nodes that do not support columnar index modes",
+                minVersion().supports(IndexMode.COLUMNAR_INDEX_MODES_ADDED)
+            );
+            assumeTrue(
+                "Cluster has nodes that default to low-cardinality doc values in columnar index modes",
+                clusterHasFeature("mapper.keyword.columnar_default_high_cardinality")
+            );
+            assumeTrue(
+                "Cluster has nodes that do not default to doc values for text fields in columnar index modes",
+                clusterHasFeature("mapper.text_fields.enable_doc_values_by_default_in_columnar_mode")
+            );
+        }
         if (supportsNodeAssignment()) {
             for (Map.Entry<String, NodeInfo> e : localNodeToInfo().entrySet()) {
                 createIndexForNode(client(), minVersion(), e.getKey(), e.getValue().id(), indexMode);
@@ -415,7 +473,8 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
         boolean expectMetadataFields,
         boolean expectNonEnrichableFields,
         String indexName
-    ) {
+    ) throws IOException {
+        boolean flattenedSortedKeys = flattenedDatatypeSortedKeysSupported();
         MapMatcher expectedValues = matchesMap();
         expectedValues = expectedValues.entry(LOOKUP_ID_FIELD, equalTo(123));
         for (DataType type : DataType.values()) {
@@ -427,7 +486,14 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
             }
             expectedValues = expectedValues.entry(
                 fieldName(type),
-                expectedValue(type, coordinatorVersion, minimumVersionAcrossInvolvedNodes, indexMode, extractPreference)
+                expectedValue(
+                    type,
+                    coordinatorVersion,
+                    minimumVersionAcrossInvolvedNodes,
+                    indexMode,
+                    extractPreference,
+                    flattenedSortedKeys
+                )
             );
         }
         if (expectMetadataFields) {
@@ -505,7 +571,11 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
             String indexName = e.getKey();
             MapMatcher expectedValues = matchesMap();
             if (DataType.DENSE_VECTOR.supportedVersion().supportedOn(minVersion(), false)) {
-                expectedValues = expectedValues.entry("f_dense_vector", matchesList().item(0.5).item(10.0).item(5.9999995));
+                // Tolerance to accommodate both FLOAT and BFLOAT16 element types (default in IndexMode.VECTORDB_DOCUMENT).
+                expectedValues = expectedValues.entry(
+                    "f_dense_vector",
+                    matchesList().item(closeTo(0.5, 0.05)).item(closeTo(10.0, 0.05)).item(closeTo(5.9999995, 0.05))
+                );
             } else {
                 // While dense_vector was under construction, we could've also encountered other values here, e.g. [0.04, 0.86, 0.51].
                 // We'll ignore the exact value here.
@@ -598,6 +668,10 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
     }
 
     protected String allIndexPattern() {
+        if (indexMode == IndexMode.LOGSDB) {
+            // logsdb* would also match logsdb_columnar* indices created by the LOGSDB_COLUMNAR test setup
+            return "%mode%*,-" + IndexMode.LOGSDB_COLUMNAR.getName() + "*";
+        }
         return "%mode%*";
     }
 
@@ -716,7 +790,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
         request.setJsonEntity(Strings.toString(body));
 
         Response response = client().performRequest(request);
-        Map<String, Object> responseMap = responseAsMap(response);
+        Map<String, Object> responseMap = responseAsOrderedMap(response);
         HttpHost coordinatorHost = response.getHost();
         NodeInfo coordinator = allNodeToInfo().values().stream().filter(n -> n.boundAddress().contains(coordinatorHost)).findFirst().get();
         TransportVersion coordinatorVersion = coordinator.version();
@@ -829,6 +903,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
             config.endObject().endObject().endObject();
         }
         Request request = new Request("PUT", indexName);
+        request.setOptions(DEPRECATED_DEFAULT_METRIC_WARNING_HANDLER);
         request.setJsonEntity(Strings.toString(config));
         client.performRequest(request);
     }
@@ -894,12 +969,22 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
                 case DENSE_VECTOR -> doc.value(List.of(0.5, 10, 6));
                 case HISTOGRAM -> createHistogramValue(doc);
                 case TDIGEST -> createTDigestValue(doc);
+                case FLATTENED -> {
+                    doc.startObject();
+                    doc.field("d", "baz");
+                    doc.field("b", "foo");
+                    doc.startObject("a").field("c", "bar").endObject();
+                    doc.field("e", "qux");
+                    doc.field("j", "bleh");
+                    doc.endObject();
+                }
                 default -> throw new AssertionError("unsupported field type [" + type + "]");
             }
         }
         doc.endObject();
         Request request = new Request("POST", indexName + "/_doc");
         request.addParameter("refresh", "");
+        request.setOptions(DEPRECATED_DEFAULT_METRIC_WARNING_HANDLER);
         request.setJsonEntity(Strings.toString(doc));
         client.performRequest(request);
     }
@@ -982,7 +1067,8 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
         TransportVersion coordinatorVersion,
         TransportVersion minimumVersion,
         IndexMode indexMode,
-        MappedFieldType.FieldExtractPreference extractPreference
+        MappedFieldType.FieldExtractPreference extractPreference,
+        boolean flattenedSortedKeys
     ) {
         return switch (type) {
             case BOOLEAN -> equalTo(true);
@@ -1026,7 +1112,8 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
                 // See expectedType for an explanation
                 if (DataType.DENSE_VECTOR.supportedVersion().supportedOn(minimumVersion, false)
                     && coordinatorVersion.supports(RESOLVE_FIELDS_RESPONSE_USED_TV)) {
-                    yield equalTo(List.of(0.5, 10.0, 5.9999995));
+                    // Tolerance to accommodate both FLOAT and BFLOAT16 element types (default in IndexMode.VECTORDB_DOCUMENT).
+                    yield matchesList().item(closeTo(0.5, 0.05)).item(closeTo(10.0, 0.05)).item(closeTo(5.9999995, 0.05));
                 }
                 if (DataType.DENSE_VECTOR.supportedVersion().supportedOn(minimumVersion, true) && Build.current().isSnapshot()) {
                     // On previous versions where DENSE_VECTOR was still under construction, we could end up with
@@ -1040,12 +1127,80 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
             }
             case DATE_RANGE -> {
                 if (DATE_RANGE.supportedVersion().supportedOn(minimumVersion, Build.current().isSnapshot())) {
-                    yield equalTo("1989-01-01T00:00:00.000Z..2024-12-31T23:59:59.999Z");
+                    // Older nodes in snapshot-to-snapshot BWC
+                    // had a bug: they leaked the doc-value upper bound (last millisecond before
+                    // `to` in `from..to`)
+                    // into the output instead of `to` itself. Accept the buggy form too while the
+                    // feature is still under construction.
+                    if (DATE_RANGE.supportedVersion().supportedOn(minimumVersion, false) == false) {
+                        yield anyOf(
+                            equalTo("1989-01-01T00:00:00.000Z..2025-01-01T00:00:00.000Z"),
+                            equalTo("1989-01-01T00:00:00.000Z..2024-12-31T23:59:59.999Z")
+                        );
+                    }
+                    yield equalTo("1989-01-01T00:00:00.000Z..2025-01-01T00:00:00.000Z");
+                }
+                yield nullValue();
+            }
+            case FLATTENED -> {
+                if (DataType.FLATTENED.supportedVersion().supportedOn(minimumVersion, true) && Build.current().isSnapshot()) {
+                    MapMatcher values = matchesMap().entry("a.c", "bar")
+                        .entry("b", "foo")
+                        .entry("d", "baz")
+                        .entry("e", "qux")
+                        .entry("j", "bleh");
+                    if (extractPreference == MappedFieldType.FieldExtractPreference.STORED && flattenedSortedKeys == false) {
+                        /*
+                         * Old nodes use the raw source fetcher for STORED preference, which
+                         * returns nested objects rather than dot-notation keys. Accept either
+                         * format during rolling upgrades.
+                         */
+                        yield anyOf(
+                            values,
+                            matchesMap().entry("a", Map.of("c", "bar"))
+                                .entry("b", "foo")
+                                .entry("d", "baz")
+                                .entry("e", "qux")
+                                .entry("j", "bleh")
+                        );
+                    }
+                    if (isSingleNodeSnapshot()) {
+                        /*
+                         * Only assert that keys come back in sorted order because
+                         * this was added after the first release of flattened. We
+                         * *did* do this while it was under snapshot, so we should
+                         * be able to enable this if all versions have the flattened
+                         * field released. But we'll worry about that when we release it.
+                         */
+                        yield allOf(values, hasKeys("a.c", "b", "d", "e", "j"));
+                    }
+                    yield values;
                 }
                 yield nullValue();
             }
 
             default -> throw new AssertionError("unsupported field type [" + type + "]");
+        };
+    }
+
+    /**
+     * Matcher that verifies a Map's keys appear in the given iteration order.
+     * Requires the map to be order-preserving (e.g. from {@link #responseAsOrderedMap}).
+     */
+    private static Matcher<Map<?, ?>> hasKeys(String... expectedKeys) {
+        return new BaseMatcher<>() {
+            @Override
+            public boolean matches(Object item) {
+                if (item instanceof Map<?, ?> actual) {
+                    return new ArrayList<>(actual.keySet()).equals(List.of(expectedKeys));
+                }
+                return false;
+            }
+
+            @Override
+            public void describeTo(Description description) {
+                description.appendText("map with keys in order ").appendValue(Arrays.asList(expectedKeys));
+            }
         };
     }
 
@@ -1071,7 +1226,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
             // TODO: current versions already support _tsid; update this once we can tell whether all nodes support it.
             case OBJECT, SOURCE, DOC_DATA_TYPE, TSID_DATA_TYPE,
                 // Internal only
-                UNSUPPORTED,
+                UNSUPPORTED, PARTIAL_AGG,
                 // You can't index these - they are just constants.
                 DATE_PERIOD, TIME_DURATION, GEOTILE, GEOHASH, GEOHEX,
                 // TODO fix geo
@@ -1081,6 +1236,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
             case EXPONENTIAL_HISTOGRAM -> DataType.EXPONENTIAL_HISTOGRAM.supportedVersion()
                 .supportedOn(version, Build.current().isSnapshot());
             case TDIGEST -> DataType.TDIGEST.supportedVersion().supportedOn(version, Build.current().isSnapshot());
+            case FLATTENED -> DataType.FLATTENED.supportedVersion().supportedOn(version, Build.current().isSnapshot());
             default -> true;
         };
     }
@@ -1201,6 +1357,12 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
                 }
                 yield equalTo("histogram");
             }
+            case FLATTENED -> {
+                if (DataType.FLATTENED.supportedVersion().supportedOn(minimumVersion, true) && Build.current().isSnapshot()) {
+                    yield anyOf(equalTo("flattened"), equalTo("unsupported"));
+                }
+                yield equalTo("unsupported");
+            }
             default -> equalTo(type.esType());
         };
     }
@@ -1212,8 +1374,8 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
 
     private boolean syntheticSourceByDefault() {
         return switch (indexMode) {
-            case TIME_SERIES, LOGSDB -> true;
-            case STANDARD, LOOKUP -> false;
+            case TIME_SERIES, LOGSDB, COLUMNAR, LOGSDB_COLUMNAR -> true;
+            case STANDARD, LOOKUP, VECTORDB_DOCUMENT -> false;
         };
     }
 
@@ -1321,8 +1483,8 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
 
         expected = expected.entry(
             "_id",
-            indexMode == IndexMode.TIME_SERIES
-                ? matchesList().item("column_at_a_time:TsIdFieldReader")
+            indexMode == IndexMode.TIME_SERIES ? matchesList().item("column_at_a_time:TsIdFieldReader")
+                : indexMode.isStrictColumnar() ? matchesList().item("column_at_a_time:IdDocValuesReader")
                 : matchesList().item("column_at_a_time:null").item("row_stride:BlockStoredFieldsReader.Id")
         )
             .entry("_ignored", matchesList().item("column_at_a_time:constant_nulls"))
@@ -1343,7 +1505,12 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
                 ? matchesList().item("column_at_a_time:null").item("row_stride:BlockSourceReader.Doubles")
                 : matchesList().item("column_at_a_time:DoublesFromDocValues.Singleton");
             case EXPONENTIAL_HISTOGRAM -> matchesList().item("column_at_a_time:BlockDocValuesReader.ExponentialHistogram");
-            case DENSE_VECTOR -> matchesList().item("column_at_a_time:FloatDenseVectorFromDocValues.Normalized.Load");
+            case FLATTENED -> useStoredLoader()
+                ? matchesList().item("column_at_a_time:null").item("row_stride:BlockSourceReader.Bytes")
+                : matchesList().item("column_at_a_time:");
+            case DENSE_VECTOR -> indexMode.isStrictColumnar()
+                ? matchesList().item("column_at_a_time:FloatDenseVectorFromBinary.Bytes")
+                : matchesList().item("column_at_a_time:FloatDenseVectorFromDocValues.Normalized.Load");
             case GEO_POINT -> extractPreference == MappedFieldType.FieldExtractPreference.STORED || syntheticSourceByDefault() == false
                 ? matchesList().item("column_at_a_time:null").item("row_stride:BlockSourceReader.Geometries")
                 : matchesList().item("column_at_a_time:BlockDocValuesReader.BytesRefsFromLong");
@@ -1362,11 +1529,11 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
             case INTEGER, COUNTER_INTEGER, SHORT, BYTE -> useStoredLoader()
                 ? matchesList().item("column_at_a_time:null").item("row_stride:BlockSourceReader.Ints")
                 : matchesList().item("column_at_a_time:IntsFromDocValues.Singleton");
-            case IP -> useStoredLoader()
-                ? matchesList().item("column_at_a_time:null").item("row_stride:BlockSourceReader.Ips")
+            case IP -> useStoredLoader() ? matchesList().item("column_at_a_time:null").item("row_stride:BlockSourceReader.Ips")
+                : indexMode.isStrictColumnar() ? matchesList().item("column_at_a_time:BlockDocValuesReader.Bytes")
                 : matchesList().item("column_at_a_time:BytesRefsFromOrds.Singleton");
-            case KEYWORD -> useStoredLoader()
-                ? matchesList().item("column_at_a_time:null").item("row_stride:BlockSourceReader.Bytes")
+            case KEYWORD -> useStoredLoader() ? matchesList().item("column_at_a_time:null").item("row_stride:BlockSourceReader.Bytes")
+                : indexMode.isStrictColumnar() ? matchesList().item("column_at_a_time:BytesRefsFromArrayOrderInlineNullBinarySeparateCount")
                 : matchesList().item("column_at_a_time:BytesRefsFromOrds.Singleton");
             case LONG, COUNTER_LONG, UNSIGNED_LONG -> useStoredLoader()
                 ? matchesList().item("column_at_a_time:null").item("row_stride:BlockSourceReader.Longs")
@@ -1377,8 +1544,9 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
                     ? matchesList().item("column_at_a_time:null").item("row_stride:BlockSourceReader.Bytes")
                     : matchesList().item("column_at_a_time:constant_nulls");
             case TDIGEST -> matchesList().item("column_at_a_time:BlockDocValuesReader.TDigest");
-            case TEXT -> syntheticSourceByDefault()
-                ? matchesList().item("column_at_a_time:BlockDocValuesReader.BytesCustom")
+            case TEXT -> indexMode.isStrictColumnar()
+                ? matchesList().item("column_at_a_time:BytesRefsFromArrayOrderInlineNullBinarySeparateCount")
+                : syntheticSourceByDefault() ? matchesList().item("column_at_a_time:BlockDocValuesReader.Bytes")
                 : matchesList().item("column_at_a_time:null").item("row_stride:BlockSourceReader.Bytes");
             case VERSION -> matchesList().item("column_at_a_time:BytesRefsFromOrds.Singleton");
             default -> matchesList();

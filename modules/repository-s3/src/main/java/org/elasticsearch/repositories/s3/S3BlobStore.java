@@ -49,6 +49,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.EnumSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
@@ -77,6 +78,19 @@ class S3BlobStore implements BlobStore {
 
     private static final Logger logger = LogManager.getLogger(S3BlobStore.class);
 
+    public static final EnumSet<StorageClass> ALLOWED_STORAGE_CLASSES = EnumSet.of(
+        StorageClass.STANDARD,
+        StorageClass.STANDARD_IA,
+        StorageClass.ONEZONE_IA,
+        StorageClass.INTELLIGENT_TIERING,
+        StorageClass.REDUCED_REDUNDANCY,
+        StorageClass.GLACIER_IR,
+        StorageClass.OUTPOSTS,
+        StorageClass.SNOW
+    );
+
+    private static final StorageClass DEFAULT_S3_STORAGE_CLASS = StorageClass.STANDARD;
+
     @Nullable // if the blobstore is at the cluster level
     private final ProjectId projectId;
     private final S3Service service;
@@ -93,7 +107,11 @@ class S3BlobStore implements BlobStore {
 
     private final ObjectCannedACL cannedACL;
 
-    private final StorageClass storageClass;
+    private final StorageClass fallbackStorageClass;
+
+    private final StorageClass dataStorageClass;
+
+    private final StorageClass metadataStorageClass;
 
     private final boolean supportsConditionalWrites;
 
@@ -112,6 +130,8 @@ class S3BlobStore implements BlobStore {
 
     private final boolean addPurposeCustomQueryParameter;
 
+    private final boolean tenaciousRetriesEnabled;
+
     /**
      * Some storage claims S3-compatibility despite failing to support the {@code If-Match} and {@code If-None-Match} functionality
      * properly. We allow to disable the use of this functionality, making all writes unconditional, using the
@@ -128,7 +148,9 @@ class S3BlobStore implements BlobStore {
         boolean serverSideEncryption,
         ByteSizeValue bufferSize,
         String cannedACL,
-        String storageClass,
+        String fallbackStorageClass,
+        String dataStorageClass,
+        String metadataStorageClass,
         boolean supportConditionalWrites,
         RepositoryMetadata repositoryMetadata,
         BigArrays bigArrays,
@@ -144,7 +166,11 @@ class S3BlobStore implements BlobStore {
         this.bufferSize = bufferSize;
         this.maxCopySizeBeforeMultipart = service.settings(projectId, repositoryMetadata).maxCopySizeBeforeMultipart;
         this.cannedACL = initCannedACL(cannedACL);
-        this.storageClass = initStorageClass(storageClass);
+        this.fallbackStorageClass = initStorageClass(fallbackStorageClass, false);
+        this.dataStorageClass = Strings.hasText(dataStorageClass) ? initStorageClass(dataStorageClass, true) : this.fallbackStorageClass;
+        this.metadataStorageClass = Strings.hasText(metadataStorageClass)
+            ? initStorageClass(metadataStorageClass, true)
+            : this.fallbackStorageClass;
         this.supportsConditionalWrites = supportConditionalWrites;
         this.repositoryMetadata = repositoryMetadata;
         this.threadPool = threadPool;
@@ -154,6 +180,7 @@ class S3BlobStore implements BlobStore {
         this.retryThrottledDeleteBackoffPolicy = retryThrottledDeleteBackoffPolicy;
         this.getRegisterRetryDelay = S3Repository.GET_REGISTER_RETRY_DELAY.get(repositoryMetadata.settings());
         this.addPurposeCustomQueryParameter = service.settings(projectId, repositoryMetadata).addPurposeCustomQueryParameter;
+        this.tenaciousRetriesEnabled = service.settings(projectId, repositoryMetadata).tenaciousRetriesEnabled;
     }
 
     MetricPublisher getMetricPublisher(Operation operation, OperationPurpose purpose) {
@@ -276,7 +303,7 @@ class S3BlobStore implements BlobStore {
         return service.client(projectId, repositoryMetadata);
     }
 
-    final int getMaxRetries() {
+    int getMaxRetries() {
         return service.settings(projectId, repositoryMetadata).maxRetries;
     }
 
@@ -310,6 +337,10 @@ class S3BlobStore implements BlobStore {
 
     @Override
     public BlobContainer blobContainer(BlobPath path) {
+        if (tenaciousRetriesEnabled && service.isStateless) {
+            return new S3TenaciousRetryBlobContainer(new S3BlobContainer(path, this), s3RepositoriesMetrics.common());
+        }
+
         return new S3BlobContainer(path, this);
     }
 
@@ -467,17 +498,21 @@ class S3BlobStore implements BlobStore {
         return cannedACL;
     }
 
-    public StorageClass getStorageClass() {
-        return storageClass;
+    public StorageClass resolveStorageClass(OperationPurpose purpose) {
+        return switch (purpose) {
+            case SNAPSHOT_DATA -> dataStorageClass;
+            case SNAPSHOT_METADATA -> metadataStorageClass;
+            case REPOSITORY_ANALYSIS, CLUSTER_STATE, INDICES, TRANSLOG, RESHARDING -> fallbackStorageClass;
+        };
     }
 
     public TimeValue getGetRegisterRetryDelay() {
         return getRegisterRetryDelay;
     }
 
-    public static StorageClass initStorageClass(String storageClassName) {
-        if ((storageClassName == null) || storageClassName.equals("")) {
-            return StorageClass.STANDARD;
+    public static StorageClass initStorageClass(String storageClassName, boolean checkInAllowList) {
+        if (Strings.hasText(storageClassName) == false) {
+            return DEFAULT_S3_STORAGE_CLASS;
         }
 
         final StorageClass storageClass;
@@ -486,11 +521,18 @@ class S3BlobStore implements BlobStore {
         } catch (final Exception e) {
             throw new BlobStoreException("`" + storageClassName + "` is not a valid S3 Storage Class.", e);
         }
-        if (storageClass.equals(StorageClass.GLACIER)) {
-            throw new BlobStoreException("Glacier storage class is not supported");
-        }
+
         if (storageClass.equals(StorageClass.UNKNOWN_TO_SDK_VERSION)) {
             throw new BlobStoreException("`" + storageClassName + "` is not a known S3 Storage Class.");
+        }
+
+        if (checkInAllowList) {
+            if (ALLOWED_STORAGE_CLASSES.contains(storageClass) == false) {
+                throw new BlobStoreException("`" + storageClassName + "` is not an allowed S3 Storage Class.");
+            }
+        } else if (storageClass.equals(StorageClass.GLACIER)) {
+            // legacy validation for storage_class; only validate against GLACIER
+            throw new BlobStoreException("Glacier storage class is not supported");
         }
 
         return storageClass;

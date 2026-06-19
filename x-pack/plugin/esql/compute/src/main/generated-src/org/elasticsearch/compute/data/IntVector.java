@@ -21,14 +21,30 @@ import java.io.IOException;
  * This class is generated. Edit {@code X-Vector.java.st} instead.
  */
 public sealed interface IntVector extends Vector permits ConstantIntVector, IntArrayVector, IntBigArrayVector, IntRangeVector,
-    ConstantNullVector {
+    ConstantNullVector, org.elasticsearch.compute.data.arrow.IntArrowBufVector, org.elasticsearch.compute.data.arrow.UInt8ArrowBufVector,
+    org.elasticsearch.compute.data.arrow.Int8ArrowBufVector, org.elasticsearch.compute.data.arrow.UInt16ArrowBufVector,
+    org.elasticsearch.compute.data.arrow.Int16ArrowBufVector {
     int getInt(int position);
+
+    /**
+     * Copies values from this vector into the destination array.
+     */
+    default void copyTo(int srcPosition, int[] dst, int dstPosition, int length) {
+        for (int i = 0; i < length; i++) {
+            dst[dstPosition + i] = getInt(srcPosition + i);
+        }
+    }
 
     @Override
     IntBlock asBlock();
 
     @Override
-    IntVector filter(int... positions);
+    IntVector filter(boolean mayContainDuplicates, int[] positions, int offset, int length);
+
+    @Override
+    default IntVector filter(boolean mayContainDuplicates, int... positions) {
+        return filter(mayContainDuplicates, positions, 0, positions.length);
+    }
 
     @Override
     IntBlock keepMask(BooleanVector mask);
@@ -50,6 +66,15 @@ public sealed interface IntVector extends Vector permits ConstantIntVector, IntA
     ReleasableIterator<? extends IntBlock> lookup(IntBlock positions, ByteSizeValue targetBlockSize);
 
     /**
+     * Return a subset of this vector from {@code beginInclusive} to
+     * {@code endExclusive}. This <strong>may</strong> return the same
+     * instance if the range covers all positions, but if it does it
+     * will {@link #incRef()} it.
+     */
+    @Override
+    IntVector slice(int beginInclusive, int endExclusive);
+
+    /**
      * The minimum value in the Vector. An empty Vector will return {@link Integer#MAX_VALUE}.
      */
     int min();
@@ -58,6 +83,12 @@ public sealed interface IntVector extends Vector permits ConstantIntVector, IntA
      * The maximum value in the Vector. An empty Vector will return {@link Integer#MIN_VALUE}.
      */
     int max();
+
+    /**
+     * The maximum size in bytes of any single value stored in this vector, or {@code 0} if there are no values.
+     * Always {@code Integer.BYTES} since all int values encode to the same number of bytes.
+     */
+    int valueMaxByteSize();
 
     /**
      * Compares the given object with this vector for equality. Returns {@code true} if and only if the

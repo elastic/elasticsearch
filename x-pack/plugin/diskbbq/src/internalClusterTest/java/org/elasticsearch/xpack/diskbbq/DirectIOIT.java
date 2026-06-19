@@ -67,6 +67,12 @@ public class DirectIOIT extends ESIntegTestCase {
         enableLicensing();
     }
 
+    @Override
+    protected boolean enableIndexSlice() {
+        // DiskBBQ validates and enables the setting directly, overriding so that the test plugin doesn't conflict
+        return false;
+    }
+
     static DirectIODirectory open(Path path) throws IOException {
         return new DirectIODirectory(FSDirectory.open(path)) {
             @Override
@@ -152,7 +158,7 @@ public class DirectIOIT extends ESIntegTestCase {
             String indexName = indexVectors(true);
 
             // do a search
-            var knn = List.of(new KnnSearchBuilder("fooVector", new VectorData(null, new byte[64]), 10, 20, 10f, null, null));
+            var knn = List.of(new KnnSearchBuilder("fooVector", VectorData.fromBytes(new byte[64]), 10, 20, 10f, null, null));
             assertHitCount(prepareSearch(indexName).setKnnSearch(knn), 10);
             mockLog.assertAllExpectationsMatched();
         }
@@ -180,7 +186,7 @@ public class DirectIOIT extends ESIntegTestCase {
             String indexName = indexVectors(false);
 
             // do a search
-            var knn = List.of(new KnnSearchBuilder("fooVector", new VectorData(null, new byte[64]), 10, 20, 10f, null, null));
+            var knn = List.of(new KnnSearchBuilder("fooVector", VectorData.fromBytes(new byte[64]), 10, 20, 10f, null, null));
             assertHitCount(prepareSearch(indexName).setKnnSearch(knn), 10);
             mockLog.assertAllExpectationsMatched();
         }

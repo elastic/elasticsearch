@@ -9,10 +9,12 @@ package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.exponentialhistogram.BucketIterator;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 import org.elasticsearch.index.mapper.BlockLoader;
 
-public final class ExponentialHistogramBlockBuilder implements ExponentialHistogramBlock.Builder {
+public final class ExponentialHistogramBlockBuilder extends AbstractDelegatingCompoundBlock.AbstractCompositeBlockBuilder<
+    ExponentialHistogramBlock> implements ExponentialHistogramBlock.Builder {
 
     private final DoubleBlock.Builder minimaBuilder;
     private final DoubleBlock.Builder maximaBuilder;
@@ -24,6 +26,7 @@ public final class ExponentialHistogramBlockBuilder implements ExponentialHistog
     private final BytesRef scratch = new BytesRef();
 
     ExponentialHistogramBlockBuilder(int estimatedSize, BlockFactory blockFactory) {
+        super(blockFactory);
         DoubleBlock.Builder minimaBuilder = null;
         DoubleBlock.Builder maximaBuilder = null;
         DoubleBlock.Builder sumsBuilder = null;
@@ -89,27 +92,64 @@ public final class ExponentialHistogramBlockBuilder implements ExponentialHistog
         return encodedHistogramsBuilder;
     }
 
+    @Override
     public ExponentialHistogramBlockBuilder append(ExponentialHistogram histogram) {
         ExponentialHistogramArrayBlock.EncodedHistogramData data = ExponentialHistogramArrayBlock.encode(histogram);
-        valueCountsBuilder.appendDouble(data.count());
-        if (Double.isNaN(data.min())) {
+        doAppend(data);
+        return this;
+    }
+
+    /**
+     * Append histogram components directly to the block builder.
+     * This bypasses materializing an {@link ExponentialHistogram} instance and encodes buckets directly.
+     */
+    @Override
+    public ExponentialHistogramBlockBuilder append(
+        int scale,
+        BucketIterator negativeBuckets,
+        BucketIterator positiveBuckets,
+        double zeroThreshold,
+        long zeroCount,
+        long count,
+        double sum,
+        double min,
+        double max
+    ) {
+        ExponentialHistogramArrayBlock.EncodedHistogramData data = ExponentialHistogramArrayBlock.encode(
+            scale,
+            negativeBuckets,
+            positiveBuckets,
+            zeroThreshold,
+            zeroCount,
+            count,
+            sum,
+            min,
+            max
+        );
+        doAppend(data);
+        return this;
+    }
+
+    private void doAppend(ExponentialHistogramArrayBlock.EncodedHistogramData encodedHistogram) {
+        valueCountsBuilder.appendDouble(encodedHistogram.count());
+        if (Double.isNaN(encodedHistogram.min())) {
             minimaBuilder.appendNull();
         } else {
-            minimaBuilder.appendDouble(data.min());
+            minimaBuilder.appendDouble(encodedHistogram.min());
         }
-        if (Double.isNaN(data.max())) {
+        if (Double.isNaN(encodedHistogram.max())) {
             maximaBuilder.appendNull();
         } else {
-            maximaBuilder.appendDouble(data.max());
+            maximaBuilder.appendDouble(encodedHistogram.max());
         }
-        if (Double.isNaN(data.sum())) {
+        if (Double.isNaN(encodedHistogram.sum())) {
             sumsBuilder.appendNull();
         } else {
-            sumsBuilder.appendDouble(data.sum());
+            sumsBuilder.appendDouble(encodedHistogram.sum());
         }
-        zeroThresholdsBuilder.appendDouble(data.zeroThreshold());
-        encodedHistogramsBuilder.appendBytesRef(data.encodedHistogram());
-        return this;
+        zeroThresholdsBuilder.appendDouble(encodedHistogram.zeroThreshold());
+        encodedHistogramsBuilder.appendBytesRef(encodedHistogram.encodedHistogram());
+        valueAppended();
     }
 
     /**
@@ -132,10 +172,11 @@ public final class ExponentialHistogramBlockBuilder implements ExponentialHistog
             maximaBuilder.appendNull();
         }
         encodedHistogramsBuilder.appendBytesRef(input.readBytesRef(scratch));
+        valueAppended();
     }
 
     @Override
-    public ExponentialHistogramBlock build() {
+    public ExponentialHistogramBlock doBuild(int positionCount, int[] firstValueIndexes) {
         DoubleBlock minima = null;
         DoubleBlock maxima = null;
         DoubleBlock sums = null;
@@ -150,8 +191,18 @@ public final class ExponentialHistogramBlockBuilder implements ExponentialHistog
             valueCounts = valueCountsBuilder.build();
             zeroThresholds = zeroThresholdsBuilder.build();
             encodedHistograms = encodedHistogramsBuilder.build();
+            ExponentialHistogramArrayBlock block = new ExponentialHistogramArrayBlock(
+                encodedHistograms,
+                minima,
+                maxima,
+                sums,
+                valueCounts,
+                zeroThresholds,
+                positionCount,
+                firstValueIndexes
+            );
             success = true;
-            return new ExponentialHistogramArrayBlock(minima, maxima, sums, valueCounts, zeroThresholds, encodedHistograms);
+            return block;
         } finally {
             if (success == false) {
                 Releasables.close(minima, maxima, sums, valueCounts, zeroThresholds, encodedHistograms);
@@ -160,45 +211,29 @@ public final class ExponentialHistogramBlockBuilder implements ExponentialHistog
     }
 
     @Override
+    protected void copySubBlockPositions(AbstractDelegatingCompoundBlock<?> block, int startSubBlockPos, int endSubBlockPos) {
+        ((ExponentialHistogramArrayBlock) block).copySubBlockPositionsInto(
+            minimaBuilder,
+            maximaBuilder,
+            sumsBuilder,
+            valueCountsBuilder,
+            zeroThresholdsBuilder,
+            encodedHistogramsBuilder,
+            startSubBlockPos,
+            endSubBlockPos
+        );
+    }
+
+    @Override
     public ExponentialHistogramBlockBuilder appendNull() {
+        assert isPositionEntryOpen() == false : "Can't append null to multi-valued entries";
         minimaBuilder.appendNull();
         maximaBuilder.appendNull();
         sumsBuilder.appendNull();
         valueCountsBuilder.appendNull();
         zeroThresholdsBuilder.appendNull();
         encodedHistogramsBuilder.appendNull();
-        return this;
-    }
-
-    @Override
-    public ExponentialHistogramBlockBuilder beginPositionEntry() {
-        throw new UnsupportedOperationException("ExponentialHistogramBlock does not support multi-values");
-    }
-
-    @Override
-    public ExponentialHistogramBlockBuilder endPositionEntry() {
-        throw new UnsupportedOperationException("ExponentialHistogramBlock does not support multi-values");
-    }
-
-    @Override
-    public ExponentialHistogramBlockBuilder copyFrom(Block block, int beginInclusive, int endExclusive) {
-        if (block.areAllValuesNull()) {
-            for (int i = beginInclusive; i < endExclusive; i++) {
-                appendNull();
-            }
-        } else {
-            ExponentialHistogramArrayBlock histoBlock = (ExponentialHistogramArrayBlock) block;
-            histoBlock.copyInto(
-                minimaBuilder,
-                maximaBuilder,
-                sumsBuilder,
-                valueCountsBuilder,
-                zeroThresholdsBuilder,
-                encodedHistogramsBuilder,
-                beginInclusive,
-                endExclusive
-            );
-        }
+        valueAppended();
         return this;
     }
 
@@ -217,12 +252,12 @@ public final class ExponentialHistogramBlockBuilder implements ExponentialHistog
 
     @Override
     public long estimatedBytes() {
-        return minimaBuilder.estimatedBytes() + maximaBuilder.estimatedBytes() + sumsBuilder.estimatedBytes() + valueCountsBuilder
-            .estimatedBytes() + zeroThresholdsBuilder.estimatedBytes() + encodedHistogramsBuilder.estimatedBytes();
+        return super.estimatedBytes() + minimaBuilder.estimatedBytes() + maximaBuilder.estimatedBytes() + sumsBuilder.estimatedBytes()
+            + valueCountsBuilder.estimatedBytes() + zeroThresholdsBuilder.estimatedBytes() + encodedHistogramsBuilder.estimatedBytes();
     }
 
     @Override
-    public void close() {
+    protected void extraClose() {
         Releasables.close(minimaBuilder, maximaBuilder, sumsBuilder, valueCountsBuilder, zeroThresholdsBuilder, encodedHistogramsBuilder);
     }
 

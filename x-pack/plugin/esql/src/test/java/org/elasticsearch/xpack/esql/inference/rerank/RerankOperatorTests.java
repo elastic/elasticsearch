@@ -14,9 +14,8 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
-import org.elasticsearch.compute.test.CannedSourceOperator;
+import org.elasticsearch.compute.test.TestDriverRunner;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.results.RankedDocsResults;
 import org.elasticsearch.xpack.esql.inference.InferenceOperatorTestCase;
@@ -57,7 +56,8 @@ public class RerankOperatorTests extends InferenceOperatorTestCase<RankedDocsRes
             QUERY_TEXT,
             inputChannels.stream().map(this::evaluatorFactory).toList(),
             scoreChannel,
-            BATCH_SIZE
+            BATCH_SIZE,
+            null
         );
     }
 
@@ -187,7 +187,7 @@ public class RerankOperatorTests extends InferenceOperatorTestCase<RankedDocsRes
             // Position 3: null
             blockBuilder2.appendNull();
 
-            Page inputPage = new Page(blockBuilder1.build(), blockBuilder2.build());
+            var runner = new TestDriverRunner().builder(driverContext()).input(blockBuilder1.build(), blockBuilder2.build());
 
             try {
                 // Create a simple factory with multiple input evaluators
@@ -197,16 +197,14 @@ public class RerankOperatorTests extends InferenceOperatorTestCase<RankedDocsRes
                     QUERY_TEXT,
                     inputChannels.stream().map(this::evaluatorFactory).toList(),
                     2,
-                    BATCH_SIZE
+                    BATCH_SIZE,
+                    null
                 );
 
                 // Verify factory is created correctly
                 assertNotNull(factory);
 
-                List<Page> inputPages = List.of(inputPage);
-                Operator operator = factory.get(driverContext());
-                List<Page> results = drive(operator, inputPages.iterator(), driverContext());
-
+                List<Page> results = runner.run(factory);
                 assertThat(results, hasSize(1));
                 Page resultPage = results.get(0);
 
@@ -271,8 +269,7 @@ public class RerankOperatorTests extends InferenceOperatorTestCase<RankedDocsRes
             builder.appendBytesRef(new BytesRef("triple_z"));
             builder.endPositionEntry();
 
-            BytesRefBlock inputBlock = builder.build();
-            Page inputPage = new Page(inputBlock);
+            var runner = new TestDriverRunner().builder(driverContext()).input(builder.build());
 
             // Create operator with a single input channel (channel 0)
             List<Integer> savedChannels = inputChannels;
@@ -287,13 +284,11 @@ public class RerankOperatorTests extends InferenceOperatorTestCase<RankedDocsRes
                     QUERY_TEXT,
                     inputChannels.stream().map(this::evaluatorFactory).toList(),
                     scoreChannel,
-                    BATCH_SIZE
+                    BATCH_SIZE,
+                    null
                 );
 
-                List<Page> inputPages = List.of(inputPage);
-                Operator operator = factory.get(driverContext());
-                List<Page> results = drive(operator, inputPages.iterator(), driverContext());
-
+                List<Page> results = runner.run(factory);
                 assertThat(results, hasSize(1));
                 Page resultPage = results.get(0);
 
@@ -379,15 +374,13 @@ public class RerankOperatorTests extends InferenceOperatorTestCase<RankedDocsRes
             QUERY_TEXT,
             List.of(evaluatorFactory(inputChannel)),
             scoreChannel,
-            BATCH_SIZE
+            BATCH_SIZE,
+            null
         );
 
-        DriverContext driverContext = driverContext();
-        List<Page> input = CannedSourceOperator.collectPages(simpleInput(driverContext.blockFactory(), between(1, 100)));
-        Exception actualException = expectThrows(
-            ElasticsearchException.class,
-            () -> drive(factory.get(driverContext), input.iterator(), driverContext)
-        );
+        var runner = new TestDriverRunner().builder(driverContext());
+        runner.input(simpleInput(runner.context().blockFactory(), between(1, 100)));
+        Exception actualException = expectThrows(ElasticsearchException.class, () -> runner.run(factory));
 
         assertThat(actualException.getMessage(), equalTo("Inference service unavailable"));
     }

@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.inference.services.azureaistudio.request;
 
 import org.apache.http.HttpHeaders;
 import org.apache.http.client.methods.HttpEntityEnclosingRequestBase;
-import org.elasticsearch.xpack.inference.external.request.Request;
+import org.elasticsearch.xpack.inference.external.request.OutboundRequest;
 import org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiStudioEndpointType;
 import org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiStudioModel;
 import org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiStudioProvider;
@@ -19,7 +19,7 @@ import java.net.URI;
 import static org.elasticsearch.xpack.inference.external.request.RequestUtils.createAuthBearerHeader;
 import static org.elasticsearch.xpack.inference.services.azureaistudio.request.AzureAiStudioRequestFields.API_KEY_HEADER;
 
-public abstract class AzureAiStudioRequest implements Request {
+public abstract class AzureAiStudioRequest implements OutboundRequest {
 
     protected final URI uri;
     protected final String inferenceEntityId;

@@ -16,6 +16,8 @@ import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
+import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.IndexableFieldType;
 import org.apache.lucene.search.TopDocs;
@@ -27,10 +29,14 @@ import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.FieldStorageVerifier;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.LuceneDocument;
@@ -42,6 +48,7 @@ import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.query.MatchPhraseQueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.hamcrest.Matchers;
@@ -106,9 +113,16 @@ public class MatchOnlyTextFieldMapperTests extends MapperTestCase {
     @Override
     protected void registerParameters(ParameterChecker checker) throws IOException {
         checker.registerUpdateCheck(
+            "meta",
             b -> { b.field("meta", Collections.singletonMap("format", "mysql.access")); },
             m -> assertEquals(Collections.singletonMap("format", "mysql.access"), m.fieldType().meta())
         );
+        if (FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled()) {
+            checker.registerConflictCheck("doc_values", b -> b.field("doc_values", true));
+        }
+        if (IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled()) {
+            checker.registerConflictCheck("index", b -> b.field("index", false));
+        }
     }
 
     @Override
@@ -130,10 +144,7 @@ public class MatchOnlyTextFieldMapperTests extends MapperTestCase {
         List<IndexableField> fields = doc.rootDoc().getFields("field");
         assertEquals(1, fields.size());
 
-        var reader = fields.get(0).readerValue();
-        char[] buff = new char[20];
-        assertEquals(4, reader.read(buff));
-        assertEquals("1234", new String(buff, 0, 4));
+        assertEquals("1234", fields.get(0).stringValue());
 
         IndexableFieldType fieldType = fields.get(0).fieldType();
         assertThat(fieldType.omitNorms(), equalTo(true));
@@ -685,5 +696,262 @@ public class MatchOnlyTextFieldMapperTests extends MapperTestCase {
     @Override
     protected boolean supportsDocValuesSkippers() {
         return false;
+    }
+
+    @Override
+    protected boolean supportsMultiValueParameter() {
+        return true;
+    }
+
+    @Override
+    protected DocValuesType expectedSingleValuedDocValuesType() {
+        // match_only_text defaults to HIGH cardinality, which uses binary doc values
+        return DocValuesType.BINARY;
+    }
+
+    public void testDocValuesDisabledByDefault() throws IOException {
+        MapperService mapperService = createMapperService(fieldMapping(b -> b.field("type", "match_only_text")));
+        MappedFieldType fieldType = mapperService.fieldType("field");
+        assertFalse("doc_values should be disabled by default", fieldType.hasDocValues());
+    }
+
+    public void testDocValuesEnabled() throws IOException {
+        assumeTrue(
+            "match_only_text field doc_values feature must be enabled",
+            FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled()
+        );
+        MapperService mapperService = createMapperService(fieldMapping(b -> b.field("type", "match_only_text").field("doc_values", true)));
+        MappedFieldType fieldType = mapperService.fieldType("field");
+        assertTrue("doc_values should be enabled", fieldType.hasDocValues());
+    }
+
+    public void testColumnarArrayOrderRoundTrip() throws IOException {
+        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        assumeTrue(
+            "match_only_text field doc_values feature must be enabled",
+            FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled()
+        );
+        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
+        DocumentMapper mapper = createMapperService(
+            settings,
+            mapping(b -> b.startObject("field").field("type", "match_only_text").field("doc_values", true).endObject())
+        ).documentMapper();
+
+        String v1 = randomAlphanumericOfLength(4);
+        String v2 = randomAlphanumericOfLength(4);
+        String v3 = randomAlphanumericOfLength(4);
+        // Duplicate v2 and an interleaved null: sorted-deduped doc-values order would reorder/collapse them and drop the null; the in-order
+        // binary doc values must restore arrival order, the duplicate, and the null position.
+        assertThat(
+            syntheticSource(mapper, b -> b.array("field", v2, v1, null, v3, v2)),
+            containsString("\"field\":[\"" + v2 + "\",\"" + v1 + "\",null,\"" + v3 + "\",\"" + v2 + "\"]")
+        );
+    }
+
+    /**
+     * match_only_text doc_values have used the SeparateCount format (with a parallel .counts numeric doc values field) since their
+     * introduction in 9.4.0. This test pins that contract for the current index version.
+     */
+    public void testDocValuesUsesSeparateCountFormat() throws IOException {
+        assumeTrue(
+            "match_only_text field doc_values feature must be enabled",
+            FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled()
+        );
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "match_only_text").field("doc_values", true)));
+
+        ParsedDocument doc = mapper.parse(source(b -> b.field("field", randomAlphanumericOfLength(10))));
+
+        assertFalse(
+            "primary match_only_text doc_values must be written in SeparateCount format (with .counts companion) for the current "
+                + "index version",
+            doc.rootDoc().getFields("field.counts").isEmpty()
+        );
+    }
+
+    /**
+     * match_only_text doc_values were introduced in 9.4.0 using the SeparateCount format. Regardless of indexCreatedVersion, the primary
+     * doc values write path must produce SeparateCount output so the read path can decode it.
+     */
+    public void testDocValuesUsesSeparateCountFormatForPreviousIndexVersion() throws IOException {
+        assumeTrue(
+            "match_only_text field doc_values feature must be enabled",
+            FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled()
+        );
+        IndexVersion legacyVersion = IndexVersionUtils.getPreviousVersion(IndexVersions.DEPRECATE_INTEGRATED_COUNTS_BINARY_DOC_VALUES);
+        DocumentMapper mapper = createMapperService(
+            legacyVersion,
+            fieldMapping(b -> b.field("type", "match_only_text").field("doc_values", true))
+        ).documentMapper();
+
+        ParsedDocument doc = mapper.parse(source(b -> b.field("field", randomAlphanumericOfLength(10))));
+
+        assertFalse(
+            "primary match_only_text doc_values must be written in SeparateCount format (with .counts companion) even for legacy "
+                + "index versions",
+            doc.rootDoc().getFields("field.counts").isEmpty()
+        );
+    }
+
+    public void testDocValuesEnabledByDefaultWhenIndexModeIsColumnar() throws IOException {
+        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        assertDocValuesEnabledByDefaultInColumnarMode(IndexMode.COLUMNAR);
+    }
+
+    public void testDocValuesEnabledByDefaultWhenIndexModeIsColumnarLogsdb() throws IOException {
+        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        assertDocValuesEnabledByDefaultInColumnarMode(IndexMode.LOGSDB_COLUMNAR);
+    }
+
+    private void assertDocValuesEnabledByDefaultInColumnarMode(IndexMode indexMode) throws IOException {
+        var indexSettingsBuilder = getIndexSettingsBuilder().put(IndexSettings.MODE.getKey(), indexMode.getName());
+        Settings indexSettings = indexSettingsBuilder.build();
+
+        DocumentMapper mapper = createMapperService(
+            indexSettings,
+            mapping(b -> b.startObject("field").field("type", "match_only_text").endObject())
+        ).documentMapper();
+        MatchOnlyTextFieldMapper fieldMapper = (MatchOnlyTextFieldMapper) mapper.mappers().getMapper("field");
+        MatchOnlyTextFieldMapper.MatchOnlyTextFieldType fieldType = fieldMapper.fieldType();
+
+        // Strictly columnar indices read field values from doc values, so doc values are on by default even without an explicit doc_values.
+        assertTrue(fieldType.hasDocValues());
+
+        ParsedDocument doc = mapper.parse(source(b -> {
+            b.field("@timestamp", "2024-01-01T00:00:00Z");
+            b.field("field", randomAlphanumericOfLength(10));
+        }));
+        boolean hasDocValuesField = false;
+        for (IndexableField field : doc.rootDoc().getFields("field")) {
+            if (field.fieldType().docValuesType() == DocValuesType.BINARY) {
+                hasDocValuesField = true;
+            }
+        }
+        assertTrue("Should have a doc_values field in columnar mode by default", hasDocValuesField);
+    }
+
+    public void testDocValuesDedupedAgainstPlainKeywordDelegateInColumnarMode() throws IOException {
+        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+
+        // A plain keyword multi-field (dv-backed, no normalizer/ignore_above/null_value) is a complete copy of the raw values, so the field
+        // skips its own doc values and loads through the delegate; the keyword's doc values are the only copy that is written. When the
+        // field instead keeps its own doc values, in strict columnar mode it stores them in document order (no offsets sidecar).
+        assertDocValuesDedup(b -> {}, false);
+        // null_value on the keyword delegate substitutes values, so the keyword copy is not byte-identical and the field keeps its own.
+        assertDocValuesDedup(b -> b.field("null_value", "NULL"), true);
+        // ignore_above on the keyword delegate omits long values, so the keyword copy is incomplete and the field keeps its own.
+        assertDocValuesDedup(b -> b.field("ignore_above", 10), true);
+        // A keyword delegate with doc values disabled is not a copy at all, so the field keeps its own doc values.
+        assertDocValuesDedup(b -> b.field("doc_values", false), true);
+    }
+
+    private void assertDocValuesDedup(CheckedConsumer<XContentBuilder, IOException> keywordConfig, boolean expectsOwnDocValues)
+        throws IOException {
+        var indexSettingsBuilder = getIndexSettingsBuilder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName());
+        Settings indexSettings = indexSettingsBuilder.build();
+
+        DocumentMapper mapper = createMapperService(indexSettings, mapping(b -> {
+            b.startObject("field");
+            b.field("type", "match_only_text");
+            b.startObject("fields");
+            b.startObject("keyword");
+            b.field("type", "keyword");
+            keywordConfig.accept(b);
+            b.endObject();
+            b.endObject();
+            b.endObject();
+        })).documentMapper();
+
+        MatchOnlyTextFieldMapper fieldMapper = (MatchOnlyTextFieldMapper) mapper.mappers().getMapper("field");
+        assertThat(fieldMapper.fieldType().hasDocValues(), equalTo(expectsOwnDocValues));
+
+        ParsedDocument doc = mapper.parse(source(b -> {
+            b.field("@timestamp", "2024-01-01T00:00:00Z");
+            b.array("field", randomAlphanumericOfLength(8), randomAlphanumericOfLength(8));
+        }));
+
+        boolean hasOwnBinaryDocValues = false;
+        boolean hasOwnOffsets = false;
+        for (IndexableField field : doc.rootDoc().getFields()) {
+            if (field.name().equals("field") && field.fieldType().docValuesType() == DocValuesType.BINARY) {
+                hasOwnBinaryDocValues = true;
+            }
+            if (field.name().equals("field.offsets")) {
+                hasOwnOffsets = true;
+            }
+        }
+        assertThat("field's own binary doc values", hasOwnBinaryDocValues, equalTo(expectsOwnDocValues));
+        // High-cardinality columnar fields store values in document order in their own binary doc values, never via a sidecar offsets
+        // field.
+        assertFalse("field's own offsets sidecar", hasOwnOffsets);
+        assertThat("field stores array values in order", fieldMapper.storesArrayValuesInOrder(), equalTo(expectsOwnDocValues));
+    }
+
+    public void testDocValuesExplicitlyDisabled() throws IOException {
+        assumeTrue(
+            "match_only_text field doc_values feature must be enabled",
+            FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled()
+        );
+        MapperService mapperService = createMapperService(fieldMapping(b -> b.field("type", "match_only_text").field("doc_values", false)));
+        MappedFieldType fieldType = mapperService.fieldType("field");
+        assertFalse("doc_values should be disabled", fieldType.hasDocValues());
+    }
+
+    public void testPhraseQueryWithDocValuesEnabled() throws IOException {
+        assumeTrue(
+            "match_only_text field doc_values feature must be enabled",
+            FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled()
+        );
+        MapperService mapperService = createMapperService(fieldMapping(b -> b.field("type", "match_only_text").field("doc_values", true)));
+
+        try (Directory directory = newDirectory()) {
+            RandomIndexWriter iw = new RandomIndexWriter(random(), directory);
+            LuceneDocument doc = mapperService.documentMapper().parse(source(b -> b.field("field", "the quick brown fox"))).rootDoc();
+            iw.addDocument(doc);
+            iw.close();
+            try (DirectoryReader reader = DirectoryReader.open(directory)) {
+                SearchExecutionContext context = createSearchExecutionContext(mapperService, newSearcher(reader));
+                MatchPhraseQueryBuilder queryBuilder = new MatchPhraseQueryBuilder("field", "brown fox");
+                TopDocs docs = context.searcher().search(queryBuilder.toQuery(context), 1);
+                assertThat(docs.totalHits.value(), equalTo(1L));
+                assertThat(docs.totalHits.relation(), equalTo(TotalHits.Relation.EQUAL_TO));
+            }
+        }
+    }
+
+    public void testIndexUnicodeSurrogatePairs() throws IOException {
+        var mapping = mapping(b -> {
+            b.startObject("field");
+            b.field("type", "match_only_text");
+            b.endObject();
+        });
+        var mapperService = createSytheticSourceMapperService(mapping);
+
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < 128; i++) {
+            sb.append(Character.toChars(0x13000 + (i % 48)));
+        }
+
+        var source = source(b -> b.field("field", sb.toString()));
+
+        try (Directory directory = newDirectory()) {
+            IndexWriterConfig conf = new IndexWriterConfig();
+            IndexWriter iw = new IndexWriter(directory, conf);
+            LuceneDocument doc = mapperService.documentMapper().parse(source).rootDoc();
+            iw.addDocument(doc);
+            iw.close();
+
+            try (DirectoryReader reader = DirectoryReader.open(directory)) {
+                SearchExecutionContext context = createSearchExecutionContext(mapperService, newSearcher(reader));
+                MatchPhraseQueryBuilder queryBuilder = new MatchPhraseQueryBuilder("field", sb.toString());
+                TopDocs docs = context.searcher().search(queryBuilder.toQuery(context), 1);
+                assertThat(docs.totalHits.value(), equalTo(1L));
+                assertThat(docs.totalHits.relation(), equalTo(TotalHits.Relation.EQUAL_TO));
+            }
+        }
+    }
+
+    @Override
+    protected IndexOptions defaultDisabledIndexOption() {
+        return IndexOptions.DOCS;
     }
 }

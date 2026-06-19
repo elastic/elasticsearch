@@ -33,7 +33,6 @@ import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.xpack.esql.core.util.Holder;
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -1144,10 +1143,10 @@ public class BlockHashTests extends BlockHashTestCase {
 
     // Returns the size of the bytesRefBlockHash depending on the underlying implementation.
     static String byteRefBlockHashSize() {
-        if (HashImplFactory.SWISS_TABLES_HASHING.isEnabled()) {
-            return "213112b";
+        if (HashImplFactory.SWISS_HASH_AVAILABLE) {
+            return "35128b";
         }
-        return "483b";
+        return "531b";
     }
 
     public void testLongBytesRefHashWithMultiValuedFields() {
@@ -1352,23 +1351,25 @@ public class BlockHashTests extends BlockHashTestCase {
                 }
             });
 
-            Block[] keys = hash1.getKeys();
-            try {
-                Set<String> distinctKeys = new HashSet<>();
-                BytesRefBlock block0 = (BytesRefBlock) keys[0];
-                BytesRefBlock block1 = (BytesRefBlock) keys[1];
-                BytesRef scratch = new BytesRef();
-                StringBuilder builder = new StringBuilder();
-                for (int i = 0; i < totalPositions; i++) {
-                    builder.setLength(0);
-                    builder.append(BytesRefs.toString(block0.getBytesRef(i, scratch)));
-                    builder.append("#");
-                    builder.append(BytesRefs.toString(block1.getBytesRef(i, scratch)));
-                    distinctKeys.add(builder.toString());
+            try (IntVector nonEmpty = hash1.nonEmpty()) {
+                Block[] keys = hash1.getKeys(nonEmpty);
+                try {
+                    Set<String> distinctKeys = new HashSet<>();
+                    BytesRefBlock block0 = (BytesRefBlock) keys[0];
+                    BytesRefBlock block1 = (BytesRefBlock) keys[1];
+                    BytesRef scratch = new BytesRef();
+                    StringBuilder builder = new StringBuilder();
+                    for (int i = 0; i < totalPositions; i++) {
+                        builder.setLength(0);
+                        builder.append(BytesRefs.toString(block0.getBytesRef(i, scratch)));
+                        builder.append("#");
+                        builder.append(BytesRefs.toString(block1.getBytesRef(i, scratch)));
+                        distinctKeys.add(builder.toString());
+                    }
+                    assertThat(distinctKeys.size(), equalTo(totalPositions));
+                } finally {
+                    Releasables.close(keys);
                 }
-                assertThat(distinctKeys.size(), equalTo(totalPositions));
-            } finally {
-                Releasables.close(keys);
             }
         } finally {
             Releasables.close(output);
@@ -1601,7 +1602,7 @@ public class BlockHashTests extends BlockHashTestCase {
 
     public void testTimeSeriesBlockHash() throws Exception {
         long endTime = randomLongBetween(10_000_000, 20_000_000);
-        var hash1 = new TimeSeriesBlockHash(0, 1, blockFactory);
+        var hash1 = new TimeSeriesBlockHash(0, 1, false, randomBoolean(), blockFactory);
         var hash2 = BlockHash.build(
             List.of(new BlockHash.GroupSpec(0, ElementType.BYTES_REF), new BlockHash.GroupSpec(1, ElementType.LONG)),
             blockFactory,
@@ -1647,7 +1648,7 @@ public class BlockHashTests extends BlockHashTestCase {
                         var timestampBlock = timestampsBuilder.build().asBlock()
                     ) {
                         Page page = new Page(tsidBlock, timestampBlock);
-                        Holder<IntVector> ords1 = new Holder<>();
+                        IntVector[] ords1 = new IntVector[1];
                         hash1.add(page, new GroupingAggregatorFunction.AddInput() {
                             @Override
                             public void add(int positionOffset, IntArrayBlock groupIds) {
@@ -1662,7 +1663,7 @@ public class BlockHashTests extends BlockHashTestCase {
                             @Override
                             public void add(int positionOffset, IntVector groupIds) {
                                 groupIds.incRef();
-                                ords1.set(groupIds);
+                                ords1[0] = groupIds;
                             }
 
                             @Override
@@ -1670,14 +1671,14 @@ public class BlockHashTests extends BlockHashTestCase {
 
                             }
                         });
-                        Holder<IntVector> ords2 = new Holder<>();
+                        IntVector[] ords2 = new IntVector[1];
                         hash2.add(page, new GroupingAggregatorFunction.AddInput() {
                             private void addBlock(int positionOffset, IntBlock groupIds) {
                                 // TODO: check why PackedValuesBlockHash doesn't emit a vector?
                                 IntVector vector = groupIds.asVector();
                                 assertNotNull("should emit a vector", vector);
                                 vector.incRef();
-                                ords2.set(vector);
+                                ords2[0] = vector;
                             }
 
                             @Override
@@ -1693,7 +1694,7 @@ public class BlockHashTests extends BlockHashTestCase {
                             @Override
                             public void add(int positionOffset, IntVector groupIds) {
                                 groupIds.incRef();
-                                ords2.set(groupIds);
+                                ords2[0] = groupIds;
                             }
 
                             @Override
@@ -1702,19 +1703,133 @@ public class BlockHashTests extends BlockHashTestCase {
                             }
                         });
                         try {
-                            assertThat("input=" + page, ords1.get(), equalTo(ords2.get()));
+                            assertThat("input=" + page, ords1[0], equalTo(ords2[0]));
                         } finally {
-                            Releasables.close(ords1.get(), ords2.get());
+                            Releasables.close(ords1[0], ords2[0]);
                         }
                     }
                 }
             }
             Block[] keys1 = null;
             Block[] keys2 = null;
-            try {
-                keys1 = hash1.getKeys();
-                keys2 = hash2.getKeys();
+            try (IntVector nonEmpty1 = hash1.nonEmpty(); IntVector nonEmpty2 = hash2.nonEmpty()) {
+                keys1 = hash1.getKeys(nonEmpty1);
+                keys2 = hash2.getKeys(nonEmpty2);
                 assertThat(keys1, equalTo(keys2));
+            } finally {
+                Releasables.close(keys1);
+                Releasables.close(keys2);
+            }
+        }
+    }
+
+    public void testTimeSeriesBlockHashReverseOutput() throws Exception {
+        long endTime = randomLongBetween(10_000_000, 20_000_000);
+        var hash1 = new TimeSeriesBlockHash(0, 1, false, randomBoolean(), blockFactory);
+        var hash2 = new TimeSeriesBlockHash(0, 1, true, randomBoolean(), blockFactory);
+        int numPages = between(1, 100);
+        int globalTsid = -1;
+        long timestamp = endTime;
+        try (hash1; hash2) {
+            for (int p = 0; p < numPages; p++) {
+                int numRows = between(1, 1000);
+                if (randomBoolean()) {
+                    timestamp -= between(0, 100);
+                }
+                try (
+                    BytesRefVector.Builder dictBuilder = blockFactory.newBytesRefVectorBuilder(numRows);
+                    IntVector.Builder ordinalBuilder = blockFactory.newIntVectorBuilder(numRows);
+                    LongVector.Builder timestampsBuilder = blockFactory.newLongVectorBuilder(numRows)
+                ) {
+                    int perPageOrd = -1;
+                    for (int i = 0; i < numRows; i++) {
+                        boolean newGroup = globalTsid == -1 || randomInt(100) < 10;
+                        if (newGroup) {
+                            globalTsid++;
+                            timestamp = endTime;
+                            if (randomBoolean()) {
+                                timestamp -= between(0, 1000);
+                            }
+                        }
+                        if (perPageOrd == -1 || newGroup) {
+                            perPageOrd++;
+                            dictBuilder.appendBytesRef(new BytesRef(String.format(Locale.ROOT, "id-%06d", globalTsid)));
+                        }
+                        ordinalBuilder.appendInt(perPageOrd);
+                        if (randomInt(100) < 20) {
+                            timestamp -= between(1, 10);
+                        }
+                        timestampsBuilder.appendLong(timestamp);
+                    }
+                    try (
+                        var tsidBlock = new OrdinalBytesRefVector(ordinalBuilder.build(), dictBuilder.build()).asBlock();
+                        var timestampBlock = timestampsBuilder.build().asBlock()
+                    ) {
+                        Page page = new Page(tsidBlock, timestampBlock);
+                        IntVector[] ords1 = new IntVector[1];
+                        hash1.add(page, new GroupingAggregatorFunction.AddInput() {
+                            @Override
+                            public void add(int positionOffset, IntArrayBlock groupIds) {
+                                throw new AssertionError("time-series block hash should emit a vector");
+                            }
+
+                            @Override
+                            public void add(int positionOffset, IntBigArrayBlock groupIds) {
+                                throw new AssertionError("time-series block hash should emit a vector");
+                            }
+
+                            @Override
+                            public void add(int positionOffset, IntVector groupIds) {
+                                groupIds.incRef();
+                                ords1[0] = groupIds;
+                            }
+
+                            @Override
+                            public void close() {
+
+                            }
+                        });
+                        IntVector[] ords2 = new IntVector[1];
+                        hash2.add(page, new GroupingAggregatorFunction.AddInput() {
+                            @Override
+                            public void add(int positionOffset, IntArrayBlock groupIds) {
+                                throw new AssertionError("time-series block hash should emit a vector");
+                            }
+
+                            @Override
+                            public void add(int positionOffset, IntBigArrayBlock groupIds) {
+                                throw new AssertionError("time-series block hash should emit a vector");
+                            }
+
+                            @Override
+                            public void add(int positionOffset, IntVector groupIds) {
+                                groupIds.incRef();
+                                ords2[0] = groupIds;
+                            }
+
+                            @Override
+                            public void close() {
+
+                            }
+                        });
+                        try {
+                            assertThat("input=" + page, ords1[0], equalTo(ords2[0]));
+                        } finally {
+                            Releasables.close(ords1[0], ords2[0]);
+                        }
+                    }
+                }
+            }
+            Block[] keys1 = null;
+            Block[] keys2 = null;
+            try (IntVector nonEmpty1 = hash1.nonEmpty(); IntVector nonEmpty2 = hash2.nonEmpty()) {
+                keys1 = hash1.getKeys(nonEmpty1);
+                keys2 = hash2.getKeys(nonEmpty2);
+                // reverseOutput should swap the two key blocks
+                assertThat(keys1.length, equalTo(2));
+                assertThat(keys2.length, equalTo(2));
+                assertThat(keys1[0], equalTo(keys2[1]));
+                assertThat(keys1[1], equalTo(keys2[0]));
             } finally {
                 Releasables.close(keys1);
                 Releasables.close(keys2);

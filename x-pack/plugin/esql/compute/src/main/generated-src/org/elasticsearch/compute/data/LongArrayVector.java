@@ -78,6 +78,16 @@ final class LongArrayVector extends AbstractVector implements LongVector {
     }
 
     @Override
+    public void copyTo(int srcPosition, long[] dst, int dstPosition, int length) {
+        System.arraycopy(values, srcPosition, dst, dstPosition, length);
+    }
+
+    @Override
+    public int valueMaxByteSize() {
+        return Long.BYTES;
+    }
+
+    @Override
     public ElementType elementType() {
         return ElementType.LONG;
     }
@@ -88,9 +98,10 @@ final class LongArrayVector extends AbstractVector implements LongVector {
     }
 
     @Override
-    public LongVector filter(int... positions) {
-        try (LongVector.Builder builder = blockFactory().newLongVectorBuilder(positions.length)) {
-            for (int pos : positions) {
+    public LongVector filter(boolean mayContainDuplicates, int[] positions, int offset, int length) {
+        try (LongVector.Builder builder = blockFactory().newLongVectorBuilder(length)) {
+            for (int i = offset, end = offset + length; i < end; i++) {
+                int pos = positions[i];
                 builder.appendLong(values[pos]);
             }
             return builder.build();
@@ -130,6 +141,20 @@ final class LongArrayVector extends AbstractVector implements LongVector {
 
     public static long ramBytesEstimated(long[] values) {
         return BASE_RAM_BYTES_USED + RamUsageEstimator.sizeOf(values);
+    }
+
+    @Override
+    public LongVector slice(int beginInclusive, int endExclusive) {
+        if (beginInclusive == 0 && endExclusive == getPositionCount()) {
+            incRef();
+            return this;
+        }
+        try (LongVector.FixedBuilder builder = blockFactory().newLongVectorFixedBuilder(endExclusive - beginInclusive)) {
+            for (int i = beginInclusive; i < endExclusive; i++) {
+                builder.appendLong(getLong(i));
+            }
+            return builder.build();
+        }
     }
 
     @Override

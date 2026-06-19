@@ -16,8 +16,17 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.core.expression.UnsupportedAttribute;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
+import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToString;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvCount;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvFirst;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvLast;
+import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
+import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
 import java.io.IOException;
 import java.math.BigInteger;
@@ -36,6 +45,7 @@ import java.util.stream.Collectors;
 
 import static java.util.stream.Collectors.toMap;
 import static org.elasticsearch.index.mapper.RangeFieldMapper.ESQL_LONG_RANGES;
+import static org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison.areTypesCompatible;
 
 /**
  * This enum represents data types the ES|QL query processing layer is able to
@@ -51,7 +61,7 @@ import static org.elasticsearch.index.mapper.RangeFieldMapper.ESQL_LONG_RANGES;
  * treated as {@link #UNSUPPORTED} by ES|QL. Fields of that type are filled with
  * {@code null} values, and no functions support them.
  * In query plans, these fields amount to
- * {@link org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute}s.
+ * {@link UnsupportedAttribute}s.
  * <p>
  * When such a type gets support in ES|QL, query plans cannot contain it
  * unless all nodes in the cluster (and remote clusters participating in the query)
@@ -72,15 +82,23 @@ import static org.elasticsearch.index.mapper.RangeFieldMapper.ESQL_LONG_RANGES;
  * easier.
  * <ul>
  *     <li>
+ *         The smallest possible first PR for a data type just loads the field
+ *         values and renders them in the JSON results. You certainly can implement
+ *         scalar functions in the first PR, but don't feel obligated.</li>
+ *     <li>
  *         Create a new data type and mark it as under construction using
  *         {@link Builder#underConstruction(TransportVersion)}. This makes the type available on
  *         SNAPSHOT builds, only, prevents some tests from running and prevents documentation
  *         for the new type to be built.</li>
  *     <li>
+ *         Fix compilation by returning {@link UnsupportedOperationException} from all
+ *         of the {@code switch} statements that required the new type. You'll remove
+ *         those as part of this process. But it's important that the code can compile.</li>
+ *     <li>
  *         New tests using the type will require a new {@code EsqlCapabilities} entry,
  *         otherwise bwc tests will fail (even in SNAPSHOT builds) because old nodes don't
  *         know about the new type. This capability needs to be SNAPSHOT-only as long as
- *         the type is under construction</li>
+ *         the type is under construction.</li>
  *     <li>
  *         Create a new CSV test file for the new type. You'll either need to
  *         create a new data file as well, or add values of the new type to
@@ -90,7 +108,7 @@ import static org.elasticsearch.index.mapper.RangeFieldMapper.ESQL_LONG_RANGES;
  *         In the new CSV test file, start adding basic functionality tests.
  *         These should include reading and returning values, both from indexed data
  *         and from the ROW command.  It should also include functions that support
- *         "every" type, such as Case or MvFirst.</li>
+ *         "every" type, such as {@link Case} or {@link MvFirst}.</li>
  *     <li>
  *         Add the new type to the CsvTestUtils#Type enum, if it isn't already
  *         there. You also need to modify CsvAssert to support reading values
@@ -109,16 +127,21 @@ import static org.elasticsearch.index.mapper.RangeFieldMapper.ESQL_LONG_RANGES;
  *         functions that support the new type have tests for it.</li>
  *     <li>
  *         Work to support things all types should do. Equality and the
- *         "typeless" MV functions (MvFirst, MvLast, and MvCount) should work for
- *         most types. Case and Coalesce should also support all types.
- *         If the type has a natural ordering, make sure to test
- *         sorting and the other binary comparisons. Make sure these functions all
- *         have CSV tests that run against indexed data.</li>
+ *         "typeless" MV functions ({@link MvFirst}, {@link MvLast},
+ *         and {@link MvCount}) should work for most types. {@link Case} and
+ *         {@link Coalesce} should also support all types. If the type has a
+ *         natural ordering, make sure to test sorting and the other binary
+ *         comparisons. Make sure these functions all have CSV tests that run
+ *         against indexed data. When you add support to the function, add
+ *         a new {@link FunctionDefinition.Builder#capabilities(String...) capability}.
+ *         As you add support for more functions, run the tests in normal
+ *         mode <strong>and</strong> release mode. See {@code Testing.asciidoc}
+ *         for instructions on how to run the release build.</li>
  *     <li>
  *         Add conversion functions as appropriate.  Almost all types should
- *         support ToString, and should have a "ToType" function that accepts a
- *         string.  There may be other logical conversions depending on the nature
- *         of the type. Make sure to add the conversion function to the
+ *         support {@link ToString}, and should have a "ToType" function that
+ *         accepts a string. There may be other logical conversions depending
+ *         on the nature of the type. Make sure to add the conversion function to the
  *         TYPE_TO_CONVERSION_FUNCTION map in EsqlDataTypeConverter. Make sure the
  *         conversion functions have CSV tests that run against indexed data.</li>
  *     <li>
@@ -132,8 +155,8 @@ import static org.elasticsearch.index.mapper.RangeFieldMapper.ESQL_LONG_RANGES;
  *         Consider how the type will interact with other types. For example,
  *         if the new type is numeric, it may be good for it to be comparable with
  *         other numbers. Supporting this may require new logic in
- *         EsqlDataTypeConverter#commonType, individual function type checking, the
- *         verifier rules, or other places. We suggest starting with CSV tests and
+ *         {@link EsqlDataTypeConverter#commonType}, individual function type checking,
+ *         the verifier rules, or other places. We suggest starting with CSV tests and
  *         seeing where they fail.</li>
  *     <li>
  *         Ensure the new type doesn't break {@code FROM idx | KEEP *} queries by
@@ -378,6 +401,11 @@ public enum DataType implements Writeable {
             .docValues()
             .supportedSince(DataTypesTransportVersions.INDEX_SOURCE, DataTypesTransportVersions.INDEX_SOURCE)
     ),
+    PARTIAL_AGG(
+        builder().esType("partial_agg")
+            .estimatedSize(1024)
+            .supportedSince(DataTypesTransportVersions.ESQL_AGG_FROM_PARTIAL, DataTypesTransportVersions.ESQL_AGG_FROM_PARTIAL)
+    ),
     AGGREGATE_METRIC_DOUBLE(
         builder().esType("aggregate_metric_double")
             .estimatedSize(Double.BYTES * 3 + Integer.BYTES)
@@ -425,6 +453,37 @@ public enum DataType implements Writeable {
                 DataTypesTransportVersions.ML_INFERENCE_SAGEMAKER_CHAT_COMPLETION,
                 DataTypesTransportVersions.ESQL_DENSE_VECTOR_CREATED_VERSION
             )
+    ),
+
+    /**
+     * Objects "flattened" into subfields for searching without creating distinct Lucene fields.
+     * This exists because Lucene fields are expensive, and sometimes you really just need to have
+     * thousands of values. Flattened supports those cases.
+     * <p>
+     *     It takes whole JSON documents and "flattens" them. So if it receives
+     * </p>
+     * {@snippet lang="json" :
+     * {
+     *   "flattened": {
+     *     "f": "foo",
+     *     "o.f": "bar"
+     *   }
+     * }
+     * }
+     * <p>
+     *     then it'll be indexed and returned by ES|QL using the same synthetic source rules like
+     * </p>
+     * {@snippet lang="json" :
+     * {
+     *   "f": "foo",
+     *   "o": {
+     *     "f": "bar"
+     *   }
+     * }
+     * }
+     */
+    FLATTENED(
+        builder().esType("flattened").estimatedSize(1024).docValues().underConstruction(DataTypesTransportVersions.ESQL_FLATTENED_DATATYPE)
     );
 
     public static final Set<DataType> UNDER_CONSTRUCTION = Arrays.stream(DataType.values())
@@ -529,6 +588,18 @@ public enum DataType implements Writeable {
         NAME_OR_ALIAS_TO_TYPE = Collections.unmodifiableMap(map);
     }
 
+    /**
+     * The identifier used in the {@code ::counter} cast operator. This is a virtual cast target —
+     * not a real {@link DataType} — that resolves to the counter variant of the input's numeric type.
+     */
+    public static final String COUNTER_CAST_NAME = "counter";
+
+    /**
+     * The identifier used in the {@code ::gauge} cast operator. This is a virtual cast target —
+     * not a real {@link DataType} — that resolves to the gauge (plain numeric) variant of the input's counter type.
+     */
+    public static final String GAUGE_CAST_NAME = "gauge";
+
     public static Collection<DataType> types() {
         return TYPES;
     }
@@ -603,6 +674,49 @@ public enum DataType implements Writeable {
 
     }
 
+    /**
+     * Infers the ES|QL DataType from a Java Class.
+     * This method mirrors the logic of {@link #fromJava(Object)} but operates on {@code Class<?>} types,
+     * handling both primitive and wrapper classes equivalently.
+     *
+     * @param classType The Java Class to infer the DataType from.
+     * @return The corresponding ES|QL DataType, or {@code null} if no direct mapping is found or can be reliably inferred.
+     */
+    public static DataType fromJavaType(Class<?> classType) {
+        if (classType == null || classType == Void.class) {
+            return NULL;
+        }
+
+        if (classType == int.class || classType == Integer.class) {
+            return INTEGER;
+        } else if (classType == long.class || classType == Long.class) {
+            return LONG;
+        } else if (classType == BigInteger.class) {
+            return UNSIGNED_LONG;
+        } else if (classType == boolean.class || classType == Boolean.class) {
+            return BOOLEAN;
+        } else if (classType == double.class || classType == Double.class) {
+            return DOUBLE;
+        } else if (classType == float.class || classType == Float.class) {
+            return FLOAT;
+        } else if (classType == byte.class || classType == Byte.class) {
+            return BYTE;
+        } else if (classType == short.class || classType == Short.class) {
+            return SHORT;
+        } else if (classType == ZonedDateTime.class) {
+            return DATETIME;
+        } else if (classType == String.class || classType == char.class || classType == Character.class || classType == BytesRef.class) {
+            // Note: BytesRef is an object, not a primitive or wrapper, so it's directly compared.
+            // char.class and Character.class map to KEYWORD
+            return KEYWORD;
+        } else if (List.class.isAssignableFrom(classType)) {
+            // Consistent with fromJava(Object) returning null for empty lists or lists with unknown element types.
+            return null;
+        }
+        // Fallback for any other Class<?> type not explicitly handled
+        return null;
+    }
+
     public static boolean isUnsupported(DataType from) {
         return from == UNSUPPORTED;
     }
@@ -625,6 +739,13 @@ public enum DataType implements Writeable {
 
     public static boolean isNullOrNumeric(DataType t) {
         return t.isNumeric() || isNull(t);
+    }
+
+    /**
+     * True for integer-valued data types that use integral compute blocks directly.
+     */
+    public static boolean isIntegral(DataType t) {
+        return t == INTEGER || t == LONG;
     }
 
     public static boolean isDateTime(DataType type) {
@@ -671,7 +792,7 @@ public enum DataType implements Writeable {
         if (left == right) {
             return true;
         } else {
-            return (left == NULL || right == NULL) || (isString(left) && isString(right)) || (left.isNumeric() && right.isNumeric());
+            return areTypesCompatible(left, right);
         }
     }
 
@@ -689,6 +810,7 @@ public enum DataType implements Writeable {
             && t != SCALED_FLOAT
             && t != SOURCE
             && t != HALF_FLOAT
+            && t != PARTIAL_AGG
             && t.isCounter() == false;
     }
 
@@ -729,7 +851,16 @@ public enum DataType implements Writeable {
     }
 
     public static boolean isSortable(DataType t) {
-        return false == (t == SOURCE || isCounter(t) || isSpatialOrGrid(t) || t == AGGREGATE_METRIC_DOUBLE);
+        return false == (t == SOURCE
+            || isCounter(t)
+            || isSpatialOrGrid(t)
+            || t == AGGREGATE_METRIC_DOUBLE
+            || t == DATE_PERIOD
+            || t == DATE_RANGE
+            || t == FLATTENED
+            || t == HISTOGRAM
+            || t == TIME_DURATION
+            || t == TSID_DATA_TYPE);
     }
 
     public String nameUpper() {
@@ -778,6 +909,10 @@ public enum DataType implements Writeable {
      */
     public boolean isNumeric() {
         return isWholeNumber || isRationalNumber;
+    }
+
+    public boolean isNumericOrAmd() {
+        return isNumeric() || this == AGGREGATE_METRIC_DOUBLE;
     }
 
     /**
@@ -1122,5 +1257,15 @@ public enum DataType implements Writeable {
          * Release version for Histogram data type support
          */
         public static final TransportVersion ESQL_HISTOGRAM_DATATYPE_RELEASE = TransportVersion.fromName("esql_histogram_datatype_release");
+
+        /**
+         * Development version for partial_agg type support (used by ToPartial/FromPartial aggregate functions).
+         */
+        public static final TransportVersion ESQL_AGG_FROM_PARTIAL = TransportVersion.fromName("esql_agg_from_partial");
+
+        /**
+         * Development version for flattened field type support.
+         */
+        public static final TransportVersion ESQL_FLATTENED_DATATYPE = TransportVersion.fromName("esql_flattened_datatype");
     }
 }

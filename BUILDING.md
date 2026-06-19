@@ -27,8 +27,59 @@ These build tools are also used by the `elasticsearch-hadoop` project maintained
 
 ### `build-tools-internal`
 
-This project contains all Elasticsearch project specific build logic that is not meant to be shared
+This project contains all Elasticsearch project specific build logic not meant to be shared
 with other internal or external projects.
+
+## Third-Party Gradle Plugins
+
+The Elasticsearch build uses several third-party Gradle plugins. All versions are centralized in
+`/gradle/build.versions.toml` (version catalog).
+
+### Build Infrastructure Plugins
+
+| Plugin ID | Purpose |
+|-----------|---------|
+| `com.gradle.develocity` | Enables build scans and integration with Gradle Enterprise at `gradle-enterprise.elastic.co`. Provides build performance metrics, failure diagnostics, and CI integration for Buildkite. |
+| `com.gradleup.nmcp.aggregation` | Aggregates all Maven artifacts from projects applying `elasticsearch.publish` for publishing to Maven Central via DRA infrastructure. |
+
+### Packaging & Distribution Plugins
+
+| Plugin ID | Purpose |
+|-----------|---------|
+| `com.netflix.nebula.ospackage-base` | Creates DEB and RPM Linux packages for Elasticsearch distribution. Handles package metadata, install/remove scripts, file permissions, and package signing. |
+| `com.gradleup.shadow` | Creates fat JARs (uber-jars) by merging dependencies into a single JAR. Used for standalone CLI tools (`plugin-cli`, `sql-cli`) and the JDBC driver. |
+
+### Code Quality & Precommit Plugins
+
+| Plugin ID | Purpose |
+|-----------|---------|
+| `de.thetaphi:forbiddenapis` | Static bytecode analysis that detects invocations of forbidden API methods. Ensures code doesn't use unsafe or deprecated JDK APIs. Integrated via `ForbiddenApisPrecommitPlugin`. |
+| `org.apache.rat:apache-rat` | License header validation (Apache RAT - Release Audit Tool). Ensures all source files have proper license headers. |
+| `com.diffplug.spotless` | Code formatting enforcement using Eclipse JDT formatter. Provides `spotlessJavaCheck` and `spotlessApply` tasks. Configuration in `build-conventions/formatterConfig.xml`. |
+
+### Build Metadata & Tooling Plugins
+
+| Plugin ID | Purpose |
+|-----------|---------|
+| `com.netflix.nebula:gradle-info-plugin` | Automatically includes build metadata (git info, build time, Java version) in JAR manifests. Applied as `nebula.info-broker`, `nebula.info-basic`, `nebula.info-java`, `nebula.info-jar`. |
+| `com.avast.gradle:docker-compose` | Manages Docker Compose environments for integration testing fixtures. Used by `TestFixturesPlugin` for test infrastructure (AWS, Azure, GCS, HDFS mocks). |
+| `org.jetbrains.gradle.plugin.idea-ext` | Enhanced IntelliJ IDEA project configuration. Customizes IDE settings, JUnit configurations, and post-sync tasks. |
+
+## Internal Plugin Selection Guide
+
+When creating a new subproject, choose the appropriate Elasticsearch plugin based on your project type:
+
+| Project Type | Plugin to Apply | Example Projects |
+|--------------|-----------------|------------------|
+| Core library | `elasticsearch.build` | `server`, `libs/*` |
+| Module shipped with ES | `elasticsearch.internal-es-plugin` | `modules/*` |
+| External plugin | `elasticsearch.internal-es-plugin` + `elasticsearch.publish` | `plugins/*` |
+| X-Pack plugin | `elasticsearch.internal-es-plugin` + `elasticsearch.publish` | `x-pack/plugin/*` |
+| YAML REST tests | `elasticsearch.internal-yaml-rest-test` | modules/plugins with REST APIs |
+| Java REST tests | `elasticsearch.internal-java-rest-test` | modules/plugins needing Java test flexibility |
+| Cluster integration tests | `elasticsearch.internal-cluster-test` | Projects testing cluster behavior |
+| BWC/upgrade tests | `elasticsearch.bwc-test` or `elasticsearch.fwc-test` | `qa/rolling-upgrade`, `qa/full-cluster-restart` |
+| Standalone QA project | `elasticsearch.standalone-rest-test` | `qa/*` subprojects |
 
 ## Build guidelines
 
@@ -161,16 +212,25 @@ When adding or updating dependencies, ensure that any required transitive depend
 2. Added as direct dependencies if they're actually used by our code
 3. Properly excluded if they're not needed
 
-#### Custom plugin and task implementations
+#### Custom Gradle plugin and Gradle task implementations
 
-Build logic that is used across multiple subprojects should be considered to be moved into a Gradle plugin with according Gradle task implementation.
-Elasticsearch specific build logic is located in the `build-tools-internal` subproject including integration tests.
+Build logic that is used across multiple subprojects should be considered to be
+moved into a Gradle plugin with according Gradle task implementation.
+Elasticsearch specific build logic is located in the `build-tools-internal`
+subproject including integration tests.
 
 - Gradle plugins and Tasks should be written in Java
 - We use a groovy and spock for setting up Gradle integration tests.
-  (see https://github.com/elastic/elasticsearch/blob/main/build-tools/src/testFixtures/groovy/org/elasticsearch/gradle/fixtures/AbstractGradleFuncTest.groovy)
+- For each Gradle Plugin and Gradle Task implementation (e.g.
+  org.elasticsearch.gradle.internal.info.GlobalBuildInfoPlugin) we aim for
+  a dedicated
+    - unit test class containing all relaed unit tests in src/test (e.g. GlobalBuildInfoPluginSpec) for basic unit testing of
+      the plugin logic and
+    - integration test containing all related Gradle TestKit based integration tests in src/integTest (e.g. GlobalBuildInfoPluginFuncTest) for testing the
+      plugin in a real Gradle build based on
+      src/main/build-tools/src/testFixtures/groovy/org/elasticsearch/gradle/fixtures/AbstractGradleFuncTest.groovy)
 
-#### Declaring tasks
+#### Declaring Gradle tasks
 
 The Elasticsearch build makes use of the [task avoidance API](https://docs.gradle.org/current/userguide/task_configuration_avoidance.html) to keep the configuration time of the build low.
 
@@ -214,35 +274,234 @@ The benefit of a dedicated project for these tests are:
 
 #### Using test fixtures
 
-Sometimes we want to share test fixtures to set up the code under test across multiple projects. There are basically two ways doing so.
+Sometimes we want to share fixture code used by tests across multiple Gradle projects. There are two supported approaches, depending on where the shared classes live:
 
-Ideally we would use the build-in [java-test-fixtures](https://docs.gradle.org/current/userguide/java_testing.html#sec:java_test_fixtures) Gradle plugin.
-This plugin relies on having a separate sourceSet for the test fixtures code.
+- Prefer the built-in [java-test-fixtures](https://docs.gradle.org/current/userguide/java_testing.html#sec:java_test_fixtures) Gradle plugin **when and only when** the shared fixtures are placed in the dedicated `testFixtures` source set (for example `src/testFixtures/java`).
 
-In the Elasticsearch codebase we have test fixtures and actual tests within the same sourceSet. Therefore we introduced the `elasticsearch.internal-test-artifact` plugin to provides another build artifact of your project based on the `test` sourceSet.
+  In the providing project apply the plugin and place shared code under `src/testFixtures/...`:
 
+  ```groovy
+  plugins {
+    id 'java-test-fixtures'
+  }
+  ```
 
-This artifact can be resolved by the consumer project as shown in the example below:
+  In the consumer project you can then depend on those fixtures like this:
 
-```
-dependencies {
-  //add the test fixtures of `:providing-project` to testImplementation configuration.
-  testImplementation(testArtifact(project(":fixture-providing-project')))
-}
-```
+  ```groovy
+  dependencies {
+    testImplementation(testFixtures(project(":fixture-providing-project")))
+  }
+  ```
+
+- Use `elasticsearch.internal-test-artifact` for the common Elasticsearch case where fixtures and tests live in the same source set (for example `src/test/java`) and you need to share those `test` classes/resources with another project. This plugin provides an additional test artifact derived from the `test` source set, which can be resolved by the consumer project as shown below:
+
+  ```groovy
+  dependencies {
+    // Add the `test` source set classes/resources from `:fixture-providing-project`.
+    testImplementation(testArtifact(project(":fixture-providing-project")))
+  }
+  ```
 
 This test artifact mechanism makes use of the concept of [component capabilities](https://docs.gradle.org/current/userguide/component_capabilities.html)
-similar to how the Gradle build-in `java-test-fixtures` plugin works.
+similar to how the Gradle built-in `java-test-fixtures` plugin works.
 
-`testArtifact` is a shortcut declared in the Elasticsearch build. Alternatively you can declare the dependency via
+`testArtifact(...)` is a shortcut declared in the Elasticsearch build. Alternatively you can declare the dependency via an explicit capability requirement:
 
-```
+```groovy
 dependencies {
-  testImplementation(project(":fixture-providing-project')) {
-    requireCapabilities(${project(":fixture-providing-project').group}:fixture-providing-project-test-artifacts")
+  testImplementation(project(":fixture-providing-project")) {
+    capabilities {
+      requireCapabilities("${project(':fixture-providing-project').group}:fixture-providing-project-test-artifacts")
+    }
   }
 }
 ```
+
+#### Configuring precommit tasks
+
+Several precommit tasks support project-specific configuration. Use the task avoidance API when configuring them.
+
+##### thirdPartyAudit
+
+Configure missing class and violation ignores when third-party dependencies use optional APIs:
+
+```groovy
+tasks.named("thirdPartyAudit").configure {
+  // Ignore classes that are optional dependencies of our dependencies
+  ignoreMissingClasses(
+    'javax.servlet.ServletContextEvent',
+    'org.apache.log.Logger'
+  )
+
+  // Ignore known-safe internal API usage in dependencies
+  ignoreViolations(
+    'com.google.common.hash.Striped64'
+  )
+}
+```
+
+##### dependencyLicenses
+
+Map related artifacts to a single license when dependencies are published as multiple JARs:
+
+```groovy
+tasks.named("dependencyLicenses").configure {
+  mapping from: /lucene-.*/, to: 'lucene'
+  mapping from: /netty-.*/, to: 'netty'
+  mapping from: /jackson-.*/, to: 'jackson'
+}
+```
+
+##### forbiddenPatterns
+
+Exclude files that legitimately contain patterns detected as forbidden:
+
+```groovy
+tasks.named("forbiddenPatterns").configure {
+  exclude '**/*.key'     // Test certificates
+  exclude '**/*.p12'     // PKCS12 keystores
+  exclude '**/*.json'    // Test data files
+}
+```
+
+#### Configuring REST resources
+
+Projects with REST APIs should declare which specs and tests they need:
+
+```groovy
+restResources {
+  restApi {
+    include '_common', 'cluster', 'indices', 'your_api_name'
+  }
+  restTests {
+    includeCore 'your_api_tests'  // For core APIs
+    includeXpack 'your_xpack_tests'  // For X-Pack APIs
+  }
+}
+```
+
+## BWC Snapshot Testing
+
+Backward-compatibility (BWC) tests verify that the current build can communicate with earlier Elasticsearch versions.
+By default the BWC version is built from source: Gradle clones the target branch, checks out its tip, and runs a nested `./gradlew` invocation to compile and assemble the distribution artifacts.
+This source build is correct but slow, and every parallel BWC test job repeats it independently.
+
+### DRA fast path
+
+Instead of cloning the BWC branch and compiling it from source, Gradle can download pre-built artifacts directly from the [DRA](https://github.com/elastic/apm-pipeline-library/blob/main/vars/README.md#publishToBuildkiteDRA) (Distribution Release Artifacts) snapshot server at `artifacts-snapshot.elastic.co`.
+Gradle downloads archives through an Ivy repository and unpacks them with the existing `SymbolicLinkPreservingUntarTransform` / `UnzipTransform` — no custom HTTP or extraction code.
+
+The fast path covers:
+- **Distribution archives** (Linux/Darwin/Windows tar.gz, zip, deb, rpm) — downloaded from the DRA `/downloads/elasticsearch/` path.
+- **JDBC jar** (`x-pack-sql-jdbc`) and **stable API jars** (`elasticsearch-logging`, `elasticsearch-plugin-api`, `elasticsearch-plugin-analysis-api`) — downloaded from the DRA `/maven/` tree using their Maven group-path layout.
+
+#### BWC mode (`-Dtests.bwc.mode`)
+
+The `tests.bwc.mode` system property selects how BWC artifacts are resolved:
+
+| Value | Behaviour |
+|---|---|
+| `gradle` *(default)* | Always build from source via a nested Gradle invocation. No network activity. |
+| `auto` | Fetch the latest DRA snapshot and compare its commit hash against the local remote-tracking ref. Use DRA if they match, otherwise fall back to a source build silently. |
+| `dra` | Always download from the latest DRA snapshot without checking the commit hash. If DRA is unreachable or returns no build for the branch, log a warning and fall back to a source build. |
+
+When `tests.bwc.mode=gradle` (the default), `DraSnapshotBuildIdValueSource` returns an empty string immediately with no network activity, keeping local development builds unaffected.
+
+### Testing locally
+
+#### 1 — Verify the local-build path is unaffected (regression check)
+
+```bash
+./gradlew :build-tools-internal:integTest \
+  --tests "org.elasticsearch.gradle.internal.InternalBwcGitPluginFuncTest" \
+  --tests "org.elasticsearch.gradle.internal.InternalDistributionBwcSetupPluginFuncTest"
+```
+
+#### 2 — Inspect the task graph with the default gradle mode (no network)
+
+```bash
+./gradlew :distribution:bwc:minor3:buildBwcLinuxTar --dry-run
+```
+
+Expected chain: `createClone` → `findRemote` → `addRemote` → `fetchLatest` → `checkoutBwcBranch` → `buildBwcLinuxTar` (nested Gradle build).
+
+#### 3 — Inspect the task graph with auto mode
+
+```bash
+git fetch --all   # keep remote-tracking refs fresh
+
+./gradlew :distribution:bwc:minor3:buildBwcLinuxTar --dry-run \
+  -Dtests.bwc.mode=auto --info 2>&1 | grep -E "onlyIf|DRA"
+```
+
+When the DRA snapshot matches the branch tip the git tasks are skipped and `buildBwcLinuxTar` (a `Copy` task backed by the Ivy download) appears instead.
+`--info` surfaces lines like:
+
+```
+Skipping task ':distribution:bwc:minor3:createClone' as task onlyIf 'DRA snapshot not available' is false.
+```
+
+#### 4 — Verify whether a DRA snapshot is currently available for a version
+
+```bash
+# 1. Get the latest DRA build ID for the branch
+BUILD_ID=$(curl -s https://artifacts-snapshot.elastic.co/elasticsearch/latest/9.4.json \
+  | python3 -c "import sys,json; print(json.load(sys.stdin)['build_id'])")
+echo "DRA build ID: $BUILD_ID"
+
+# 2. Get the commit the DRA snapshot was built from
+DRA_COMMIT=$(curl -s "https://artifacts-snapshot.elastic.co/elasticsearch/$BUILD_ID/manifest-9.4.2-SNAPSHOT.json" \
+  | python3 -c "import sys,json; print(json.load(sys.stdin)['projects']['elasticsearch']['commit_hash'])")
+echo "DRA commit:   $DRA_COMMIT"
+
+# 3. Compare with the local remote-tracking ref
+LOCAL_COMMIT=$(git rev-parse elastic/9.4)
+echo "Local ref:    $LOCAL_COMMIT"
+
+[ "$DRA_COMMIT" = "$LOCAL_COMMIT" ] && echo "Match — DRA path will be used" || echo "No match — local build will be used"
+```
+
+#### 5 — Run a real DRA-backed BWC build end-to-end
+
+With `auto` (once the hashes match) or `dra` (always download latest):
+
+```bash
+# Build just the distribution artifact (much faster than a full source build)
+./gradlew :distribution:bwc:minor3:buildBwcLinuxTar -Dtests.bwc.mode=auto
+
+# Always use the latest DRA snapshot regardless of commit hash
+./gradlew :distribution:bwc:minor3:buildBwcLinuxTar -Dtests.bwc.mode=dra
+
+# Build the JDBC or stable API jars from DRA
+./gradlew :distribution:bwc:minor3:buildBwcJdbc -Dtests.bwc.mode=auto
+./gradlew :distribution:bwc:minor3:buildBwcLogging -Dtests.bwc.mode=auto
+
+# Or run a BWC test suite part
+./gradlew v9.4.2#bwcTestPart1 -Dtests.bwc.mode=auto -Dignore.tests.seed
+```
+
+#### Tip — pinning to an explicit commit hash
+
+Pass `-Dtests.bwc.dra.hash.{branch}` to use the DRA build for a specific commit hash.
+When set the "latest" DRA lookup is skipped entirely: the build ID is constructed directly as `{version}-{hash}` and its existence is verified against the manifest endpoint.
+This is particularly useful when the DRA latest has moved on to a newer commit but you still want to use an older snapshot, or when you want a reproducible build pinned to a known-good artifact.
+
+```bash
+# Use the short hash from a specific DRA build (e.g. 9.4.2-1a738181)
+./gradlew :distribution:bwc:minor1:buildBwcLinuxTar \
+  -Dtests.bwc.mode=dra \
+  -Dtests.bwc.dra.hash.9.4=1a738181
+```
+
+The value must be the abbreviated commit hash as it appears in the DRA build ID (the part after the last `-`).
+
+### How CI uses the DRA fast path
+
+On Buildkite, BWC snapshot jobs pass `-Dtests.bwc.mode=auto`.
+`DraSnapshotBuildIdValueSource` is evaluated once per BWC version at Gradle configuration time.
+If the DRA snapshot commit matches the remote-tracking ref, the entire git clone / compile / nested Gradle invocation is replaced by an Ivy download + artifact transform, cutting typical BWC snapshot job time significantly.
+Periodic BWC tests use `bwc.checkout.align=true` (time-based commit alignment) and therefore almost always build from source — the DRA path is primarily a speedup for PR-level BWC snapshot tests.
 
 ## FAQ
 
@@ -314,7 +573,7 @@ by JitPack in the background before we can resolve the adhoc built dependency.
 
 > [!Note]
 > You should only use that approach locally or on a developer branch for production dependencies as we do
-not want to ship unreleased libraries into our releases.
+> not want to ship unreleased libraries into our releases.
 
 #### How to use a custom third party artifact?
 
@@ -352,7 +611,7 @@ allprojects {
 
 > [!Note]
 > As Gradle prefers to use modules whose descriptor has been created from real meta-data rather than being generated,
-flat directory repositories cannot be used to override artifacts with real meta-data from other repositories declared in the build.
+> flat directory repositories cannot be used to override artifacts with real meta-data from other repositories declared in the build.
 > For example, if Gradle finds only `jmxri-1.2.1.jar` in a flat directory repository, but `jmxri-1.2.1.pom` in another repository
-that supports meta-data, it will use the second repository to provide the module.
+> that supports meta-data, it will use the second repository to provide the module.
 > Therefore, it is recommended to declare a version that is not resolvable from public repositories we use (e.g. Maven Central)

@@ -65,6 +65,7 @@ import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.authc.CrossClusterAccessHeaders;
+import org.junit.After;
 import org.junit.ClassRule;
 
 import java.io.ByteArrayInputStream;
@@ -117,9 +118,8 @@ public class RemoteClusterSecurityFcActionAuthorizationIT extends ESRestTestCase
         return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
     }
 
-    @Override
-    public void tearDown() throws Exception {
-        super.tearDown();
+    @After
+    public void terminateThreadPool() throws Exception {
         ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS);
     }
 
@@ -395,7 +395,7 @@ public class RemoteClusterSecurityFcActionAuthorizationIT extends ESRestTestCase
                     "cross_cluster",
                     null,
                     new RoleDescriptor.IndicesPrivileges[] {
-                        RoleDescriptor.IndicesPrivileges.builder().indices("index").privileges("read", "read_cross_cluster").build() },
+                        RoleDescriptor.IndicesPrivileges.builder().indices("index").privileges("read").build() },
                     null
                 )
             )
@@ -560,7 +560,7 @@ public class RemoteClusterSecurityFcActionAuthorizationIT extends ESRestTestCase
                     "cross_cluster",
                     null,
                     new RoleDescriptor.IndicesPrivileges[] {
-                        RoleDescriptor.IndicesPrivileges.builder().indices(indices).privileges("read", "read_cross_cluster").build() },
+                        RoleDescriptor.IndicesPrivileges.builder().indices(indices).privileges("read").build() },
                     null
                 )
             )

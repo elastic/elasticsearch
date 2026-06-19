@@ -7,22 +7,19 @@
 
 package org.elasticsearch.xpack.oteldata.otlp.docbuilder;
 
-import io.opentelemetry.proto.common.v1.AnyValue;
-import io.opentelemetry.proto.common.v1.InstrumentationScope;
-import io.opentelemetry.proto.common.v1.KeyValue;
-import io.opentelemetry.proto.resource.v1.Resource;
-
-import com.google.protobuf.ByteString;
+import io.opentelemetry.proto.metrics.v1.AggregationTemporality;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.cluster.routing.TsidBuilder;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.hash.BufferedMurmur3Hasher;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.oteldata.otlp.datapoint.DataPoint;
 import org.elasticsearch.xpack.oteldata.otlp.datapoint.DataPointGroupingContext;
 import org.elasticsearch.xpack.oteldata.otlp.datapoint.ExponentialHistogramConverter;
-import org.elasticsearch.xpack.oteldata.otlp.datapoint.TargetIndex;
 import org.elasticsearch.xpack.oteldata.otlp.proto.BufferedByteStringAccessor;
 
 import java.io.IOException;
@@ -34,15 +31,17 @@ import java.util.concurrent.TimeUnit;
  * This class constructs an Elasticsearch document representation of a metric data point group.
  * It also handles dynamic templates for metrics based on their attributes.
  */
-public class MetricDocumentBuilder {
+public class MetricDocumentBuilder extends OTelDocumentBuilder {
 
-    private final BufferedByteStringAccessor byteStringAccessor;
+    public static final String UNIT_FIELD = "unit";
+    public static final String TEMPORALITY_FIELD = "temporality";
+
     private final BufferedMurmur3Hasher hasher = new BufferedMurmur3Hasher(0);
     private final MappingHints defaultMappingHints;
     private final ExponentialHistogramConverter.BucketBuffer scratch = new ExponentialHistogramConverter.BucketBuffer();
 
     public MetricDocumentBuilder(BufferedByteStringAccessor byteStringAccessor, MappingHints defaultMappingHints) {
-        this.byteStringAccessor = byteStringAccessor;
+        super(byteStringAccessor);
         this.defaultMappingHints = defaultMappingHints;
     }
 
@@ -50,7 +49,8 @@ public class MetricDocumentBuilder {
         XContentBuilder builder,
         DataPointGroupingContext.DataPointGroup dataPointGroup,
         Map<String, String> dynamicTemplates,
-        Map<String, Map<String, String>> dynamicTemplateParams
+        Map<String, Map<String, String>> dynamicTemplateParams,
+        IndexVersion indexVersion
     ) throws IOException {
         List<DataPoint> dataPoints = dataPointGroup.dataPoints();
         builder.startObject();
@@ -58,10 +58,20 @@ public class MetricDocumentBuilder {
         if (dataPointGroup.getStartTimestampUnixNano() != 0) {
             builder.field("start_timestamp", TimeUnit.NANOSECONDS.toMillis(dataPointGroup.getStartTimestampUnixNano()));
         }
+        // Metrics intentionally skip merging paired *.geo.location.lat/.lon into a [lon, lat] array:
+        // The *.geo.location dynamic template doesn't apply to metrics because geo_point isn't a supported dimension type.
+        // That would mean the merged value would land as a plain [lon, lat] array with no guaranteed element order.
         buildResource(dataPointGroup.resource(), dataPointGroup.resourceSchemaUrl(), builder);
         buildDataStream(builder, dataPointGroup.targetIndex());
-        buildScope(builder, dataPointGroup.scopeSchemaUrl(), dataPointGroup.scope());
-        buildDataPointAttributes(builder, dataPointGroup.dataPointAttributes(), dataPointGroup.unit());
+        buildScope(builder, dataPointGroup.scope(), dataPointGroup.scopeSchemaUrl());
+        buildAttributes(builder, dataPointGroup.dataPointAttributes(), 0);
+        if (Strings.hasLength(dataPointGroup.unit())) {
+            builder.field(UNIT_FIELD, dataPointGroup.unit());
+        }
+        String temporality = temporalityToString(dataPointGroup.temporality());
+        if (temporality != null && IndexSettings.TIME_SERIES_TEMPORALITY_FEATURE_FLAG.isEnabled()) {
+            builder.field(TEMPORALITY_FIELD, temporality);
+        }
         String metricNamesHash = dataPointGroup.getMetricNamesHash(hasher);
         builder.field("_metric_names_hash", metricNamesHash);
 
@@ -78,7 +88,7 @@ public class MetricDocumentBuilder {
                 dynamicTemplates.put(metricFieldPath, dynamicTemplate);
                 if (dataPointGroup.unit() != null && dataPointGroup.unit().isEmpty() == false) {
                     // Store the unit of the metric in the dynamic template parameters
-                    dynamicTemplateParams.put(metricFieldPath, Map.of("unit", dataPointGroup.unit()));
+                    dynamicTemplateParams.put(metricFieldPath, Map.of(UNIT_FIELD, dataPointGroup.unit()));
                 }
             }
             if (mappingHints.docCount()) {
@@ -92,102 +102,21 @@ public class MetricDocumentBuilder {
         builder.endObject();
         TsidBuilder tsidBuilder = dataPointGroup.tsidBuilder();
         tsidBuilder.addStringDimension("_metric_names_hash", metricNamesHash);
-        return tsidBuilder.buildTsid();
-    }
-
-    private void buildResource(Resource resource, ByteString schemaUrl, XContentBuilder builder) throws IOException {
-        builder.startObject("resource");
-        addFieldIfNotEmpty(builder, "schema_url", schemaUrl);
-        if (resource.getDroppedAttributesCount() > 0) {
-            builder.field("dropped_attributes_count", resource.getDroppedAttributesCount());
-        }
-        builder.startObject("attributes");
-        buildAttributes(builder, resource.getAttributesList());
-        builder.endObject();
-        builder.endObject();
-    }
-
-    private void buildScope(XContentBuilder builder, ByteString schemaUrl, InstrumentationScope scope) throws IOException {
-        builder.startObject("scope");
-        addFieldIfNotEmpty(builder, "schema_url", schemaUrl);
-        if (scope.getDroppedAttributesCount() > 0) {
-            builder.field("dropped_attributes_count", scope.getDroppedAttributesCount());
-        }
-        addFieldIfNotEmpty(builder, "name", scope.getNameBytes());
-        addFieldIfNotEmpty(builder, "version", scope.getVersionBytes());
-        builder.startObject("attributes");
-        buildAttributes(builder, scope.getAttributesList());
-        builder.endObject();
-        builder.endObject();
-    }
-
-    private void addFieldIfNotEmpty(XContentBuilder builder, String name, ByteString value) throws IOException {
-        if (value != null && value.isEmpty() == false) {
-            builder.field(name);
-            byteStringAccessor.utf8Value(builder, value);
-        }
-    }
-
-    private void buildDataPointAttributes(XContentBuilder builder, List<KeyValue> attributes, String unit) throws IOException {
-        builder.startObject("attributes");
-        buildAttributes(builder, attributes);
-        builder.endObject();
-        if (Strings.hasLength(unit)) {
-            builder.field("unit", unit);
-        }
-    }
-
-    private void buildDataStream(XContentBuilder builder, TargetIndex targetIndex) throws IOException {
-        if (targetIndex.isDataStream() == false) {
-            return;
-        }
-        builder.startObject("data_stream");
-        builder.field("type", targetIndex.type());
-        builder.field("dataset", targetIndex.dataset());
-        builder.field("namespace", targetIndex.namespace());
-        builder.endObject();
-    }
-
-    private void buildAttributes(XContentBuilder builder, List<KeyValue> attributes) throws IOException {
-        for (int i = 0, size = attributes.size(); i < size; i++) {
-            KeyValue attribute = attributes.get(i);
-            String key = attribute.getKey();
-            if (isIgnoredAttribute(key) == false) {
-                builder.field(key);
-                attributeValue(builder, attribute.getValue());
-            }
-        }
+        return tsidBuilder.buildTsid(indexVersion);
     }
 
     /**
-     * Checks if the given attribute key is an ignored attribute.
-     * Ignored attributes are well-known Elastic-specific attributes
-     * that influence how the documents are indexed but are not stored themselves.
-     *
-     * @param attributeKey the attribute key to check
-     * @return true if the attribute is ignored, false otherwise
+     * Converts an {@link AggregationTemporality} to the string value stored in the temporality dimension field.
      */
-    public static boolean isIgnoredAttribute(String attributeKey) {
-        return TargetIndex.isTargetIndexAttribute(attributeKey) || MappingHints.isMappingHintsAttribute(attributeKey);
-    }
-
-    private void attributeValue(XContentBuilder builder, AnyValue value) throws IOException {
-        switch (value.getValueCase()) {
-            case STRING_VALUE -> byteStringAccessor.utf8Value(builder, value.getStringValueBytes());
-            case BOOL_VALUE -> builder.value(value.getBoolValue());
-            case INT_VALUE -> builder.value(value.getIntValue());
-            case DOUBLE_VALUE -> builder.value(value.getDoubleValue());
-            case ARRAY_VALUE -> {
-                builder.startArray();
-                List<AnyValue> valuesList = value.getArrayValue().getValuesList();
-                for (int i = 0, valuesListSize = valuesList.size(); i < valuesListSize; i++) {
-                    AnyValue arrayValue = valuesList.get(i);
-                    attributeValue(builder, arrayValue);
-                }
-                builder.endArray();
-            }
-            default -> throw new IllegalArgumentException("Unsupported attribute value type: " + value.getValueCase());
+    public static @Nullable String temporalityToString(@Nullable AggregationTemporality temporality) {
+        if (temporality == null) {
+            return null;
         }
+        return switch (temporality) {
+            case AGGREGATION_TEMPORALITY_CUMULATIVE -> "cumulative";
+            case AGGREGATION_TEMPORALITY_DELTA -> "delta";
+            default -> null;
+        };
     }
 
 }

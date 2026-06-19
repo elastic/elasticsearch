@@ -64,7 +64,7 @@ public class BitKnnDenseVector extends ByteKnnDenseVector {
     }
 
     @Override
-    public int dotProduct(byte[] queryVector) {
+    public double dotProduct(byte[] queryVector) {
         if (queryVector.length == docVector.length) {
             // assume that the query vector is a bit vector and do a bitwise AND
             return andBitCount(docVector, queryVector);

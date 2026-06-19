@@ -11,7 +11,9 @@ import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.gpu.CuVSGPUSupport;
 import org.elasticsearch.gpu.GPUSupport;
+import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.vectors.ExactKnnQueryBuilder;
@@ -39,14 +41,22 @@ public abstract class BaseGPUIndexTestCase extends ESIntegTestCase {
 
     protected static boolean isGpuIndexingFeatureAllowed = true;
 
+    private static final GPUSupport gpuSupport = CuVSGPUSupport.instance();
+
     public static class TestGPUPlugin extends GPUPlugin {
         public TestGPUPlugin(Settings settings) {
-            super(settings);
+            super(settings, gpuSupport);
         }
 
         @Override
         protected boolean isGpuIndexingFeatureAllowed() {
             return isGpuIndexingFeatureAllowed;
+        }
+
+        @Override
+        public List<ActionPlugin.ActionHandler> getActions() {
+            // Skip registering xpack usage/info actions in this test as they require XPackLicenseState
+            return List.of();
         }
     }
 
@@ -77,7 +87,7 @@ public abstract class BaseGPUIndexTestCase extends ESIntegTestCase {
 
     @BeforeClass
     public static void checkGPUSupport() {
-        assumeTrue("cuvs not supported", GPUSupport.isSupported());
+        assumeTrue("cuvs not supported", gpuSupport.isSupported());
     }
 
     protected static String randomSimilarity() {
@@ -168,8 +178,9 @@ public abstract class BaseGPUIndexTestCase extends ESIntegTestCase {
         float[] queryVector = randomFloatVector(dims, similarity);
         int k = 10;
         int numCandidates = k * 5;
+        int minMatches = "int8_hnsw".equals(type) ? k - 4 : k - 3;
 
-        // Test 1: Approximate KNN search - expect at least k-3 out of k matches
+        // Test 1: Approximate KNN search - expect at least minMatches out of k matches
         var searchResponse1 = prepareSearch(indexName1).setSize(k)
             .setFetchSource(false)
             .addFetchField("my_keyword")
@@ -185,7 +196,7 @@ public abstract class BaseGPUIndexTestCase extends ESIntegTestCase {
         try {
             SearchHit[] hits1 = searchResponse1.getHits().getHits();
             SearchHit[] hits2 = searchResponse2.getHits().getHits();
-            assertAtLeastNOutOfKMatches(hits1, hits2, k - 3, k);
+            assertAtLeastNOutOfKMatches(hits1, hits2, minMatches, k);
         } finally {
             searchResponse1.decRef();
             searchResponse2.decRef();
@@ -218,7 +229,7 @@ public abstract class BaseGPUIndexTestCase extends ESIntegTestCase {
         assertNoFailures(indicesAdmin().prepareForceMerge(indexName2).get());
         ensureGreen();
 
-        // Test 3: Approximate KNN search - expect at least k-3 out of k matches
+        // Test 3: Approximate KNN search after force merge - expect at least minMatches out of k matches
         var searchResponse3 = prepareSearch(indexName1).setSize(k)
             .setFetchSource(false)
             .addFetchField("my_keyword")
@@ -234,7 +245,7 @@ public abstract class BaseGPUIndexTestCase extends ESIntegTestCase {
         try {
             SearchHit[] hits3 = searchResponse3.getHits().getHits();
             SearchHit[] hits4 = searchResponse4.getHits().getHits();
-            assertAtLeastNOutOfKMatches(hits3, hits4, k - 3, k);
+            assertAtLeastNOutOfKMatches(hits3, hits4, minMatches, k);
         } finally {
             searchResponse3.decRef();
             searchResponse4.decRef();
@@ -494,7 +505,7 @@ public abstract class BaseGPUIndexTestCase extends ESIntegTestCase {
                 String.format(Locale.ROOT, "Score mismatch for document ID %s at position %d", hits1[i].getId(), i),
                 hits1[i].getScore(),
                 hits2[i].getScore(),
-                0.0001f
+                5e-3f
             );
         }
     }

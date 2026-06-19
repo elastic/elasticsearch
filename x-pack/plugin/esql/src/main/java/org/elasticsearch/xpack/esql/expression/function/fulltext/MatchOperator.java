@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.expression.function.fulltext;
 
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.xpack.esql.capabilities.ConfigurationAware;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -16,6 +17,7 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.util.List;
 
@@ -25,7 +27,7 @@ import java.util.List;
  * the match operator in the function syntax.
  * Serialization is provided as a way to pass the corresponding tests - serialization must be done to a Match class.
  */
-public class MatchOperator extends Match {
+public class MatchOperator extends Match implements ConfigurationAware {
 
     @FunctionInfo(
         returnType = "boolean",
@@ -33,6 +35,7 @@ public class MatchOperator extends Match {
         appliesTo = {
             @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.0.0"),
             @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA, version = "9.1.0") },
+        briefSummary = "Performs a match query on the specified field using the : operator.",
         description = """
             Use the match operator (`:`) to perform a <<query-dsl-match-query,match query>> on the specified field.
             Using `:` is equivalent to using the `match` query in the Elasticsearch Query DSL.
@@ -75,13 +78,14 @@ public class MatchOperator extends Match {
             name = "query",
             type = { "keyword", "boolean", "date", "date_nanos", "double", "integer", "ip", "long", "unsigned_long", "version" },
             description = "Value to find in the provided field."
-        ) Expression matchQuery
+        ) Expression matchQuery,
+        Configuration configuration
     ) {
-        super(source, field, matchQuery, null, null);
+        super(source, field, matchQuery, null, null, configuration);
     }
 
-    private MatchOperator(Source source, Expression field, Expression matchQuery, QueryBuilder queryBuilder) {
-        super(source, field, matchQuery, null, queryBuilder);
+    private MatchOperator(Source source, Expression field, Expression matchQuery, QueryBuilder queryBuilder, Configuration configuration) {
+        super(source, field, matchQuery, null, queryBuilder, configuration);
     }
 
     @Override
@@ -96,16 +100,26 @@ public class MatchOperator extends Match {
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, MatchOperator::new, field(), query());
+        return NodeInfo.create(this, MatchOperator::new, field(), query(), configuration());
     }
 
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
-        return new MatchOperator(source(), newChildren.get(0), newChildren.get(1), queryBuilder());
+        return new MatchOperator(source(), newChildren.get(0), newChildren.get(1), queryBuilder(), configuration());
     }
 
     @Override
     public Expression replaceQueryBuilder(QueryBuilder queryBuilder) {
-        return new MatchOperator(source(), field, query(), queryBuilder);
+        return new MatchOperator(source(), field, query(), queryBuilder, configuration());
+    }
+
+    @Override
+    public Configuration configuration() {
+        return super.configuration();
+    }
+
+    @Override
+    public Expression withConfiguration(Configuration configuration) {
+        return new MatchOperator(source(), field, query(), queryBuilder(), configuration);
     }
 }

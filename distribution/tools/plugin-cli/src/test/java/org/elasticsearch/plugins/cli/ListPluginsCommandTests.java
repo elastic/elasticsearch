@@ -12,6 +12,7 @@ package org.elasticsearch.plugins.cli;
 import joptsimple.OptionSet;
 
 import org.apache.lucene.tests.util.LuceneTestCase;
+import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.cli.Command;
 import org.elasticsearch.cli.CommandTestCase;
@@ -73,7 +74,7 @@ public class ListPluginsCommandTests extends CommandTestCase {
             "version",
             "1.0",
             "elasticsearch.version",
-            Version.CURRENT.toString(),
+            Build.current().version(),
             "java.version",
             "1.8",
             "classname",
@@ -118,12 +119,13 @@ public class ListPluginsCommandTests extends CommandTestCase {
                 "Name: fake_plugin",
                 "Description: fake desc",
                 "Version: 1.0",
-                "Elasticsearch Version: " + Version.CURRENT.toString(),
+                "Elasticsearch Version: " + Build.current().version(),
                 "Java Version: 1.8",
                 "Native Controller: false",
                 "Licensed: false",
                 "Extended Plugins: []",
-                " * Classname: org.fake"
+                " * Classname: org.fake",
+                "Deployment Target: ALL"
             ),
             terminal.getOutput()
         );
@@ -140,12 +142,13 @@ public class ListPluginsCommandTests extends CommandTestCase {
                 "Name: fake_plugin1",
                 "Description: fake desc 1",
                 "Version: 1.0",
-                "Elasticsearch Version: " + Version.CURRENT.toString(),
+                "Elasticsearch Version: " + Build.current().version(),
                 "Java Version: 1.8",
                 "Native Controller: true",
                 "Licensed: false",
                 "Extended Plugins: []",
-                " * Classname: org.fake"
+                " * Classname: org.fake",
+                "Deployment Target: ALL"
             ),
             terminal.getOutput()
         );
@@ -163,23 +166,25 @@ public class ListPluginsCommandTests extends CommandTestCase {
                 "Name: fake_plugin1",
                 "Description: fake desc 1",
                 "Version: 1.0",
-                "Elasticsearch Version: " + Version.CURRENT.toString(),
+                "Elasticsearch Version: " + Build.current().version(),
                 "Java Version: 1.8",
                 "Native Controller: false",
                 "Licensed: false",
                 "Extended Plugins: []",
                 " * Classname: org.fake",
+                "Deployment Target: ALL",
                 "fake_plugin2",
                 "- Plugin information:",
                 "Name: fake_plugin2",
                 "Description: fake desc 2",
                 "Version: 1.0",
-                "Elasticsearch Version: " + Version.CURRENT.toString(),
+                "Elasticsearch Version: " + Build.current().version(),
                 "Java Version: 1.8",
                 "Native Controller: false",
                 "Licensed: false",
                 "Extended Plugins: []",
-                " * Classname: org.fake2"
+                " * Classname: org.fake2",
+                "Deployment Target: ALL"
             ),
             terminal.getOutput()
         );

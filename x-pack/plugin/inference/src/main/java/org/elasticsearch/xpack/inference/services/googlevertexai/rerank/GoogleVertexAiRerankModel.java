@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.inference.services.googlevertexai.rerank;
 
+import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.utils.URIBuilder;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ModelConfigurations;
@@ -24,6 +25,7 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.BiConsumer;
 
 import static org.elasticsearch.core.Strings.format;
 
@@ -49,11 +51,7 @@ public class GoogleVertexAiRerankModel extends GoogleVertexAiModel {
         );
     }
 
-    public GoogleVertexAiRerankModel(GoogleVertexAiRerankModel model, GoogleVertexAiRerankServiceSettings serviceSettings) {
-        super(model, serviceSettings);
-    }
-
-    // Should only be used directly for testing
+    // Should be used directly only for testing
     GoogleVertexAiRerankModel(
         String inferenceEntityId,
         TaskType taskType,
@@ -62,19 +60,21 @@ public class GoogleVertexAiRerankModel extends GoogleVertexAiModel {
         GoogleVertexAiRerankTaskSettings taskSettings,
         @Nullable GoogleVertexAiSecretSettings secrets
     ) {
-        super(
-            new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings),
-            new ModelSecrets(secrets),
-            serviceSettings
-        );
+        this(new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings), new ModelSecrets(secrets));
+    }
+
+    public GoogleVertexAiRerankModel(ModelConfigurations modelConfigurations, ModelSecrets modelSecrets) {
+        super(modelConfigurations, modelSecrets, (GoogleVertexAiRerankServiceSettings) modelConfigurations.getServiceSettings());
         try {
-            this.nonStreamingUri = buildUri(serviceSettings.projectId());
+            this.nonStreamingUri = buildUri(((GoogleVertexAiRerankServiceSettings) modelConfigurations.getServiceSettings()).projectId());
         } catch (URISyntaxException e) {
             throw new RuntimeException(e);
         }
     }
 
-    // Should only be used directly for testing
+    // Should only be used directly for testing.
+    // This constructor allows tests to override the behaviour when setting the auth header, which by default requires a valid service
+    // account JSON
     protected GoogleVertexAiRerankModel(
         String inferenceEntityId,
         TaskType taskType,
@@ -82,12 +82,14 @@ public class GoogleVertexAiRerankModel extends GoogleVertexAiModel {
         String uri,
         GoogleVertexAiRerankServiceSettings serviceSettings,
         GoogleVertexAiRerankTaskSettings taskSettings,
-        @Nullable GoogleVertexAiSecretSettings secrets
+        @Nullable GoogleVertexAiSecretSettings secrets,
+        BiConsumer<HttpPost, GoogleVertexAiModel> authHeaderDecorator
     ) {
         super(
             new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings),
             new ModelSecrets(secrets),
-            serviceSettings
+            serviceSettings,
+            authHeaderDecorator
         );
         try {
             this.nonStreamingUri = new URI(uri);

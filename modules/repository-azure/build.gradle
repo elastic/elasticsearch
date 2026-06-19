@@ -88,6 +88,7 @@ dependencies {
 
   testImplementation project(':test:fixtures:azure-fixture')
   yamlRestTestImplementation project(':test:fixtures:azure-fixture')
+  yamlRestTestImplementation project(':test:fixtures:tls-utils')
 }
 
 restResources {
@@ -313,12 +314,6 @@ tasks.register("workloadIdentityYamlRestTest", RestIntegTestTask) {
   systemProperty 'test.azure.tenant_id', azureTenantId ?: "583d4f71-148a-4163-bad5-2311e13c60dc"
   systemProperty 'test.azure.client_id', azureClientId ?: "86dd1b33-96c1-4a2e-92ac-b844404fc691"
   // omitting key and sas_token so that we use a bearer token from workload identity
-}
-
-if (buildParams.inFipsJvm) {
-  // Cannot override the trust store in FIPS mode, and these tasks require a HTTPS fixture
-  tasks.named("managedIdentityYamlRestTest").configure { enabled = false }
-  tasks.named("workloadIdentityYamlRestTest").configure { enabled = false }
 }
 
 tasks.register("azureThirdPartyUnitTest", Test) {

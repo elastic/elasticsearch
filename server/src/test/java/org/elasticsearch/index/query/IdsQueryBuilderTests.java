@@ -97,10 +97,11 @@ public class IdsQueryBuilderTests extends AbstractQueryTestCase<IdsQueryBuilder>
             null,
             Collections.emptyMap(),
             null,
-            MapperMetrics.NOOP
+            MapperMetrics.NOOP,
+            SearchExecutionContextHelper.SHARD_SEARCH_STATS
         );
 
-        IllegalStateException e = assertThrows(IllegalStateException.class, () -> builder.doToQuery(searchExecutionContext));
+        IllegalArgumentException e = assertThrows(IllegalArgumentException.class, () -> builder.doToQuery(searchExecutionContext));
         assertThat(e.getMessage(), equalTo("Too many ids specified, allowed max result window is [2]"));
     }
 

@@ -490,7 +490,7 @@ l:long
 281
 ;
 
-sumOfDouble#[skip:-8.12.99,reason:expressions in aggs added in 8.13]
+sumOfDouble
 from employees | stats h = round(sum(height), 10);
 
 h:double
@@ -588,7 +588,7 @@ c:long | gender:keyword | trunk_worked_seconds:long
 ;
 
 // the query is incorrectly physically planned (fails the verification) in pre-8.13.0 versions
-byStringAndLongWithAlias#[skip:-8.12.99]
+byStringAndLongWithAlias
 FROM employees
 | EVAL trunk_worked_seconds = avg_worked_seconds / 100000000 * 100000000
 | RENAME  gender as g, trunk_worked_seconds as tws
@@ -719,7 +719,7 @@ g:keyword  | l:integer
  null      | 5
 ;
 
-repetitiveAggregation#[skip:-8.11.99,reason:ReplaceDuplicateAggWithEval breaks bwc]
+repetitiveAggregation
 from employees | stats m1 = max(salary), m2 = min(salary), m3 = min(salary), m4 = max(salary);
 
 m1:i | m2:i | m3:i | m4:i
@@ -744,7 +744,7 @@ c:long |           d:date         | gender:keyword | languages:integer
 ;
 
 // the query is incorrectly physically planned (fails the verification) in pre-8.13.0 versions
-byDateAndKeywordAndIntWithAlias#[skip:-8.12.99]
+byDateAndKeywordAndIntWithAlias
 from employees | eval d = date_trunc(1 year, hire_date) | rename gender as g, languages as l, emp_no as e | keep d, g, l, e | stats c = count(e) by d, g, l | sort c desc, d, l desc, g desc | limit 10;
 
 c:long |           d:date         | g:keyword | l:integer
@@ -965,6 +965,7 @@ c:l | gender:s | b:s
 ;
 
 countSameFieldWithEnrich
+skip_flattened_rewrite: enrich_output_type_mismatch
 required_capability: fixed_pushdown_past_project
 required_capability: enrich_load
 from employees | stats  b = count(gender), c = count(gender) by gender | enrich languages_policy on gender with b = language_name | sort c asc
@@ -977,6 +978,7 @@ c:l | gender:s | b:s
 ;
 
 countSameFieldWithEnrichLimit0
+skip_flattened_rewrite: enrich_output_type_mismatch
 required_capability: fixed_pushdown_past_project
 from employees | stats  b = count(gender), c = count(gender) by gender | enrich languages_policy on gender with b = language_name | sort c asc | limit 0
 ;
@@ -1129,7 +1131,7 @@ ca:l|gender:s
 0   |null
 ;
 
-countFieldVsAll#[skip:-8.13.99, reason:Fixed count(null) in 8.14]
+countFieldVsAll
 from employees | stats ca = count(), cn = count(null), cf = count(gender) by gender | sort gender;
 
 ca:l|cn:l|cf:l|gender:s
@@ -1140,22 +1142,23 @@ ca:l|cn:l|cf:l|gender:s
 
 countMultiValue
 from employees | where emp_no == 10010 | stats c = count(job_positions) by job_positions;
+ignoreOrder:true
 
 c:l |  job_positions:s  
 4   |Architect        
-4   |Purchase Manager 
+4   |Purchase Manager
 4   |Reporting Analyst
 4   |Tech Lead    
 ;
 
-duplicateAggregationsWithoutGrouping#[skip:-8.11.99]
+duplicateAggregationsWithoutGrouping
 from employees | eval x = salary | stats c = count(), m = min(x), m1 = min(salary), c1 = count(1);
 
 c:l | m:i | m1:i | c1:l
 100 | 25324 | 25324  | 100
 ;
 
-duplicateAggregationsWithGrouping#[skip:-8.11.99]
+duplicateAggregationsWithGrouping
 from employees | eval x = salary | stats c = count(), m = min(x), m1 = min(salary), c1 = count(1) by gender | sort gender;
 
 c:l| m:i   | m1:i  | c1:l| gender:s
@@ -1165,7 +1168,7 @@ c:l| m:i   | m1:i  | c1:l| gender:s
 ;
 
 
-twoCountStarInStats#[skip:-8.11.99]
+twoCountStarInStats
 row x = 1 | stats  a = count(*), b = count(*) | stats  c = count(*);
 
 c:long
@@ -1175,13 +1178,14 @@ c:long
 
 twoCountStarInStatsOnRealData-Ignore
 from employees | stats  a = count(*), b = count(*) | stats  c = count(*);
+ignoreOrder:true
 
 c:long
 1
 ;
 
 
-twoStatsSameExp#[skip:-8.11.99]
+twoStatsSameExp
 row x = 1 | stats  a = max(x), b = max(x) | stats  c = max(a);
 
 c:integer
@@ -1189,7 +1193,7 @@ c:integer
 ;
 
 
-twoCountStarByXInStats#[skip:-8.11.99]
+twoCountStarByXInStats
 row x = 1, y = 2, z = 3 | stats  a = count(*), b = count(*) by x | stats  c = count(*);
 
 c:long
@@ -1197,7 +1201,7 @@ c:long
 ;
 
 
-twoCountStarPlusStatsBy#[skip:-8.11.99]
+twoCountStarPlusStatsBy
 row x = 1, y = 2, z = 3 | stats  a = count(*), b = count(*) | stats  c = count(*) by a;
 
 c:long | a:long
@@ -1205,7 +1209,7 @@ c:long | a:long
 ;
 
 
-twoCountStarByPlusStatsBy#[skip:-8.11.99]
+twoCountStarByPlusStatsBy
 row x = 1, y = 2, z = 3 | stats  a = count(*), b = count(*) by x | stats  c = count(*) by a;
 
 c:long | a:long
@@ -1245,7 +1249,7 @@ FROM sample_data
 median_duration:double | client_ip:ip
 ;
 
-fieldEscaping#[skip:-8.12.99, reason:Fixed bug in 8.13 of removing the leading/trailing backquotes of an identifier]
+fieldEscaping
 FROM sample_data
 | stats count(`event_duration`) |  keep `count(``event_duration``)`
 ;
@@ -1344,7 +1348,7 @@ AVG(salary):double | avg_salary_rounded:double
 // end::statsUnnamedColumnEval-result[]
 ;
 
-nestedExpressionNoGrouping#[skip:-8.12.99,reason:supported in 8.13+]
+nestedExpressionNoGrouping
 FROM employees
 | STATS s = SUM(emp_no + 3), c = COUNT(emp_no)
 ;
@@ -1353,7 +1357,7 @@ s: long | c: long
 1005350 | 100
 ;
 
-nestedExpressionInSurrogateAgg#[skip:-8.12.99,reason:supported in 8.13+]
+nestedExpressionInSurrogateAgg
 FROM employees
 | STATS a = AVG(emp_no % 5), s = SUM(emp_no % 5), c = COUNT(emp_no % 5)
 ;
@@ -1362,7 +1366,7 @@ a:double | s:long | c:long
 2.0      | 200    | 100
 ;
 
-nestedExpressionInGroupingWithAlias#[skip:-8.12.99,reason:supported in 8.13+]
+nestedExpressionInGroupingWithAlias
 FROM employees
 | STATS s = SUM(emp_no % 5), c = COUNT(emp_no % 5) BY l = languages + 20
 | SORT l
@@ -1377,7 +1381,7 @@ s:long | c:long | l : i
 20     | 10     | null
 ;
 
-nestedMultiExpressionInGroupingsAndAggs#[skip:-8.12.99,reason:supported in 8.13+]
+nestedMultiExpressionInGroupingsAndAggs
 FROM employees 
 | EVAL sal = salary + 10000 
 | STATS sum(sal), sum(salary + 10000) BY left(first_name, 1), concat(gender,   to_string(languages))
@@ -1393,7 +1397,7 @@ sum(sal):l | sum(salary + 10000):l | left(first_name, 1):s  | concat(gender,   t
 43370      | 43370                  |  B                    | F2
 ;
 
-nestedExpressionMultipleParams#[skip:-8.12.99,reason:supported in 8.13+]
+nestedExpressionMultipleParams
 FROM employees
 | STATS p = percentile(emp_no + 10, 50), m = median(emp_no + 10) BY languages
 | SORT languages
@@ -1408,7 +1412,7 @@ p:double     | m:double      | languages:integer
 10034.5      | 10034.5       | null
 ;
 
-groupByNull#[skip:-8.12.99,reason:bug fixed in 8.13+]
+groupByNull
 ROW a = 1, c = null
 | STATS COUNT(a) BY c;
 
@@ -1416,7 +1420,7 @@ COUNT(a):long | c:null
             1 | null
 ;
 
-groupByNullAndString#[skip:-8.12.99,reason:bug fixed in 8.13+]
+groupByNullAndString
 ROW a = 1, b = "foo", c = null
 | STATS COUNT(a) BY c, b;
 
@@ -1424,7 +1428,7 @@ COUNT(a):long | c:null | b:keyword
             1 | null   | foo
 ;
 
-groupByStringAndNull#[skip:-8.12.99,reason:bug fixed in 8.13+]
+groupByStringAndNull
 ROW a = 1, b = "foo", c = null
 | STATS COUNT(a) BY b, c;
 
@@ -1432,7 +1436,7 @@ COUNT(a):long | b:keyword | c:null
             1 | foo       | null
 ;
 
-countNull#[skip:-8.12.99,reason:bug fixed in 8.13+]
+countNull
 ROW a = 1, c = null
 | STATS COUNT(c) BY a;
 
@@ -1449,7 +1453,7 @@ COUNT(c):long | a:integer
 ;
 
 
-countVersion#[skip:-8.12.99,reason:bug fixed in 8.13+]
+countVersion
 from apps | stats c = count(version), cd = count_distinct(version);
 
 c:long | cd:long
@@ -1457,7 +1461,7 @@ c:long | cd:long
 ;
 
 
-docsStatsAvgNestedExpression#[skip:-8.12.99,reason:supported in 8.13+]
+docsStatsAvgNestedExpression
 // tag::docsStatsAvgNestedExpression[]
 FROM employees
 | STATS avg_salary_change = ROUND(AVG(MV_AVG(salary_change)), 10)
@@ -1470,7 +1474,7 @@ avg_salary_change:double
 // end::docsStatsAvgNestedExpression-result[]
 ;
 
-docsStatsByExpression#[skip:-8.12.99,reason:supported in 8.13+]
+docsStatsByExpression
 // tag::docsStatsByExpression[]
 FROM employees
 | STATS my_count = COUNT() BY LEFT(last_name, 1)
@@ -1503,7 +1507,7 @@ my_count:long  |LEFT(last_name, 1):keyword
 // end::docsStatsByExpression-result[]
 ;
 
-docsStatsMaxNestedExpression#[skip:-8.12.99,reason:supported in 8.13+]
+docsStatsMaxNestedExpression
 // tag::docsStatsMaxNestedExpression[]
 FROM employees
 | STATS max_avg_salary_change = MAX(MV_AVG(salary_change))
@@ -1516,7 +1520,7 @@ max_avg_salary_change:double
 // end::docsStatsMaxNestedExpression-result[]
 ;
 
-docsStatsMinNestedExpression#[skip:-8.12.99,reason:supported in 8.13+]
+docsStatsMinNestedExpression
 // tag::docsStatsMinNestedExpression[]
 FROM employees
 | STATS min_avg_salary_change = MIN(MV_AVG(salary_change))
@@ -1529,7 +1533,7 @@ min_avg_salary_change:double
 // end::docsStatsMinNestedExpression-result[]
 ;
 
-docsStatsSumNestedExpression#[skip:-8.12.99,reason:supported in 8.13+]
+docsStatsSumNestedExpression
 // tag::docsStatsSumNestedExpression[]
 FROM employees
 | STATS total_salary_changes = SUM(MV_MAX(salary_change))
@@ -1543,7 +1547,7 @@ total_salary_changes:double
 // end::docsStatsSumNestedExpression-result[]
 ;
 
-docsCountWithExpression#[skip:-8.12.99,reason:supported in 8.13+]
+docsCountWithExpression
 // tag::docsCountWithExpression[]
 ROW words="foo;bar;baz;qux;quux;foo"
 | STATS word_count = COUNT(SPLIT(words, ";"))
@@ -1556,7 +1560,7 @@ word_count:long
 // end::docsCountWithExpression-result[]
 ;
 
-count_where#[skip:-8.12.1,reason:implemented in 8.12]
+count_where
 // tag::count-where[]
 ROW n=1
 | WHERE n < 0
@@ -1598,7 +1602,7 @@ COUNT(mv):long | COUNT(n):long | COUNT(t):long | COUNT(f):long
 // end::count-mv-result[]
 ;
 
-count_or_null#[skip:-8.14.1,reason:implemented in 8.14]
+count_or_null
 // tag::count-or-null[]
 ROW n=1
 | STATS COUNT(n > 0 OR NULL), COUNT(n < 0 OR NULL)
@@ -1631,7 +1635,7 @@ ck:l | cb:l | cd:l | ci:l | c:l | csv:l
 221  | 204  | 183  | 183  | 100 | 100
 ;
 
-nestedAggsNoGrouping#[skip:-8.12.99,reason:supported in 8.13+]
+nestedAggsNoGrouping
 FROM employees
 | STATS x = AVG(salary) / 2 + MAX(salary), a = AVG(salary), m = MAX(salary)
 ;
@@ -1640,7 +1644,7 @@ x:d       | a:d      | m:i
 99123.275 | 48248.55 |74999
 ;
 
-nestedAggsWithGrouping#[skip:-8.12.99,reason:supported in 8.13+]
+nestedAggsWithGrouping
 FROM employees
 | STATS x = ROUND(AVG(salary % 3)) + MAX(emp_no), y = MIN(emp_no / 3) + 10 - MEDIAN(salary) by z = languages % 2
 | SORT z
@@ -1652,7 +1656,7 @@ x:d   | y:d       | z:i
 10030 | -44714.5  | null
 ;
 
-nestedAggsWithScalars#[skip:-8.12.99,reason:supported in 8.13+]
+nestedAggsWithScalars
 FROM employees
 | STATS x = CONCAT(TO_STRING(ROUND(AVG(salary % 3))), TO_STRING(MAX(emp_no))), 
         y = ROUND((MIN(emp_no / 3) + PI() - MEDIAN(salary))/E()) 
@@ -1666,7 +1670,7 @@ x:s        | y:d        | z:i
 1.010029   | -16452.0   | null
 ;
 
-nestedAggsOverGroupingWithAlias#[skip:-8.12.99,reason:supported in 8.13]
+nestedAggsOverGroupingWithAlias
 FROM employees
 | STATS e = max(languages) + 1 by l = languages
 | SORT l
@@ -1679,7 +1683,7 @@ e:i | l:i
 4   | 3
 ;
 
-nestedAggsOverGroupingExpressionWithoutAlias#[skip:-8.13.99,reason:supported in 8.14]
+nestedAggsOverGroupingExpressionWithoutAlias
 FROM employees
 | STATS e = max(languages + emp_no) + 1 by languages + emp_no
 | SORT e
@@ -1692,7 +1696,7 @@ e:i   | languages + emp_no:i
 10008 | 10007
 ;
 
-nestedAggsOverGroupingExpressionMultiGroupWithoutAlias#[skip:-8.13.99,reason:supported in 8.14]
+nestedAggsOverGroupingExpressionMultiGroupWithoutAlias
 FROM employees
 | STATS e = max(languages + emp_no + 10) + 1 by languages + emp_no, f = emp_no % 3
 | SORT e, f
@@ -1705,7 +1709,7 @@ e:i   | languages + emp_no:i | f:i
 10018 | 10007                | 0
 ;
 
-nestedAggsOverGroupingExpressionWithAlias#[skip:-8.13.99,reason:supported in 8.14]
+nestedAggsOverGroupingExpressionWithAlias
 FROM employees
 | STATS e = max(languages + emp_no + 10) + 1 by languages + emp_no
 | SORT e
@@ -1718,7 +1722,7 @@ e:i   | languages + emp_no:i
 10018 | 10007
 ;
 
-nestedAggsOverGroupingExpressionWithAlias#[skip:-8.13.99,reason:supported in 8.14]
+nestedAggsOverGroupingExpressionWithAliasMultipleAggs
 FROM employees
 | STATS e = max(a), f = min(a), g = count(a) + 1 by a = languages + emp_no
 | SORT a
@@ -1731,7 +1735,7 @@ e: i  | f:i   | g:l | a:i
 10007 | 10007 | 3   | 10007
 ;
 
-nestedAggsOverGroupingTwiceWithAlias#[skip:-8.13.99,reason:supported in 8.14]
+nestedAggsOverGroupingTwiceWithAlias
 required_capability: stats_alias_collision_warnings
 FROM employees
 | STATS vals = COUNT() BY x = emp_no, x = languages
@@ -1746,7 +1750,7 @@ vals: l| x:i
 17     | 3
 ;
 
-nestedAggsOverGroupingWithAlias#[skip:-8.13.99,reason:supported in 8.14]
+nestedAggsOverGroupingWithAliasMultipleAggs
 FROM employees
 | STATS e = length(f) + 1, count(*) by f = first_name
 | SORT f
@@ -1759,7 +1763,7 @@ e:i | count(*):l | f:s
 7   | 1          | Anneke
 ;
 
-nestedAggsOverGroupingWithAliasInsideExpression#[skip:-8.13.99,reason:supported in 8.14]
+nestedAggsOverGroupingWithAliasInsideExpression
 FROM employees
 | STATS m = max(l), o = min(s) by l = languages, s = salary + 1
 | SORT l, s
@@ -1774,7 +1778,7 @@ m:i | o:i   | l:i | s:i
 1   | 39729 | 1   | 39729
 ;
 
-byTwoCalculatedSecondSameNameAsFirst#[skip:-8.13.99,reason:supported in 8.14]
+byTwoCalculatedSecondSameNameAsFirst
 required_capability: stats_alias_collision_warnings
 FROM employees
 | STATS m = MAX(salary) by l = salary + 1, l = languages + 1
@@ -1791,7 +1795,7 @@ warning:Line 2:28: Field 'l' shadowed by field at line 2:44
 74970 | 4
 ;
 
-byTwoCalculatedSecondShadowingAndReferencingFirst#[skip:-8.13.99,reason:supported in 8.14]
+byTwoCalculatedSecondShadowingAndReferencingFirst
 required_capability: stats_alias_collision_warnings
 FROM employees
 | EVAL l = languages
@@ -1809,7 +1813,7 @@ warning:Line 3:28: Field 'l' shadowed by field at line 3:39
 74970 | 4
 ;
 
-nestedAggsOverGroupingWithAliasAndProjection#[skip:-8.13.99,reason:supported in 8.14]
+nestedAggsOverGroupingWithAliasAndProjection
 FROM employees
 | STATS e = length(f) + 1, c = count(*) by f = first_name
 | KEEP e
@@ -1825,7 +1829,7 @@ e:i
 5
 ;
 
-nestedAggsOverGroupingAndAggWithAliasAndProjection#[skip:-8.13.99,reason:supported in 8.14]
+nestedAggsOverGroupingAndAggWithAliasAndProjection
 FROM employees
 | STATS e = length(f) + count(*), m = max(emp_no) by f = first_name
 | KEEP e
@@ -1841,7 +1845,7 @@ e:l
 5  
 ;
 
-nestedAggsOverGroupingExpAndAggWithAliasAndProjection#[skip:-8.13.99,reason:supported in 8.14]
+nestedAggsOverGroupingExpAndAggWithAliasAndProjection
 FROM employees
 | STATS e = f + count(*), m = max(emp_no) by f = length(first_name) % 2
 | KEEP e
@@ -1885,7 +1889,7 @@ c:l
 891
 ;
 
-countMV#[skip:-8.13.99,reason:fixed in 8.14]
+countMV
 FROM employees
 | STATS vals = COUNT(salary_change.int)
 ;
@@ -1894,7 +1898,7 @@ vals:l
 183
 ;
 
-emptyProjectInStatWithEval#[skip:-8.13.99,reason:fixed in 8.14]
+emptyProjectInStatWithEval
 FROM employees
 | STATS c = COUNT(salary)
 | EVAL x = 3.14
@@ -1905,7 +1909,7 @@ x:d
 3.14
 ;
 
-emptyProjectInStatWithCountGroupAndEval#[skip:-8.13.99,reason:fixed in 8.14]
+emptyProjectInStatWithCountGroupAndEval
 FROM employees
 | STATS c = COUNT(salary) BY gender
 | EVAL x = 3.14
@@ -1919,7 +1923,7 @@ x:d
 ;
 
 
-emptyProjectInStatWithMinGroupAndEval#[skip:-8.13.99,reason:fixed in 8.14]
+emptyProjectInStatWithMinGroupAndEval
 FROM employees
 | STATS m = MIN(salary) BY gender
 | EVAL x = 3.14
@@ -1932,7 +1936,7 @@ x:d
 3.14
 ;
 
-emptyProjectInStatOnlyGroupAndEval#[skip:-8.13.99,reason:fixed in 8.14]
+emptyProjectInStatOnlyGroupAndEval
 FROM employees
 | STATS BY gender
 | EVAL x = 3.14
@@ -1945,7 +1949,7 @@ x:d
 3.14
 ;
 
-emptyProjectInStatWithTwoGroupsAndEval#[skip:-8.13.99,reason:fixed in 8.14]
+emptyProjectInStatWithTwoGroupsAndEval
 FROM employees
 | STATS c = COUNT(salary) BY gender, still_hired
 | EVAL x = 3.14
@@ -1961,7 +1965,7 @@ x:d
 3.14
 ;
 
-emptyProjectInStatDueToAnotherStat#[skip:-8.13.99,reason:fixed in 8.14]
+emptyProjectInStatDueToAnotherStat
 FROM employees
 | STATS s = SUM(salary), m = MIN(salary)
 | EVAL x = 3.14
@@ -1972,7 +1976,7 @@ rows:l
 1
 ;
 
-emptyProjectInStatDueToAnotherStatWithGroups#[skip:-8.13.99,reason:fixed in 8.14]
+emptyProjectInStatDueToAnotherStatWithGroups
 FROM employees
 | STATS m = MEDIAN(salary) BY gender, still_hired
 | EVAL x = 3.14
@@ -1983,7 +1987,7 @@ rows:l
 6
 ;
 
-countOfConst#[skip:-8.13.99,reason:supported in 8.14]
+countOfConst
 FROM employees
 | STATS s1 = count(1), s2point1 = count(2.1), s_mv = count([-1, 0, 3]) * 3, s_null = count(null), s_expr = count(1+1), s_expr_null = count(1+null), rows = count(*)
 ;
@@ -1992,7 +1996,7 @@ s1:l | s2point1:l | s_mv:l | s_null:l | s_expr:l | s_expr_null:l | rows:l
 100  | 100        | 900    | 0        | 100      | 0             | 100
 ;
 
-countOfConstGrouped#[skip:-8.13.99,reason:supported in 8.14]
+countOfConstGrouped
 FROM employees
 | STATS s2point1 = count("two point one"), s_mv = count([-1, 0, 3]), s_null = count(null), s_expr = count(1+1), s_expr_null = count(1+null), rows = count(*) by languages
 | SORT languages
@@ -2007,16 +2011,26 @@ s2point1:l | s_mv:l | s_null:l | s_expr:l | s_expr_null:l | rows:l | languages:i
 10         | 30     | 0        | 10       | 0             | 10     | null
 ;
 
-sumOfConst#[skip:-8.13.99,reason:supported in 8.14]
+sumOfConst
 FROM employees
-| STATS s1 = sum(1), s2point1 = sum(2.1), s_mv = sum([-1, 0, 3]) * 3, s_null = sum(null), s_expr = sum(1+1), s_expr_null = sum(1+null), rows = count(*)
+| STATS s1 = sum(1), s2point1 = sum(2.1), s_mv = sum([-1, 0, 3]) * 3, s_expr = sum(1+1), s_expr_null = sum(1+null), rows = count(*)
 ;
 
-s1:l | s2point1:d | s_mv:l | s_null:d | s_expr:l | s_expr_null:l | rows:l
-100  | 210.0      | 600    | null     | 200      | null          | 100
+s1:l | s2point1:d | s_mv:l | s_expr:l | s_expr_null:l | rows:l
+100  | 210.0      | 600    | 200      | null          | 100
 ;
 
-sumOfConstGrouped#[skip:-8.13.99,reason:supported in 8.14]
+sumOfNullConst
+required_capability: fix_sum_of_null_optimization
+FROM employees
+| STATS s_null = sum(null)
+;
+
+s_null:null
+null
+;
+
+sumOfConstGrouped
 FROM employees
 | STATS s2point1 = round(sum(2.1), 1), s_mv = sum([-1, 0, 3]), s_expr = sum(1+1), s_expr_null = sum(1+null), rows = count(*) by languages
 | SORT languages
@@ -2031,7 +2045,7 @@ s2point1:d | s_mv:l | s_expr:l | s_expr_null:l | rows:l | languages:i
 21.0       | 20     | 20       | null          | 10     | null
 ;
 
-avgOfConst#[skip:-8.13.99,reason:supported in 8.14]
+avgOfConst
 FROM employees
 | STATS s1 = avg(1), s_mv = avg([-1, 0, 3]) * 3, s_null = avg(null), s_expr = avg(1+1), s_expr_null = avg(1+null)
 ;
@@ -2040,7 +2054,7 @@ s1:d | s_mv:d | s_null:d | s_expr:d | s_expr_null:d
 1.0  | 2.0    | null     | 2.0      | null
 ;
 
-avgOfConstGrouped#[skip:-8.13.99,reason:supported in 8.14]
+avgOfConstGrouped
 FROM employees
 | STATS s2point1 = avg(2.1), s_mv = avg([-1, 0, 3]) * 3, s_expr = avg(1+1), s_expr_null = avg(1+null) by languages
 | SORT languages
@@ -2055,7 +2069,7 @@ s2point1:d | s_mv:d | s_expr:d | s_expr_null:d | languages:i
 2.1        | 2.0    | 2.0      | null          | null
 ;
 
-minOfConst#[skip:-8.13.99,reason:supported in 8.14]
+minOfConst
 FROM employees
 | STATS s1 = min(1), s_mv = min([-1, 0, 3]), s_null = min(null), s_expr = min(1+1), s_expr_null = min(1+null)
 ;
@@ -2064,7 +2078,7 @@ s1:i | s_mv:i | s_null:null | s_expr:i | s_expr_null:i
 1    | -1     | null        | 2        | null
 ;
 
-minOfConstGrouped#[skip:-8.13.99,reason:supported in 8.14]
+minOfConstGrouped
 FROM employees
 | STATS s2point1 = min(2.1), s_mv = min([-1, 0, 3]), s_expr = min(1+1), s_expr_null = min(1+null) by languages
 | SORT languages
@@ -2079,7 +2093,7 @@ s2point1:d | s_mv:i | s_expr:i | s_expr_null:i | languages:i
 2.1        | -1     | 2        | null          | null
 ;
 
-maxOfConst#[skip:-8.13.99,reason:supported in 8.14]
+maxOfConst
 FROM employees
 | STATS s1 = max(1), s_mv = max([-1, 0, 3]), s_null = max(null), s_expr = max(1+1), s_expr_null = max(1+null)
 ;
@@ -2088,7 +2102,7 @@ s1:i | s_mv:i | s_null:null | s_expr:i | s_expr_null:i
 1    | 3      | null        | 2        | null
 ;
 
-maxOfConstGrouped#[skip:-8.13.99,reason:supported in 8.14]
+maxOfConstGrouped
 FROM employees
 | STATS s2point1 = max(2.1), s_mv = max([-1, 0, 3]), s_expr = max(1+1), s_expr_null = max(1+null) by languages
 | SORT languages
@@ -2103,7 +2117,7 @@ s2point1:d | s_mv:i | s_expr:i | s_expr_null:i | languages:i
 2.1        | 3      | 2        | null          | null
 ;
 
-medianOfConst#[skip:-8.13.99,reason:supported in 8.14]
+medianOfConst
 FROM employees
 | STATS s1 = median(1), s_mv = median([-1, 0, 1, 3]), s_null = median(null), s_expr = median(1+1), s_expr_null = median(1+null)
 ;
@@ -2112,7 +2126,7 @@ s1:d | s_mv:d | s_null:d | s_expr:d | s_expr_null:d
 1.0  | 0.5    | null     | 2.0      | null
 ;
 
-medianOfConstGrouped#[skip:-8.13.99,reason:supported in 8.14]
+medianOfConstGrouped
 FROM employees
 | STATS s2point1 = median(2.1), s_mv = median([-1, 0, 1, 3]), s_expr = median(1+1), s_expr_null = median(1+null) by languages
 | SORT languages
@@ -2127,7 +2141,7 @@ s2point1:d | s_mv:d | s_expr:d | s_expr_null:d | languages:i
 2.1        | 0.5    | 2.0      | null          | null
 ;
 
-countDistinctOfConst#[skip:-8.13.99,reason:supported in 8.14]
+countDistinctOfConst
 FROM employees
 | STATS s1 = count_distinct(1), s_mv = count_distinct([-1, 0, 3, 1, -1, 3]), s_null = count_distinct(null), s_param = count_distinct([-1, 0, 3, 1, -1, 3], 5), s_expr = count_distinct(1+1), s_expr_null = count_distinct(1+null)
 ;
@@ -2136,7 +2150,7 @@ s1:l | s_mv:l | s_null:l | s_param:l | s_expr:l | s_expr_null:l
 1    | 4      | 0        | 4         | 1        | 0
 ;
 
-countDistinctOfConstGrouped#[skip:-8.13.99,reason:supported in 8.14]
+countDistinctOfConstGrouped
 FROM employees
 | STATS s2point1 = count_distinct("two point one"), s_mv = count_distinct([-1, 0, 3, 1, -1, 3]), s_param = count_distinct([-1, 0, 3, 1, -1, 3], 8000), s_expr = count_distinct(1+1), s_expr_null = count_distinct(1+null) by languages
 | SORT languages
@@ -2151,7 +2165,7 @@ s2point1:l | s_mv:l | s_param:l | s_expr:l | s_expr_null:l | languages:i
 1          | 4      | 4         | 1        | 0             | null
 ;
 
-evalOverridingKey#[skip:-8.13.1,reason:fixed in 8.13.2]
+evalOverridingKey
 FROM employees
 | EVAL k = languages
 | STATS c = COUNT() BY languages, k
@@ -2168,7 +2182,7 @@ c:l| languages:i
 10 | null
 ;
 
-evalMultipleOverridingKeys#[skip:-8.13.99,reason:supported in 8.14]
+evalMultipleOverridingKeys
 required_capability: stats_alias_collision_warnings
 FROM employees
 | EVAL k = languages, k1 = k
@@ -2187,7 +2201,7 @@ c:l | k1:i | languages:i
 10  | null | null
 ;
 
-evalMultipleOverridingKeysWithAggregateExpr#[skip:-8.13.99,reason:supported in 8.14]
+evalMultipleOverridingKeysWithAggregateExpr
 required_capability: stats_alias_collision_warnings
 FROM employees
 | EVAL k = languages, k1 = k
@@ -2206,7 +2220,7 @@ c:l | k1:i | languages:i
 30  | null | null
 ;
 
-minWithSortExpression1#[skip:-8.13.99,reason:supported in 8.14]
+minWithSortExpression1
 FROM employees | STATS min = min(salary) by languages | SORT min + languages;
 
      min:i     |   languages:i   
@@ -2218,7 +2232,7 @@ FROM employees | STATS min = min(salary) by languages | SORT min + languages;
 28336          |null           
 ;
 
-minWithSortExpression2#[skip:-8.13.99,reason:supported in 8.14]
+minWithSortExpression2
 FROM employees | STATS min = min(salary) by languages | SORT min + CASE(languages == 5, 655, languages);
 
      min:i     |   languages:i   
@@ -2363,7 +2377,7 @@ x:integer
 10001
 ;
 
-shadowingInternalWithGroup#[skip:-8.14.1,reason:implemented in 8.14]
+shadowingInternalWithGroup
 required_capability: stats_alias_collision_warnings
 FROM employees
 | STATS x = MAX(emp_no), x = MIN(emp_no) BY x = gender
@@ -2378,7 +2392,7 @@ M
 null
 ;
 
-shadowingInternalWithGroup2#[skip:-8.14.1,reason:implemented in 8.14]
+shadowingInternalWithGroup2
 required_capability: stats_alias_collision_warnings
 FROM employees
 | STATS x = MAX(emp_no), y = count(x) BY x = emp_no, x = gender
@@ -2395,6 +2409,7 @@ y:long | x:keyword
 
 
 shadowingTheGroup
+skip_flattened_rewrite: field_extract_multivalue_null
 required_capability: stats_alias_collision_warnings
 FROM employees
 | STATS gender = MAX(emp_no), gender = MIN(emp_no) BY gender
@@ -2409,7 +2424,7 @@ M
 null
 ;
 
-statsByConstant#[skip:-8.14.1,reason:implemented in 8.14]
+statsByConstant
 from employees
 | stats m = max(salary), a = round(avg(salary)) by 0
 ;
@@ -2418,7 +2433,7 @@ m:integer |a:double |0:integer
 74999     |48249.0  |0
 ;
 
-statsByConstantFromStats#[skip:-8.12.1,reason:implemented in 8.12]
+statsByConstantFromStats
 from employees
 | stats c = count(languages)
 | stats a = count(*) by c
@@ -2428,7 +2443,7 @@ a:long |c:long
 1      |90
 ;
 
-statsByConstantFromEval#[skip:-8.14.1,reason:implemented in 8.14]
+statsByConstantFromEval
 from employees
 | eval x = 0
 | stats m = max(salary), a = round(avg(salary)) by x
@@ -2500,6 +2515,43 @@ FROM employees
 under_40K:long |inbetween:long |over_60K:long  |total:long
 36             |39             |25             |100
 // end::aggFilteringNoGroup-result[]
+;
+
+docsStatsWithFilteringOnGroup
+required_capability: per_agg_filtering
+// tag::aggFilteringOnGroup[]
+FROM employees
+| STATS `count` = COUNT(*) WHERE languages < 3 BY languages
+// end::aggFilteringOnGroup[]
+| SORT languages
+;
+
+// tag::aggFilteringOnGroup-result[]
+count:long | languages:integer
+15         | 1
+19         | 2
+0          | 3
+0          | 4
+0          | 5
+0          | null
+// end::aggFilteringOnGroup-result[]
+;
+
+docsStatsWithFilteringBefore
+required_capability: per_agg_filtering
+// tag::aggFilteringBefore[]
+FROM employees
+| WHERE languages < 3
+| STATS `count` = COUNT(*) BY languages
+// end::aggFilteringBefore[]
+| SORT languages
+;
+
+// tag::aggFilteringBefore-result[]
+count:long | languages:integer
+15         | 1
+19         | 2
+// end::aggFilteringBefore-result[]
 ;
 
 statsWithFiltering
@@ -2838,6 +2890,7 @@ c1:long
 
 simpleCountWithFilteringAndNoGroupingOnFieldWithMultivalues
 required_capability: per_agg_filtering
+required_capability: keywords_mv_count_as_single_value_fix
 from employees
 | stats c1 = count(job_positions) where emp_no <= 10003
 ;
@@ -2969,6 +3022,7 @@ max:integer
 ;
 
 groupingFilterIsAlwaysTrue
+skip_flattened_rewrite: field_extract_multivalue_null
 required_capability: per_agg_filtering
 FROM employees
 | MV_EXPAND job_positions
@@ -2985,6 +3039,7 @@ max:integer | job_positions:keyword
 ;
 
 groupingFilterIsAlwaysFalse
+skip_flattened_rewrite: field_extract_multivalue_null
 required_capability: per_agg_filtering
 FROM employees
 | MV_EXPAND job_positions
@@ -3001,6 +3056,7 @@ null        | H
 ;
 
 groupingFilterSometimesMatches
+skip_flattened_rewrite: field_extract_multivalue_null
 required_capability: per_agg_filtering
 FROM employees
 | MV_EXPAND job_positions
@@ -3547,6 +3603,7 @@ VALUES(color):keyword | color:keyword
 ;
 
 filterOrdinalValues
+skip_flattened_rewrite: field_extract_multivalue_null
 required_capability: fix_filter_ordinals
 from employees 
 | MV_EXPAND job_positions
@@ -3820,4 +3877,861 @@ SUM(salary_change):double   | salary_change:double
 -1.0100000000000002         | 1.19           
 14.69                       | 1.92           
 6.000000000000001           | 1.98           
+;
+
+sumWithOverflow
+required_capability: fix_sum_agg_long_overflow
+FROM employees
+| WHERE languages == 1
+| LIMIT 2
+| EVAL x = languages * 9223372036854775807
+| STATS overflow = SUM(x), underflow = SUM(-x)
+;
+warning:Line 5:20: evaluation of [SUM(x)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 5:20: java.lang.ArithmeticException: long overflow
+warning:Line 5:40: evaluation of [SUM(-x)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 5:40: java.lang.ArithmeticException: long overflow
+
+overflow:long | underflow:long
+null          | null
+;
+
+sumWithOverflowGrouping
+required_capability: fix_sum_agg_long_overflow
+FROM employees
+| SORT emp_no
+| WHERE languages == 1
+| EVAL group = emp_no % 2, x = languages * 9223372036854775807
+| STATS overflow = SUM(x), underflow = SUM(-x), count = COUNT(*) by group
+| SORT group
+| LIMIT 2
+;
+warning:Line 5:20: evaluation of [SUM(x)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 5:20: java.lang.ArithmeticException: long overflow
+warning:Line 5:40: evaluation of [SUM(-x)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 5:40: java.lang.ArithmeticException: long overflow
+
+overflow:long | underflow:long | count:long | group:integer
+null          | null           | 6          | 0
+null          | null           | 9          | 1
+;
+
+sumWithOverflowMixedGrouping
+required_capability: fix_sum_agg_long_overflow
+FROM employees
+| SORT emp_no ASC
+| LIMIT 4
+| EVAL group = emp_no % 2, x = CASE(group == 0, 9223372036854775807, 1::long)
+| STATS s = SUM(x) BY group
+| SORT group
+;
+warning:Line 5:13: evaluation of [SUM(x)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 5:13: java.lang.ArithmeticException: long overflow
+
+s:long | group:integer
+null   | 0
+2      | 1
+;
+
+sumWithOverflowRow
+required_capability: fix_sum_agg_long_overflow
+ROW x = [9223372036854775807, 9223372036854775807]
+| MV_EXPAND x
+| STATS overflow = SUM(x), underflow = SUM(-x)
+;
+warning:Line 3:20: evaluation of [SUM(x)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 3:20: java.lang.ArithmeticException: long overflow
+warning:Line 3:40: evaluation of [SUM(-x)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 3:40: java.lang.ArithmeticException: long overflow
+
+overflow:long | underflow:long
+null          | null
+;
+
+sumWithOverflowGroupingRow
+required_capability: fix_sum_agg_long_overflow
+ROW x = [9223372036854775807, 9223372036854775807], group = [0, 1]
+| MV_EXPAND x
+| MV_EXPAND group
+| STATS overflow = SUM(x), underflow = SUM(-x) by group
+| SORT group
+;
+warning:Line 4:20: evaluation of [SUM(x)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 4:20: java.lang.ArithmeticException: long overflow
+warning:Line 4:40: evaluation of [SUM(-x)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 4:40: java.lang.ArithmeticException: long overflow
+
+overflow:long | underflow:long | group:integer
+null          | null           | 0
+null          | null           | 1
+;
+
+sumAsSurrogateWithOverflow
+required_capability: fix_avg_agg_long_overflow
+FROM employees
+| WHERE languages == 1
+| LIMIT 2
+| EVAL x = languages * 9223372036854775807
+| STATS overflow = AVG(x), underflow = AVG(-x)
+;
+
+overflow:double      | underflow:double
+9.223372036854776E18 | -9.223372036854776E18
+;
+
+sumAsSurrogateWithOverflowGrouping
+required_capability: fix_avg_agg_long_overflow
+FROM employees
+| SORT emp_no
+| WHERE languages == 1
+| EVAL group = emp_no % 2, x = languages * 9223372036854775807
+| STATS overflow = AVG(x), underflow = AVG(-x), count = COUNT(*) by group
+| SORT group
+| LIMIT 2
+;
+
+overflow:double      | underflow:double      | count:long | group:integer
+9.223372036854776E18 | -9.223372036854776E18 | 6          | 0
+9.223372036854776E18 | -9.223372036854776E18 | 9          | 1
+;
+
+sumAsSurrogateWithOverflowRow
+required_capability: fix_avg_agg_long_overflow
+ROW x = [9223372036854775807, 9223372036854775807]
+| MV_EXPAND x
+| STATS overflow = AVG(x), underflow = AVG(-x)
+;
+
+overflow:double      | underflow:double
+9.223372036854776E18 | -9.223372036854776E18
+;
+
+sumAsSurrogateWithOverflowGroupingRow
+required_capability: fix_avg_agg_long_overflow
+ROW x = [9223372036854775807, 9223372036854775807], group = [0, 1]
+| MV_EXPAND x
+| MV_EXPAND group
+| STATS overflow = AVG(x), underflow = AVG(-x) by group
+| SORT group
+;
+
+overflow:double      | underflow:double      | group:integer
+9.223372036854776E18 | -9.223372036854776E18 | 0
+9.223372036854776E18 | -9.223372036854776E18 | 1
+;
+
+weightedAvgWithOverflow
+required_capability: fix_sum_agg_long_overflow
+required_capability: agg_weighted_avg
+FROM employees
+| WHERE languages == 1
+| LIMIT 2
+| EVAL x = languages * 9223372036854775807
+| STATS overflow = WEIGHTED_AVG(x, 1), underflow = WEIGHTED_AVG(-x, 1)
+;
+warning:Line 5:20: evaluation of [WEIGHTED_AVG(x, 1)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 5:20: java.lang.ArithmeticException: long overflow
+warning:Line 5:52: evaluation of [WEIGHTED_AVG(-x, 1)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 5:52: java.lang.ArithmeticException: long overflow
+
+overflow:double | underflow:double
+null            | null
+;
+
+weightedAvgWithOverflowRow
+required_capability: fix_sum_agg_long_overflow
+required_capability: agg_weighted_avg
+ROW x = [9223372036854775807, 9223372036854775807]
+| MV_EXPAND x
+| STATS overflow = WEIGHTED_AVG(x, 1), underflow = WEIGHTED_AVG(-x, 1)
+;
+warning:Line 3:20: evaluation of [WEIGHTED_AVG(x, 1)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 3:20: java.lang.ArithmeticException: long overflow
+warning:Line 3:52: evaluation of [WEIGHTED_AVG(-x, 1)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 3:52: java.lang.ArithmeticException: long overflow
+
+overflow:double | underflow:double
+null            | null
+;
+
+multiStatsAfterFalseFilter_ByComputedValues
+from employees
+| where false
+| stats c = count(*), s = avg(salary)
+| stats max(c), min(s) by s, c
+;
+
+  max(c):l     |    min(s):d   |       s:d     |       c:l
+0              |null           |null           |0              
+;
+
+multiStatsAfterFalseFilter_ByLiteralValue
+from employees
+| where false
+| stats c = count(*), s = avg(salary)
+| stats max(c), min(s) by x = "abc"
+;
+
+    max(c):l   |    min(s):d   |       x:keyword       
+0              |null           |abc            
+;
+
+multiStatsAfterFalseFilter_ByField
+from employees
+| where false
+| stats c = count(gender), s = avg(salary) by gender
+| stats max(c), min(c), min(s), avg(s)
+;
+
+    max(c):l   |    min(c):l   |    min(s):d   |    avg(s):d
+null           |null           |null           |null           
+;
+
+whereNullBeforeStats
+from employees
+| where null
+| stats c = count(*)
+;
+
+c:long
+0
+;
+
+whereNullBeforeMixedStats
+from employees
+| where null
+| stats c = count(*), s = sum(salary), a = avg(salary)
+;
+
+c:long | s:long | a:double
+0      | null   | null
+;
+
+evalNullFilterBeforeStats
+from employees
+| eval x = null
+| where x::int > 0
+| stats c = count(*)
+;
+
+c:long
+0
+;
+
+nullArithmeticFilterBeforeStats
+from employees
+| where 1 + null > 0
+| stats c = count(*), mn = min(salary), mx = max(salary)
+;
+
+c:long | mn:integer | mx:integer
+0      | null       | null
+;
+
+whereNullConjunctionBeforeStats
+from employees
+| where null and salary > 0
+| stats c = count(*)
+;
+
+c:long
+0
+;
+
+whereNullBeforeGroupedStats
+from employees
+| where null
+| stats c = count(*) by gender
+;
+
+c:long | gender:keyword
+;
+
+evalNullFilterBeforeGroupedStats
+from employees
+| eval x = null
+| where x::int > 0
+| stats c = count(*), s = avg(salary) by gender
+;
+
+c:long | s:double | gender:keyword
+;
+
+multiStatsAfterNullFilter_ByComputedValues
+from employees
+| where null
+| stats c = count(*), s = avg(salary)
+| stats max(c), min(s) by s, c
+;
+
+ max(c):l | min(s):d | s:d | c:l
+0         |null      |null |0
+;
+
+multiStatsAfterNullFilter_ByField
+from employees
+| where null
+| stats c = count(gender), s = avg(salary) by gender
+| stats max(c), min(c), min(s), avg(s)
+;
+
+    max(c):l   |    min(c):l   |    min(s):d   |    avg(s):d
+null           |null           |null           |null
+;
+
+statsCountAndMaxWithDateTruncDropGroupingKey
+required_capability: fix_push_count_query_and_tags_with_multiple_aggs
+
+FROM employees
+| EVAL x = DATE_TRUNC(1 year, hire_date)
+| STATS a = COUNT(*), y = MAX(salary) BY x
+| DROP x
+;
+ignoreOrder:true
+
+a:long | y:integer
+1      | 45656
+1      | 64675
+1      | 73717
+3      | 58715
+4      | 67492
+5      | 65367
+6      | 65030
+8      | 60781
+9      | 73578
+11     | 61805
+11     | 74999
+12     | 71165
+13     | 74970
+15     | 70011
+;
+
+statsCountOnlyWithDateTruncDropGroupingKey
+required_capability: fix_push_count_query_and_tags_with_multiple_aggs
+
+FROM employees
+| EVAL x = DATE_TRUNC(1 year, hire_date)
+| STATS a = COUNT(*) BY x
+| DROP x
+;
+ignoreOrder:true
+
+a:long
+1
+1
+1
+3
+4
+5
+6
+8
+9
+11
+11
+12
+13
+15
+;
+
+statsDuplicateCountAndMaxWithDateTruncDropGroupingKey
+required_capability: fix_push_count_query_and_tags_with_multiple_aggs
+
+FROM employees
+| EVAL x = DATE_TRUNC(1 year, hire_date)
+| STATS y = COUNT(*), a = MAX(salary), y = COUNT(*) BY x
+| DROP x
+;
+ignoreOrder:true
+warning:Line 3:9: Field 'y' shadowed by field at line 3:40
+
+a:integer | y:long
+45656     | 1
+64675     | 1
+73717     | 1
+58715     | 3
+67492     | 4
+65367     | 5
+65030     | 6
+60781     | 8
+73578     | 9
+61805     | 11
+74999     | 11
+71165     | 12
+74970     | 13
+70011     | 15
+;
+
+statsTwoCountsAndMaxWithDateTruncDropGroupingKey
+required_capability: fix_push_count_query_and_tags_with_multiple_aggs
+
+FROM employees
+| EVAL x = DATE_TRUNC(1 year, hire_date)
+| STATS y = COUNT(*), a = MAX(salary), z = COUNT(*) BY x
+| DROP x
+;
+ignoreOrder:true
+
+y:long | a:integer | z:long
+1      | 45656     | 1
+1      | 64675     | 1
+1      | 73717     | 1
+3      | 58715     | 3
+4      | 67492     | 4
+5      | 65367     | 5
+6      | 65030     | 6
+8      | 60781     | 8
+9      | 73578     | 9
+11     | 61805     | 11
+11     | 74999     | 11
+12     | 71165     | 12
+13     | 74970     | 13
+15     | 70011     | 15
+;
+
+statsMaxAndCountWithDateTruncDropGroupingKey
+required_capability: fix_push_count_query_and_tags_with_multiple_aggs
+
+FROM employees
+| EVAL x = DATE_TRUNC(1 year, hire_date)
+| STATS a = MAX(salary), y = COUNT(*) BY x
+| DROP x
+;
+ignoreOrder:true
+
+a:integer | y:long
+45656     | 1
+64675     | 1
+73717     | 1
+58715     | 3
+67492     | 4
+65367     | 5
+65030     | 6
+60781     | 8
+73578     | 9
+61805     | 11
+74999     | 11
+71165     | 12
+74970     | 13
+70011     | 15
+;
+
+statsCountWithDateTruncAndLanguagesDropGroupingKey
+required_capability: fix_push_count_query_and_tags_with_multiple_aggs
+
+FROM employees
+| EVAL x = DATE_TRUNC(1 year, hire_date)
+| STATS a = COUNT(*) BY x, languages
+| DROP x
+| SORT languages, a
+| LIMIT 5
+;
+
+a:long | languages:integer
+1      | 1
+1      | 1
+1      | 1
+2      | 1
+2      | 1
+;
+
+statsOnUnrolledMultivalueNoWarnings
+required_capability: fix_unrolled_foldable_mv_warning
+
+ROW x=1, y=[1,2,3] | STATS y + 1 BY y | SORT y
+;
+
+y + 1:integer | y:integer
+2             | 1
+3             | 2
+4             | 3
+;
+
+statsOnSingleValueGroupingExpressionNoWarnings
+required_capability: fix_unrolled_foldable_mv_warning
+
+ROW y = 1 | STATS y + 1 BY y
+;
+
+y + 1:integer | y:integer
+2             | 1
+;
+
+statsOnUnrolledMultivalueFollowedByStatsNoWarnings
+required_capability: fix_unrolled_foldable_mv_warning
+
+ROW x = 1, y = [1, 2] | STATS s = SUM(x) BY y | STATS c = COUNT(*) | LIMIT 10
+;
+
+c:long
+2
+;
+
+statsOnUnrolledMultivalueFollowedByEvalNoWarnings
+required_capability: fix_unrolled_foldable_mv_warning
+
+ROW x = 1, y = [1, 2, 3] | STATS s = SUM(x) BY y | EVAL z = y * 2 | SORT y
+;
+
+s:long | y:integer | z:integer
+1      | 1         | 2
+1      | 2         | 4
+1      | 3         | 6
+;
+
+statsOnUnrolledMultivalueFollowedByWhereNoWarnings
+required_capability: fix_unrolled_foldable_mv_warning
+
+ROW x = 1, y = [1, 2, 3] | STATS s = SUM(x) BY y | WHERE y > 1 | SORT y
+;
+
+s:long | y:integer
+1      | 2
+1      | 3
+;
+
+statsOnUnrolledMultivalueFollowedByLookupJoinNoWarnings
+required_capability: fix_unrolled_foldable_mv_warning
+required_capability: join_lookup_v12
+
+ROW x = 1, language_code = [1, 2, 3] | STATS s = SUM(x) BY language_code | LOOKUP JOIN languages_lookup ON language_code | SORT language_code
+;
+
+s:long | language_code:integer | language_name:keyword
+1      | 1                     | English
+1      | 2                     | French
+1      | 3                     | Spanish
+;
+
+statsOnNullKeyFollowedByLookupJoinNoWarnings
+required_capability: fix_unrolled_foldable_mv_warning
+required_capability: join_lookup_v12
+
+ROW language_code = null::integer | STATS c = COUNT(*) BY language_code | LOOKUP JOIN languages_lookup ON language_code
+;
+
+c:long | language_code:integer | language_name:keyword
+1      | null                  | null
+;
+
+statsAggExpressionOnMVGroupingKey
+required_capability: fix_unrolled_foldable_mv_warning
+
+ROW x = 1, y = [1, 2, 3]
+| STATS s = MAX(CASE(y == 2, 10, 1)) BY y
+| EVAL w = y * 2
+| SORT y
+;
+warning:Line 2:22: evaluation of [y == 2] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:22: java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+s:integer | y:integer | w:integer
+1         | 1         | 2
+1         | 2         | 4
+1         | 3         | 6
+;
+
+statsAggExpressionOnMVGroupingKeyWithAlias
+required_capability: fix_unrolled_foldable_mv_warning
+
+ROW x = 1, y = [1, 2, 3]
+| EVAL z = y
+| RENAME z AS zzz
+| STATS s = MAX(CASE(y == 2, 10, 1)) BY y, x, zzz
+| EVAL w = y * 2, ww = zzz * 2
+| SORT y
+;
+warning:Line 4:22: evaluation of [y == 2] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 4:22: java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+s:integer | y:integer | x:integer | zzz:integer | w:integer | ww:integer
+1         | 1         | 1         | 1           | 2         | 2
+1         | 2         | 1         | 2           | 4         | 4
+1         | 3         | 1         | 3           | 6         | 6
+;
+
+statsAggExpressionOnMultipleMVGroupingKeysNoWarnings
+required_capability: fix_unrolled_foldable_mv_warning
+
+ROW x = 1, y = [1, 2, 3], z = [0, 1, -1]
+| STATS s = MAX(MV_MAX(z) * MV_MIN(z)) BY y, x, z
+| EVAL w = y * 2, ww = z * 3
+| SORT y, z
+;
+
+s:integer | y:integer | x:integer | z:integer | w:integer | ww:integer
+-1        | 1         | 1         | -1        | 2         | -3
+-1        | 1         | 1         | 0         | 2         | 0
+-1        | 1         | 1         | 1         | 2         | 3
+-1        | 2         | 1         | -1        | 4         | -3
+-1        | 2         | 1         | 0         | 4         | 0
+-1        | 2         | 1         | 1         | 4         | 3
+-1        | 3         | 1         | -1        | 6         | -3
+-1        | 3         | 1         | 0         | 6         | 0
+-1        | 3         | 1         | 1         | 6         | 3
+;
+
+sumExpressionWithConstantMultipleClausesInteger
+FROM employees
+| STATS s1 = SUM(salary + 1), s2 = SUM(salary + 2)
+;
+
+s1:long  | s2:long
+4824955  | 4825055
+;
+
+sumExpressionWithConstantThreeClausesShareOneSvPair
+FROM employees
+| STATS s1 = SUM(salary + 1), s2 = SUM(salary + 2), s3 = SUM(salary + 3)
+;
+
+s1:long  | s2:long  | s3:long
+4824955  | 4825055  | 4825155
+;
+
+sumExpressionWithConstantMultipleClausesOnlySingleValued
+FROM employees
+| WHERE mv_count(salary_change) == 1
+| STATS s1 = round(SUM(salary_change + 1.0), 2), s2 = round(SUM(salary_change + 2.0), 2)
+;
+
+s1:double | s2:double
+-1.47     | 22.53
+;
+
+sumExpressionWithConstantMultipleClausesWithMultiValuedField
+FROM employees
+| STATS s1 = round(SUM(salary_change + 1.0), 2), s2 = round(SUM(salary_change + 2.0), 2)
+;
+warning:Line 2:24: evaluation of [salary_change + 1.0] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:24: java.lang.IllegalArgumentException: single-value function encountered multi-value
+warning:Line 2:65: evaluation of [salary_change + 2.0] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:65: java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+s1:double | s2:double
+-1.47     | 22.53
+;
+
+sumExpressionWithConstantMultipleClausesSubtraction
+FROM employees
+| STATS s1 = SUM(salary + 1), s2 = SUM(salary - 2)
+;
+
+s1:long  | s2:long
+4824955  | 4824655
+;
+
+sumExpressionWithConstantMinusField
+FROM employees
+| STATS s1 = SUM(salary + 1), s2 = SUM(3 - salary)
+;
+
+s1:long  | s2:long
+4824955  | -4824555
+;
+
+sumExpressionWithConstantMultipleClausesMultiValueWarning
+row salary_change = [1.1, 2.2]
+| stats s1 = sum(salary_change + 1.0), s2 = sum(salary_change + 2.0)
+;
+warning:Line 2:18: evaluation of [salary_change + 1.0] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:18: java.lang.IllegalArgumentException: single-value function encountered multi-value
+warning:Line 2:49: evaluation of [salary_change + 2.0] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:49: java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+s1:double | s2:double
+null       | null
+;
+
+sumExpressionWithConstantOnNullField
+FROM employees
+| WHERE salary_change IS NULL
+| STATS s = SUM(salary_change + 1.0)
+;
+
+s:double
+null
+;
+
+sumExpressionWithConstantMultipleClausesWithGroupBy
+FROM employees
+| STATS s1 = SUM(salary + 1), s2 = SUM(salary + 2) BY languages
+| SORT languages
+;
+
+s1:long  | s2:long  | languages:integer
+758665   | 758680   | 1
+915417   | 915436   | 2
+891138   | 891155   | 3
+859212   | 859230   | 4
+875317   | 875338   | 5
+525206   | 525216   | null
+;
+
+sumExpressionWithConstantAlongsideBareSumOfSameField
+FROM employees
+| STATS s1 = SUM(salary + 1), bare = SUM(salary), s2 = SUM(salary + 2)
+;
+
+s1:long  | bare:long | s2:long
+4824955  | 4824855   | 4825055
+;
+
+sumExpressionWithConstantDuplicateAliasShadowing
+required_capability: stats_alias_collision_warnings
+FROM employees
+| STATS s = SUM(salary + 1), s = SUM(salary + 2)
+;
+warning:Line 2:9: Field 's' shadowed by field at line 2:30
+
+s:long
+4825055
+;
+
+sumExpressionWithConstantFoldableCastInConstantPosition
+FROM employees
+| STATS s1 = SUM(salary + "1.0"::int), s2 = SUM(salary + TO_INTEGER("2"))
+;
+
+s1:long  | s2:long
+4824955  | 4825055
+;
+
+sumExpressionWithNullInDataExpressionPosition
+FROM employees
+| STATS s1 = SUM(salary + null + 1), s2 = SUM(salary + null + 2)
+;
+
+s1:long | s2:long
+null    | null
+;
+
+sumExpressionWithConstantMultipleClausesByGroupingAlias
+FROM employees
+| STATS s1 = SUM(salary + 1), s2 = SUM(salary + 2) BY l = languages
+| SORT l
+;
+
+s1:long  | s2:long  | l:integer
+758665   | 758680   | 1
+915417   | 915436   | 2
+891138   | 891155   | 3
+859212   | 859230   | 4
+875317   | 875338   | 5
+525206   | 525216   | null
+;
+
+sumExpressionWithConstantCountAlongside
+FROM employees
+| STATS s1 = SUM(salary + 1), c = COUNT(salary), s2 = SUM(salary + 2)
+;
+
+s1:long  | c:long | s2:long
+4824955  | 100    | 4825055
+;
+
+sumExpressionWithConstantShadowedBareSum
+required_capability: stats_alias_collision_warnings
+FROM employees
+| STATS s1 = SUM(salary + 1), c = SUM(salary), c = COUNT(salary), s2 = SUM(salary + 2)
+;
+warning:Line 2:31: Field 'c' shadowed by field at line 2:48
+
+s1:long  | c:long | s2:long
+4824955  | 100    | 4825055
+;
+
+sumExpressionWithConstantWithWhereBeforeStats
+FROM employees
+| WHERE gender == "M"
+| STATS s1 = SUM(salary + 1), s2 = SUM(salary + 2)
+;
+
+s1:long  | s2:long
+2671111  | 2671168
+;
+
+sumExpressionWithConstantEvalOverride
+FROM employees
+| EVAL salary = salary * 2
+| STATS s1 = SUM(salary + 1), s2 = SUM(salary + 2)
+;
+
+s1:long  | s2:long
+9649810  | 9649910
+;
+
+sumExpressionWithConstantAlongsideAvg
+FROM employees
+| STATS s1 = SUM(salary + 1), s2 = SUM(salary + 2), a = AVG(salary)
+;
+
+s1:long  | s2:long | a:double
+4824955  | 4825055 | 48248.55
+;
+
+sumExpressionWithConstantFilteredBothSameFilter
+required_capability: per_agg_filtering
+FROM employees
+| STATS s1 = SUM(salary + 1) WHERE gender == "M", s2 = SUM(salary + 2) WHERE gender == "M"
+;
+
+s1:long  | s2:long
+2671111  | 2671168
+;
+
+sumExpressionWithConstantFilteredMixedWithUnfiltered
+required_capability: per_agg_filtering
+FROM employees
+| STATS s1 = SUM(salary + 1) WHERE gender == "M", s2 = SUM(salary + 2) WHERE gender == "M", s3 = SUM(salary + 3), s4 = SUM(salary + 4)
+;
+
+s1:long  | s2:long  | s3:long  | s4:long
+2671111  | 2671168  | 4825155  | 4825255
+;
+
+sumExpressionWithConstantChainedStats
+FROM employees
+| STATS s1 = SUM(salary + 1), s2 = SUM(salary + 2) BY languages
+| STATS t1 = SUM(s1 + 3), t2 = SUM(s1 + 4), t3 = SUM(s2 + 5), t4 = SUM(s2 + 6)
+;
+
+t1:long  | t2:long  | t3:long  | t4:long
+4824973  | 4824979  | 4825085  | 4825091
+;
+
+sumExpressionWithConstantMixedIntDouble
+FROM employees
+| STATS s1 = SUM(salary + 1.5), s2 = SUM(salary + 2.5)
+;
+
+s1:double    | s2:double
+4825005.0    | 4825105.0
+;
+
+sumExpressionWithConstantDoubleNegation
+FROM employees
+| STATS s1 = SUM(-(-salary) + 1), s2 = SUM(-(-salary) + 2)
+;
+
+s1:long  | s2:long
+4824955  | 4825055
+;
+
+sumExpressionWithConstantExpressionInsteadOfField
+FROM employees
+| STATS s1 = SUM((2 * salary) + 1), s2 = SUM(-3 - (2 * salary))
+;
+
+s1:long  | s2:long
+9649810  | -9650010
+;
+
+sumExpressionWithConstantWhereFiltersAllRows
+FROM employees
+| WHERE salary < 0
+| STATS s1 = SUM(salary + 1), s2 = SUM(salary + 2)
+;
+
+s1:long | s2:long
+null    | null
 ;

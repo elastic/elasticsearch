@@ -32,7 +32,6 @@ import org.junit.Before;
 import java.io.IOException;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -56,7 +55,6 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
     private IndexVersion indexVersion;
     private boolean expectedDisabledSequenceNumbers;
     private boolean expectedSyntheticId;
-    private boolean expectedEs95CodecEnabled;
 
     @Before
     public void setup() {
@@ -72,8 +70,6 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
         }
         expectedDisabledSequenceNumbers = indexVersion.onOrAfter(IndexVersions.TIME_SERIES_DISABLE_SEQUENCE_NUMBERS_DEFAULT);
         expectedSyntheticId = indexVersion.onOrAfter(IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_DEFAULT_PROD);
-        expectedEs95CodecEnabled = IndexSettings.ES95_CODEC_FEATURE_FLAG.isEnabled()
-            && indexVersion.onOrAfter(IndexVersions.TIME_SERIES_ES95_CODEC_DEFAULT_FEATURE_FLAG);
         indexDimensionsTsidStrategyEnabledSetting = usually();
         expectedIndexDimensionsTsidOptimizationEnabled = indexDimensionsTsidStrategyEnabledSetting
             && indexVersion.onOrAfter(IndexVersions.TSID_CREATED_DURING_ROUTING);
@@ -85,9 +81,6 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
             count++;
         }
         if (expectedSyntheticId) {
-            count++;
-        }
-        if (expectedEs95CodecEnabled) {
             count++;
         }
         return count;
@@ -1229,97 +1222,6 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
             additionalSettings
         );
         assertFalse(additionalSettings.build().hasValue(IndexSettings.SYNTHETIC_ID.getKey()));
-    }
-
-    public void testEs95CodecDefaultEnabledForTsdb() throws Exception {
-        assumeTrue("es95_codec feature flag must be enabled", IndexSettings.ES95_CODEC_FEATURE_FLAG.isEnabled());
-        Instant now = Instant.now().truncatedTo(ChronoUnit.SECONDS);
-        IndexVersion version = IndexVersionUtils.randomVersionBetween(
-            IndexVersions.TIME_SERIES_ES95_CODEC_DEFAULT_FEATURE_FLAG,
-            IndexVersion.current()
-        );
-        String dataStreamName = "metrics-app1";
-
-        Settings.Builder additionalSettings = builder();
-        provider.provideAdditionalSettings(
-            DataStream.getDefaultBackingIndexName(dataStreamName, 1),
-            dataStreamName,
-            IndexMode.TIME_SERIES,
-            emptyProject(),
-            now,
-            Settings.EMPTY,
-            List.of(),
-            version,
-            additionalSettings
-        );
-        assertThat(IndexSettings.TIME_SERIES_ES95_CODEC_ENABLED_SETTING.get(additionalSettings.build()), equalTo(true));
-
-        additionalSettings = builder();
-        provider.provideAdditionalSettings(
-            DataStream.getDefaultBackingIndexName(dataStreamName, 1),
-            dataStreamName,
-            IndexMode.TIME_SERIES,
-            emptyProject(),
-            now,
-            Settings.builder().put(IndexSettings.TIME_SERIES_ES95_CODEC_ENABLED_SETTING.getKey(), false).build(),
-            List.of(),
-            version,
-            additionalSettings
-        );
-        assertFalse(additionalSettings.build().hasValue(IndexSettings.TIME_SERIES_ES95_CODEC_ENABLED_SETTING.getKey()));
-    }
-
-    public void testEs95CodecDefaultNotAppliedForOlderIndexVersion() {
-        assumeTrue("es95_codec feature flag must be enabled", IndexSettings.ES95_CODEC_FEATURE_FLAG.isEnabled());
-        Instant now = Instant.now().truncatedTo(ChronoUnit.SECONDS);
-        IndexVersion version = IndexVersionUtils.randomPreviousCompatibleVersion(IndexVersions.TIME_SERIES_ES95_CODEC_DEFAULT_FEATURE_FLAG);
-        String dataStreamName = "metrics-app1";
-
-        Settings.Builder additionalSettings = builder();
-        provider.provideAdditionalSettings(
-            DataStream.getDefaultBackingIndexName(dataStreamName, 1),
-            dataStreamName,
-            IndexMode.TIME_SERIES,
-            emptyProject(),
-            now,
-            Settings.EMPTY,
-            List.of(),
-            version,
-            additionalSettings
-        );
-        assertFalse(additionalSettings.build().hasValue(IndexSettings.TIME_SERIES_ES95_CODEC_ENABLED_SETTING.getKey()));
-    }
-
-    public void testEs95CodecDefaultNotAppliedForNonTsdb() {
-        assumeTrue("es95_codec feature flag must be enabled", IndexSettings.ES95_CODEC_FEATURE_FLAG.isEnabled());
-        IndexVersion version = IndexVersionUtils.randomVersionBetween(
-            IndexVersions.TIME_SERIES_ES95_CODEC_DEFAULT_FEATURE_FLAG,
-            IndexVersion.current()
-        );
-        List<IndexMode> nonTsdbModes = new ArrayList<>();
-        nonTsdbModes.add(null);
-        nonTsdbModes.add(IndexMode.STANDARD);
-        nonTsdbModes.add(IndexMode.LOGSDB);
-        if (IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled()) {
-            nonTsdbModes.add(IndexMode.COLUMNAR);
-            nonTsdbModes.add(IndexMode.LOGSDB_COLUMNAR);
-        }
-        IndexMode templateIndexMode = randomFrom(nonTsdbModes);
-        String dataStreamName = "logs-app1";
-
-        Settings.Builder additionalSettings = builder();
-        provider.provideAdditionalSettings(
-            DataStream.getDefaultBackingIndexName(dataStreamName, 1),
-            dataStreamName,
-            templateIndexMode,
-            emptyProject(),
-            Instant.ofEpochMilli(1L),
-            Settings.EMPTY,
-            null,
-            version,
-            additionalSettings
-        );
-        assertFalse(additionalSettings.build().hasValue(IndexSettings.TIME_SERIES_ES95_CODEC_ENABLED_SETTING.getKey()));
     }
 
 }

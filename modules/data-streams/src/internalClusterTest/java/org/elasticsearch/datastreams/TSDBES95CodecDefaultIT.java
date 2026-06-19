@@ -11,6 +11,7 @@ package org.elasticsearch.datastreams;
 
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequest;
 import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -36,6 +37,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 @LuceneTestCase.SuppressCodecs("*")
 public class TSDBES95CodecDefaultIT extends ESIntegTestCase {
@@ -59,9 +61,16 @@ public class TSDBES95CodecDefaultIT extends ESIntegTestCase {
         triggerBackingIndexCreation(dataStreamName);
 
         final String backingIndex = getDataStreamBackingIndexNames(dataStreamName).getFirst();
-        final Settings settings = indexSettingsFor(backingIndex);
+        final String settingKey = IndexSettings.TIME_SERIES_ES95_CODEC_ENABLED_SETTING.getKey();
 
-        assertThat(settings.get(IndexSettings.TIME_SERIES_ES95_CODEC_ENABLED_SETTING.getKey()), equalTo("true"));
+        final var withoutDefaults = indicesAdmin().getSettings(new GetSettingsRequest(TEST_REQUEST_TIMEOUT).indices(backingIndex))
+            .actionGet();
+        assertThat(withoutDefaults.getIndexToSettings().get(backingIndex).get(settingKey), nullValue());
+
+        final var withDefaults = indicesAdmin().getSettings(
+            new GetSettingsRequest(TEST_REQUEST_TIMEOUT).indices(backingIndex).includeDefaults(true)
+        ).actionGet();
+        assertThat(withDefaults.getIndexToDefaultSettings().get(backingIndex).get(settingKey), equalTo("true"));
     }
 
     public void testExplicitOptOutPreserved() throws Exception {

@@ -150,14 +150,6 @@ public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
                         additionalSettings.put(IndexSettings.SYNTHETIC_ID.getKey(), supportSyntheticId);
                     }
 
-                    if (IndexSettings.ES95_CODEC_FEATURE_FLAG.isEnabled()
-                        && indexVersion.onOrAfter(IndexVersions.TIME_SERIES_ES95_CODEC_DEFAULT_FEATURE_FLAG)
-                        && indexTemplateAndCreateRequestSettings.hasValue(
-                            IndexSettings.TIME_SERIES_ES95_CODEC_ENABLED_SETTING.getKey()
-                        ) == false) {
-                        additionalSettings.put(IndexSettings.TIME_SERIES_ES95_CODEC_ENABLED_SETTING.getKey(), true);
-                    }
-
                     if (indexTemplateAndCreateRequestSettings.hasValue(IndexMetadata.INDEX_ROUTING_PATH.getKey()) == false
                         && combinedTemplateMappings.isEmpty() == false) {
                         List<String> dimensions = new ArrayList<>();

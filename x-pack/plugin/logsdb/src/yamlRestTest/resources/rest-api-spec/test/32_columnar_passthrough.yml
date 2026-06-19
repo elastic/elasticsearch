@@ -48,6 +48,7 @@ setup:
       indices.get_mapping:
         index: test_columnar_passthrough_basic
   - match: { test_columnar_passthrough_basic.mappings.prefix_properties.passthrough.attributes: 1 }
+  - match: { test_columnar_passthrough_basic.mappings.prefix_properties.dynamic.attributes: "true" }
   # Child field is flattened to a dotted name at root level; the passthrough object itself is gone
   - is_true: test_columnar_passthrough_basic.mappings.properties.attributes\.env
   - is_false: test_columnar_passthrough_basic.mappings.properties.attributes
@@ -101,6 +102,8 @@ setup:
   - do:
       indices.get_mapping:
         index: test_columnar_passthrough_object_notation
+  - match: { test_columnar_passthrough_object_notation.mappings.prefix_properties.passthrough.attributes: 1 }
+  - match: { test_columnar_passthrough_object_notation.mappings.prefix_properties.dynamic.attributes: "true" }
   - is_true: test_columnar_passthrough_object_notation.mappings.properties.attributes\.service
   - is_false: test_columnar_passthrough_object_notation.mappings.properties.attributes
 
@@ -152,6 +155,8 @@ setup:
         index: test_columnar_passthrough_priority
   - match: { test_columnar_passthrough_priority.mappings.prefix_properties.passthrough.attributes: 1 }
   - match: { test_columnar_passthrough_priority.mappings.prefix_properties.passthrough.resource: 2 }
+  - match: { test_columnar_passthrough_priority.mappings.prefix_properties.dynamic.attributes: "true" }
+  - match: { test_columnar_passthrough_priority.mappings.prefix_properties.dynamic.resource: "true" }
   - is_true: test_columnar_passthrough_priority.mappings.properties.attributes\.region
   - is_true: test_columnar_passthrough_priority.mappings.properties.resource\.region
   - is_false: test_columnar_passthrough_priority.mappings.properties.attributes
@@ -208,6 +213,8 @@ setup:
   - do:
       indices.get_mapping:
         index: test_columnar_passthrough_concrete_wins
+  - match: { test_columnar_passthrough_concrete_wins.mappings.prefix_properties.passthrough.attributes: 1 }
+  - match: { test_columnar_passthrough_concrete_wins.mappings.prefix_properties.dynamic.attributes: "true" }
   - is_true: test_columnar_passthrough_concrete_wins.mappings.properties.env
   - is_true: test_columnar_passthrough_concrete_wins.mappings.properties.attributes\.env
   - is_false: test_columnar_passthrough_concrete_wins.mappings.properties.attributes
@@ -255,6 +262,9 @@ setup:
   - match:
       test_columnar_passthrough_dotted_prefix.mappings.prefix_properties.passthrough:
         resource.attributes: 1
+  - match:
+      test_columnar_passthrough_dotted_prefix.mappings.prefix_properties.dynamic:
+        resource.attributes: "true"
   - is_true: test_columnar_passthrough_dotted_prefix.mappings.properties.resource\.attributes\.env
   - is_false: test_columnar_passthrough_dotted_prefix.mappings.properties.resource\.attributes
 
@@ -352,7 +362,9 @@ setup:
       indices.get_mapping:
         index: test_columnar_passthrough_merge
   - match: { test_columnar_passthrough_merge.mappings.prefix_properties.passthrough.attributes: 1 }
+  - match: { test_columnar_passthrough_merge.mappings.prefix_properties.dynamic.attributes: "true" }
   - is_false: test_columnar_passthrough_merge.mappings.prefix_properties.passthrough.resource
+  - is_false: test_columnar_passthrough_merge.mappings.prefix_properties.dynamic.resource
   - is_true: test_columnar_passthrough_merge.mappings.properties.attributes\.env
   - is_false: test_columnar_passthrough_merge.mappings.properties.attributes
 
@@ -374,6 +386,8 @@ setup:
         index: test_columnar_passthrough_merge
   - match: { test_columnar_passthrough_merge.mappings.prefix_properties.passthrough.attributes: 1 }
   - match: { test_columnar_passthrough_merge.mappings.prefix_properties.passthrough.resource: 2 }
+  - match: { test_columnar_passthrough_merge.mappings.prefix_properties.dynamic.attributes: "true" }
+  - match: { test_columnar_passthrough_merge.mappings.prefix_properties.dynamic.resource: "true" }
   - is_true: test_columnar_passthrough_merge.mappings.properties.attributes\.env
   - is_true: test_columnar_passthrough_merge.mappings.properties.resource\.service
   - is_false: test_columnar_passthrough_merge.mappings.properties.attributes
@@ -438,6 +452,7 @@ setup:
       indices.get_mapping:
         index: test_logsdb_columnar_passthrough_basic
   - match: { test_logsdb_columnar_passthrough_basic.mappings.prefix_properties.passthrough.attributes: 1 }
+  - match: { test_logsdb_columnar_passthrough_basic.mappings.prefix_properties.dynamic.attributes: "true" }
   - is_true: test_logsdb_columnar_passthrough_basic.mappings.properties.attributes\.env
   - is_false: test_logsdb_columnar_passthrough_basic.mappings.properties.attributes
 
@@ -488,6 +503,8 @@ setup:
         index: test_logsdb_columnar_passthrough_priority
   - match: { test_logsdb_columnar_passthrough_priority.mappings.prefix_properties.passthrough.attributes: 1 }
   - match: { test_logsdb_columnar_passthrough_priority.mappings.prefix_properties.passthrough.resource: 2 }
+  - match: { test_logsdb_columnar_passthrough_priority.mappings.prefix_properties.dynamic.attributes: "true" }
+  - match: { test_logsdb_columnar_passthrough_priority.mappings.prefix_properties.dynamic.resource: "true" }
   - is_true: test_logsdb_columnar_passthrough_priority.mappings.properties.attributes\.region
   - is_true: test_logsdb_columnar_passthrough_priority.mappings.properties.resource\.region
   - is_false: test_logsdb_columnar_passthrough_priority.mappings.properties.attributes
@@ -587,6 +604,8 @@ setup:
         index: test_logsdb_columnar_passthrough_merge
   - match: { test_logsdb_columnar_passthrough_merge.mappings.prefix_properties.passthrough.attributes: 1 }
   - match: { test_logsdb_columnar_passthrough_merge.mappings.prefix_properties.passthrough.resource: 2 }
+  - match: { test_logsdb_columnar_passthrough_merge.mappings.prefix_properties.dynamic.attributes: "true" }
+  - match: { test_logsdb_columnar_passthrough_merge.mappings.prefix_properties.dynamic.resource: "true" }
   - is_true: test_logsdb_columnar_passthrough_merge.mappings.properties.attributes\.env
   - is_true: test_logsdb_columnar_passthrough_merge.mappings.properties.resource\.service
   - is_false: test_logsdb_columnar_passthrough_merge.mappings.properties.attributes

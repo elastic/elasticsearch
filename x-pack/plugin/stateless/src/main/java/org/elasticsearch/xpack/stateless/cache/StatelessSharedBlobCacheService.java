@@ -20,6 +20,7 @@ import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.store.PluggableDirectoryMetricsHolder;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -57,7 +58,7 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
                 );
                 if (value && replicatedContentEnabled == false) {
                     throw new IllegalArgumentException(
-                        String.format(
+                        Strings.format(
                             "Setting [%s] cannot be [true] unless setting [%s] is also [true]",
                             STATELESS_CACHE_BOOST_PREFERENCE_ENABLED_SETTING.getKey(),
                             SearchCommitPrefetcherDynamicSettings.STATELESS_SEARCH_USE_INTERNAL_FILES_REPLICATED_CONTENT.getKey()

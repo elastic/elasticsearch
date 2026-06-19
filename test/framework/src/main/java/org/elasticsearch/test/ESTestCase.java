@@ -617,10 +617,23 @@ public abstract class ESTestCase extends LuceneTestCase {
         }
     }
 
+    private static LeakTracker.TrackingWindow suiteLeakWindow;
+
+    @BeforeClass
+    public static void openSuiteLeakWindow() {
+        suiteLeakWindow = LeakTracker.newWindow();
+    }
+
+    @AfterClass
+    public static void assertNoSuiteLeaks() {
+        suiteLeakWindow.assertNoLeaks();
+    }
+
+    private LeakTracker.TrackingWindow testLeakWindow;
+
     @Before
     public final void before() {
-        LeakTracker.setContextHint(getTestName());
-        LeakTracker.installTestLeakCollector();
+        testLeakWindow = LeakTracker.newWindow();
         logger.info("{}before test", getTestParamsForLogging());
         assertNull("Thread context initialized twice", threadContext);
         if (enableWarningsCheck()) {
@@ -653,26 +666,21 @@ public abstract class ESTestCase extends LuceneTestCase {
         }
     }
 
-    /**
-     * Asserts that no {@link LeakTracker}-tracked resources remain open at end of test.
-     * Declared before {@link #after()} so that under JUnit 4's reverse-declaration ordering it executes after
-     * {@link #after()}, giving {@link #after()} a chance to complete first.
-     * <p>
-     * Resources released in a subclass {@code @After} are already deregistered from the collector before this fires,
-     * because JUnit 4 runs subclass {@code @After} methods before superclass ones.
-     * <p>
-     * Resources closed on background threads (e.g. async release) are handled by retrying the check for up to
-     * 10 seconds via {@code assertBusy}; only resources that remain open after the full wait are reported as leaks.
-     * If a test intentionally leaves tracked resources open (e.g. to exercise GC-based detection), call
-     * {@link LeakTracker#clearTestLeakCollector()} before the test method returns.
-     */
+    // Declared before after() so that under JUnit 4's reverse-declaration @After ordering it runs after after(),
+    // giving after() a chance to release resources before the leak check fires.
     @After
     public final void verifyNoOutstandingLeakTrackerLeaks() throws Exception {
-        try {
-            assertBusy(LeakTracker::assertNoLeaks, 10, TimeUnit.SECONDS);
-        } finally {
-            LeakTracker.clearTestLeakCollector();
+        if (testLeakWindow == null) {
+            // before() never ran (e.g. setUp() threw AssumptionViolatedException before @Before executed)
+            return;
         }
+        // Poll briefly to let any in-flight ref-count decrements (e.g. respondAndRelease finally blocks
+        // running on a search thread) finish before asserting, since those can race with the test thread.
+        long deadline = System.nanoTime() + 500_000_000L;
+        while (testLeakWindow.hasLeaks() && System.nanoTime() < deadline) {
+            Thread.sleep(5);
+        }
+        testLeakWindow.assertNoLeaks();
     }
 
     /**
@@ -712,7 +720,6 @@ public abstract class ESTestCase extends LuceneTestCase {
         ensureAllSearchContextsReleased();
         ensureCheckIndexPassed();
         logger.info("{}after test", getTestParamsForLogging());
-        LeakTracker.setContextHint("");
     }
 
     private String getTestParamsForLogging() {
@@ -1690,15 +1697,20 @@ public abstract class ESTestCase extends LuceneTestCase {
     }
 
     /**
-     * Runs the code block for 10 seconds waiting for no assertion to trip.
+     * Runs the code block for 10 seconds waiting for no assertion to trip. Retries on {@link AssertionError} with
+     * exponential backoff, sleeping on the test thread between attempts.
+     * <p>
+     * If the wait condition can be expressed as a predicate on applied {@link ClusterState}, prefer
+     * {@link ESIntegTestCase#awaitClusterState(Predicate)} instead of polling {@code clusterService().state()} inside {@code assertBusy}.
      */
     public static void assertBusy(CheckedRunnable<Exception> codeBlock) throws Exception {
         assertBusy(codeBlock, 10, TimeUnit.SECONDS);
     }
 
     /**
-     * Runs the code block for the provided interval, waiting for no assertions to trip. Retries on AssertionError
-     * with exponential backoff until provided time runs out
+     * Runs the code block for the provided interval, waiting for no assertions to trip. Retries on {@link AssertionError}
+     * with exponential backoff until the timeout is reached. See {@link #assertBusy(CheckedRunnable)} for when to prefer
+     * alternatives such as {@link ESIntegTestCase#awaitClusterState(Predicate)}.
      */
     public static void assertBusy(CheckedRunnable<Exception> codeBlock, long maxWaitTime, TimeUnit unit) throws Exception {
         long maxTimeInMillis = TimeUnit.MILLISECONDS.convert(maxWaitTime, unit);

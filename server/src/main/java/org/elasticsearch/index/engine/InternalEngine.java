@@ -1199,7 +1199,7 @@ public class InternalEngine extends Engine {
     protected long generateSeqNoForOperationOnPrimary(final Operation operation) {
         assert operation.origin() == Operation.Origin.PRIMARY;
         assert operation.seqNo() == UNASSIGNED_SEQ_NO : "ops should not have an assigned seq no. but was: " + operation.seqNo();
-        return doGenerateSeqNoForOperation(operation);
+        return doGenerateSeqNo();
     }
 
     protected void advanceMaxSeqNoOfUpdatesOnPrimary(long seqNo) {
@@ -1211,12 +1211,11 @@ public class InternalEngine extends Engine {
     }
 
     /**
-     * Generate the sequence number for the specified operation.
+     * Generate a sequence number.
      *
-     * @param operation the operation
      * @return the sequence number
      */
-    long doGenerateSeqNoForOperation(final Operation operation) {
+    long doGenerateSeqNo() {
         return localCheckpointTracker.generateSeqNo();
     }
 
@@ -1450,6 +1449,7 @@ public class InternalEngine extends Engine {
         long maxStartNanos = lastWriteNanos;
 
         final var origin = operations.get(subBatchIdx).origin(); // all origins must be uniform, so grab the first one as "the" origin
+        final var primaryTerm = operations.get(subBatchIdx).primaryTerm();
         for (int i = 0; i < subBatchSize; i++) {
             Index op = operations.get(subBatchIdx + i);
             if (origin != op.origin()) { // verify that origins are uniform
@@ -1457,6 +1457,13 @@ public class InternalEngine extends Engine {
                 assert false : message;
                 throw new IllegalStateException(message);
             }
+
+            if (primaryTerm != op.primaryTerm()) { // verify that primary terms are same
+                final var message = "mixed primary terms in sub-batch: " + primaryTerm + " vs " + op.primaryTerm();
+                assert false : message;
+                throw new IllegalStateException(message);
+            }
+
             if (op.startTime() - maxStartNanos > 0) {
                 maxStartNanos = op.startTime();
             }
@@ -2318,6 +2325,7 @@ public class InternalEngine extends Engine {
                 engineConfig.getIndexSettings().seqNoIndexOptions(),
                 engineConfig.getIndexSettings().useDocValuesSkipper(),
                 useTsdbSyntheticId,
+                engineConfig.getMapperService().isUseColumnarId(),
                 delete.id(),
                 delete.uid()
             );

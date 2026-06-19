@@ -97,7 +97,9 @@ public class GoogleCloudStorageBlobStoreContainerTests extends ESTestCase {
                 randomIntBetween(1, 8) * 1024,
                 OptionalInt.empty(),
                 BackoffPolicy.noBackoff(),
-                new GcsRepositoryStatsCollector()
+                new GcsRepositoryStatsCollector(),
+                null,
+                null
             )
         ) {
             final BlobContainer container = store.blobContainer(BlobPath.EMPTY);

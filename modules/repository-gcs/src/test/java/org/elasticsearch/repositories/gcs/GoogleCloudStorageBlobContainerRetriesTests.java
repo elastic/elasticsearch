@@ -229,7 +229,9 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends AbstractBlobCon
             randomIntBetween(1, 8) * 1024,
             OptionalInt.empty(),
             BackoffPolicy.linearBackoff(TimeValue.timeValueMillis(1), 3, TimeValue.timeValueSeconds(1)),
-            new GcsRepositoryStatsCollector()
+            new GcsRepositoryStatsCollector(),
+            null,
+            null
         ) {
 
             @Override

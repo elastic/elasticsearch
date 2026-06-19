@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.BackoffPolicy;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobPath;
+import org.elasticsearch.common.blobstore.BlobStoreException;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -78,6 +79,16 @@ class GoogleCloudStorageRepository extends MeteredBlobStoreRepository {
     );
 
     /**
+     * Storage class applied to uploads with {@link org.elasticsearch.common.blobstore.OperationPurpose#SNAPSHOT_DATA}.
+     */
+    static final Setting<String> DATA_STORAGE_CLASS = simpleString("data_storage_class", Property.NodeScope, Property.Dynamic);
+
+    /**
+     * Storage class applied to uploads with {@link org.elasticsearch.common.blobstore.OperationPurpose#SNAPSHOT_METADATA}.
+     */
+    static final Setting<String> METADATA_STORAGE_CLASS = simpleString("metadata_storage_class", Property.NodeScope, Property.Dynamic);
+
+    /**
      * We will retry CASes that fail due to throttling. We use an {@link BackoffPolicy#linearBackoff(TimeValue, int, TimeValue)}
      * with the following parameters
      */
@@ -106,6 +117,8 @@ class GoogleCloudStorageRepository extends MeteredBlobStoreRepository {
     private final TimeValue retryThrottledCasMaxDelay;
     private final GcsRepositoryStatsCollector statsCollector;
     private final OptionalInt resumableWriteBuffer;
+    private final String dataStorageClass;
+    private final String metadataStorageClass;
 
     GoogleCloudStorageRepository(
         @Nullable final ProjectId projectId,
@@ -140,7 +153,26 @@ class GoogleCloudStorageRepository extends MeteredBlobStoreRepository {
         this.resumableWriteBuffer = RESUMABLE_WRITE_BUFFER.exists(metadata.settings())
             ? OptionalInt.of(Math.toIntExact(getSetting(RESUMABLE_WRITE_BUFFER, metadata).getBytes()))
             : OptionalInt.empty();
+        this.dataStorageClass = DATA_STORAGE_CLASS.get(metadata.settings());
+        this.metadataStorageClass = METADATA_STORAGE_CLASS.get(metadata.settings());
+        validateStorageClassIfSpecified(metadata.name(), DATA_STORAGE_CLASS.getKey(), this.dataStorageClass);
+        validateStorageClassIfSpecified(metadata.name(), METADATA_STORAGE_CLASS.getKey(), this.metadataStorageClass);
         logger.debug("using bucket [{}], base_path [{}], chunk_size [{}], compress [{}]", bucket, basePath(), chunkSize, isCompress());
+    }
+
+    /**
+     * Validates explicit {@link #DATA_STORAGE_CLASS} / {@link #METADATA_STORAGE_CLASS} values during repository construction so
+     * misconfiguration surfaces when the repository is registered rather than on first blob store access.
+     */
+    private static void validateStorageClassIfSpecified(String repositoryName, String settingKey, String value) {
+        if (Strings.hasText(value) == false) {
+            return;
+        }
+        try {
+            GoogleCloudStorageBlobStore.initStorageClass(value);
+        } catch (BlobStoreException e) {
+            throw new RepositoryException(repositoryName, settingKey + ": " + e.getMessage(), e);
+        }
     }
 
     private static BlobPath buildBasePath(RepositoryMetadata metadata) {
@@ -172,7 +204,9 @@ class GoogleCloudStorageRepository extends MeteredBlobStoreRepository {
             bufferSize,
             resumableWriteBuffer,
             BackoffPolicy.linearBackoff(retryThrottledCasDelayIncrement, retryThrottledCasMaxNumberOfRetries, retryThrottledCasMaxDelay),
-            statsCollector
+            statsCollector,
+            dataStorageClass,
+            metadataStorageClass
         );
     }
 

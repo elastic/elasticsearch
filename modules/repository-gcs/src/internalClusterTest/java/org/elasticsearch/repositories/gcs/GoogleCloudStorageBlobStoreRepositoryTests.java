@@ -453,7 +453,9 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
                             randomIntBetween(1, 8) * 1024,
                             getResumableWriteBuffer(),
                             BackoffPolicy.noBackoff(),
-                            this.statsCollector()
+                            this.statsCollector(),
+                            null,
+                            null
                         ) {
                             @Override
                             long getLargeBlobThresholdInBytes() {

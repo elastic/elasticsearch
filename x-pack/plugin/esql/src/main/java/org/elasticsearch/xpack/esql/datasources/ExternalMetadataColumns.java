@@ -93,6 +93,23 @@ public final class ExternalMetadataColumns {
         STANDARD_NAMES = Collections.unmodifiableSet(names);
     }
 
+    /**
+     * The dedicated metadata namespace for reservation/rename purposes: {@link #STANDARD_NAMES}
+     * plus every standard name that is only snapshot-gated for binding ({@code _tier}). Reservation
+     * must not flip with build mode — a dataset layout claiming {@code _tier} is renamed to
+     * {@code _partition._tier} in EVERY build, even where {@code METADATA _tier} itself is not yet
+     * exposed — so a Hive dataset surfaces the same column names regardless of snapshot vs release.
+     * Use this set for namespace protection; use {@link #STANDARD_NAMES} for what a relation may
+     * actually bind.
+     */
+    public static final Set<String> RESERVED_NAMES;
+
+    static {
+        var names = new LinkedHashSet<>(STANDARD_NAMES);
+        names.add(DataTierFieldMapper.NAME); // unconditional: reservation is build-mode-independent
+        RESERVED_NAMES = Collections.unmodifiableSet(names);
+    }
+
     private ExternalMetadataColumns() {}
 
     /**

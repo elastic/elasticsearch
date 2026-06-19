@@ -93,6 +93,33 @@ public class HivePartitionDetectorTests extends ESTestCase {
         );
     }
 
+    /**
+     * {@code _tier} is a snapshot-gated standard metadata name, but reservation is build-mode
+     * independent: a {@code /_tier=…/} layout is renamed to {@code _partition._tier} in release
+     * builds too, so the same dataset surfaces the same column names regardless of build.
+     */
+    public void testSnapshotGatedReservedNameStillRenamedInReleaseBuilds() {
+        List<StorageEntry> files = List.of(
+            entry("s3://bucket/data/_tier=hot/file1.parquet"),
+            entry("s3://bucket/data/_tier=cold/file2.parquet")
+        );
+
+        PartitionMetadata result = HivePartitionDetector.detect(files);
+
+        assertFalse(result.isEmpty());
+        assertFalse("snapshot-gated reserved name must not surface as-is", result.partitionColumns().containsKey("_tier"));
+        assertEquals(DataType.KEYWORD, result.partitionColumns().get("_partition._tier"));
+        assertEquals(
+            "hot",
+            result.filePartitionValues().get(StoragePath.of("s3://bucket/data/_tier=hot/file1.parquet")).get("_partition._tier")
+        );
+
+        assertWarnings(
+            "Partition columns shadowing reserved metadata names were renamed; reference them by the _partition.* name.",
+            "partition column [_tier] surfaced as [_partition._tier]"
+        );
+    }
+
     public void testInconsistentKeysReturnsEmpty() {
         List<StorageEntry> files = List.of(
             entry("s3://bucket/data/year=2024/file1.parquet"),

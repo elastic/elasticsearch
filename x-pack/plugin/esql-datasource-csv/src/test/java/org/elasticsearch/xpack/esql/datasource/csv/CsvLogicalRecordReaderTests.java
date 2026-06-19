@@ -179,15 +179,14 @@ public class CsvLogicalRecordReaderTests extends ESTestCase {
     }
 
     /**
-     * When {@code CsvRecordTooLargeException} is thrown mid-record, the bytes consumed up to the
-     * overflow point must still be credited to {@code bytesRead}. Otherwise the next record's
-     * file-global offset arithmetic drifts by the swallowed byte count, producing silently wrong
-     * {@code _id} values for every subsequent record. This pins the addBytes commit-then-throw
-     * order.
+     * When {@code CsvRecordTooLargeException} is thrown for an oversized record, the reader must
+     * drain the rest of that physical line before throwing: {@code bytesRead} counts the WHOLE
+     * oversized line and the reader is left at the next record's first byte. Otherwise the lenient
+     * error policy resumes mid-line — yielding a phantom record from the line's tail and a
+     * file-global offset short by the undrained bytes, which produces silently wrong (and possibly
+     * colliding) {@code _id} values for every subsequent record. This pins the drain-then-throw.
      */
-    public void testRecordTooLargeCommitsConsumedBytesBeforeThrowing() throws IOException {
-        // First record is short, second blows past a 5-byte cap; the third record (after the
-        // caller's resync) must see bytesRead = first record bytes + second record's pre-throw bytes.
+    public void testRecordTooLargeDrainsLineSoNextRecordOffsetIsAnchored() throws IOException {
         String input = "ab\nabcdefgh\nfin\n";
         CsvLogicalRecordReader reader = new CsvLogicalRecordReader(
             new BufferedReader(new StringReader(input)),
@@ -201,15 +200,48 @@ public class CsvLogicalRecordReaderTests extends ESTestCase {
         assertEquals(3, reader.lastRecordBytes());
         assertEquals(3L, reader.bytesRead());
 
-        // Second record overflows at the 6th byte ("abcde" = 5 bytes is exactly at the cap; 'f'
-        // pushes next to 6 > maxRecordBytes). The throw must commit the consumed bytes (6) to
-        // bytesRead so the next call's offset is anchored to the right position.
+        // Second record overflows at the 6th byte ("abcde" = 5 bytes is exactly the cap; 'f' pushes
+        // next to 6 > maxRecordBytes). The throw drains the rest of "abcdefgh\n" (9 bytes total), so
+        // bytesRead = 3 + 9 = 12 and the reader sits at "fin\n".
         IOException ex = expectThrows(IOException.class, () -> reader.readRecord(false));
         assertEquals("CSV record exceeded max_record_size [5]", ex.getMessage());
-        assertEquals("bytesRead must include the partial bytes consumed before the throw", 9L, reader.bytesRead());
+        assertEquals("bytesRead must count the whole drained oversized line", 12L, reader.bytesRead());
 
         // lastRecordBytes intentionally unchanged from the prior successful read — caller's catch
         // treats the failed record as "no record produced".
         assertEquals(3, reader.lastRecordBytes());
+
+        // The next record is the real "fin", NOT a phantom "gh" from the un-drained tail, and its
+        // file-global start offset resolves to 12 (immediately after the oversized line).
+        assertEquals("fin", reader.readRecord(false));
+        assertEquals(4, reader.lastRecordBytes()); // "fin" + '\n'
+        assertEquals(16L, reader.bytesRead());
+        assertEquals("next record start offset", 12L, reader.bytesRead() - reader.lastRecordBytes());
+    }
+
+    /**
+     * CRLF variant of {@link #testRecordTooLargeDrainsLineSoNextRecordOffsetIsAnchored}: the drain
+     * must treat {@code \r\n} as a single terminator and leave the reader at the next record.
+     */
+    public void testRecordTooLargeDrainsCrlfTerminatedLine() throws IOException {
+        String input = "ab\r\nabcdefgh\r\nfin\r\n";
+        CsvLogicalRecordReader reader = new CsvLogicalRecordReader(
+            new BufferedReader(new StringReader(input)),
+            '"',
+            ',',
+            5,
+            StandardCharsets.UTF_8
+        );
+
+        assertEquals("ab", reader.readRecord(false));
+        assertEquals(4L, reader.bytesRead()); // "ab\r\n"
+
+        // "abcdefgh\r\n" = 10 bytes; drained whole. bytesRead = 4 + 10 = 14, reader at "fin\r\n".
+        expectThrows(IOException.class, () -> reader.readRecord(false));
+        assertEquals(14L, reader.bytesRead());
+
+        assertEquals("fin", reader.readRecord(false));
+        assertEquals(5, reader.lastRecordBytes()); // "fin\r\n"
+        assertEquals("next record start offset", 14L, reader.bytesRead() - reader.lastRecordBytes());
     }
 }

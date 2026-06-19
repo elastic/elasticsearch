@@ -29,7 +29,10 @@ import java.nio.charset.StandardCharsets;
  * the dataset layout and must not leak through {@code _id} into Kibana row keys, Security alert
  * hashes, or logs. Same composition as the house precedent for synthesized ids,
  * {@code TsidExtractingIdFieldMapper#createId}: murmur3-128 the high-entropy variable part,
- * pack the scalar parts alongside, base64url-encode without padding.
+ * pack the scalar parts alongside, base64url-encode without padding. Only the high 64 bits
+ * ({@code h1}) of the 128-bit location hash are packed, so cross-file {@code _id} uniqueness is
+ * probabilistic at 64 bits of location entropy (plus mtime and row position) — the same
+ * birthday-bound trade-off the TSID precedent accepts, not a guarantee.
  * <p>
  * The packed mtime is the identity salt: a file replaced in place under the same name produces
  * ids distinct from its predecessor's — without it, a consumer caching by {@code _id} would

@@ -172,16 +172,51 @@ final class CsvLogicalRecordReader {
         return bytesRead;
     }
 
-    private int addBytes(int recordBytes, int ch) throws CsvRecordTooLargeException {
+    private int addBytes(int recordBytes, int ch) throws CsvRecordTooLargeException, IOException {
         int next = recordBytes + encodedLength(ch);
         if (next > maxRecordBytes) {
-            // Commit consumed bytes (including the overflowing char) to the cumulative counter
-            // before throwing so the next record's offset stays anchored. lastRecordBytes is not
-            // touched — caller's exception handler treats this as "no record produced".
+            // Oversized record. Drain to the end of the physical line so the reader is left at the
+            // next record's first byte and bytesRead counts the whole line. The lenient error policy
+            // skips this record and resumes from the next readRecord; without draining it would
+            // resume mid-line and every later _rowPosition/_id offset would be short by the undrained
+            // tail (and could collide with an earlier record's offset). lastRecordBytes is left
+            // untouched — the caller's exception handler treats this as "no record produced".
+            if (ch == '\r') {
+                next = drainCarriageReturn(next);
+            } else if (ch != '\n') {
+                int c;
+                while ((c = reader.read()) != -1) {
+                    next += encodedLength(c);
+                    if (c == '\n') {
+                        break;
+                    }
+                    if (c == '\r') {
+                        next = drainCarriageReturn(next);
+                        break;
+                    }
+                }
+            }
             this.bytesRead += next;
             throw new CsvRecordTooLargeException(maxRecordBytes);
         }
         return next;
+    }
+
+    /**
+     * Consume an optional {@code \n} immediately following a {@code \r} (so {@code \r\n} counts as
+     * one terminator), returning the running byte count. The reader is positioned at the next
+     * record's first byte on return.
+     */
+    private int drainCarriageReturn(int byteCount) throws IOException {
+        reader.mark(1);
+        int peek = reader.read();
+        if (peek == '\n') {
+            return byteCount + encodedLength(peek);
+        }
+        if (peek != -1) {
+            reader.reset();
+        }
+        return byteCount;
     }
 
     private int encodedLength(int ch) {

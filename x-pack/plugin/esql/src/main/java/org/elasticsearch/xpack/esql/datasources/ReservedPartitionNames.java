@@ -31,9 +31,14 @@ final class ReservedPartitionNames {
 
     private ReservedPartitionNames() {}
 
-    /** Whether a partition key collides with the dedicated metadata namespace. */
+    /**
+     * Whether a partition key collides with the dedicated metadata namespace. Uses
+     * {@link ExternalMetadataColumns#RESERVED_NAMES} (build-mode-independent), not the bindable
+     * {@code STANDARD_NAMES}, so a layout claiming a snapshot-gated name like {@code _tier} is
+     * renamed in release builds too — reservation must not flip with build mode.
+     */
     static boolean isReserved(String key) {
-        return ExternalMetadataColumns.STANDARD_NAMES.contains(key)
+        return ExternalMetadataColumns.RESERVED_NAMES.contains(key)
             || FileMetadataColumns.NAMES.contains(key)
             || SyntheticColumns.NAMES.contains(key);
     }

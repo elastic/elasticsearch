@@ -12,6 +12,7 @@ package org.elasticsearch.test.apmintegration;
 import io.opentelemetry.sdk.common.Clock;
 
 import org.elasticsearch.client.Request;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.junit.ClassRule;
 import org.junit.rules.TestRule;
@@ -32,13 +33,21 @@ public class OTelMetricsBufferingIT extends AbstractMetricsIT {
     public static ElasticsearchCluster cluster = AbstractMetricsIT.baseClusterBuilder()
         .systemProperty("telemetry.otel.metrics.enabled", "true")
         .setting("telemetry.otel.metrics.endpoint", () -> "http://" + recordingApmServer.getHttpAddress() + "/v1/metrics")
-        .setting("telemetry.otel.metrics.interval", "500ms")
         .setting("telemetry.otel.metrics.disk_buffer_size", "10mb")
         .setting("telemetry.otel.metrics.buffer_ttl", "5m")
         // Tight write/read windows so buffered files become drainable within the test budget.
         .setting("telemetry.otel.metrics.disk_buffer_write_window", "100ms")
         .setting("telemetry.otel.metrics.disk_buffer_read_min_age", "200ms")
+        // metrics.interval must be > otlp.send_timeout so that the OTLP exporter can fully fail, and so that PeriodicMetricReader does not
+        // skip an export cycle
+        .setting("telemetry.otel.metrics.interval", "500ms")
+        .setting("telemetry.otel.otlp.send_timeout", "300ms")
+        // initial_backoff that is way smaller than otlp.send_timeout allows the exporter to fully exhaust the retries
+        .setting("telemetry.otel.otlp.retry.initial_backoff", "100ms")
         .build();
+
+    // make it bigger than otlp.send_timeout to allow the OTLP exporter to fully fail, and delegate to the disk buffering exporter
+    private static final TimeValue SLEEP_BETWEEN_RUNS = TimeValue.timeValueMillis(400);
 
     // use the same clock implementation as the OTel SDK itself
     private static final Clock otelClock = Clock.getDefault();
@@ -70,7 +79,7 @@ public class OTelMetricsBufferingIT extends AbstractMetricsIT {
         for (int i = 0; i < BUFFER_BATCHES; i++) {
             client().performRequest(new Request("GET", "/_use_apm_metrics"));
             client().performRequest(new Request("GET", "/_flush_telemetry"));
-            Thread.sleep(300);
+            Thread.sleep(SLEEP_BETWEEN_RUNS.millis());
         }
 
         long outageEndEpochNanos = otelClock.now();

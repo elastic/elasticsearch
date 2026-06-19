@@ -80,6 +80,7 @@ processingCommand
     | {this.isDevVersion()}? lookupCommand
     | {this.isDevVersion()}? insistCommand
     | {this.isDevVersion()}? dedupCommand
+    | {this.isDevVersion()}? highlightCommand
     ;
 
 whereCommand
@@ -395,6 +396,14 @@ insistCommand
 
 dedupCommand
     : DEV_DEDUP
+    ;
+
+highlightCommand
+    : DEV_HIGHLIGHT queryText=string ON highlightFields=qualifiedNames commandNamedParameters
+    ;
+
+qualifiedNames
+    : qualifiedName (COMMA qualifiedName)*
     ;
 
 uriPartsCommand

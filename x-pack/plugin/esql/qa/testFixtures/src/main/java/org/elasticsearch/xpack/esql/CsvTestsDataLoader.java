@@ -64,6 +64,7 @@ import static org.elasticsearch.xpack.esql.CsvTestUtils.ESCAPED_COMMA_SEQUENCE;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.multiValuesAwareCsvToStringArray;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.reader;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITHOUT_VIEW;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITH_VIEW;
 
 public class CsvTestsDataLoader {
 
@@ -103,6 +104,7 @@ public class CsvTestsDataLoader {
             .noSubfields(),
         new TestDataset("all_types", "mapping-all-types.json", "all-types.csv"),
         new TestDataset("hosts"),
+        new TestDataset("hosts").withIndex("hosts_ip_is_kwd").withTypeMapping(Map.of("ip0", "keyword", "ip1", "keyword")),
         new TestDataset("apps"),
         new TestDataset("apps").withIndex("apps_short").withTypeMapping(Map.of("id", "short")),
         new TestDataset("languages"),
@@ -199,8 +201,8 @@ public class CsvTestsDataLoader {
         new TestDataset("k8s_unmapped", "k8s-mappings.json", "k8s.csv").withSetting("k8s-settings.json")
             .withTypeMapping(removeFields("region", "event", "network.bytes_in", "network.cost", "network.eth0.tx"))
             .withDynamic("false"),
-        new TestDataset("k8s_double_bytes_in", "k8s-mappings.json", "k8s.csv").withSetting("k8s-settings.json")
-            .withTypeMapping(Map.of("network.bytes_in", "double")),
+        new TestDataset("k8s_retyped", "k8s-mappings.json", "k8s.csv").withSetting("k8s-settings.json")
+            .withTypeMapping(Map.of("network.bytes_in", "double", "network.cost", "long")),
         new TestDataset("datenanos-k8s", "k8s-mappings-date_nanos.json", "k8s.csv", "k8s-settings.json"),
         new TestDataset("k8s-downsampled", "k8s-downsampled-mappings.json", "k8s-downsampled.csv", "k8s-downsampled-settings.json"),
         new TestDataset("k8s_stored_source", "k8s-mappings.json", "k8s.csv").withSetting("k8s-stored-source-settings.json"),
@@ -296,8 +298,9 @@ public class CsvTestsDataLoader {
             "metric_temporality-mappings.json",
             "metric_temporality.csv",
             "metric_temporality-settings.json"
-        ).withRequiredCapabilities(EsqlCapabilities.Cap.TSDB_TEMPORALITY_SUPPORT_V8),
-        new TestDataset("ts_window", "ts_window-mappings.json", "ts_window.csv", "ts_window-settings.json")
+        ).withRequiredCapabilities(EsqlCapabilities.Cap.TSDB_TEMPORALITY_SUPPORT_V9),
+        new TestDataset("ts_window", "ts_window-mappings.json", "ts_window.csv", "ts_window-settings.json"),
+        new TestDataset("date_extract_fields", "mapping-date_extract_fields.json", "date_extract_fields.csv")
     ).collect(toMap(TestDataset::indexName, Function.identity()));
 
     // Developer flags for faster iteration when debugging specific csv-spec tests:
@@ -342,14 +345,23 @@ public class CsvTestsDataLoader {
         new ViewConfig("view_with_subquery"),
         new ViewConfig("view_row_constants", List.of(EsqlCapabilities.Cap.SUBQUERY_WITH_ROW)),
         new ViewConfig("view_row_eval", List.of(EsqlCapabilities.Cap.SUBQUERY_WITH_ROW)),
-        new ViewConfig("view_employees_row_subquery", List.of(EsqlCapabilities.Cap.SUBQUERY_WITH_ROW)),
+        new ViewConfig("view_row_employees_subquery", List.of(EsqlCapabilities.Cap.SUBQUERY_WITH_ROW)),
         new ViewConfig("view_k8s_max_bytes_by_cluster", List.of(EsqlCapabilities.Cap.SUBQUERY_WITH_TS)),
         new ViewConfig("view_k8s_max_rate", List.of(EsqlCapabilities.Cap.SUBQUERY_WITH_TS)),
         new ViewConfig("view_k8s_downsampled_low_tx_count", List.of(EsqlCapabilities.Cap.SUBQUERY_WITH_TS)),
         new ViewConfig("view_k8s_early_window", List.of(EsqlCapabilities.Cap.SUBQUERY_WITH_TS)),
         new ViewConfig("view_k8s_downsampled_first_bucket", List.of(EsqlCapabilities.Cap.SUBQUERY_WITH_TS)),
         new ViewConfig("view_k8s_mixed_subqueries", List.of(EsqlCapabilities.Cap.SUBQUERY_WITH_TS, EsqlCapabilities.Cap.SUBQUERY_WITH_ROW)),
-        new ViewConfig("employees_in_subquery", List.of(WHERE_IN_SUBQUERY_WITHOUT_VIEW))
+        new ViewConfig("employees_in_subquery", List.of(WHERE_IN_SUBQUERY_WITHOUT_VIEW)),
+        new ViewConfig("employees_in_subquery_stats", List.of(WHERE_IN_SUBQUERY_WITH_VIEW)),
+        new ViewConfig("employees_in_subquery_conjunction", List.of(WHERE_IN_SUBQUERY_WITH_VIEW)),
+        new ViewConfig("employees_in_subquery_disjunction", List.of(WHERE_IN_SUBQUERY_WITH_VIEW)),
+        new ViewConfig("employees_in_subquery_nested", List.of(WHERE_IN_SUBQUERY_WITH_VIEW)),
+        new ViewConfig("employees_in_subquery_view", List.of(WHERE_IN_SUBQUERY_WITH_VIEW)),
+        new ViewConfig("employees_in_subquery_stats_view", List.of(WHERE_IN_SUBQUERY_WITH_VIEW)),
+        new ViewConfig("employees_in_subquery_conjunction_view", List.of(WHERE_IN_SUBQUERY_WITH_VIEW)),
+        new ViewConfig("employees_in_subquery_disjunction_view", List.of(WHERE_IN_SUBQUERY_WITH_VIEW)),
+        new ViewConfig("employees_in_subquery_nested_view", List.of(WHERE_IN_SUBQUERY_WITH_VIEW))
     ).collect(toMap(ViewConfig::name, Function.identity()));
 
     /**
@@ -812,18 +824,41 @@ public class CsvTestsDataLoader {
     }
 
     private static boolean clusterHasViewSupport(RestClient client) throws IOException {
-        Request request = new Request("GET", "/_query/view");
+        // Step 1: check whether ALL nodes understand views via /_capabilities (allMatch semantics).
+        Request capRequest = new Request("GET", "/_capabilities");
+        capRequest.addParameter("method", "POST");
+        capRequest.addParameter("path", "/_query");
+        capRequest.addParameter("capabilities", "views_crud_as_index_actions");
         try {
-            Response ignored = client.performRequest(request);
+            Response capResponse = client.performRequest(capRequest);
+            ObjectMapper mapper = new ObjectMapper();
+            JsonNode json = mapper.readTree(capResponse.getEntity().getContent());
+            JsonNode supported = json.get("supported");
+            if (supported == null || supported.asBoolean() == false) {
+                return false;
+            }
+        } catch (ResponseException e) {
+            return false;
+        }
+
+        // Step 2: probe the REST endpoint directly. In non-serverless mode all nodes (old or new)
+        // return 200 because @ServerlessScope is not enforced. In serverless mode an old node
+        // without @ServerlessScope(Scope.PUBLIC) on RestPutViewAction returns 410. A single probe
+        // cannot cover every node in a mixed-serverless cluster, but any 410 is a definitive signal
+        // that view loading will fail on at least some nodes.
+        try {
+            client.performRequest(new Request("GET", "/_query/view"));
+            return true;
         } catch (ResponseException e) {
             int code = e.getResponse().getStatusLine().getStatusCode();
-            // Different versions of Elasticsearch return different codes when views are not supported
-            if (code == 410 || code == 400 || code == 500 || code == 405) {
-                return false;
+            if (code == 410) {
+                return false; // serverless restriction — old node lacks @ServerlessScope
+            }
+            if (code == 400 || code == 500 || code == 405) {
+                return false; // older server that doesn't support the view API at all
             }
             throw e;
         }
-        return true;
     }
 
     private static void deleteView(RestClient client, String viewName) throws IOException {

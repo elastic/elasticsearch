@@ -69,7 +69,7 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
 
     protected final IndexInput ivfCentroids, ivfClusters;
     private final SegmentReadState state;
-    private final FieldInfos fieldInfos;
+    protected final FieldInfos fieldInfos;
     protected final IntObjectHashMap<E> fields;
     private final GenericFlatVectorReaders genericReaders;
     private final String centroidExtension;
@@ -568,10 +568,10 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
      * Implementations may return {@code null} if the format does not support reading centroid data
      * (e.g. because the layout differs from the writer that consumes this data).
      *
-     * @param fieldInfo the vector field to read centroids for
+     * @param fieldName the vector field to read centroids for
      * @return centroid data, or {@code null} if unavailable
      */
-    public abstract CentroidData readCentroidData(FieldInfo fieldInfo) throws IOException;
+    public abstract CentroidData readCentroidData(String fieldName) throws IOException;
 
     /**
      * Container for centroid data read from an existing segment. The centroid vectors are

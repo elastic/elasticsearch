@@ -25,7 +25,7 @@ Use when you want to run flakiness detection against a hand-picked list of class
 Build environment variables:
 
 | Variable            | Required | Description                                                                                                                                                                                                                                                 |
-|---------------------|----------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| ------------------- | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `FLAKINESS_CLASSES` | yes      | Newline- or comma-separated list of FQCNs. Each spec is one of: `org.foo.BarTests` (whole class), `org.foo.BarTests.testFoo` (resolves to class — method-level filtering deferred), or `org.foo.YamlIT.test {yaml=/10_apm/Test name}` (specific yaml case). |
 | `FLAKINESS_ITERS`   | no       | Positive integer applied uniformly to `-Dtests.iters` (unit + internalClusterTest) and `repeat-rest-test.sh` loop count. Defaults: 100 / 20 / 10 respectively.                                                                                              |
 
@@ -36,7 +36,7 @@ Driver: `entrypoints/manual.ts` invoked from `.buildkite/pipelines/flakiness-det
 Use when you want to reproduce a flakiness signal on your laptop.
 
 ```bash
-bun .buildkite/scripts/flakiness-detection/entrypoints/local.ts \
+node .buildkite/scripts/flakiness-detection/entrypoints/local.ts \
     [--iters N] \
     <Class>[ <Class>...]
 ```
@@ -66,7 +66,7 @@ Four modules form a one-way pipeline. Each module owns a single responsibility a
 Each detector takes an input shape specific to its trigger and emits `ClassifiedTest[]` plus an optional list of unresolvable inputs. All three are pure functions of their inputs (no I/O); the calling entrypoint reads files / runs git and passes strings in.
 
 | File                         | Input                                                      | Used by                                         |
-|------------------------------|------------------------------------------------------------|-------------------------------------------------|
+| ---------------------------- | ---------------------------------------------------------- | ----------------------------------------------- |
 | `detectors/changed-files.ts` | List of file paths (typically from `git diff --name-only`) | `entrypoints/pr.ts`                             |
 | `detectors/unmutes.ts`       | Old + new `muted-tests.yml` text + tracked repo files      | `entrypoints/pr.ts`                             |
 | `detectors/explicit-list.ts` | Array of spec strings                                      | `entrypoints/manual.ts`, `entrypoints/local.ts` |
@@ -98,8 +98,8 @@ Two implementations, one contract — both consume `RunnableCommand[]`:
 Runs **after** the batches complete. Reads JUnit XML written by Gradle (`*/build/test-results/*/TEST-*.xml`), classifies each failure entry, and aggregates per `(class, method)` summaries.
 
 | File                  | Responsibility                                                                                                                                                                                    |
-|-----------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `analyzer/analyze.ts` | Walk the workspace for JUnit XML, parse via `fast-xml-parser`, classify failures, produce `FlakinessReport`. Pure; takes an optional `minMtimeMs` to skip pre-existing reports during local runs. |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `analyzer/analyze.ts` | Walk the workspace for JUnit XML, stream-parse via `sax`, classify failures, produce `FlakinessReport`. Streaming keeps peak memory bounded by test count (not file size), so the analyze step survives K8s agents even when a report grows into the hundreds of MiB. Pure; takes an optional `minMtimeMs` to skip pre-existing reports during local runs. |
 | `analyzer/render.ts`  | `FlakinessReport → markdown`. `severity()` derives the Buildkite annotation style.                                                                                                                |
 
 Failure classification (`classifyFailure`):
@@ -135,4 +135,4 @@ flakiness-detection/
     analyze.ts           final BK step — runs analyzer and posts annotation
 ```
 
-Per-module test files (`*.test.ts`) sit alongside their source. Run with `cd .buildkite && bun test scripts/flakiness-detection`.
+Per-module test files (`*.test.ts`) sit alongside their source. Run with `cd .buildkite && pnpm test scripts/flakiness-detection`.

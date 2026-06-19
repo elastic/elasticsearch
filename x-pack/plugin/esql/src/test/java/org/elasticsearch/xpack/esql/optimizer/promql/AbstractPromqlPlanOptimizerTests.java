@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
+import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesCollapse;
 import org.hamcrest.Matcher;
 
 import java.time.Instant;
@@ -32,7 +33,10 @@ import static org.hamcrest.Matchers.not;
 public abstract class AbstractPromqlPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests {
 
     protected static TestAnalyzer tsAnalyzer() {
-        return analyzerWithEnrichPolicies().addK8s().unmappedResolution(UnmappedResolution.NULLIFY);
+        return analyzerWithEnrichPolicies().addK8s()
+            .addEmptyIndex()
+            .unmappedResolution(UnmappedResolution.NULLIFY)
+            .minimumTransportVersion(TimeSeriesCollapse.TS_COLLAPSE);
     }
 
     protected LogicalPlan planPromql(String query) {

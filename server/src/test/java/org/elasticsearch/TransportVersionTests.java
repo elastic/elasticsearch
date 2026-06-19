@@ -145,7 +145,7 @@ public class TransportVersionTests extends ESTestCase {
     }
 
     public void testToReleaseVersion() {
-        assertThat(TransportVersion.current().toReleaseVersion(), endsWith(Version.CURRENT.toString()));
+        assertThat(TransportVersion.current().toReleaseVersion(), endsWith(Build.current().version()));
     }
 
     public void testToString() {

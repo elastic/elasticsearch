@@ -11,6 +11,7 @@ package org.elasticsearch.index.engine;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.codecs.Codec;
+import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedDocValuesField;
@@ -143,16 +144,14 @@ import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
-import java.util.function.ToLongBiFunction;
+import java.util.function.ToLongFunction;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.common.bytes.BytesReferenceTestUtils.equalBytes;
 import static org.elasticsearch.index.engine.Engine.Operation.Origin.PEER_RECOVERY;
 import static org.elasticsearch.index.engine.Engine.Operation.Origin.PRIMARY;
 import static org.elasticsearch.index.engine.Engine.Operation.Origin.REPLICA;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -322,7 +321,16 @@ public abstract class EngineTestCase extends ESTestCase {
     }
 
     public static ParsedDocument createParsedDoc(String id, String routing) {
-        return testParsedDocument(id, routing, testDocumentWithTextField(), new BytesArray("{ \"value\" : \"test\" }"), false, false);
+        return testParsedDocument(
+            id,
+            routing,
+            testDocumentWithTextField(),
+            new BytesArray("{ \"value\" : \"test\" }"),
+
+            false,
+            false,
+            false
+        );
     }
 
     public static ParsedDocument createParsedDoc(String id, String routing, boolean recoverySource) {
@@ -336,16 +344,35 @@ public abstract class EngineTestCase extends ESTestCase {
             testDocumentWithTextField(),
             new BytesArray("{ \"value\" : \"test\" }"),
             recoverySource,
-            syntheticId
+            syntheticId,
+            false
+        );
+    }
+
+    public static ParsedDocument createParsedDoc(
+        String id,
+        String routing,
+        boolean recoverySource,
+        boolean syntheticId,
+        boolean columnarId
+    ) {
+        return testParsedDocument(
+            id,
+            routing,
+            testDocumentWithTextField(),
+            new BytesArray("{ \"value\" : \"test\" }"),
+            recoverySource,
+            syntheticId,
+            columnarId
         );
     }
 
     protected ParsedDocument testParsedDocument(String id, String routing, LuceneDocument document, BytesReference source) {
-        return testParsedDocument(id, routing, document, source, false, false);
+        return testParsedDocument(id, routing, document, source, false, false, false);
     }
 
     protected static ParsedDocument testParsedDocument(String id, LuceneDocument document, BytesReference source, boolean recoverySource) {
-        return testParsedDocument(id, null, document, source, recoverySource, false);
+        return testParsedDocument(id, null, document, source, recoverySource, false, false);
     }
 
     protected static ParsedDocument testParsedDocument(
@@ -354,7 +381,8 @@ public abstract class EngineTestCase extends ESTestCase {
         LuceneDocument document,
         BytesReference source,
         boolean recoverySource,
-        boolean syntheticId
+        boolean syntheticId,
+        boolean columnarId
     ) {
         var uid = Uid.encodeId(id);
         final Field idField;
@@ -372,6 +400,10 @@ public abstract class EngineTestCase extends ESTestCase {
                     Uid.encodeId(TimeSeriesRoutingHashFieldMapper.encode(routingHash))
                 )
             );
+        } else if (columnarId) {
+            BytesRef encoded = Uid.encodeId(id);
+            idField = new StringField("_id", encoded, Field.Store.NO);
+            document.add(new BinaryDocValuesField("_id", encoded));
         } else {
             idField = new StringField("_id", Uid.encodeId(id), Field.Store.YES);
         }
@@ -470,7 +502,7 @@ public abstract class EngineTestCase extends ESTestCase {
         Store store,
         Path translogPath,
         BiFunction<Long, Long, LocalCheckpointTracker> localCheckpointTrackerSupplier,
-        ToLongBiFunction<Engine, Engine.Operation> seqNoForOperation
+        ToLongFunction<Engine> seqNoForOperation
     ) throws IOException {
         return createEngine(
             defaultSettings,
@@ -530,7 +562,7 @@ public abstract class EngineTestCase extends ESTestCase {
         @Nullable IndexWriterFactory indexWriterFactory,
         @Nullable BiFunction<Long, Long, LocalCheckpointTracker> localCheckpointTrackerSupplier,
         @Nullable LongSupplier globalCheckpointSupplier,
-        @Nullable ToLongBiFunction<Engine, Engine.Operation> seqNoForOperation
+        @Nullable ToLongFunction<Engine> seqNoForOperation
     ) throws IOException {
         return createEngine(
             indexSettings,
@@ -552,7 +584,7 @@ public abstract class EngineTestCase extends ESTestCase {
         MergePolicy mergePolicy,
         @Nullable IndexWriterFactory indexWriterFactory,
         @Nullable BiFunction<Long, Long, LocalCheckpointTracker> localCheckpointTrackerSupplier,
-        @Nullable ToLongBiFunction<Engine, Engine.Operation> seqNoForOperation,
+        @Nullable ToLongFunction<Engine> seqNoForOperation,
         @Nullable Sort indexSort,
         @Nullable LongSupplier globalCheckpointSupplier
     ) throws IOException {
@@ -574,10 +606,10 @@ public abstract class EngineTestCase extends ESTestCase {
         return createEngine(null, null, null, config);
     }
 
-    protected InternalEngine createEngine(
+    private InternalEngine createEngine(
         @Nullable IndexWriterFactory indexWriterFactory,
         @Nullable BiFunction<Long, Long, LocalCheckpointTracker> localCheckpointTrackerSupplier,
-        @Nullable ToLongBiFunction<Engine, Engine.Operation> seqNoForOperation,
+        @Nullable ToLongFunction<Engine> seqNoForOperation,
         EngineConfig config
     ) throws IOException {
         final Store store = config.getStore();
@@ -620,10 +652,14 @@ public abstract class EngineTestCase extends ESTestCase {
         return internalEngine.getLocalCheckpointTracker().generateSeqNo();
     }
 
-    public static InternalEngine createInternalEngine(
+    public static InternalEngine createInternalEngine(@Nullable final IndexWriterFactory indexWriterFactory, final EngineConfig config) {
+        return createInternalEngine(indexWriterFactory, null, null, config);
+    }
+
+    private static InternalEngine createInternalEngine(
         @Nullable final IndexWriterFactory indexWriterFactory,
         @Nullable final BiFunction<Long, Long, LocalCheckpointTracker> localCheckpointTrackerSupplier,
-        @Nullable final ToLongBiFunction<Engine, Engine.Operation> seqNoForOperation,
+        @Nullable final ToLongFunction<Engine> seqNoForOperation,
         final EngineConfig config
     ) {
         if (localCheckpointTrackerSupplier == null) {
@@ -636,10 +672,8 @@ public abstract class EngineTestCase extends ESTestCase {
                 }
 
                 @Override
-                protected long doGenerateSeqNoForOperation(final Operation operation) {
-                    return seqNoForOperation != null
-                        ? seqNoForOperation.applyAsLong(this, operation)
-                        : super.doGenerateSeqNoForOperation(operation);
+                protected long doGenerateSeqNo() {
+                    return seqNoForOperation != null ? seqNoForOperation.applyAsLong(this) : super.doGenerateSeqNo();
                 }
             };
         } else {
@@ -652,14 +686,11 @@ public abstract class EngineTestCase extends ESTestCase {
                 }
 
                 @Override
-                protected long doGenerateSeqNoForOperation(final Operation operation) {
-                    return seqNoForOperation != null
-                        ? seqNoForOperation.applyAsLong(this, operation)
-                        : super.doGenerateSeqNoForOperation(operation);
+                protected long doGenerateSeqNo() {
+                    return seqNoForOperation != null ? seqNoForOperation.applyAsLong(this) : super.doGenerateSeqNo();
                 }
             };
         }
-
     }
 
     public EngineConfig config(IndexSettings indexSettings, Store store, Path translogPath, MergePolicy mergePolicy) {
@@ -1185,7 +1216,7 @@ public abstract class EngineTestCase extends ESTestCase {
      * Gets a collection of tuples of docId, sequence number, and primary term of all live documents in the provided engine.
      */
     protected List<DocIdSeqNoAndSource> getDocIds(Engine engine, boolean refresh) throws IOException {
-        return EngineTestUtils.getDocIds(engine, refresh);
+        return EngineTestUtils.getDocIds(engine, refresh, false);
     }
 
     /**
@@ -1288,7 +1319,16 @@ public abstract class EngineTestCase extends ESTestCase {
                         translogOperationAsserter.assertSameIndexOperation((Translog.Index) luceneOp, (Translog.Index) translogOp)
                     );
                 } else {
-                    assertThat(((Translog.Index) luceneOp).source(), equalBytes(((Translog.Index) translogOp).source()));
+                    Translog.Index luceneIdx = (Translog.Index) luceneOp;
+                    Translog.Index translogIdx = (Translog.Index) translogOp;
+                    // The translog op may have come from a batched translog record whose source is
+                    // re-emitted as canonical XContent without whitespace; fall back to a structural (map-equal)
+                    // comparison when the raw bytes don't match.
+                    assertTrue(
+                        "luceneOp=" + luceneOp + " != translogOp=" + translogOp,
+                        luceneIdx.source().equals(translogIdx.source())
+                            || Translog.Index.equalsWithoutAutoGeneratedTimestamp(luceneIdx, translogIdx, false)
+                    );
                 }
             }
         }

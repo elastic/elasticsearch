@@ -10,6 +10,8 @@
 package org.elasticsearch.nativeaccess.jdk;
 
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.foreign.LinkerHelperUtil;
+import org.elasticsearch.foreign.LoaderHelper;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.nativeaccess.VectorSimilarityFunctions;
@@ -18,7 +20,6 @@ import org.elasticsearch.nativeaccess.VectorSimilarityFunctions.BFloat16QueryTyp
 import org.elasticsearch.nativeaccess.VectorSimilarityFunctions.DataType;
 import org.elasticsearch.nativeaccess.VectorSimilarityFunctions.Function;
 import org.elasticsearch.nativeaccess.VectorSimilarityFunctions.Operation;
-import org.elasticsearch.nativeaccess.lib.LoaderHelper;
 import org.elasticsearch.nativeaccess.lib.VectorLibrary;
 
 import java.lang.foreign.FunctionDescriptor;
@@ -41,8 +42,8 @@ import static java.lang.foreign.ValueLayout.JAVA_BYTE;
 import static java.lang.foreign.ValueLayout.JAVA_FLOAT;
 import static java.lang.foreign.ValueLayout.JAVA_INT;
 import static java.lang.foreign.ValueLayout.JAVA_LONG;
-import static org.elasticsearch.nativeaccess.jdk.LinkerHelper.downcallHandle;
-import static org.elasticsearch.nativeaccess.jdk.LinkerHelper.functionAddressOrNull;
+import static org.elasticsearch.foreign.LinkerHelper.downcallHandle;
+import static org.elasticsearch.foreign.LinkerHelper.functionAddressOrNull;
 
 public final class JdkVectorLibrary implements VectorLibrary {
 
@@ -202,6 +203,7 @@ public final class JdkVectorLibrary implements VectorLibrary {
                 String typeName = switch (type) {
                     case D1Q1 -> "d1q1";
                     case D1Q4 -> "d1q4";
+                    case D2Q2 -> "d2q2";
                     case D2Q4 -> "d2q4";
                     case D4Q4 -> "d4q4";
                     case D2Q4_PACKED -> "d2q4_packed";
@@ -808,6 +810,16 @@ public final class JdkVectorLibrary implements VectorLibrary {
             Objects.checkFromIndexSize(0L, (long) length * 4, query.byteSize());
             Objects.checkFromIndexSize(0L, length, a.byteSize());
             return callSingleDistanceLong(dotD1Q4Handle, a, query, length);
+        }
+
+        private static final MethodHandle dotD2Q2Handle = HANDLES.get(
+            new OperationSignature<>(Function.DOT_PRODUCT, BBQType.D2Q2, Operation.SINGLE)
+        );
+
+        static long dotProductD2Q2(MemorySegment a, MemorySegment query, int length) {
+            Objects.checkFromIndexSize(0L, length, query.byteSize());
+            Objects.checkFromIndexSize(0L, length, a.byteSize());
+            return callSingleDistanceLong(dotD2Q2Handle, a, query, length);
         }
 
         private static final MethodHandle dotD2Q4Handle = HANDLES.get(

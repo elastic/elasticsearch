@@ -871,7 +871,8 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
             FoldContext.small(),
             new IndexedByShardIdFromList<>(shardContexts),
             null,
-            PlannerSettings.DEFAULTS
+            PlannerSettings.DEFAULTS,
+            () -> 0L
         );
     }
 

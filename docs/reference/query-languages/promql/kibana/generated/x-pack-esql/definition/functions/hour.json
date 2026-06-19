@@ -20,6 +20,5 @@
   "examples" : [
     "hour()"
   ],
-  "preview" : true,
   "snapshot_only" : false
 }

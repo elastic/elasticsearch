@@ -1310,7 +1310,8 @@ FROM sample_data
 @timestamp:date | client_ip:ip | event_duration:long | message:keyword
 ;
 
-multiValueLike#[skip:-8.12.99]
+multiValueLike
+skip_flattened_rewrite: field_extract_multivalue_null
 from employees | where job_positions like "Account*" | keep emp_no, job_positions;
 
 warningRegex:evaluation of \[job_positions like \\\"Account\*\\\"\] failed, treating result as null. Only first 20 failures recorded.
@@ -1321,7 +1322,8 @@ emp_no:integer | job_positions:keyword
 ;
 
 
-multiValueRLike#[skip:-8.12.99]
+multiValueRLike
+skip_flattened_rewrite: field_extract_multivalue_null
 from employees | where job_positions rlike "Account.*" | keep emp_no, job_positions;
 
 warningRegex:evaluation of \[job_positions rlike \\\"Account.*\\\"\] failed, treating result as null. Only first 20 failures recorded.
@@ -1331,7 +1333,7 @@ emp_no:integer | job_positions:keyword
 10025          | Accountant 
 ;
 
-likeWithUpperTurnedInsensitive#[skip:-8.12.99]
+likeWithUpperTurnedInsensitive
 FROM employees
 | KEEP emp_no, first_name
 | SORT emp_no
@@ -1343,7 +1345,7 @@ emp_no:integer |first_name:keyword
 10055          |Georgy
 ;
 
-likeWithLowerTurnedInsensitive#[skip:-8.12.99]
+likeWithLowerTurnedInsensitive
 FROM employees
 | KEEP emp_no, first_name
 | SORT emp_no
@@ -1355,7 +1357,7 @@ emp_no:integer |first_name:keyword
 10055          |Georgy
 ;
 
-likeWithLowerConflictingFolded#[skip:-8.12.99]
+likeWithLowerConflictingFolded
 FROM employees
 | KEEP emp_no, first_name
 | SORT emp_no
@@ -1365,7 +1367,7 @@ FROM employees
 emp_no:integer |first_name:keyword
 ;
 
-likeWithLowerTurnedInsensitiveNotPushedDown#[skip:-8.12.99]
+likeWithLowerTurnedInsensitiveNotPushedDown
 FROM employees
 | KEEP emp_no, first_name
 | SORT emp_no
@@ -1377,7 +1379,7 @@ emp_no:integer |first_name:keyword
 10055          |Georgy
 ;
 
-rlikeWithUpperTurnedInsensitive#[skip:-8.12.99]
+rlikeWithUpperTurnedInsensitive
 FROM employees
 | KEEP emp_no, first_name
 | SORT emp_no
@@ -1389,7 +1391,7 @@ emp_no:integer |first_name:keyword
 10055          |Georgy
 ;
 
-rlikeWithLowerTurnedInsensitive#[skip:-8.12.99]
+rlikeWithLowerTurnedInsensitive
 FROM employees
 | KEEP emp_no, first_name
 | SORT emp_no
@@ -1401,7 +1403,7 @@ emp_no:integer |first_name:keyword
 10055          |Georgy
 ;
 
-rlikeWithLowerConflictingFolded#[skip:-8.12.99]
+rlikeWithLowerConflictingFolded
 FROM employees
 | KEEP emp_no, first_name
 | SORT emp_no
@@ -1411,7 +1413,7 @@ FROM employees
 emp_no:integer |first_name:keyword
 ;
 
-negatedRLikeWithLowerTurnedInsensitive#[skip:-8.12.99]
+negatedRLikeWithLowerTurnedInsensitive
 FROM employees
 | KEEP emp_no, first_name
 | SORT emp_no
@@ -1423,7 +1425,7 @@ c:long
 88
 ;
 
-rlikeWithLowerTurnedInsensitiveNotPushedDown#[skip:-8.12.99]
+rlikeWithLowerTurnedInsensitiveNotPushedDown
 FROM employees
 | KEEP emp_no, first_name
 | SORT emp_no
@@ -1445,7 +1447,7 @@ x:keyword | bool:boolean
 abc       | false
 ;
 
-rlikeWithLowerTurnedInsensitiveUnicode#[skip:-8.12.99]
+rlikeWithLowerTurnedInsensitiveUnicode
 FROM airport_city_boundaries
 | WHERE TO_UPPER(region) RLIKE ".*Л.*" and abbrev == "FRU"
 | KEEP region

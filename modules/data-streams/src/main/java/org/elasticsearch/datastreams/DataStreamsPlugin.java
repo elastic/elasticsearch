@@ -26,7 +26,6 @@ import org.elasticsearch.action.datastreams.lifecycle.ExplainDataStreamLifecycle
 import org.elasticsearch.action.datastreams.lifecycle.GetDataStreamLifecycleAction;
 import org.elasticsearch.action.datastreams.lifecycle.PutDataStreamLifecycleAction;
 import org.elasticsearch.client.internal.OriginSettingClient;
-import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -150,9 +149,23 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin, Extensibl
     private final SetOnce<DataStreamLifecycleHealthInfoPublisher> dataStreamLifecycleErrorsPublisher = new SetOnce<>();
     private final SetOnce<DataStreamLifecycleHealthIndicatorService> dataStreamLifecycleHealthIndicatorService = new SetOnce<>();
     private final Settings settings;
+    private DownsamplingOperations downsamplingOperations = DownsamplingOperations.noop();
 
     public DataStreamsPlugin(Settings settings) {
         this.settings = settings;
+    }
+
+    @Override
+    public void loadExtensions(ExtensionLoader loader) {
+        List<DownsamplingOperations> extensions = loader.loadExtensions(DownsamplingOperations.class);
+        if (extensions.size() > 1) {
+            throw new IllegalStateException(
+                "Expected at most one DownsamplingOperations implementation, found: " + extensions.stream().map(Object::getClass).toList()
+            );
+        }
+        if (extensions.isEmpty() == false) {
+            downsamplingOperations = extensions.get(0);
+        }
     }
 
     protected Clock getClock() {
@@ -185,6 +198,7 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin, Extensibl
         pluginSettings.add(DataStreamLifecycleService.DATA_STREAM_LIFECYCLE_POLL_INTERVAL_SETTING);
         pluginSettings.add(DataStreamLifecycleService.DATA_STREAM_MERGE_POLICY_TARGET_FLOOR_SEGMENT_SETTING);
         pluginSettings.add(DataStreamLifecycleService.DATA_STREAM_MERGE_POLICY_TARGET_FACTOR_SETTING);
+        pluginSettings.add(DataStreamLifecycleService.DLM_CREATED_SETTING);
         return pluginSettings;
     }
 
@@ -251,9 +265,7 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin, Extensibl
         actions.add(new ActionHandler(UpdateDataStreamSettingsAction.INSTANCE, TransportUpdateDataStreamSettingsAction.class));
         actions.add(new ActionHandler(GetDataStreamMappingsAction.INSTANCE, TransportGetDataStreamMappingsAction.class));
         actions.add(new ActionHandler(UpdateDataStreamMappingsAction.INSTANCE, TransportUpdateDataStreamMappingsAction.class));
-        if (DataStreamLifecycle.DLM_SEARCHABLE_SNAPSHOTS_FEATURE_FLAG.isEnabled()) {
-            actions.add(new ActionHandler(MarkIndexForDLMForceMergeAction.TYPE, TransportMarkIndexForDLMForceMergeAction.class));
-        }
+        actions.add(new ActionHandler(MarkIndexForDLMForceMergeAction.TYPE, TransportMarkIndexForDLMForceMergeAction.class));
         return actions;
     }
 
@@ -270,7 +282,7 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin, Extensibl
         handlers.add(new RestDataStreamsStatsAction());
         handlers.add(new RestMigrateToDataStreamAction());
         handlers.add(new RestPromoteDataStreamAction());
-        handlers.add(new RestModifyDataStreamsAction());
+        handlers.add(new RestModifyDataStreamsAction(clusterSupportsFeature));
         handlers.add(new RestPutDataStreamLifecycleAction());
         handlers.add(new RestGetDataStreamLifecycleAction());
         handlers.add(new RestDeleteDataStreamLifecycleAction());

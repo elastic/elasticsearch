@@ -626,18 +626,6 @@ tests:
 - class: org.elasticsearch.smoketest.SmokeTestMultiNodeClientYamlTestSuiteIT
   method: test {yaml=scroll/10_basic/Basic scroll}
   issue: https://github.com/elastic/elasticsearch/issues/151698
-- class: org.elasticsearch.xpack.ml.datafeed.DatafeedManagerTests
-  method: testUpdateDatafeedFirstTimeMigrationShouldHonourExplicitProjectRoutingInUpdate
-  issue: https://github.com/elastic/elasticsearch/issues/151699
-- class: org.elasticsearch.xpack.ml.datafeed.DatafeedManagerTests
-  method: testUpdateDatafeedFirstTimeMigrationShouldDefaultProjectRoutingToOrigin
-  issue: https://github.com/elastic/elasticsearch/issues/151700
-- class: org.elasticsearch.xpack.ml.datafeed.DatafeedManagerTests
-  method: testUpdateDatafeedAlreadyMigratedShouldNotDefaultRoutingOnRekey
-  issue: https://github.com/elastic/elasticsearch/issues/151701
-- class: org.elasticsearch.xpack.ml.datafeed.DatafeedManagerTests
-  method: testUpdateDatafeedFirstTimeMigrationShouldNotOverrideExistingProjectRouting
-  issue: https://github.com/elastic/elasticsearch/issues/151702
 - class: org.elasticsearch.xpack.esql.CsvIT
   method: test {csv-spec:string.mvAppendNull}
   issue: https://github.com/elastic/elasticsearch/issues/151707

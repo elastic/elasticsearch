@@ -14,9 +14,16 @@ import org.elasticsearch.geometry.Point;
 import org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes;
 import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.jts.geom.Geometry;
+import org.locationtech.jts.geom.GeometryCollection;
 import org.locationtech.jts.geom.GeometryFactory;
+import org.locationtech.jts.geom.MultiLineString;
+import org.locationtech.jts.geom.MultiPoint;
+import org.locationtech.jts.geom.MultiPolygon;
 import org.locationtech.jts.io.ParseException;
+import org.locationtech.jts.operation.union.UnaryUnionOp;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.function.BiFunction;
 
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.UNSPECIFIED;
@@ -104,13 +111,32 @@ class SpatialBinaryGeometryBlockProcessor {
         int valueCount = block.getValueCount(p);
         BytesRef scratch = new BytesRef();
         if (valueCount == 1) {
-            return UNSPECIFIED.wkbToJtsGeometry(block.getBytesRef(firstValueIndex, scratch));
+            return flattenIfHeterogeneousCollection(UNSPECIFIED.wkbToJtsGeometry(block.getBytesRef(firstValueIndex, scratch)));
         }
-        Geometry[] geometries = new Geometry[valueCount];
+        List<Geometry> geometries = new ArrayList<>(valueCount);
         for (int i = 0; i < valueCount; i++) {
-            geometries[i] = UNSPECIFIED.wkbToJtsGeometry(block.getBytesRef(firstValueIndex + i, scratch));
+            geometries.add(UNSPECIFIED.wkbToJtsGeometry(block.getBytesRef(firstValueIndex + i, scratch)));
         }
-        return geometryFactory.createGeometryCollection(geometries);
+        // Use UnaryUnionOp so the result is a homogeneous multi-type (e.g. MultiPolygon)
+        // that JTS binary overlay operations can accept.
+        return UnaryUnionOp.union(geometries);
+    }
+
+    /**
+     * JTS binary overlay operations (union, intersection, difference, symdifference) reject
+     * heterogeneous {@link GeometryCollection} arguments with an IllegalArgumentException.
+     * Homogeneous subtypes (MultiPoint, MultiLineString, MultiPolygon) are supported.
+     * For anything else (a true heterogeneous collection), pre-flatten to a supported type
+     * using a self-union so the binary operation can proceed.
+     */
+    private static Geometry flattenIfHeterogeneousCollection(Geometry geom) {
+        if (geom instanceof MultiPoint || geom instanceof MultiLineString || geom instanceof MultiPolygon) {
+            return geom;
+        }
+        if (geom instanceof GeometryCollection) {
+            return UnaryUnionOp.union(geom);
+        }
+        return geom;
     }
 
     private Geometry fromLongBlock(LongBlock block, int p) {

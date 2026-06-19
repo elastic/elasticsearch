@@ -56,12 +56,7 @@ public class OtelSdkSettingsTests extends ESTestCase {
         TELEMETRY_EXPORT_SEND_TIMEOUT.get(settings);
     }
 
-    public void testSendTimeoutEqualToInitialBackoffIsRejected() {
-        Settings settings = Settings.builder().put(TELEMETRY_EXPORT_SEND_TIMEOUT.getKey(), OTLP_RETRY_INITIAL_BACKOFF).build();
-        expectThrows(IllegalArgumentException.class, () -> TELEMETRY_EXPORT_SEND_TIMEOUT.get(settings));
-    }
-
-    public void testSendTimeoutLessThanInitialBackoffIsRejected() {
+    public void testSendTimeoutBelowInitialBackoffIsRejected() {
         Settings settings = Settings.builder()
             .put(TELEMETRY_EXPORT_SEND_TIMEOUT.getKey(), TimeValue.timeValueMillis(OTLP_RETRY_INITIAL_BACKOFF.millis() - 1))
             .build();

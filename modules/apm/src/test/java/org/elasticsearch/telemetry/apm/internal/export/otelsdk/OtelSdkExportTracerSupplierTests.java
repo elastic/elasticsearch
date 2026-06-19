@@ -48,8 +48,8 @@ public class OtelSdkExportTracerSupplierTests extends ESTestCase {
     public void testConstructorWithNoopMeterProviderDoesNotThrow() {
         Settings settings = Settings.builder()
             .put(OtelSdkSettings.TELEMETRY_EXPORT_ENDPOINT.getKey(), "http://127.0.0.1:9")
-            .put(OtelSdkSettings.TELEMETRY_EXPORT_SEND_TIMEOUT.getKey(), "1ms")
-            .put(OtelSdkSettings.TELEMETRY_EXPORT_INTERVAL.getKey(), "2ms")
+            .put(OtelSdkSettings.TELEMETRY_EXPORT_SEND_TIMEOUT.getKey(), "200ms")
+            .put(OtelSdkSettings.TELEMETRY_EXPORT_INTERVAL.getKey(), "300ms")
             .build();
         try (var supplier = new OtelSdkExportTracerSupplier(settings, MeterProvider::noop)) {
             assertNotNull(supplier.get());
@@ -66,8 +66,8 @@ public class OtelSdkExportTracerSupplierTests extends ESTestCase {
         SdkMeterProvider meterProvider = SdkMeterProvider.builder().registerMetricReader(reader).build();
         Settings settings = Settings.builder()
             .put(OtelSdkSettings.TELEMETRY_EXPORT_ENDPOINT.getKey(), "http://127.0.0.1:9")
-            .put(OtelSdkSettings.TELEMETRY_EXPORT_SEND_TIMEOUT.getKey(), "1ms")
-            .put(OtelSdkSettings.TELEMETRY_EXPORT_INTERVAL.getKey(), "2ms")
+            .put(OtelSdkSettings.TELEMETRY_EXPORT_SEND_TIMEOUT.getKey(), "200ms")
+            .put(OtelSdkSettings.TELEMETRY_EXPORT_INTERVAL.getKey(), "300ms")
             .put(OtelSdkSettings.TELEMETRY_TRACING_SAMPLE_RATE.getKey(), 1.0)
             .build();
         try (var supplier = new OtelSdkExportTracerSupplier(settings, () -> meterProvider)) {

@@ -44,12 +44,13 @@ import static org.elasticsearch.telemetry.TelemetryProvider.OTEL_METRICS_ENABLED
  */
 public class OtelSdkExportMeterSupplier implements MeterSupplier {
 
-    // Internal JVM system property that enables OTel {@link RuntimeTelemetry} JVM metrics.
+    // Internal JVM system property that enables OTel RuntimeTelemetry JVM metrics.
     private static final String OTEL_JVM_METRICS_ENABLED_SYSTEM_PROPERTY = "telemetry.metrics.otel_jvm.enabled";
 
     static final RetryPolicy OTLP_RETRY_POLICY = RetryPolicy.builder()
         .setMaxAttempts(3)
         .setInitialBackoff(OtelSdkSettings.OTLP_RETRY_INITIAL_BACKOFF.toDuration())
+        .setBackoffMultiplier(OtelSdkSettings.OTLP_RETRY_BACKOFF_MULTIPLIER)
         .build();
 
     private final Settings settings;

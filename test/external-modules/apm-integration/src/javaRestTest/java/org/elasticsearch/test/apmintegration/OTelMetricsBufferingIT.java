@@ -37,18 +37,16 @@ public class OTelMetricsBufferingIT extends AbstractMetricsIT {
         .setting("telemetry.export.endpoint", () -> "http://" + recordingApmServer.getHttpAddress())
         .setting("telemetry.metrics.buffer.disk_size", "10mb")
         .setting("telemetry.metrics.buffer.ttl", "5m")
-        // The OTLP retry initial_backoff is hardcoded to 100ms. Keep the validated invariant
         // interval > send_timeout > initial_backoff so a failing export fully fails within an interval and the
         // PeriodicMetricReader does not skip a cycle.
-        .setting("telemetry.export.interval", "500ms")
-        .setting("telemetry.export.send_timeout", "200ms")
+        .setting("telemetry.export.interval", "1000ms")
+        .setting("telemetry.export.send_timeout", "600ms")
         .build();
 
     // make it bigger than export.send_timeout to allow the OTLP exporter to fully fail, and delegate to the disk buffering exporter
-    private static final TimeValue SLEEP_BETWEEN_RUNS = TimeValue.timeValueMillis(400);
+    private static final TimeValue SLEEP_BETWEEN_RUNS = TimeValue.timeValueMillis(800);
 
-    // The disk buffer uses fixed production rotation windows (read-min-age 33s), so a buffered batch only becomes
-    // drainable ~33s after it is written. Poll for more than that window for the post-recovery drain to complete.
+    // Poll past the fixed production read-min-age window (33s) before a buffered batch becomes drainable.
     private static final int BUFFER_DRAIN_TIMEOUT = 60;
 
     // use the same clock implementation as the OTel SDK itself
@@ -73,10 +71,8 @@ public class OTelMetricsBufferingIT extends AbstractMetricsIT {
         long outageStartEpochNanos = otelClock.now();
         recordingApmServer.setResponseCode(503);
 
-        // Buffer several batches during the outage to exercise the drain loop over more than one stored entry.
-        // deltaPreferred() resets the SDK delta after each successful disk write, so each iteration contributes one
-        // batch; the sleep lets each export fully fail before the next. They become drainable once the fixed
-        // production read-min-age window elapses after recovery.
+        // Buffer several batches to exercise the drain loop: deltaPreferred() resets the delta after each disk write,
+        // so each iteration contributes one batch and the sleep lets each export fully fail before the next.
         final int BUFFER_BATCHES = 3;
         for (int i = 0; i < BUFFER_BATCHES; i++) {
             client().performRequest(new Request("GET", "/_use_apm_metrics"));

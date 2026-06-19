@@ -19,8 +19,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 public class OTelMetricsBufferSurvivesRestartIT extends AbstractTelemetryIT {
 
-    // The disk buffer uses fixed production rotation windows (read-min-age 33s): the pre-existing file only becomes
-    // drainable ~33s after it was written, so poll for more than that window for the post-restart replay.
+    // Poll past the fixed production read-min-age window (33s) before the pre-existing file becomes drainable.
     private static final int BUFFER_DRAIN_TIMEOUT = 60;
 
     public static RecordingApmServer recordingApmServer = new RecordingApmServer();
@@ -30,7 +29,6 @@ public class OTelMetricsBufferSurvivesRestartIT extends AbstractTelemetryIT {
         .setting("telemetry.export.endpoint", () -> "http://" + recordingApmServer.getHttpAddress())
         .setting("telemetry.metrics.buffer.disk_size", "10mb")
         .setting("telemetry.metrics.buffer.ttl", "5m")
-        // The OTLP retry initial_backoff is hardcoded to 100ms. Keep the validated invariant
         // interval > send_timeout > initial_backoff so a failing export fully fails within an interval and the
         // PeriodicMetricReader does not skip a cycle.
         .setting("telemetry.export.interval", "500ms")

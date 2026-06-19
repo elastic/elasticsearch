@@ -29,9 +29,9 @@ public final class OtelSdkSettings {
     private OtelSdkSettings() {}
 
     /**
-     * Ceiling for the best-effort flush of buffered metrics and spans on shutdown. Bounds the blocking wait so a
-     * stuck or unreachable exporter cannot hang node shutdown indefinitely.
-     */
+     * Upper bound on the best-effort flush of buffered metrics and spans on shutdown, so an unreachable exporter cannot hang it.
+     * 1 minute is a reasonable default that protects from pathological cases without being too restrictive.
+     * */
     public static final TimeValue OTEL_EXPORT_FLUSH_TIMEOUT = TimeValue.timeValueMinutes(1);
 
     // --- Resource attributes (all signals)
@@ -44,32 +44,32 @@ public final class OtelSdkSettings {
 
     // --- Shared OTLP export transport (metrics + traces)
 
-    /** OTLP/gRPC endpoint URL ({@code http://host:port}, no path) where the SDK exports metrics and spans.
+    /** URL ({@code http://host:port}, no path) where the SDK exports metrics and spans.
      * Required when the SDK metrics or trace path is active. */
     public static final Setting<String> TELEMETRY_EXPORT_ENDPOINT = Setting.simpleString("telemetry.export.endpoint", "", NodeScope);
 
-    /** Initial backoff of the shared OTLP retry policy ({@link OtelSdkExportMeterSupplier#OTLP_RETRY_POLICY}); held below
-     * {@link #TELEMETRY_EXPORT_SEND_TIMEOUT} (enforced by validation) so a retry's backoff sleep stays within the send budget. */
+    /**
+     * Initial backoff of the shared OTLP retry policy ({@link OtelSdkExportMeterSupplier#OTLP_RETRY_POLICY}).
+     * The default allows for fast retry and manageable total timeout.
+     * */
     public static final TimeValue OTLP_RETRY_INITIAL_BACKOFF = TimeValue.timeValueMillis(100);
 
-    /** Total deadline for one OTLP send() including retries; must stay below the export interval so a slow export
-     * does not stretch into the next cycle, and above {@link #OTLP_RETRY_INITIAL_BACKOFF}. */
+    /**
+     * Backoff multiplier of the shared OTLP retry policy ({@link OtelSdkExportMeterSupplier#OTLP_RETRY_POLICY}).
+     * The default allows the second retry to come with a reasonable distance from the first.
+     * */
+    public static final double OTLP_RETRY_BACKOFF_MULTIPLIER = 5;
+
+    /**
+     * Total deadline for one OTLP send() including retries. Floored at {@link #OTLP_RETRY_INITIAL_BACKOFF} so a failing
+     * send can still complete a retry within budget, and kept below the export interval so a slow export does not
+     * stretch into the next cycle.
+     **/
     public static final Setting<TimeValue> TELEMETRY_EXPORT_SEND_TIMEOUT = Setting.timeSetting(
         "telemetry.export.send_timeout",
         TimeValue.timeValueSeconds(5),
-        TimeValue.timeValueMillis(1),
+        OTLP_RETRY_INITIAL_BACKOFF,
         TimeValue.timeValueSeconds(60),
-        value -> {
-            if (value.compareTo(OTLP_RETRY_INITIAL_BACKOFF) <= 0) {
-                throw new IllegalArgumentException(
-                    "telemetry.export.send_timeout ("
-                        + value
-                        + ") must be greater than the OTLP retry initial backoff ("
-                        + OTLP_RETRY_INITIAL_BACKOFF
-                        + ")"
-                );
-            }
-        },
         NodeScope
     );
 

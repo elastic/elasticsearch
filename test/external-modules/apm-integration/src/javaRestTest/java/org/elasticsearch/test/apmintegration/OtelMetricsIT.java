@@ -39,8 +39,8 @@ public class OtelMetricsIT extends AbstractMetricsIT {
         .systemProperty("telemetry.otel.metrics.enabled", "true")
         .systemProperty("telemetry.metrics.otel_jvm.enabled", "true")
         .setting("telemetry.export.endpoint", () -> "http://" + recordingApmServer.getHttpAddress())
-        .setting("telemetry.export.interval", "100ms")
-        .setting("telemetry.export.send_timeout", "80ms")
+        .setting("telemetry.export.interval", "300ms")
+        .setting("telemetry.export.send_timeout", "200ms")
         .setting("telemetry.metrics.buffer.disk_size", "0b")
         // Mirrors the three labels ServerlessServerCli writes via telemetry.agent.global_labels.* on the APM-agent path,
         // bridged here to the OTel resource via the telemetry.resource.* affix.

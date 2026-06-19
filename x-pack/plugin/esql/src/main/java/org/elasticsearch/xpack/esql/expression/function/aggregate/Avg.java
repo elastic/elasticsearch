@@ -47,6 +47,7 @@ public class Avg extends AggregateFunction implements SurrogateExpression, Aggre
 
     @FunctionInfo(
         returnType = "double",
+        briefSummary = "Returns the average of a numeric field.",
         description = "The average of a numeric field.",
         type = FunctionType.AGGREGATE,
         examples = {

@@ -49,7 +49,16 @@ public class Percentile extends NumericAggregate implements SurrogateExpression 
     );
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Percentile.class).binary(Percentile::new).name("percentile");
     public static final PromqlFunctionDefinition PROMQL_DEFINITION = PromqlFunctionDefinition.def()
-        .acrossSeriesBinary(PromqlFunctionDefinition.QUANTILE, Percentile::new)
+        .acrossSeriesBinary(
+            PromqlFunctionDefinition.QUANTILE,
+            (source, field, filter, window, phi) -> new Percentile(
+                source,
+                field,
+                filter,
+                window,
+                PromqlFunctionDefinition.quantileToPercentile(source, phi)
+            )
+        )
         .description("Returns the φ-quantile (0 ≤ φ ≤ 1) of the values across the input vector.")
         .example("quantile(0.9, http_request_duration_seconds)")
         .name("quantile");
@@ -58,6 +67,7 @@ public class Percentile extends NumericAggregate implements SurrogateExpression 
 
     @FunctionInfo(
         returnType = "double",
+        briefSummary = "Returns the value at which a certain percentage of observed values occur.",
         description = "Returns the value at which a certain percentage of observed values occur. "
             + "For example, the 95th percentile is the value which is greater than 95% of the "
             + "observed values and the 50th percentile is the `MEDIAN`.",

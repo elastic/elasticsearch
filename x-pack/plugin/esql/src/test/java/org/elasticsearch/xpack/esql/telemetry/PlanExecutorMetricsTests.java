@@ -211,7 +211,8 @@ public class PlanExecutorMetricsTests extends ESTestCase {
                 Settings.EMPTY,
                 blockFactory(),
                 EsExecutors.DIRECT_EXECUTOR_SERVICE,
-                new DataSourceCredentials()
+                new DataSourceCredentials(),
+                () -> false
             )
         ) {
             var planExecutor = buildPlanExecutor(indexResolver, dataSourceModule);
@@ -319,7 +320,8 @@ public class PlanExecutorMetricsTests extends ESTestCase {
                 Settings.EMPTY,
                 blockFactory(),
                 EsExecutors.DIRECT_EXECUTOR_SERVICE,
-                new DataSourceCredentials()
+                new DataSourceCredentials(),
+                () -> false
             )
         ) {
             var planExecutor = buildPlanExecutor(indexResolver, dataSourceModule);
@@ -422,7 +424,8 @@ public class PlanExecutorMetricsTests extends ESTestCase {
                 Settings.EMPTY,
                 blockFactory(),
                 EsExecutors.DIRECT_EXECUTOR_SERVICE,
-                new DataSourceCredentials()
+                new DataSourceCredentials(),
+                () -> false
             )
         ) {
             var planExecutor = buildPlanExecutor(indexResolver, dataSourceModule);
@@ -499,7 +502,8 @@ public class PlanExecutorMetricsTests extends ESTestCase {
                 Settings.EMPTY,
                 blockFactory(),
                 EsExecutors.DIRECT_EXECUTOR_SERVICE,
-                new DataSourceCredentials()
+                new DataSourceCredentials(),
+                () -> false
             )
         ) {
             var planExecutor = buildPlanExecutor(indexResolver, dataSourceModule);
@@ -562,7 +566,8 @@ public class PlanExecutorMetricsTests extends ESTestCase {
                 Settings.EMPTY,
                 blockFactory(),
                 EsExecutors.DIRECT_EXECUTOR_SERVICE,
-                new DataSourceCredentials()
+                new DataSourceCredentials(),
+                () -> false
             )
         ) {
             var planExecutor = buildPlanExecutor(indexResolver, dataSourceModule);

@@ -14,6 +14,7 @@ import org.elasticsearch.features.NodeFeature;
 
 import java.util.Set;
 
+import static org.elasticsearch.index.mapper.ProvidedIdFieldMapper.ID_FIELD_MODE_MAPPING_ATTRIBUTE;
 import static org.elasticsearch.index.mapper.RoutingFieldMapper.ROUTING_AS_DOC_VALUES;
 import static org.elasticsearch.index.mapper.RoutingFieldMapper.ROUTING_AS_DOC_VALUES_BY_DEFAULT;
 import static org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper.FLATTENED_MAPPED_SUBFIELDS_FEATURE;
@@ -107,12 +108,21 @@ public class MapperFeatures implements FeatureSpecification {
         "mapper.analyzer-wrapper.reloadable_search_analyzer"
     );
     static final NodeFeature STORE_NOT_ALLOWED_IN_COLUMNAR_INDEX_MODE = new NodeFeature("mapper.columnar.store_not_allowed");
+    public static final NodeFeature KEYWORD_DV_CASE_INSENSITIVE_REGEXP = new NodeFeature(
+        "mapper.keyword.doc_values_case_insensitive_regexp"
+    );
     public static final NodeFeature COLUMNAR_REJECTS_RUNTIME_DYNAMIC = new NodeFeature("mapper.columnar_rejects_runtime_dynamic");
     static final NodeFeature COLUMNAR_MAINTAIN_ARRAY_ORDER = new NodeFeature("mapper.columnar.maintain_array_order");
     static final NodeFeature KEYWORD_COLUMNAR_DEFAULT_HIGH_CARDINALITY = new NodeFeature(
         "mapper.keyword.columnar_default_high_cardinality"
     );
+    static final NodeFeature TEXT_FIELDS_ENABLE_DOC_VALUES_BY_DEFAULT_IN_COLUMNAR_MODE = new NodeFeature(
+        "mapper.text_fields.enable_doc_values_by_default_in_columnar_mode"
+    );
     static final NodeFeature COLUMNAR_MAINTAIN_ARRAY_ORDER_IP_TEXT = new NodeFeature("mapper.columnar.maintain_array_order_ip_text");
+    static final NodeFeature COLUMNAR_INLINE_ARRAY_ORDER_BINARY_DOC_VALUES = new NodeFeature(
+        "mapper.columnar.inline_array_order_binary_doc_values"
+    );
     public static final NodeFeature COLUMNAR_DROPS_DYNAMIC_FALSE_FIELDS = new NodeFeature("mapper.columnar.drops_dynamic_false_fields");
 
     @Override
@@ -186,12 +196,16 @@ public class MapperFeatures implements FeatureSpecification {
             KEYWORD_MULTI_FIELDS_NOT_STORED_WHEN_IGNORED,
             ANALYZER_WRAPPER_RELOADABLE_SEARCH_ANALYZER,
             ROUTING_AS_DOC_VALUES,
+            ID_FIELD_MODE_MAPPING_ATTRIBUTE,
             ROUTING_AS_DOC_VALUES_BY_DEFAULT,
             STORE_NOT_ALLOWED_IN_COLUMNAR_INDEX_MODE,
+            KEYWORD_DV_CASE_INSENSITIVE_REGEXP,
             COLUMNAR_MAINTAIN_ARRAY_ORDER,
             COLUMNAR_REJECTS_RUNTIME_DYNAMIC,
             KEYWORD_COLUMNAR_DEFAULT_HIGH_CARDINALITY,
+            TEXT_FIELDS_ENABLE_DOC_VALUES_BY_DEFAULT_IN_COLUMNAR_MODE,
             COLUMNAR_MAINTAIN_ARRAY_ORDER_IP_TEXT,
+            COLUMNAR_INLINE_ARRAY_ORDER_BINARY_DOC_VALUES,
             COLUMNAR_DROPS_DYNAMIC_FALSE_FIELDS,
             DOC_VALUES_MULTI_VALUE_INDEX_SETTING
         );

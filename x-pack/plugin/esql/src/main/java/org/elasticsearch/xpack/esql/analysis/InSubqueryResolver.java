@@ -59,7 +59,7 @@ import static org.elasticsearch.xpack.esql.common.Failure.fail;
  * {@link InSubquery} expressions, become children of join nodes and visible to standard plan
  * traversals. This eliminates the need for separate InSubquery-aware traversals in
  * {@link PreAnalyzer}, {@link org.elasticsearch.xpack.esql.session.FieldNameUtils FieldNameUtils},
- * and {@link org.elasticsearch.xpack.esql.inference.InferenceResolver InferenceResolver}.
+ * and {@link org.elasticsearch.xpack.esql.inference.InferenceService InferenceService}.
  * <p>
  * The join's {@code rightFields} are left empty at this stage because the subquery output is not
  * yet resolved. The Analyzer's {@code ResolveRefs} fills them in during the Resolution batch.
@@ -120,7 +120,10 @@ public class InSubqueryResolver {
      */
     private record MarkJoinSpec(Source source, LogicalPlan subquery, JoinConfig config, Attribute markAttribute) {}
 
-    private static LogicalPlan resolveInSubqueryInFilter(Filter filter) {
+    /**
+     * Make this public, so that {@link org.elasticsearch.xpack.esql.view.ViewResolver} can drive IN subquery resolution.
+     */
+    public static LogicalPlan resolveInSubqueryInFilter(Filter filter) {
         Expression condition = filter.condition();
 
         List<Expression> conjuncts = Predicates.splitAnd(condition);

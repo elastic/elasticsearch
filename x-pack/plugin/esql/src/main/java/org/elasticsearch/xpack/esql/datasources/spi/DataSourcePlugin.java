@@ -80,6 +80,24 @@ public interface DataSourcePlugin {
         return storageProviders(settings);
     }
 
+    /**
+     * Storage providers with access to node-level services ({@link StorageProviderServices}).
+     * Plugins that need the node {@link org.elasticsearch.env.Environment} or
+     * {@link org.elasticsearch.watcher.ResourceWatcherService} — e.g. to resolve or watch
+     * operator-managed token symlinks under {@code ${ES_PATH_CONF}} — should override this method.
+     *
+     * <p>The default delegates to {@link #storageProviders(Settings, ExecutorService)}, so plugins
+     * with no node-context needs can keep overriding the simpler signatures unchanged.
+     *
+     * <p>Lifecycle: this method may allocate node-level resources (file watchers, clients). The
+     * {@code DataSourceModule} closes every {@link java.io.Closeable} {@code DataSourcePlugin} when it
+     * shuts down, so implementations must release those resources in {@code close()} and tolerate a
+     * {@code close()} that runs without any prior {@code storageProviders} call.
+     */
+    default Map<String, StorageProviderFactory> storageProviders(StorageProviderServices services) {
+        return storageProviders(services.settings(), services.executor());
+    }
+
     default Map<String, FormatReaderFactory> formatReaders(Settings settings) {
         return Map.of();
     }

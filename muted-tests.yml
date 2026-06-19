@@ -644,3 +644,6 @@ tests:
 - class: org.elasticsearch.xpack.ml.datafeed.DatafeedManagerTests
   method: testUpdateDatafeedFirstTimeMigrationShouldDefaultProjectRoutingToOrigin
   issue: https://github.com/elastic/elasticsearch/issues/151700
+- class: org.elasticsearch.xpack.ml.datafeed.DatafeedManagerTests
+  method: testUpdateDatafeedAlreadyMigratedShouldNotDefaultRoutingOnRekey
+  issue: https://github.com/elastic/elasticsearch/issues/151701

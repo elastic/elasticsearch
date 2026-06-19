@@ -54,7 +54,7 @@ public class IdFieldTypeTests extends ESTestCase {
         Query query = ft.termQuery("a0", context);
         assertEquals(new TermQuery(new Term("_id", Uid.encodeId("a0"))), query);
         query = ft.termsQuery(List.of("a1", "a2"), context);
-        assertEquals(new TermInSetQuery("_id", List.of(Uid.encodeId("my_id"), Uid.encodeId("a2"))), query);
+        assertEquals(new TermInSetQuery("_id", List.of(Uid.encodeId("a1"), Uid.encodeId("a2"))), query);
     }
 
     public void testIsAggregatable() {

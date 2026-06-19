@@ -870,4 +870,83 @@ public class RootObjectMapperTests extends MapperServiceTestCase {
             );
         }
     }
+
+    /**
+     * Verifies that {@code prefix_properties.passthrough} entries survive a serialization/deserialization
+     * round-trip so that {@link FieldTypeLookup} can reconstruct root-level aliases after index restart.
+     */
+    public void testPassthroughByPrefixSerializationRoundTrip() throws Exception {
+        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        for (IndexMode indexMode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
+            Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), indexMode.getName()).build();
+            MapperService mapperService = createMapperService(settings, mapping(b -> {
+                b.startObject("attributes").field("type", "passthrough").field("priority", 1).field("dynamic", true);
+                {
+                    b.startObject("properties");
+                    b.startObject("env").field("type", "keyword").endObject();
+                    b.endObject();
+                }
+                b.endObject();
+                b.startObject("resource.attributes").field("type", "passthrough").field("priority", 2).field("dynamic", true);
+                {
+                    b.startObject("properties");
+                    b.startObject("service").field("type", "keyword").endObject();
+                    b.endObject();
+                }
+                b.endObject();
+            }));
+
+            String mappingJson1 = Strings.toString(mapperService.documentMapper().mapping());
+
+            // Re-parse and re-serialize — must be identical
+            MapperService mapperService2 = createMapperService(settings, mappingJson1);
+            String mappingJson2 = Strings.toString(mapperService2.documentMapper().mapping());
+            assertEquals("prefix_properties.passthrough must survive round-trip for " + indexMode, mappingJson1, mappingJson2);
+
+            // The stored mapping must contain prefix_properties.passthrough
+            assertThat(mappingJson1, containsString("\"prefix_properties\""));
+            assertThat(mappingJson1, containsString("\"passthrough\""));
+            assertThat(mappingJson1, containsString("\"attributes\":1"));
+            assertThat(mappingJson1, containsString("\"resource.attributes\":2"));
+
+            // The map must be populated on the re-parsed root
+            RootObjectMapper root2 = mapperService2.mappingLookup().getMapping().getRoot();
+            assertEquals(Integer.valueOf(1), root2.getPassthroughByPrefix().get("attributes"));
+            assertEquals(Integer.valueOf(2), root2.getPassthroughByPrefix().get("resource.attributes"));
+        }
+    }
+
+    /**
+     * Verifies that a merge update adds a new passthrough prefix entry to {@code prefix_properties.passthrough}.
+     */
+    public void testPassthroughByPrefixMergeAddsEntry() throws Exception {
+        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        for (IndexMode indexMode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
+            Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), indexMode.getName()).build();
+            MapperService mapperService = createMapperService(settings, mapping(b -> {
+                b.startObject("attributes").field("type", "passthrough").field("priority", 1).field("dynamic", true);
+                {
+                    b.startObject("properties");
+                    b.startObject("env").field("type", "keyword").endObject();
+                    b.endObject();
+                }
+                b.endObject();
+            }));
+
+            // Merge: add a second passthrough
+            merge(mapperService, mapping(b -> {
+                b.startObject("resource").field("type", "passthrough").field("priority", 2).field("dynamic", true);
+                {
+                    b.startObject("properties");
+                    b.startObject("service").field("type", "keyword").endObject();
+                    b.endObject();
+                }
+                b.endObject();
+            }));
+
+            RootObjectMapper root = mapperService.documentMapper().mapping().getRoot();
+            assertEquals(Integer.valueOf(1), root.getPassthroughByPrefix().get("attributes"));
+            assertEquals(Integer.valueOf(2), root.getPassthroughByPrefix().get("resource"));
+        }
+    }
 }

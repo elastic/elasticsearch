@@ -92,6 +92,13 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
     // only used for telemetry purposes on the coordinating node, where the search response gets created
     private transient Long timeRangeFilterFromMillis;
 
+    /**
+     * Query-phase aggregation bytes left on the request breaker when
+     * {@link SearchRequest#bufferSubSearchResponseForMultiSearch()} is set. Released by
+     * {@link TransportMultiSearchAction} when multi-search buffering completes.
+     */
+    private transient long queryPhaseAggregationBreakerBytes = 0;
+
     // SearchHits from top_hits aggs to release when this response is released.
     private final List<SearchHits> topHitsToRelease;
 
@@ -456,6 +463,19 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
      */
     public Clusters getClusters() {
         return clusters;
+    }
+
+    /**
+     * Bytes charged on the request breaker for merged query-phase aggregations and transferred from
+     * {@link QueryPhaseResultConsumer} for multi-search buffering. Zero for ordinary searches.
+     */
+    public long getQueryPhaseAggregationBreakerBytes() {
+        return queryPhaseAggregationBreakerBytes;
+    }
+
+    void setQueryPhaseAggregationBreakerBytes(long queryPhaseAggregationBreakerBytes) {
+        assert queryPhaseAggregationBreakerBytes >= 0 : "bytes must be non-negative";
+        this.queryPhaseAggregationBreakerBytes = queryPhaseAggregationBreakerBytes;
     }
 
     @Override

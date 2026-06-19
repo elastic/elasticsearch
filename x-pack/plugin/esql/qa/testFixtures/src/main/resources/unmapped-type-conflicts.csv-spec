@@ -2,7 +2,7 @@
 
 ######################################
 # Mapped and unmapped conflict tests #
-######################################  
+######################################
 
 typeConflictWithUnmappedJustFrom
 required_capability: optional_fields_v5
@@ -245,6 +245,31 @@ sample_data            | 2764889.0
 sample_data            | 3450233.0
 sample_data            | 5033755.0
 sample_data            | 8268153.0
+;
+
+// Reproducer for #151525.
+typeConflictShortUnmappedCastToInteger
+required_capability: optional_fields_v5
+required_capability: optional_fields_fix_partially_unmapped_small_numeric
+
+SET unmapped_fields="load"\;
+FROM all_types, all_types_no_short METADATA _index
+| EVAL short = short::integer
+| KEEP _index, short
+| SORT _index, short
+;
+
+_index:keyword     | short:integer
+all_types          | 10
+all_types          | 20
+all_types          | 30
+all_types          | 40
+all_types          | 50
+all_types_no_short | 10
+all_types_no_short | 20
+all_types_no_short | 30
+all_types_no_short | 40
+all_types_no_short | 50
 ;
 
 // Confirm that the employees_no_names index does not have first_name and last_name mapped.
@@ -875,6 +900,66 @@ heights        | null
 ###########################
 # Mapped x 2 and unmapped #
 ###########################
+
+// #151525, small numeric variant: short is mapped as short (all_types), as long (all_types_short_as_long), and unmapped
+// (all_types_no_short). Without a cast the conflict is unsupported; an explicit cast must resolve all three legs.
+typeConflictShortLongUnmappedNotCast
+required_capability: optional_fields_v5
+required_capability: optional_fields_fix_load_partially_mapped
+required_capability: optional_fields_fix_partially_unmapped_small_numeric
+
+SET unmapped_fields="load"\;
+FROM all_types, all_types_short_as_long, all_types_no_short METADATA _index
+| KEEP _index, short
+| SORT _index
+;
+
+_index:keyword          | short:unsupported
+all_types               | null
+all_types               | null
+all_types               | null
+all_types               | null
+all_types               | null
+all_types_no_short      | null
+all_types_no_short      | null
+all_types_no_short      | null
+all_types_no_short      | null
+all_types_no_short      | null
+all_types_short_as_long | null
+all_types_short_as_long | null
+all_types_short_as_long | null
+all_types_short_as_long | null
+all_types_short_as_long | null
+;
+
+typeConflictShortLongUnmappedCastToInteger
+required_capability: optional_fields_v5
+required_capability: optional_fields_fix_partially_unmapped_small_numeric
+
+SET unmapped_fields="load"\;
+FROM all_types, all_types_short_as_long, all_types_no_short METADATA _index
+| EVAL short = short::integer
+| KEEP _index, short
+| SORT _index, short
+;
+
+_index:keyword          | short:integer
+all_types               | 10
+all_types               | 20
+all_types               | 30
+all_types               | 40
+all_types               | 50
+all_types_no_short      | 10
+all_types_no_short      | 20
+all_types_no_short      | 30
+all_types_no_short      | 40
+all_types_no_short      | 50
+all_types_short_as_long | 10
+all_types_short_as_long | 20
+all_types_short_as_long | 30
+all_types_short_as_long | 40
+all_types_short_as_long | 50
+;
 
 typeConflictLongDateUnmappedCastToKeyword
 required_capability: optional_fields_v5

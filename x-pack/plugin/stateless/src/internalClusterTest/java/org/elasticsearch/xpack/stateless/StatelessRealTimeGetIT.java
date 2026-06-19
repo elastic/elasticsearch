@@ -100,9 +100,10 @@ public class StatelessRealTimeGetIT extends AbstractStatelessPluginIntegTestCase
         // 792 B part size, producing ~3000-4000 upload tasks for a shared 5-thread pool. With multiple shards uploading concurrently
         // this overwhelms the pool, causing safeGet to exceed SAFE_AWAIT_TIMEOUT and triggering upload retries that outlive the 5-second
         // shard lock check in assertAfterTest. Fixed values here keep the part count bounded (~190 parts for a 3 MB commit).
-        return super.nodeSettings()
-            .put(ConcurrentMultiPartUploadsMockFsRepository.MULTIPART_UPLOAD_THRESHOLD_SIZE, ByteSizeValue.of(128, ByteSizeUnit.KB))
-            .put(ConcurrentMultiPartUploadsMockFsRepository.MULTIPART_UPLOAD_PART_SIZE, ByteSizeValue.of(16, ByteSizeUnit.KB));
+        return super.nodeSettings().put(
+            ConcurrentMultiPartUploadsMockFsRepository.MULTIPART_UPLOAD_THRESHOLD_SIZE,
+            ByteSizeValue.of(128, ByteSizeUnit.KB)
+        ).put(ConcurrentMultiPartUploadsMockFsRepository.MULTIPART_UPLOAD_PART_SIZE, ByteSizeValue.of(16, ByteSizeUnit.KB));
     }
 
     public void testGet() {

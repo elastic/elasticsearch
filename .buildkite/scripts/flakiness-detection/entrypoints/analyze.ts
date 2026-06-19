@@ -1,4 +1,5 @@
 import { execSync } from "child_process";
+import { mkdirSync } from "fs";
 import { readdir, readFile, writeFile } from "fs/promises";
 import { join, resolve } from "path";
 
@@ -88,14 +89,21 @@ async function readJobStatuses(): Promise<JobStatus[]> {
 // absent/empty when the job uploaded no reports (e.g. a hang or infra failure).
 function downloadJobReports(jobId: string): string {
   const dest = join(JOBS_DIR, jobId);
+  // buildkite-agent does not create the destination directory; without this the
+  // download fails with ENOENT for every job, leaving zero test counts and
+  // mis-classifying real outcomes (e.g. flaky_detected -> infra_fail).
+  mkdirSync(dest, { recursive: true });
   try {
     execSync(`buildkite-agent artifact download "${TEST_RESULTS_GLOB}" "${dest}" --step "${jobId}"`, {
       cwd: PROJECT_ROOT,
       stdio: ["pipe", "inherit", "inherit"],
     });
-  } catch {
-    // "No artifacts found" exits non-zero; expected for jobs that wrote no XML.
-    console.error(`No JUnit reports downloaded for job ${jobId} (likely none uploaded).`);
+  } catch (err) {
+    // A non-zero exit can mean "no matching artifacts" (expected for jobs that
+    // wrote no XML) or a genuine download failure. Surface the underlying error
+    // so the latter is not silently swallowed as the former.
+    const message = err instanceof Error ? err.message : String(err);
+    console.error(`No JUnit reports downloaded for job ${jobId} (none uploaded, or download failed): ${message}`);
   }
   return dest;
 }

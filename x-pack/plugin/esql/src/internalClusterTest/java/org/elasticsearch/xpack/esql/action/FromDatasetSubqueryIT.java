@@ -549,15 +549,22 @@ public class FromDatasetSubqueryIT extends AbstractEsqlIntegTestCase {
         }
     }
 
-    public void testMetadataOnDatasetInSubqueryRejected() {
+    public void testMetadataOnDatasetInSubquery() {
         registerEmployees();
 
-        Exception ex = expectThrows(
-            Exception.class,
-            () -> run(syncEsqlQueryRequest("FROM (FROM employees METADATA _index | KEEP _index) | LIMIT 1"), TIMEOUT)
-        );
-        assertCauseMessageContains(ex, "METADATA fields are not supported on datasets");
-        assertCauseMessageContains(ex, "employees");
+        // Standard metadata binds on a dataset inside a subquery, consistent with how it binds on a
+        // regular index in the same position (see IndexResolutionIT / subquery.csv-spec). _index
+        // resolves to the dataset name. This used to be rejected only because dataset metadata was
+        // unsupported anywhere; it is supported now.
+        try (var response = run(syncEsqlQueryRequest("FROM (FROM employees METADATA _index | KEEP _index) | LIMIT 1"), TIMEOUT)) {
+            List<? extends ColumnInfo> columns = response.columns();
+            assertThat(columns, hasSize(1));
+            assertThat(columns.get(0).name(), equalTo("_index"));
+
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(1));
+            assertThat(rows.get(0).get(0).toString(), equalTo("employees"));
+        }
     }
 
     // More processing pipelines inside the subquery

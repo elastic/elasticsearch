@@ -112,6 +112,14 @@ public class StableApiWrappers {
             public Reader normalize(Reader reader) {
                 return charFilterFactory.normalize(reader);
             }
+
+            @Override
+            public Object sharingKey() {
+                // The wrapped stable-API factory determines sharing. If the underlying factory
+                // is a singleton (the typical pattern for stable-API plugins), identity works;
+                // otherwise it falls back to per-instance uniqueness.
+                return charFilterFactory;
+            }
         };
     }
 
@@ -137,6 +145,11 @@ public class StableApiWrappers {
                 return mapAnalysisMode(f.getAnalysisMode());
             }
 
+            @Override
+            public Object sharingKey() {
+                return f;
+            }
+
             private static org.elasticsearch.index.analysis.AnalysisMode mapAnalysisMode(AnalysisMode analysisMode) {
                 return org.elasticsearch.index.analysis.AnalysisMode.valueOf(analysisMode.name());
             }
@@ -154,6 +167,11 @@ public class StableApiWrappers {
             @Override
             public Tokenizer create() {
                 return f.create();
+            }
+
+            @Override
+            public Object sharingKey() {
+                return f;
             }
         };
     }
@@ -173,6 +191,11 @@ public class StableApiWrappers {
             @Override
             public Analyzer get() {
                 return f.create();
+            }
+
+            @Override
+            public Object sharingKey() {
+                return f;
             }
         };
     }

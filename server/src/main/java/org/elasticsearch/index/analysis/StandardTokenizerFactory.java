@@ -31,4 +31,11 @@ public class StandardTokenizerFactory extends AbstractTokenizerFactory {
         tokenizer.setMaxTokenLength(maxTokenLength);
         return tokenizer;
     }
+
+    @Override
+    public Object sharingKey() {
+        return new Key(maxTokenLength);
+    }
+
+    private record Key(int maxTokenLength) {}
 }

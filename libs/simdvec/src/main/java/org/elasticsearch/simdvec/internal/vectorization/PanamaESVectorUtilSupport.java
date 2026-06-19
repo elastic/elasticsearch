@@ -34,12 +34,15 @@ import java.nio.ByteOrder;
 import static jdk.incubator.vector.VectorOperators.ADD;
 import static jdk.incubator.vector.VectorOperators.AND;
 import static jdk.incubator.vector.VectorOperators.ASHR;
+import static jdk.incubator.vector.VectorOperators.B2I;
+import static jdk.incubator.vector.VectorOperators.B2S;
 import static jdk.incubator.vector.VectorOperators.LSHL;
 import static jdk.incubator.vector.VectorOperators.LSHR;
 import static jdk.incubator.vector.VectorOperators.MAX;
 import static jdk.incubator.vector.VectorOperators.MIN;
 import static jdk.incubator.vector.VectorOperators.OR;
 import static jdk.incubator.vector.VectorOperators.REVERSE_BYTES;
+import static jdk.incubator.vector.VectorOperators.S2I;
 
 public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport permits Native22ESVectorUtilSupport {
 
@@ -161,6 +164,53 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
     }
 
     @Override
+    public float dotProduct(float[] a, float[] b, int offset, int length) {
+        if (offset == 0 && length == a.length) {
+            return dotProduct(a, b);
+        }
+
+        int i = 0;
+        int vectorEnd = FLOAT_SPECIES.loopBound(length);
+        FloatVector acc = FloatVector.zero(FLOAT_SPECIES);
+        for (; i < vectorEnd; i += FLOAT_SPECIES.length()) {
+            FloatVector av = FloatVector.fromArray(FLOAT_SPECIES, a, i + offset);
+            FloatVector bv = FloatVector.fromArray(FLOAT_SPECIES, b, i + offset);
+            acc = fma(av, bv, acc);
+        }
+
+        int remaining = length - i;
+        if (remaining > 0) {
+            VectorMask<Float> mask = VectorMask.fromLong(FLOAT_SPECIES, (1L << remaining) - 1);
+            FloatVector av = FloatVector.fromArray(FLOAT_SPECIES, a, i + offset, mask);
+            FloatVector bv = FloatVector.fromArray(FLOAT_SPECIES, b, i + offset, mask);
+            acc = fma(av, bv, acc);
+        }
+        return acc.reduceLanes(ADD);
+    }
+
+    @Override
+    public void l2Normalize(float[] v, int offset, int length) {
+        float normSq = dotProduct(v, v, offset, length);
+        if (normSq == 0f) {
+            return;
+        }
+        float scale = (float) (1.0 / Math.sqrt(normSq));
+        FloatVector scaleVec = FloatVector.broadcast(FLOAT_SPECIES, scale);
+        int end = offset + length;
+        int vectorEnd = offset + FLOAT_SPECIES.loopBound(length);
+        int i = offset;
+        for (; i < vectorEnd; i += FLOAT_SPECIES.length()) {
+            FloatVector vv = FloatVector.fromArray(FLOAT_SPECIES, v, i);
+            vv.mul(scaleVec).intoArray(v, i);
+        }
+        if (i < end) {
+            VectorMask<Float> mask = FLOAT_SPECIES.indexInRange(i, end);
+            FloatVector vv = FloatVector.fromArray(FLOAT_SPECIES, v, i, mask);
+            vv.mul(scaleVec).intoArray(v, i, mask);
+        }
+    }
+
+    @Override
     public float squareDistance(float[] a, float[] b) {
         return VectorUtil.squareDistance(a, b);
     }
@@ -170,22 +220,26 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
         if (offset == 0 && length == a.length) {
             return squareDistance(a, b);
         }
+
+        int i = 0;
+        int vectorEnd = FLOAT_SPECIES.loopBound(length);
         FloatVector acc = FloatVector.zero(FLOAT_SPECIES);
-        int i = offset;
-        final int end = offset + length;
-        final int vectorEnd = offset + FLOAT_SPECIES.loopBound(length);
         for (; i < vectorEnd; i += FLOAT_SPECIES.length()) {
-            FloatVector av = FloatVector.fromArray(FLOAT_SPECIES, a, i);
-            FloatVector bv = FloatVector.fromArray(FLOAT_SPECIES, b, i);
+            FloatVector av = FloatVector.fromArray(FLOAT_SPECIES, a, i + offset);
+            FloatVector bv = FloatVector.fromArray(FLOAT_SPECIES, b, i + offset);
             FloatVector diff = av.sub(bv);
             acc = fma(diff, diff, acc);
         }
-        float distance = acc.reduceLanes(ADD);
-        for (; i < end; i++) {
-            float diff = a[i] - b[i];
-            distance = fma(diff, diff, distance);
+
+        int remaining = length - i;
+        if (remaining > 0) {
+            VectorMask<Float> mask = VectorMask.fromLong(FLOAT_SPECIES, (1L << remaining) - 1);
+            FloatVector av = FloatVector.fromArray(FLOAT_SPECIES, a, i + offset, mask);
+            FloatVector bv = FloatVector.fromArray(FLOAT_SPECIES, b, i + offset, mask);
+            FloatVector diff = av.sub(bv);
+            acc = fma(diff, diff, acc);
         }
-        return distance;
+        return acc.reduceLanes(ADD);
     }
 
     @Override
@@ -196,6 +250,101 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
     @Override
     public float dotProduct(byte[] a, byte[] b) {
         return VectorUtil.dotProduct(a, b);
+    }
+
+    @Override
+    public float dotProduct(byte[] a, byte[] b, int offset, int length) {
+        if (offset == 0 && length == a.length) {
+            return dotProduct(a, b);
+        }
+
+        int i = 0;
+        int vectorEnd = BYTE_SPECIES.loopBound(length);
+        IntVector acc = IntVector.zero(INTEGER_SPECIES);
+        for (; i < vectorEnd; i += BYTE_SPECIES.length()) {
+            ByteVector ba = ByteVector.fromArray(BYTE_SPECIES, a, i + offset);
+            ByteVector bb = ByteVector.fromArray(BYTE_SPECIES, b, i + offset);
+            for (int part = 0; part < BYTE_TO_FLOAT_PARTS; part++) {
+                Vector<Integer> ia = ba.castShape(INTEGER_SPECIES, part);
+                Vector<Integer> ib = bb.castShape(INTEGER_SPECIES, part);
+                acc = acc.add(ia.mul(ib));
+            }
+        }
+
+        int remaining = length - i;
+        if (remaining > 0) {
+            VectorMask<Byte> mask = VectorMask.fromLong(BYTE_SPECIES, (1L << remaining) - 1);
+            ByteVector ba = ByteVector.fromArray(BYTE_SPECIES, a, i + offset, mask);
+            ByteVector bb = ByteVector.fromArray(BYTE_SPECIES, b, i + offset, mask);
+            for (int maskedPart = 0; remaining > 0; maskedPart++) {
+                assert maskedPart < BYTE_TO_FLOAT_PARTS;
+                Vector<Integer> ia = ba.castShape(INTEGER_SPECIES, maskedPart);
+                Vector<Integer> ib = bb.castShape(INTEGER_SPECIES, maskedPart);
+                acc = acc.add(ia.mul(ib));
+                remaining -= INTEGER_SPECIES.length();
+            }
+        }
+
+        return acc.reduceLanes(VectorOperators.ADD);
+    }
+
+    @Override
+    public void l2Normalize(byte[] v, int offset, int length) {
+        float normSq = dotProduct(v, v, offset, length);
+        if (normSq == 0f) {
+            return;
+        }
+        double invNorm = 1.0 / Math.sqrt(normSq);
+        int end = offset + length;
+        for (int j = offset; j < end; j++) {
+            v[j] = (byte) (v[j] * invNorm);
+        }
+    }
+
+    @Override
+    public float squareDistance(byte[] a, byte[] b) {
+        return VectorUtil.squareDistance(a, b);
+    }
+
+    @Override
+    public float squareDistance(byte[] a, byte[] b, int offset, int length) {
+        if (offset == 0 && length == a.length) {
+            // use a native implementation if available
+            return squareDistance(a, b);
+        }
+
+        int i = 0;
+        int vectorEnd = BYTE_SPECIES.loopBound(length);
+        IntVector acc = IntVector.zero(INTEGER_SPECIES);
+        for (; i < vectorEnd; i += BYTE_SPECIES.length()) {
+            ByteVector ba = ByteVector.fromArray(BYTE_SPECIES, a, i + offset);
+            ByteVector bb = ByteVector.fromArray(BYTE_SPECIES, b, i + offset);
+            for (int part = 0; part < BYTE_TO_FLOAT_PARTS; part++) {
+                Vector<Integer> ia = ba.castShape(INTEGER_SPECIES, part);
+                Vector<Integer> ib = bb.castShape(INTEGER_SPECIES, part);
+                Vector<Integer> diff = ia.sub(ib);
+                acc = acc.add(diff.mul(diff));
+            }
+        }
+
+        int remaining = length - i;
+        if (remaining > 0) {
+            // masked tail, at most a single ByteVector left
+            VectorMask<Byte> mask = VectorMask.fromLong(BYTE_SPECIES, (1L << remaining) - 1);
+            ByteVector ba = ByteVector.fromArray(BYTE_SPECIES, a, i + offset, mask);
+            ByteVector bb = ByteVector.fromArray(BYTE_SPECIES, b, i + offset, mask);
+            // no need to do masking here. If part of this is masked, then the remainder will be zero, so will just not do anything
+            for (int maskedPart = 0; remaining > 0; maskedPart++) {
+                assert maskedPart < BYTE_TO_FLOAT_PARTS; // should always be less than byte vector length remaining
+                Vector<Integer> ia = ba.castShape(INTEGER_SPECIES, maskedPart);
+                Vector<Integer> ib = bb.castShape(INTEGER_SPECIES, maskedPart);
+                Vector<Integer> diff = ia.sub(ib);
+                acc = acc.add(diff.mul(diff));
+                remaining -= INTEGER_SPECIES.length();
+            }
+        }
+
+        return acc.reduceLanes(VectorOperators.ADD);
     }
 
     @Override
@@ -211,11 +360,6 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
     @Override
     public float maxSimDotProduct(MultiByteVectorsSource source, byte[][] query, float[] scoresScratch) {
         return DefaultESVectorUtilSupport.maxSimDotProductImpl(source, query, scoresScratch);
-    }
-
-    @Override
-    public float squareDistance(byte[] a, byte[] b) {
-        return VectorUtil.squareDistance(a, b);
     }
 
     @Override
@@ -903,15 +1047,10 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
     }
 
     private static final VectorSpecies<Integer> INT_SPECIES_512 = IntVector.SPECIES_512;
-    private static final VectorSpecies<Byte> BYTE_SPECIES_FOR_INT_512 = VectorSpecies.of(
-        byte.class,
-        VectorShape.forBitSize(INT_SPECIES_512.vectorBitSize() / Integer.BYTES)
-    );
     private static final VectorSpecies<Integer> INT_SPECIES_256 = IntVector.SPECIES_256;
-    private static final VectorSpecies<Byte> BYTE_SPECIES_FOR_INT_256 = VectorSpecies.of(
-        byte.class,
-        VectorShape.forBitSize(INT_SPECIES_256.vectorBitSize() / Integer.BYTES)
-    );
+    private static final VectorSpecies<Short> SHORT_SPECIES_256 = ShortVector.SPECIES_256;
+    private static final VectorSpecies<Short> SHORT_SPECIES_128 = ShortVector.SPECIES_128;
+    private static final VectorSpecies<Byte> BYTE_SPECIES_64 = ByteVector.SPECIES_64;
 
     private static int limit(int length, int sectionSize) {
         return length - (length % sectionSize);
@@ -930,12 +1069,10 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
             IntVector acc3 = IntVector.zero(INT_SPECIES_512);
             int limit = limit(q.length, sectionLength);
             for (; i < limit; i += sectionLength) {
-                var vals0 = ByteVector.fromArray(BYTE_SPECIES_FOR_INT_512, q, i).castShape(INT_SPECIES_512, 0);
-                var vals1 = ByteVector.fromArray(BYTE_SPECIES_FOR_INT_512, q, i + INT_SPECIES_512.length()).castShape(INT_SPECIES_512, 0);
-                var vals2 = ByteVector.fromArray(BYTE_SPECIES_FOR_INT_512, q, i + INT_SPECIES_512.length() * 2)
-                    .castShape(INT_SPECIES_512, 0);
-                var vals3 = ByteVector.fromArray(BYTE_SPECIES_FOR_INT_512, q, i + INT_SPECIES_512.length() * 3)
-                    .castShape(INT_SPECIES_512, 0);
+                var vals0 = ByteVector.fromArray(BYTE_SPECIES_128, q, i).castShape(INT_SPECIES_512, 0);
+                var vals1 = ByteVector.fromArray(BYTE_SPECIES_128, q, i + INT_SPECIES_512.length()).castShape(INT_SPECIES_512, 0);
+                var vals2 = ByteVector.fromArray(BYTE_SPECIES_128, q, i + INT_SPECIES_512.length() * 2).castShape(INT_SPECIES_512, 0);
+                var vals3 = ByteVector.fromArray(BYTE_SPECIES_128, q, i + INT_SPECIES_512.length() * 3).castShape(INT_SPECIES_512, 0);
 
                 long maskBits = Long.reverse((long) BitUtil.VH_BE_LONG.get(d, i / 8));
                 var mask0 = VectorMask.fromLong(INT_SPECIES_512, maskBits);
@@ -957,7 +1094,7 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
             IntVector acc = IntVector.zero(INT_SPECIES_256);
             int limit = limit(q.length, sectionLength);
             for (; i < limit; i += sectionLength) {
-                var vals = ByteVector.fromArray(BYTE_SPECIES_FOR_INT_256, q, i).castShape(INT_SPECIES_256, 0);
+                var vals = ByteVector.fromArray(BYTE_SPECIES_64, q, i).castShape(INT_SPECIES_256, 0);
 
                 long maskBits = Integer.reverse(d[i / 8]) >> 24;
                 var mask = VectorMask.fromLong(INT_SPECIES_256, maskBits);
@@ -985,12 +1122,10 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
             IntVector acc3 = IntVector.zero(INT_SPECIES_256);
             int limit = limit(q.length, sectionLength);
             for (; i < limit; i += sectionLength) {
-                var vals0 = ByteVector.fromArray(BYTE_SPECIES_FOR_INT_256, q, i).castShape(INT_SPECIES_256, 0);
-                var vals1 = ByteVector.fromArray(BYTE_SPECIES_FOR_INT_256, q, i + INT_SPECIES_256.length()).castShape(INT_SPECIES_256, 0);
-                var vals2 = ByteVector.fromArray(BYTE_SPECIES_FOR_INT_256, q, i + INT_SPECIES_256.length() * 2)
-                    .castShape(INT_SPECIES_256, 0);
-                var vals3 = ByteVector.fromArray(BYTE_SPECIES_FOR_INT_256, q, i + INT_SPECIES_256.length() * 3)
-                    .castShape(INT_SPECIES_256, 0);
+                var vals0 = ByteVector.fromArray(BYTE_SPECIES_64, q, i).castShape(INT_SPECIES_256, 0);
+                var vals1 = ByteVector.fromArray(BYTE_SPECIES_64, q, i + INT_SPECIES_256.length()).castShape(INT_SPECIES_256, 0);
+                var vals2 = ByteVector.fromArray(BYTE_SPECIES_64, q, i + INT_SPECIES_256.length() * 2).castShape(INT_SPECIES_256, 0);
+                var vals3 = ByteVector.fromArray(BYTE_SPECIES_64, q, i + INT_SPECIES_256.length() * 3).castShape(INT_SPECIES_256, 0);
 
                 long maskBits = Integer.reverse((int) BitUtil.VH_BE_INT.get(d, i / 8));
                 var mask0 = VectorMask.fromLong(INT_SPECIES_256, maskBits);
@@ -1012,7 +1147,7 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
             IntVector acc = IntVector.zero(INT_SPECIES_256);
             int limit = limit(q.length, sectionLength);
             for (; i < limit; i += sectionLength) {
-                var vals = ByteVector.fromArray(BYTE_SPECIES_FOR_INT_256, q, i).castShape(INT_SPECIES_256, 0);
+                var vals = ByteVector.fromArray(BYTE_SPECIES_64, q, i).castShape(INT_SPECIES_256, 0);
 
                 long maskBits = Integer.reverse(d[i / 8]) >> 24;
                 var mask = VectorMask.fromLong(INT_SPECIES_256, maskBits);
@@ -1203,21 +1338,56 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
     }
 
     @Override
-    public void squareDistanceBulk(float[] query, float[] v0, float[] v1, float[] v2, float[] v3, int distancesOffset, float[] distances) {
-        squareDistanceBulk(query, 0, query.length, v0, v1, v2, v3, distancesOffset, distances);
+    public void dotProductBulk(float[] query, float[] v0, float[] v1, float[] v2, float[] v3, int distancesOffset, float[] distances) {
+        FloatVector sv0 = FloatVector.zero(FLOAT_SPECIES);
+        FloatVector sv1 = FloatVector.zero(FLOAT_SPECIES);
+        FloatVector sv2 = FloatVector.zero(FLOAT_SPECIES);
+        FloatVector sv3 = FloatVector.zero(FLOAT_SPECIES);
+        final int vectorEnd = FLOAT_SPECIES.loopBound(query.length);
+        int i = 0;
+
+        for (; i < vectorEnd; i += FLOAT_SPECIES.length()) {
+            FloatVector qv = FloatVector.fromArray(FLOAT_SPECIES, query, i);
+            FloatVector dv0 = FloatVector.fromArray(FLOAT_SPECIES, v0, i);
+            FloatVector dv1 = FloatVector.fromArray(FLOAT_SPECIES, v1, i);
+            FloatVector dv2 = FloatVector.fromArray(FLOAT_SPECIES, v2, i);
+            FloatVector dv3 = FloatVector.fromArray(FLOAT_SPECIES, v3, i);
+            sv0 = fma(qv, dv0, sv0);
+            sv1 = fma(qv, dv1, sv1);
+            sv2 = fma(qv, dv2, sv2);
+            sv3 = fma(qv, dv3, sv3);
+        }
+
+        if (i < query.length) {
+            VectorMask<Float> mask = FLOAT_SPECIES.indexInRange(i, query.length);
+            FloatVector qv = FloatVector.fromArray(FLOAT_SPECIES, query, i, mask);
+            FloatVector dv0 = FloatVector.fromArray(FLOAT_SPECIES, v0, i, mask);
+            FloatVector dv1 = FloatVector.fromArray(FLOAT_SPECIES, v1, i, mask);
+            FloatVector dv2 = FloatVector.fromArray(FLOAT_SPECIES, v2, i, mask);
+            FloatVector dv3 = FloatVector.fromArray(FLOAT_SPECIES, v3, i, mask);
+            sv0 = fma(qv, dv0, sv0);
+            sv1 = fma(qv, dv1, sv1);
+            sv2 = fma(qv, dv2, sv2);
+            sv3 = fma(qv, dv3, sv3);
+        }
+
+        distances[distancesOffset] = sv0.reduceLanes(VectorOperators.ADD);
+        distances[distancesOffset + 1] = sv1.reduceLanes(VectorOperators.ADD);
+        distances[distancesOffset + 2] = sv2.reduceLanes(VectorOperators.ADD);
+        distances[distancesOffset + 3] = sv3.reduceLanes(VectorOperators.ADD);
     }
 
     @Override
     public void squareDistanceBulk(
         float[] query,
         int queryOffset,
-        int length,
         float[] v0,
         float[] v1,
         float[] v2,
         float[] v3,
         int distancesOffset,
-        float[] distances
+        float[] distances,
+        int length
     ) {
         FloatVector sv0 = FloatVector.zero(FLOAT_SPECIES);
         FloatVector sv1 = FloatVector.zero(FLOAT_SPECIES);
@@ -1226,6 +1396,7 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
         final int end = queryOffset + length;
         final int vectorEnd = queryOffset + FLOAT_SPECIES.loopBound(length);
         int i = queryOffset;
+
         for (; i < vectorEnd; i += FLOAT_SPECIES.length()) {
             FloatVector qv = FloatVector.fromArray(FLOAT_SPECIES, query, i);
             FloatVector dv0 = FloatVector.fromArray(FLOAT_SPECIES, v0, i);
@@ -1233,161 +1404,537 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
             FloatVector dv2 = FloatVector.fromArray(FLOAT_SPECIES, v2, i);
             FloatVector dv3 = FloatVector.fromArray(FLOAT_SPECIES, v3, i);
             FloatVector diff0 = qv.sub(dv0);
-            sv0 = fma(diff0, diff0, sv0);
             FloatVector diff1 = qv.sub(dv1);
-            sv1 = fma(diff1, diff1, sv1);
             FloatVector diff2 = qv.sub(dv2);
-            sv2 = fma(diff2, diff2, sv2);
             FloatVector diff3 = qv.sub(dv3);
+            sv0 = fma(diff0, diff0, sv0);
+            sv1 = fma(diff1, diff1, sv1);
+            sv2 = fma(diff2, diff2, sv2);
             sv3 = fma(diff3, diff3, sv3);
         }
-        float distance0 = sv0.reduceLanes(VectorOperators.ADD);
-        float distance1 = sv1.reduceLanes(VectorOperators.ADD);
-        float distance2 = sv2.reduceLanes(VectorOperators.ADD);
-        float distance3 = sv3.reduceLanes(VectorOperators.ADD);
 
-        for (; i < end; i++) {
-            final float qValue = query[i];
-            final float diff0 = qValue - v0[i];
-            final float diff1 = qValue - v1[i];
-            final float diff2 = qValue - v2[i];
-            final float diff3 = qValue - v3[i];
-            distance0 = fma(diff0, diff0, distance0);
-            distance1 = fma(diff1, diff1, distance1);
-            distance2 = fma(diff2, diff2, distance2);
-            distance3 = fma(diff3, diff3, distance3);
+        if (i < end) {
+            VectorMask<Float> mask = FLOAT_SPECIES.indexInRange(i, end);
+            FloatVector qv = FloatVector.fromArray(FLOAT_SPECIES, query, i, mask);
+            FloatVector dv0 = FloatVector.fromArray(FLOAT_SPECIES, v0, i, mask);
+            FloatVector dv1 = FloatVector.fromArray(FLOAT_SPECIES, v1, i, mask);
+            FloatVector dv2 = FloatVector.fromArray(FLOAT_SPECIES, v2, i, mask);
+            FloatVector dv3 = FloatVector.fromArray(FLOAT_SPECIES, v3, i, mask);
+            FloatVector diff0 = qv.sub(dv0);
+            FloatVector diff1 = qv.sub(dv1);
+            FloatVector diff2 = qv.sub(dv2);
+            FloatVector diff3 = qv.sub(dv3);
+            sv0 = fma(diff0, diff0, sv0);
+            sv1 = fma(diff1, diff1, sv1);
+            sv2 = fma(diff2, diff2, sv2);
+            sv3 = fma(diff3, diff3, sv3);
         }
-        distances[distancesOffset] = distance0;
-        distances[distancesOffset + 1] = distance1;
-        distances[distancesOffset + 2] = distance2;
-        distances[distancesOffset + 3] = distance3;
+
+        distances[distancesOffset] = sv0.reduceLanes(VectorOperators.ADD);
+        distances[distancesOffset + 1] = sv1.reduceLanes(VectorOperators.ADD);
+        distances[distancesOffset + 2] = sv2.reduceLanes(VectorOperators.ADD);
+        distances[distancesOffset + 3] = sv3.reduceLanes(VectorOperators.ADD);
     }
 
     @Override
-    public float squareDistance(byte[] a, byte[] b, int offset, int length) {
-        if (offset == 0 && length == a.length) {
-            return squareDistance(a, b);
-        }
-        if (length >= BYTE_SPECIES.length()) {
-            return squareDistanceByteSubRange(a, b, offset, length);
-        }
-        // scalar fallback
-        int sum = 0;
-        for (int i = offset; i < offset + length; i++) {
-            int diff = a[i] - b[i];
-            sum += diff * diff;
-        }
-        return sum;
-    }
-
-    private float squareDistanceByteSubRange(byte[] a, byte[] b, int offset, int length) {
-        IntVector acc = IntVector.zero(INTEGER_SPECIES);
-        int i = offset;
-        final int end = offset + length;
-        final int byteLen = BYTE_SPECIES.length();
-        final int vectorEnd = offset + BYTE_SPECIES.loopBound(length);
-        for (; i < vectorEnd; i += byteLen) {
-            ByteVector ba = ByteVector.fromArray(BYTE_SPECIES, a, i);
-            ByteVector bb = ByteVector.fromArray(BYTE_SPECIES, b, i);
-            for (int part = 0; part < BYTE_TO_FLOAT_PARTS; part++) {
-                IntVector ia = (IntVector) ba.castShape(INTEGER_SPECIES, part);
-                IntVector ib = (IntVector) bb.castShape(INTEGER_SPECIES, part);
-                IntVector diff = ia.sub(ib);
-                acc = acc.add(diff.mul(diff));
+    public void dotProductBulk(byte[] query, byte[] v0, byte[] v1, byte[] v2, byte[] v3, int distancesOffset, float[] distances) {
+        int i = 0;
+        int[] result = new int[4];
+        if (query.length >= 16 && HAS_FAST_INTEGER_VECTORS) {
+            if (VECTOR_BITSIZE >= 512) {
+                i = BYTE_SPECIES_128.loopBound(query.length);
+                dotProductBulkBody512(query, v0, v1, v2, v3, i, result);
+            } else if (VECTOR_BITSIZE == 256) {
+                i = BYTE_SPECIES_64.loopBound(query.length);
+                dotProductBulkBody256(query, v0, v1, v2, v3, i, result);
+            } else {
+                i = BYTE_SPECIES_64.loopBound(query.length);
+                dotProductBulkBody128(query, v0, v1, v2, v3, i, result);
             }
         }
-        int distance = acc.reduceLanes(VectorOperators.ADD);
-        for (; i < end; i++) {
-            int diff = a[i] - b[i];
-            distance += diff * diff;
+
+        for (; i < query.length; i++) {
+            result[0] += query[i] * v0[i];
+            result[1] += query[i] * v1[i];
+            result[2] += query[i] * v2[i];
+            result[3] += query[i] * v3[i];
         }
-        return distance;
+
+        distances[distancesOffset] = result[0];
+        distances[distancesOffset + 1] = result[1];
+        distances[distancesOffset + 2] = result[2];
+        distances[distancesOffset + 3] = result[3];
+    }
+
+    private static void dotProductBulkBody512(byte[] query, byte[] v0, byte[] v1, byte[] v2, byte[] v3, int limit, int[] result) {
+        IntVector sv0 = IntVector.zero(INT_SPECIES_512);
+        IntVector sv1 = IntVector.zero(INT_SPECIES_512);
+        IntVector sv2 = IntVector.zero(INT_SPECIES_512);
+        IntVector sv3 = IntVector.zero(INT_SPECIES_512);
+        for (int i = 0; i < limit; i += BYTE_SPECIES_128.length()) {
+            // multiply in shorts (128*128 fits in a short)
+            // this is to avoid potentially expensive AVX512 ops, and keep within AVX2
+            ByteVector qv8 = ByteVector.fromArray(BYTE_SPECIES_128, query, i);
+            Vector<Short> qv16 = qv8.convertShape(B2S, SHORT_SPECIES_256, 0);
+
+            ByteVector bv0 = ByteVector.fromArray(BYTE_SPECIES_128, v0, i);
+            ByteVector bv1 = ByteVector.fromArray(BYTE_SPECIES_128, v1, i);
+            ByteVector bv2 = ByteVector.fromArray(BYTE_SPECIES_128, v2, i);
+            ByteVector bv3 = ByteVector.fromArray(BYTE_SPECIES_128, v3, i);
+            Vector<Short> p0 = qv16.mul(bv0.convertShape(B2S, SHORT_SPECIES_256, 0));
+            Vector<Short> p1 = qv16.mul(bv1.convertShape(B2S, SHORT_SPECIES_256, 0));
+            Vector<Short> p2 = qv16.mul(bv2.convertShape(B2S, SHORT_SPECIES_256, 0));
+            Vector<Short> p3 = qv16.mul(bv3.convertShape(B2S, SHORT_SPECIES_256, 0));
+
+            sv0 = sv0.add(p0.convertShape(S2I, INT_SPECIES_512, 0));
+            sv1 = sv1.add(p1.convertShape(S2I, INT_SPECIES_512, 0));
+            sv2 = sv2.add(p2.convertShape(S2I, INT_SPECIES_512, 0));
+            sv3 = sv3.add(p3.convertShape(S2I, INT_SPECIES_512, 0));
+        }
+
+        result[0] = sv0.reduceLanes(ADD);
+        result[1] = sv1.reduceLanes(ADD);
+        result[2] = sv2.reduceLanes(ADD);
+        result[3] = sv3.reduceLanes(ADD);
+    }
+
+    private static void dotProductBulkBody256(byte[] query, byte[] v0, byte[] v1, byte[] v2, byte[] v3, int limit, int[] result) {
+        IntVector sv0 = IntVector.zero(INT_SPECIES_256);
+        IntVector sv1 = IntVector.zero(INT_SPECIES_256);
+        IntVector sv2 = IntVector.zero(INT_SPECIES_256);
+        IntVector sv3 = IntVector.zero(INT_SPECIES_256);
+        for (int i = 0; i < limit; i += BYTE_SPECIES_64.length()) {
+            ByteVector qv8 = ByteVector.fromArray(BYTE_SPECIES_64, query, i);
+            Vector<Integer> qv32 = qv8.convertShape(B2I, INT_SPECIES_256, 0);
+
+            ByteVector bv0 = ByteVector.fromArray(BYTE_SPECIES_64, v0, i);
+            ByteVector bv1 = ByteVector.fromArray(BYTE_SPECIES_64, v1, i);
+            ByteVector bv2 = ByteVector.fromArray(BYTE_SPECIES_64, v2, i);
+            ByteVector bv3 = ByteVector.fromArray(BYTE_SPECIES_64, v3, i);
+
+            sv0 = sv0.add(qv32.mul(bv0.convertShape(B2I, INT_SPECIES_256, 0)));
+            sv1 = sv1.add(qv32.mul(bv1.convertShape(B2I, INT_SPECIES_256, 0)));
+            sv2 = sv2.add(qv32.mul(bv2.convertShape(B2I, INT_SPECIES_256, 0)));
+            sv3 = sv3.add(qv32.mul(bv3.convertShape(B2I, INT_SPECIES_256, 0)));
+        }
+
+        result[0] = sv0.reduceLanes(ADD);
+        result[1] = sv1.reduceLanes(ADD);
+        result[2] = sv2.reduceLanes(ADD);
+        result[3] = sv3.reduceLanes(ADD);
+    }
+
+    private static void dotProductBulkBody128(byte[] query, byte[] v0, byte[] v1, byte[] v2, byte[] v3, int limit, int[] result) {
+        IntVector sv0 = IntVector.zero(INT_SPECIES_128);
+        IntVector sv1 = IntVector.zero(INT_SPECIES_128);
+        IntVector sv2 = IntVector.zero(INT_SPECIES_128);
+        IntVector sv3 = IntVector.zero(INT_SPECIES_128);
+
+        // no 32-bit SIMD exists
+        // instead load 64-bit, convert to shorts, do the thing, then convert each half to ints and add to the accumulators
+        for (int i = 0; i < limit; i += BYTE_SPECIES_64.length()) {
+            ByteVector qv8 = ByteVector.fromArray(BYTE_SPECIES_64, query, i);
+            Vector<Short> qv16 = qv8.convertShape(B2S, SHORT_SPECIES_128, 0);
+
+            ByteVector bv0 = ByteVector.fromArray(BYTE_SPECIES_64, v0, i);
+            ByteVector bv1 = ByteVector.fromArray(BYTE_SPECIES_64, v1, i);
+            ByteVector bv2 = ByteVector.fromArray(BYTE_SPECIES_64, v2, i);
+            ByteVector bv3 = ByteVector.fromArray(BYTE_SPECIES_64, v3, i);
+            Vector<Short> p0 = qv16.mul(bv0.convertShape(B2S, SHORT_SPECIES_128, 0));
+            Vector<Short> p1 = qv16.mul(bv1.convertShape(B2S, SHORT_SPECIES_128, 0));
+            Vector<Short> p2 = qv16.mul(bv2.convertShape(B2S, SHORT_SPECIES_128, 0));
+            Vector<Short> p3 = qv16.mul(bv3.convertShape(B2S, SHORT_SPECIES_128, 0));
+
+            sv0 = sv0.add(p0.convertShape(S2I, INT_SPECIES_128, 0)).add(p0.convertShape(S2I, INT_SPECIES_128, 1));
+            sv1 = sv1.add(p1.convertShape(S2I, INT_SPECIES_128, 0)).add(p1.convertShape(S2I, INT_SPECIES_128, 1));
+            sv2 = sv2.add(p2.convertShape(S2I, INT_SPECIES_128, 0)).add(p2.convertShape(S2I, INT_SPECIES_128, 1));
+            sv3 = sv3.add(p3.convertShape(S2I, INT_SPECIES_128, 0)).add(p3.convertShape(S2I, INT_SPECIES_128, 1));
+        }
+
+        result[0] = sv0.reduceLanes(ADD);
+        result[1] = sv1.reduceLanes(ADD);
+        result[2] = sv2.reduceLanes(ADD);
+        result[3] = sv3.reduceLanes(ADD);
     }
 
     @Override
-    public void squareDistanceBulk(byte[] query, byte[] v0, byte[] v1, byte[] v2, byte[] v3, int distancesOffset, float[] distances) {
-        squareDistanceBulk(query, 0, query.length, v0, v1, v2, v3, distancesOffset, distances);
+    public void cosineBulk(byte[] query, byte[] v0, byte[] v1, byte[] v2, byte[] v3, int distancesOffset, float[] distances) {
+        int i = 0;
+        int qNorm = 0;
+        int[] vNorms = new int[4];
+        int[] dots = new int[4];
+        if (query.length >= 16 && HAS_FAST_INTEGER_VECTORS) {
+            if (VECTOR_BITSIZE >= 512) {
+                i = BYTE_SPECIES_128.loopBound(query.length);
+                qNorm = cosineBulkBody512(query, v0, v1, v2, v3, i, vNorms, dots);
+            } else if (VECTOR_BITSIZE == 256) {
+                i = BYTE_SPECIES_64.loopBound(query.length);
+                qNorm = cosineBulkBody256(query, v0, v1, v2, v3, i, vNorms, dots);
+            } else {
+                i = BYTE_SPECIES_64.loopBound(query.length);
+                qNorm = cosineBulkBody128(query, v0, v1, v2, v3, i, vNorms, dots);
+            }
+        }
+
+        for (; i < query.length; i++) {
+            int q = query[i];
+            qNorm += q * q;
+            dots[0] += q * v0[i];
+            dots[1] += q * v1[i];
+            dots[2] += q * v2[i];
+            dots[3] += q * v3[i];
+            vNorms[0] += v0[i] * v0[i];
+            vNorms[1] += v1[i] * v1[i];
+            vNorms[2] += v2[i] * v2[i];
+            vNorms[3] += v3[i] * v3[i];
+        }
+
+        distances[distancesOffset] = cosineResult(dots[0], vNorms[0], qNorm);
+        distances[distancesOffset + 1] = cosineResult(dots[1], vNorms[1], qNorm);
+        distances[distancesOffset + 2] = cosineResult(dots[2], vNorms[2], qNorm);
+        distances[distancesOffset + 3] = cosineResult(dots[3], vNorms[3], qNorm);
+    }
+
+    private static int cosineBulkBody512(byte[] query, byte[] v0, byte[] v1, byte[] v2, byte[] v3, int limit, int[] vNorms, int[] dots) {
+        IntVector qNorm = IntVector.zero(INT_SPECIES_512);
+        IntVector dot0 = IntVector.zero(INT_SPECIES_512);
+        IntVector dot1 = IntVector.zero(INT_SPECIES_512);
+        IntVector dot2 = IntVector.zero(INT_SPECIES_512);
+        IntVector dot3 = IntVector.zero(INT_SPECIES_512);
+        IntVector vNorm0 = IntVector.zero(INT_SPECIES_512);
+        IntVector vNorm1 = IntVector.zero(INT_SPECIES_512);
+        IntVector vNorm2 = IntVector.zero(INT_SPECIES_512);
+        IntVector vNorm3 = IntVector.zero(INT_SPECIES_512);
+
+        for (int i = 0; i < limit; i += BYTE_SPECIES_128.length()) {
+            // use 256-bit shorts rather than 512-bit ints to avoid expensive AVX512 operations
+            ByteVector qv8 = ByteVector.fromArray(BYTE_SPECIES_128, query, i);
+            Vector<Short> qv16 = qv8.convertShape(B2S, SHORT_SPECIES_256, 0);
+
+            ByteVector bv0 = ByteVector.fromArray(BYTE_SPECIES_128, v0, i);
+            ByteVector bv1 = ByteVector.fromArray(BYTE_SPECIES_128, v1, i);
+            ByteVector bv2 = ByteVector.fromArray(BYTE_SPECIES_128, v2, i);
+            ByteVector bv3 = ByteVector.fromArray(BYTE_SPECIES_128, v3, i);
+            Vector<Short> iv0 = bv0.convertShape(B2S, SHORT_SPECIES_256, 0);
+            Vector<Short> iv1 = bv1.convertShape(B2S, SHORT_SPECIES_256, 0);
+            Vector<Short> iv2 = bv2.convertShape(B2S, SHORT_SPECIES_256, 0);
+            Vector<Short> iv3 = bv3.convertShape(B2S, SHORT_SPECIES_256, 0);
+
+            qNorm = qNorm.add(qv16.mul(qv16).convertShape(S2I, INT_SPECIES_512, 0));
+            dot0 = dot0.add(qv16.mul(iv0).convertShape(S2I, INT_SPECIES_512, 0));
+            dot1 = dot1.add(qv16.mul(iv1).convertShape(S2I, INT_SPECIES_512, 0));
+            dot2 = dot2.add(qv16.mul(iv2).convertShape(S2I, INT_SPECIES_512, 0));
+            dot3 = dot3.add(qv16.mul(iv3).convertShape(S2I, INT_SPECIES_512, 0));
+            vNorm0 = vNorm0.add(iv0.mul(iv0).convertShape(S2I, INT_SPECIES_512, 0));
+            vNorm1 = vNorm1.add(iv1.mul(iv1).convertShape(S2I, INT_SPECIES_512, 0));
+            vNorm2 = vNorm2.add(iv2.mul(iv2).convertShape(S2I, INT_SPECIES_512, 0));
+            vNorm3 = vNorm3.add(iv3.mul(iv3).convertShape(S2I, INT_SPECIES_512, 0));
+        }
+
+        vNorms[0] = vNorm0.reduceLanes(ADD);
+        vNorms[1] = vNorm1.reduceLanes(ADD);
+        vNorms[2] = vNorm2.reduceLanes(ADD);
+        vNorms[3] = vNorm3.reduceLanes(ADD);
+        dots[0] = dot0.reduceLanes(ADD);
+        dots[1] = dot1.reduceLanes(ADD);
+        dots[2] = dot2.reduceLanes(ADD);
+        dots[3] = dot3.reduceLanes(ADD);
+        return qNorm.reduceLanes(ADD);
+    }
+
+    private static int cosineBulkBody256(byte[] query, byte[] v0, byte[] v1, byte[] v2, byte[] v3, int limit, int[] vNorms, int[] dots) {
+        IntVector qNorm = IntVector.zero(INT_SPECIES_256);
+        IntVector dot0 = IntVector.zero(INT_SPECIES_256);
+        IntVector dot1 = IntVector.zero(INT_SPECIES_256);
+        IntVector dot2 = IntVector.zero(INT_SPECIES_256);
+        IntVector dot3 = IntVector.zero(INT_SPECIES_256);
+        IntVector vNorm0 = IntVector.zero(INT_SPECIES_256);
+        IntVector vNorm1 = IntVector.zero(INT_SPECIES_256);
+        IntVector vNorm2 = IntVector.zero(INT_SPECIES_256);
+        IntVector vNorm3 = IntVector.zero(INT_SPECIES_256);
+
+        for (int i = 0; i < limit; i += BYTE_SPECIES_64.length()) {
+            ByteVector qv8 = ByteVector.fromArray(BYTE_SPECIES_64, query, i);
+            Vector<Integer> qv32 = qv8.convertShape(B2I, INT_SPECIES_256, 0);
+
+            ByteVector bv0 = ByteVector.fromArray(BYTE_SPECIES_64, v0, i);
+            ByteVector bv1 = ByteVector.fromArray(BYTE_SPECIES_64, v1, i);
+            ByteVector bv2 = ByteVector.fromArray(BYTE_SPECIES_64, v2, i);
+            ByteVector bv3 = ByteVector.fromArray(BYTE_SPECIES_64, v3, i);
+
+            Vector<Integer> iv0 = bv0.convertShape(B2I, INT_SPECIES_256, 0);
+            Vector<Integer> iv1 = bv1.convertShape(B2I, INT_SPECIES_256, 0);
+            Vector<Integer> iv2 = bv2.convertShape(B2I, INT_SPECIES_256, 0);
+            Vector<Integer> iv3 = bv3.convertShape(B2I, INT_SPECIES_256, 0);
+
+            qNorm = qNorm.add(qv32.mul(qv32));
+            dot0 = dot0.add(qv32.mul(iv0));
+            dot1 = dot1.add(qv32.mul(iv1));
+            dot2 = dot2.add(qv32.mul(iv2));
+            dot3 = dot3.add(qv32.mul(iv3));
+            vNorm0 = vNorm0.add(iv0.mul(iv0));
+            vNorm1 = vNorm1.add(iv1.mul(iv1));
+            vNorm2 = vNorm2.add(iv2.mul(iv2));
+            vNorm3 = vNorm3.add(iv3.mul(iv3));
+        }
+
+        vNorms[0] = vNorm0.reduceLanes(ADD);
+        vNorms[1] = vNorm1.reduceLanes(ADD);
+        vNorms[2] = vNorm2.reduceLanes(ADD);
+        vNorms[3] = vNorm3.reduceLanes(ADD);
+        dots[0] = dot0.reduceLanes(ADD);
+        dots[1] = dot1.reduceLanes(ADD);
+        dots[2] = dot2.reduceLanes(ADD);
+        dots[3] = dot3.reduceLanes(ADD);
+        return qNorm.reduceLanes(ADD);
+    }
+
+    private static int cosineBulkBody128(byte[] query, byte[] v0, byte[] v1, byte[] v2, byte[] v3, int limit, int[] vNorms, int[] dots) {
+        IntVector qNorm = IntVector.zero(INT_SPECIES_128);
+        IntVector dot0 = IntVector.zero(INT_SPECIES_128);
+        IntVector dot1 = IntVector.zero(INT_SPECIES_128);
+        IntVector dot2 = IntVector.zero(INT_SPECIES_128);
+        IntVector dot3 = IntVector.zero(INT_SPECIES_128);
+        IntVector vNorm0 = IntVector.zero(INT_SPECIES_128);
+        IntVector vNorm1 = IntVector.zero(INT_SPECIES_128);
+        IntVector vNorm2 = IntVector.zero(INT_SPECIES_128);
+        IntVector vNorm3 = IntVector.zero(INT_SPECIES_128);
+
+        // no 32-bit SIMD exists
+        // instead load 64-bit, convert to shorts, do the thing, then convert each half to ints and add to the accumulators
+        for (int i = 0; i < limit; i += BYTE_SPECIES_64.length()) {
+            ByteVector qv8 = ByteVector.fromArray(BYTE_SPECIES_64, query, i);
+            Vector<Short> qv16 = qv8.convertShape(B2S, SHORT_SPECIES_128, 0);
+
+            ByteVector bv0 = ByteVector.fromArray(BYTE_SPECIES_64, v0, i);
+            ByteVector bv1 = ByteVector.fromArray(BYTE_SPECIES_64, v1, i);
+            ByteVector bv2 = ByteVector.fromArray(BYTE_SPECIES_64, v2, i);
+            ByteVector bv3 = ByteVector.fromArray(BYTE_SPECIES_64, v3, i);
+            Vector<Short> iv0 = bv0.convertShape(B2S, SHORT_SPECIES_128, 0);
+            Vector<Short> iv1 = bv1.convertShape(B2S, SHORT_SPECIES_128, 0);
+            Vector<Short> iv2 = bv2.convertShape(B2S, SHORT_SPECIES_128, 0);
+            Vector<Short> iv3 = bv3.convertShape(B2S, SHORT_SPECIES_128, 0);
+
+            // interleave the ops to minimize the registers needed
+            Vector<Short> qq = qv16.mul(qv16);
+            qNorm = qNorm.add(qq.convertShape(S2I, INT_SPECIES_128, 0)).add(qq.convertShape(S2I, INT_SPECIES_128, 1));
+            Vector<Short> d0 = qv16.mul(iv0);
+            dot0 = dot0.add(d0.convertShape(S2I, INT_SPECIES_128, 0)).add(d0.convertShape(S2I, INT_SPECIES_128, 1));
+            Vector<Short> d1 = qv16.mul(iv1);
+            dot1 = dot1.add(d1.convertShape(S2I, INT_SPECIES_128, 0)).add(d1.convertShape(S2I, INT_SPECIES_128, 1));
+            Vector<Short> d2 = qv16.mul(iv2);
+            dot2 = dot2.add(d2.convertShape(S2I, INT_SPECIES_128, 0)).add(d2.convertShape(S2I, INT_SPECIES_128, 1));
+            Vector<Short> d3 = qv16.mul(iv3);
+            dot3 = dot3.add(d3.convertShape(S2I, INT_SPECIES_128, 0)).add(d3.convertShape(S2I, INT_SPECIES_128, 1));
+            Vector<Short> n0 = iv0.mul(iv0);
+            vNorm0 = vNorm0.add(n0.convertShape(S2I, INT_SPECIES_128, 0)).add(n0.convertShape(S2I, INT_SPECIES_128, 1));
+            Vector<Short> n1 = iv1.mul(iv1);
+            vNorm1 = vNorm1.add(n1.convertShape(S2I, INT_SPECIES_128, 0)).add(n1.convertShape(S2I, INT_SPECIES_128, 1));
+            Vector<Short> n2 = iv2.mul(iv2);
+            vNorm2 = vNorm2.add(n2.convertShape(S2I, INT_SPECIES_128, 0)).add(n2.convertShape(S2I, INT_SPECIES_128, 1));
+            Vector<Short> n3 = iv3.mul(iv3);
+            vNorm3 = vNorm3.add(n3.convertShape(S2I, INT_SPECIES_128, 0)).add(n3.convertShape(S2I, INT_SPECIES_128, 1));
+        }
+
+        vNorms[0] = vNorm0.reduceLanes(ADD);
+        vNorms[1] = vNorm1.reduceLanes(ADD);
+        vNorms[2] = vNorm2.reduceLanes(ADD);
+        vNorms[3] = vNorm3.reduceLanes(ADD);
+        dots[0] = dot0.reduceLanes(ADD);
+        dots[1] = dot1.reduceLanes(ADD);
+        dots[2] = dot2.reduceLanes(ADD);
+        dots[3] = dot3.reduceLanes(ADD);
+        return qNorm.reduceLanes(ADD);
+    }
+
+    private static float cosineResult(int dot, int aNorm, int bNorm) {
+        return (float) (dot / Math.sqrt((double) aNorm * bNorm));
     }
 
     @Override
     public void squareDistanceBulk(
         byte[] query,
         int queryOffset,
-        int length,
         byte[] v0,
         byte[] v1,
         byte[] v2,
         byte[] v3,
         int distancesOffset,
-        float[] distances
+        float[] distances,
+        int length
     ) {
-        if (length >= BYTE_SPECIES.length()) {
-            squareDistanceBulkByteSIMD(query, queryOffset, length, v0, v1, v2, v3, distancesOffset, distances);
-            return;
-        }
-        // scalar fallback
-        distances[distancesOffset] = squareDistance(query, v0, queryOffset, length);
-        distances[distancesOffset + 1] = squareDistance(query, v1, queryOffset, length);
-        distances[distancesOffset + 2] = squareDistance(query, v2, queryOffset, length);
-        distances[distancesOffset + 3] = squareDistance(query, v3, queryOffset, length);
-    }
-
-    private void squareDistanceBulkByteSIMD(
-        byte[] query,
-        int queryOffset,
-        int length,
-        byte[] v0,
-        byte[] v1,
-        byte[] v2,
-        byte[] v3,
-        int distancesOffset,
-        float[] distances
-    ) {
-        IntVector sv0 = IntVector.zero(INTEGER_SPECIES);
-        IntVector sv1 = IntVector.zero(INTEGER_SPECIES);
-        IntVector sv2 = IntVector.zero(INTEGER_SPECIES);
-        IntVector sv3 = IntVector.zero(INTEGER_SPECIES);
-        final int end = queryOffset + length;
-        final int byteLen = BYTE_SPECIES.length();
-        final int vectorEnd = queryOffset + BYTE_SPECIES.loopBound(length);
-        int i = queryOffset;
-        for (; i < vectorEnd; i += byteLen) {
-            ByteVector qv = ByteVector.fromArray(BYTE_SPECIES, query, i);
-            ByteVector bv0 = ByteVector.fromArray(BYTE_SPECIES, v0, i);
-            ByteVector bv1 = ByteVector.fromArray(BYTE_SPECIES, v1, i);
-            ByteVector bv2 = ByteVector.fromArray(BYTE_SPECIES, v2, i);
-            ByteVector bv3 = ByteVector.fromArray(BYTE_SPECIES, v3, i);
-            for (int part = 0; part < BYTE_TO_FLOAT_PARTS; part++) {
-                IntVector iq = (IntVector) qv.castShape(INTEGER_SPECIES, part);
-                IntVector diff0 = iq.sub((IntVector) bv0.castShape(INTEGER_SPECIES, part));
-                sv0 = sv0.add(diff0.mul(diff0));
-                IntVector diff1 = iq.sub((IntVector) bv1.castShape(INTEGER_SPECIES, part));
-                sv1 = sv1.add(diff1.mul(diff1));
-                IntVector diff2 = iq.sub((IntVector) bv2.castShape(INTEGER_SPECIES, part));
-                sv2 = sv2.add(diff2.mul(diff2));
-                IntVector diff3 = iq.sub((IntVector) bv3.castShape(INTEGER_SPECIES, part));
-                sv3 = sv3.add(diff3.mul(diff3));
+        int i = 0;
+        int[] result = new int[4];
+        if (length >= 16 && HAS_FAST_INTEGER_VECTORS) {
+            if (VECTOR_BITSIZE >= 512) {
+                i = BYTE_SPECIES_128.loopBound(length);
+                squareDistanceBulkBody512(query, queryOffset, v0, v1, v2, v3, i, result);
+            } else if (VECTOR_BITSIZE == 256) {
+                i = BYTE_SPECIES_64.loopBound(length);
+                squareDistanceBulkBody256(query, queryOffset, v0, v1, v2, v3, i, result);
+            } else {
+                i = BYTE_SPECIES_64.loopBound(length);
+                squareDistanceBulkBody128(query, queryOffset, v0, v1, v2, v3, i, result);
             }
         }
-        int distance0 = sv0.reduceLanes(VectorOperators.ADD);
-        int distance1 = sv1.reduceLanes(VectorOperators.ADD);
-        int distance2 = sv2.reduceLanes(VectorOperators.ADD);
-        int distance3 = sv3.reduceLanes(VectorOperators.ADD);
-        for (; i < end; i++) {
-            final int qValue = query[i];
-            final int diff0 = qValue - v0[i];
-            final int diff1 = qValue - v1[i];
-            final int diff2 = qValue - v2[i];
-            final int diff3 = qValue - v3[i];
-            distance0 += diff0 * diff0;
-            distance1 += diff1 * diff1;
-            distance2 += diff2 * diff2;
-            distance3 += diff3 * diff3;
+
+        for (; i < length; i++) {
+            int q = query[queryOffset + i];
+            int d0 = q - v0[queryOffset + i];
+            int d1 = q - v1[queryOffset + i];
+            int d2 = q - v2[queryOffset + i];
+            int d3 = q - v3[queryOffset + i];
+            result[0] += d0 * d0;
+            result[1] += d1 * d1;
+            result[2] += d2 * d2;
+            result[3] += d3 * d3;
         }
-        distances[distancesOffset] = distance0;
-        distances[distancesOffset + 1] = distance1;
-        distances[distancesOffset + 2] = distance2;
-        distances[distancesOffset + 3] = distance3;
+
+        distances[distancesOffset] = result[0];
+        distances[distancesOffset + 1] = result[1];
+        distances[distancesOffset + 2] = result[2];
+        distances[distancesOffset + 3] = result[3];
+    }
+
+    private static void squareDistanceBulkBody512(
+        byte[] query,
+        int queryOffset,
+        byte[] v0,
+        byte[] v1,
+        byte[] v2,
+        byte[] v3,
+        int limit,
+        int[] result
+    ) {
+        IntVector sv0 = IntVector.zero(INT_SPECIES_512);
+        IntVector sv1 = IntVector.zero(INT_SPECIES_512);
+        IntVector sv2 = IntVector.zero(INT_SPECIES_512);
+        IntVector sv3 = IntVector.zero(INT_SPECIES_512);
+
+        // the diff^2 operation can overflow a short
+        // so have to use AVX512 ops here regardless
+        for (int i = 0; i < limit; i += BYTE_SPECIES_128.length()) {
+            ByteVector qv8 = ByteVector.fromArray(BYTE_SPECIES_128, query, queryOffset + i);
+            Vector<Integer> qv32 = qv8.convertShape(B2I, INT_SPECIES_512, 0);
+
+            ByteVector bv0 = ByteVector.fromArray(BYTE_SPECIES_128, v0, queryOffset + i);
+            ByteVector bv1 = ByteVector.fromArray(BYTE_SPECIES_128, v1, queryOffset + i);
+            ByteVector bv2 = ByteVector.fromArray(BYTE_SPECIES_128, v2, queryOffset + i);
+            ByteVector bv3 = ByteVector.fromArray(BYTE_SPECIES_128, v3, queryOffset + i);
+
+            Vector<Integer> diff0 = qv32.sub(bv0.convertShape(B2I, INT_SPECIES_512, 0));
+            Vector<Integer> diff1 = qv32.sub(bv1.convertShape(B2I, INT_SPECIES_512, 0));
+            Vector<Integer> diff2 = qv32.sub(bv2.convertShape(B2I, INT_SPECIES_512, 0));
+            Vector<Integer> diff3 = qv32.sub(bv3.convertShape(B2I, INT_SPECIES_512, 0));
+
+            sv0 = sv0.add(diff0.mul(diff0));
+            sv1 = sv1.add(diff1.mul(diff1));
+            sv2 = sv2.add(diff2.mul(diff2));
+            sv3 = sv3.add(diff3.mul(diff3));
+        }
+
+        result[0] = sv0.reduceLanes(ADD);
+        result[1] = sv1.reduceLanes(ADD);
+        result[2] = sv2.reduceLanes(ADD);
+        result[3] = sv3.reduceLanes(ADD);
+    }
+
+    private static void squareDistanceBulkBody256(
+        byte[] query,
+        int queryOffset,
+        byte[] v0,
+        byte[] v1,
+        byte[] v2,
+        byte[] v3,
+        int limit,
+        int[] result
+    ) {
+        IntVector sv0 = IntVector.zero(INT_SPECIES_256);
+        IntVector sv1 = IntVector.zero(INT_SPECIES_256);
+        IntVector sv2 = IntVector.zero(INT_SPECIES_256);
+        IntVector sv3 = IntVector.zero(INT_SPECIES_256);
+
+        for (int i = 0; i < limit; i += BYTE_SPECIES_64.length()) {
+            ByteVector qv8 = ByteVector.fromArray(BYTE_SPECIES_64, query, queryOffset + i);
+            Vector<Integer> qv32 = qv8.convertShape(B2I, INT_SPECIES_256, 0);
+
+            ByteVector bv0 = ByteVector.fromArray(BYTE_SPECIES_64, v0, queryOffset + i);
+            ByteVector bv1 = ByteVector.fromArray(BYTE_SPECIES_64, v1, queryOffset + i);
+            ByteVector bv2 = ByteVector.fromArray(BYTE_SPECIES_64, v2, queryOffset + i);
+            ByteVector bv3 = ByteVector.fromArray(BYTE_SPECIES_64, v3, queryOffset + i);
+
+            Vector<Integer> diff0 = qv32.sub(bv0.convertShape(B2I, INT_SPECIES_256, 0));
+            Vector<Integer> diff1 = qv32.sub(bv1.convertShape(B2I, INT_SPECIES_256, 0));
+            Vector<Integer> diff2 = qv32.sub(bv2.convertShape(B2I, INT_SPECIES_256, 0));
+            Vector<Integer> diff3 = qv32.sub(bv3.convertShape(B2I, INT_SPECIES_256, 0));
+
+            sv0 = sv0.add(diff0.mul(diff0));
+            sv1 = sv1.add(diff1.mul(diff1));
+            sv2 = sv2.add(diff2.mul(diff2));
+            sv3 = sv3.add(diff3.mul(diff3));
+        }
+
+        result[0] = sv0.reduceLanes(ADD);
+        result[1] = sv1.reduceLanes(ADD);
+        result[2] = sv2.reduceLanes(ADD);
+        result[3] = sv3.reduceLanes(ADD);
+    }
+
+    private static void squareDistanceBulkBody128(
+        byte[] query,
+        int queryOffset,
+        byte[] v0,
+        byte[] v1,
+        byte[] v2,
+        byte[] v3,
+        int limit,
+        int[] result
+    ) {
+        IntVector sv0 = IntVector.zero(INT_SPECIES_128);
+        IntVector sv1 = IntVector.zero(INT_SPECIES_128);
+        IntVector sv2 = IntVector.zero(INT_SPECIES_128);
+        IntVector sv3 = IntVector.zero(INT_SPECIES_128);
+
+        for (int i = 0; i < limit; i += BYTE_SPECIES_64.length()) {
+            ByteVector qv8 = ByteVector.fromArray(BYTE_SPECIES_64, query, queryOffset + i);
+            Vector<Short> qv16 = qv8.convertShape(B2S, SHORT_SPECIES_128, 0);
+
+            ByteVector bv0 = ByteVector.fromArray(BYTE_SPECIES_64, v0, queryOffset + i);
+            ByteVector bv1 = ByteVector.fromArray(BYTE_SPECIES_64, v1, queryOffset + i);
+            ByteVector bv2 = ByteVector.fromArray(BYTE_SPECIES_64, v2, queryOffset + i);
+            ByteVector bv3 = ByteVector.fromArray(BYTE_SPECIES_64, v3, queryOffset + i);
+
+            // convert to shorts for the diff
+            Vector<Short> diff0 = qv16.sub(bv0.convertShape(B2S, SHORT_SPECIES_128, 0));
+            Vector<Short> diff1 = qv16.sub(bv1.convertShape(B2S, SHORT_SPECIES_128, 0));
+            Vector<Short> diff2 = qv16.sub(bv2.convertShape(B2S, SHORT_SPECIES_128, 0));
+            Vector<Short> diff3 = qv16.sub(bv3.convertShape(B2S, SHORT_SPECIES_128, 0));
+
+            // have to keep within 128-bits, so can't go straight to ints
+            // instead have to do it by parts
+            // interleave the ops to minimize the registers needed
+            Vector<Integer> d0_lo = diff0.convertShape(S2I, INT_SPECIES_128, 0);
+            sv0 = sv0.add(d0_lo.mul(d0_lo));
+            Vector<Integer> d0_hi = diff0.convertShape(S2I, INT_SPECIES_128, 1);
+            sv0 = sv0.add(d0_hi.mul(d0_hi));
+            Vector<Integer> d1_lo = diff1.convertShape(S2I, INT_SPECIES_128, 0);
+            sv1 = sv1.add(d1_lo.mul(d1_lo));
+            Vector<Integer> d1_hi = diff1.convertShape(S2I, INT_SPECIES_128, 1);
+            sv1 = sv1.add(d1_hi.mul(d1_hi));
+            Vector<Integer> d2_lo = diff2.convertShape(S2I, INT_SPECIES_128, 0);
+            sv2 = sv2.add(d2_lo.mul(d2_lo));
+            Vector<Integer> d2_hi = diff2.convertShape(S2I, INT_SPECIES_128, 1);
+            sv2 = sv2.add(d2_hi.mul(d2_hi));
+            Vector<Integer> d3_lo = diff3.convertShape(S2I, INT_SPECIES_128, 0);
+            sv3 = sv3.add(d3_lo.mul(d3_lo));
+            Vector<Integer> d3_hi = diff3.convertShape(S2I, INT_SPECIES_128, 1);
+            sv3 = sv3.add(d3_hi.mul(d3_hi));
+        }
+
+        result[0] = sv0.reduceLanes(ADD);
+        result[1] = sv1.reduceLanes(ADD);
+        result[2] = sv2.reduceLanes(ADD);
+        result[3] = sv3.reduceLanes(ADD);
     }
 
     @Override
@@ -1645,8 +2192,12 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
 
     @Override
     public void packDibit(int[] vector, byte[] packed) {
-        // TODO
         DefaultESVectorUtilSupport.packDibitImpl(vector, packed);
+    }
+
+    @Override
+    public void packDibitQuad(int[] vector, byte[] packed) {
+        DefaultESVectorUtilSupport.packDibitQuadImpl(vector, packed);
     }
 
     @Override

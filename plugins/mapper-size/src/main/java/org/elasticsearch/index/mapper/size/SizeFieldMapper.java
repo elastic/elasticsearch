@@ -69,8 +69,7 @@ public class SizeFieldMapper extends MetadataFieldMapper {
                 null,
                 null,
                 false,
-                false,
-                true
+                false
             );
         }
 

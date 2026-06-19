@@ -50,7 +50,10 @@ public class TestFeatureResetIT extends TransformRestTestCase {
             }""");
         settingsRequest.setOptions(RequestOptions.DEFAULT.toBuilder().setWarningsHandler(warnings -> {
             for (String warning : warnings) {
-                if (warning.equals(ESRestTestCase.DEPRECATED_LOGGER_CHILD_OVERRIDE_WARNING) == false) {
+                if (warning.equals(
+                    "A settings update to logger levels overrides child loggers with explicitly configured levels."
+                        + " This behavior is deprecated and will change in a future major version."
+                ) == false) {
                     return true;
                 }
             }

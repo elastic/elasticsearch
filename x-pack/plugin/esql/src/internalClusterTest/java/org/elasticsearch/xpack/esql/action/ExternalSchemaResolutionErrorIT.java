@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.action;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.esql.datasource.csv.CsvDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasource.http.HttpDataSourcePlugin;
@@ -87,12 +86,9 @@ public class ExternalSchemaResolutionErrorIT extends AbstractEsqlIntegTestCase {
 
     /**
      * Runs {@code EXTERNAL "<dir>/*.csv" WITH {"schema_resolution":"strict", "header_row":<headerRow>} | STATS …}
-     * and asserts the request fails with an {@link ElasticsearchException} (the action framework wraps the
-     * server-side {@code IllegalArgumentException} from {@code SchemaReconciliation#validateStrictMatch})
-     * whose message identifies a schema mismatch and points at the {@code union_by_name} escape hatch.
-     * Pairing those two keywords keeps the assertion specific to the strict-resolution path so a future
-     * unrelated regression in the EXTERNAL pipeline cannot satisfy it with an exception that merely echoes
-     * the query text (which contains the literal "strict").
+     * and asserts the request fails with an {@link IllegalArgumentException} from
+     * {@code SchemaReconciliation#validateStrictMatch} whose message identifies a schema mismatch
+     * and points at the {@code union_by_name} escape hatch. This maps to HTTP 400 on the wire.
      */
     private void assertStrictSchemaMismatch(Path dir, boolean headerRow) {
         String glob = StoragePath.fileUri(dir) + "/*.csv";
@@ -103,7 +99,7 @@ public class ExternalSchemaResolutionErrorIT extends AbstractEsqlIntegTestCase {
             + "}"
             + " | STATS count = COUNT(*)";
 
-        ElasticsearchException ex = expectThrows(ElasticsearchException.class, () -> {
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> {
             try (var response = run(syncEsqlQueryRequest(query))) {
                 // should not reach here
             }

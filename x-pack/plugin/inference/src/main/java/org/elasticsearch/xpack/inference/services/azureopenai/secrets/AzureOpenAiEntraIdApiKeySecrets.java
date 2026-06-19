@@ -15,7 +15,10 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Map;
 import java.util.Objects;
+
+import static org.elasticsearch.inference.ModelConfigurations.SERVICE_SETTINGS;
 
 /**
  * Azure OpenAI secret settings for API key or Entra ID only.
@@ -89,5 +92,25 @@ public class AzureOpenAiEntraIdApiKeySecrets extends AzureOpenAiSecretSettings {
     @Override
     public int hashCode() {
         return Objects.hash(entraId, apiKey);
+    }
+
+    @Override
+    protected AzureOpenAiSecretSettings updated(Map<String, SecureString> provided) {
+        if (apiKey != null) {
+            return updateExactlyOneField(
+                SERVICE_SETTINGS,
+                API_KEY,
+                apiKey,
+                provided,
+                value -> new AzureOpenAiEntraIdApiKeySecrets(value, null)
+            );
+        }
+        return updateExactlyOneField(
+            SERVICE_SETTINGS,
+            ENTRA_ID,
+            entraId,
+            provided,
+            value -> new AzureOpenAiEntraIdApiKeySecrets(null, value)
+        );
     }
 }

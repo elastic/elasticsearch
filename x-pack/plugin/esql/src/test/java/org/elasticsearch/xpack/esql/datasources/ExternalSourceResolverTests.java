@@ -922,12 +922,12 @@ public class ExternalSourceResolverTests extends ESTestCase {
         Map<String, List<StorageEntry>> listingsByPrefix = new HashMap<>();
         listingsByPrefix.put("s3://bucket/data/", List.of(entry("s3://bucket/data/file.parquet", 100)));
 
-        Exception e = expectThrows(
-            Exception.class,
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
             () -> resolveMultiplePaths(List.of("s3://bucket/data/file.parquet"), schemasByPath, listingsByPrefix)
         );
-        assertThat(e.getCause().getMessage(), containsString("ReferenceAttribute"));
-        assertThat(e.getCause().getMessage(), containsString("FieldAttribute"));
+        assertThat(e.getMessage(), containsString("ReferenceAttribute"));
+        assertThat(e.getMessage(), containsString("FieldAttribute"));
     }
 
     private ExternalSourceMetadata createStubMetadata(String location, List<Attribute> schema) {
@@ -1525,7 +1525,9 @@ public class ExternalSourceResolverTests extends ESTestCase {
             capabilities,
             Settings.EMPTY,
             blockFactory,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            new DataSourceCredentials(),
+            () -> false
         );
 
         ExternalSourceResolver resolver = new ExternalSourceResolver(EsExecutors.DIRECT_EXECUTOR_SERVICE, module);
@@ -1605,7 +1607,9 @@ public class ExternalSourceResolverTests extends ESTestCase {
             capabilities,
             Settings.EMPTY,
             blockFactory,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            new DataSourceCredentials(),
+            () -> false
         );
 
         return new ExternalSourceResolver(EsExecutors.DIRECT_EXECUTOR_SERVICE, module);
@@ -1670,7 +1674,9 @@ public class ExternalSourceResolverTests extends ESTestCase {
             capabilities,
             Settings.EMPTY,
             blockFactory,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            new DataSourceCredentials(),
+            () -> false
         );
 
         return new ExternalSourceResolver(EsExecutors.DIRECT_EXECUTOR_SERVICE, module, Settings.EMPTY, cacheService);

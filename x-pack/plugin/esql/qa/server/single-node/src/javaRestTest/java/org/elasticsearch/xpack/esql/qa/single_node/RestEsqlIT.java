@@ -19,6 +19,7 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.test.ListMatcher;
 import org.elasticsearch.test.MapMatcher;
 import org.elasticsearch.test.TestClustersThreadFilter;
@@ -66,11 +67,13 @@ import static org.elasticsearch.xpack.esql.planner.PlannerSettings.LUCENE_TOPN_L
 import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.Mode.SYNC;
 import static org.elasticsearch.xpack.esql.tools.ProfileParser.parseProfile;
 import static org.elasticsearch.xpack.esql.tools.ProfileParser.readProfileFromResponse;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.any;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -352,6 +355,7 @@ public class RestEsqlIT extends RestEsqlTestCase {
                     sig,
                     matchesList().item("LuceneSourceOperator")
                         .item("ValuesSourceReaderOperator")
+                        .item("EvalOperator")
                         .item("AggregationOperator")
                         .item("ExchangeSinkOperator")
                 );
@@ -1261,7 +1265,10 @@ public class RestEsqlIT extends RestEsqlTestCase {
             .entry("operators", instanceOf(List.class))
             .entry("sleeps", matchesMap().extraOk())
             .entry("documents_found", greaterThanOrEqualTo(0))
-            .entry("values_loaded", greaterThanOrEqualTo(0));
+            .entry("values_loaded", greaterThanOrEqualTo(0))
+            .entry("rows_emitted", greaterThanOrEqualTo(0L))
+            .entry("bytes_read", greaterThanOrEqualTo(0L))
+            .entry("read_nanos", greaterThanOrEqualTo(0L));
     }
 
     public void testProfileConditionalBlockLoader() throws IOException {
@@ -1321,6 +1328,66 @@ public class RestEsqlIT extends RestEsqlTestCase {
             greaterThanOrEqualTo(1)
         );
         assertMap(reader, matchesMap().extraOk().entry("status", matchesMap().extraOk().entry("readers_built", readersBuiltMatcher)));
+    }
+
+    public void testConditionalBlockLoaderSwitchesStrategyAcrossSegments() throws IOException {
+        assumeTrue(
+            "requires fixed ValuesReader state after conditional block loaders switch strategies across segments",
+            hasCapabilities(adminClient(), List.of(EsqlCapabilities.Cap.FIX_VALUES_READER_STALE_ROW_STRIDE_READER.capabilityName()))
+        );
+        createIndex(testIndexName(), Settings.builder().put("index.number_of_shards", "1").build(), """
+            {
+              "properties": {
+                "sort": {
+                  "type": "integer"
+                },
+                "message": {
+                  "type": "text",
+                  "fields": {
+                    "keyword": {
+                      "type": "keyword",
+                      "ignore_above": 256
+                    }
+                  }
+                }
+              }
+            }
+            """);
+
+        CheckedConsumer<Map.Entry<Integer, String>, IOException> indexMessageDoc = doc -> {
+            Request request = new Request("POST", testIndexName() + "/_doc");
+            request.addParameter("refresh", "true");
+            request.setJsonEntity(String.format(Locale.ROOT, "{\"sort\": %d, \"message\": \"%s\"}", doc.getKey(), doc.getValue()));
+            Response response = client().performRequest(request);
+            assertThat(response.getStatusLine().getStatusCode(), oneOf(200, 201));
+        };
+
+        String longMessage = "words ".repeat(256);
+        String shortMessage = "words words words";
+        indexMessageDoc.accept(Map.entry(0, longMessage));
+        indexMessageDoc.accept(Map.entry(1, shortMessage));
+
+        Map<String, Object> result = runEsql(
+            requestObjectBuilder().query(fromIndex() + " | SORT sort ASC | KEEP message")
+                .profile(true)
+                .pragmas(
+                    Settings.builder()
+                        .put(QueryPragmas.DATA_PARTITIONING.getKey(), "shard")
+                        .put(QueryPragmas.PAGE_SIZE.getKey(), 1000)
+                        .build()
+                )
+                .pragmasOk()
+        );
+
+        ListMatcher schemaMatcher = matchesList().item(Map.of("name", "message", "type", "text"));
+        ListMatcher rowsMatcher = matchesList().item(List.of(longMessage)).item(List.of(shortMessage));
+        assertResultMap(result, getResultMatcher(result).entry("profile", getProfileMatcher()), schemaMatcher, rowsMatcher);
+
+        Map<String, Object> reader = findSingleReaderProfile("node_reduce", result);
+        @SuppressWarnings("unchecked")
+        Map<String, Integer> readersBuilt = (Map<String, Integer>) ((Map<String, Object>) reader.get("status")).get("readers_built");
+        assertThat(readersBuilt, hasKey("message:column_at_a_time:Delegating[to=message.keyword, impl=BytesRefsFromOrds.Singleton]"));
+        assertThat(readersBuilt, hasKey(allOf(startsWith("message:row_stride:["), endsWith("/BlockSourceReader.Bytes]"))));
     }
 
     public void testAutoPartitioning() throws IOException {
@@ -1417,6 +1484,9 @@ public class RestEsqlIT extends RestEsqlTestCase {
         profile.put("iterations", ((Number) profile.get("iterations")).longValue());
         profile.put("cpu_nanos", ((Number) profile.get("cpu_nanos")).longValue());
         profile.put("took_nanos", ((Number) profile.get("took_nanos")).longValue());
+        profile.put("rows_emitted", ((Number) profile.get("rows_emitted")).longValue());
+        profile.put("bytes_read", ((Number) profile.get("bytes_read")).longValue());
+        profile.put("read_nanos", ((Number) profile.get("read_nanos")).longValue());
     }
 
     static String signature(Map<String, Object> o) {
@@ -1438,10 +1508,12 @@ public class RestEsqlIT extends RestEsqlTestCase {
                 .entry("rows_emitted", greaterThan(0))
                 .entry("process_nanos", greaterThan(0))
                 .entry("processed_queries", List.of("*:*"))
+                .entry("bytes_read", greaterThanOrEqualTo(0))
                 .entry("partitioning_strategies", matchesMap().entry("rest-esql-test:0", "SHARD"));
             case "ValuesSourceReaderOperator" -> basicProfile().entry("pages_received", greaterThan(0))
                 .entry("pages_emitted", greaterThan(0))
                 .entry("values_loaded", greaterThanOrEqualTo(0))
+                .entry("bytes_read", greaterThanOrEqualTo(0))
                 .entry("readers_built", matchesMap().extraOk());
             case "AggregationOperator" -> matchesMap().entry("pages_processed", greaterThan(0))
                 .entry("rows_received", greaterThan(0))
@@ -1480,6 +1552,7 @@ public class RestEsqlIT extends RestEsqlTestCase {
                 .entry("process_nanos", greaterThan(0))
                 .entry("processed_queries", List.of("*:*"))
                 .entry("slice_index", 0)
+                .entry("bytes_read", greaterThanOrEqualTo(0))
                 .entry("partitioning_strategies", matchesMap().entry("rest-esql-test:0", "SHARD"));
             default -> throw new AssertionError("unexpected status: " + o);
         };

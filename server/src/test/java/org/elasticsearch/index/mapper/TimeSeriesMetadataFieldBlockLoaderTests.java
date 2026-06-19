@@ -167,6 +167,45 @@ public class TimeSeriesMetadataFieldBlockLoaderTests extends MapperServiceTestCa
         assertThat(sourcePaths(loader), equalTo(Set.of("host", "region", "cpu", "request_count")));
     }
 
+    /**
+     * Prometheus passthrough indices record their dimensions as the wildcard {@code labels.*} in
+     * {@code index.dimensions}. A concrete WITHOUT exclusion (e.g. {@code labels.le}) can never match the
+     * literal wildcard, so the loader must resolve the wildcard to concrete dimension fields via the mapping
+     * and drop the excluded ones. Otherwise the excluded dimension leaks back into the {@code _timeseries}
+     * grouping key (e.g. {@code histogram_quantile(..., rate(...))} would keep the {@code le} bucket label).
+     */
+    public void testExcludedDimensionsWithWildcardDimensionSetting() throws IOException {
+        Settings settings = Settings.builder()
+            .put(TSDB_PROMETHEUS_LIKE_SETTINGS)
+            .putList(IndexMetadata.INDEX_DIMENSIONS.getKey(), "labels.*")
+            .build();
+        BlockLoader loader = createBlockLoader(
+            settings,
+            PROMETHEUS_LIKE_MAPPING,
+            new BlockLoaderFunctionConfig.TimeSeriesMetadata(false, Set.of("labels.job", "job"))
+        );
+        assertThat(loader, instanceOf(TimeSeriesMetadataFieldBlockLoader.class));
+        assertThat(sourcePaths(loader), equalTo(Set.of("labels.__name__", "labels.instance")));
+    }
+
+    /**
+     * With no exclusions the wildcard {@code index.dimensions} shortcut is still honored as-is, since there is
+     * nothing to remove and the source filter understands the {@code labels.*} pattern.
+     */
+    public void testWildcardDimensionSettingUsedWhenNothingExcluded() throws IOException {
+        Settings settings = Settings.builder()
+            .put(TSDB_PROMETHEUS_LIKE_SETTINGS)
+            .putList(IndexMetadata.INDEX_DIMENSIONS.getKey(), "labels.*")
+            .build();
+        BlockLoader loader = createBlockLoader(
+            settings,
+            PROMETHEUS_LIKE_MAPPING,
+            new BlockLoaderFunctionConfig.TimeSeriesMetadata(false, Set.of())
+        );
+        assertThat(loader, instanceOf(TimeSeriesMetadataFieldBlockLoader.class));
+        assertThat(sourcePaths(loader), equalTo(Set.of("labels.*")));
+    }
+
     public void testNoConfigReturnSourceBlockLoader() throws IOException {
         MapperService mapperService = createMapperService(TSDB_SYNTHETIC_SETTINGS, MAPPING);
         BlockLoader loader = mapperService.documentMapper()
@@ -242,16 +281,51 @@ public class TimeSeriesMetadataFieldBlockLoaderTests extends MapperServiceTestCa
     }
 
     /**
+     * Verify that the `withoutFields` parameter correctly excludes labels from the output.
+     * When using PromQL's `without(instance)` clause, the `instance` label must not appear
+     * in the emitted `_timeseries` JSON.
+     */
+    public void testWithoutFieldsExcludesLabelsFromOutput() throws IOException {
+        BytesReference cbor = bytes(XContentType.CBOR, b -> {
+            b.field("@timestamp", "2021-04-28T18:50:00Z");
+            b.startObject("labels");
+            b.field("__name__", "go_gc_cleanups_executed_cleanups_total");
+            b.field("instance", "localhost:9090");
+            b.field("job", "prometheus");
+            b.endObject();
+            b.startObject("metrics");
+            b.field("go_gc_cleanups_executed_cleanups_total", 1.0);
+            b.endObject();
+        });
+        BytesRef value = readTimeSeriesValue(
+            TSDB_PROMETHEUS_LIKE_SETTINGS,
+            PROMETHEUS_LIKE_MAPPING,
+            sourceToParse(cbor, XContentType.CBOR),
+            Set.of("labels.instance")
+        );
+        Map<String, Object> parsed = parseJsonObject(value);
+        assertThat(parsed.keySet(), equalTo(Set.of("labels")));
+        @SuppressWarnings("unchecked")
+        Map<String, Object> labels = (Map<String, Object>) parsed.get("labels");
+        assertThat(labels, equalTo(Map.of("__name__", "go_gc_cleanups_executed_cleanups_total", "job", "prometheus")));
+    }
+
+    /**
      * Build the {@code _timeseries} block loader, index a single document, and return the {@link BytesRef}
      * the loader writes into a one-row block. This mirrors how the production code wires
      * {@link TimeSeriesMetadataFieldBlockLoader} into a row-stride read at search time.
      */
     private BytesRef readTimeSeriesValue(Settings settings, String mapping, SourceToParse sourceToParse) throws IOException {
+        return readTimeSeriesValue(settings, mapping, sourceToParse, Set.of());
+    }
+
+    private BytesRef readTimeSeriesValue(Settings settings, String mapping, SourceToParse sourceToParse, Set<String> withoutFields)
+        throws IOException {
         MapperService mapperService = createMapperService(settings, mapping);
         BlockLoader loader = mapperService.documentMapper()
             .sourceMapper()
             .fieldType()
-            .blockLoader(new TestBlockLoaderContext(mapperService, new BlockLoaderFunctionConfig.TimeSeriesMetadata(false, Set.of())));
+            .blockLoader(new TestBlockLoaderContext(mapperService, new BlockLoaderFunctionConfig.TimeSeriesMetadata(false, withoutFields)));
         assertThat(loader, instanceOf(TimeSeriesMetadataFieldBlockLoader.class));
 
         AtomicReference<BytesRef> result = new AtomicReference<>();

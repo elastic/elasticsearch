@@ -16,6 +16,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -691,6 +692,261 @@ public class RootObjectMapperTests extends MapperServiceTestCase {
                 () -> createMapperService(settings, topMapping(b -> b.field("subobjects", true)))
             );
             assertThat(e.getMessage(), containsString("subobjects params are not supported in columnar mode"));
+        }
+    }
+
+    public void testStrictColumnarModesRejectRuntimeDynamic() {
+        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        for (IndexMode indexMode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
+            Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), indexMode.getName()).build();
+            MapperParsingException e = expectThrows(
+                MapperParsingException.class,
+                () -> createMapperService(settings, topMapping(b -> b.field("dynamic", "runtime")))
+            );
+            assertThat(e.getMessage(), containsString("dynamic [runtime] is not supported in strict columnar mode"));
+        }
+    }
+
+    private Settings sliceEnabledSettings() {
+        return Settings.builder()
+            .put(getIndexSettings())
+            .put(IndexSettings.SLICE_ENABLED.getKey(), true)
+            .put(IndexSettings.SLICE_VALIDATED.getKey(), true)
+            .build();
+    }
+
+    public void testSliceEnabledRejectsExplicitSliceFieldName() {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> createMapperService(sliceEnabledSettings(), mapping(b -> b.startObject("_slice").field("type", "keyword").endObject()))
+        );
+        assertThat(e.getMessage(), containsString("_slice"));
+        assertThat(e.getMessage(), containsString(IndexSettings.SLICE_ENABLED.getKey()));
+    }
+
+    public void testSliceEnabledRejectsRuntimeSliceFieldName() {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        MapperParsingException e = expectThrows(
+            MapperParsingException.class,
+            () -> createMapperService(sliceEnabledSettings(), topMapping(b -> {
+                b.startObject("runtime");
+                b.startObject("_slice").field("type", "keyword").endObject();
+                b.endObject();
+            }))
+        );
+        assertThat(e.getMessage(), containsString("_slice"));
+        assertThat(e.getMessage(), containsString(IndexSettings.SLICE_ENABLED.getKey()));
+    }
+
+    public void testSliceEnabledAllowsNestedSliceFieldName() throws Exception {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        createMapperService(sliceEnabledSettings(), mapping(b -> {
+            b.startObject("obj");
+            b.field("type", "object");
+            b.startObject("properties");
+            b.startObject("_slice").field("type", "keyword").endObject();
+            b.endObject();
+            b.endObject();
+        }));
+    }
+
+    public void testSliceDisabledAllowsSliceFieldName() throws Exception {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        createMapperService(mapping(b -> b.startObject("_slice").field("type", "keyword").endObject()));
+    }
+
+    public void testDynamicByPrefixSerializationRoundTrip() throws Exception {
+        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        for (IndexMode indexMode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
+            Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), indexMode.getName()).build();
+            MapperService mapperService = createMapperService(settings, mapping(b -> {
+                b.startObject("attributes");
+                {
+                    b.field("dynamic", "false");
+                    b.startObject("properties");
+                    b.startObject("host").field("type", "keyword").endObject();
+                    b.endObject();
+                }
+                b.endObject();
+                b.startObject("resource");
+                {
+                    b.field("dynamic", "strict");
+                    b.startObject("properties");
+                    b.startObject("service").field("type", "keyword").endObject();
+                    b.endObject();
+                }
+                b.endObject();
+            }));
+
+            // Serialize the mapping to a string
+            String mappingJson1 = Strings.toString(mapperService.documentMapper().mapping());
+
+            // Re-parse and re-serialize — must be identical (idempotence)
+            MapperService mapperService2 = createMapperService(settings, mappingJson1);
+            String mappingJson2 = Strings.toString(mapperService2.documentMapper().mapping());
+            assertEquals("prefix_properties must survive round-trip serialization for " + indexMode, mappingJson1, mappingJson2);
+
+            // The stored mapping must contain prefix_properties.dynamic in the expected nested shape
+            assertThat(mappingJson1, containsString("prefix_properties"));
+            assertThat(mappingJson1, containsString("\"prefix_properties\":{\"dynamic\":{"));
+            assertThat(mappingJson1, containsString("\"attributes\":\"false\""));
+            assertThat(mappingJson1, containsString("\"resource\":\"strict\""));
+
+            // The dynamic_by_prefix map must be populated on re-parsed root
+            RootObjectMapper root2 = mapperService2.mappingLookup().getMapping().getRoot();
+            assertEquals(ObjectMapper.Dynamic.FALSE, root2.getDynamicByPrefix().get("attributes"));
+            assertEquals(ObjectMapper.Dynamic.STRICT, root2.getDynamicByPrefix().get("resource"));
+        }
+    }
+
+    public void testDynamicByPrefixMergeAddNewPrefix() throws Exception {
+        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        for (IndexMode indexMode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
+            Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), indexMode.getName()).build();
+            // Initial mapping: attributes dynamic=false
+            MapperService mapperService = createMapperService(settings, mapping(b -> {
+                b.startObject("attributes");
+                {
+                    b.field("dynamic", "false");
+                    b.startObject("properties");
+                    b.startObject("host").field("type", "keyword").endObject();
+                    b.endObject();
+                }
+                b.endObject();
+            }));
+
+            // Merge update: add resource dynamic=strict
+            merge(mapperService, mapping(b -> {
+                b.startObject("resource");
+                {
+                    b.field("dynamic", "strict");
+                    b.startObject("properties");
+                    b.startObject("service").field("type", "keyword").endObject();
+                    b.endObject();
+                }
+                b.endObject();
+            }));
+
+            RootObjectMapper root = mapperService.documentMapper().mapping().getRoot();
+            assertEquals(ObjectMapper.Dynamic.FALSE, root.getDynamicByPrefix().get("attributes"));
+            assertEquals(ObjectMapper.Dynamic.STRICT, root.getDynamicByPrefix().get("resource"));
+        }
+    }
+
+    public void testDynamicByPrefixMergeUpdateExistingPrefix() throws Exception {
+        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        for (IndexMode indexMode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
+            Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), indexMode.getName()).build();
+            // Initial mapping: attributes dynamic=false
+            MapperService mapperService = createMapperService(settings, mapping(b -> {
+                b.startObject("attributes");
+                {
+                    b.field("dynamic", "false");
+                    b.startObject("properties");
+                    b.startObject("host").field("type", "keyword").endObject();
+                    b.endObject();
+                }
+                b.endObject();
+            }));
+
+            // Update: change attributes to strict
+            merge(mapperService, mapping(b -> {
+                b.startObject("attributes");
+                {
+                    b.field("dynamic", "strict");
+                    b.startObject("properties");
+                    b.startObject("host").field("type", "keyword").endObject();
+                    b.endObject();
+                }
+                b.endObject();
+            }));
+
+            RootObjectMapper root = mapperService.documentMapper().mapping().getRoot();
+            assertEquals(
+                "dynamic update on a prefix should be allowed (consistent with object dynamic mutability)",
+                ObjectMapper.Dynamic.STRICT,
+                root.getDynamicByPrefix().get("attributes")
+            );
+        }
+    }
+
+    /**
+     * Verifies that {@code prefix_properties.passthrough} entries survive a serialization/deserialization
+     * round-trip so that {@link FieldTypeLookup} can reconstruct root-level aliases after index restart.
+     */
+    public void testPassthroughByPrefixSerializationRoundTrip() throws Exception {
+        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        for (IndexMode indexMode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
+            Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), indexMode.getName()).build();
+            MapperService mapperService = createMapperService(settings, mapping(b -> {
+                b.startObject("attributes").field("type", "passthrough").field("priority", 1).field("dynamic", true);
+                {
+                    b.startObject("properties");
+                    b.startObject("env").field("type", "keyword").endObject();
+                    b.endObject();
+                }
+                b.endObject();
+                b.startObject("resource.attributes").field("type", "passthrough").field("priority", 2).field("dynamic", true);
+                {
+                    b.startObject("properties");
+                    b.startObject("service").field("type", "keyword").endObject();
+                    b.endObject();
+                }
+                b.endObject();
+            }));
+
+            String mappingJson1 = Strings.toString(mapperService.documentMapper().mapping());
+
+            // Re-parse and re-serialize — must be identical
+            MapperService mapperService2 = createMapperService(settings, mappingJson1);
+            String mappingJson2 = Strings.toString(mapperService2.documentMapper().mapping());
+            assertEquals("prefix_properties.passthrough must survive round-trip for " + indexMode, mappingJson1, mappingJson2);
+
+            // The stored mapping must contain prefix_properties.passthrough
+            assertThat(mappingJson1, containsString("\"prefix_properties\""));
+            assertThat(mappingJson1, containsString("\"passthrough\""));
+            assertThat(mappingJson1, containsString("\"attributes\":1"));
+            assertThat(mappingJson1, containsString("\"resource.attributes\":2"));
+
+            // The map must be populated on the re-parsed root
+            RootObjectMapper root2 = mapperService2.mappingLookup().getMapping().getRoot();
+            assertEquals(Integer.valueOf(1), root2.getPassthroughByPrefix().get("attributes"));
+            assertEquals(Integer.valueOf(2), root2.getPassthroughByPrefix().get("resource.attributes"));
+        }
+    }
+
+    /**
+     * Verifies that a merge update adds a new passthrough prefix entry to {@code prefix_properties.passthrough}.
+     */
+    public void testPassthroughByPrefixMergeAddsEntry() throws Exception {
+        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        for (IndexMode indexMode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
+            Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), indexMode.getName()).build();
+            MapperService mapperService = createMapperService(settings, mapping(b -> {
+                b.startObject("attributes").field("type", "passthrough").field("priority", 1).field("dynamic", true);
+                {
+                    b.startObject("properties");
+                    b.startObject("env").field("type", "keyword").endObject();
+                    b.endObject();
+                }
+                b.endObject();
+            }));
+
+            // Merge: add a second passthrough
+            merge(mapperService, mapping(b -> {
+                b.startObject("resource").field("type", "passthrough").field("priority", 2).field("dynamic", true);
+                {
+                    b.startObject("properties");
+                    b.startObject("service").field("type", "keyword").endObject();
+                    b.endObject();
+                }
+                b.endObject();
+            }));
+
+            RootObjectMapper root = mapperService.documentMapper().mapping().getRoot();
+            assertEquals(Integer.valueOf(1), root.getPassthroughByPrefix().get("attributes"));
+            assertEquals(Integer.valueOf(2), root.getPassthroughByPrefix().get("resource"));
         }
     }
 }

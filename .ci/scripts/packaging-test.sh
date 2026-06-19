@@ -91,5 +91,4 @@ sudo -E env \
   --unset=JAVA_HOME \
   SYSTEM_JAVA_HOME=`readlink -f -n $BUILD_JAVA_HOME` \
   DOCKER_CONFIG="${HOME}/.docker" \
-  ./gradlew -g $HOME/.gradle --console=plain --scan --parallel --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ $TESTS_SEED_PARAM --continue $@
-
+  ./gradlew -g $HOME/.gradle --console=plain --scan --parallel --build-cache --no-daemon -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ $TESTS_SEED_PARAM --continue $@

@@ -55,10 +55,21 @@ final class FileSourceFactory implements ExternalSourceFactory {
      * Built from each component's own {@code CONFIG_KEYS} set so adding a new coordinator-level
      * configuration consumer requires updating only the consumer's own constant — the union here
      * picks it up automatically. Components contributing today: {@link ErrorPolicy},
-     * {@link FileSplitProvider}, the {@link #CONFIG_FORMAT} override read by this class, and the
-     * {@link FormatNameResolver#CONFIG_READER} override read by the format-name resolver.
+     * {@link FileSplitProvider}, {@link PartitionConfig}, the {@link #CONFIG_FORMAT} override read
+     * by this class, and the {@link FormatNameResolver#CONFIG_READER} override read by the
+     * format-name resolver.
      */
     static final Set<String> COORDINATOR_KEYS;
+
+    /**
+     * Coordinator keys deliberately NOT exposed as dataset settings: the {@link #CONFIG_FORMAT} and
+     * {@link FormatNameResolver#CONFIG_READER} overrides remain EXTERNAL-only development knobs (a
+     * dataset implies its format from the registered resource's extension). Pinned against
+     * {@link #COORDINATOR_KEYS} and the dataset key set by {@code FileSourceFactoryValidationTests}
+     * so neither can drift: any new coordinator key must either be added to the dataset vocabulary or
+     * explicitly listed here.
+     */
+    static final Set<String> EXTERNAL_ONLY_KEYS = Set.of(CONFIG_FORMAT, FormatNameResolver.CONFIG_READER);
 
     static {
         Set<String> keys = new HashSet<>();
@@ -67,6 +78,7 @@ final class FileSourceFactory implements ExternalSourceFactory {
         keys.addAll(ErrorPolicy.CONFIG_KEYS);
         keys.addAll(FileSplitProvider.CONFIG_KEYS);
         keys.addAll(ExternalSourceResolver.CONFIG_KEYS);
+        keys.addAll(PartitionConfig.CONFIG_KEYS);
         COORDINATOR_KEYS = Set.copyOf(keys);
     }
 
@@ -170,7 +182,7 @@ final class FileSourceFactory implements ExternalSourceFactory {
         Configured<StorageProvider> resolvedStorage = storageRegistry.createProviderTrackingConsumedKeys(
             storagePath.scheme(),
             settings,
-            config
+            ExternalSourceResolver.storageConfig(config)
         );
         Configured<FormatReader> resolvedReader = resolveFormatReader(storagePath.objectName(), config).withConfigTrackingConsumedKeys(
             config
@@ -191,7 +203,11 @@ final class FileSourceFactory implements ExternalSourceFactory {
             StorageProvider provider;
             FormatReader reader;
             if (config != null && config.isEmpty() == false) {
-                provider = storageRegistry.createProviderTrackingConsumedKeys(scheme, settings, config).value();
+                provider = storageRegistry.createProviderTrackingConsumedKeys(
+                    scheme,
+                    settings,
+                    ExternalSourceResolver.storageConfig(config)
+                ).value();
                 reader = resolveFormatReader(storagePath.objectName(), config).withConfigTrackingConsumedKeys(config).value();
             } else {
                 provider = storageRegistry.provider(storagePath);
@@ -228,7 +244,7 @@ final class FileSourceFactory implements ExternalSourceFactory {
 
             StorageProvider storage;
             if (config != null && config.isEmpty() == false) {
-                storage = storageRegistry.createProvider(path.scheme(), settings, config);
+                storage = storageRegistry.createProvider(path.scheme(), settings, ExternalSourceResolver.storageConfig(config));
             } else {
                 storage = storageRegistry.provider(path);
             }
@@ -285,6 +301,8 @@ final class FileSourceFactory implements ExternalSourceFactory {
                 .sliceQueue(context.sliceQueue())
                 .errorPolicy(errorPolicy)
                 .parsingParallelism(context.parsingParallelism())
+                .maxConcurrentOpenSegments(context.maxConcurrentOpenSegments())
+                .maxRecordBytes(context.maxRecordBytes())
                 .parallelism(context.parallelism())
                 .pushedExpressions(pushedExpressions)
                 .pushdownSupport(pushdownSupport)

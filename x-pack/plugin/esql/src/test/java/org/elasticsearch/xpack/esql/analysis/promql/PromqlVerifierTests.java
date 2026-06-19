@@ -11,14 +11,17 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.TestAnalyzer;
 import org.elasticsearch.xpack.esql.VerificationException;
+import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
 import org.elasticsearch.xpack.esql.core.querydsl.QueryDslTimestampBoundsExtractor.TimestampBounds;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.parser.promql.PromqlAstTests;
+import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.local.EmptyLocalSupplier;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.Collections;
 import java.util.List;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.analyzer;
@@ -30,7 +33,9 @@ import static org.hamcrest.Matchers.hasSize;
 
 public class PromqlVerifierTests extends ESTestCase {
 
-    private final TestAnalyzer tsdb = analyzer().addIndex("test", "tsdb-mapping.json").stripErrorPrefix(true);
+    private final TestAnalyzer tsdb = analyzer().addIndex("test", "tsdb-mapping.json")
+        .stripErrorPrefix(true)
+        .unmappedResolution(UnmappedResolution.NULLIFY);
 
     public void testPromqlRangeVector() {
         tsdb.error(
@@ -41,8 +46,11 @@ public class PromqlVerifierTests extends ESTestCase {
 
     public void testPromqlRangeVectorBinaryExpression() {
         tsdb.error(
-            "PROMQL index=test step=5m max(network.bytes_in[5m] / network.bytes_in[5m])",
-            equalTo("1:31: binary expression must contain only scalar and instant vector types")
+            "PROMQL index=test step=5m max(network.bytes_in[5m] / network.bytes_in[10m])",
+            equalTo(
+                "1:31: binary expression must contain only scalar and instant vector types\n"
+                    + "line 1:54: binary expression must contain only scalar and instant vector types"
+            )
         );
     }
 
@@ -91,28 +99,81 @@ public class PromqlVerifierTests extends ESTestCase {
     }
 
     public void testLogicalSetBinaryOperators() {
-        List.of("and", "or", "unless").forEach(op -> {
-            // metric op metric
-            tsdb.error("PROMQL index=test step=5m foo " + op + " bar", containsString("set operators are not supported at this time"));
+        List.of("and", "unless").forEach(op -> {
+            // metric op metric: and/unless (INTERSECT/SUBTRACT) are not supported yet.
+            tsdb.error(
+                "PROMQL index=test step=5m foo " + op + " bar",
+                containsString("set operator [" + op + "] is not supported at this time")
+            );
+            // Any scalar operand is illegal in PromQL itself; this takes precedence over the unsupported-op message.
             // scalar op scalar
-            tsdb.error("PROMQL index=test step=5m 1 " + op + " 1", containsString("set operators are not supported at this time"));
+            tsdb.error(
+                "PROMQL index=test step=5m 1 " + op + " 1",
+                containsString("set operator \"" + op + "\" not allowed in binary scalar expression")
+            );
             // metric op scalar and scalar op metric
             tsdb.error(
                 "PROMQL index=test step=5m network.bytes_in " + op + " 1",
-                containsString("set operators are not supported at this time")
+                containsString("set operator \"" + op + "\" not allowed in binary scalar expression")
             );
             tsdb.error(
                 "PROMQL index=test step=5m 1 " + op + " network.bytes_in",
-                containsString("set operators are not supported at this time")
+                containsString("set operator \"" + op + "\" not allowed in binary scalar expression")
             );
         });
     }
 
-    public void testPromqlInstantQuery() {
+    public void testUnionBetweenInstantVectorsIsSupported() {
+        // Top-level `or` (UNION) between two instant vectors is supported.
+        assertTrue(tsdb.query("PROMQL index=test step=5m network.bytes_in or network.connections").resolved());
+        // Left-associative chain of unions is also supported.
+        assertTrue(tsdb.query("PROMQL index=test step=5m network.bytes_in or network.bytes_out or network.connections").resolved());
+        // Common fallback idioms.
+        assertTrue(tsdb.query("PROMQL index=test step=5m rate(network.bytes_in[5m]) or irate(network.bytes_in[5m])").resolved());
+        assertTrue(tsdb.query("PROMQL index=test step=5m sum(rate(network.bytes_in[5m])) or vector(0)").resolved());
+    }
+
+    public void testUnionWithScalarOperandIsRejected() {
+        // Scalar operands are illegal for set operators in PromQL itself (not just our implementation), so the
+        // message mirrors Prometheus and does not imply the shape might be supported later.
+        tsdb.error("PROMQL index=test step=5m 1 or 1", containsString("set operator \"or\" not allowed in binary scalar expression"));
         tsdb.error(
-            "PROMQL index=test time=\"2025-10-31T00:00:00Z\" (avg(foo))",
-            containsString("unable to create a bucket; provide either [step] or all of [start], [end], and [buckets]")
+            "PROMQL index=test step=5m network.bytes_in or 1",
+            containsString("set operator \"or\" not allowed in binary scalar expression")
         );
+        tsdb.error(
+            "PROMQL index=test step=5m 1 or network.bytes_in",
+            containsString("set operator \"or\" not allowed in binary scalar expression")
+        );
+        // expr or 0 must still fail (0 is a scalar), while expr or vector(0) is allowed.
+        tsdb.error(
+            "PROMQL index=test step=5m network.bytes_in or 0",
+            containsString("set operator \"or\" not allowed in binary scalar expression")
+        );
+    }
+
+    public void testNestedUnionIsRejected() {
+        // `or` is only supported at the top level; nested inside an aggregation it is rejected.
+        tsdb.error(
+            "PROMQL index=test step=5m sum(network.bytes_in or network.connections)",
+            containsString("set operator [or] is only supported at the top-level at this time")
+        );
+    }
+
+    public void testUnionBranchLimit() {
+        // A union chain is translated into a single UnionAll, which supports up to Fork.MAX_BRANCHES (8) branches.
+        String maxOperands = String.join(" or ", Collections.nCopies(8, "network.bytes_in"));
+        assertTrue(tsdb.query("PROMQL index=test step=5m " + maxOperands).resolved());
+
+        String tooManyOperands = String.join(" or ", Collections.nCopies(9, "network.bytes_in"));
+        tsdb.error(
+            "PROMQL index=test step=5m " + tooManyOperands,
+            containsString("PromQL set operator [or] supports up to [8] operands, got [9]")
+        );
+    }
+
+    public void testPromqlInstantQuery() {
+        assertNotNull(tsdb.query("PROMQL index=test time=\"2025-10-31T00:00:00Z\" (avg(foo))"));
     }
 
     public void testPromqlMissingBucketParameters() {
@@ -157,6 +218,18 @@ public class PromqlVerifierTests extends ESTestCase {
         assertThat(localRelations.get(0).supplier(), equalTo(EmptyLocalSupplier.EMPTY));
     }
 
+    public void testSourcelessQueryOnEmptyIndexDoesNotShortCircuitToEmptyLocalRelation() {
+        var plan = analyzer().addEmptyIndex().query("PROMQL index=empty_index time=\"2025-01-01T00:00:00Z\" result=(time())");
+        int emptyLocalRelations = 0;
+        for (LocalRelation localRelation : plan.collect(LocalRelation.class)) {
+            if (localRelation.supplier() == EmptyLocalSupplier.EMPTY) {
+                emptyLocalRelations++;
+            }
+        }
+        assertThat(emptyLocalRelations, equalTo(0));
+        assertThat(plan.collect(Row.class), hasSize(1));
+    }
+
     public void testAbsentMetricWithSimilarNameReturnsEmptyResult() {
         // Prometheus returns empty results for non-existent metrics, not errors.
         // It uses the load_unmapped="nullify" functionality to do that.
@@ -169,18 +242,17 @@ public class PromqlVerifierTests extends ESTestCase {
 
     public void testSimilarFieldInNonPromqlQueryFailsWithDidYouMean() {
         // Showcases the did you mean message for non PROMQL queries.
-        tsdb.error(
-            "FROM test | WHERE network.bites_in > 0",
-            allOf(containsString("Unknown column [network.bites_in], did you mean any of ["), containsString("network.bytes_in"))
-        );
+        tsdb.unmappedResolution(UnmappedResolution.DEFAULT)
+            .error(
+                "FROM test | WHERE network.bites_in > 0",
+                allOf(containsString("Unknown column [network.bites_in], did you mean any of ["), containsString("network.bytes_in"))
+            );
     }
 
     public void testCounterMetricWithUnsupportedFunction() {
-        // network.bytes_in is a counter metric - avg_over_time doesn't support counters
-        tsdb.error(
-            "PROMQL index=test step=5m avg_over_time(network.bytes_in[5m])",
-            containsString("function [avg_over_time] does not support counter metric [network.bytes_in]")
-        );
+        // network.bytes_in is a counter metric; avg_over_time auto-wraps counters with to_gauge()
+        var plan = tsdb.query("PROMQL index=test step=5m avg_over_time(network.bytes_in[5m])");
+        assertTrue("avg_over_time() on a counter should be valid (implicit to_gauge wrap)", plan.resolved());
     }
 
     public void testCounterMetricWithAcrossSeriesAggregateIsValid() {
@@ -209,18 +281,19 @@ public class PromqlVerifierTests extends ESTestCase {
     }
 
     public void testGaugeMetricWithCounterOnlyFunction() {
-        // network.connections is a gauge - rate() requires counter metrics
-        tsdb.error(
-            "PROMQL index=test step=5m rate(network.connections[5m])",
-            containsString("function [rate] requires a counter metric, but [network.connections] has type [long]")
-        );
+        // network.connections is a gauge; rate() auto-wraps plain numerics with to_counter()
+        var plan = tsdb.query("PROMQL index=test step=5m rate(network.connections[5m])");
+        assertTrue("rate() on a plain numeric gauge should be valid (implicit to_counter wrap)", plan.resolved());
     }
 
     public void testRateOnNonNumericField() {
         // host is a keyword dimension field, not a numeric metric - should get a clear 4xx-style error
         tsdb.error(
             "PROMQL index=test step=5m rate(host[5m])",
-            containsString("field [host] of type [keyword] cannot be used as a metric; it is a dimension field")
+            containsString(
+                "argument of [rate(host[5m])] must be [counter_double or counter_integer or counter_long or double or integer or long], "
+                    + "found value [host] type [keyword]"
+            )
         );
     }
 
@@ -228,7 +301,10 @@ public class PromqlVerifierTests extends ESTestCase {
         // metricset is a keyword dimension field, not a numeric metric
         tsdb.error(
             "PROMQL index=test step=5m sum(metricset)",
-            containsString("field [metricset] of type [keyword] cannot be used as a metric; it is a dimension field")
+            containsString(
+                "1:27: argument of [sum(metricset)] must be [aggregate_metric_double, exponential_histogram, tdigest "
+                    + "or numeric except unsigned_long or counter types], found value [metricset] type [keyword]"
+            )
         );
     }
 

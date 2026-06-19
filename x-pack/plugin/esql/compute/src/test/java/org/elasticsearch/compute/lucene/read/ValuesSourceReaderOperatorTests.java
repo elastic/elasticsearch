@@ -17,15 +17,19 @@ import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NoMergePolicy;
+import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.index.TieredMergePolicy;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.tests.mockfile.HandleLimitFS;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.IOFunction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Randomness;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.Queries;
@@ -84,6 +88,7 @@ import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.TsidExtractingIdFieldMapper;
 import org.elasticsearch.index.mapper.blockloader.ConstantBytes;
+import org.elasticsearch.search.fetch.StoredFieldsSpec;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
@@ -198,7 +203,8 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
             randomBoolean(),
             0,
             randomDoubleBetween(0.1, 10.0, true),
-            docSequenceThreshold
+            docSequenceThreshold,
+            () -> 0L
         );
     }
 
@@ -230,7 +236,8 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
             randomIntBetween(1, 10),
             pageSize,
             LuceneOperator.NO_LIMIT,
-            false // no scoring
+            false, // no scoring
+            () -> 0L
         );
         return luceneFactory.get(context);
     }
@@ -544,7 +551,8 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
             reuseColumnLoaders,
             0,
             randomDoubleBetween(0.1, 10.0, true),
-            docSequenceBytesRefFieldThreshold()
+            docSequenceBytesRefFieldThreshold(),
+            () -> 0L
         ).get(driverContext);
         List<Page> results = new TestDriverRunner().numThreads(1).builder(driverContext).input(input).run(load);
         assertThat(results, hasSize(input.size()));
@@ -644,7 +652,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
 
             @Override
             public MappingLookup mappingLookup() {
-                return null;
+                return MappingLookup.EMPTY;
             }
         };
     }
@@ -672,7 +680,8 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                 randomBoolean(),
                 0,
                 randomDoubleBetween(0.1, 10.0, true),
-                docSequenceBytesRefFieldThreshold()
+                docSequenceBytesRefFieldThreshold(),
+                () -> 0L
             ).get(driverContext)
         );
         List<FieldCase> tests = new ArrayList<>();
@@ -694,7 +703,8 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                     randomBoolean(),
                     0,
                     randomDoubleBetween(0.1, 10.0, true),
-                    docSequenceBytesRefFieldThreshold()
+                    docSequenceBytesRefFieldThreshold(),
+                    () -> 0L
                 ).get(driverContext)
             );
         }
@@ -842,7 +852,8 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                         reuseBlockLoaders,
                         0,
                         randomDoubleBetween(0.1, 10.0, true),
-                        docSequenceBytesRefFieldThreshold()
+                        docSequenceBytesRefFieldThreshold(),
+                        () -> 0L
                     ).get(runner.context())
                 )
                 .toList()
@@ -1001,7 +1012,8 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                         randomBoolean(),
                         0,
                         randomDoubleBetween(0.1, 10.0, true),
-                        docSequenceBytesRefFieldThreshold()
+                        docSequenceBytesRefFieldThreshold(),
+                        () -> 0L
                     ).get(runner.context())
                 )
                 .toList()
@@ -1544,7 +1556,8 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
             randomIntBetween(1, 10),
             randomPageSize(),
             LuceneOperator.NO_LIMIT,
-            false // no scoring
+            false, // no scoring
+            () -> 0L
         );
         try (
             Driver driver = TestDriverFactory.create(
@@ -1691,7 +1704,8 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                         randomBoolean(),
                         0,
                         randomDoubleBetween(0.1, 10.0, true),
-                        docSequenceBytesRefFieldThreshold()
+                        docSequenceBytesRefFieldThreshold(),
+                        () -> 0L
                     ).get(driverContext)
                 ),
                 new PageConsumerOperator(page -> {
@@ -1748,7 +1762,8 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                     randomBoolean(),
                     0,
                     randomDoubleBetween(0.1, 10.0, true),
-                    docSequenceBytesRefFieldThreshold()
+                    docSequenceBytesRefFieldThreshold(),
+                    () -> 0L
                 )
             );
         Checks checks = new Checks(Block.MvOrdering.UNORDERED, Block.MvOrdering.UNORDERED);
@@ -1786,7 +1801,8 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
             randomBoolean(),
             0,
             randomDoubleBetween(0.1, 10.0, true),
-            docSequenceBytesRefFieldThreshold()
+            docSequenceBytesRefFieldThreshold(),
+            () -> 0L
         );
         assertThat(factory.describe(), equalTo("ValuesSourceReaderOperator[fields = [" + cases.size() + " fields]]"));
         try (Operator op = factory.get(driverContext())) {
@@ -1950,7 +1966,8 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
             randomBoolean(),
             0,
             randomDoubleBetween(0.1, 10.0, true),
-            totalBytesRefFields
+            totalBytesRefFields,
+            () -> 0L
         );
 
         var runner = new TestDriverRunner().builder(driverContext);
@@ -1984,6 +2001,192 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
         }
         assertEquals(numDocs, totalPositions);
         assertDriverContext(driverContext);
+    }
+
+    public void testManyReaderClearsRowStrideReaderWhenSwitchingToColumnAtATime() throws IOException {
+        testManyReaderClearsReaderState(FirstSegmentLoading.ROW_STRIDE);
+    }
+
+    public void testManyReaderClearsColumnAtATimeReaderWhenSwitchingToRowStride() throws IOException {
+        testManyReaderClearsReaderState(FirstSegmentLoading.COLUMN_AT_A_TIME);
+    }
+
+    private enum FirstSegmentLoading {
+        ROW_STRIDE,
+        COLUMN_AT_A_TIME
+    }
+
+    private void testManyReaderClearsReaderState(FirstSegmentLoading firstSegmentLoading) throws IOException {
+        // Create two segments so one page can cross a segment boundary.
+        try (
+            IndexWriter writer = new IndexWriter(
+                directory,
+                newIndexWriterConfig().setMergePolicy(NoMergePolicy.INSTANCE).setMaxBufferedDocs(IndexWriterConfig.DISABLE_AUTO_FLUSH)
+            )
+        ) {
+            writer.addDocument(new Document());
+            writer.commit();
+            writer.addDocument(new Document());
+            writer.commit();
+        }
+        reader = DirectoryReader.open(directory);
+        assertThat(reader.leaves(), hasSize(2));
+
+        // Build an incoming page that points at both segments.
+        DriverContext driverContext = driverContext();
+        DocVector docVector;
+        try (DocVector.FixedBuilder builder = DocVector.newFixedBuilder(driverContext.blockFactory(), 2)) {
+            builder.append(0, 0, 0);
+            builder.append(0, 1, 0);
+            docVector = builder.build(DocVector.config());
+        }
+        assertFalse("multi-segment page", docVector.singleSegment());
+
+        // Configure a loader that changes strategy between the first and second segment.
+        ValuesSourceReaderOperator.Factory readerFactory = new ValuesSourceReaderOperator.Factory(
+            ByteSizeValue.ofGb(1),
+            List.of(
+                new ValuesSourceReaderOperator.FieldInfo(
+                    "switching_loader",
+                    ElementType.INT,
+                    false,
+                    (warningsMode, shardIdx) -> ValuesSourceReaderOperator.load(new SwitchingStrategyBlockLoader(firstSegmentLoading))
+                )
+            ),
+            new IndexedByShardIdFromSingleton<>(
+                new ValuesSourceReaderOperator.ShardContext(
+                    reader,
+                    (sourcePaths) -> SourceLoader.FROM_STORED_SOURCE,
+                    STORED_FIELDS_SEQUENTIAL_PROPORTIONS
+                )
+            ),
+            randomBoolean(),
+            0,
+            randomDoubleBetween(0.1, 10.0, true),
+            docSequenceBytesRefFieldThreshold(),
+            () -> 0L
+        );
+
+        // Run the operator through the segment switch that used to trip assertions.
+        Page inputPage = new Page(docVector.asBlock());
+        var runner = new TestDriverRunner().builder(driverContext);
+        List<Page> results = runner.input(List.of(inputPage)).run(readerFactory);
+        try {
+            assertThat(results, hasSize(1));
+            Page result = results.get(0);
+            assertThat(result.getBlockCount(), equalTo(2));
+            IntVector loaded = result.<IntBlock>getBlock(1).asVector();
+            assertThat(loaded.getPositionCount(), equalTo(2));
+            assertThat(loaded.getInt(0), equalTo(0));
+            assertThat(loaded.getInt(1), equalTo(10));
+        } finally {
+            results.forEach(Page::releaseBlocks);
+        }
+        assertDriverContext(driverContext);
+    }
+
+    /**
+     * Test loader that deliberately changes loading strategy across segments.
+     */
+    private record SwitchingStrategyBlockLoader(FirstSegmentLoading firstSegmentLoading) implements BlockLoader {
+        @Override
+        public BlockLoader.Builder builder(BlockLoader.BlockFactory factory, int expectedCount) {
+            return factory.ints(expectedCount);
+        }
+
+        @Override
+        public IOFunction<CircuitBreaker, BlockLoader.ColumnAtATimeReader> columnAtATimeReader(LeafReaderContext context) {
+            boolean firstSegment = context.ord == 0;
+            boolean columnAtATime = firstSegmentLoading == FirstSegmentLoading.COLUMN_AT_A_TIME ? firstSegment : firstSegment == false;
+            return columnAtATime ? breaker -> new SegmentColumnAtATimeReader(context.ord) : null;
+        }
+
+        @Override
+        public BlockLoader.RowStrideReader rowStrideReader(CircuitBreaker breaker, LeafReaderContext context) {
+            return new SegmentRowStrideReader(context.ord);
+        }
+
+        @Override
+        public StoredFieldsSpec rowStrideStoredFieldSpec() {
+            return StoredFieldsSpec.NO_REQUIREMENTS;
+        }
+
+        @Override
+        public boolean supportsOrdinals() {
+            return false;
+        }
+
+        @Override
+        public SortedSetDocValues ordinals(LeafReaderContext context) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public String toString() {
+            return "switching_strategy";
+        }
+    }
+
+    /**
+     * Column reader that emits deterministic values for its segment.
+     */
+    private record SegmentColumnAtATimeReader(int segment) implements BlockLoader.ColumnAtATimeReader {
+        @Override
+        public BlockLoader.Block read(BlockLoader.BlockFactory factory, BlockLoader.Docs docs, int offset, boolean nullsFiltered) {
+            BlockLoader.IntBuilder builder = factory.ints(docs.count() - offset);
+            boolean success = false;
+            try {
+                for (int p = offset; p < docs.count(); p++) {
+                    builder.appendInt(value(segment, docs.get(p)));
+                }
+                success = true;
+                return builder.build();
+            } finally {
+                if (success == false) {
+                    builder.close();
+                }
+            }
+        }
+
+        @Override
+        public boolean canReuse(int startingDocID) {
+            return true;
+        }
+
+        @Override
+        public void close() {}
+
+        @Override
+        public String toString() {
+            return "segment_column_at_a_time";
+        }
+    }
+
+    /**
+     * Row-stride reader that emits deterministic values for its segment.
+     */
+    private record SegmentRowStrideReader(int segment) implements BlockLoader.RowStrideReader {
+        @Override
+        public void read(int docId, BlockLoader.StoredFields storedFields, BlockLoader.Builder builder) {
+            ((BlockLoader.IntBuilder) builder).appendInt(value(segment, docId));
+        }
+
+        @Override
+        public boolean canReuse(int startingDocID) {
+            return true;
+        }
+
+        @Override
+        public void close() {}
+
+        @Override
+        public String toString() {
+            return "segment_row_stride";
+        }
+    }
+
+    private static int value(int segment, int doc) {
+        return segment * 10 + doc;
     }
 
     public void testManyShards() throws IOException {
@@ -2021,7 +2224,8 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                 randomIntBetween(1, 10),
                 1000,
                 LuceneOperator.NO_LIMIT,
-                false // no scoring
+                false, // no scoring
+                () -> 0L
             );
             MappedFieldType ft = mapperService.fieldType("key");
             var readerFactory = new ValuesSourceReaderOperator.Factory(
@@ -2034,7 +2238,8 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                 randomBoolean(),
                 0,
                 randomDoubleBetween(0.1, 10.0, true),
-                docSequenceBytesRefFieldThreshold()
+                docSequenceBytesRefFieldThreshold(),
+                () -> 0L
             );
             var runner = new TestDriverRunner().builder(driverContext());
             List<Page> results = runner.input(luceneFactory).run(readerFactory);
@@ -2187,7 +2392,8 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                 randomBoolean(),
                 0,
                 randomDoubleBetween(0.1, 10.0, true),
-                keywordFieldCount
+                keywordFieldCount,
+                () -> 0L
             );
 
             var runner = new TestDriverRunner().builder(driverContext);

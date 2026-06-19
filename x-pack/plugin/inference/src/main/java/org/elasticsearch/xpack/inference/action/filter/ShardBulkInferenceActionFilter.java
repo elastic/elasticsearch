@@ -43,7 +43,6 @@ import org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper;
 import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.ChunkingSettings;
-import org.elasticsearch.inference.DataType;
 import org.elasticsearch.inference.EmbeddingRequest;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceRegistry;
@@ -387,7 +386,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
             final List<ChunkInferenceInput> inputs = requests.stream()
                 .map(
                     r -> new ChunkInferenceInput(
-                        new InferenceStringGroup(singletonList(new InferenceString(DataType.TEXT, r.input()))),
+                        new InferenceStringGroup(singletonList(InferenceString.ofText(r.input()))),
                         r.chunkingSettings()
                     )
                 )
@@ -438,7 +437,6 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
             inferenceProvider.service()
                 .chunkedInfer(
                     inferenceProvider.model(),
-                    null,
                     inputs,
                     Map.of(),
                     InputType.INTERNAL_INGEST,
@@ -956,7 +954,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
             int originalSourceSize = indexSource.byteLength();
             BytesReference originalSource = indexSource.bytes();
             if (useLegacyFormat) {
-                var newDocMap = indexSource.sourceAsMap();
+                var newDocMap = indexSource.sourceAsMap(indexRequest.getIncludeSourceOnError());
                 for (var entry : inferenceFieldsMap.entrySet()) {
                     XContentMapValues.insertValue(entry.getKey(), newDocMap, entry.getValue());
                 }

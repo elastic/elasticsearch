@@ -20,6 +20,7 @@ import org.elasticsearch.gradle.internal.BaseInternalPluginBuildPlugin
 import org.elasticsearch.gradle.internal.ResolveAllDependencies
 import org.elasticsearch.gradle.util.GradleUtils
 import org.gradle.plugins.ide.eclipse.model.AccessRule
+import org.elasticsearch.gradle.internal.testfixtures.DockerComposeThrottle
 
 import groovy.xml.XmlParser;
 import groovy.xml.XmlNodePrinter;
@@ -319,24 +320,6 @@ allprojects {
 
   ext.bwc_tests_enabled = bwc_tests_enabled
 
-  // eclipse configuration
-  apply plugin: 'elasticsearch.eclipse'
-
-  /*
-   * Allow accessing com/sun/net/httpserver in projects that have
-   * configured forbidden apis to allow it.
-   */
-  plugins.withType(ForbiddenApisPlugin) {
-    eclipse.classpath.file.whenMerged { classpath ->
-      if (false == forbiddenApisTest.bundledSignatures.contains('jdk-non-portable')) {
-        classpath.entries
-          .findAll { it.kind == "con" && it.toString().contains("org.eclipse.jdt.launching.JRE_CONTAINER") }
-          .each {
-            it.accessRules.add(new AccessRule("accessible", "com/sun/net/httpserver/*"))
-          }
-      }
-    }
-  }
 
   tasks.register('resolveAllDependencies', ResolveAllDependencies) {
     def ignoredPrefixes = [DistributionDownloadPlugin.ES_DISTRO_CONFIG_PREFIX, "jdbcDriver"]
@@ -564,7 +547,6 @@ tasks.named("checkPart1").configure {
 [
   releaseTestCheckEsqlEngine: [
     ':x-pack:plugin:esql',
-    ':x-pack:plugin:esql:arrow',
     ':x-pack:plugin:esql:compute',
     ':x-pack:plugin:esql:compute:ann',
     ':x-pack:plugin:esql:compute:gen',
@@ -600,8 +582,6 @@ tasks.named("checkPart1").configure {
   ],
   releaseTestCheckEsqlDatasourceQa: [
     ':x-pack:plugin:esql-datasource-csv:qa',
-    ':x-pack:plugin:esql-datasource-gcs:qa',
-    ':x-pack:plugin:esql-datasource-grpc:qa',
     ':x-pack:plugin:esql-datasource-iceberg:qa',
     ':x-pack:plugin:esql-datasource-ndjson:qa',
     ':x-pack:plugin:esql-datasource-orc:qa',
@@ -609,7 +589,6 @@ tasks.named("checkPart1").configure {
     ':x-pack:plugin:esql-datasource-parquet-rs',
     ':x-pack:plugin:esql-datasource-parquet-rs:qa',
     ':x-pack:plugin:esql-datasource-parquet:qa',
-    ':x-pack:plugin:esql-datasource-s3',
     ':x-pack:plugin:esql-datasource-snappy',
     ':x-pack:plugin:esql-datasource-zstd',
   ],
@@ -623,18 +602,6 @@ tasks.named("checkPart1").configure {
 
 tasks.named("assemble").configure {
   dependsOn gradle.includedBuild('build-tools').task(':assemble')
-}
-
-tasks.named("cleanEclipse").configure {
-  dependsOn gradle.includedBuild('build-conventions').task(':cleanEclipse')
-  dependsOn gradle.includedBuild('build-tools').task(':cleanEclipse')
-  dependsOn gradle.includedBuild('build-tools-internal').task(':cleanEclipse')
-}
-
-tasks.named("eclipse").configure {
-  dependsOn gradle.includedBuild('build-conventions').task(':eclipse')
-  dependsOn gradle.includedBuild('build-tools').task(':eclipse')
-  dependsOn gradle.includedBuild('build-tools-internal').task(':eclipse')
 }
 
 tasks.register("buildReleaseArtifacts").configure {

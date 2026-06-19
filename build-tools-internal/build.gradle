@@ -15,7 +15,6 @@ plugins {
   id 'groovy-gradle-plugin'
   id 'groovy'
   id 'elasticsearch.build-tools'
-  id 'elasticsearch.eclipse'
   id 'elasticsearch.versions'
   id 'elasticsearch.formatting'
 }
@@ -151,6 +150,10 @@ gradlePlugin {
     mrjar {
       id = 'elasticsearch.mrjar'
       implementationClass = 'org.elasticsearch.gradle.internal.MrjarPlugin'
+    }
+    foreignLibrary {
+      id = 'elasticsearch.foreign-library'
+      implementationClass = 'org.elasticsearch.gradle.internal.foreign.ForeignLibraryPlugin'
     }
     embeddedProvider {
       id = 'elasticsearch.embedded-providers'

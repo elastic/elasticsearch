@@ -20,6 +20,7 @@ import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
 
 import java.util.Locale;
@@ -55,8 +56,7 @@ import java.util.Locale;
  *         {@link NumericSortKeyExtractor} for the per-type breakdown.</li>
  * </ul>
  *
- * <p>Out of scope (deferred PRs): cross-driver shared threshold, row-group skipping in the
- * external source, multi-key sorts, byte-keyed sorts, UNSIGNED_LONG sort keys.
+ * <p>Out of scope (deferred PRs): multi-key sorts, byte-keyed sorts, UNSIGNED_LONG sort keys.
  */
 public final class NumericTopNOperator implements Operator {
 
@@ -74,9 +74,17 @@ public final class NumericTopNOperator implements Operator {
      * limit, the sort element type, and the sort order (asc/desc, nulls position) — everything
      * else (channel layout) is fixed by the planner's precondition check.
      */
-    public record NumericTopNOperatorFactory(int topCount, ElementType elementType, boolean asc, boolean nullsFirst)
-        implements
-            OperatorFactory {
+    public record NumericTopNOperatorFactory(
+        int topCount,
+        ElementType elementType,
+        boolean asc,
+        boolean nullsFirst,
+        @Nullable SharedNumericThreshold.Supplier thresholdSupplier
+    ) implements OperatorFactory {
+
+        public NumericTopNOperatorFactory(int topCount, ElementType elementType, boolean asc, boolean nullsFirst) {
+            this(topCount, elementType, asc, nullsFirst, null);
+        }
 
         public NumericTopNOperatorFactory {
             if (topCount <= 0) {
@@ -90,7 +98,21 @@ public final class NumericTopNOperator implements Operator {
 
         @Override
         public Operator get(DriverContext driverContext) {
-            return new NumericTopNOperator(driverContext.blockFactory(), driverContext.breaker(), topCount, elementType, asc, nullsFirst);
+            SharedNumericThreshold threshold = thresholdSupplier == null ? null : thresholdSupplier.get();
+            try {
+                return new NumericTopNOperator(
+                    driverContext.blockFactory(),
+                    driverContext.breaker(),
+                    topCount,
+                    elementType,
+                    asc,
+                    nullsFirst,
+                    threshold
+                );
+            } catch (Exception e) {
+                Releasables.closeExpectNoException(threshold);
+                throw e;
+            }
         }
 
         @Override
@@ -112,6 +134,8 @@ public final class NumericTopNOperator implements Operator {
     private final ElementType elementType;
     private final boolean asc;
     private final boolean nullsFirst;
+    @Nullable
+    private final SharedNumericThreshold threshold;
 
     private PrimitiveTernaryHeap heap;
     private boolean heapFull;
@@ -124,6 +148,7 @@ public final class NumericTopNOperator implements Operator {
     private int pagesEmitted;
     private long rowsReceived;
     private long rowsEmitted;
+    private int offeredCount;
 
     NumericTopNOperator(
         BlockFactory blockFactory,
@@ -133,12 +158,25 @@ public final class NumericTopNOperator implements Operator {
         boolean asc,
         boolean nullsFirst
     ) {
+        this(blockFactory, breaker, topCount, elementType, asc, nullsFirst, null);
+    }
+
+    NumericTopNOperator(
+        BlockFactory blockFactory,
+        CircuitBreaker breaker,
+        int topCount,
+        ElementType elementType,
+        boolean asc,
+        boolean nullsFirst,
+        @Nullable SharedNumericThreshold threshold
+    ) {
         this.blockFactory = blockFactory;
         this.breaker = breaker;
         this.topCount = topCount;
         this.elementType = elementType;
         this.asc = asc;
         this.nullsFirst = nullsFirst;
+        this.threshold = threshold;
         assertSupportedType(elementType);
         // Pass nullsFirst through to the heap so its composite {@code lessThan} ordering
         // handles the null bit directly. This avoids the sentinel-collision trap (encoding a
@@ -236,11 +274,30 @@ public final class NumericTopNOperator implements Operator {
             heap.push(encoded, rowPosition, isNull);
             if (heap.isFull()) {
                 heapFull = true;
+                publishThreshold();
             }
             return;
         }
         if (heap.wouldEvictTop(encoded, rowPosition, isNull)) {
             heap.updateTop(encoded, rowPosition, isNull);
+            publishThreshold();
+        }
+    }
+
+    private void publishThreshold() {
+        if (threshold == null) {
+            return;
+        }
+        if (nullsFirst && heap.nullsInHeap() == topCount) {
+            threshold.markNoFurtherCandidates();
+            return;
+        }
+        // If the K-th heap entry is null under NULLS FIRST, there is no numeric threshold to
+        // publish yet and the heap does not track a second-best non-null bound. Readers fall
+        // back to "no numeric bound" until the heap saturates with nulls or a numeric root wins.
+        if (heap.topIsNull() == false) {
+            threshold.offer(decodeLong(heap.peekTop()));
+            offeredCount++;
         }
     }
 
@@ -418,7 +475,7 @@ public final class NumericTopNOperator implements Operator {
         // and must not be closed.
         Page pageToRelease = (output != null && output != EMPTY_OUTPUT) ? output : null;
         try {
-            Releasables.closeExpectNoException(heap);
+            Releasables.closeExpectNoException(heap, threshold);
         } finally {
             if (pageToRelease != null) {
                 pageToRelease.releaseBlocks();
@@ -430,8 +487,6 @@ public final class NumericTopNOperator implements Operator {
 
     @Override
     public Status status() {
-        // TODO: publish minCompetitiveUpdates once SharedNumericThreshold lands; null is the
-        // "not tracked" sentinel for now.
         return new TopNOperatorStatus(
             receiveNanos,
             emitNanos,
@@ -441,7 +496,7 @@ public final class NumericTopNOperator implements Operator {
             pagesEmitted,
             rowsReceived,
             rowsEmitted,
-            null
+            offeredCount
         );
     }
 

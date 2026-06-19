@@ -9,18 +9,18 @@
 
 package org.elasticsearch.transport;
 
-import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
 
-public interface BytesTransportMessage {
-
-    ReleasableBytesReference bytes();
+public class BytesTransportMessageTestUtils {
 
     /**
-     * Writes the data in a "thin" manner, without the actual bytes, assumes
-     * the actual bytes will be appended right after this content.
+     * Serializes a {@link BytesTransportMessage} the way test infrastructure expects on the wire:
+     * {@link BytesTransportMessage#writeThin(StreamOutput)} followed by the raw bytes payload.
      */
-    void writeThin(StreamOutput out) throws IOException;
+    public static void writeThinWithBytes(StreamOutput out, BytesTransportMessage message) throws IOException {
+        message.writeThin(out);
+        message.bytes().writeTo(out);
+    }
 }

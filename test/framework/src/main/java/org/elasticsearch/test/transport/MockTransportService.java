@@ -58,6 +58,7 @@ import org.elasticsearch.test.TestEsExecutors;
 import org.elasticsearch.test.tasks.MockTaskManager;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.BytesTransportMessage;
+import org.elasticsearch.transport.BytesTransportMessageTestUtils;
 import org.elasticsearch.transport.ClusterConnectionManager;
 import org.elasticsearch.transport.ClusterSettingsLinkedProjectConfigService;
 import org.elasticsearch.transport.ConnectTransportException;
@@ -570,7 +571,7 @@ public class MockTransportService extends TransportService {
                 // poor mans request cloning...
                 BytesStreamOutput bStream = new BytesStreamOutput();
                 if (request instanceof BytesTransportMessage bytesRequest) {
-                    bytesRequest.writeThinWithBytes(bStream);
+                    BytesTransportMessageTestUtils.writeThinWithBytes(bStream, bytesRequest);
                 } else {
                     request.writeTo(bStream);
                 }

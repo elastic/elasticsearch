@@ -635,3 +635,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
   method: test {csv-spec:lookup-join.byteEqualsLong}
   issue: https://github.com/elastic/elasticsearch/issues/151650
+- class: org.elasticsearch.smoketest.SmokeTestMultiNodeClientYamlTestSuiteIT
+  method: test {yaml=scroll/10_basic/Basic scroll}
+  issue: https://github.com/elastic/elasticsearch/issues/151698

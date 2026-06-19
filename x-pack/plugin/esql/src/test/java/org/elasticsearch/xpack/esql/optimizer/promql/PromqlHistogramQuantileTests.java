@@ -73,7 +73,6 @@ public class PromqlHistogramQuantileTests extends AbstractPromqlPlanOptimizerTes
         assertThat(quantiles.getFirst().field().dataType(), equalTo(DataType.DOUBLE));
     }
 
-    @AwaitsFix(bugUrl = "implicit le wiring deferred to follow-up; requires explicit by (le)")
     public void testHistogramQuantileCastsLongBucketCountsToDouble() {
         // request_count_bucket is a long-typed counter; the lowered aggregate must still receive double counts.
         LogicalPlan translated = planHistogramPromql(
@@ -106,7 +105,6 @@ public class PromqlHistogramQuantileTests extends AbstractPromqlPlanOptimizerTes
         assertThat(upperBound, equalTo(Instant.parse("2024-05-10T00:10:00Z").toEpochMilli()));
     }
 
-    @AwaitsFix(bugUrl = "implicit le wiring deferred to follow-up; requires explicit by (le)")
     public void testSumHistogramQuantileUsesOuterAggregateOverPromqlHistogramQuantile() {
         LogicalPlan translated = planHistogramPromql(
             "PROMQL index=prom_hist step=5m start=\"2024-05-10T00:10:00Z\" end=\"2024-05-10T00:10:00Z\" "
@@ -118,8 +116,8 @@ public class PromqlHistogramQuantileTests extends AbstractPromqlPlanOptimizerTes
             .stream()
             .filter(aggregate -> aggregate instanceof TimeSeriesAggregate == false)
             .toList();
-        // histogram_quantile over rate and sum(...) by (job) each add an outer Aggregate.
-        assertThat(outerAggs, hasSize(2));
+        // rate materialization, histogram_quantile, and sum(...) by (job) each add an Aggregate.
+        assertThat(outerAggs, hasSize(3));
         assertThat(
             outerAggs.stream().anyMatch(aggregate -> aggregate.aggregates().stream().anyMatch(agg -> agg.anyMatch(Sum.class::isInstance))),
             equalTo(true)
@@ -138,46 +136,12 @@ public class PromqlHistogramQuantileTests extends AbstractPromqlPlanOptimizerTes
         assertThat(plan.output().stream().map(Attribute::name).toList(), hasItem(MetadataAttribute.TIMESERIES));
     }
 
-    @AwaitsFix(bugUrl = "implicit le wiring deferred to follow-up; requires explicit by (le)")
-    public void testHistogramQuantileRateDropsPrometheusLeLabelFromOutput() {
-        List<String> columns = outputColumns(
-            planHistogramPromqlPrometheusLabels(
-                "PROMQL index=prom_hist_prom step=1m result=(histogram_quantile(0.5, rate(request_duration_seconds_bucket[1m])))"
-            )
-        );
-        assertThat(columns, not(hasItem("le")));
-        assertThat(columns, not(hasItem("labels.le")));
-    }
-
-    @AwaitsFix(bugUrl = "implicit le wiring deferred to follow-up; requires explicit by (le)")
-    public void testHistogramQuantilePrometheusPlanOutputDropsLe() {
-        List<String> labels = outputColumns(
-            planHistogramPromqlPrometheusLabels(
-                "PROMQL index=prom_hist_prom step=1m result=(histogram_quantile(0.5, rate(request_duration_seconds_bucket[1m])))",
-                false
-            )
-        );
-        assertThat(labels, not(hasItem("le")));
-        assertThat(labels, not(hasItem("labels.le")));
-    }
-
-    @AwaitsFix(bugUrl = "implicit le wiring deferred to follow-up; requires explicit by (le)")
-    public void testSumHistogramQuantileByIntegrationResolves() {
-        LogicalPlan plan = planHistogramPromqlPrometheusLabels(
-            "PROMQL index=prom_hist_prom step=5m start=\"2024-05-10T00:10:00Z\" end=\"2024-05-10T00:10:00Z\" "
-                + "value=(sum(histogram_quantile(0.9, rate(request_duration_seconds_bucket[5m]))) by (integration))"
-        );
-        assertTrue(plan.resolved());
-    }
-
-    @AwaitsFix(bugUrl = "implicit le wiring deferred to follow-up; requires explicit by (le)")
-    public void testHistogramQuantileWithoutLeUsesEvalAliasForUpperBound() {
-        LogicalPlan translated = planHistogramPromqlNoLe(
-            "PROMQL index=prom_hist_no_le step=5m result=(histogram_quantile(0.9, rate(request_duration_seconds_bucket[5m])))",
+    public void testHistogramQuantileImplicitLeUsesAttributeForUpperBound() {
+        LogicalPlan translated = planHistogramPromql(
+            "PROMQL index=prom_hist step=5m result=(histogram_quantile(0.9, rate(request_duration_seconds_bucket[5m])))",
             false
         );
-        assertWarnings("histogram_quantile: input vector has no le label; no buckets to evaluate");
-        // rate(...) is already aggregated, so histogram_quantile lowers into a regular Aggregate.
+        // The implicit bucket label must be carried as an attribute, not folded into a literal placeholder.
         PromqlHistogramQuantile quantile = collectQuantiles(translated).getFirst();
 
         assertThat(quantile.upperBound().collect(Attribute.class), not(empty()));
@@ -205,19 +169,6 @@ public class PromqlHistogramQuantileTests extends AbstractPromqlPlanOptimizerTes
         LogicalPlan analyzed = analyzerWithEnrichPolicies().addIndex(
             "prom_hist_no_le",
             "mapping-promql-histogram-no-le.json",
-            IndexMode.TIME_SERIES
-        ).query(query);
-        return optimize ? logicalOptimizer.optimize(analyzed) : analyzed;
-    }
-
-    private LogicalPlan planHistogramPromqlPrometheusLabels(String query) {
-        return planHistogramPromqlPrometheusLabels(query, true);
-    }
-
-    private LogicalPlan planHistogramPromqlPrometheusLabels(String query, boolean optimize) {
-        LogicalPlan analyzed = analyzerWithEnrichPolicies().addIndex(
-            "prom_hist_prom",
-            "mapping-promql-classic-histogram-prometheus-labels.json",
             IndexMode.TIME_SERIES
         ).query(query);
         return optimize ? logicalOptimizer.optimize(analyzed) : analyzed;

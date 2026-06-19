@@ -43,6 +43,7 @@ import org.apache.lucene.store.NativeFSLockFactory;
 import org.apache.lucene.store.ReadAdvice;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.PrintStreamInfoStream;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.StandardIOBehaviorHint;
 import org.elasticsearch.index.store.FsDirectoryFactory;
 
@@ -305,8 +306,9 @@ public class KnnIndexer {
     private static Directory newStatelessDirectory(Path indexPath, Path workPath) throws IOException {
         try {
             Class<?> factoryClass = Class.forName("org.elasticsearch.xpack.stateless.lucene.StatelessDirectoryFactory");
-            var method = factoryClass.getMethod("create", Path.class, Path.class);
-            return (Directory) method.invoke(null, indexPath, workPath);
+            Settings searchNodeSettings = Settings.builder().putList("node.roles", "search").build();
+            var method = factoryClass.getMethod("create", Path.class, Path.class, Settings.class);
+            return (Directory) method.invoke(null, indexPath, workPath, searchNodeSettings);
         } catch (Exception e) {
             throw new IOException("Failed to create stateless directory. Ensure the stateless test artifact is on the classpath.", e);
         }

@@ -151,6 +151,10 @@ gradlePlugin {
       id = 'elasticsearch.mrjar'
       implementationClass = 'org.elasticsearch.gradle.internal.MrjarPlugin'
     }
+    foreignLibrary {
+      id = 'elasticsearch.foreign-library'
+      implementationClass = 'org.elasticsearch.gradle.internal.foreign.ForeignLibraryPlugin'
+    }
     embeddedProvider {
       id = 'elasticsearch.embedded-providers'
       implementationClass = 'org.elasticsearch.gradle.internal.EmbeddedProviderPlugin'

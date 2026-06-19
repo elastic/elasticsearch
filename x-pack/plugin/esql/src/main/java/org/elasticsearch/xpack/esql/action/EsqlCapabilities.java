@@ -3163,6 +3163,12 @@ public class EsqlCapabilities {
          */
         PROMQL_HISTOGRAM_QUANTILE_IMPLICIT_LE,
 
+        /**
+         * Support for PromQL {@code scalar()} and other single-depth aggregates combined with nested
+         * cross-series aggregations in binary operators (e.g. {@code scalar(x) * 100 / count(count by (pod) (y))}).
+         */
+        PROMQL_SCALAR_OVER_NESTED_AGGREGATE,
+
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
         ;

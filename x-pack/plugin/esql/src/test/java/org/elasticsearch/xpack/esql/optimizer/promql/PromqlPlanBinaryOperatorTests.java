@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.optimizer.promql;
 
-import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -43,7 +42,6 @@ import java.util.List;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.containsInAnyOrder;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
@@ -390,14 +388,38 @@ public class PromqlPlanBinaryOperatorTests extends AbstractPromqlPlanOptimizerTe
         assertThat(aggregate.aggregates().stream().filter(e -> e.anyMatch(Max.class::isInstance)).count(), equalTo(1L));
     }
 
-    public void testBinaryScalarAndNestedAggregationFailsCleanly() {
-        VerificationException e = assertThrows(
-            VerificationException.class,
-            () -> planPromql(
-                "PROMQL index=k8s step=1m result=(scalar(network.bytes_in) * 100 / count(count by (pod) (network.total_bytes_in)))"
-            )
+    public void testBinaryScalarAndNestedAggregation() {
+        var plan = planPromql(
+            "PROMQL index=k8s step=1m result=(scalar(network.bytes_in) * 100 / count(count by (pod) (network.total_bytes_in)))"
         );
-        assertThat(e.getMessage(), containsString("binary expressions with nested aggregations are not supported at this time"));
+        assertThat(plan.output().stream().map(Attribute::name).toList(), equalTo(List.of("result", "step")));
+
+        var allAggs = plan.collect(Aggregate.class);
+        assertThat("plan should contain aggregate nodes for nested aggregation", allAggs.isEmpty(), equalTo(false));
+
+        var tsAggs = plan.collect(TimeSeriesAggregate.class);
+        assertThat("should have at least one TimeSeriesAggregate", tsAggs.isEmpty(), equalTo(false));
+
+        var outerAggs = allAggs.stream().filter(a -> a instanceof TimeSeriesAggregate == false).toList();
+        assertThat("nested aggregation should produce at least one outer Aggregate", outerAggs.isEmpty(), equalTo(false));
+    }
+
+    public void testBinaryDecomposableSumAndNestedAggregation() {
+        var plan = planPromql("PROMQL index=k8s step=1m result=(sum(network.bytes_in) / count(count by (pod) (network.total_bytes_in)))");
+        assertThat(plan.output().stream().map(Attribute::name).toList(), equalTo(List.of("result", "step")));
+
+        var allAggs = plan.collect(Aggregate.class);
+        assertThat("plan should contain aggregate nodes", allAggs.isEmpty(), equalTo(false));
+
+        var outerAggs = allAggs.stream().filter(a -> a instanceof TimeSeriesAggregate == false).toList();
+        assertThat("nested aggregation produces at least one outer Aggregate", outerAggs.isEmpty(), equalTo(false));
+
+        // Sum is decomposable: somewhere in the aggregate chain a Sum re-aggregation should exist
+        assertThat(
+            "aggregate chain should contain a Sum re-aggregation",
+            outerAggs.stream().anyMatch(agg -> agg.aggregates().stream().anyMatch(e -> e.anyMatch(Sum.class::isInstance))),
+            equalTo(true)
+        );
     }
 
     public void testNestedBinaryAggregationsWithScalar() {

@@ -1598,3 +1598,63 @@ TS command spurious grouping when non-dimension flattened keys vary:
   - match: {values.1.0: 5.4}
   - match: {values.1.1: "host-b"}
   - match: {values.1.2: {build.tag: "v2.0", region: "eu-west-1"}}
+
+---
+PromQL mixed-depth binary op with nested aggregation:
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [ promql_command_v0, fix_promql_time_bucket_v2, promql_nested_aggregates, promql_scalar_over_nested_aggregate ]
+      reason: "PromQL scalar over nested aggregate support"
+  - do:
+      indices.create:
+        index: test_promql_nested_binop
+        body:
+          settings:
+            index:
+              mode: time_series
+              routing_path: [ host ]
+              time_series:
+                start_time: 2024-01-01T00:00:00Z
+                end_time: 2024-01-02T00:00:00Z
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+              host:
+                type: keyword
+                time_series_dimension: true
+              region:
+                type: keyword
+                time_series_dimension: true
+              cpu:
+                type: double
+                time_series_metric: gauge
+  - do:
+      bulk:
+        refresh: true
+        index: test_promql_nested_binop
+        body:
+          - '{"index": {}}'
+          - '{"@timestamp": "2024-01-01T01:00:00Z", "host": "a", "region": "us", "cpu": 10.0}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2024-01-01T01:00:00Z", "host": "b", "region": "us", "cpu": 20.0}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2024-01-01T01:00:00Z", "host": "c", "region": "eu", "cpu": 30.0}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2024-01-01T01:00:00Z", "host": "d", "region": "eu", "cpu": 40.0}'
+  - is_false: errors
+  # sum(cpu) = 100; count(sum by (region) (cpu)) = 2; result = 100/2 = 50
+  - do:
+      esql.query:
+        body:
+          query: 'PROMQL index=test_promql_nested_binop step=1h result=(sum(cpu) / count(sum by (region) (cpu)))'
+  - match: {columns.0.name: "result"}
+  - match: {columns.0.type: "double"}
+  - match: {columns.1.name: "step"}
+  - match: {columns.1.type: "date"}
+  - length: {values: 1}
+  - match: {values.0.0: 50.0}

@@ -26,9 +26,13 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.LastOverTime;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Max;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.PromqlHistogramQuantile;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Scalar;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.TimeSeriesAggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Values;
 import org.elasticsearch.xpack.esql.expression.function.grouping.TStep;
@@ -762,7 +766,13 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
         // Both aggregated -> fold into one; otherwise take the aggregated side's plan.
         LogicalPlan resultPlan;
         if (leftAgg && rightAgg) {
-            resultPlan = foldBinaryOperatorAggregate(leftResult, rightResult);
+            int leftDepth = aggregateDepth(leftResult.plan());
+            int rightDepth = aggregateDepth(rightResult.plan());
+            if (leftDepth != rightDepth) {
+                resultPlan = foldMixedDepthBinaryOperatorAggregate(leftResult, rightResult);
+            } else {
+                resultPlan = foldBinaryOperatorAggregate(leftResult, rightResult);
+            }
         } else if (leftAgg) {
             resultPlan = leftResult.plan();
         } else {
@@ -838,6 +848,234 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
         var rightEvals = right.plan().collect(Eval.class);
         for (Eval eval : rightEvals.reversed()) {
             result = new Eval(eval.source(), result, eval.fields());
+        }
+        return result;
+    }
+
+    /**
+     * Counts the number of nested aggregate levels in a plan (walking through UnaryPlan wrappers).
+     */
+    private static int aggregateDepth(LogicalPlan plan) {
+        int depth = 0;
+        LogicalPlan current = plan;
+        while (current != null) {
+            if (current instanceof Aggregate) {
+                depth++;
+            }
+            current = (current instanceof UnaryPlan up) ? up.child() : null;
+        }
+        return depth;
+    }
+
+    /**
+     * Merges a binary operator where the two sides have different aggregate nesting depths.
+     * The simpler side's aggregate expressions are decomposed and injected into the deeper side's
+     * plan: per-series parts go into the innermost {@link TimeSeriesAggregate}, and cross-series
+     * aggregate parts go into the first outer {@link Aggregate}.
+     */
+    private static LogicalPlan foldMixedDepthBinaryOperatorAggregate(TranslationResult left, TranslationResult right) {
+        int leftDepth = aggregateDepth(left.plan());
+        int rightDepth = aggregateDepth(right.plan());
+
+        TranslationResult simpler = leftDepth <= rightDepth ? left : right;
+        TranslationResult deeper = leftDepth > rightDepth ? left : right;
+
+        var names = new TemporaryNameGenerator.Monotonic();
+
+        // Get the simpler side's single aggregate and its value expressions
+        Aggregate simplerAgg = findInnermostAggregate(simpler.plan());
+        @SuppressWarnings("unchecked")
+        List<NamedExpression> filteredSimplerAggs = (List<NamedExpression>) (List<?>) withFilter(
+            simplerAgg.aggregates(),
+            simpler.pendingFilter()
+        );
+
+        // Decompose each aggregate expression from the simpler side into inner (per-series for the
+        // merged innermost TSA) and outer (cross-series for the deeper side's first outer Aggregate).
+        var innerAdditions = new ArrayList<NamedExpression>();
+        var outerAdditions = new ArrayList<NamedExpression>();
+
+        for (NamedExpression ne : filteredSimplerAggs) {
+            if (ne instanceof Alias alias && alias.child() instanceof AggregateFunction aggFunc) {
+                if (isPartiallyDecomposable(aggFunc)) {
+                    // Decomposable (Sum, Count, Max, Min): keep in inner TSA, re-aggregate at outer.
+                    Alias innerAlias = new Alias(alias.source(), names.next(alias.name()), aggFunc);
+                    innerAdditions.add(innerAlias);
+
+                    AggregateFunction reAgg = createReAggregation(aggFunc.source(), aggFunc, innerAlias.toAttribute());
+                    outerAdditions.add(new Alias(alias.source(), alias.name(), reAgg, alias.id()));
+                } else {
+                    // Non-decomposable (Scalar, etc.): wrap inner field in Values, full agg at outer.
+                    Expression innerField = aggFunc.field();
+                    Values valuesInner = new Values(aggFunc.source(), innerField, aggFunc.filter(), aggFunc.window());
+                    Alias innerAlias = new Alias(alias.source(), names.next(alias.name()), valuesInner);
+                    innerAdditions.add(innerAlias);
+
+                    AggregateFunction outerFunc = (AggregateFunction) aggFunc.replaceChildren(
+                        rebuildAggChildren(aggFunc, innerAlias.toAttribute())
+                    );
+                    outerAdditions.add(new Alias(alias.source(), alias.name(), outerFunc, alias.id()));
+                }
+            }
+            // Grouping keys (step, _timeseries, etc.) are already present in the deeper plan.
+        }
+
+        // Inject into the deeper plan by walking the aggregate chain.
+        // Level 0 (innermost): add innerAdditions to the TimeSeriesAggregate.
+        // Level 1 (first outer Aggregate): add outerAdditions.
+        // Levels 2+ (higher Aggregates): add passthrough (Values) for each outer addition.
+        LogicalPlan result = injectIntoAggregateChain(deeper.plan(), innerAdditions, outerAdditions, names);
+
+        // Replay any Evals from the simpler side on top.
+        var simplerEvals = simpler.plan().collect(Eval.class);
+        for (Eval eval : simplerEvals.reversed()) {
+            result = new Eval(eval.source(), result, eval.fields());
+        }
+        return result;
+    }
+
+    private static boolean isPartiallyDecomposable(AggregateFunction aggFunc) {
+        return aggFunc instanceof Sum || aggFunc instanceof Count || aggFunc instanceof Max || aggFunc instanceof Min;
+    }
+
+    /**
+     * Creates a re-aggregation function that correctly combines partial results from a wider grouping.
+     * Sum of partial sums = total sum; Sum of partial counts = total count; Max of maxes = total max; etc.
+     */
+    private static AggregateFunction createReAggregation(Source source, AggregateFunction original, Expression ref) {
+        if (original instanceof Sum) return new Sum(source, ref);
+        if (original instanceof Count) return new Sum(source, ref);
+        if (original instanceof Max) return new Max(source, ref);
+        if (original instanceof Min) return new Min(source, ref);
+        throw new QlIllegalArgumentException("Cannot create re-aggregation for {}", original.getClass().getSimpleName());
+    }
+
+    /**
+     * Rebuilds the children list for an {@link AggregateFunction}, replacing the field with a new reference
+     * while keeping filter and window at their defaults (the filter was already applied at the inner level).
+     */
+    private static List<Expression> rebuildAggChildren(AggregateFunction aggFunc, Expression newField) {
+        var children = new ArrayList<>(aggFunc.children());
+        children.set(0, newField);
+        children.set(1, Literal.TRUE);
+        return children;
+    }
+
+    /**
+     * Walks the deeper plan's aggregate chain and injects expressions at the correct levels.
+     */
+    private static LogicalPlan injectIntoAggregateChain(
+        LogicalPlan plan,
+        List<NamedExpression> innerAdditions,
+        List<NamedExpression> outerAdditions,
+        TemporaryNameGenerator.Monotonic names
+    ) {
+        // Collect the aggregate chain bottom-up: [innermost, ..., outermost]
+        var aggChain = new ArrayList<Aggregate>();
+        var wrappers = new ArrayList<LogicalPlan>();
+        collectAggregateChain(plan, aggChain, wrappers);
+
+        if (aggChain.size() < 2) {
+            throw new QlIllegalArgumentException("Expected at least 2 aggregate levels in the deeper plan");
+        }
+
+        // Level 0: innermost TSA — inject inner expressions
+        Aggregate innermost = aggChain.getFirst();
+        var newInnerAggs = new ArrayList<NamedExpression>(innermost.aggregates());
+        newInnerAggs.addAll(innerAdditions);
+        LogicalPlan rebuilt = rebuildAggregate(innermost, innermost.child(), newInnerAggs);
+
+        // Level 1+: non-TSA Aggregates — inject additions before trailing grouping keys.
+        // The aggregates() list appends grouping keys at the end; validation skips the last
+        // groupings().size() elements, so new expressions must go before that tail.
+        for (int i = 1; i < aggChain.size(); i++) {
+            Aggregate level = aggChain.get(i);
+            int groupingCount = level.groupings().size();
+            int aggEnd = level.aggregates().size() - groupingCount;
+            var computedAggs = new ArrayList<NamedExpression>(level.aggregates().subList(0, aggEnd));
+            var trailingGroupings = level.aggregates().subList(aggEnd, level.aggregates().size());
+
+            if (i == 1) {
+                computedAggs.addAll(outerAdditions);
+            } else {
+                for (NamedExpression oe : outerAdditions) {
+                    Attribute ref = oe.toAttribute();
+                    computedAggs.add(new Alias(ref.source(), names.next(ref.name()), new Values(ref.source(), ref), oe.id()));
+                }
+            }
+
+            var renamedAggs = new ArrayList<NamedExpression>(computedAggs.stream().map(e -> {
+                Expression inner = e;
+                if (e instanceof Alias a) {
+                    inner = a.child();
+                }
+                return (NamedExpression) new Alias(e.source(), names.next(e.name()), inner, e.id());
+            }).toList());
+            renamedAggs.addAll(trailingGroupings);
+            rebuilt = rebuildAggregate(level, rebuilt, renamedAggs);
+        }
+
+        // Re-wrap with non-aggregate nodes (Evals, Projects, etc.) that were above aggregates
+        for (LogicalPlan wrapper : wrappers) {
+            if (wrapper instanceof Eval eval) {
+                rebuilt = new Eval(eval.source(), rebuilt, eval.fields());
+            } else if (wrapper instanceof Project project) {
+                rebuilt = new Project(project.source(), rebuilt, project.projections());
+            } else if (wrapper instanceof Filter filter) {
+                rebuilt = new Filter(filter.source(), rebuilt, filter.condition());
+            }
+        }
+
+        return rebuilt;
+    }
+
+    /**
+     * Collects the aggregate chain from a plan, walking through UnaryPlan wrappers.
+     * Aggregates are collected bottom-up (innermost first).
+     * Non-aggregate wrappers above the outermost aggregate are collected separately.
+     */
+    private static void collectAggregateChain(LogicalPlan plan, List<Aggregate> aggChain, List<LogicalPlan> wrappers) {
+        boolean seenAggregate = false;
+        LogicalPlan current = plan;
+        var preAggWrappers = new ArrayList<LogicalPlan>();
+        while (current != null) {
+            if (current instanceof Aggregate agg) {
+                seenAggregate = true;
+                aggChain.add(agg);
+            } else if (current instanceof UnaryPlan && seenAggregate == false) {
+                preAggWrappers.add(current);
+            }
+            current = (current instanceof UnaryPlan up) ? up.child() : null;
+        }
+        // Reverse aggChain so innermost is first
+        java.util.Collections.reverse(aggChain);
+        // wrappers are those above the outermost aggregate, in top-down order
+        wrappers.addAll(preAggWrappers);
+    }
+
+    private static LogicalPlan rebuildAggregate(Aggregate original, LogicalPlan newChild, List<NamedExpression> newAggs) {
+        if (original instanceof TimeSeriesAggregate tsa) {
+            return new TimeSeriesAggregate(
+                tsa.source(),
+                newChild,
+                tsa.groupings(),
+                newAggs,
+                tsa.timeBucket(),
+                tsa.timestamp(),
+                tsa.origin()
+            );
+        }
+        return original.with(newChild, original.groupings(), newAggs);
+    }
+
+    private static Aggregate findInnermostAggregate(LogicalPlan plan) {
+        Aggregate result = null;
+        LogicalPlan current = plan;
+        while (current != null) {
+            if (current instanceof Aggregate agg) {
+                result = agg;
+            }
+            current = (current instanceof UnaryPlan up) ? up.child() : null;
         }
         return result;
     }

@@ -1533,7 +1533,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
                 : indexMode.isStrictColumnar() ? matchesList().item("column_at_a_time:BlockDocValuesReader.Bytes")
                 : matchesList().item("column_at_a_time:BytesRefsFromOrds.Singleton");
             case KEYWORD -> useStoredLoader() ? matchesList().item("column_at_a_time:null").item("row_stride:BlockSourceReader.Bytes")
-                : indexMode.isStrictColumnar() ? matchesList().item("column_at_a_time:BlockDocValuesReader.Bytes")
+                : indexMode.isStrictColumnar() ? matchesList().item("column_at_a_time:BytesRefsFromArrayOrderInlineNullBinarySeparateCount")
                 : matchesList().item("column_at_a_time:BytesRefsFromOrds.Singleton");
             case LONG, COUNTER_LONG, UNSIGNED_LONG -> useStoredLoader()
                 ? matchesList().item("column_at_a_time:null").item("row_stride:BlockSourceReader.Longs")
@@ -1544,8 +1544,9 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
                     ? matchesList().item("column_at_a_time:null").item("row_stride:BlockSourceReader.Bytes")
                     : matchesList().item("column_at_a_time:constant_nulls");
             case TDIGEST -> matchesList().item("column_at_a_time:BlockDocValuesReader.TDigest");
-            case TEXT -> syntheticSourceByDefault()
-                ? matchesList().item("column_at_a_time:BlockDocValuesReader.Bytes")
+            case TEXT -> indexMode.isStrictColumnar()
+                ? matchesList().item("column_at_a_time:BytesRefsFromArrayOrderInlineNullBinarySeparateCount")
+                : syntheticSourceByDefault() ? matchesList().item("column_at_a_time:BlockDocValuesReader.Bytes")
                 : matchesList().item("column_at_a_time:null").item("row_stride:BlockSourceReader.Bytes");
             case VERSION -> matchesList().item("column_at_a_time:BytesRefsFromOrds.Singleton");
             default -> matchesList();

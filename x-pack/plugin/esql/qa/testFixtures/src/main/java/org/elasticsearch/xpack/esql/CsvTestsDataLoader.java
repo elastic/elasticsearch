@@ -299,7 +299,8 @@ public class CsvTestsDataLoader {
             "metric_temporality.csv",
             "metric_temporality-settings.json"
         ).withRequiredCapabilities(EsqlCapabilities.Cap.TSDB_TEMPORALITY_SUPPORT_V9),
-        new TestDataset("ts_window", "ts_window-mappings.json", "ts_window.csv", "ts_window-settings.json")
+        new TestDataset("ts_window", "ts_window-mappings.json", "ts_window.csv", "ts_window-settings.json"),
+        new TestDataset("date_extract_fields", "mapping-date_extract_fields.json", "date_extract_fields.csv")
     ).collect(toMap(TestDataset::indexName, Function.identity()));
 
     // Developer flags for faster iteration when debugging specific csv-spec tests:
@@ -823,34 +824,40 @@ public class CsvTestsDataLoader {
     }
 
     private static boolean clusterHasViewSupport(RestClient client) throws IOException {
-        // Use the _capabilities endpoint so we check ALL nodes, not just the coordinator.
-        // Views CRUD operations are master-node transport actions; if any node (e.g. an older data
-        // node acting as master) doesn't know the action, it will crash with an AssertionError.
-        Request capRequest = new Request("GET", "_capabilities");
+        // Step 1: check whether ALL nodes understand views via /_capabilities (allMatch semantics).
+        Request capRequest = new Request("GET", "/_capabilities");
         capRequest.addParameter("method", "POST");
         capRequest.addParameter("path", "/_query");
         capRequest.addParameter("capabilities", "views_crud_as_index_actions");
         try {
-            Response response = client.performRequest(capRequest);
-            try (var content = response.getEntity().getContent()) {
-                Map<String, Object> map = XContentHelper.convertToMap(XContentType.JSON.xContent(), content, false);
-                if (!Boolean.TRUE.equals(map.get("supported"))) {
-                    return false;
-                }
+            Response capResponse = client.performRequest(capRequest);
+            ObjectMapper mapper = new ObjectMapper();
+            JsonNode json = mapper.readTree(capResponse.getEntity().getContent());
+            JsonNode supported = json.get("supported");
+            if (supported == null || supported.asBoolean() == false) {
+                return false;
             }
         } catch (ResponseException e) {
             return false;
         }
-        // The _capabilities check above confirms all nodes know the view transport actions (safe for
-        // BWC mixed-cluster tests). Now verify the view CRUD REST endpoints are actually reachable:
-        // in serverless mode, RestPutViewAction has no @ServerlessScope annotation, so those routes
-        // return 410 Gone — but _capabilities does not check the serverless scope and would still
-        // report "supported: true". A direct GET confirms real accessibility.
+
+        // Step 2: probe the REST endpoint directly. In non-serverless mode all nodes (old or new)
+        // return 200 because @ServerlessScope is not enforced. In serverless mode an old node
+        // without @ServerlessScope(Scope.PUBLIC) on RestPutViewAction returns 410. A single probe
+        // cannot cover every node in a mixed-serverless cluster, but any 410 is a definitive signal
+        // that view loading will fail on at least some nodes.
         try {
             client.performRequest(new Request("GET", "/_query/view"));
             return true;
         } catch (ResponseException e) {
-            return false;
+            int code = e.getResponse().getStatusLine().getStatusCode();
+            if (code == 410) {
+                return false; // serverless restriction — old node lacks @ServerlessScope
+            }
+            if (code == 400 || code == 500 || code == 405) {
+                return false; // older server that doesn't support the view API at all
+            }
+            throw e;
         }
     }
 

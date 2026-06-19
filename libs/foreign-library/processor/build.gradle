@@ -1,0 +1,28 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
+ */
+
+apply plugin: 'elasticsearch.java'
+
+// The annotation processor uses java.lang.classfile (finalized JDK 24, JEP 484) and
+// java.lang.foreign (finalized JDK 22, JEP 454), requiring Java 25 at minimum.
+def processorJavaVersion = JavaLanguageVersion.of(25)
+
+tasks.withType(JavaCompile).configureEach {
+  javaCompiler = javaToolchains.compilerFor { languageVersion = processorJavaVersion }
+  options.release = processorJavaVersion.asInt()
+}
+
+tasks.named('javadoc').configure {
+  javadocTool = javaToolchains.javadocToolFor { languageVersion = processorJavaVersion }
+}
+
+dependencies {
+  implementation project(':libs:foreign-library')
+  testImplementation buildLibs.junit
+}

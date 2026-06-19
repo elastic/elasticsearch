@@ -744,6 +744,23 @@ public class ClientYamlTestSuiteTests extends AbstractClientYamlTestFragmentPars
             """, lineNumber)));
     }
 
+    public void testAddingMatchesInAnyOrderWithoutSkip() {
+        int lineNumber = between(1, 10000);
+        MatchesInAnyOrderAssertion matchesInAnyOrderAssertion = new MatchesInAnyOrderAssertion(
+            new XContentLocation(lineNumber, 0),
+            randomAlphaOfLength(randomIntBetween(3, 30)),
+            List.of("a")
+        );
+        ClientYamlTestSuite testSuite = createTestSuite(PrerequisiteSection.EMPTY, matchesInAnyOrderAssertion);
+        Exception e = expectThrows(IllegalArgumentException.class, testSuite::validate);
+        assertThat(e.getMessage(), containsString(Strings.format("""
+            api/name:
+            attempted to add a [%s] assertion without a corresponding \
+            ["requires": "test_runner_features": "%s"] so runners that do not support the \
+            [%s] assertion can skip the test at line [%d]\
+            """, MatchesInAnyOrderAssertion.NAME, MatchesInAnyOrderAssertion.NAME, MatchesInAnyOrderAssertion.NAME, lineNumber)));
+    }
+
     public void testMultipleValidationErrors() {
         int firstLineNumber = between(1, 10000);
         List<ClientYamlTestSection> sections = new ArrayList<>();
@@ -854,6 +871,17 @@ public class ClientYamlTestSuiteTests extends AbstractClientYamlTestFragmentPars
             randomDouble()
         );
         createTestSuite(prerequisiteSection, containsAssertion).validate();
+    }
+
+    public void testAddingMatchesInAnyOrderWithSkip() {
+        int lineNumber = between(1, 10000);
+        PrerequisiteSection prerequisiteSection = createPrerequisiteSection(MatchesInAnyOrderAssertion.NAME);
+        MatchesInAnyOrderAssertion matchesInAnyOrderAssertion = new MatchesInAnyOrderAssertion(
+            new XContentLocation(lineNumber, 0),
+            randomAlphaOfLength(randomIntBetween(3, 30)),
+            List.of("a")
+        );
+        createTestSuite(prerequisiteSection, matchesInAnyOrderAssertion).validate();
     }
 
     public void testAddingCloseToWithSkip() {

@@ -480,6 +480,28 @@ public class TSDBSyntheticIdPostingsFormatTests extends ESTestCase {
         });
     }
 
+    public void testSeekRandomTerms() throws IOException {
+        runTestWithRandomDocs((writer, finalDocs) -> {
+            try (var reader = DirectoryReader.open(writer)) {
+                assertThat(reader.leaves().size(), equalTo(1));
+                final var leafReader = reader.leaves().getFirst().reader();
+                final Terms terms = leafReader.terms(IdFieldMapper.NAME);
+                assertNotNull(terms);
+                final TermsEnum syntheticIdTermsEnum = LazyFilterTermsEnum.unwrap(terms.iterator());
+                assertThat(syntheticIdTermsEnum, instanceOf(SyntheticIdTermsEnum.class));
+                for (int i = 0; i < 1000; i++) {
+                    final BytesRef lookupTerm = new BytesRef(randomByteArrayOfLength(between(0, 64)));
+                    final var status = syntheticIdTermsEnum.seekCeil(lookupTerm);
+                    switch (status) {
+                        case FOUND -> assertThat(syntheticIdTermsEnum.term(), equalTo(lookupTerm));
+                        case NOT_FOUND -> assertThat(syntheticIdTermsEnum.term(), greaterThan(lookupTerm));
+                        case END -> assertNull(finalDocs.ceilingKey(lookupTerm));
+                    }
+                }
+            }
+        });
+    }
+
     public void testConcurrentSeekExactNIOFSDirectory() throws IOException {
         // We test directly with a NIOFSDirectory since it uses mutable non-thread safe IndexInputs instead of MMap IndexInputs
         // that are less prone to concurrency issues.

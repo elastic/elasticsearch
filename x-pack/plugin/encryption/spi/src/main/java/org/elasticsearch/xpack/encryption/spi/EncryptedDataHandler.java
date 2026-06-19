@@ -10,7 +10,8 @@ import org.elasticsearch.cluster.metadata.Metadata;
 
 /**
  * Implemented by features that own a project-scoped {@link Metadata.ProjectCustom} containing data encrypted under the project
- * encryption key (PEK). The rotation coordinator drives each handler when its data is not yet on the active key.
+ * encryption key (PEK). The rotation coordinator drives {@link #reEncrypt} when the custom is not yet on the active key, and
+ * {@code POST /_encryption/_reset} drives {@link #onDestructiveReset} when the PEK is destroyed.
  *
  * <p>Handlers are contributed via the {@link EncryptedDataHandlerProvider} SPI.
  *
@@ -32,4 +33,24 @@ public interface EncryptedDataHandler<T extends Metadata.ProjectCustom> {
      * @return the re-encrypted custom
      */
     T reEncrypt(T current, EncryptionService encryptionService, String activeKeyId);
+
+    /**
+     * Decides what happens to this handler's custom when the project encryption key is destructively reset (via
+     * {@code POST /_encryption/_reset}). After reset, every entry encrypted under the previous PEK is unrecoverable.
+     *
+     * <p>The return value, applied atomically alongside the PEK removal:
+     * <ul>
+     *   <li>{@code null} — remove the custom from project metadata. Default behavior; appropriate when every value
+     *       in the custom is encrypted under the now-destroyed PEK.</li>
+     *   <li>same instance as {@code current} — no change.</li>
+     *   <li>different non-null {@code T} — replace the custom with the returned value, e.g. when only part of the
+     *       custom was encrypted and the unencrypted portion is worth keeping.</li>
+     * </ul>
+     *
+     * @param current the current value of the custom in cluster state, or {@code null} if absent
+     * @return the replacement custom, or {@code null} to remove it
+     */
+    default T onDestructiveReset(T current) {
+        return null;
+    }
 }

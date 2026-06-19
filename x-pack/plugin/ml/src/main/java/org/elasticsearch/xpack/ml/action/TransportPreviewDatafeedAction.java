@@ -21,6 +21,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -40,6 +41,9 @@ import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedTimingStats;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.security.SecurityContext;
+import org.elasticsearch.xpack.core.security.cloud.CloudCredential;
+import org.elasticsearch.xpack.core.security.cloud.CloudCredentialManager;
+import org.elasticsearch.xpack.ml.MachineLearningExtensionHolder;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractor;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
@@ -70,6 +74,7 @@ public class TransportPreviewDatafeedAction extends HandledTransportAction<Previ
     private final NamedXContentRegistry xContentRegistry;
     private final SecurityContext securityContext;
     private final CrossProjectModeDecider crossProjectModeDecider;
+    private final CloudCredentialManager cloudCredentialManager;
 
     @Inject
     public TransportPreviewDatafeedAction(
@@ -81,7 +86,8 @@ public class TransportPreviewDatafeedAction extends HandledTransportAction<Previ
         ClusterService clusterService,
         JobConfigProvider jobConfigProvider,
         DatafeedConfigProvider datafeedConfigProvider,
-        NamedXContentRegistry xContentRegistry
+        NamedXContentRegistry xContentRegistry,
+        MachineLearningExtensionHolder machineLearningExtensionHolder
     ) {
         super(
             PreviewDatafeedAction.NAME,
@@ -100,6 +106,9 @@ public class TransportPreviewDatafeedAction extends HandledTransportAction<Previ
             ? new SecurityContext(settings, threadPool.getThreadContext())
             : null;
         this.crossProjectModeDecider = new CrossProjectModeDecider(settings);
+        this.cloudCredentialManager = machineLearningExtensionHolder.isEmpty()
+            ? new CloudCredentialManager.Noop()
+            : machineLearningExtensionHolder.getMachineLearningExtension().getCloudCredentialManager();
     }
 
     @Override
@@ -156,17 +165,31 @@ public class TransportPreviewDatafeedAction extends HandledTransportAction<Previ
             previewDatafeedBuilder.setHeaders(
                 ClientHelper.getPersistableSafeSecurityHeaders(threadPool.getThreadContext(), clusterService.state())
             );
+            // Preview uses the caller's cloud credential, not the datafeed's persisted minted key (same as
+            // overwriting stored security headers with the previewing user's headers).
+            previewDatafeedBuilder.setCloudInternalCredential(null);
             // NB: this is using the client from the transport layer, NOT the internal client.
             // This is important because it means the datafeed search will fail if the user
             // requesting the preview doesn't have permission to search the relevant indices.
             DatafeedConfig previewDatafeedConfig = previewDatafeedBuilder.build();
+            if (previewDatafeedConfig.getProjectRouting() != null && DatafeedConfig.isCPSAllowed(crossProjectModeDecider) == false) {
+                responseHeaderPreservingListener.onFailure(DatafeedConfig.projectRoutingRequiresCpsException());
+                return;
+            }
             // Apply cross-project search mode to IndicesOptions before creating the factory
             DatafeedConfig effectiveDatafeedConfig = DatafeedConfig.withCrossProjectModeIfEnabled(
                 previewDatafeedConfig,
                 crossProjectModeDecider
             );
-            DataExtractorFactory.create(
+            final ThreadContext threadContext = threadPool.getThreadContext();
+            final CloudCredential callerCredential = extractCallerCloudCredential(cloudCredentialManager, threadContext);
+            final Client previewClient = cloudCredentialManager.wrapClient(
                 new ParentTaskAssigningClient(client, parentTaskId),
+                callerCredential
+            );
+            DataExtractorFactory.create(
+                previewClient,
+                cloudCredentialManager,
                 effectiveDatafeedConfig,
                 extraFilters,
                 job,
@@ -175,7 +198,8 @@ public class TransportPreviewDatafeedAction extends HandledTransportAction<Previ
                 new DatafeedTimingStatsReporter(new DatafeedTimingStats(datafeedConfig.getJobId()), (ts, refreshPolicy, listener1) -> {}),
                 responseHeaderPreservingListener.delegateFailure(
                     (l, dataExtractorFactory) -> isDateNanos(
-                        previewDatafeedConfig,
+                        previewClient,
+                        effectiveDatafeedConfig,
                         job.getDataDescription().getTimeField(),
                         l.delegateFailure((l2, isDateNanos) -> {
                             final long start = request.getStartTime().orElse(0);
@@ -209,18 +233,39 @@ public class TransportPreviewDatafeedAction extends HandledTransportAction<Previ
         return previewDatafeed;
     }
 
-    private void isDateNanos(DatafeedConfig datafeed, String timeField, ActionListener<Boolean> listener) {
-        FieldCapabilitiesRequest fieldCapabilitiesRequest = new FieldCapabilitiesRequest();
-        fieldCapabilitiesRequest.indices(datafeed.getIndices().toArray(new String[0])).indicesOptions(datafeed.getIndicesOptions());
-        fieldCapabilitiesRequest.fields(timeField);
+    /**
+     * Visible for testing
+     */
+    static CloudCredential extractCallerCloudCredential(CloudCredentialManager cloudCredentialManager, ThreadContext threadContext) {
+        if (cloudCredentialManager.hasCloudManagedCredential(threadContext)) {
+            return cloudCredentialManager.extractCloudManagedCredential(threadContext);
+        }
+        return null;
+    }
+
+    private void isDateNanos(Client previewClient, DatafeedConfig datafeed, String timeField, ActionListener<Boolean> listener) {
         executeWithHeadersAsync(
             datafeed.getHeaders(),
             ML_ORIGIN,
-            client,
+            previewClient,
             TransportFieldCapabilitiesAction.TYPE,
-            fieldCapabilitiesRequest,
+            buildDateNanosFieldCapsRequest(datafeed, timeField),
             listener.delegateFailureAndWrap((l, fieldCapsResponse) -> l.onResponse(timeFieldIsDateNanos(fieldCapsResponse, timeField)))
         );
+    }
+
+    static FieldCapabilitiesRequest buildDateNanosFieldCapsRequest(DatafeedConfig datafeed, String timeField) {
+        FieldCapabilitiesRequest fieldCapabilitiesRequest = new FieldCapabilitiesRequest();
+        fieldCapabilitiesRequest.indices(datafeed.getIndices().toArray(new String[0])).indicesOptions(datafeed.getIndicesOptions());
+        if (datafeed.getIndicesOptions().resolveCrossProjectIndexExpression()) {
+            // Cross-project field-caps resolution is validated on the coordinator whenever the request runs in
+            // cross-project mode; that validation relies on the per-project resolution map, which is only collected
+            // when includeResolvedTo is set. Omitting it leaves the map empty and trips a node-fatal assertion for
+            // explicitly qualified expressions (e.g. linked_project:foo-*), so we mirror the data-extractor request.
+            fieldCapabilitiesRequest.includeResolvedTo(true);
+        }
+        fieldCapabilitiesRequest.fields(timeField);
+        return fieldCapabilitiesRequest;
     }
 
     /**

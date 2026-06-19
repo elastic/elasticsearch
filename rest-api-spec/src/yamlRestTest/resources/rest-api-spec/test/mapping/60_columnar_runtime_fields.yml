@@ -1,0 +1,175 @@
+setup:
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: PUT
+          path: /{index}
+          capabilities: [ columnar_index_modes ]
+      reason: "columnar index modes required"
+
+---
+
+"columnar rejects runtime fields in create index mapping":
+  - do:
+      catch: bad_request
+      indices.create:
+        index: test_columnar_runtime
+        body:
+          settings:
+            index.mode: columnar
+          mappings:
+            properties:
+              kwd:
+                type: keyword
+            runtime:
+              runtime_kwd:
+                type: keyword
+  - match: { status: 400 }
+  - match: { error.type: "illegal_argument_exception" }
+  - match: { error.reason: "mapping-level runtime fields are not allowed in index using [columnar] index mode" }
+
+---
+
+"columnar rejects runtime fields in put mapping":
+  - do:
+      indices.create:
+        index: test_columnar_put_runtime
+        body:
+          settings:
+            index.mode: columnar
+          mappings:
+            properties:
+              kwd:
+                type: keyword
+
+  - do:
+      catch: bad_request
+      indices.put_mapping:
+        index: test_columnar_put_runtime
+        body:
+          runtime:
+            runtime_kwd:
+              type: keyword
+  - match: { status: 400 }
+  - match: { error.type: "illegal_argument_exception" }
+  - match: { error.reason: "mapping-level runtime fields are not allowed in index using [columnar] index mode" }
+
+---
+
+"columnar accepts query-time runtime mappings":
+  - do:
+      indices.create:
+        index: test_columnar_query_runtime
+        body:
+          settings:
+            index.mode: columnar
+          mappings:
+            properties:
+              kwd:
+                type: keyword
+
+  - do:
+      index:
+        index: test_columnar_query_runtime
+        id: "1"
+        refresh: true
+        body:
+          kwd: foo
+
+  - do:
+      search:
+        index: test_columnar_query_runtime
+        body:
+          runtime_mappings:
+            runtime_upper:
+              type: keyword
+              script:
+                source: "emit(doc['kwd'].value.toUpperCase())"
+          fields: [ runtime_upper ]
+          _source: false
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0.fields.runtime_upper: [ "FOO" ] }
+
+---
+
+"logsdb_columnar rejects runtime fields in create index mapping":
+  - do:
+      catch: bad_request
+      indices.create:
+        index: test_logsdb_columnar_runtime
+        body:
+          settings:
+            index.mode: logsdb_columnar
+          mappings:
+            properties:
+              kwd:
+                type: keyword
+            runtime:
+              runtime_kwd:
+                type: keyword
+  - match: { status: 400 }
+  - match: { error.type: "illegal_argument_exception" }
+  - match: { error.reason: "mapping-level runtime fields are not allowed in index using [logsdb_columnar] index mode" }
+
+---
+
+"logsdb_columnar rejects runtime fields in put mapping":
+  - do:
+      indices.create:
+        index: test_logsdb_columnar_put_runtime
+        body:
+          settings:
+            index.mode: logsdb_columnar
+          mappings:
+            properties:
+              kwd:
+                type: keyword
+
+  - do:
+      catch: bad_request
+      indices.put_mapping:
+        index: test_logsdb_columnar_put_runtime
+        body:
+          runtime:
+            runtime_kwd:
+              type: keyword
+  - match: { status: 400 }
+  - match: { error.type: "illegal_argument_exception" }
+  - match: { error.reason: "mapping-level runtime fields are not allowed in index using [logsdb_columnar] index mode" }
+
+---
+
+"logsdb_columnar accepts query-time runtime mappings":
+  - do:
+      indices.create:
+        index: test_logsdb_columnar_query_runtime
+        body:
+          settings:
+            index.mode: logsdb_columnar
+          mappings:
+            properties:
+              kwd:
+                type: keyword
+
+  - do:
+      index:
+        index: test_logsdb_columnar_query_runtime
+        id: "1"
+        refresh: true
+        body:
+          "@timestamp": "2024-01-01T00:00:00Z"
+          kwd: foo
+
+  - do:
+      search:
+        index: test_logsdb_columnar_query_runtime
+        body:
+          runtime_mappings:
+            runtime_upper:
+              type: keyword
+              script:
+                source: "emit(doc['kwd'].value.toUpperCase())"
+          fields: [ runtime_upper ]
+          _source: false
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0.fields.runtime_upper: [ "FOO" ] }

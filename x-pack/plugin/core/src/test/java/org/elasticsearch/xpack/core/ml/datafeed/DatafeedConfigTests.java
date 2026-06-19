@@ -21,6 +21,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -57,6 +58,7 @@ import org.elasticsearch.xpack.core.ml.datafeed.ChunkingConfig.Mode;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.QueryProvider;
 import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
+import org.elasticsearch.xpack.core.security.cloud.PersistedCloudCredential;
 
 import java.io.IOException;
 import java.time.ZoneId;
@@ -958,7 +960,7 @@ public class DatafeedConfigTests extends AbstractBWCSerializationTestCase<Datafe
     @Override
     protected DatafeedConfig mutateInstance(DatafeedConfig instance) {
         DatafeedConfig.Builder builder = new DatafeedConfig.Builder(instance);
-        switch (between(0, 13)) {
+        switch (between(0, DatafeedConfig.DATAFEED_CROSS_PROJECT.isEnabled() ? 14 : 12)) {
             case 0:
                 builder.setId(instance.getId() + randomValidDatafeedId());
                 break;
@@ -1058,7 +1060,16 @@ public class DatafeedConfigTests extends AbstractBWCSerializationTestCase<Datafe
                 }
                 break;
             case 13:
-                if (instance.getProjectRouting() == null && DatafeedConfig.DATAFEED_CROSS_PROJECT.isEnabled()) {
+                if (instance.getCloudInternalCredential() == null) {
+                    builder.setCloudInternalCredential(
+                        new PersistedCloudCredential(randomAlphaOfLength(10), new SecureString(randomAlphaOfLength(20).toCharArray()))
+                    );
+                } else {
+                    builder.setCloudInternalCredential(null);
+                }
+                break;
+            case 14:
+                if (instance.getProjectRouting() == null) {
                     builder.setProjectRouting("_alias:" + randomAlphaOfLengthBetween(1, 10) + "-*");
                 } else {
                     builder.setProjectRouting(null);
@@ -1072,10 +1083,14 @@ public class DatafeedConfigTests extends AbstractBWCSerializationTestCase<Datafe
 
     @Override
     protected DatafeedConfig mutateInstanceForVersion(DatafeedConfig instance, TransportVersion version) {
-        if (version.supports(DatafeedConfig.DATAFEED_PROJECT_ROUTING)) {
-            return instance;
+        DatafeedConfig.Builder builder = new DatafeedConfig.Builder(instance);
+        if (version.supports(DatafeedConfig.DATAFEED_PROJECT_ROUTING) == false) {
+            builder.setProjectRouting(null);
         }
-        return new DatafeedConfig.Builder(instance).setProjectRouting(null).build();
+        if (version.supports(DatafeedConfig.DATAFEED_CLOUD_INTERNAL_CREDENTIAL) == false) {
+            builder.setCloudInternalCredential(null);
+        }
+        return builder.build();
     }
 
     /**
@@ -1490,6 +1505,80 @@ public class DatafeedConfigTests extends AbstractBWCSerializationTestCase<Datafe
                 (org.elasticsearch.action.ActionRequestValidationException) null
             )
         );
+    }
+
+    public void testCloudInternalApiKeyPersistedForInternalStorage() throws IOException {
+        PersistedCloudCredential cred = new PersistedCloudCredential("key-id", new SecureString("secret-value".toCharArray()));
+        DatafeedConfig.Builder builder = new DatafeedConfig.Builder("test-datafeed", "test-job");
+        builder.setIndices(List.of("logs-*"));
+        builder.setCloudInternalCredential(cred);
+        DatafeedConfig config = builder.build();
+
+        assertThat(config.getCloudInternalCredential(), equalTo(cred));
+
+        // Verify cloud_internal_credential is written for internal storage
+        ToXContent.MapParams params = new ToXContent.MapParams(Collections.singletonMap(ToXContentParams.FOR_INTERNAL_STORAGE, "true"));
+        BytesReference forClusterstateXContent = XContentHelper.toXContent(config, XContentType.JSON, params, false);
+        XContentParser parser = parser(forClusterstateXContent);
+        DatafeedConfig parsedConfig = DatafeedConfig.LENIENT_PARSER.apply(parser, null).build();
+        assertThat(parsedConfig.getCloudInternalCredential(), equalTo(cred));
+
+        // Verify cloud_internal_credential is NOT written without FOR_INTERNAL_STORAGE
+        BytesReference nonClusterstateXContent = XContentHelper.toXContent(config, XContentType.JSON, ToXContent.EMPTY_PARAMS, false);
+        parser = parser(nonClusterstateXContent);
+        parsedConfig = DatafeedConfig.LENIENT_PARSER.apply(parser, null).build();
+        assertThat(parsedConfig.getCloudInternalCredential(), nullValue());
+    }
+
+    public void testCloudInternalApiKeyNullByDefault() {
+        DatafeedConfig.Builder builder = new DatafeedConfig.Builder("test-datafeed", "test-job");
+        builder.setIndices(List.of("logs-*"));
+        DatafeedConfig config = builder.build();
+        assertThat(config.getCloudInternalCredential(), nullValue());
+    }
+
+    public void testCloudInternalApiKeyCopyConstructor() {
+        PersistedCloudCredential cred = new PersistedCloudCredential("key-id", new SecureString("api-key-value".toCharArray()));
+        DatafeedConfig.Builder builder = new DatafeedConfig.Builder("test-datafeed", "test-job");
+        builder.setIndices(List.of("logs-*"));
+        builder.setCloudInternalCredential(cred);
+        DatafeedConfig original = builder.build();
+
+        DatafeedConfig copy = new DatafeedConfig.Builder(original).build();
+        assertThat(copy.getCloudInternalCredential(), equalTo(cred));
+        assertEquals(original, copy);
+    }
+
+    public void testCloudInternalApiKeySerialization() throws IOException {
+        PersistedCloudCredential cred = new PersistedCloudCredential("key-id", new SecureString("test-api-key-encoded".toCharArray()));
+        DatafeedConfig.Builder builder = new DatafeedConfig.Builder("test-datafeed", "test-job");
+        builder.setIndices(List.of("logs-*"));
+        builder.setCloudInternalCredential(cred);
+        DatafeedConfig config = builder.build();
+
+        BytesStreamOutput output = new BytesStreamOutput();
+        output.setTransportVersion(TransportVersion.current());
+        config.writeTo(output);
+
+        StreamInput rawInput = output.bytes().streamInput();
+        rawInput.setTransportVersion(TransportVersion.current());
+        try (StreamInput input = new NamedWriteableAwareStreamInput(rawInput, getNamedWriteableRegistry())) {
+            DatafeedConfig deserialized = new DatafeedConfig(input);
+            assertThat(deserialized.getCloudInternalCredential(), equalTo(cred));
+            assertEquals(config, deserialized);
+        }
+    }
+
+    public void testCloseReleasesCloudInternalCredentialAndIsIdempotent() {
+        PersistedCloudCredential cred = new PersistedCloudCredential("key-id", new SecureString("secret".toCharArray()));
+        DatafeedConfig.Builder builder = new DatafeedConfig.Builder("test-datafeed", "test-job");
+        builder.setIndices(List.of("logs-*"));
+        builder.setCloudInternalCredential(cred);
+        DatafeedConfig config = builder.build();
+
+        config.close();
+        expectThrows(IllegalStateException.class, () -> cred.internalApiKey().length());
+        config.close();
     }
 
     private DatafeedConfig createDatafeedConfigFromString(String json) throws IOException {

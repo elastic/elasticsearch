@@ -137,7 +137,7 @@ public class ActionModuleTests extends ESTestCase {
             List.of(),
             List.of(),
             RestExtension.allowAll(),
-            new IncrementalBulkService(null, null, MeterRegistry.NOOP),
+            new IncrementalBulkService(null, null, MeterRegistry.NOOP, null, null),
             CrossProjectModeDecider.NOOP,
             TestProjectResolvers.alwaysThrow()
         );
@@ -197,7 +197,7 @@ public class ActionModuleTests extends ESTestCase {
                 List.of(),
                 List.of(),
                 RestExtension.allowAll(),
-                new IncrementalBulkService(null, null, MeterRegistry.NOOP),
+                new IncrementalBulkService(null, null, MeterRegistry.NOOP, null, null),
                 CrossProjectModeDecider.NOOP,
                 TestProjectResolvers.alwaysThrow()
             );
@@ -250,7 +250,7 @@ public class ActionModuleTests extends ESTestCase {
                 List.of(),
                 List.of(),
                 RestExtension.allowAll(),
-                new IncrementalBulkService(null, null, MeterRegistry.NOOP),
+                new IncrementalBulkService(null, null, MeterRegistry.NOOP, null, null),
                 CrossProjectModeDecider.NOOP,
                 TestProjectResolvers.alwaysThrow()
             );
@@ -302,7 +302,7 @@ public class ActionModuleTests extends ESTestCase {
                     List.of(),
                     List.of(),
                     RestExtension.allowAll(),
-                    new IncrementalBulkService(null, null, MeterRegistry.NOOP),
+                    new IncrementalBulkService(null, null, MeterRegistry.NOOP, null, null),
                     CrossProjectModeDecider.NOOP,
                     TestProjectResolvers.alwaysThrow()
                 )
@@ -345,7 +345,7 @@ public class ActionModuleTests extends ESTestCase {
                     List.of(),
                     List.of(),
                     RestExtension.allowAll(),
-                    new IncrementalBulkService(null, null, MeterRegistry.NOOP),
+                    new IncrementalBulkService(null, null, MeterRegistry.NOOP, null, null),
                     CrossProjectModeDecider.NOOP,
                     TestProjectResolvers.alwaysThrow()
                 )

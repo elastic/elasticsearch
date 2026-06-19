@@ -39,6 +39,32 @@ class InternalBwcGitPluginFuncTest extends AbstractGitAwareGradleFuncTest {
         file("cloned/build/checkout/settings.gradle").exists()
     }
 
+    def "git checkout is skipped when DRA build ID is configured"() {
+        given:
+        buildFile << """
+            plugins.getPlugin(org.elasticsearch.gradle.internal.InternalBwcGitPlugin)
+                .configureDraBuildId(project.providers.provider { "7.9.1-abc12345" })
+        """
+        when:
+        def result = gradleRunner(
+            "checkoutBwcBranch",
+            '--stacktrace',
+            "-DtestRemoteRepo=" + remoteGitRepo,
+            "-Dbwc.remote=origin"
+        ).build()
+        then: "all git tasks are skipped because the DRA build ID is non-empty"
+        result.task(":createClone").outcome == TaskOutcome.SKIPPED
+        result.task(":fetchLatest").outcome == TaskOutcome.SKIPPED
+        result.task(":checkoutBwcBranch").outcome == TaskOutcome.SKIPPED
+    }
+
+    def "git tasks run when no DRA build ID is configured"() {
+        when:
+        def result = gradleRunner("createClone", '--stacktrace').build()
+        then:
+        result.task(":createClone").outcome == TaskOutcome.SUCCESS
+    }
+
     def "can resolve checkout folder as project artifact"() {
         given:
         settingsFile << "include ':consumer'"

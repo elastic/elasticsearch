@@ -1683,7 +1683,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         return List.of(new TypedDataSupplier("<random date range>", TestCaseSupplier::randomDateRange, DataType.DATE_RANGE));
     }
 
-    static LongRangeBlockBuilder.LongRange randomDateRange() {
+    public static LongRangeBlockBuilder.LongRange randomDateRange() {
         var from = randomMillisUpToYear9999();
         var to = randomLongBetween(from + 1, MAX_MILLIS_BEFORE_9999);
         return new LongRangeBlockBuilder.LongRange(from, to);
@@ -2603,6 +2603,13 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         boolean serverless
     ) {
         return new AppliesTo(lifeCycle, version, description, serverless);
+    }
+
+    /**
+     * Builds a transform that applies {@code preview} to a {@link TypedDataSupplier} and marks it as serverless preview.
+     */
+    public static Function<TypedDataSupplier, TypedDataSupplier> previewTransform(FunctionAppliesTo preview) {
+        return s -> s.withAppliesTo(preview).withPreview();
     }
 
     private record AppliesTo(FunctionAppliesToLifecycle lifeCycle, String version, String description, boolean serverless)

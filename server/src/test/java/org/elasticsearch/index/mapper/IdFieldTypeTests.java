@@ -8,8 +8,10 @@
  */
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermInSetQuery;
+import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
@@ -49,8 +51,10 @@ public class IdFieldTypeTests extends ESTestCase {
         Mockito.when(context.getIndexSettings()).thenReturn(mockSettings);
         Mockito.when(context.indexVersionCreated()).thenReturn(IndexVersion.current());
         MappedFieldType ft = new ProvidedIdFieldMapper.IdFieldType();
-        Query query = ft.termQuery("id", context);
-        assertEquals(new TermInSetQuery("_id", List.of(Uid.encodeId("id"))), query);
+        Query query = ft.termQuery("a0", context);
+        assertEquals(new TermQuery(new Term("_id", Uid.encodeId("a0"))), query);
+        query = ft.termsQuery(List.of("a1", "a2"), context);
+        assertEquals(new TermInSetQuery("_id", List.of(Uid.encodeId("my_id"), Uid.encodeId("a2"))), query);
     }
 
     public void testIsAggregatable() {

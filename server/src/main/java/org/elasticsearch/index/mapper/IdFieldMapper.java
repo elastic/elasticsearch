@@ -12,7 +12,6 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.Queries;
@@ -20,10 +19,7 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.query.SearchExecutionContext;
 
-import java.util.Arrays;
-import java.util.Collection;
 import java.util.Collections;
-import java.util.List;
 import java.util.Map;
 
 /**
@@ -144,21 +140,12 @@ public abstract class IdFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        public Query termsQuery(Collection<?> values, SearchExecutionContext context) {
-            failIfNotIndexed();
-            List<BytesRef> bytesRefs = values.stream().map(v -> {
-                Object idObject = v;
-                if (idObject instanceof BytesRef) {
-                    idObject = ((BytesRef) idObject).utf8ToString();
-                }
-                return Uid.encodeId(idObject.toString());
-            }).toList();
-            return new TermInSetQuery(name(), bytesRefs);
-        }
-
-        @Override
-        public Query termQuery(Object value, SearchExecutionContext context) {
-            return termsQuery(Arrays.asList(value), context);
+        protected BytesRef indexedValueForSearch(Object v) {
+            Object idObject = v;
+            if (idObject instanceof BytesRef) {
+                idObject = ((BytesRef) idObject).utf8ToString();
+            }
+            return Uid.encodeId(idObject.toString());
         }
 
         @Override

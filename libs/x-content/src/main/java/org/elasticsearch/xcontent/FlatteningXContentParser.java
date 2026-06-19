@@ -16,8 +16,7 @@ import java.io.IOException;
  * the field names by prefixing them with the provided parent name.
  */
 public class FlatteningXContentParser extends XContentSubParser {
-    private final String parentName;
-    private static final char DELIMITER = '.';
+    private final String prefix;
 
     /**
      * Constructs a FlatteningXContentParser with the given parent name and wraps an existing XContentParser.
@@ -27,7 +26,7 @@ public class FlatteningXContentParser extends XContentSubParser {
      */
     public FlatteningXContentParser(XContentParser parser, String parentName) {
         super(parser);
-        this.parentName = parentName;
+        this.prefix = parentName + '.';
     }
 
     /**
@@ -41,7 +40,7 @@ public class FlatteningXContentParser extends XContentSubParser {
     @Override
     public String currentName() throws IOException {
         if (level() == 1) {
-            return new StringBuilder(parentName).append(DELIMITER).append(delegate().currentName()).toString();
+            return prefix + delegate().currentName();
         }
         return delegate().currentName();
     }

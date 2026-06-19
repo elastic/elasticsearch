@@ -26,6 +26,11 @@ setup:
             otel.sdk.exporter.operation.duration:
               counts: [1, 2, 3]
               values: [0.5, 1.5, 5.0]
+            otel.sdk.exporter.metric_data_point.exported: 200
+            otel.sdk.exporter.metric_data_point.inflight: 5
+            otel.sdk.metric_reader.collection.duration:
+              counts: [1, 2]
+              values: [0.1, 1.0]
   - is_false: errors
   - do:
       cluster.health:
@@ -49,10 +54,23 @@ setup:
               histogram:
                 field: otel.sdk.exporter.operation.duration
                 interval: 1
+            metric_data_point_exported_sum:
+              sum:
+                field: otel.sdk.exporter.metric_data_point.exported
+            metric_data_point_inflight_sum:
+              sum:
+                field: otel.sdk.exporter.metric_data_point.inflight
+            collection_duration_histogram:
+              histogram:
+                field: otel.sdk.metric_reader.collection.duration
+                interval: 1
   - match: { aggregations.exported_sum.value: 42 }
   - match: { aggregations.inflight_sum.value: 7 }
   - match: { aggregations.processed_sum.value: 100 }
   - is_true: aggregations.duration_histogram.buckets
+  - match: { aggregations.metric_data_point_exported_sum.value: 200 }
+  - match: { aggregations.metric_data_point_inflight_sum.value: 5 }
+  - is_true: aggregations.collection_duration_histogram.buckets
 
 ---
 "Test metrics-apm.app-* dynamic mapping":

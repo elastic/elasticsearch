@@ -19,3 +19,9 @@ template:
         type: long
       otel.sdk.exporter.operation.duration:
         type: histogram
+      otel.sdk.exporter.metric_data_point.exported:
+        type: long
+      otel.sdk.exporter.metric_data_point.inflight:
+        type: long
+      otel.sdk.metric_reader.collection.duration:
+        type: histogram

@@ -421,6 +421,21 @@ Alternatively, this can be used to assert that a string response contains a cert
 ...
 contains: { items.0.index.error.reason: "must be mapped" }
 
+===== `matches_in_any_order`
+
+Asserts two lists contain the same elements in any order. Each element is compared using
+the same rules as `match`. e.g:
+
+...
+matches_in_any_order: { tags: ["b", "a"] }
+...
+
+Alternatively, with a list of objects:
+
+...
+matches_in_any_order: { hits.hits: [{ _id: "2" }, { _id: "1" }] }
+...
+
 ===== `transform_and_set`
 
 Supports the `transform_and_set` operator as described in this document.
@@ -683,6 +698,28 @@ Supports also regular expressions with flag X for more readability (accepts whit
 ....
 
 **Note:** `$body` is used to refer to the last obtained response body as a string, while `''` refers to the parsed representation (parsed into a Map by the Java runner for instance). Having the raw string response is for example useful when testing cat APIs.
+
+=== `matches_in_any_order`
+
+Compares two lists and asserts they contain the same elements in any order. Each element
+is compared using the same rules as `match` (scalars, regex strings, maps, nested lists,
+etc.). Duplicates are taken into account, eg:
+
+....
+    - matches_in_any_order: { tags: ["b", "a"] }
+....
+
+....
+    - matches_in_any_order: { hits.hits: [{ _id: "2" }, { _id: "1" }] }
+....
+
+**Note: you should use a requires prerequisite along with matches_in_any_order, as not all
+runners support it:**
+
+....
+    - requires:
+        test_runner_features: matches_in_any_order
+....
 
 === `close_to`
 

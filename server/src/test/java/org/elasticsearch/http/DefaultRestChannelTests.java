@@ -516,7 +516,7 @@ public class DefaultRestChannelTests extends ESTestCase {
         );
 
         sendResponseAndCapture(new RestResponse(RestStatus.BAD_GATEWAY, "bad gateway"));
-        verify(tracer, times(2)).setStatusToError(
+        verify(tracer).setStatusToError(
             argThat(id -> id.getSpanId().startsWith("rest-")),
             eq(RestStatus.BAD_GATEWAY.getStatus() + " " + RestStatus.BAD_GATEWAY.name())
         );

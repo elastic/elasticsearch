@@ -289,6 +289,7 @@ class StatelessIndexEventListener implements IndexEventListener {
                 bccHeaderReadExecutor,
                 true,
                 sourceBlobsInfo,
+                warmingService,
                 l
             );
         }).<Void>andThen((l, state) -> {
@@ -477,6 +478,7 @@ class StatelessIndexEventListener implements IndexEventListener {
                                     }
                                 );
                             },
+                            warmingService,
                             l2.map(aVoid -> new Tuple<>(blobFileRanges, offsetsToWarm))
                         );
                     } else {

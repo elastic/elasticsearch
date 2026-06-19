@@ -464,6 +464,7 @@ public class HollowShardsService extends AbstractLifecycleComponent implements M
                             bccHeaderReadExecutor,
                             false,
                             blobsInfo,
+                            indexShardCacheWarmer.warmingService(),
                             listener
                         );
                     } catch (Exception e) {

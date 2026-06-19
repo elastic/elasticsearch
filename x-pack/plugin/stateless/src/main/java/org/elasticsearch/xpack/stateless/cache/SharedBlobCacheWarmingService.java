@@ -420,6 +420,10 @@ public class SharedBlobCacheWarmingService {
         );
     }
 
+    public int getRegionSize() {
+        return cacheService.getRegionSize();
+    }
+
     public void warmCacheBeforeUpload(VirtualBatchedCompoundCommit vbcc, ActionListener<Void> listener) {
         assert vbcc.isFrozen();
         long totalSizeInBytes = vbcc.getTotalSizeInBytes();
@@ -693,6 +697,7 @@ public class SharedBlobCacheWarmingService {
                                         );
                                     }
                                 },
+                                this,
                                 l1.map(aVoid -> offsetsToWarmComputed)
                             );
                         } else {
@@ -931,6 +936,42 @@ public class SharedBlobCacheWarmingService {
         }
     }
 
+    public void warmBlobRangesFromDirectory(
+        Map<BlobFile, ByteRange> blobFileRanges,
+        BlobStoreCacheDirectory directory,
+        Executor scheduleExecutor,
+        ActionListener<Void> listener
+    ) {
+        if (blobFileRanges.isEmpty()) {
+            listener.onResponse(null);
+            return;
+        }
+
+        final ShardId shardId = directory.getShardId();
+        try (var listeners = new RefCountingListener(listener)) {
+            for (var entry : blobFileRanges.entrySet()) {
+                BlobFile blobFile = entry.getKey();
+                ByteRange range = entry.getValue();
+                final ActionListener<Void> perBlobListener = listeners.acquire().delegateResponse((l, e) -> {
+                    logger.warn(() -> format("failed to prefetch region 0 of %s for %s", blobFile, shardId), e);
+                    l.onResponse(null);
+                });
+                scheduleExecutor.execute(
+                    () -> warmBlobByteRangeOnDirectory(
+                        Type.INDEXING,
+                        shardId,
+                        directory,
+                        blobFile,
+                        range,
+                        () -> false,
+                        "bcc_region0_prefetch",
+                        perBlobListener
+                    )
+                );
+            }
+        }
+    }
+
     private void warmBlobByteRange(
         Type type,
         IndexShard indexShard,
@@ -940,22 +981,35 @@ public class SharedBlobCacheWarmingService {
     ) {
         final Store store = indexShard.store();
         final ShardId shardId = indexShard.shardId();
-        final var warmingRun = new WarmingRun(type, shardId, "prewarm", Map.of("prewarming_type", type.name()));
         if (store.isClosing() || store.tryIncRef() == false) {
             listener.onFailure(new AlreadyClosedException("Failed to warm cache [" + type + "] for " + shardId + ", store is closing"));
         } else {
-            try (
-                var warmer = new BlobByteRangeWarmer(
-                    warmingRun,
-                    blobFile,
-                    byteRangeToWarm,
-                    store::isClosing,
-                    BlobStoreCacheDirectory.unwrapDirectory(store.directory()),
-                    ActionListener.runAfter(listener, store::decRef)
-                )
-            ) {
-                warmer.run();
-            }
+            warmBlobByteRangeOnDirectory(
+                type,
+                shardId,
+                BlobStoreCacheDirectory.unwrapDirectory(store.directory()),
+                blobFile,
+                byteRangeToWarm,
+                store::isClosing,
+                "prewarm",
+                ActionListener.runAfter(listener, store::decRef)
+            );
+        }
+    }
+
+    private void warmBlobByteRangeOnDirectory(
+        Type type,
+        ShardId shardId,
+        BlobStoreCacheDirectory directory,
+        BlobFile blobFile,
+        ByteRange byteRangeToWarm,
+        Supplier<Boolean> isCancelled,
+        String logIdentifier,
+        ActionListener<Void> listener
+    ) {
+        final var warmingRun = new WarmingRun(type, shardId, logIdentifier, Map.of("prewarming_type", type.name()));
+        try (var warmer = new BlobByteRangeWarmer(warmingRun, blobFile, byteRangeToWarm, isCancelled, directory, listener)) {
+            warmer.run();
         }
     }
 

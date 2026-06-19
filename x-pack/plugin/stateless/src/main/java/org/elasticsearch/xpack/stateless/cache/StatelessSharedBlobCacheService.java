@@ -137,7 +137,6 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
                     cacheKey,
                     region,
                     adjustedByteRange,
-                    // this is not really used
                     byteRange.length(),
                     new LazyRangeMissingHandler<>(
                         () -> new SequentialRangeMissingHandler(

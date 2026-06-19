@@ -3139,6 +3139,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
             node.threadPool.generic(),
             true,
             null,
+            node.warmingService,
             future
         );
         return safeGet(future);

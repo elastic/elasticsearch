@@ -63,6 +63,13 @@ public class IndexShardCacheWarmer {
     }
 
     /**
+     * Used by {@link org.elasticsearch.xpack.stateless.commits.HollowShardsService} for region-0 prefetch during unhollowing.
+     */
+    public SharedBlobCacheWarmingService warmingService() {
+        return warmingService;
+    }
+
+    /**
      * Schedule the pre-warming of a peer recovering stateless index shard
      */
     public void preWarmIndexShardCache(IndexShard indexShard) {
@@ -132,6 +139,7 @@ public class IndexShardCacheWarmer {
                     bccHeaderReadExecutor,
                     true,
                     sourceBlobsInfo,
+                    warmingService,
                     ActionListener.releaseAfter(ActionListener.wrap(state -> {
                         updateMetadataAndWarmCache(indexShard, warmingType, state, prewarmingDirectory, true, preWarmForIdLookup);
                     }, e -> logException(indexShard.shardId(), e)), store::decRef)

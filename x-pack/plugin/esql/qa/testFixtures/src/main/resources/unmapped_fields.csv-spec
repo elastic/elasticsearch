@@ -735,3 +735,45 @@ _fork:keyword | message:keyword        | completely_absent_field:keyword
 fork1         | 42                     | null
 fork2         | Connected to 10.1.0.1! | null
 ;
+
+##############################
+# LOAD mode + subqueries/views #
+##############################
+
+// Subqueries read from independent sources, so an unmapped field is loaded from _source only in the branch that references it
+// (Decision A in #142033). Both branches read the same physical index, but unmapped_message is referenced only in the first branch:
+// it is loaded there ("43"), while the sibling branch null-fills it even though the value exists in that branch's _source.
+loadUnmappedFieldInOneSubqueryBranch
+required_capability: optional_fields_load_with_subqueries_and_views
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="load"\;
+FROM (FROM partial_mapping_sample_data | WHERE message == "42" | KEEP @timestamp, unmapped_message),
+     (FROM partial_mapping_sample_data | WHERE message == "Connected to 10.1.0.1!" | KEEP @timestamp)
+| KEEP @timestamp, unmapped_message
+| SORT @timestamp
+;
+
+@timestamp:date          | unmapped_message:keyword
+2024-10-23T13:33:34.937Z | 43
+2024-10-23T13:55:01.543Z | null
+;
+
+// An unmapped field referenced only in the outer query (above the union) and unmapped in every branch source is null-filled
+// everywhere for union-type consistency (Decision B in #142033), even though it exists in each branch's _source. The branches do not
+// project their output, so the null-filled column flows up to the union for the outer reference to resolve against.
+loadUnmappedFieldReferencedOnlyAboveSubqueries
+required_capability: optional_fields_load_with_subqueries_and_views
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="load"\;
+FROM (FROM partial_mapping_sample_data | WHERE message == "42"),
+     (FROM partial_mapping_sample_data | WHERE message == "Connected to 10.1.0.1!")
+| KEEP @timestamp, message, unmapped_message
+| SORT @timestamp
+;
+
+@timestamp:date          | message:keyword        | unmapped_message:null
+2024-10-23T13:33:34.937Z | 42                     | null
+2024-10-23T13:55:01.543Z | Connected to 10.1.0.1! | null
+;

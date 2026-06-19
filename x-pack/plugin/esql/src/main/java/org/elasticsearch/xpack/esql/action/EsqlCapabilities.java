@@ -2999,6 +2999,15 @@ public class EsqlCapabilities {
         OPTIONAL_FIELDS_LOAD_WITH_FORK,
 
         /**
+         * Support for {@code unmapped_fields="load"} mode with subqueries and views ({@code UnionAll} / {@code ViewUnionAll}).
+         * Previously the combination was rejected at query validation time. Subqueries read from independent sources, so an
+         * unmapped field is loaded from {@code _source} only in the branch that references it; sibling branches and outer-only
+         * references are null-filled, and cross-branch type conflicts fail.
+         * see <a href="https://github.com/elastic/elasticsearch/issues/142033">Issue #142033</a>
+         */
+        OPTIONAL_FIELDS_LOAD_WITH_SUBQUERIES_AND_VIEWS,
+
+        /**
          * Support for the {@code ==} operator on the root of a {@code flattened} field in ES|QL.
          */
         FN_EQUALS_FLATTENED(Build.current().isSnapshot()),

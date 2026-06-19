@@ -39,6 +39,7 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
+import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
@@ -166,13 +167,40 @@ public class ResolveUnmapped extends AnalyzerRules.ParameterizedAnalyzerRule<Log
      * the given {@code plan}.
      * <p>
      * It also "patches" the introduced attributes through the plan, where needed (like through Fork/UntionAll).
+     * <p>
+     * Loading is scope-aware with respect to subqueries and views ({@link UnionAll}, including {@code ViewUnionAll}). Because the rule is
+     * applied bottom-up, a field referenced inside one branch is loaded when the rule fires on that branch's subtree (which contains no
+     * {@code UnionAll}, so it takes the simple, source-spanning path below) - sibling branches are not touched and are later null-filled by
+     * {@code ResolveRefs#resolveFork} alignment (Decision A in #142033). When the rule instead fires on a node spanning a {@code UnionAll}
+     * (an outer reference), a field absent from every branch source cannot be attributed to a single independent source, so it is null-filled
+     * everywhere (Decision B); a field already present (mapped or already loaded) in some branch is left to resolve through the union output.
+     * Decision B null-fills at the branch sources, so the outer reference only resolves when the column survives each branch's pipeline up
+     * to the union; if every branch drops it (e.g. a non-grouping STATS), the reference correctly stays unresolved and fails verification.
+     * Cross-branch type conflicts are caught later by {@code UnionAll#checkUnionAll} (Decision C).
      */
     private static LogicalPlan load(LogicalPlan plan, Set<UnresolvedAttribute> unresolved) {
         // TODO: this will need to be revisited for non-lookup joining or scenarios where we won't want extraction from specific sources
+        if (plan.anyMatch(p -> p instanceof UnionAll)) {
+            // Crossing independent-source boundaries: never load an outer reference into a branch source.
+            Set<String> presentInAnyBranch = esRelationOutputNames(plan);
+            LinkedHashSet<UnresolvedAttribute> toNullify = new LinkedHashSet<>();
+            for (UnresolvedAttribute ua : unresolved) {
+                if (presentInAnyBranch.contains(ua.name()) == false) {
+                    toNullify.add(ua);
+                }
+            }
+            return toNullify.isEmpty() ? plan : nullify(plan, toNullify);
+        }
         return plan.transformUp(EsRelation.class, esr -> {
             List<FieldAttribute> fieldsToLoad = fieldsToLoad(unresolved, Expressions.names(esr.output()));
             return withAdditionalAttributesUnlessLookup(esr, fieldsToLoad);
         });
+    }
+
+    private static Set<String> esRelationOutputNames(LogicalPlan plan) {
+        Set<String> names = new HashSet<>();
+        plan.forEachDown(EsRelation.class, esr -> names.addAll(Expressions.names(esr.output())));
+        return names;
     }
 
     private static List<FieldAttribute> fieldsToLoad(Set<UnresolvedAttribute> unresolved, List<String> exclude) {

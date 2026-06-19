@@ -1,0 +1,5 @@
+SET unmapped_fields="nullify"; FROM employees,
+    (FROM languages | WHERE language_code > 0),
+    (FROM employees | EVAL language_code = languages | LOOKUP JOIN languages_lookup ON language_code)
+| WHERE does_not_exist::LONG > 0
+| KEEP emp_no, language_code

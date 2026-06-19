@@ -60,7 +60,6 @@ import org.elasticsearch.xpack.esql.plan.logical.LimitBy;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Lookup;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
-import org.elasticsearch.xpack.esql.plan.logical.Subquery;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesCollapse;
 import org.elasticsearch.xpack.esql.session.FieldNameUtils;
@@ -467,14 +466,12 @@ public class Verifier {
     }
 
     /**
-     * {@code unmapped_fields="load"} does not yet support branching commands (subqueries/views).
-     * See https://github.com/elastic/elasticsearch/issues/142033
+     * {@code unmapped_fields="load"} does not yet support PROMQL.
+     * Subqueries and views are supported (see https://github.com/elastic/elasticsearch/issues/142033): an unmapped field is
+     * loaded only in the branch that references it, and cross-branch type conflicts are caught by {@code UnionAll.checkUnionAll}.
      */
     private static void checkLoadModeDisallowedCommands(LogicalPlan plan, Failures failures) {
         plan.forEachDown(p -> {
-            if (p instanceof Subquery) {
-                failures.add(fail(p, "Subqueries and views are not supported with unmapped_fields=\"load\""));
-            }
             if (p instanceof TimeSeriesAggregate ts && ts.origin() == TimeSeriesAggregate.Origin.PROMQL_COMMAND) {
                 failures.add(fail(p, "PROMQL is not supported with unmapped_fields=\"load\""));
             }

@@ -155,6 +155,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesCollapse;
+import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
@@ -822,7 +823,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 case Drop d -> resolveDrop(d, context.unmappedResolution());
                 case Rename r -> resolveRename(r, context.unmappedResolution());
                 case Keep k -> resolveKeep(k, context.unmappedResolution());
-                case Fork f -> resolveFork(f);
+                case Fork f -> resolveFork(f, context.unmappedResolution());
                 case Eval p -> resolveEval(p, childrenOutput);
                 case Enrich p -> resolveEnrich(p, childrenOutput);
                 case MvExpand p -> resolveMvExpand(p, childrenOutput);
@@ -1326,12 +1327,15 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             return translatable(expression, LucenePushdownPredicates.DEFAULT) != TranslationAware.Translatable.NO;
         }
 
-        private LogicalPlan resolveFork(Fork fork) {
+        private LogicalPlan resolveFork(Fork fork, UnmappedResolution unmappedResolution) {
             // we align the outputs of the sub plans such that they have the same columns
             boolean changed = false;
             List<LogicalPlan> newSubPlans = new ArrayList<>();
             List<Attribute> outputUnion = Fork.outputUnion(fork.children());
             List<String> forkColumns = outputUnion.stream().map(Attribute::name).toList();
+            // The load-from-_source alignment below applies to FORK only: its branches share a single source index. Subqueries
+            // and views (UnionAll / ViewUnionAll) read from independent sources and are handled separately (see #142033).
+            boolean loadAlignAcrossBranches = unmappedResolution == UnmappedResolution.LOAD && fork instanceof UnionAll == false;
 
             for (LogicalPlan logicalPlan : fork.children()) {
                 Source source = logicalPlan.source();
@@ -1345,7 +1349,22 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     }
                 }
 
-                List<Alias> aliases = missing.stream().map(attr -> {
+                List<Alias> aliases = new ArrayList<>(missing.size());
+                List<FieldAttribute> toLoad = new ArrayList<>();
+                for (Attribute attr : missing) {
+                    // With unmapped_fields="load", a column missing from this branch but loaded (as a keyword from _source) in a
+                    // sibling branch must be loaded here too rather than null-filled: all FORK branches read from the same source
+                    // index, so the field is available in every branch (see https://github.com/elastic/elasticsearch/issues/142033).
+                    // We load it into this branch's own source relation so it surfaces in the branch output; null-filling it instead
+                    // would shadow the value loaded from _source. Branches that cannot surface a loaded field (an aggregation,
+                    // projection or non-index source in the way) fall back to null-filling, which also keeps the alignment terminating.
+                    if (loadAlignAcrossBranches
+                        && attr instanceof FieldAttribute fa
+                        && fa.field() instanceof PotentiallyUnmappedKeywordEsField
+                        && branchCanSurfaceLoadedField(logicalPlan)) {
+                        toLoad.add(insistKeyword(attr));
+                        continue;
+                    }
                     // We cannot assign an alias with an UNSUPPORTED data type, so we use another type that is
                     // supported. This way we can add this missing column containing only null values to the fork branch output.
                     var attrType = attr.dataType() == UNSUPPORTED ? KEYWORD : attr.dataType();
@@ -1353,8 +1372,31 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                         attrType = attrType.noCounter();
                     }
                     // use the current fork branch's source as the source of the alias, instead of the original FieldAttribute's source.
-                    return new Alias(source, attr.name(), new Literal(source, null, attrType));
-                }).toList();
+                    aliases.add(new Alias(source, attr.name(), new Literal(source, null, attrType)));
+                }
+
+                // load the unmapped keyword fields from this branch's own source relation so they surface in its output
+                if (toLoad.isEmpty() == false) {
+                    LogicalPlan withLoaded = logicalPlan.transformUp(EsRelation.class, esr -> {
+                        if (esr.indexMode() == IndexMode.LOOKUP) {
+                            return esr;
+                        }
+                        Set<String> existingNames = esr.outputSet().names();
+                        List<Attribute> newFields = new ArrayList<>(toLoad.size());
+                        for (FieldAttribute field : toLoad) {
+                            if (existingNames.contains(field.name()) == false) {
+                                newFields.add(field);
+                            }
+                        }
+                        return newFields.isEmpty() ? esr : esr.withAdditionalAttributes(newFields);
+                    });
+                    // only mark the plan changed when the relation actually gained fields, so an already-loaded
+                    // (but not-yet-surfaced) field does not force an endless fixed-point iteration
+                    if (withLoaded != logicalPlan) {
+                        logicalPlan = withLoaded;
+                        changed = true;
+                    }
+                }
 
                 // add the missing columns
                 if (aliases.size() > 0) {
@@ -1409,6 +1451,32 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             List<String> outputColumns
         ) {
             return unionAll instanceof UnionAll && outputColumns.isEmpty() && subquery.output().equals(NO_FIELDS);
+        }
+
+        /**
+         * Whether an unmapped keyword field loaded from {@code _source} at a FORK branch's source relation would surface in the
+         * branch output, used by {@link #resolveFork} to decide between loading and null-filling a missing column under
+         * {@code unmapped_fields="load"}. Walks from the branch root to its leaf following column-preserving unary plans; returns
+         * {@code true} only when the leaf is a loadable {@link EsRelation} (non-LOOKUP). A {@link Project} (KEEP or a prior
+         * alignment projection) or an {@link Aggregate} (STATS drops non-grouped fields) would hide the loaded field, and a
+         * non-loadable source (ROW / local relation) cannot load it, so all of these return {@code false} and the caller
+         * null-fills the column instead.
+         */
+        private static boolean branchCanSurfaceLoadedField(LogicalPlan branch) {
+            LogicalPlan plan = branch;
+            while (true) {
+                if (plan instanceof EsRelation esRelation) {
+                    return esRelation.indexMode() != IndexMode.LOOKUP;
+                }
+                if (plan instanceof Project || plan instanceof Aggregate) {
+                    return false;
+                }
+                if (plan instanceof UnaryPlan unaryPlan) {
+                    plan = unaryPlan.child();
+                } else {
+                    return false;
+                }
+            }
         }
 
         private LogicalPlan resolveRerank(Rerank rerank, List<Attribute> childrenOutput, AnalyzerContext context) {

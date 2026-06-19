@@ -19,7 +19,11 @@ import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.PointValues;
 import org.apache.lucene.search.DocIdSet;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.PointRangeQuery;
+import org.apache.lucene.search.ScoreMode;
+import org.apache.lucene.search.ScorerSupplier;
+import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.ByteBuffersDirectory;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.DocIdSetBuilder;
@@ -45,15 +49,17 @@ import java.util.Arrays;
 import java.util.concurrent.TimeUnit;
 
 /**
- * Compares {@link PointRangeQueryCostEstimator#estimate()} against the exact retained RAM of a real
+ * Compares the per-leaf circuit-breaker estimate (structural {@link RamUsageEstimator} size plus
+ * {@link PointRangeQueryCostEstimator#executionBytesForLeaf} summed over the searched leaves, fed the
+ * real {@link ScorerSupplier#cost()} and leaf {@code maxDoc}) against the exact retained RAM of a real
  * {@link PointRangeQuery} run over a real index. The measured baseline is the query's structural size
- * ({@link RamUsageEstimator}) plus the actual per-segment {@link DocIdSet} it materialises (rebuilt
- * with the same {@link DocIdSetBuilder}/{@link PointValues.IntersectVisitor} Lucene uses, so it
- * reflects the real dense/sparse allocation). The estimator is fed {@code reader.maxDoc()} and
- * {@code reader.leaves().size()} since the execution term dominates and scales with them.
+ * plus the actual per-segment {@link DocIdSet} it materialises (rebuilt with the same
+ * {@link DocIdSetBuilder}/{@link PointValues.IntersectVisitor} Lucene uses, so it reflects the real
+ * dense/sparse allocation).
  * <p>
  * The estimate should over-estimate without much slack: ratio just above {@code 1.0} for dense
- * queries, looser for selective ones (the estimator always reserves the dense worst case).
+ * queries, and — unlike the previous worst-case-per-segment model — close to the measured value for
+ * selective ranges rather than orders of magnitude above it.
  * <p>
  * The {@link Metrics} aux counters are JMH {@code EVENTS}, scaled by the iteration count, so divide
  * each by {@code Cnt} to recover absolute bytes.
@@ -174,6 +180,7 @@ public class PointRangeQueryCostEstimatorBenchmark {
 
     private Directory directory;
     private DirectoryReader reader;
+    private IndexSearcher searcher;
     private PointRangeQuery query;
     private long precomputedEstimate;
     private long precomputedMeasured;
@@ -199,16 +206,12 @@ public class PointRangeQueryCostEstimatorBenchmark {
             writer.forceMerge(1);
         }
         reader = DirectoryReader.open(directory);
+        searcher = new IndexSearcher(reader);
 
         long upper = Math.max(0L, (long) (nDocs * matchFraction) - 1L);
         query = pointType.rangeQuery(upper);
 
-        precomputedEstimate = new PointRangeQueryCostEstimator(
-            query.getNumDims(),
-            query.getBytesPerDim(),
-            reader.maxDoc(),
-            reader.leaves().size()
-        ).estimate();
+        precomputedEstimate = estimateRetainedRam(searcher, reader, query);
         precomputedMeasured = measureRetainedRam(reader, query);
         precomputedRatio = precomputedMeasured == 0 ? 0.0 : (double) precomputedEstimate / (double) precomputedMeasured;
     }
@@ -224,10 +227,9 @@ public class PointRangeQueryCostEstimatorBenchmark {
     }
 
     @Benchmark
-    public long estimate(Metrics metrics) {
+    public long estimate(Metrics metrics) throws IOException {
         publish(metrics);
-        return new PointRangeQueryCostEstimator(query.getNumDims(), query.getBytesPerDim(), reader.maxDoc(), reader.leaves().size())
-            .estimate();
+        return estimateRetainedRam(searcher, reader, query);
     }
 
     @Benchmark
@@ -240,6 +242,56 @@ public class PointRangeQueryCostEstimatorBenchmark {
         metrics.estimatedBytes = precomputedEstimate;
         metrics.measuredBytes = precomputedMeasured;
         metrics.estimateOverMeasuredRatio = precomputedRatio;
+    }
+
+    /**
+     * The breaker estimate: the query's structural RAM plus the per-leaf execution ceiling from
+     * {@link PointRangeQueryCostEstimator#executionBytesForLeaf}, fed the real {@link ScorerSupplier#cost()}
+     * and leaf {@code maxDoc} — exactly what {@code ContextIndexSearcher} charges per leaf.
+     */
+    private static long estimateRetainedRam(IndexSearcher searcher, DirectoryReader reader, PointRangeQuery query) throws IOException {
+        long total = measureStructuralRam(query);
+        Weight weight = searcher.createWeight(searcher.rewrite(query), ScoreMode.COMPLETE_NO_SCORES, 1.0f);
+        for (LeafReaderContext leaf : reader.leaves()) {
+            PointValues values = leaf.reader().getPointValues(query.getField());
+            if (values == null) {
+                continue;
+            }
+            ScorerSupplier scorerSupplier = weight.scorerSupplier(leaf);
+            if (scorerSupplier == null) {
+                continue;
+            }
+            boolean singleValued = values.size() == values.getDocCount();
+            boolean matchAll = coversAllValues(values, query);
+            total += PointRangeQueryCostEstimator.executionBytesForLeaf(
+                scorerSupplier.cost(),
+                leaf.reader().maxDoc(),
+                singleValued,
+                matchAll,
+                query.getNumDims(),
+                query.getBytesPerDim()
+            );
+        }
+        return total;
+    }
+
+    /** Whether the query range covers the leaf's entire indexed value range (Lucene's match-all path). */
+    private static boolean coversAllValues(PointValues values, PointRangeQuery query) throws IOException {
+        byte[] minPackedValue = values.getMinPackedValue();
+        byte[] maxPackedValue = values.getMaxPackedValue();
+        byte[] lower = query.getLowerPoint();
+        byte[] upper = query.getUpperPoint();
+        int numDims = query.getNumDims();
+        int bytesPerDim = query.getBytesPerDim();
+        for (int dim = 0; dim < numDims; dim++) {
+            int offset = dim * bytesPerDim;
+            int to = offset + bytesPerDim;
+            if (Arrays.compareUnsigned(lower, offset, to, minPackedValue, offset, to) > 0
+                || Arrays.compareUnsigned(upper, offset, to, maxPackedValue, offset, to) < 0) {
+                return false;
+            }
+        }
+        return true;
     }
 
     /** Structural RAM of the query object plus the actual per-segment doc sets it materialises. */

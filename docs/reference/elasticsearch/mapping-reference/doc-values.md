@@ -76,6 +76,62 @@ PUT my-index-000001
 1. The `status_code` field has `doc_values` enabled by default.
 2. The `session_id` has `doc_values` disabled, but can still be queried.
 
+## Restricting fields to a single value [doc-values-multi-value]
+
+```{applies_to}
+stack: preview
+serverless: preview
+```
+
+By default, all fields allow multiple values per document. You can restrict a field to at most one value per document by setting `multi_value: false` in the `doc_values` object. If a document is indexed with more than one value for that field, the indexing request is rejected.
+
+```console
+PUT my-index-000001
+{
+  "mappings": {
+    "properties": {
+      "status_code": {
+        "type": "long",
+        "doc_values": {
+          "multi_value": false
+        }
+      }
+    }
+  }
+}
+```
+
+The index-level setting `index.mapping.doc_values.multi_value` controls the default for all fields in the index. It defaults to `true` (multiple values allowed).
+
+## Requiring a field to have a value [doc-values-nullability]
+
+```{applies_to}
+stack: preview
+serverless: preview
+```
+
+By default, all fields allow missing or null values. You can require a field to always carry a value by setting `nullability: false` in the `doc_values` object. If a document is indexed without a value for the field, or with an explicit `null`, the indexing request is rejected.
+
+```console
+PUT my-index-000001
+{
+  "mappings": {
+    "properties": {
+      "status_code": {
+        "type": "long",
+        "doc_values": {
+          "nullability": false
+        }
+      }
+    }
+  }
+}
+```
+
+If `null_value` is also defined on the field, it serves as a sentinel value for explicit `null` inputs. In that case, `nullability: false` only rejects documents where the field is entirely absent — an explicit `null` is substituted by the sentinel value and accepted.
+
+The index-level setting `index.mapping.doc_values.nullability` will control the default for all fields in the index. It will default to `true` (null values allowed).
+
 ## Multi-valued doc values note
 
 Elasticsearch supports storing multi-valued fields at index time. Multi-valued fields can be provided as a json array. However in the doc values format, the values aren't stored in the order as was provided at index time. Additionally, duplicates may be lost.

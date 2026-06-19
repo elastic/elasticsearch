@@ -77,6 +77,8 @@ $$$index-mode-setting$$$ `index.mode` {applies_to}`serverless: all`
        -  `lookup`: Index that can be used for [LOOKUP JOIN](/reference/query-languages/esql/esql-lookup-join.md) in ES|QL. Limited to 1 shard.
        - `time_series`:   *(data streams only)* Index mode optimized for storage of metrics. For more information, see [Time series index settings](time-series.md).
        - `logsdb`: Index mode optimized for [logs](docs-content://manage-data/data-store/data-streams/logs-data-stream.md).
+       - `columnar`: {applies_to}`stack: preview` Index mode that turns Elasticsearch into a full analytical and search columnar store. Fields are stored once as doc values with no inverted index or BKD tree by default. For more information, see [Columnar index mode](/reference/columnar/index.md).
+       - `logsdb_columnar`: {applies_to}`stack: preview` Columnar index mode with logging-oriented defaults, including a default `@timestamp` mapping and sort-field-based routing. For more information, see [Columnar index mode](/reference/columnar/index.md).
 
 $$$routing-partition-size$$$ `index.routing_partition_size`
 :   The number of shards a custom routing value can go to. Defaults to 1 and can only be set at index creation time. This value must be less than the `index.number_of_routing_shards` unless the `index.number_of_routing_shards` value is also 1. for more details about how this setting is used, refer to [](/reference/elasticsearch/mapping-reference/mapping-routing-field.md#routing-index-partition).

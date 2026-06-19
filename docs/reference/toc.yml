@@ -1,5 +1,6 @@
 toc:
   - file: index.md
+  - toc: columnar
   - toc: elasticsearch
   - toc: community-contributed
   - toc: enrich-processor

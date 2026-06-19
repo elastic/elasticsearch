@@ -60,7 +60,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
-public class BulkByScrollUsesAllScrollDocumentsAfterConflictsIntegTests extends ReindexTestCase {
+public class BulkByPaginatedSearchUsesAllDocumentsAfterConflictsIntegTests extends ReindexTestCase {
     private static final String SCRIPT_LANG = "fake_lang";
     private static final String NOOP_GENERATOR = "modificationScript";
     private static final String RETURN_NOOP_FIELD = "return_noop";
@@ -169,7 +169,7 @@ public class BulkByScrollUsesAllScrollDocumentsAfterConflictsIntegTests extends 
 
         final int numDocs = 100;
         final int maxDocs = 10;
-        final int scrollSize = randomIntBetween(maxDocs, numDocs);
+        final int batchSize = randomIntBetween(maxDocs, numDocs);
 
         List<IndexRequestBuilder> indexRequests = new ArrayList<>(numDocs);
         int noopDocs = 0;
@@ -247,7 +247,7 @@ public class BulkByScrollUsesAllScrollDocumentsAfterConflictsIntegTests extends 
             }
 
             final SearchRequestBuilder source = requestBuilder.source();
-            source.setSize(scrollSize);
+            source.setSize(batchSize);
             source.addSort(SORTING_FIELD, SortOrder.DESC);
             source.setQuery(QueryBuilders.matchAllQuery());
             final ActionFuture<BulkByPaginatedSearchResponse> updateByQueryResponse = requestBuilder.execute();

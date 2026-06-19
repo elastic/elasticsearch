@@ -23,8 +23,6 @@ public class BlobStoreCacheDirectoryMetrics implements DirectoryMetrics.Pluggabl
     public static final String NAME = "blob_store_cache";
 
     public static final String CACHE_MISS_WAIT_NANOS_HEADER = "cache_miss_wait_nanos";
-    public static final String CACHE_MISS_WAITS_HEADER = "cache_miss_waits";
-    public static final String CACHE_MISS_BYTES_HEADER = "cache_miss_bytes";
 
     private long waitTime;
     private long waits;
@@ -100,14 +98,7 @@ public class BlobStoreCacheDirectoryMetrics implements DirectoryMetrics.Pluggabl
         if (waits == 0) {
             return Map.of();
         }
-        return Map.of(
-            CACHE_MISS_WAIT_NANOS_HEADER,
-            Long.toString(waitTime),
-            CACHE_MISS_WAITS_HEADER,
-            Long.toString(waits),
-            CACHE_MISS_BYTES_HEADER,
-            Long.toString(waitBytes)
-        );
+        return Map.of(CACHE_MISS_WAIT_NANOS_HEADER, Long.toString(waitTime));
     }
 
     @Override

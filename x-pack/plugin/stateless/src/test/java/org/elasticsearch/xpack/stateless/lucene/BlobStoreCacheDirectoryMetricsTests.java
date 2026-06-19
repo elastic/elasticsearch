@@ -52,8 +52,6 @@ public class BlobStoreCacheDirectoryMetricsTests extends AbstractWireSerializing
 
         Map<String, String> entries = metrics.entries();
         assertThat(entries, hasEntry(BlobStoreCacheDirectoryMetrics.CACHE_MISS_WAIT_NANOS_HEADER, "150"));
-        assertThat(entries, hasEntry(BlobStoreCacheDirectoryMetrics.CACHE_MISS_WAITS_HEADER, "2"));
-        assertThat(entries, hasEntry(BlobStoreCacheDirectoryMetrics.CACHE_MISS_BYTES_HEADER, "500"));
     }
 
     public void testMerge() {
@@ -76,8 +74,6 @@ public class BlobStoreCacheDirectoryMetricsTests extends AbstractWireSerializing
 
         Map<String, String> entries = a.merge(b).entries();
         assertThat(entries, hasEntry(BlobStoreCacheDirectoryMetrics.CACHE_MISS_WAIT_NANOS_HEADER, "150"));
-        assertThat(entries, hasEntry(BlobStoreCacheDirectoryMetrics.CACHE_MISS_WAITS_HEADER, "2"));
-        assertThat(entries, hasEntry(BlobStoreCacheDirectoryMetrics.CACHE_MISS_BYTES_HEADER, "500"));
     }
 
     public void testCopy() {
@@ -97,6 +93,6 @@ public class BlobStoreCacheDirectoryMetricsTests extends AbstractWireSerializing
         assertEquals(50, result.getWaitTime());
         assertEquals(1, result.getWaits());
         assertEquals(100, result.getWaitBytes());
-        assertThat(result.entries(), hasEntry(BlobStoreCacheDirectoryMetrics.CACHE_MISS_WAITS_HEADER, "1"));
+        assertThat(result.entries(), hasEntry(BlobStoreCacheDirectoryMetrics.CACHE_MISS_WAIT_NANOS_HEADER, "50"));
     }
 }

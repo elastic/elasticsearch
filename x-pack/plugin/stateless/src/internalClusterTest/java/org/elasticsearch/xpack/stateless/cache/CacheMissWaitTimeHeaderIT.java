@@ -42,7 +42,6 @@ import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.xpack.stateless.cache.StatelessOnlinePrewarmingService.STATELESS_ONLINE_PREWARMING_ENABLED;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
@@ -99,17 +98,11 @@ public class CacheMissWaitTimeHeaderIT extends AbstractBlobCacheMetricsIntegTest
         clearShardCache(findSearchShard(indexName));
 
         Map<String, Long> coldCacheHeaders = searchAndParseMetricsHeaders(indexName);
-        assertThat(coldCacheHeaders, hasKey(BlobStoreCacheDirectoryMetrics.CACHE_MISS_WAITS_HEADER));
         assertThat(coldCacheHeaders, hasKey(BlobStoreCacheDirectoryMetrics.CACHE_MISS_WAIT_NANOS_HEADER));
-        assertThat(coldCacheHeaders, hasKey(BlobStoreCacheDirectoryMetrics.CACHE_MISS_BYTES_HEADER));
-        assertThat(coldCacheHeaders.get(BlobStoreCacheDirectoryMetrics.CACHE_MISS_WAITS_HEADER), greaterThanOrEqualTo(1L));
         assertThat(coldCacheHeaders.get(BlobStoreCacheDirectoryMetrics.CACHE_MISS_WAIT_NANOS_HEADER), greaterThan(0L));
-        assertThat(coldCacheHeaders.get(BlobStoreCacheDirectoryMetrics.CACHE_MISS_BYTES_HEADER), greaterThan(0L));
 
         Map<String, Long> warmCacheHeaders = searchAndParseMetricsHeaders(indexName);
-        assertThat(warmCacheHeaders, not(hasKey(BlobStoreCacheDirectoryMetrics.CACHE_MISS_WAITS_HEADER)));
         assertThat(warmCacheHeaders, not(hasKey(BlobStoreCacheDirectoryMetrics.CACHE_MISS_WAIT_NANOS_HEADER)));
-        assertThat(warmCacheHeaders, not(hasKey(BlobStoreCacheDirectoryMetrics.CACHE_MISS_BYTES_HEADER)));
     }
 
     private Map<String, Long> searchAndParseMetricsHeaders(String indexName) throws InterruptedException {

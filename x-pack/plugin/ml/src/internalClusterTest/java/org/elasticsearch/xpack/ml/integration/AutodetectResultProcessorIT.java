@@ -75,6 +75,7 @@ import org.elasticsearch.xpack.ml.job.persistence.RecordsQueryBuilder;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcess;
 import org.elasticsearch.xpack.ml.job.process.autodetect.output.AutodetectResultProcessor;
 import org.elasticsearch.xpack.ml.job.process.normalizer.Renormalizer;
+import org.elasticsearch.xpack.ml.job.results.AnomalyResultsTestUtils;
 import org.elasticsearch.xpack.ml.job.results.AutodetectResult;
 import org.elasticsearch.xpack.ml.job.results.BucketTests;
 import org.elasticsearch.xpack.ml.job.results.CategoryDefinitionTests;
@@ -262,20 +263,19 @@ public class AutodetectResultProcessorIT extends MlSingleNodeTestCase {
         // Records are not persisted to Elasticsearch as an array within the bucket
         // documents, so remove them from the expected bucket before comparing
         bucket.setRecords(Collections.emptyList());
-        normalizeBucketForEqualityComparison(bucket);
+        AnomalyResultsTestUtils.clearBucketEventIngested(bucket);
         Bucket persisted = persistedBucket.results().get(0);
-        assertPersistedBucketEventIngestedAndClear(persisted);
-        normalizeBucketForEqualityComparison(persisted);
+        AnomalyResultsTestUtils.assertBucketEventIngestedPresentThenClear(persisted);
         assertEquals(bucket, persisted);
 
         QueryPage<AnomalyRecord> persistedRecords = getRecords(new RecordsQueryBuilder());
-        assertPersistedRecordsEventIngestedAndClear(persistedRecords.results());
-        clearRecordsEventIngested(records);
+        AnomalyResultsTestUtils.assertRecordsEventIngestedPresentThenClear(persistedRecords.results());
+        AnomalyResultsTestUtils.clearRecordsEventIngested(records);
         assertResultsAreSame(records, persistedRecords);
 
         QueryPage<Influencer> persistedInfluencers = getInfluencers();
-        assertPersistedInfluencersEventIngestedAndClear(persistedInfluencers.results());
-        clearInfluencersEventIngested(influencers);
+        AnomalyResultsTestUtils.assertInfluencersEventIngestedPresentThenClear(persistedInfluencers.results());
+        AnomalyResultsTestUtils.clearInfluencersEventIngested(influencers);
         assertResultsAreSame(influencers, persistedInfluencers);
 
         QueryPage<CategoryDefinition> persistedDefinition = getCategoryDefinition(
@@ -336,9 +336,7 @@ public class AutodetectResultProcessorIT extends MlSingleNodeTestCase {
 
         List<BucketInfluencer> persistedBucketInfluencers = getBucketInfluencers();
         assertThat(persistedBucketInfluencers, is(not(empty())));
-        for (BucketInfluencer persisted : persistedBucketInfluencers) {
-            assertNotNull("event.ingested must be set on persisted bucket influencer", persisted.getEventIngested());
-        }
+        AnomalyResultsTestUtils.assertBucketInfluencersEventIngestedPresent(persistedBucketInfluencers);
     }
 
     public void testProcessResults_ModelSnapshot() throws Exception {
@@ -462,10 +460,9 @@ public class AutodetectResultProcessorIT extends MlSingleNodeTestCase {
         // Records are not persisted to Elasticsearch as an array within the bucket
         // documents, so remove them from the expected bucket before comparing
         nonInterimBucket.setRecords(Collections.emptyList());
-        normalizeBucketForEqualityComparison(nonInterimBucket);
+        AnomalyResultsTestUtils.clearBucketEventIngested(nonInterimBucket);
         Bucket persisted = persistedBucket.results().get(0);
-        assertPersistedBucketEventIngestedAndClear(persisted);
-        normalizeBucketForEqualityComparison(persisted);
+        AnomalyResultsTestUtils.assertBucketEventIngestedPresentThenClear(persisted);
         assertEquals(nonInterimBucket, persisted);
 
         QueryPage<Influencer> persistedInfluencers = getInfluencers();
@@ -498,15 +495,14 @@ public class AutodetectResultProcessorIT extends MlSingleNodeTestCase {
         // Records are not persisted to Elasticsearch as an array within the bucket
         // documents, so remove them from the expected bucket before comparing
         finalBucket.setRecords(Collections.emptyList());
-        normalizeBucketForEqualityComparison(finalBucket);
+        AnomalyResultsTestUtils.clearBucketEventIngested(finalBucket);
         Bucket persisted = persistedBucket.results().get(0);
-        assertPersistedBucketEventIngestedAndClear(persisted);
-        normalizeBucketForEqualityComparison(persisted);
+        AnomalyResultsTestUtils.assertBucketEventIngestedPresentThenClear(persisted);
         assertEquals(finalBucket, persisted);
 
         QueryPage<AnomalyRecord> persistedRecords = getRecords(new RecordsQueryBuilder().includeInterim(true));
-        assertPersistedRecordsEventIngestedAndClear(persistedRecords.results());
-        clearRecordsEventIngested(finalAnomalyRecords);
+        AnomalyResultsTestUtils.assertRecordsEventIngestedPresentThenClear(persistedRecords.results());
+        AnomalyResultsTestUtils.clearRecordsEventIngested(finalAnomalyRecords);
         assertResultsAreSame(finalAnomalyRecords, persistedRecords);
     }
 
@@ -529,8 +525,8 @@ public class AutodetectResultProcessorIT extends MlSingleNodeTestCase {
         QueryPage<AnomalyRecord> persistedRecords = getRecords(new RecordsQueryBuilder().size(200).includeInterim(true));
         List<AnomalyRecord> allRecords = new ArrayList<>(firstSetOfRecords);
         allRecords.addAll(secondSetOfRecords);
-        assertPersistedRecordsEventIngestedAndClear(persistedRecords.results());
-        clearRecordsEventIngested(allRecords);
+        AnomalyResultsTestUtils.assertRecordsEventIngestedPresentThenClear(persistedRecords.results());
+        AnomalyResultsTestUtils.clearRecordsEventIngested(allRecords);
         assertResultsAreSame(allRecords, persistedRecords);
     }
 
@@ -708,38 +704,6 @@ public class AutodetectResultProcessorIT extends MlSingleNodeTestCase {
         Set<T> expectedSet = new HashSet<>(expected);
         expectedSet.removeAll(actual.results());
         assertEquals(0, expectedSet.size());
-    }
-
-    private static void normalizeBucketForEqualityComparison(Bucket bucket) {
-        bucket.setEventIngested(null);
-        bucket.getBucketInfluencers().forEach(bi -> bi.setEventIngested(null));
-    }
-
-    private static void clearRecordsEventIngested(List<AnomalyRecord> records) {
-        records.forEach(r -> r.setEventIngested(null));
-    }
-
-    private static void clearInfluencersEventIngested(List<Influencer> influencers) {
-        influencers.forEach(i -> i.setEventIngested(null));
-    }
-
-    private void assertPersistedBucketEventIngestedAndClear(Bucket persisted) {
-        assertNotNull("event.ingested must be set on persisted bucket", persisted.getEventIngested());
-        persisted.setEventIngested(null);
-    }
-
-    private void assertPersistedRecordsEventIngestedAndClear(List<AnomalyRecord> persisted) {
-        for (AnomalyRecord record : persisted) {
-            assertNotNull("event.ingested must be set on persisted record", record.getEventIngested());
-            record.setEventIngested(null);
-        }
-    }
-
-    private void assertPersistedInfluencersEventIngestedAndClear(List<Influencer> persisted) {
-        for (Influencer influencer : persisted) {
-            assertNotNull("event.ingested must be set on persisted influencer", influencer.getEventIngested());
-            influencer.setEventIngested(null);
-        }
     }
 
     private QueryPage<Bucket> getBucketQueryPage(BucketsQueryBuilder bucketsQuery) throws Exception {

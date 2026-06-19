@@ -645,10 +645,14 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
         }
     }
 
-    private void ensureRunning() {
+    private boolean isRunning() {
         final Lifecycle.State state = lifecycleState();
-        if (state == Lifecycle.State.INITIALIZED || state == Lifecycle.State.CLOSED) {
-            throw new IllegalStateException("Object store service is not running [" + state + ']');
+        return state != Lifecycle.State.INITIALIZED && state != Lifecycle.State.CLOSED;
+    }
+
+    private void ensureRunning() {
+        if (isRunning() == false) {
+            throw new IllegalStateException("Object store service is not running [" + lifecycleState() + ']');
         }
     }
 
@@ -741,7 +745,9 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
                 }
             }
         } catch (Exception e) {
-            assert false : "enqueue task failed: " + e;
+            // Enqueueing can fail once the service is shutting down while uploads are still in flight: notify the listener so callers
+            // release the references they hold (e.g. commit refs) rather than leaking them.
+            assert isRunning() == false : "enqueue task failed while object store service is running: " + e;
             listener.onFailure(e);
         }
     }

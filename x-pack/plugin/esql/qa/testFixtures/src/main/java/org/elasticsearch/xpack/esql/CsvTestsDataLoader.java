@@ -201,8 +201,8 @@ public class CsvTestsDataLoader {
         new TestDataset("k8s_unmapped", "k8s-mappings.json", "k8s.csv").withSetting("k8s-settings.json")
             .withTypeMapping(removeFields("region", "event", "network.bytes_in", "network.cost", "network.eth0.tx"))
             .withDynamic("false"),
-        new TestDataset("k8s_double_bytes_in", "k8s-mappings.json", "k8s.csv").withSetting("k8s-settings.json")
-            .withTypeMapping(Map.of("network.bytes_in", "double")),
+        new TestDataset("k8s_retyped", "k8s-mappings.json", "k8s.csv").withSetting("k8s-settings.json")
+            .withTypeMapping(Map.of("network.bytes_in", "double", "network.cost", "long")),
         new TestDataset("datenanos-k8s", "k8s-mappings-date_nanos.json", "k8s.csv", "k8s-settings.json"),
         new TestDataset("k8s-downsampled", "k8s-downsampled-mappings.json", "k8s-downsampled.csv", "k8s-downsampled-settings.json"),
         new TestDataset("k8s_stored_source", "k8s-mappings.json", "k8s.csv").withSetting("k8s-stored-source-settings.json"),
@@ -824,34 +824,40 @@ public class CsvTestsDataLoader {
     }
 
     private static boolean clusterHasViewSupport(RestClient client) throws IOException {
-        // Use the _capabilities endpoint so we check ALL nodes, not just the coordinator.
-        // Views CRUD operations are master-node transport actions; if any node (e.g. an older data
-        // node acting as master) doesn't know the action, it will crash with an AssertionError.
-        Request capRequest = new Request("GET", "_capabilities");
+        // Step 1: check whether ALL nodes understand views via /_capabilities (allMatch semantics).
+        Request capRequest = new Request("GET", "/_capabilities");
         capRequest.addParameter("method", "POST");
         capRequest.addParameter("path", "/_query");
         capRequest.addParameter("capabilities", "views_crud_as_index_actions");
         try {
-            Response response = client.performRequest(capRequest);
-            try (var content = response.getEntity().getContent()) {
-                Map<String, Object> map = XContentHelper.convertToMap(XContentType.JSON.xContent(), content, false);
-                if (!Boolean.TRUE.equals(map.get("supported"))) {
-                    return false;
-                }
+            Response capResponse = client.performRequest(capRequest);
+            ObjectMapper mapper = new ObjectMapper();
+            JsonNode json = mapper.readTree(capResponse.getEntity().getContent());
+            JsonNode supported = json.get("supported");
+            if (supported == null || supported.asBoolean() == false) {
+                return false;
             }
         } catch (ResponseException e) {
             return false;
         }
-        // The _capabilities check above confirms all nodes know the view transport actions (safe for
-        // BWC mixed-cluster tests). Now verify the view CRUD REST endpoints are actually reachable:
-        // in serverless mode, RestPutViewAction has no @ServerlessScope annotation, so those routes
-        // return 410 Gone — but _capabilities does not check the serverless scope and would still
-        // report "supported: true". A direct GET confirms real accessibility.
+
+        // Step 2: probe the REST endpoint directly. In non-serverless mode all nodes (old or new)
+        // return 200 because @ServerlessScope is not enforced. In serverless mode an old node
+        // without @ServerlessScope(Scope.PUBLIC) on RestPutViewAction returns 410. A single probe
+        // cannot cover every node in a mixed-serverless cluster, but any 410 is a definitive signal
+        // that view loading will fail on at least some nodes.
         try {
             client.performRequest(new Request("GET", "/_query/view"));
             return true;
         } catch (ResponseException e) {
-            return false;
+            int code = e.getResponse().getStatusLine().getStatusCode();
+            if (code == 410) {
+                return false; // serverless restriction — old node lacks @ServerlessScope
+            }
+            if (code == 400 || code == 500 || code == 405) {
+                return false; // older server that doesn't support the view API at all
+            }
+            throw e;
         }
     }
 

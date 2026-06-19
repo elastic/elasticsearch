@@ -162,8 +162,8 @@ public class TSDBSyntheticIdPostingsFormatTests extends ESTestCase {
                     var termsEnum = randomFrom(lazyTermsEnum, unwrappedTermsEnum);
 
                     assertThat(termsEnum.impacts(0), nullValue());
-                    assertThat(termsEnum.docFreq(), equalTo(0));
-                    assertThat(termsEnum.totalTermFreq(), equalTo(0L));
+                    assertThat(termsEnum.docFreq(), equalTo(1));
+                    assertThat(termsEnum.totalTermFreq(), equalTo(1L));
 
                     expectThrows(UnsupportedOperationException.class, termsEnum::ord);
                     expectThrows(UnsupportedOperationException.class, () -> termsEnum.seekExact(0L));

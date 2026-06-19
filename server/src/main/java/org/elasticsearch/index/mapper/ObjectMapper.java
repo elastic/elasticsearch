@@ -137,6 +137,13 @@ public class ObjectMapper extends Mapper {
          * Read by {@link RootObjectMapper.Builder#build} to persist the entries so they survive round-trips.
          */
         protected final Map<String, Dynamic> dynamicByPrefix = new HashMap<>();
+        /**
+         * Accumulates per-prefix passthrough priorities captured during auto-flattening in strict columnar mode.
+         * Populated by {@link #asFlattenedFieldBuilders} when the flattened child is a {@link PassThroughObjectMapper.Builder}.
+         * Read by {@link RootObjectMapper.Builder#build} and persisted under {@code prefix_properties.passthrough} so that
+         * root-level field aliases can be reconstructed by {@link FieldTypeLookup} after a mapping round-trip.
+         */
+        protected final Map<String, Integer> passThroughByPrefix = new HashMap<>();
 
         public Builder(String name) {
             this(name, Defaults.SUBOBJECTS);
@@ -357,7 +364,13 @@ public class ObjectMapper extends Mapper {
             Map<String, Mapper.Builder> map = new HashMap<>();
             for (Mapper.Builder builder : builders) {
                 if (subobjects.value() == Subobjects.DISABLED && builder instanceof ObjectMapper.Builder objectMapperBuilder) {
-                    objectMapperBuilder.asFlattenedFieldBuilders(builderContext, map, new ContentPath(), this.dynamicByPrefix);
+                    objectMapperBuilder.asFlattenedFieldBuilders(
+                        builderContext,
+                        map,
+                        new ContentPath(),
+                        this.dynamicByPrefix,
+                        this.passThroughByPrefix
+                    );
                 } else {
                     Mapper.Builder existing = map.get(builder.leafName());
                     if (existing != null) {
@@ -377,25 +390,31 @@ public class ObjectMapper extends Mapper {
          * @param parentContext    the builder context of the parent object (used for full-path error messages)
          * @param result           the map to collect flattened field builders into
          * @param path             tracks the relative path for field renaming
-         * @param dynamicCollector accumulates per-prefix {@code dynamic} values in strict columnar mode;
-         *                         must be the root builder's {@code dynamicByPrefix} map so all entries
-         *                         from the full nested hierarchy land in one place
+         * @param dynamicCollector      accumulates per-prefix {@code dynamic} values in strict columnar mode;
+         *                              must be the root builder's {@code dynamicByPrefix} map so all entries
+         *                              from the full nested hierarchy land in one place
+         * @param passThroughCollector  accumulates per-prefix passthrough priorities in strict columnar mode;
+         *                              must be the root builder's {@code passThroughByPrefix} map
          */
         private void asFlattenedFieldBuilders(
             MapperBuilderContext parentContext,
             Map<String, Mapper.Builder> result,
             ContentPath path,
-            Map<String, Dynamic> dynamicCollector
+            Map<String, Dynamic> dynamicCollector,
+            Map<String, Integer> passThroughCollector
         ) {
             String fullName = parentContext.buildFullName(path.pathAsText(leafName()));
             ensureBuilderFlattenable(parentContext, fullName);
             if (parentContext.isStrictColumnar() && dynamic != null) {
                 dynamicCollector.put(fullName, dynamic);
             }
+            if (parentContext.isStrictColumnar() && this instanceof PassThroughObjectMapper.Builder ptBuilder) {
+                passThroughCollector.put(fullName, ptBuilder.priority);
+            }
             path.add(leafName());
             for (Mapper.Builder childBuilder : mappersBuilders) {
                 if (childBuilder instanceof ObjectMapper.Builder objectMapperBuilder) {
-                    objectMapperBuilder.asFlattenedFieldBuilders(parentContext, result, path, dynamicCollector);
+                    objectMapperBuilder.asFlattenedFieldBuilders(parentContext, result, path, dynamicCollector, passThroughCollector);
                 } else if (childBuilder instanceof FieldMapper.Builder fieldMapperBuilder) {
                     fieldMapperBuilder.setLeafName(path.pathAsText(fieldMapperBuilder.leafName()));
                     result.put(fieldMapperBuilder.leafName(), fieldMapperBuilder);

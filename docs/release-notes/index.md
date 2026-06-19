@@ -122,6 +122,9 @@ Machine Learning:
 * Restrict file system access for pytorch models [#2851](https://github.com/elastic/ml-cpp/pull/2851)
 * Update the PyTorch library to version 2.7.1 [#2863](https://github.com/elastic/ml-cpp/pull/2863)
 
+Packaging:
+* Bump bundled JDK to Java 26.0.1 [#147424](https://github.com/elastic/elasticsearch/pull/147424)
+
 Search:
 * Add logging tracking to _xpack/usage [#148087](https://github.com/elastic/elasticsearch/pull/148087)
 
@@ -220,6 +223,10 @@ Machine Learning:
 * Report the actual memory usage of the autodetect process [#2846](https://github.com/elastic/ml-cpp/pull/2846)
 * Restrict file system access for pytorch models [#2851](https://github.com/elastic/ml-cpp/pull/2851)
 * Update the PyTorch library to version 2.7.1 [#2863](https://github.com/elastic/ml-cpp/pull/2863)
+
+Packaging:
+* Bump bundled JDK to Java 26.0.1 [#147424](https://github.com/elastic/elasticsearch/pull/147424)
+* Update bundled JDK to Java 26 [#146167](https://github.com/elastic/elasticsearch/pull/146167)
 
 Security:
 * Update elastic-apm-agent-java8 to 1.55.6 [#148271](https://github.com/elastic/elasticsearch/pull/148271)
@@ -1085,6 +1092,9 @@ Aggregations:
 
 ES|QL:
 * Skip time series field type merge for non-TS agg queries [#143262](https://github.com/elastic/elasticsearch/pull/143262)
+
+Packaging:
+* Update bundled JDK to Java 26 [#146167](https://github.com/elastic/elasticsearch/pull/146167)
 
 
 ### Fixes [elasticsearch-9.3.4-fixes]

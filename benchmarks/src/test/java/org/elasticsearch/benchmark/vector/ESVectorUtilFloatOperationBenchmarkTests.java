@@ -11,67 +11,56 @@ package org.elasticsearch.benchmark.vector;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
-import org.elasticsearch.benchmark.vector.ESVectorUtilFloatOperationBenchmark.Operation;
-import org.elasticsearch.simdvec.ESVectorUtil;
+import org.elasticsearch.benchmark.vector.scorer.BenchmarkTest;
 import org.elasticsearch.test.ESTestCase;
+
+import java.util.Random;
 
 public class ESVectorUtilFloatOperationBenchmarkTests extends ESTestCase {
 
-    private final Operation operation;
     private final int size;
 
-    public ESVectorUtilFloatOperationBenchmarkTests(Operation operation, int size) {
-        this.operation = operation;
+    public ESVectorUtilFloatOperationBenchmarkTests(int size) {
         this.size = size;
     }
 
-    public void testBenchmarkRuns() {
+    public void testDotProduct() {
+        long seed = randomLong();
         var bench = new ESVectorUtilFloatOperationBenchmark();
-        bench.operation = operation;
         bench.size = size;
-        bench.setup();
-        assertFalse(Float.isNaN(bench.scalar()));
-        assertFalse(Float.isNaN(bench.panamaSimd()));
+        bench.implementation = VectorImplementation.SCALAR;
+        bench.setup(new Random(seed));
+        float expected = bench.dotProduct();
+
+        bench = new ESVectorUtilFloatOperationBenchmark();
+        bench.size = size;
+        bench.implementation = VectorImplementation.PANAMA;
+        bench.setup(new Random(seed));
+        float panama = bench.dotProduct();
+
+        assertEquals(expected, panama, 1e-3f * size);
     }
 
-    public void testPanamaMatchesScalar() {
-        assumeTrue("jdk.incubator.vector module required", Runtime.version().feature() >= 21);
-        assumeTrue("jdk.incubator.vector module required", ModuleLayer.boot().findModule("jdk.incubator.vector").isPresent());
+    public void testL2Normalize() {
+        long seed = randomLong();
 
         var bench = new ESVectorUtilFloatOperationBenchmark();
-        bench.operation = operation;
         bench.size = size;
-        bench.setup();
+        bench.implementation = VectorImplementation.SCALAR;
+        bench.setup(new Random(seed));
+        float expected = bench.l2Normalize();
 
-        switch (operation) {
-            case DOT_PRODUCT -> assertEquals(
-                ESVectorUtilFloatOperationBenchmark.scalarDotProduct(bench.a, bench.b, 0, size),
-                ESVectorUtil.dotProduct(bench.a, bench.b, size),
-                1e-3f * size
-            );
-            case L2_NORMALIZE -> {
-                float[] expected = bench.normalizeSource.clone();
-                float[] actual = bench.normalizeSource.clone();
-                ESVectorUtilFloatOperationBenchmark.scalarL2Normalize(expected, 0, size);
-                ESVectorUtil.l2Normalize(actual, size);
-                assertArrayEquals(expected, actual, 1e-5f);
-            }
-        }
+        bench = new ESVectorUtilFloatOperationBenchmark();
+        bench.size = size;
+        bench.implementation = VectorImplementation.PANAMA;
+        bench.setup(new Random(seed));
+        float panama = bench.l2Normalize();
+
+        assertEquals(expected, panama, 1e-5f);
     }
 
     @ParametersFactory
     public static Iterable<Object[]> parametersFactory() throws NoSuchFieldException {
-        var operationField = ESVectorUtilFloatOperationBenchmark.class.getField("operation");
-        var sizeField = ESVectorUtilFloatOperationBenchmark.class.getField("size");
-        Operation[] operations = (Operation[]) operationField.getType().getEnumConstants();
-        String[] sizes = sizeField.getAnnotation(org.openjdk.jmh.annotations.Param.class).value();
-        Object[][] params = new Object[operations.length * sizes.length][];
-        int i = 0;
-        for (Operation operation : operations) {
-            for (String size : sizes) {
-                params[i++] = new Object[] { operation, Integer.parseInt(size) };
-            }
-        }
-        return java.util.Arrays.asList(params);
+        return BenchmarkTest.generateParameters(ESVectorUtilFloatOperationBenchmark.class.getField("size"));
     }
 }

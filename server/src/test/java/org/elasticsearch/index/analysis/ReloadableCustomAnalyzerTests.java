@@ -566,12 +566,14 @@ public class ReloadableCustomAnalyzerTests extends ESTestCase {
                     }
                 });
             }
-            for (Thread t : threads)
+            for (Thread t : threads) {
                 t.start();
+            }
             assertTrue(ready.await(10, TimeUnit.SECONDS));
             go.countDown();
-            for (Thread t : threads)
+            for (Thread t : threads) {
                 t.join(30_000);
+            }
 
             assertNull("concurrent reload threw: " + failure.get(), failure.get());
 
@@ -662,12 +664,14 @@ public class ReloadableCustomAnalyzerTests extends ESTestCase {
                         }
                     });
                 }
-                for (Thread t : threads)
+                for (Thread t : threads) {
                     t.start();
+                }
                 assertTrue(ready.await(10, TimeUnit.SECONDS));
                 go.countDown();
-                for (Thread t : threads)
+                for (Thread t : threads) {
                     t.join(30_000);
+                }
 
                 assertNull("concurrent reload threw: " + failure.get(), failure.get());
                 assertEquals("round " + round + ": one shared request token must rebuild exactly once", buildsBefore + 1, builds.get());

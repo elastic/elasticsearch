@@ -647,6 +647,9 @@ tests:
 - class: org.elasticsearch.simdvec.internal.vectorization.ES93BinaryQuantizedVectorScorerTests
   method: testBulkScore {p0=MMAP p1=COSINE}
   issue: https://github.com/elastic/elasticsearch/issues/151738
+- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
+  method: test {csv-spec:in_subquery.inSubqueryWithEvalInsideInSubquery}
+  issue: https://github.com/elastic/elasticsearch/issues/151761
 - class: org.elasticsearch.xpack.stateless.cluster.coordination.BlobStoreSyncDirectoryTests
   method: testCloseCancelsOnGoingUploads
   issue: https://github.com/elastic/elasticsearch/issues/151622

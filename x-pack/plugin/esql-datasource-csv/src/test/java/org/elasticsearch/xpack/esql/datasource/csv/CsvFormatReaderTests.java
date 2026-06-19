@@ -6437,6 +6437,52 @@ public class CsvFormatReaderTests extends ESTestCase {
     }
 
     /**
+     * Inferred-schema read (un-typed header forces {@code inferSchemaFromBatchReader}) must still
+     * emit exact file-global {@code _rowPosition} offsets across the schema-sample boundary. The
+     * sample rows are read via the recordReader-backed iterator and replayed with captured offsets;
+     * post-sample rows flow through a freshly re-created recordReader iterator. A tiny
+     * {@code schema_sample_size} makes both sides of the boundary non-empty. Pre-fix the post-sample
+     * rows ran on the Jackson bulk path and collapsed to the last-sampled record's offset.
+     */
+    public void testRowPositionExactAcrossInferredSchemaSampleBoundary() throws IOException {
+        String csv = "id,name\n1,Alice\n2,Bob\n3,Carol\n4,Dave\n5,Eve\n";
+        long[] expectedOffsets = computeRecordStartOffsets(csv, /* skipHeader= */ true);
+        assertEquals("fixture sanity: 5 data records", 5, expectedOffsets.length);
+
+        StorageObject object = createStorageObject(csv);
+        // schema_sample_size = 2: rows 1-2 sampled+replayed, rows 3-5 read post-sample. Un-typed
+        // header (id,name — no :type) routes through type inference, exercising the sample boundary.
+        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("schema_sample_size", 2));
+        FormatReadContext context = FormatReadContext.builder()
+            .batchSize(64)
+            .errorPolicy(ErrorPolicy.STRICT)
+            .projectedColumns(List.of("_rowPosition"))
+            .firstSplit(true)
+            .lastSplit(true)
+            .build();
+
+        List<Long> offsets = new ArrayList<>();
+        try (CloseableIterator<Page> iterator = reader.read(object, context)) {
+            while (iterator.hasNext()) {
+                Page page = iterator.next();
+                LongBlock rowPos = (LongBlock) page.getBlock(0);
+                for (int i = 0; i < page.getPositionCount(); i++) {
+                    offsets.add(rowPos.getLong(i));
+                }
+                page.releaseBlocks();
+            }
+        }
+        assertEquals("inferred-schema read must emit one offset per data row", 5, offsets.size());
+        for (int i = 0; i < expectedOffsets.length; i++) {
+            assertEquals(
+                "row " + i + " offset must equal its physical byte position across the sample boundary",
+                expectedOffsets[i],
+                (long) offsets.get(i)
+            );
+        }
+    }
+
+    /**
      * Reads {@code _rowPosition} only — projects exactly the synthetic column to exercise the
      * convert path where every column slot is the {@code _rowPosition} emit.
      */

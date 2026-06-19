@@ -303,6 +303,9 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
      * (each new response is checked against the running total before being added to the
      * {@link AtomicArray}), but it cannot prevent a single large response from consuming
      * significant heap before the check fires.
+     * <p>
+     * Cost scales with hit count; highlight and explanation serialisation dominate for rich responses.
+     * This method runs on the response-handling thread.
      */
     public static long estimateActualBytes(SearchResponse response) {
         long bytes = BASE_RESPONSE_OVERHEAD;

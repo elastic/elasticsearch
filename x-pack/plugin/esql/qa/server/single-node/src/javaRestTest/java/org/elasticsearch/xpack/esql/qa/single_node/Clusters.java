@@ -56,7 +56,7 @@ public class Clusters {
             .shared(true)
             .configFile("user-agent/custom-regexes.yml", Resource.fromClasspath("custom-regexes.yml"))
             .apply(() -> configProvider)
-            .feature(FeatureFlag.EXTENDED_DOC_VALUES_PARAMS);
+            .feature(FeatureFlag.COLUMNAR_INDEX_MODE_FEATURE_FLAG);
         if (securityEnabled) {
             builder.user(ADMIN_USER, ADMIN_PASSWORD, "superuser", true);
         }

@@ -32,7 +32,7 @@ abstract class AbstractEsqlClientYamlIT extends ESClientYamlSuiteTestCase {
         .distribution(DistributionType.DEFAULT)
         .setting("xpack.security.enabled", "false")
         .setting("xpack.license.self_generated.type", "trial")
-        .feature(FeatureFlag.EXTENDED_DOC_VALUES_PARAMS)
+        .feature(FeatureFlag.COLUMNAR_INDEX_MODE_FEATURE_FLAG)
         .build();
 
     @Override

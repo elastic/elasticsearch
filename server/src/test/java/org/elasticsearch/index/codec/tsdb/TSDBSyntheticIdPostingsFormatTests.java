@@ -77,9 +77,9 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -403,7 +403,7 @@ public class TSDBSyntheticIdPostingsFormatTests extends ESTestCase {
         });
     }
 
-    public void testSeekCeilWithShortOrEmptyTerms() throws IOException {
+    public void testSeekCeilWithInvalidEscapedTerms() throws IOException {
         runTestWithRandomDocs((writer, finalDocs) -> {
             try (var reader = DirectoryReader.open(writer)) {
                 assertThat(reader.leaves().size(), equalTo(1));
@@ -414,76 +414,89 @@ public class TSDBSyntheticIdPostingsFormatTests extends ESTestCase {
 
                 final TermsEnum syntheticIdTermsEnum = LazyFilterTermsEnum.unwrap(terms.iterator());
                 assertThat(syntheticIdTermsEnum, instanceOf(SyntheticIdTermsEnum.class));
-
-                final BytesRef firstTerm = finalDocs.firstKey();
-
-                // Test seekCeil with empty BytesRef - should position on first term
+                // terms start with 0xFD is valid if the next byte is >= 0xFD, but either case, the seekCeil should position correctly
                 {
-                    var emptyTerm = new BytesRef();
-                    assertThat(emptyTerm.compareTo(firstTerm), lessThan(0));
-                    assertThat(syntheticIdTermsEnum.seekCeil(emptyTerm), equalTo(TermsEnum.SeekStatus.NOT_FOUND));
-                    assertThat(syntheticIdTermsEnum.term(), equalTo(firstTerm));
-                }
-
-                // Test seekCeil with BytesRef shorter than minimum synthetic ID length
-                // A valid synthetic ID is at least Long.BYTES + Integer.BYTES + 1 bytes
-                {
-                    var shortTerm = new BytesRef(new byte[] { 0x00 });
-                    assertThat(shortTerm.compareTo(firstTerm), lessThan(0));
-                    assertThat(syntheticIdTermsEnum.seekCeil(shortTerm), equalTo(TermsEnum.SeekStatus.NOT_FOUND));
-                    assertThat(syntheticIdTermsEnum.term(), equalTo(firstTerm));
-                }
-
-                {
-                    // Term with exactly Long.BYTES + Integer.BYTES (12 bytes) - still too short
-                    var borderlineTerm = new BytesRef(new byte[Long.BYTES + Integer.BYTES]);
-                    assertThat(syntheticIdTermsEnum.seekCeil(borderlineTerm), equalTo(TermsEnum.SeekStatus.NOT_FOUND));
-                    assertThat(syntheticIdTermsEnum.term(), equalTo(firstTerm));
-                }
-
-                // Test seekExact with short terms - should return false
-                {
-                    assertThat(syntheticIdTermsEnum.seekExact(new BytesRef()), equalTo(false));
-                    assertThat(syntheticIdTermsEnum.seekExact(new BytesRef(new byte[] { 0x01, 0x02 })), equalTo(false));
-                }
-
-                // Test seekCeil with truncated versions of existing terms
-                {
-                    var randomDocsIds = randomNonEmptySubsetOf(finalDocs.keySet());
-                    for (var existingTerm : randomDocsIds) {
-                        // Truncate to various lengths shorter than minimum synthetic ID length
-                        var truncatedTerm = new BytesRef(
-                            existingTerm.bytes,
-                            existingTerm.offset,
-                            randomIntBetween(1, Long.BYTES + Integer.BYTES)
-                        );
-
-                        var status = syntheticIdTermsEnum.seekCeil(truncatedTerm);
-                        assertThat(status, equalTo(TermsEnum.SeekStatus.NOT_FOUND));
-
-                        // The positioned term should be >= truncated term
-                        var positionedTerm = syntheticIdTermsEnum.term();
-                        assertThat(positionedTerm.compareTo(truncatedTerm), greaterThanOrEqualTo(0));
+                    byte firstByte = (byte) 0xFD;
+                    var lookupTerm = new BytesRef(new byte[] { firstByte });
+                    var status = syntheticIdTermsEnum.seekCeil(lookupTerm);
+                    if (status == TermsEnum.SeekStatus.END) {
+                        assertNull(finalDocs.ceilingKey(lookupTerm));
+                    } else {
+                        assertThat(status, is(TermsEnum.SeekStatus.NOT_FOUND));
+                        assertThat(syntheticIdTermsEnum.term(), equalTo(finalDocs.ceilingKey(lookupTerm)));
+                        assertThat(syntheticIdTermsEnum.term(), greaterThan(lookupTerm));
                     }
-                }
-
-                // After seekCeil on a short term, verify we can iterate through all terms
-                {
-                    var emptyTerm = new BytesRef();
-                    assertThat(syntheticIdTermsEnum.seekCeil(emptyTerm), equalTo(TermsEnum.SeekStatus.NOT_FOUND));
-
-                    // Count unique terms by iterating - finalDocs.size() is the number of unique synthetic IDs
-                    int uniqueTermCount = 1; // already positioned on first
-                    BytesRef previousTerm = BytesRef.deepCopyOf(syntheticIdTermsEnum.term());
-                    BytesRef currentTerm;
-                    while ((currentTerm = syntheticIdTermsEnum.next()) != null) {
-                        // Only count when the term changes (skip duplicate docs with same synthetic ID)
-                        if (currentTerm.equals(previousTerm) == false) {
-                            uniqueTermCount++;
-                            previousTerm = BytesRef.deepCopyOf(currentTerm);
+                    for (int secondByte = 0x00; secondByte <= 0xFF; secondByte++) {
+                        lookupTerm = new BytesRef(new byte[] { firstByte, (byte) secondByte });
+                        status = syntheticIdTermsEnum.seekCeil(lookupTerm);
+                        if (status == TermsEnum.SeekStatus.END) {
+                            assertNull(finalDocs.ceilingKey(lookupTerm));
+                        } else {
+                            assertThat(status, is(TermsEnum.SeekStatus.NOT_FOUND));
+                            assertThat(syntheticIdTermsEnum.term(), equalTo(finalDocs.ceilingKey(lookupTerm)));
+                            assertThat(syntheticIdTermsEnum.term(), greaterThan(lookupTerm));
                         }
                     }
-                    assertThat(uniqueTermCount, equalTo(finalDocs.size()));
+                }
+                // all terms start with 0xFE or 0xFF are not found
+                for (int firstByte : List.of(0xFE, 0xFF)) {
+                    assertThat(syntheticIdTermsEnum.seekCeil(new BytesRef(new byte[] { (byte) firstByte })), is(TermsEnum.SeekStatus.END));
+                    for (int secondByte = 0x00; secondByte <= 0xFF; secondByte++) {
+                        assertThat(
+                            syntheticIdTermsEnum.seekCeil(new BytesRef(new byte[] { (byte) firstByte, (byte) secondByte })),
+                            is(TermsEnum.SeekStatus.END)
+                        );
+                        byte thirdByte = randomByte();
+                        assertThat(
+                            syntheticIdTermsEnum.seekCeil(new BytesRef(new byte[] { (byte) firstByte, (byte) secondByte, thirdByte })),
+                            is(TermsEnum.SeekStatus.END)
+                        );
+                    }
+                }
+                // terms start with 0x00..0xFC — these are shorter than any valid synthetic id, seekCeil should position correctly
+                for (int firstByte = 0x00; firstByte < 0xFD; firstByte++) {
+                    var lookupTerm = new BytesRef(new byte[] { (byte) firstByte });
+                    var status = syntheticIdTermsEnum.seekCeil(lookupTerm);
+                    if (status == TermsEnum.SeekStatus.END) {
+                        assertNull(finalDocs.ceilingKey(lookupTerm));
+                    } else {
+                        assertThat(status, is(TermsEnum.SeekStatus.NOT_FOUND));
+                        assertThat(syntheticIdTermsEnum.term(), equalTo(finalDocs.ceilingKey(lookupTerm)));
+                        assertThat(syntheticIdTermsEnum.term(), greaterThan(lookupTerm));
+                    }
+                    for (int secondByte = 0x00; secondByte <= 0xFF; secondByte++) {
+                        lookupTerm = new BytesRef(new byte[] { (byte) firstByte, (byte) secondByte });
+                        status = syntheticIdTermsEnum.seekCeil(lookupTerm);
+                        if (status == TermsEnum.SeekStatus.END) {
+                            assertNull(finalDocs.ceilingKey(lookupTerm));
+                        } else {
+                            assertThat(status, is(TermsEnum.SeekStatus.NOT_FOUND));
+                            assertThat(syntheticIdTermsEnum.term(), equalTo(finalDocs.ceilingKey(lookupTerm)));
+                            assertThat(syntheticIdTermsEnum.term(), greaterThan(lookupTerm));
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    public void testSeekRandomTerms() throws IOException {
+        runTestWithRandomDocs((writer, finalDocs) -> {
+            try (var reader = DirectoryReader.open(writer)) {
+                assertThat(reader.leaves().size(), equalTo(1));
+                final var leafReader = reader.leaves().getFirst().reader();
+                final Terms terms = leafReader.terms(IdFieldMapper.NAME);
+                assertNotNull(terms);
+                final TermsEnum syntheticIdTermsEnum = LazyFilterTermsEnum.unwrap(terms.iterator());
+                assertThat(syntheticIdTermsEnum, instanceOf(SyntheticIdTermsEnum.class));
+                for (int i = 0; i < 1000; i++) {
+                    final BytesRef lookupTerm = new BytesRef(randomByteArrayOfLength(between(0, 64)));
+                    final var status = syntheticIdTermsEnum.seekCeil(lookupTerm);
+                    switch (status) {
+                        case FOUND -> assertThat(syntheticIdTermsEnum.term(), equalTo(lookupTerm));
+                        case NOT_FOUND -> assertThat(syntheticIdTermsEnum.term(), greaterThan(lookupTerm));
+                        case END -> assertNull(finalDocs.ceilingKey(lookupTerm));
+                    }
                 }
             }
         });

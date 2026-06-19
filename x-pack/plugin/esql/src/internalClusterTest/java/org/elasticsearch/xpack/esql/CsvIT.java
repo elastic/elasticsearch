@@ -329,6 +329,10 @@ public class CsvIT extends ESTestCase {
             "CSV tests cannot handle EXTERNAL sources (requires QA integration tests)",
             testCase.query.trim().toUpperCase(java.util.Locale.ROOT).startsWith("EXTERNAL")
         );
+        assumeFalseLogging(
+            "CSV tests cannot handle dataset-backed FROM <dataset> sources (requires QA integration tests)",
+            testCase.datasetSources.isEmpty() == false
+        );
         assumeTrueLogging(
             "CSV tests don't support remote cluster capability requirements",
             testCase.missingCapabilitiesRemoteCluster.isEmpty()

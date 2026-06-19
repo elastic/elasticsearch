@@ -19,6 +19,7 @@ import io.opentelemetry.sdk.common.CompletableResultCode;
 import io.opentelemetry.sdk.common.InternalTelemetryVersion;
 import io.opentelemetry.sdk.common.export.RetryPolicy;
 import io.opentelemetry.sdk.metrics.Aggregation;
+import io.opentelemetry.sdk.metrics.ExplicitBucketHistogramOptions;
 import io.opentelemetry.sdk.metrics.InstrumentSelector;
 import io.opentelemetry.sdk.metrics.SdkMeterProvider;
 import io.opentelemetry.sdk.metrics.View;
@@ -136,7 +137,13 @@ public class OtelSdkExportMeterSupplier implements MeterSupplier {
             .registerMetricReader(reader)
             .registerView(
                 exporterDuration,
-                View.builder().setAggregation(Aggregation.explicitBucketHistogram(DURATION_HISTOGRAM_BUCKETS)).build()
+                View.builder()
+                    .setAggregation(
+                        Aggregation.explicitBucketHistogram(
+                            ExplicitBucketHistogramOptions.builder().setBucketBoundaries(DURATION_HISTOGRAM_BUCKETS).build()
+                        )
+                    )
+                    .build()
             )
             .build();
     }

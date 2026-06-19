@@ -278,18 +278,12 @@ public class BlobStoreSyncDirectoryTests extends ESTestCase {
                         long blobSize,
                         boolean failIfAlreadyExists
                     ) throws IOException {
+                        uploadedFiles.add(blobName);
                         super.writeBlob(purpose, blobName, inputStream, blobSize, failIfAlreadyExists);
                     }
                 };
             }
-        };
-            var dir = new BlobStoreSyncDirectory(
-                new ByteBuffersDirectory(),
-                () -> statelessNode.objectStoreService.getClusterStateBlobContainerForTerm(1),
-                statelessNode.threadPool.executor(ThreadPool.Names.SNAPSHOT)
-            );
-            var indexWriter = new IndexWriter(dir, getIndexWriterConfig())
-        ) {
+        }) {
             var threadPool = statelessNode.threadPool;
             var snapshotExecutor = (EsThreadPoolExecutor) threadPool.executor(ThreadPool.Names.SNAPSHOT);
             var maxPoolSize = snapshotExecutor.getMaximumPoolSize();
@@ -306,22 +300,40 @@ public class BlobStoreSyncDirectoryTests extends ESTestCase {
                 });
             }
 
-            indexRandomDocuments(indexWriter, randomIntBetween(100, 200));
-            var commitFuture = threadPool.executor(ThreadPool.Names.GENERIC).submit(() -> {
+            var bytesDirectory = new ByteBuffersDirectory();
+            var filesToUpload = createRandomFiles(bytesDirectory, randomIntBetween(10, 100));
+            var dir = new BlobStoreSyncDirectory(
+                bytesDirectory,
+                () -> statelessNode.objectStoreService.getClusterStateBlobContainerForTerm(1),
+                snapshotExecutor
+            );
+
+            var genericExecutor = threadPool.executor(ThreadPool.Names.GENERIC);
+            var syncFuture = genericExecutor.submit(() -> {
                 try {
-                    indexWriter.commit();
+                    dir.sync(filesToUpload);
                 } catch (IOException e) {
                     throw new RuntimeException(e);
                 }
             });
-
             dir.close();
-
             blockExecutionLatch.countDown();
 
-            expectThrows(Exception.class, commitFuture::get);
+            assertThrows(Exception.class, syncFuture::get);
             assertThat(uploadedFiles, is(empty()));
         }
+    }
+
+    private static List<String> createRandomFiles(ByteBuffersDirectory directory, int numberOfDocs) throws IOException {
+        List<String> files = new ArrayList<>();
+        for (int i = 0; i < numberOfDocs; i++) {
+            final var fileName = "segments_" + i;
+            try (var out = directory.createOutput(fileName, IOContext.DEFAULT)) {
+                out.writeString(randomAlphaOfLengthBetween(10, 100));
+                files.add(fileName);
+            }
+        }
+        return files;
     }
 
     private void indexRandomDocuments(IndexWriter indexWriter, int numberOfDocsSecondCommit) throws IOException {

@@ -581,8 +581,6 @@ tasks.named("checkPart1").configure {
   ],
   releaseTestCheckEsqlDatasourceQa: [
     ':x-pack:plugin:esql-datasource-csv:qa',
-    ':x-pack:plugin:esql-datasource-gcs:qa',
-    ':x-pack:plugin:esql-datasource-grpc:qa',
     ':x-pack:plugin:esql-datasource-iceberg:qa',
     ':x-pack:plugin:esql-datasource-ndjson:qa',
     ':x-pack:plugin:esql-datasource-orc:qa',
@@ -590,7 +588,6 @@ tasks.named("checkPart1").configure {
     ':x-pack:plugin:esql-datasource-parquet-rs',
     ':x-pack:plugin:esql-datasource-parquet-rs:qa',
     ':x-pack:plugin:esql-datasource-parquet:qa',
-    ':x-pack:plugin:esql-datasource-s3',
     ':x-pack:plugin:esql-datasource-snappy',
     ':x-pack:plugin:esql-datasource-zstd',
   ],

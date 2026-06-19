@@ -118,7 +118,8 @@ public class LuceneDocument implements Iterable<IndexableField> {
     /**
      * Add fields so that they can later be fetched using {@link #getByKey(Object)}.
      * If the keyed field does not exist, it will be computed using the supplied mappingFunction.
-     * Note that users of this method should all add all fields that mappingFunction creates to this document.
+     * The mappingFunction is responsible for adding any companion fields to this document; the keyed field itself may be
+     * added eagerly or lazily (e.g. a blob written only once it holds a value), so it is not required to be in the field list yet.
      */
     public IndexableField getOrAddWithKey(final Object key, Function<Object, IndexableField> mappingFunction) {
         if (keyedFields == null) {
@@ -126,7 +127,7 @@ public class LuceneDocument implements Iterable<IndexableField> {
         }
 
         var indexableField = keyedFields.computeIfAbsent(key, mappingFunction);
-        assert indexableField != null && fields.contains(indexableField);
+        assert indexableField != null : "mappingFunction must return a non-null field";
         return indexableField;
     }
 

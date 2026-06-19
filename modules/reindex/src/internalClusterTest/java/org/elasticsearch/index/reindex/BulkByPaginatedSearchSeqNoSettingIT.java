@@ -63,14 +63,14 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
 /**
- * Integration tests verifying that bulk-by-scroll operations (update-by-query, delete-by-query)
+ * Integration tests verifying that bulk-by-paginated-search operations (update-by-query, delete-by-query)
  * correctly handle the per-index {@link IndexSettings#DISABLE_SEQUENCE_NUMBERS} setting. When an
  * index has sequence numbers disabled, bulk requests must carry {@link SequenceNumbers#UNASSIGNED_SEQ_NO};
  * when enabled, they must carry real ({@code >= 0}) sequence numbers. The search phase always requests
  * {@code seqNoAndPrimaryTerm} regardless of the index setting, because the framework needs it for
  * optimistic concurrency control (indices with sequence numbers disabled return sentinel values).
  */
-public class BulkByScrollSeqNoSettingIT extends ReindexTestCase {
+public class BulkByPaginatedSearchSeqNoSettingIT extends ReindexTestCase {
 
     public static final LongPredicate SEQ_NO_DISABLED_MATCHER = seqNo -> seqNo == SequenceNumbers.UNASSIGNED_SEQ_NO;
     public static final LongPredicate SEQ_NO_ENABLED_MATCHER = seqNo -> seqNo >= 0;
@@ -176,7 +176,7 @@ public class BulkByScrollSeqNoSettingIT extends ReindexTestCase {
         CountDownLatch searchLatch = assertSearchAlwaysRequestsSeqNo();
         CountDownLatch bulkLatch = assertBulkShardRequestsMatch(
             Stream.of("test-index-1", "test-index-2")
-                .collect(Collectors.toMap(Function.identity(), BulkByScrollSeqNoSettingIT::getBulkSeqNoMatcherForIndex))
+                .collect(Collectors.toMap(Function.identity(), BulkByPaginatedSearchSeqNoSettingIT::getBulkSeqNoMatcherForIndex))
         );
         var updateByQuery = updateByQuery().source("test-index-*");
         if (randomBoolean()) {
@@ -257,7 +257,7 @@ public class BulkByScrollSeqNoSettingIT extends ReindexTestCase {
         CountDownLatch searchLatch = assertSearchAlwaysRequestsSeqNo();
         CountDownLatch bulkLatch = assertBulkShardRequestsMatch(
             Stream.concat(Stream.of("test-regular"), dataStream.getIndices().stream().map(Index::getName))
-                .collect(Collectors.toMap(Function.identity(), BulkByScrollSeqNoSettingIT::getBulkSeqNoMatcherForIndex))
+                .collect(Collectors.toMap(Function.identity(), BulkByPaginatedSearchSeqNoSettingIT::getBulkSeqNoMatcherForIndex))
         );
         var updateByQuery = updateByQuery().source("test-*");
         if (randomBoolean()) {

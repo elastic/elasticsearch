@@ -181,6 +181,231 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
         }
     }
 
+    public void testTimestampIsStampedOnCacheEntryAndSetOnce() throws IOException {
+        Settings settings = Settings.builder()
+            .put(NODE_NAME_SETTING.getKey(), "node")
+            .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(500)))
+            .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(100)))
+            .put(SharedBlobCacheService.SHARED_CACHE_INITIAL_DECAYS_SETTING.getKey(), 0)
+            .put("path.home", createTempDir())
+            .build();
+        final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
+        try (
+            NodeEnvironment environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
+            var cacheService = new SharedBlobCacheService<TestCacheKey>(
+                environment,
+                settings,
+                taskQueue.getThreadPool(),
+                taskQueue.getThreadPool().executor(ThreadPool.Names.GENERIC),
+                new BlobCacheMetrics(new RecordingMeterRegistry())
+            )
+        ) {
+            final var cacheKey = generateCacheKey();
+            final long timestamp = randomLongBetween(1, Long.MAX_VALUE - 1);
+
+            // a region created with an explicit timestamp is stamped with it
+            final var region0 = cacheService.get(cacheKey, size(250), 0, timestamp);
+            assertEquals(timestamp, region0.timestampMillis());
+
+            // the timestamp is set-once: fetching the same region again with a different timestamp keeps the original
+            final var region0Again = cacheService.get(cacheKey, size(250), 0, timestamp + 1);
+            assertSame(region0, region0Again);
+            assertEquals(timestamp, region0Again.timestampMillis());
+
+            // a region created without a timestamp defaults to UNKNOWN_TIMESTAMP
+            final var region1 = cacheService.get(cacheKey, size(250), 1);
+            assertEquals(SharedBlobCacheService.UNKNOWN_TIMESTAMP, region1.timestampMillis());
+        }
+    }
+
+    public void testFetchOverloadsStampTimestamp() throws Exception {
+        final long cacheSize = size(500L);
+        final long regionSize = size(100L);
+        Settings settings = Settings.builder()
+            .put(NODE_NAME_SETTING.getKey(), "node")
+            .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(cacheSize))
+            .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(regionSize))
+            .put(SharedBlobCacheService.SHARED_CACHE_INITIAL_DECAYS_SETTING.getKey(), 0)
+            .put("path.home", createTempDir())
+            .build();
+
+        final var threadPool = new TestThreadPool("test");
+        final var bulkExecutor = new StoppableExecutorServiceWrapper(threadPool.generic());
+
+        // a writer that simply reports the requested bytes as populated
+        final RangeMissingHandler writer = (
+            channel,
+            channelPos,
+            streamFactory,
+            relativePos,
+            length,
+            progressUpdater,
+            completionListener) -> completeWith(completionListener, () -> progressUpdater.accept(length));
+
+        try (
+            NodeEnvironment environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
+            var cacheService = new SharedBlobCacheService<>(
+                environment,
+                settings,
+                threadPool,
+                threadPool.executor(ThreadPool.Names.GENERIC),
+                BlobCacheMetrics.NOOP
+            )
+        ) {
+            {
+                final var cacheKey = generateCacheKey();
+                final long ts = randomLongBetween(1, Long.MAX_VALUE - 1);
+                final PlainActionFuture<Boolean> future = new PlainActionFuture<>();
+                cacheService.fetchRegion(cacheKey, 0, regionSize, writer, bulkExecutor, true, ts, future);
+                assertThat(future.get(10, TimeUnit.SECONDS), is(true));
+                assertEquals(ts, cacheService.get(cacheKey, regionSize, 0).timestampMillis());
+            }
+            {
+                final var cacheKey = generateCacheKey();
+                final long ts = randomLongBetween(1, Long.MAX_VALUE - 1);
+                final var range = ByteRange.of(0, regionSize);
+                final PlainActionFuture<Boolean> future = new PlainActionFuture<>();
+                cacheService.fetchRange(cacheKey, 0, range, regionSize, writer, bulkExecutor, true, ts, future);
+                assertThat(future.get(10, TimeUnit.SECONDS), is(true));
+                assertEquals(ts, cacheService.get(cacheKey, regionSize, 0).timestampMillis());
+            }
+            {
+                final var cacheKey = generateCacheKey();
+                final long ts = randomLongBetween(1, Long.MAX_VALUE - 1);
+                final PlainActionFuture<Boolean> future = new PlainActionFuture<>();
+                cacheService.maybeFetchRegion(cacheKey, 0, regionSize, writer, bulkExecutor, ts, future);
+                assertThat(future.get(10, TimeUnit.SECONDS), is(true));
+                assertEquals(ts, cacheService.get(cacheKey, regionSize, 0).timestampMillis());
+            }
+            {
+                final var cacheKey = generateCacheKey();
+                final long ts = randomLongBetween(1, Long.MAX_VALUE - 1);
+                final var range = ByteRange.of(0, regionSize);
+                final PlainActionFuture<Boolean> future = new PlainActionFuture<>();
+                cacheService.maybeFetchRange(cacheKey, 0, range, regionSize, writer, bulkExecutor, ts, future);
+                assertThat(future.get(10, TimeUnit.SECONDS), is(true));
+                assertEquals(ts, cacheService.get(cacheKey, regionSize, 0).timestampMillis());
+            }
+        } finally {
+            TestThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS);
+        }
+    }
+
+    public void testTimestampSetOnceAcrossFetchOverloads() throws Exception {
+        final long cacheSize = size(500L);
+        final long regionSize = size(100L);
+        Settings settings = Settings.builder()
+            .put(NODE_NAME_SETTING.getKey(), "node")
+            .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(cacheSize))
+            .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(regionSize))
+            .put(SharedBlobCacheService.SHARED_CACHE_INITIAL_DECAYS_SETTING.getKey(), 0)
+            .put("path.home", createTempDir())
+            .build();
+
+        final var threadPool = new TestThreadPool("test");
+        final var bulkExecutor = new StoppableExecutorServiceWrapper(threadPool.generic());
+
+        final RangeMissingHandler writer = (
+            channel,
+            channelPos,
+            streamFactory,
+            relativePos,
+            length,
+            progressUpdater,
+            completionListener) -> completeWith(completionListener, () -> progressUpdater.accept(length));
+
+        try (
+            NodeEnvironment environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
+            var cacheService = new SharedBlobCacheService<>(
+                environment,
+                settings,
+                threadPool,
+                threadPool.executor(ThreadPool.Names.GENERIC),
+                BlobCacheMetrics.NOOP
+            )
+        ) {
+            final var cacheKey = generateCacheKey();
+            final long firstTimestamp = randomLongBetween(1, Long.MAX_VALUE - 2);
+            final long secondTimestamp = firstTimestamp + 1;
+
+            // first population path to create region 0 wins the stamp
+            final PlainActionFuture<Boolean> firstFuture = new PlainActionFuture<>();
+            cacheService.fetchRegion(cacheKey, 0, regionSize, writer, bulkExecutor, true, firstTimestamp, firstFuture);
+            assertThat(firstFuture.get(10, TimeUnit.SECONDS), is(true));
+
+            // a later population path through a different overload carries a different timestamp, but the stamp is set-once
+            final PlainActionFuture<Boolean> secondFuture = new PlainActionFuture<>();
+            cacheService.maybeFetchRange(
+                cacheKey,
+                0,
+                ByteRange.of(0, regionSize),
+                regionSize,
+                writer,
+                bulkExecutor,
+                secondTimestamp,
+                secondFuture
+            );
+            secondFuture.get(10, TimeUnit.SECONDS);
+
+            assertEquals(firstTimestamp, cacheService.get(cacheKey, regionSize, 0).timestampMillis());
+        } finally {
+            TestThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS);
+        }
+    }
+
+    public void testGetCacheFileStampsTimestampOnRead() throws Exception {
+        Settings settings = Settings.builder()
+            .put(NODE_NAME_SETTING.getKey(), "node")
+            .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(500)))
+            .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(100)))
+            .put(SharedBlobCacheService.SHARED_CACHE_INITIAL_DECAYS_SETTING.getKey(), 0)
+            .put("path.home", createTempDir())
+            .build();
+        final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
+        final ExecutorService ioExecutor = Executors.newCachedThreadPool();
+        try (
+            NodeEnvironment environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
+            var cacheService = new SharedBlobCacheService<TestCacheKey>(
+                environment,
+                settings,
+                taskQueue.getThreadPool(),
+                ioExecutor,
+                new BlobCacheMetrics(new RecordingMeterRegistry())
+            )
+        ) {
+            final var cacheKey = generateCacheKey();
+            final long ts = randomLongBetween(1, Long.MAX_VALUE - 1);
+            final Path tempFile = createTempFile("test", "other");
+            final ByteBuffer writeBuffer = ByteBuffer.allocate(SharedBytes.PAGE_SIZE);
+
+            // the timestamp passed to getCacheFile is stamped on the region populated by the CacheFile read
+            final SharedBlobCacheService<TestCacheKey>.CacheFile cacheFile = cacheService.getCacheFile(
+                cacheKey,
+                1L,
+                SharedBlobCacheService.CacheMissHandler.NOOP,
+                ts
+            );
+
+            final int bytesRead = cacheFile.populateAndRead(
+                ByteRange.of(0L, 1L),
+                ByteRange.of(0L, 1L),
+                (channel, pos, relativePos, len) -> len,
+                (channel, channelPos, streamFactory, relativePos, len, progressUpdater, completionListener) -> {
+                    try (var in = Files.newInputStream(tempFile)) {
+                        SharedBytes.copyToCacheFileAligned(channel, in, channelPos, progressUpdater, writeBuffer.clear());
+                    }
+                    ActionListener.completeWith(completionListener, () -> null);
+                },
+                tempFile.toAbsolutePath().toString()
+            );
+            assertThat(bytesRead, is(1));
+
+            assertEquals(ts, cacheService.get(cacheKey, 1L, 0).timestampMillis());
+        } finally {
+            ThreadPool.terminate(ioExecutor, 10, TimeUnit.SECONDS);
+        }
+    }
+
     public void testCacheMissOnPopulate() throws Exception {
         Settings settings = Settings.builder()
             .put(NODE_NAME_SETTING.getKey(), "node")
@@ -3205,6 +3430,218 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 assertTrue(slicesAvailable);
                 assertArrayEquals(expected, actual);
             }
+        }
+    }
+
+    // Verify that madvise can be applied on the read path (cache hit) even when the region was
+    // populated by a warming/prefetch service that did not call madvise. This simulates the pattern
+    // where CacheFileReader.doRead calls channel.madvise(advice) in the RangeAvailableHandler.
+    public void testMadviseAppliedOnReadPathForWarmedRegion() throws Exception {
+        final long regionSize = size(1L);
+        Settings settings = Settings.builder()
+            .put(NODE_NAME_SETTING.getKey(), "node")
+            .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(100)).getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(regionSize).getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_INITIAL_DECAYS_SETTING.getKey(), 0)
+            .put(SharedBlobCacheService.SHARED_CACHE_MMAP.getKey(), true)
+            .put("path.home", createTempDir())
+            .build();
+
+        final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
+        try (
+            NodeEnvironment environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
+            var cacheService = new SharedBlobCacheService<>(
+                environment,
+                settings,
+                taskQueue.getThreadPool(),
+                taskQueue.getThreadPool().executor(ThreadPool.Names.GENERIC),
+                BlobCacheMetrics.NOOP
+            )
+        ) {
+            final var cacheKey = generateCacheKey();
+            final var blobLength = regionSize;
+
+            // Step 1: populate the region (simulates warming — no madvise applied)
+            var entry = cacheService.get(cacheKey, blobLength, 0);
+            final PlainActionFuture<Boolean> populateFuture = new PlainActionFuture<>();
+            entry.populate(
+                ByteRange.of(0, regionSize),
+                (channel, channelPos, streamFactory, relativePos, length, progressUpdater, completionListener) -> completeWith(
+                    completionListener,
+                    () -> progressUpdater.accept(length)
+                ),
+                taskQueue.getThreadPool().generic(),
+                populateFuture
+            );
+            taskQueue.runAllRunnableTasks();
+            assertTrue(populateFuture.get(10, TimeUnit.SECONDS));
+
+            // Step 2: read from cache with madvise in the reader callback (simulates CacheFileReader.doRead).
+            // The reader callback asserts the channel starts at MADV_NORMAL then applies MADV_RANDOM.
+            final var cacheFile = cacheService.getCacheFile(cacheKey, blobLength, SharedBlobCacheService.CacheMissHandler.NOOP);
+            int bytesRead = cacheFile.populateAndRead(
+                ByteRange.of(0, regionSize),
+                ByteRange.of(0, regionSize),
+                (channel, channelPos, relativePos, length) -> {
+                    assertThat(channel.currentAdvice(), equalTo(SharedBytes.MADV_NORMAL));
+                    channel.madvise(SharedBytes.MADV_RANDOM);
+                    assertThat(channel.currentAdvice(), equalTo(SharedBytes.MADV_RANDOM));
+                    return length;
+                },
+                (channel, channelPos, streamFactory, relativePos, length, progressUpdater, completionListener) -> completeWith(
+                    completionListener,
+                    () -> progressUpdater.accept(length)
+                ),
+                cacheFile.toString()
+            );
+            assertThat(bytesRead, equalTo(Math.toIntExact(regionSize)));
+        }
+    }
+
+    // Verify that stale advice from a previous tenant is overwritten when a new tenant reads
+    // the reused region. This covers the case where a region was MADV_RANDOM for shard A's .vec
+    // file, gets evicted, then reused for shard B's .doc file with MADV_NORMAL.
+    public void testStaleAdviceOverwrittenOnRegionReuse() throws Exception {
+        final long regionSize = size(1L);
+        Settings settings = Settings.builder()
+            .put(NODE_NAME_SETTING.getKey(), "node")
+            .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(regionSize).getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(regionSize).getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_INITIAL_DECAYS_SETTING.getKey(), 0)
+            .put(SharedBlobCacheService.SHARED_CACHE_MMAP.getKey(), true)
+            .put("path.home", createTempDir())
+            .build();
+
+        final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
+        try (
+            NodeEnvironment environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
+            var cacheService = new SharedBlobCacheService<>(
+                environment,
+                settings,
+                taskQueue.getThreadPool(),
+                taskQueue.getThreadPool().executor(ThreadPool.Names.GENERIC),
+                BlobCacheMetrics.NOOP
+            )
+        ) {
+            // Step 1: populate a region and set MADV_RANDOM via the fill handler (simulates .vec file)
+            final var vecKey = generateCacheKey();
+            var entry = cacheService.get(vecKey, regionSize, 0);
+            final PlainActionFuture<Boolean> populateFuture1 = new PlainActionFuture<>();
+            entry.populate(
+                ByteRange.of(0, regionSize),
+                (channel, channelPos, streamFactory, relativePos, length, progressUpdater, completionListener) -> {
+                    channel.madvise(SharedBytes.MADV_RANDOM);
+                    completeWith(completionListener, () -> progressUpdater.accept(length));
+                },
+                taskQueue.getThreadPool().generic(),
+                populateFuture1
+            );
+            taskQueue.runAllRunnableTasks();
+            assertTrue(populateFuture1.get(10, TimeUnit.SECONDS));
+
+            // Step 2: evict the region by triggering decay and allocating a new key
+            cacheService.computeDecay();
+            final var docKey = generateCacheKey();
+            var newEntry = cacheService.get(docKey, regionSize, 0);
+
+            // Step 3: populate the reused region (simulates warming for .doc file — no madvise)
+            final PlainActionFuture<Boolean> populateFuture2 = new PlainActionFuture<>();
+            newEntry.populate(
+                ByteRange.of(0, regionSize),
+                (channel, channelPos, streamFactory, relativePos, length, progressUpdater, completionListener) -> completeWith(
+                    completionListener,
+                    () -> progressUpdater.accept(length)
+                ),
+                taskQueue.getThreadPool().generic(),
+                populateFuture2
+            );
+            taskQueue.runAllRunnableTasks();
+            assertTrue(populateFuture2.get(10, TimeUnit.SECONDS));
+
+            // Step 4: read with MADV_NORMAL in the reader callback (simulates CacheFileReader.doRead for .doc).
+            // The channel should still carry stale MADV_RANDOM; the reader overwrites it with MADV_NORMAL.
+            final var cacheFile = cacheService.getCacheFile(docKey, regionSize, SharedBlobCacheService.CacheMissHandler.NOOP);
+            cacheFile.populateAndRead(
+                ByteRange.of(0, regionSize),
+                ByteRange.of(0, regionSize),
+                (channel, channelPos, relativePos, length) -> {
+                    assertThat(channel.currentAdvice(), equalTo(SharedBytes.MADV_RANDOM));
+                    channel.madvise(SharedBytes.MADV_NORMAL);
+                    assertThat(channel.currentAdvice(), equalTo(SharedBytes.MADV_NORMAL));
+                    return length;
+                },
+                (channel, channelPos, streamFactory, relativePos, length, progressUpdater, completionListener) -> completeWith(
+                    completionListener,
+                    () -> progressUpdater.accept(length)
+                ),
+                cacheFile.toString()
+            );
+        }
+    }
+
+    // Verify that CacheFile.tryRead applies the supplied madvise advice.
+    // This covers the fast-path used by CacheFileReader.tryRead for single-region cache hits.
+    public void testMadviseAppliedOnTryReadFastPath() throws Exception {
+        final long regionSize = size(1L);
+        Settings settings = Settings.builder()
+            .put(NODE_NAME_SETTING.getKey(), "node")
+            .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(100)).getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(regionSize).getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_INITIAL_DECAYS_SETTING.getKey(), 0)
+            .put(SharedBlobCacheService.SHARED_CACHE_MMAP.getKey(), true)
+            .put("path.home", createTempDir())
+            .build();
+
+        final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
+        try (
+            NodeEnvironment environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
+            var cacheService = new SharedBlobCacheService<>(
+                environment,
+                settings,
+                taskQueue.getThreadPool(),
+                taskQueue.getThreadPool().executor(ThreadPool.Names.GENERIC),
+                BlobCacheMetrics.NOOP
+            )
+        ) {
+            final var cacheKey = generateCacheKey();
+            final var blobLength = regionSize;
+
+            // Step 1: populate the region (simulates warming — no madvise applied)
+            var entry = cacheService.get(cacheKey, blobLength, 0);
+            final PlainActionFuture<Boolean> populateFuture = new PlainActionFuture<>();
+            entry.populate(
+                ByteRange.of(0, regionSize),
+                (channel, channelPos, streamFactory, relativePos, length, progressUpdater, completionListener) -> completeWith(
+                    completionListener,
+                    () -> progressUpdater.accept(length)
+                ),
+                taskQueue.getThreadPool().generic(),
+                populateFuture
+            );
+            taskQueue.runAllRunnableTasks();
+            assertTrue(populateFuture.get(10, TimeUnit.SECONDS));
+
+            // Step 2: use the tryRead fast path with MADV_RANDOM
+            final var cacheFile = cacheService.getCacheFile(cacheKey, blobLength, SharedBlobCacheService.CacheMissHandler.NOOP);
+            ByteBuffer buf = ByteBuffer.allocate(Math.toIntExact(regionSize));
+            boolean success = cacheFile.tryRead(buf, 0, SharedBytes.MADV_RANDOM);
+            assertTrue(success);
+
+            // Step 3: verify the advice was applied by reading again via populateAndRead
+            // and inspecting the channel's current advice
+            cacheFile.populateAndRead(
+                ByteRange.of(0, regionSize),
+                ByteRange.of(0, regionSize),
+                (channel, channelPos, relativePos, length) -> {
+                    assertThat(channel.currentAdvice(), equalTo(SharedBytes.MADV_RANDOM));
+                    return length;
+                },
+                (channel, channelPos, streamFactory, relativePos, length, progressUpdater, completionListener) -> completeWith(
+                    completionListener,
+                    () -> progressUpdater.accept(length)
+                ),
+                cacheFile.toString()
+            );
         }
     }
 

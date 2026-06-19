@@ -2406,13 +2406,7 @@ public abstract class ESTestCase extends LuceneTestCase {
         var error = Math.max(expectedValue * deltaPercent, DEFAULT_DELTA);
         var actualDelta = Math.abs(expectedValue - actualValue) - error;
         if (actualDelta > 0) {
-            fail(
-                Strings.format(
-                    "expected:<%f> but was:<%f>",
-                    expectedValue,
-                    actualValue
-                )
-            );
+            fail(Strings.format("expected:<%f> but was:<%f>", expectedValue, actualValue));
         }
     }
 

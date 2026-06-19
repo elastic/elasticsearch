@@ -596,9 +596,9 @@ public class SearchDirectoryTests extends ESTestCase {
                     settings,
                     threadPool,
                     BlobCacheMetrics.NOOP,
+                    capturingPolicy,
                     System::nanoTime,
-                    new ThreadLocalDirectoryMetricHolder<>(BlobStoreCacheDirectoryMetrics::new),
-                    capturingPolicy
+                    new ThreadLocalDirectoryMetricHolder<>(BlobStoreCacheDirectoryMetrics::new)
                 ) {};
             }
 

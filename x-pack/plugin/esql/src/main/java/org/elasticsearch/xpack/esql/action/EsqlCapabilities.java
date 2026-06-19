@@ -301,6 +301,14 @@ public class EsqlCapabilities {
         OPTIONAL_FIELDS_FIX_LOAD_PARTIALLY_MAPPED,
 
         /**
+         * Implicit casting of PUNKs that have two types (or legs): KEYWORD by virtue of loading from _source, and exactly one other type
+         * where mapped.
+         *
+         * See https://github.com/elastic/elasticsearch/issues/141995
+         */
+        OPTIONAL_FIELDS_UNMAPPED_LOAD_AUTO_CAST_TWO_LEGGED_PUNKS,
+
+        /**
          * Support specifically for *just* the _index METADATA field. Used by CsvTests, since that is the only metadata field currently
          * supported.
          */
@@ -2373,6 +2381,12 @@ public class EsqlCapabilities {
          * Enables late materialization on node reduce. See also QueryPragmas.NODE_LEVEL_REDUCTION
          */
         ENABLE_REDUCE_NODE_LATE_MATERIALIZATION,
+
+        /**
+         * Fix stale row-stride reader state when a conditional block loader uses column-at-a-time loading after row-stride loading
+         * across segments.
+         */
+        FIX_VALUES_READER_STALE_ROW_STRIDE_READER,
 
         /**
          * {@link ReplaceStatsFilteredOrNullAggWithEval} now replaces an

@@ -76,6 +76,8 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
     }
 
     int maybeAdjustIndexSettingCount(int baseCount) {
+        // Adjust count independently: DISABLE_SEQUENCE_NUMBERS and SYNTHETIC_ID use different version thresholds
+        // (TIME_SERIES_DISABLE_SEQUENCE_NUMBERS_DEFAULT and TIME_SERIES_USE_SYNTHETIC_ID_DEFAULT_PROD respectively)
         int count = baseCount;
         if (expectedDisabledSequenceNumbers) {
             count++;

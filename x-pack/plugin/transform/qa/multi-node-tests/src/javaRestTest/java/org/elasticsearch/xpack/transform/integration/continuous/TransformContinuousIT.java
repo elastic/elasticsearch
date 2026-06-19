@@ -105,10 +105,7 @@ public class TransformContinuousIT extends TransformRestTestCase {
             }""");
         addFailureRetrySetting.setOptions(RequestOptions.DEFAULT.toBuilder().setWarningsHandler(warnings -> {
             for (String warning : warnings) {
-                if (warning.equals(
-                    "A settings update to logger levels overrides child loggers with explicitly configured levels."
-                        + " This behavior is deprecated and will change in a future major version."
-                ) == false) {
+                if (warning.equals(LOGGER_CHILD_OVERRIDE_DEPRECATION_WARNING) == false) {
                     return true;
                 }
             }

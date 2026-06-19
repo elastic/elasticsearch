@@ -29,7 +29,9 @@ import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.ScoreMode;
+import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
@@ -43,7 +45,6 @@ import java.util.concurrent.atomic.AtomicLong;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.lessThan;
 
 public class PointRangeBreakerWeightTests extends ESTestCase {
 
@@ -134,6 +135,29 @@ public class PointRangeBreakerWeightTests extends ESTestCase {
         assertThat("the selective lead clause must still match documents so the scorer runs", hits, greaterThan(0));
         assertThat("the doc-values branch allocates no result bitset, so nothing is charged", breaker.peak(), equalTo(0L));
         assertThat(breaker.getUsed(), equalTo(0L));
+    }
+
+    public void testOutOfBandChargeReleasedOnClose() throws IOException {
+        TrackingCircuitBreaker breaker = new TrackingCircuitBreaker(-1L);
+        ContextIndexSearcher searcher = new ContextIndexSearcher(
+            reader,
+            IndexSearcher.getDefaultSimilarity(),
+            null,
+            IndexSearcher.getDefaultQueryCachingPolicy(),
+            false
+        );
+        searcher.setCircuitBreaker(breaker);
+        Query dense = LongPoint.newRangeQuery(FIELD, 0L, (NUM_DOCS * 3 / 4));
+        Weight weight = searcher.createWeight(searcher.rewrite(dense), ScoreMode.COMPLETE_NO_SCORES, 1.0f);
+        for (LeafReaderContext leaf : reader.leaves()) {
+            ScorerSupplier scorerSupplier = weight.scorerSupplier(leaf);
+            if (scorerSupplier != null) {
+                scorerSupplier.get(Long.MAX_VALUE);
+            }
+        }
+        assertThat("the out-of-band scorer must charge execution RAM", breaker.getUsed(), greaterThan(0L));
+        searcher.close();
+        assertThat("closing the searcher must release the residual out-of-band charge", breaker.getUsed(), equalTo(0L));
     }
 
     private static Query conjunction(Query first, Query second) {

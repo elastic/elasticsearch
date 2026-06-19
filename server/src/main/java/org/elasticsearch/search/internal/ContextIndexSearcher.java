@@ -55,6 +55,7 @@ import java.util.Objects;
 import java.util.PriorityQueue;
 import java.util.concurrent.Callable;
 import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 
 /**
@@ -80,6 +81,8 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
     private CircuitBreaker circuitBreaker;
 
     private final ThreadLocal<long[]> leafExecutionBytes = ThreadLocal.withInitial(() -> new long[1]);
+
+    private final AtomicLong outstandingPointRangeExecutionBytes = new AtomicLong();
 
     private final MutableQueryTimeout cancellable;
 
@@ -187,6 +190,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         }
         circuitBreaker.addEstimateBytesAndMaybeBreak(bytes, "pointrange-execution");
         leafExecutionBytes.get()[0] += bytes;
+        outstandingPointRangeExecutionBytes.addAndGet(bytes);
     }
 
     /**
@@ -202,6 +206,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         long toRelease = holder[0] - baseline;
         if (toRelease > 0L) {
             circuitBreaker.addWithoutBreaking(-toRelease);
+            outstandingPointRangeExecutionBytes.addAndGet(-toRelease);
         }
         holder[0] = baseline;
     }
@@ -242,6 +247,11 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         // A cancellable can contain an indirect reference to the search context, which potentially retains a significant amount
         // of memory.
         this.cancellable.clear();
+
+        long remaining = outstandingPointRangeExecutionBytes.getAndSet(0L);
+        if (circuitBreaker != null && remaining > 0L) {
+            circuitBreaker.addWithoutBreaking(-remaining);
+        }
     }
 
     // clear all registered cancellation callbacks to prevent them from leaking into other phases
@@ -547,7 +557,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
             // threshold at creation time. But a higher threshold would likely perform better?
             int threshold = ctx.reader().maxDoc() >> 7;
             if (numDocs >= threshold) {
-                 BulkScorer bulkScorer = weight.bulkScorer(ctx);
+                BulkScorer bulkScorer = weight.bulkScorer(ctx);
                 if (bulkScorer != null) {
                     if (cancellable.isEnabled()) {
                         bulkScorer = new CancellableBulkScorer(bulkScorer, cancellable::checkCancelled);

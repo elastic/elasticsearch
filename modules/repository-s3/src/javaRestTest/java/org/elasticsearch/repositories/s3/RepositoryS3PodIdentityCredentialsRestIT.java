@@ -33,16 +33,16 @@ import java.util.function.Supplier;
 /**
  * Exercises the EKS Pod Identity credentials path. Pod Identity, like ECS task roles, resolves credentials through the AWS
  * SDK's {@code ContainerCredentialsProvider} (reached via {@code DefaultCredentialsProvider}) by calling the endpoint named
- * in {@code AWS_CONTAINER_CREDENTIALS_FULL_URI}. The difference from {@link RepositoryS3EcsCredentialsRestIT} is the auth
- * token: Pod Identity sets {@code AWS_CONTAINER_AUTHORIZATION_TOKEN_FILE} pointing at a Kubernetes-injected token file that
- * sits outside the plugin's entitlement-grantable area. {@code S3Service} therefore redirects the SDK at the entitled
- * symlink ({@code ${ES_PATH_CONF}/repository-s3/eks-pod-identity-token}) via the
- * {@code aws.containerAuthorizationTokenFile} JVM system property, and the user symlinks the real token there exactly as
- * they already do for the IRSA web-identity token.
+ * in {@code AWS_CONTAINER_CREDENTIALS_FULL_URI}, sending the token read from {@code AWS_CONTAINER_AUTHORIZATION_TOKEN_FILE}.
+ * In EKS that token path sits outside the plugin's entitlement-grantable area, so the operator points
+ * {@code AWS_CONTAINER_AUTHORIZATION_TOKEN_FILE} at the entitled symlink
+ * ({@code ${ES_PATH_CONF}/repository-s3/eks-pod-identity-token}) and symlinks the real token there, exactly as they already
+ * do for the IRSA web-identity token. {@code repository-s3} only grants read access to that location; it does not override
+ * the env var or any system property.
  *
- * <p>If either the entitlement grant or the sysprop redirect regresses, {@code ContainerCredentialsProvider} fails to read
- * the token file, credential resolution throws, and the repository operations in {@link AbstractRepositoryS3RestTestCase}
- * fail — which is exactly what this test guards against.
+ * <p>If the entitlement grant regresses, {@code ContainerCredentialsProvider} fails to read the token file, credential
+ * resolution throws, and the repository operations in {@link AbstractRepositoryS3RestTestCase} fail — which is exactly what
+ * this test guards against.
  */
 @ThreadLeakFilters(filters = { TestContainersThreadFilter.class })
 public class RepositoryS3PodIdentityCredentialsRestIT extends AbstractRepositoryS3RestTestCase {
@@ -52,10 +52,6 @@ public class RepositoryS3PodIdentityCredentialsRestIT extends AbstractRepository
     private static final String BASE_PATH = PREFIX + "base_path";
     private static final String CLIENT = "pod_identity_credentials_client";
 
-    // The plugin only checks AWS_CONTAINER_AUTHORIZATION_TOKEN_FILE for presence before redirecting the SDK at the entitled
-    // symlink; the SDK then reads the token from the symlink, so this env value just has to be non-empty. We use the path
-    // the EKS Pod Identity webhook injects in production for realism.
-    private static final String K8S_INJECTED_TOKEN_FILE = "/var/run/secrets/pods.eks.amazonaws.com/serviceaccount/eks-pod-identity-token";
     private static final String POD_IDENTITY_TOKEN_FILE_CONTENTS = "test-pod-identity-auth-token-" + UUID.randomUUID();
 
     private static final Supplier<String> regionSupplier = new DynamicRegionSupplier();
@@ -78,11 +74,12 @@ public class RepositoryS3PodIdentityCredentialsRestIT extends AbstractRepository
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .module("repository-s3")
         .setting("s3.client." + CLIENT + ".endpoint", s3Fixture::getAddress)
-        // Operator-managed symlink that S3Service redirects the AWS SDK at via the aws.containerAuthorizationTokenFile sysprop.
+        // The entitled symlink the operator points the SDK at; in production this symlinks the Kubernetes-injected token.
         .configFile(S3Service.POD_IDENTITY_TOKEN_FILE_LOCATION, Resource.fromString(POD_IDENTITY_TOKEN_FILE_CONTENTS))
-        // Presence of this env var triggers the sysprop redirect in S3Service; the value is the Kubernetes-injected path,
-        // which ES cannot read directly, so the redirect points the SDK at the entitled symlink configured above instead.
-        .environment("AWS_CONTAINER_AUTHORIZATION_TOKEN_FILE", () -> K8S_INJECTED_TOKEN_FILE)
+        // Operators override the EKS-injected AWS_CONTAINER_AUTHORIZATION_TOKEN_FILE to point at the entitled symlink above
+        // (which ES is granted read access to). ${ES_PATH_CONF} is expanded by the test-clusters framework to the node's
+        // config dir, so the SDK reads the token straight from the entitled location with no override by S3Service.
+        .environment("AWS_CONTAINER_AUTHORIZATION_TOKEN_FILE", "${ES_PATH_CONF}/" + S3Service.POD_IDENTITY_TOKEN_FILE_LOCATION)
         .environment(
             "AWS_CONTAINER_CREDENTIALS_FULL_URI",
             () -> podIdentityCredentialsFixture.getAddress() + "/pod_identity_credentials_endpoint"

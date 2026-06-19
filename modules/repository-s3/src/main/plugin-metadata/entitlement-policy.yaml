@@ -5,10 +5,10 @@ ALL-UNNAMED:
     - relative_path: "repository-s3/aws-web-identity-token-file"
       relative_to: "config"
       mode: "read"
-    # EKS Pod Identity: the operator symlinks
-    # /var/run/secrets/pods.eks.amazonaws.com/serviceaccount/eks-pod-identity-token here. The AWS SDK's
-    # ContainerCredentialsProvider is final and reads the token path from AWS_CONTAINER_AUTHORIZATION_TOKEN_FILE;
-    # S3Service redirects it at this entitled location via the aws.containerAuthorizationTokenFile sysprop below.
+    # EKS Pod Identity: the AWS SDK's ContainerCredentialsProvider reads the auth token from the path in
+    # AWS_CONTAINER_AUTHORIZATION_TOKEN_FILE, which in EKS points outside the config dir. The operator points that
+    # env var (or the aws.containerAuthorizationTokenFile system property) at this entitled symlink and symlinks the
+    # Kubernetes-injected token here, exactly as they already do for the IRSA web-identity token above.
     - relative_path: "repository-s3/eks-pod-identity-token"
       relative_to: "config"
       mode: "read"
@@ -17,5 +17,3 @@ ALL-UNNAMED:
   - write_system_properties:
       properties:
         - es.allow_insecure_settings
-        # See the EKS Pod Identity note above: redirects the AWS SDK ContainerCredentialsProvider at the entitled symlink.
-        - aws.containerAuthorizationTokenFile

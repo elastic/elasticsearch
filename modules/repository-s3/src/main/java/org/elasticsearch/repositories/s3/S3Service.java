@@ -17,7 +17,6 @@ import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
 import software.amazon.awssdk.awscore.exception.AwsServiceException;
 import software.amazon.awssdk.awscore.retry.AwsRetryStrategy;
-import software.amazon.awssdk.core.SdkSystemSetting;
 import software.amazon.awssdk.core.client.config.ClientOverrideConfiguration;
 import software.amazon.awssdk.core.client.config.SdkAdvancedClientOption;
 import software.amazon.awssdk.http.SdkHttpClient;
@@ -52,7 +51,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.rest.RestStatus;
@@ -96,22 +94,18 @@ class S3Service extends AbstractLifecycleComponent {
     );
 
     /**
-     * Operator-managed symlink for EKS Pod Identity, relative to {@code ${ES_PATH_CONF}}. The plugin's
-     * {@code entitlement-policy.yaml} grants read access to this fixed location, mirroring the web-identity
-     * (IRSA) symlink that {@link CustomWebIdentityTokenCredentialsProvider} reads from.
+     * Entitled location for the EKS Pod Identity auth token, relative to {@code ${ES_PATH_CONF}}. The plugin's
+     * {@code entitlement-policy.yaml} grants read access here, mirroring the web-identity (IRSA) symlink that
+     * {@link CustomWebIdentityTokenCredentialsProvider} reads from. The operator points
+     * {@code AWS_CONTAINER_AUTHORIZATION_TOKEN_FILE} (or the {@code aws.containerAuthorizationTokenFile} system
+     * property) at this path and symlinks the Kubernetes-injected token here; {@code S3Service} does not override
+     * it, since mutating that JVM-global setting would have process-wide repercussions.
      */
     static final String POD_IDENTITY_TOKEN_FILE_LOCATION = "repository-s3/eks-pod-identity-token";
 
     private final S3DefaultRegionHolder defaultRegionHolder;
 
     final CustomWebIdentityTokenCredentialsProvider webIdentityTokenCredentialsProvider;
-
-    /**
-     * The entitled path we set on the {@code aws.containerAuthorizationTokenFile} sysprop in
-     * {@link #maybeOverrideContainerAuthTokenFile}, so {@link #doClose()} clears the sysprop only when it still
-     * matches what we set (i.e. nothing else has clobbered it). {@code null} when we did not set it.
-     */
-    private String podIdentitySyspropSetTo;
 
     final TimeValue compareAndExchangeTimeToLive;
     final TimeValue compareAndExchangeAntiContentionDelay;
@@ -126,9 +120,6 @@ class S3Service extends AbstractLifecycleComponent {
         Supplier<Region> defaultRegionSupplier
     ) {
         final Settings nodeSettings = clusterService.getSettings();
-        // EKS Pod Identity: redirect the AWS SDK's (final) ContainerCredentialsProvider at the entitled token symlink
-        // before anything else, so a misconfiguration fails here rather than leaving a half-built web-identity provider.
-        maybeOverrideContainerAuthTokenFile(environment);
         webIdentityTokenCredentialsProvider = new CustomWebIdentityTokenCredentialsProvider(
             environment,
             Clock.systemUTC(),
@@ -147,62 +138,6 @@ class S3Service extends AbstractLifecycleComponent {
         if (projectResolver.supportsMultipleProjects()) {
             clusterService.addHighPriorityApplier(s3ClientsManager);
         }
-    }
-
-    /**
-     * EKS Pod Identity support. AWS SDK v2's {@link software.amazon.awssdk.auth.credentials.ContainerCredentialsProvider}
-     * (reached through {@link DefaultCredentialsProvider} in {@link #buildCredentials}) is {@code final} and reads the
-     * auth-token path directly from {@code AWS_CONTAINER_AUTHORIZATION_TOKEN_FILE}. The Kubernetes-injected path
-     * ({@code /var/run/secrets/pods.eks.amazonaws.com/serviceaccount/eks-pod-identity-token}) sits outside the
-     * entitlement-grantable area, so when that env var is present we redirect the SDK at the entitled symlink location
-     * ({@link #POD_IDENTITY_TOKEN_FILE_LOCATION}) via the JVM system-property override (the sysprop takes precedence over
-     * the env var in {@link SdkSystemSetting}). Users symlink the token there exactly as they already do for the IRSA
-     * web-identity token. This is JVM-global; {@link #clearPodIdentitySysprop} reverts it on close.
-     */
-    @SuppressForbidden(reason = "JVM system property is the only override knob for the final AWS SDK ContainerCredentialsProvider")
-    private void maybeOverrideContainerAuthTokenFile(Environment environment) {
-        final var envValue = System.getenv(SdkSystemSetting.AWS_CONTAINER_AUTHORIZATION_TOKEN_FILE.environmentVariable());
-        if (Strings.hasText(envValue) == false) {
-            return;
-        }
-        final var entitledPath = environment.configDir().resolve(POD_IDENTITY_TOKEN_FILE_LOCATION).toString();
-        final var existing = System.getProperty(SdkSystemSetting.AWS_CONTAINER_AUTHORIZATION_TOKEN_FILE.property());
-        if (existing != null && existing.equals(entitledPath) == false) {
-            // Something else already pinned the SDK to a different token-file path. We cannot override it without
-            // breaking that component, and leaving it in place would silently point our chain's
-            // ContainerCredentialsProvider at the wrong token file. Fail fast rather than mis-authenticate.
-            throw new IllegalStateException(
-                Strings.format(
-                    "Cannot configure EKS Pod Identity for repository-s3: the JVM system property [%s] is already set to [%s], "
-                        + "but it must point at the entitled token symlink [%s]. Remove the conflicting -D%s setting "
-                        + "(or align it with the entitled location) before starting the node.",
-                    SdkSystemSetting.AWS_CONTAINER_AUTHORIZATION_TOKEN_FILE.property(),
-                    existing,
-                    entitledPath,
-                    SdkSystemSetting.AWS_CONTAINER_AUTHORIZATION_TOKEN_FILE.property()
-                )
-            );
-        }
-        System.setProperty(SdkSystemSetting.AWS_CONTAINER_AUTHORIZATION_TOKEN_FILE.property(), entitledPath);
-        podIdentitySyspropSetTo = entitledPath;
-        LOGGER.debug("Redirected AWS_CONTAINER_AUTHORIZATION_TOKEN_FILE [{}] to [{}] for EKS Pod Identity", envValue, entitledPath);
-    }
-
-    /**
-     * Symmetric counterpart to {@link #maybeOverrideContainerAuthTokenFile}. Clears the JVM-global
-     * {@code aws.containerAuthorizationTokenFile} sysprop, but only if its current value still equals the entitled path
-     * we set. If something else clobbered it after we set it, we leave it alone.
-     */
-    @SuppressForbidden(reason = "symmetric cleanup of the JVM-global sysprop set by maybeOverrideContainerAuthTokenFile")
-    private void clearPodIdentitySysprop() {
-        if (podIdentitySyspropSetTo == null) {
-            return;
-        }
-        final var current = System.getProperty(SdkSystemSetting.AWS_CONTAINER_AUTHORIZATION_TOKEN_FILE.property());
-        if (podIdentitySyspropSetTo.equals(current)) {
-            System.clearProperty(SdkSystemSetting.AWS_CONTAINER_AUTHORIZATION_TOKEN_FILE.property());
-        }
-        podIdentitySyspropSetTo = null;
     }
 
     // visible to tests
@@ -498,12 +433,8 @@ class S3Service extends AbstractLifecycleComponent {
 
     @Override
     public void doClose() throws IOException {
-        try {
-            s3ClientsManager.close();
-            webIdentityTokenCredentialsProvider.close();
-        } finally {
-            clearPodIdentitySysprop();
-        }
+        s3ClientsManager.close();
+        webIdentityTokenCredentialsProvider.close();
     }
 
     /**

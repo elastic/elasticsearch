@@ -1,7 +1,9 @@
 ####################
 # No loading tests #
 ####################
-partiallyUnmappedSmallNumericFieldIsWidened
+partiallyUnmappedSmallNumericFieldIsWidened-Ignore
+# This test is ignored pending a types widening bug fix in IndexResolver.
+# See https://github.com/elastic/elasticsearch/issues/151525
 required_capability: optional_fields_v5
 
 SET unmapped_fields="load"\;

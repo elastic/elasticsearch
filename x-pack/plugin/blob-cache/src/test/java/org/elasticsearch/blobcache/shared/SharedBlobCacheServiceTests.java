@@ -220,9 +220,9 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             assertSame(region0, region0Again);
             assertEquals(timestamp, region0Again.timestampMillis());
 
-            // a region created without a timestamp defaults to UNKNOWN_TIMESTAMP
+            // a region created without a timestamp defaults to NO_TIMESTAMP
             final var region1 = cacheService.get(cacheKey, size(250), 1);
-            assertEquals(SharedBlobCacheService.UNKNOWN_TIMESTAMP, region1.timestampMillis());
+            assertEquals(SharedBlobCacheService.NO_TIMESTAMP, region1.timestampMillis());
         }
     }
 

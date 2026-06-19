@@ -526,7 +526,7 @@ public class SearchDirectoryTests extends ESTestCase {
             assertThat(
                 "after commit A, internal file f_A resolves to midpoint of commit A's range",
                 searchDirectory.getTimestampMillis("f_A"),
-                equalTo(BlobFileRanges.midpointMillisOrUnknown(rangeA))
+                equalTo(BlobFileRanges.midpointMillisOrNone(rangeA))
             );
 
             // Commit B (later generation): f_A is referenced at the same location; f_B is the new internal file with range R_B.
@@ -539,17 +539,17 @@ public class SearchDirectoryTests extends ESTestCase {
             assertThat(
                 "after commit B, f_A (referenced at the same blob location) retains commit A's midpoint",
                 searchDirectory.getTimestampMillis("f_A"),
-                equalTo(BlobFileRanges.midpointMillisOrUnknown(rangeA))
+                equalTo(BlobFileRanges.midpointMillisOrNone(rangeA))
             );
             assertThat(
                 "f_B is internal to commit B, so it receives commit B's representative timestamp",
                 searchDirectory.getTimestampMillis("f_B"),
-                equalTo(BlobFileRanges.midpointMillisOrUnknown(rangeB))
+                equalTo(BlobFileRanges.midpointMillisOrNone(rangeB))
             );
             assertThat(
-                "unknown file returns UNKNOWN_TIMESTAMP",
+                "unknown file returns NO_TIMESTAMP",
                 searchDirectory.getTimestampMillis("unknown-file"),
-                equalTo(SharedBlobCacheService.UNKNOWN_TIMESTAMP)
+                equalTo(SharedBlobCacheService.NO_TIMESTAMP)
             );
         }
     }
@@ -654,20 +654,20 @@ public class SearchDirectoryTests extends ESTestCase {
             final var keyWithTs = new FileCacheKey(node.shardId, 1L, locationWithTs.blobName());
             final var keyWithoutTs = new FileCacheKey(node.shardId, 1L, locationWithoutTs.blobName());
             final long expectedForKnownRange = boostEnabled
-                ? BlobFileRanges.midpointMillisOrUnknown(range)
-                : SharedBlobCacheService.UNKNOWN_TIMESTAMP;
+                ? BlobFileRanges.midpointMillisOrNone(range)
+                : SharedBlobCacheService.NO_TIMESTAMP;
             assertThat(
                 "live CacheRegion for file-with-ts (non-null range, boostEnabled="
                     + boostEnabled
                     + ") should carry "
-                    + (boostEnabled ? "the per-CC midpoint" : "UNKNOWN_TIMESTAMP"),
+                    + (boostEnabled ? "the per-CC midpoint" : "NO_TIMESTAMP"),
                 capturedRegionTimestamps.get(keyWithTs),
                 equalTo(expectedForKnownRange)
             );
             assertThat(
-                "live CacheRegion for file-without-ts (null range, boostEnabled=" + boostEnabled + ") should carry UNKNOWN_TIMESTAMP",
+                "live CacheRegion for file-without-ts (null range, boostEnabled=" + boostEnabled + ") should carry NO_TIMESTAMP",
                 capturedRegionTimestamps.get(keyWithoutTs),
-                equalTo(SharedBlobCacheService.UNKNOWN_TIMESTAMP)
+                equalTo(SharedBlobCacheService.NO_TIMESTAMP)
             );
         }
     }

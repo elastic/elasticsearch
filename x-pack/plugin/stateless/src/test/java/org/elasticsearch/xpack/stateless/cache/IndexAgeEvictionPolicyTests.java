@@ -34,7 +34,7 @@ import org.elasticsearch.xpack.stateless.lucene.FileCacheKey;
 import java.io.IOException;
 import java.util.Map;
 
-import static org.elasticsearch.blobcache.shared.SharedBlobCacheService.UNKNOWN_TIMESTAMP;
+import static org.elasticsearch.blobcache.shared.SharedBlobCacheService.NO_TIMESTAMP;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_CREATION_DATE;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_INDEX_UUID;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_VERSION_CREATED;
@@ -203,7 +203,7 @@ public class IndexAgeEvictionPolicyTests extends ESTestCase {
 
             @Override
             public long timestampMillis() {
-                return UNKNOWN_TIMESTAMP;
+                return NO_TIMESTAMP;
             }
         };
     }

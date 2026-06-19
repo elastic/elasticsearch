@@ -265,7 +265,7 @@ public class EvictionPolicyTests extends ESTestCase {
         final var policy = new EvictionPolicy<TestKey>() {
             @Override
             public boolean canEvict(CacheRegion<TestKey> region, CacheRegion<TestKey> incoming) {
-                if (incoming.timestampMillis() == SharedBlobCacheService.UNKNOWN_TIMESTAMP) {
+                if (incoming.timestampMillis() == SharedBlobCacheService.NO_TIMESTAMP) {
                     fail("incoming region must have a known timestamp in this test case");
                 }
                 return region.timestampMillis() <= incoming.timestampMillis();

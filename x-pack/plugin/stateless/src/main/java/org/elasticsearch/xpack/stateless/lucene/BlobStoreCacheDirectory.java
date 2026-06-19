@@ -139,8 +139,8 @@ public abstract class BlobStoreCacheDirectory extends ByteSizeDirectory {
     public long getTimestampMillis(String fileName) {
         var blobFileRanges = currentMetadata.get(fileName);
         return blobFileRanges != null
-            ? BlobFileRanges.midpointMillisOrUnknown(blobFileRanges.timestampRange())
-            : SharedBlobCacheService.UNKNOWN_TIMESTAMP;
+            ? BlobFileRanges.midpointMillisOrNone(blobFileRanges.timestampRange())
+            : SharedBlobCacheService.NO_TIMESTAMP;
     }
 
     StatelessSharedBlobCacheService getCacheService() {
@@ -327,8 +327,8 @@ public abstract class BlobStoreCacheDirectory extends ByteSizeDirectory {
             // todo: time-source
             new CacheMissHandler(metricsHolder.singleThreaded(), System::nanoTime),
             cacheService.isCacheBoostPreferenceEnabled()
-                ? BlobFileRanges.midpointMillisOrUnknown(blobFileRanges.timestampRange())
-                : SharedBlobCacheService.UNKNOWN_TIMESTAMP
+                ? BlobFileRanges.midpointMillisOrNone(blobFileRanges.timestampRange())
+                : SharedBlobCacheService.NO_TIMESTAMP
         );
     }
 

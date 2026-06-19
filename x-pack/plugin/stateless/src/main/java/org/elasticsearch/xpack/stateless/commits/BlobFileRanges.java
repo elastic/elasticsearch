@@ -181,9 +181,9 @@ public class BlobFileRanges {
         return blobFileRanges;
     }
 
-    public static long midpointMillisOrUnknown(@Nullable StatelessCompoundCommit.TimestampFieldValueRange range) {
+    public static long midpointMillisOrNone(@Nullable StatelessCompoundCommit.TimestampFieldValueRange range) {
         if (range == null) {
-            return SharedBlobCacheService.UNKNOWN_TIMESTAMP;
+            return SharedBlobCacheService.NO_TIMESTAMP;
         }
         return range.midpointMillis();
     }

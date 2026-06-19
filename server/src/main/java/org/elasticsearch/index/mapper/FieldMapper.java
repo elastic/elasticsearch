@@ -240,6 +240,9 @@ public abstract class FieldMapper extends Mapper {
             if (isSingleValueEnforced()) {
                 context.enforceSingleValue(fullPath());
             }
+            if (isNullable() == false && context.parser().currentToken().isValue()) {
+                context.encounterRequiredField(fullPath());
+            }
 
             parseCreateField(context);
         } catch (Exception e) {
@@ -256,7 +259,6 @@ public abstract class FieldMapper extends Mapper {
         context.path().add(leafName());
         for (FieldMapper mapper : builderParams.multiFields.mappers) {
             mapper.parse(context);
-            context.encounterNonNullableField(mapper.fullPath());
         }
         context.path().remove();
     }

@@ -199,7 +199,7 @@ public abstract class DocumentParserContext {
     private final Set<String> ignoredFields;
     private final List<IgnoredSourceFieldMapper.NameValue> ignoredFieldValues;
     private final Set<String> singleValuedFields;
-    private final Set<String> nonNullableFields;
+    private final Set<String> requiredFields;
     private Scope currentScope;
 
     private final Map<String, List<Mapper.Builder>> dynamicMappers;
@@ -257,7 +257,7 @@ public abstract class DocumentParserContext {
         ObjectArrayElementCounter objectArrayElementCounter,
         boolean recordedSource,
         Set<String> singleValuedFields,
-        Set<String> nonNullableFields
+        Set<String> requiredFields
     ) {
         this.mappingLookup = mappingLookup;
         this.mappingParserContext = mappingParserContext;
@@ -265,7 +265,7 @@ public abstract class DocumentParserContext {
         this.ignoredFields = ignoreFields;
         this.ignoredFieldValues = ignoredFieldValues;
         this.singleValuedFields = singleValuedFields;
-        this.nonNullableFields = nonNullableFields;
+        this.requiredFields = requiredFields;
         this.currentScope = currentScope;
         this.dynamicMappers = dynamicMappers;
         this.dynamicObjectMappers = dynamicObjectMappers;
@@ -312,7 +312,7 @@ public abstract class DocumentParserContext {
             in.objectArrayElementCounter,
             in.recordedSource,
             in.singleValuedFields,
-            in.nonNullableFields
+            in.requiredFields
         );
     }
 
@@ -347,7 +347,7 @@ public abstract class DocumentParserContext {
             new ObjectArrayElementCounter(),
             false,
             new HashSet<>(),
-            new HashSet<>(mappingLookup.nonNullableFields())
+            new HashSet<>(mappingLookup.requiredFields())
         );
     }
 
@@ -404,15 +404,15 @@ public abstract class DocumentParserContext {
         }
     }
 
-    public final void encounterNonNullableField(String fieldName) {
-        nonNullableFields.remove(fieldName);
+    public final void encounterRequiredField(String fieldName) {
+        requiredFields.remove(fieldName);
     }
 
-    public final void enforceNonNullableFields() {
-        nonNullableFields.removeAll(ignoredFields);
-        if (nonNullableFields.isEmpty() == false) {
+    public final void enforceRequiredFields() {
+        requiredFields.removeAll(ignoredFields);
+        if (requiredFields.isEmpty() == false) {
             throw new IllegalArgumentException(
-                "Field(s) [" + String.join(",", nonNullableFields) + "] are configured with [nullability=false] but were null"
+                "Field(s) [" + String.join(",", requiredFields) + "] are configured with [nullability=false] but were null"
             );
         }
     }

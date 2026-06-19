@@ -1362,8 +1362,8 @@ public class AsyncBulkByPaginatedSearchActionTests extends ESTestCase {
         CountDownLatch firstConsumeReturnedFromSuper = new CountDownLatch(1);
         CountDownLatch resumePrepareAfterFinishHim = new CountDownLatch(1);
         AtomicInteger sendBulkInvocations = new AtomicInteger();
-        AbstractAsyncBulkByPaginatedSearchAction.PaginatedSearchConsumableHitsResponse consumable = new PaginatedSearchConsumableHitsResponseGate(
-            new PaginatedHitSource.AsyncResponse() {
+        AbstractAsyncBulkByPaginatedSearchAction.PaginatedSearchConsumableHitsResponse consumable =
+            new PaginatedSearchConsumableHitsResponseGate(new PaginatedHitSource.AsyncResponse() {
                 @Override
                 public PaginatedHitSource.Response response() {
                     return scrollResponse;

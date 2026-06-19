@@ -132,8 +132,8 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
     private final AtomicReference<PaginatedSearchConsumableHitsResponse> currentPaginatedSearchResponse = new AtomicReference<>();
     /**
      * Set to {@code true} at the start of {@link #finishHim(Exception, List, List, boolean)} so {@link #prepareBulkRequest} can still
-     * release unconsumed hits when {@link #currentPaginatedSearchResponse} is temporarily {@code null} after prepare's CAS (before the ref is
-     * restored when {@code maxDocs} leaves a partial batch).
+     * release unconsumed hits when {@link #currentPaginatedSearchResponse} is temporarily {@code null} after prepare's CAS
+     * (before the ref is restored when {@code maxDocs} leaves a partial batch).
      */
     private final AtomicBoolean requestFinishing = new AtomicBoolean(false);
     /**

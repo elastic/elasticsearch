@@ -6477,7 +6477,7 @@ public class CsvFormatReaderTests extends ESTestCase {
                     false
                 )
             );
-            reader = (CsvFormatReader) reader.withSchema(schema);
+            reader = reader.withSchema(schema);
         }
         FormatReadContext.Builder ctxBuilder = FormatReadContext.builder()
             .batchSize(64)

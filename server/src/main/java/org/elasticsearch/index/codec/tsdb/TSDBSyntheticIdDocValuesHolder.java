@@ -54,7 +54,7 @@ class TSDBSyntheticIdDocValuesHolder {
     private SortedDocValues tsIdDocValues; // sorted asc. order
     private NumericDocValues tombstoneDocValues;
     private NumericDocValues softDeletesDocValues;
-    // tsids in the same segment have the same length now (16 bytes)
+    // tsids in the same segment have the same length
     private int tsidFixedLength = -1;
     // Keep around the latest tsId ordinal and value
     private int cachedTsIdOrd = -1;

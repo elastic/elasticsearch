@@ -232,7 +232,10 @@ public class ColumnarLogsdbIndexModeTests extends ESTestCase {
     }
 
     public void testIndexDisabledByDefault() {
-        assumeTrue("index_disabled_by_default feature flag must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        assumeTrue(
+            "columnar feature flag must be enabled",
+            IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled()
+        );
         Settings settings = IndexSettingsTests.newIndexMeta("test", buildSettings()).getSettings();
         assertTrue(IndexSettings.INDEX_DISABLED_BY_DEFAULT.get(settings));
     }

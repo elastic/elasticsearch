@@ -87,7 +87,10 @@ public class ColumnarIndexModeTests extends ESTestCase {
     }
 
     public void testIndexDisabledByDefault() {
-        assumeTrue("index_disabled_by_default feature flag must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        assumeTrue(
+            "columnar feature flag must be enabled",
+            IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled()
+        );
         Settings settings = IndexSettingsTests.newIndexMeta(
             "test",
             Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build()

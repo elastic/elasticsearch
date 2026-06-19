@@ -95,11 +95,14 @@ $endif$
 $if(hasExtra)$
 $if(ExtraBytesRef)$
     private ObjectArray<BreakingBytesRefBuilder> extraValues;
+
 $else$
     private $ExtraArray$ extraValues;
-$endif$
-$endif$
 
+$endif$
+$else$
+
+$endif$
     public $Name$$ExtraName$BucketedSort(BigArrays bigArrays, SortOrder order, int bucketSize) {
         this.bigArrays = bigArrays;
 $if(BytesRef || ExtraBytesRef)$
@@ -142,6 +145,7 @@ $endif$
         if (inHeapMode(bucket)) {
 $if(hasExtra)$
             if (betterThan(
+                // comment to make spotless happy about line breaks
                 value,
                 $if(BytesRef)$bytesAt(rootIndex)$else$values.get(rootIndex)$endif$,
                 extraValue,
@@ -239,6 +243,7 @@ $if(hasExtra)$
 $if(BytesRef)$
             BreakingBytesRefBuilder otherValue = other.values.get(i);
             collect(
+                // comment to make spotless happy about line breaks
                 otherValue == null ? new BytesRef() : otherValue.bytesRefView(),
 $if(ExtraBytesRef)$
                 other.extraValues.get(i) == null ? new BytesRef() : other.extraValues.get(i).bytesRefView(),
@@ -281,6 +286,7 @@ $if(hasExtra)$
         }
 
         try (
+            // comment to make spotless happy about line breaks
 $if(BytesRef)$
             var builder = blockFactory.newBytesRefBlockBuilder(selected.getPositionCount());
 $else$
@@ -365,6 +371,7 @@ $else$
         }
 
         try (
+            // comment to make spotless happy about line breaks
 $if(BytesRef)$
             var builder = blockFactory.newBytesRefBlockBuilder(selected.getPositionCount())
 $else$
@@ -571,6 +578,7 @@ $endif$
         assert oldMax % bucketSize == 0;
 
         long newSize = BigArrays.overSize(
+            // comment to make spotless happy about line breaks
             ((long) bucket + 1) * bucketSize,
             $if(BytesRef)$PageCacheRecycler.OBJECT_PAGE_SIZE$else$PageCacheRecycler.$TYPE$_PAGE_SIZE$endif$,
             $if(BytesRef)$org.apache.lucene.util.RamUsageEstimator.NUM_BYTES_OBJECT_REF$else$$BYTES$$endif$
@@ -681,6 +689,7 @@ $endif$
             if (leftChild < heapSize) {
 $if(hasExtra)$
                 if (betterThan(
+                    // comment to make spotless happy about line breaks
                     $if(BytesRef)$bytesAt(worstIndex)$else$values.get(worstIndex)$endif$,
                     $if(BytesRef)$bytesAt(leftIndex)$else$values.get(leftIndex)$endif$,
                     $if(ExtraBytesRef)$extraBytesAt(worstIndex)$else$extraValues.get(worstIndex)$endif$,
@@ -701,6 +710,7 @@ $endif$
 $if(hasExtra)$
                 if (rightChild < heapSize
                     && betterThan(
+                        // comment to make spotless happy about line breaks
                         $if(BytesRef)$bytesAt(worstIndex)$else$values.get(worstIndex)$endif$,
                         $if(BytesRef)$bytesAt(rightIndex)$else$values.get(rightIndex)$endif$,
                         $if(ExtraBytesRef)$extraBytesAt(worstIndex)$else$extraValues.get(worstIndex)$endif$,

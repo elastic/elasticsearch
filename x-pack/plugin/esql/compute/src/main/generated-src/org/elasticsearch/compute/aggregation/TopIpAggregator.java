@@ -61,7 +61,13 @@ class TopIpAggregator {
         state.add(groupId, v);
     }
 
-    public static void combineIntermediate(GroupingState state, int groupId, BytesRefBlock values, int position) {
+    public static void combineIntermediate(
+        // comment to make spotless happy about line breaks
+        GroupingState state,
+        int groupId,
+        BytesRefBlock values,
+        int position
+    ) {
         int start = values.getFirstValueIndex(position);
         int end = start + values.getValueCount(position);
         var scratch = new BytesRef();

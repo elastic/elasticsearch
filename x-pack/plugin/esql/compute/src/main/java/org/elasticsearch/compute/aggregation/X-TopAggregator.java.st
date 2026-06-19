@@ -77,7 +77,14 @@ $endif$
         state.add(groupId, v$if(hasOutputField)$, outputValue$endif$);
     }
 
-    public static void combineIntermediate(GroupingState state, int groupId, $Type$Block values, $if(hasOutputField)$$OutputFieldType$Block outputValues, $endif$int position) {
+    public static void combineIntermediate(
+        // comment to make spotless happy about line breaks
+        GroupingState state,
+        int groupId,
+        $Type$Block values,
+        $if(hasOutputField)$$OutputFieldType$Block outputValues,$endif$
+        int position
+    ) {
         int start = values.getFirstValueIndex(position);
         int end = start + values.getValueCount(position);
 $if(hasOutputField && OutputFieldBytesRef)$

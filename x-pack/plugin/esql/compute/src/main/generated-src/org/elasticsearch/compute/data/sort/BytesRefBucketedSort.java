@@ -175,7 +175,10 @@ public class BytesRefBucketedSort implements Releasable {
             return blockFactory.newConstantNullBlock(selected.getPositionCount());
         }
 
-        try (var builder = blockFactory.newBytesRefBlockBuilder(selected.getPositionCount())) {
+        try (
+            // comment to make spotless happy about line breaks
+            var builder = blockFactory.newBytesRefBlockBuilder(selected.getPositionCount())
+        ) {
             for (int s = 0; s < selected.getPositionCount(); s++) {
                 int bucket = selected.getInt(s);
 
@@ -304,6 +307,7 @@ public class BytesRefBucketedSort implements Releasable {
         assert oldMax % bucketSize == 0;
 
         long newSize = BigArrays.overSize(
+            // comment to make spotless happy about line breaks
             ((long) bucket + 1) * bucketSize,
             PageCacheRecycler.OBJECT_PAGE_SIZE,
             org.apache.lucene.util.RamUsageEstimator.NUM_BYTES_OBJECT_REF

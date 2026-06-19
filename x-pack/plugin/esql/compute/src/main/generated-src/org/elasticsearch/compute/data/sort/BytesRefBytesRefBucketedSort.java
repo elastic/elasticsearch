@@ -73,6 +73,7 @@ public class BytesRefBytesRefBucketedSort implements Releasable {
      */
     private ObjectArray<BreakingBytesRefBuilder> values;
     private ObjectArray<BreakingBytesRefBuilder> extraValues;
+
     public BytesRefBytesRefBucketedSort(BigArrays bigArrays, SortOrder order, int bucketSize) {
         this.bigArrays = bigArrays;
         this.breaker = bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
@@ -102,6 +103,7 @@ public class BytesRefBytesRefBucketedSort implements Releasable {
         long rootIndex = (long) bucket * bucketSize;
         if (inHeapMode(bucket)) {
             if (betterThan(
+                // comment to make spotless happy about line breaks
                 value,
                 bytesAt(rootIndex),
                 extraValue,
@@ -171,6 +173,7 @@ public class BytesRefBytesRefBucketedSort implements Releasable {
         for (long i = otherBounds.v1(); i < otherBounds.v2(); i++) {
             BreakingBytesRefBuilder otherValue = other.values.get(i);
             collect(
+                // comment to make spotless happy about line breaks
                 otherValue == null ? new BytesRef() : otherValue.bytesRefView(),
                 other.extraValues.get(i) == null ? new BytesRef() : other.extraValues.get(i).bytesRefView(),
                 groupId
@@ -192,6 +195,7 @@ public class BytesRefBytesRefBucketedSort implements Releasable {
         }
 
         try (
+            // comment to make spotless happy about line breaks
             var builder = blockFactory.newBytesRefBlockBuilder(selected.getPositionCount());
             var extraBuilder = blockFactory.newBytesRefBlockBuilder(selected.getPositionCount())
         ) {
@@ -373,6 +377,7 @@ public class BytesRefBytesRefBucketedSort implements Releasable {
         assert oldMax % bucketSize == 0;
 
         long newSize = BigArrays.overSize(
+            // comment to make spotless happy about line breaks
             ((long) bucket + 1) * bucketSize,
             PageCacheRecycler.OBJECT_PAGE_SIZE,
             org.apache.lucene.util.RamUsageEstimator.NUM_BYTES_OBJECT_REF
@@ -473,6 +478,7 @@ public class BytesRefBytesRefBucketedSort implements Releasable {
             long leftIndex = rootIndex + leftChild;
             if (leftChild < heapSize) {
                 if (betterThan(
+                    // comment to make spotless happy about line breaks
                     bytesAt(worstIndex),
                     bytesAt(leftIndex),
                     extraBytesAt(worstIndex),
@@ -485,6 +491,7 @@ public class BytesRefBytesRefBucketedSort implements Releasable {
                 long rightIndex = rootIndex + rightChild;
                 if (rightChild < heapSize
                     && betterThan(
+                        // comment to make spotless happy about line breaks
                         bytesAt(worstIndex),
                         bytesAt(rightIndex),
                         extraBytesAt(worstIndex),

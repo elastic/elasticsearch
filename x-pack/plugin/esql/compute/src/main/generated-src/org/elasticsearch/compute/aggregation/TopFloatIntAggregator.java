@@ -61,7 +61,14 @@ class TopFloatIntAggregator {
         state.add(groupId, v, outputValue);
     }
 
-    public static void combineIntermediate(GroupingState state, int groupId, FloatBlock values, IntBlock outputValues, int position) {
+    public static void combineIntermediate(
+        // comment to make spotless happy about line breaks
+        GroupingState state,
+        int groupId,
+        FloatBlock values,
+        IntBlock outputValues,
+        int position
+    ) {
         int start = values.getFirstValueIndex(position);
         int end = start + values.getValueCount(position);
         for (int i = start; i < end; i++) {

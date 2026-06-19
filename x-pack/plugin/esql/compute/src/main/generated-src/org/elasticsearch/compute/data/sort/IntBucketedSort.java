@@ -67,6 +67,7 @@ public class IntBucketedSort implements Releasable {
      * </ul>
      */
     private IntArray values;
+
     public IntBucketedSort(BigArrays bigArrays, SortOrder order, int bucketSize) {
         this.bigArrays = bigArrays;
         this.order = order;
@@ -168,6 +169,7 @@ public class IntBucketedSort implements Releasable {
         }
 
         try (
+            // comment to make spotless happy about line breaks
             var builder = blockFactory.newIntBlockBuilder(selected.getPositionCount())
         ) {
             for (int s = 0; s < selected.getPositionCount(); s++) {
@@ -266,6 +268,7 @@ public class IntBucketedSort implements Releasable {
         assert oldMax % bucketSize == 0;
 
         long newSize = BigArrays.overSize(
+            // comment to make spotless happy about line breaks
             ((long) bucket + 1) * bucketSize,
             PageCacheRecycler.INT_PAGE_SIZE,
             Integer.BYTES

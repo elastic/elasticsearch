@@ -98,6 +98,7 @@ public class LongFloatBucketedSort implements Releasable {
         long rootIndex = (long) bucket * bucketSize;
         if (inHeapMode(bucket)) {
             if (betterThan(
+                // comment to make spotless happy about line breaks
                 value,
                 values.get(rootIndex),
                 extraValue,
@@ -183,6 +184,7 @@ public class LongFloatBucketedSort implements Releasable {
         }
 
         try (
+            // comment to make spotless happy about line breaks
             var builder = blockFactory.newLongBlockBuilder(selected.getPositionCount());
             var extraBuilder = blockFactory.newFloatBlockBuilder(selected.getPositionCount())
         ) {
@@ -302,6 +304,7 @@ public class LongFloatBucketedSort implements Releasable {
         assert oldMax % bucketSize == 0;
 
         long newSize = BigArrays.overSize(
+            // comment to make spotless happy about line breaks
             ((long) bucket + 1) * bucketSize,
             PageCacheRecycler.LONG_PAGE_SIZE,
             Long.BYTES
@@ -393,6 +396,7 @@ public class LongFloatBucketedSort implements Releasable {
             long leftIndex = rootIndex + leftChild;
             if (leftChild < heapSize) {
                 if (betterThan(
+                    // comment to make spotless happy about line breaks
                     values.get(worstIndex),
                     values.get(leftIndex),
                     extraValues.get(worstIndex),
@@ -405,6 +409,7 @@ public class LongFloatBucketedSort implements Releasable {
                 long rightIndex = rootIndex + rightChild;
                 if (rightChild < heapSize
                     && betterThan(
+                        // comment to make spotless happy about line breaks
                         values.get(worstIndex),
                         values.get(rightIndex),
                         extraValues.get(worstIndex),

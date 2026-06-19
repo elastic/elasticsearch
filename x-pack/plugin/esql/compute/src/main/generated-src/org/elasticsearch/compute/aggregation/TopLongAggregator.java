@@ -60,7 +60,13 @@ class TopLongAggregator {
         state.add(groupId, v);
     }
 
-    public static void combineIntermediate(GroupingState state, int groupId, LongBlock values, int position) {
+    public static void combineIntermediate(
+        // comment to make spotless happy about line breaks
+        GroupingState state,
+        int groupId,
+        LongBlock values,
+        int position
+    ) {
         int start = values.getFirstValueIndex(position);
         int end = start + values.getValueCount(position);
         for (int i = start; i < end; i++) {

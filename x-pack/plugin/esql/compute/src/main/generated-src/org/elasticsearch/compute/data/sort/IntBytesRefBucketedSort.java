@@ -73,6 +73,7 @@ public class IntBytesRefBucketedSort implements Releasable {
      */
     private IntArray values;
     private ObjectArray<BreakingBytesRefBuilder> extraValues;
+
     public IntBytesRefBucketedSort(BigArrays bigArrays, SortOrder order, int bucketSize) {
         this.bigArrays = bigArrays;
         this.breaker = bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
@@ -102,6 +103,7 @@ public class IntBytesRefBucketedSort implements Releasable {
         long rootIndex = (long) bucket * bucketSize;
         if (inHeapMode(bucket)) {
             if (betterThan(
+                // comment to make spotless happy about line breaks
                 value,
                 values.get(rootIndex),
                 extraValue,
@@ -188,6 +190,7 @@ public class IntBytesRefBucketedSort implements Releasable {
         }
 
         try (
+            // comment to make spotless happy about line breaks
             var builder = blockFactory.newIntBlockBuilder(selected.getPositionCount());
             var extraBuilder = blockFactory.newBytesRefBlockBuilder(selected.getPositionCount())
         ) {
@@ -337,6 +340,7 @@ public class IntBytesRefBucketedSort implements Releasable {
         assert oldMax % bucketSize == 0;
 
         long newSize = BigArrays.overSize(
+            // comment to make spotless happy about line breaks
             ((long) bucket + 1) * bucketSize,
             PageCacheRecycler.INT_PAGE_SIZE,
             Integer.BYTES
@@ -428,6 +432,7 @@ public class IntBytesRefBucketedSort implements Releasable {
             long leftIndex = rootIndex + leftChild;
             if (leftChild < heapSize) {
                 if (betterThan(
+                    // comment to make spotless happy about line breaks
                     values.get(worstIndex),
                     values.get(leftIndex),
                     extraBytesAt(worstIndex),
@@ -440,6 +445,7 @@ public class IntBytesRefBucketedSort implements Releasable {
                 long rightIndex = rootIndex + rightChild;
                 if (rightChild < heapSize
                     && betterThan(
+                        // comment to make spotless happy about line breaks
                         values.get(worstIndex),
                         values.get(rightIndex),
                         extraBytesAt(worstIndex),

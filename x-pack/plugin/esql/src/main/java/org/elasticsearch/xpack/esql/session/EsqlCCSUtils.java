@@ -97,7 +97,15 @@ public class EsqlCCSUtils {
                 updateExecutionInfoToReturnEmptyResult(executionInfo, e);
                 listener.onResponse(
                     new Versioned<>(
-                        new Result(Analyzer.NO_FIELDS, List.of(), Map.of(), configuration, DriverCompletionInfo.EMPTY, executionInfo),
+                        new Result(
+                            Analyzer.NO_FIELDS,
+                            List.of(),
+                            Map.of(),
+                            configuration,
+                            DriverCompletionInfo.EMPTY,
+                            executionInfo,
+                            false
+                        ),
                         TransportVersion.current()
                     )
                 );

@@ -41,15 +41,14 @@ class ExpandUnmappedFieldsPostProcessor {
 
     /**
      * Expands the {@code _unmapped_fields} column in {@code result} into per-field columns.
-     * Returns {@code result} unchanged if no {@link UnmappedFieldsAttribute} with
-     * {@link UnmappedFieldsAttribute#expand()} is present in the schema.
+     * Returns {@code result} unchanged if no {@link UnmappedFieldsAttribute} is present in the schema.
      */
     static Result expand(Result result, BlockFactory blockFactory) {
         List<Attribute> schema = result.schema();
 
         int unmappedIdx = -1;
         for (int i = 0; i < schema.size(); i++) {
-            if (schema.get(i) instanceof UnmappedFieldsAttribute ufa && ufa.expand()) {
+            if (schema.get(i) instanceof UnmappedFieldsAttribute) {
                 unmappedIdx = i;
                 break;
             }
@@ -137,7 +136,8 @@ class ExpandUnmappedFieldsPostProcessor {
             result.attributeMetadata(),
             result.configuration(),
             result.completionInfo(),
-            result.executionInfo()
+            result.executionInfo(),
+            false
         );
     }
 

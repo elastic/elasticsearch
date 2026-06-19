@@ -54,41 +54,13 @@ public final class UnmappedFieldsAttribute extends MetadataAttribute {
         UnmappedFieldsAttribute::readFrom
     );
 
-    /**
-     * Whether the coordinator should expand this synthetic column into per-field columns after collecting results.
-     * This flag is coordinator-local: it is set by {@code DetermineUnmappedFieldsToKeep} when
-     * {@code SET unmapped_fields="LOAD_ALL_EXPAND"} is active, and intentionally not serialized to data nodes
-     * (which only need to produce the raw {@code _unmapped_fields} JSON column, regardless of expand mode).
-     */
-    private final boolean expand;
     private final UnmappedFieldsPattern pattern;
 
     public UnmappedFieldsAttribute(Source source, UnmappedFieldsPattern pattern) {
-        this(source, pattern, false);
-    }
-
-    public UnmappedFieldsAttribute(Source source, UnmappedFieldsPattern pattern, boolean expand) {
         super(source, ATTRIBUTE_NAME, DataType.KEYWORD, false);
-        this.expand = expand;
         this.pattern = pattern;
     }
 
-    /** Used by deserialization ({@link #readFrom}) and {@link #clone}. */
-    private UnmappedFieldsAttribute(
-        Source source,
-        DataType type,
-        Nullability nullability,
-        NameId id,
-        boolean synthetic,
-        boolean expand,
-        UnmappedFieldsPattern pattern
-    ) {
-        super(source, ATTRIBUTE_NAME, type, nullability, id, synthetic, false);
-        this.expand = expand;
-        this.pattern = pattern;
-    }
-
-    /** Used by deserialization ({@link #readFrom}). {@code expand} is always {@code false} since it is not serialized. */
     public UnmappedFieldsAttribute(
         Source source,
         DataType type,
@@ -97,12 +69,8 @@ public final class UnmappedFieldsAttribute extends MetadataAttribute {
         boolean synthetic,
         UnmappedFieldsPattern pattern
     ) {
-        this(source, type, nullability, id, synthetic, false, pattern);
-    }
-
-    /** Returns {@code true} if the coordinator should expand this column into one column per unique field name. */
-    public boolean expand() {
-        return expand;
+        super(source, ATTRIBUTE_NAME, type, nullability, id, synthetic, false);
+        this.pattern = pattern;
     }
 
     /** The unmapped-fields pattern this attribute carries. */
@@ -155,30 +123,22 @@ public final class UnmappedFieldsAttribute extends MetadataAttribute {
         NameId id,
         boolean synthetic
     ) {
-        return new UnmappedFieldsAttribute(source, type, nullability, id, synthetic, expand, pattern);
+        return new UnmappedFieldsAttribute(source, type, nullability, id, synthetic, pattern);
     }
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(
-            this,
-            (src, dt, nu, ni, sy, pa) -> new UnmappedFieldsAttribute(src, dt, nu, ni, sy, expand, pa),
-            dataType(),
-            nullable(),
-            id(),
-            synthetic(),
-            pattern
-        );
+        return NodeInfo.create(this, UnmappedFieldsAttribute::new, dataType(), nullable(), id(), synthetic(), pattern);
     }
 
     @Override
     protected int innerHashCode(boolean ignoreIds) {
-        return Objects.hash(super.innerHashCode(ignoreIds), expand, pattern);
+        return Objects.hash(super.innerHashCode(ignoreIds), pattern);
     }
 
     @Override
     protected boolean innerEquals(Object o, boolean ignoreIds) {
         var other = (UnmappedFieldsAttribute) o;
-        return super.innerEquals(other, ignoreIds) && expand == other.expand && Objects.equals(pattern, other.pattern);
+        return super.innerEquals(other, ignoreIds) && Objects.equals(pattern, other.pattern);
     }
 }

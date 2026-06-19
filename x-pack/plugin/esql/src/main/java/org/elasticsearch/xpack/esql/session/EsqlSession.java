@@ -403,6 +403,7 @@ public class EsqlSession {
         // Run structural checks that don't need analysis or index resolution. Doing this here
         // (after view resolution, before pre-analysis) lets a malformed query fail-fast without
         // paying for field-caps round trips.
+        UnmappedResolution unmappedResolution = statement.setting(UNMAPPED_FIELDS);
         Configuration configurationToUse = configuration;
         if (plan instanceof Explain explain) {
             explainMode = true;
@@ -416,7 +417,7 @@ public class EsqlSession {
 
         analyzedPlan(
             plan,
-            statement.setting(UNMAPPED_FIELDS),
+            unmappedResolution,
             finalConfiguration,
             executionInfo,
             request.filter(),
@@ -466,7 +467,14 @@ public class EsqlSession {
                             );
                         })
                         .<Versioned<Result>>andThen(
-                            (l, r) -> l.onResponse(attachMetadataAndVersion(r, columnMetadata.get(), minimumVersion))
+                            (l, r) -> l.onResponse(
+                                attachMetadataAndVersion(
+                                    r,
+                                    columnMetadata.get(),
+                                    minimumVersion,
+                                    unmappedResolution == UnmappedResolution.LOAD_ALL_EXPAND
+                                )
+                            )
                         )
                         .addListener(listener);
                 }
@@ -588,7 +596,8 @@ public class EsqlSession {
     private static Versioned<Result> attachMetadataAndVersion(
         Result result,
         Map<NameId, Map<String, Object>> columnMetadata,
-        TransportVersion minimumVersion
+        TransportVersion minimumVersion,
+        boolean toExpand
     ) {
         return new Versioned<>(
             new Result(
@@ -597,7 +606,8 @@ public class EsqlSession {
                 columnMetadata,
                 result.configuration(),
                 result.completionInfo(),
-                result.executionInfo()
+                result.executionInfo(),
+                toExpand
             ),
             minimumVersion
         );
@@ -966,7 +976,7 @@ public class EsqlSession {
                             DriverCompletionInfo merged = completionInfoAccumulator.finish();
                             reconcileCapturedSourceStats(merged);
                             finalListener.onResponse(
-                                new Result(finalResult.schema(), finalResult.pages(), null, configuration, merged, executionInfo)
+                                new Result(finalResult.schema(), finalResult.pages(), null, configuration, merged, executionInfo, false)
                             );
                         })
                     );

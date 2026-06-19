@@ -7,7 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.benchmark.vector.scorer;
+package org.elasticsearch.benchmark.vector;
 
 public enum VectorImplementation {
     SCALAR,

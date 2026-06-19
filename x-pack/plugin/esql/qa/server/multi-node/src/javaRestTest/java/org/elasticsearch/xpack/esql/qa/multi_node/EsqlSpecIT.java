@@ -7,7 +7,9 @@
 
 package org.elasticsearch.xpack.esql.qa.multi_node;
 
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.esql.CsvSpecReader.CsvTestCase;
 import org.elasticsearch.xpack.esql.CsvTestUtils;
 import org.elasticsearch.xpack.esql.qa.rest.EsqlSpecTestCase;
@@ -23,6 +25,11 @@ public class EsqlSpecIT extends EsqlSpecTestCase {
     public static ElasticsearchCluster cluster = Clusters.testCluster(CSV_DATA_PATH, spec -> {
         spec.plugin("inference-service-test").settings(nodeSpec -> LOGGING_CLUSTER_SETTINGS);
     });
+
+    @Override
+    protected Settings restClientSettings() {
+        return Settings.builder().put(super.restClientSettings()).put(ESRestTestCase.CLIENT_SOCKET_TIMEOUT, "3m").build();
+    }
 
     @Override
     protected Path getCsvDataPath() {

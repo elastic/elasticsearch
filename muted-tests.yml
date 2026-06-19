@@ -554,9 +554,6 @@ tests:
 - class: org.elasticsearch.index.engine.ThreadPoolMergeExecutorServiceDiskSpaceTests
   method: testUnavailableBudgetBlocksNewMergeTasksFromStartingExecution
   issue: https://github.com/elastic/elasticsearch/issues/151330
-- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
-  method: test {csv-spec:stats.maxOfHalfFloat}
-  issue: https://github.com/elastic/elasticsearch/issues/151357
 - class: org.elasticsearch.xpack.esql.plugin.CanMatchIT
   method: testAliasFilters
   issue: https://github.com/elastic/elasticsearch/issues/151367
@@ -587,9 +584,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.multi_node.GenerativeIT
   method: test {feature:SUBQUERIES}
   issue: https://github.com/elastic/elasticsearch/issues/149681
-- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
-  method: test {csv-spec:date_nanos.implicit casting to nanos, date plus time to millis, equality test}
-  issue: https://github.com/elastic/elasticsearch/issues/151536
 - class: org.elasticsearch.xpack.logsdb.LogsdbRestIT
   method: testSyntheticSourceRuntimeFieldQueries
   issue: https://github.com/elastic/elasticsearch/issues/151546
@@ -608,18 +602,12 @@ tests:
 - class: org.elasticsearch.datastreams.lifecycle.ExplainDataStreamLifecycleIT
   method: testExplainFailuresLifecycle
   issue: https://github.com/elastic/elasticsearch/issues/151602
-- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
-  method: test {csv-spec:metric_temporality.tdigestAggsByTBucket}
-  issue: https://github.com/elastic/elasticsearch/issues/151613
 - class: org.elasticsearch.xpack.stateless.StatelessMergePreWarmingIT
   method: testMergePreWarmingFailureDoesNotFailTheEngine
   issue: https://github.com/elastic/elasticsearch/issues/151618
 - class: org.elasticsearch.gradle.internal.precommit.PomValidationPrecommitPluginFuncTest
   method: detects missing POM elements and reports structured problems
   issue: https://github.com/elastic/elasticsearch/issues/151636
-- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
-  method: test {csv-spec:lookup-join.byteEqualsLong}
-  issue: https://github.com/elastic/elasticsearch/issues/151650
 - class: org.elasticsearch.smoketest.SmokeTestMultiNodeClientYamlTestSuiteIT
   method: test {yaml=scroll/10_basic/Basic scroll}
   issue: https://github.com/elastic/elasticsearch/issues/151698
@@ -659,9 +647,6 @@ tests:
 - class: org.elasticsearch.simdvec.internal.vectorization.ES93BinaryQuantizedVectorScorerTests
   method: testBulkScore {p0=MMAP p1=COSINE}
   issue: https://github.com/elastic/elasticsearch/issues/151738
-- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
-  method: test {csv-spec:in_subquery.inSubqueryWithEvalInsideInSubquery}
-  issue: https://github.com/elastic/elasticsearch/issues/151761
 - class: org.elasticsearch.xpack.stateless.cluster.coordination.BlobStoreSyncDirectoryTests
   method: testCloseCancelsOnGoingUploads
   issue: https://github.com/elastic/elasticsearch/issues/151622

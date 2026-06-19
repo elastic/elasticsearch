@@ -16,6 +16,7 @@ import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -30,6 +31,8 @@ import org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectoryMetrics;
 import org.elasticsearch.xpack.stateless.lucene.FileCacheKey;
 
 import java.nio.ByteBuffer;
+import java.util.Iterator;
+import java.util.Map;
 import java.util.concurrent.Executor;
 import java.util.function.IntConsumer;
 import java.util.function.LongSupplier;
@@ -41,6 +44,33 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
     public static final Setting<Boolean> STATELESS_CACHE_BOOST_PREFERENCE_ENABLED_SETTING = Setting.boolSetting(
         "stateless.cache_boost_preference.enabled",
         false,
+        // Boost preference relies on timestamp ranges in {@link BlobFileRanges} which are only built up when use of replicated content is
+        // enabled.
+        new Setting.Validator<>() {
+            @Override
+            public void validate(Boolean value) {}
+
+            @Override
+            public void validate(Boolean value, Map<Setting<?>, Object> settings) {
+                final boolean replicatedContentEnabled = (boolean) settings.get(
+                    SearchCommitPrefetcherDynamicSettings.STATELESS_SEARCH_USE_INTERNAL_FILES_REPLICATED_CONTENT
+                );
+                if (value && replicatedContentEnabled == false) {
+                    throw new IllegalArgumentException(
+                        String.format(
+                            "Setting [%s] cannot be [true] unless setting [%s] is also [true]",
+                            STATELESS_CACHE_BOOST_PREFERENCE_ENABLED_SETTING.getKey(),
+                            SearchCommitPrefetcherDynamicSettings.STATELESS_SEARCH_USE_INTERNAL_FILES_REPLICATED_CONTENT.getKey()
+                        )
+                    );
+                }
+            }
+
+            @Override
+            public Iterator<Setting<?>> settings() {
+                return Iterators.single(SearchCommitPrefetcherDynamicSettings.STATELESS_SEARCH_USE_INTERNAL_FILES_REPLICATED_CONTENT);
+            }
+        },
         Setting.Property.NodeScope
     );
 
@@ -102,13 +132,13 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
         PluggableDirectoryMetricsHolder<BlobStoreCacheDirectoryMetrics> metricsHolder
     ) {
         this(
-          environment,
-          settings,
-          threadPool,
-          blobCacheMetrics,
-          StatelessCacheEvictionPolicyType.createEvictionPolicy(settings, clusterService),
-          relativeTimeInNanosSupplier,
-          metricsHolder
+            environment,
+            settings,
+            threadPool,
+            blobCacheMetrics,
+            StatelessCacheEvictionPolicyType.createEvictionPolicy(settings, clusterService),
+            relativeTimeInNanosSupplier,
+            metricsHolder
         );
     }
 

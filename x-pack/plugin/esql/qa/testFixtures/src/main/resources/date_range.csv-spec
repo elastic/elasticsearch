@@ -679,6 +679,21 @@ r:date_range
 null
 ;
 
+// Inverted bounds: to < from → warns and yields null, consistent with TO_DATE_RANGE
+toRangeInvertedBounds
+required_capability: to_range
+
+ROW from_dt = TO_DATETIME("2010-01-01T00:00:00.000Z"), to_dt = TO_DATETIME("2000-01-01T00:00:00.000Z")
+| EVAL r = TO_RANGE(from_dt, to_dt)
+| KEEP r
+;
+warningRegex:evaluation of \[TO_RANGE\(from_dt, to_dt\)\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:java.lang.IllegalArgumentException: 'from' \[.*\] must be less than 'to' \[.*\]
+
+r:date_range
+null
+;
+
 // Multi-value input: MV from → warns and yields null.
 // Uses emp_no 10039 whose birth_date and hire_date are both non-null, so MV_APPEND produces a 2-element MV datetime.
 toRangeMvFromWarns

@@ -87,7 +87,12 @@ public final class ToRangeLongEvaluator implements ExpressionEvaluator {
         }
         long from = fromBlock.getLong(fromBlock.getFirstValueIndex(p));
         long to = toBlock.getLong(toBlock.getFirstValueIndex(p));
-        result.appendLongRange(ToRange.process(from, to));
+        try {
+          result.appendLongRange(ToRange.process(from, to));
+        } catch (IllegalArgumentException e) {
+          warnings().registerException(e);
+          result.appendNull();
+        }
       }
       return result.build();
     }

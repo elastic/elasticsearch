@@ -55,22 +55,6 @@ public class ToRangeTests extends AbstractScalarFunctionTestCase {
                 );
             }));
 
-            suppliers.add(new TestCaseSupplier("same from and to", List.of(DataType.DATETIME, DataType.DATETIME), () -> {
-                long from = 5000L;
-                long to = 5000L;
-                var expected = new LongRangeBlockBuilder.LongRange(from, to);
-
-                return new TestCaseSupplier.TestCase(
-                    List.of(
-                        new TestCaseSupplier.TypedData(from, DataType.DATETIME, "from"),
-                        new TestCaseSupplier.TypedData(to, DataType.DATETIME, "to")
-                    ),
-                    "ToRangeLongEvaluator[from=" + read0 + ", to=" + read1 + "]",
-                    DataType.DATE_RANGE,
-                    equalTo(expected)
-                );
-            }));
-
             suppliers.add(new TestCaseSupplier("large epoch values", List.of(DataType.DATETIME, DataType.DATETIME), () -> {
                 long from = 0L;
                 long to = 1_000_000_000_000L;

@@ -136,8 +136,11 @@ public class ToRange extends EsqlScalarFunction {
         return Expressions.foldable(children());
     }
 
-    @Evaluator(extraName = "Long")
+    @Evaluator(extraName = "Long", warnExceptions = { IllegalArgumentException.class })
     static LongRangeBlockBuilder.LongRange process(long from, long to) {
+        if (from >= to) {
+            throw new IllegalArgumentException("'from' [" + from + "] must be less than 'to' [" + to + "]");
+        }
         return new LongRangeBlockBuilder.LongRange(from, to);
     }
 

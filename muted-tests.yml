@@ -656,3 +656,6 @@ tests:
 - class: org.elasticsearch.simdvec.internal.vectorization.ES93BinaryQuantizedVectorScorerTests
   method: testBulkScore {p0=SNAP p1=DOT_PRODUCT}
   issue: https://github.com/elastic/elasticsearch/issues/151735
+- class: org.elasticsearch.simdvec.internal.vectorization.ES93BinaryQuantizedVectorScorerTests
+  method: testBulkScore {p0=MMAP p1=DOT_PRODUCT}
+  issue: https://github.com/elastic/elasticsearch/issues/151736

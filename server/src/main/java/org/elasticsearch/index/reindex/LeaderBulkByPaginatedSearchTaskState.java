@@ -59,6 +59,7 @@ public class LeaderBulkByPaginatedSearchTaskState {
     private volatile float relocationRequestsPerSecond;
     private boolean capturedRpsForRelocation = false;
 
+    @SuppressWarnings("this-escape")
     public LeaderBulkByPaginatedSearchTaskState(BulkByPaginatedSearchTask task, int slices, float requestsPerSecond) {
         this.task = task;
         this.slices = slices;

@@ -44,13 +44,11 @@ import static org.objectweb.asm.Opcodes.V21;
  * so that modules compiled with {@code --release 21} can reference
  * {@code MemorySegment} and related types without {@code --enable-preview}.
  *
- * <h3>Regenerating the JAR</h3>
- * <pre>{@code
- * ./gradlew extractForeignApi
- * }</pre>
- * This task must be run with JDK 21 as the Gradle JDK (the Foreign Function
- * &amp; Memory API is preview only in JDK 21). The Elasticsearch build uses
- * JDK 21 as its Gradle JDK by default, so no extra configuration is needed.
+ * <p>This task is registered automatically per-project by
+ * {@link ElasticsearchJavaBasePlugin#enableForeignAccess} and must run with
+ * JDK 21 as the Gradle JDK (the Foreign Function &amp; Memory API is preview
+ * only in JDK 21). The Elasticsearch build uses JDK 21 as its Gradle JDK by
+ * default, so no extra configuration is needed.
  *
  * <h3>Inspecting the generated JAR</h3>
  * {@code javap} cannot inspect classes in {@code java.lang.foreign} from a
@@ -61,7 +59,7 @@ import static org.objectweb.asm.Opcodes.V21;
  * <pre>{@code
  * mkdir -p /tmp/jar-inspect
  * unzip -o -d /tmp/jar-inspect \
- *   build-tools-internal/src/main/resources/jdk/jdk21-foreign-api.jar \
+ *   libs/native/build/jdk21-foreign-api.jar \
  *   java/lang/foreign/MemorySegment.class
  * cp /tmp/jar-inspect/java/lang/foreign/MemorySegment.class /tmp/jar-inspect/
  * javap -v -p /tmp/jar-inspect/MemorySegment.class

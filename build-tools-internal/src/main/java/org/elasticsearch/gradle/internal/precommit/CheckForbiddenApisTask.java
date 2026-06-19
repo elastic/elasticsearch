@@ -25,11 +25,13 @@ import org.gradle.api.file.FileCollection;
 import org.gradle.api.file.FileTree;
 import org.gradle.api.file.FileTreeElement;
 import org.gradle.api.file.ProjectLayout;
+import org.gradle.api.file.RegularFile;
 import org.gradle.api.file.RegularFileProperty;
 import org.gradle.api.logging.Logging;
 import org.gradle.api.model.ObjectFactory;
 import org.gradle.api.provider.ListProperty;
 import org.gradle.api.provider.Property;
+import org.gradle.api.provider.Provider;
 import org.gradle.api.provider.SetProperty;
 import org.gradle.api.specs.Spec;
 import org.gradle.api.tasks.CacheableTask;
@@ -60,14 +62,11 @@ import org.jetbrains.annotations.NotNull;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.UncheckedIOException;
 import java.lang.annotation.RetentionPolicy;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.net.URLClassLoader;
 import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
 import java.util.EnumSet;
@@ -233,39 +232,14 @@ public abstract class CheckForbiddenApisTask extends DefaultTask implements Patt
      * <p>This adds the {@code jdk-foreign-signatures} forbidden API signature file and
      * configures a child-first classloader with the de-previewed foreign API stub JAR so
      * that the forbidden-apis checker can resolve the JDK 21 preview method signatures.
+     *
+     * @param jarFile the stub JAR produced by {@code ExtractForeignApiTask}
      */
-    public void checkForeignApiUsage() {
+    public void checkForeignApiUsage(Provider<RegularFile> jarFile) {
         addSignatureFiles("jdk-foreign-signatures");
-        File buildDir = projectLayout.getBuildDirectory().getAsFile().get();
-        File jar = extractForeignApiJar(buildDir);
-        setForeignApiJar(jar);
-    }
-
-    private static File extractForeignApiJar(File buildDir) {
-        Path dest = buildDir.toPath().resolve("jdk21-foreign-api.jar");
-        if (Files.exists(dest)) {
-            return dest.toFile();
+        if (jarFile.isPresent()) {
+            setForeignApiJar(jarFile.get().getAsFile());
         }
-        try (InputStream is = CheckForbiddenApisTask.class.getResourceAsStream("/jdk/jdk21-foreign-api.jar")) {
-            if (is == null) {
-                throw new IllegalStateException("jdk21-foreign-api.jar resource not found on build classpath");
-            }
-            Files.createDirectories(dest.getParent());
-            Path tmp = Files.createTempFile(dest.getParent(), "jdk21-foreign-api", ".jar.tmp");
-            try {
-                Files.copy(is, tmp, StandardCopyOption.REPLACE_EXISTING);
-                try {
-                    Files.move(tmp, dest, StandardCopyOption.ATOMIC_MOVE);
-                } catch (IOException ignored) {
-                    // another task won the race
-                }
-            } finally {
-                Files.deleteIfExists(tmp);
-            }
-        } catch (IOException e) {
-            throw new UncheckedIOException("Failed to extract jdk21-foreign-api.jar", e);
-        }
-        return dest.toFile();
     }
 
     /**

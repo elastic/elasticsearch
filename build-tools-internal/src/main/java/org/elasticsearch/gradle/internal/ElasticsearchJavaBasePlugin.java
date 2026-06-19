@@ -17,15 +17,22 @@ import org.elasticsearch.gradle.internal.test.MutedTestPlugin;
 import org.elasticsearch.gradle.internal.test.TestUtil;
 import org.elasticsearch.gradle.test.SystemPropertyCommandLineArgumentProvider;
 import org.gradle.api.JavaVersion;
+import org.gradle.api.Named;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.artifacts.ModuleDependency;
 import org.gradle.api.file.FileCollection;
+import org.gradle.api.file.RegularFile;
 import org.gradle.api.plugins.JavaBasePlugin;
 import org.gradle.api.plugins.JavaPluginExtension;
 import org.gradle.api.provider.Property;
 import org.gradle.api.provider.Provider;
+import org.gradle.api.tasks.InputFile;
+import org.gradle.api.tasks.Internal;
+import org.gradle.api.tasks.PathSensitive;
+import org.gradle.api.tasks.PathSensitivity;
+import org.gradle.api.tasks.TaskProvider;
 import org.gradle.api.tasks.compile.AbstractCompile;
 import org.gradle.api.tasks.compile.CompileOptions;
 import org.gradle.api.tasks.compile.GroovyCompile;
@@ -35,13 +42,10 @@ import org.gradle.api.tasks.testing.Test;
 import org.gradle.external.javadoc.CoreJavadocOptions;
 import org.gradle.jvm.toolchain.JavaLanguageVersion;
 import org.gradle.jvm.toolchain.JavaToolchainService;
+import org.gradle.process.CommandLineArgumentProvider;
 
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.UncheckedIOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
+import java.io.File;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
@@ -196,6 +200,8 @@ public class ElasticsearchJavaBasePlugin implements Plugin<Project> {
         });
     }
 
+    private static final String EXTRACT_FOREIGN_API_TASK_NAME = "extractForeignApiJar";
+
     /**
      * Configures the project so that source code can use {@code java.lang.foreign} types
      * (e.g. {@code MemorySegment}) without {@code --enable-preview} on JDK 21. On JDK 22+
@@ -211,63 +217,80 @@ public class ElasticsearchJavaBasePlugin implements Plugin<Project> {
      * }</pre>
      */
     public static void enableForeignAccess(Project project) {
+        int minRuntime = minimumRuntimeVersion(project);
+
+        TaskProvider<ExtractForeignApiTask> extractTask = project.getTasks()
+            .register(EXTRACT_FOREIGN_API_TASK_NAME, ExtractForeignApiTask.class, t -> {
+                t.getOutputJar().set(project.getLayout().getBuildDirectory().file("jdk21-foreign-api.jar"));
+                t.onlyIf("JDK 21 required for preview API stubs", task -> Runtime.version().feature() == 21);
+            });
+
+        Provider<RegularFile> jarFile = extractTask.flatMap(ExtractForeignApiTask::getOutputJar);
+
         project.getTasks().withType(JavaCompile.class).configureEach(compileTask -> {
-            compileTask.doFirst(t -> {
-                int release = taskRelease(project, compileTask.getOptions().getRelease());
-                if (release == 21) {
-                    Path jarPath = extractForeignApiJar(project);
-                    compileTask.getOptions().getCompilerArgs().add("--patch-module");
-                    compileTask.getOptions().getCompilerArgs().add("java.base=" + jarPath);
-                }
-            });
+            var provider = new ForeignAccessArgumentProvider(jarFile, compileTask.getOptions().getRelease(), minRuntime);
+            compileTask.getOptions().getCompilerArgumentProviders().add(provider);
         });
+
         project.getTasks().withType(Javadoc.class).configureEach(javadocTask -> {
-            javadocTask.doFirst(t -> {
-                int release = minimumRuntimeVersion(project);
-                if (release == 21) {
-                    Path jarPath = extractForeignApiJar(project);
+            if (minRuntime == 21) {
+                javadocTask.dependsOn(extractTask);
+                javadocTask.doFirst(t -> {
+                    File jar = jarFile.get().getAsFile();
                     CoreJavadocOptions options = (CoreJavadocOptions) javadocTask.getOptions();
-                    options.addStringOption("-patch-module", "java.base=" + jarPath);
-                }
-            });
+                    options.addStringOption("-patch-module", "java.base=" + jar.getAbsolutePath());
+                });
+            }
         });
-        project.getTasks().withType(CheckForbiddenApisTask.class).configureEach(CheckForbiddenApisTask::checkForeignApiUsage);
+
+        project.getTasks().withType(CheckForbiddenApisTask.class).configureEach(t -> t.checkForeignApiUsage(jarFile));
     }
 
-    private static int taskRelease(Project project, Property<Integer> releaseProperty) {
-        return releaseProperty.getOrElse(minimumRuntimeVersion(project));
+    /**
+     * Provides {@code --patch-module java.base=<jar>} compiler arguments when the
+     * compile release is 21 and the stub JAR exists. CC-safe: all inputs are tracked
+     * via {@code @InputFile} / {@code @Internal} annotations.
+     */
+    static class ForeignAccessArgumentProvider implements CommandLineArgumentProvider, Named {
+        private final Provider<RegularFile> jarFile;
+        private final Property<Integer> releaseProperty;
+        private final int minRuntime;
+
+        ForeignAccessArgumentProvider(Provider<RegularFile> jarFile, Property<Integer> releaseProperty, int minRuntime) {
+            this.jarFile = jarFile;
+            this.releaseProperty = releaseProperty;
+            this.minRuntime = minRuntime;
+        }
+
+        @Override
+        public Iterable<String> asArguments() {
+            int release = releaseProperty.getOrElse(minRuntime);
+            if (release == 21 && jarFile.isPresent()) {
+                File jar = jarFile.get().getAsFile();
+                if (jar.exists()) {
+                    return List.of("--patch-module", "java.base=" + jar.getAbsolutePath());
+                }
+            }
+            return Collections.emptyList();
+        }
+
+        @InputFile
+        @PathSensitive(PathSensitivity.NONE)
+        @org.gradle.api.tasks.Optional
+        public Provider<RegularFile> getJarFile() {
+            return jarFile;
+        }
+
+        @Internal
+        @Override
+        public String getName() {
+            return "foreign-access-arg-provider";
+        }
     }
 
     private static int minimumRuntimeVersion(Project project) {
         BuildParameterExtension params = project.getRootProject().getExtensions().getByType(BuildParameterExtension.class);
         return Integer.parseInt(params.getMinimumRuntimeVersion().getMajorVersion());
-    }
-
-    private static Path extractForeignApiJar(Project project) {
-        Path dest = project.getLayout().getBuildDirectory().getAsFile().get().toPath().resolve("jdk21-foreign-api.jar");
-        if (Files.exists(dest)) {
-            return dest;
-        }
-        try (InputStream is = ElasticsearchJavaBasePlugin.class.getResourceAsStream("/jdk/jdk21-foreign-api.jar")) {
-            if (is == null) {
-                throw new IllegalStateException("jdk21-foreign-api.jar resource not found on build classpath");
-            }
-            Files.createDirectories(dest.getParent());
-            Path tmp = Files.createTempFile(dest.getParent(), "jdk21-foreign-api", ".jar.tmp");
-            try {
-                Files.copy(is, tmp, StandardCopyOption.REPLACE_EXISTING);
-                try {
-                    Files.move(tmp, dest, StandardCopyOption.ATOMIC_MOVE);
-                } catch (IOException ignored) {
-                    // another task won the race — dest already exists
-                }
-            } finally {
-                Files.deleteIfExists(tmp);
-            }
-        } catch (IOException e) {
-            throw new UncheckedIOException("Failed to extract jdk21-foreign-api.jar", e);
-        }
-        return dest;
     }
 
     private static Provider<Integer> releaseVersionProviderFromCompileTask(Project project, AbstractCompile compileTask) {

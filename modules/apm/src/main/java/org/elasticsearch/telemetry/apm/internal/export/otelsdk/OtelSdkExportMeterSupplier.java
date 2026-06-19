@@ -47,6 +47,9 @@ public class OtelSdkExportMeterSupplier implements MeterSupplier {
     // Internal JVM system property that enables OTel {@link RuntimeTelemetry} JVM metrics.
     private static final String OTEL_JVM_METRICS_ENABLED_SYSTEM_PROPERTY = "telemetry.metrics.otel_jvm.enabled";
 
+    /** Shared retry policy for all OTLP exporters: 3 total attempts (initial + 2 retries) with the SDK's default backoff. */
+    static final RetryPolicy OTLP_RETRY_POLICY = RetryPolicy.builder().setMaxAttempts(3).build();
+
     private final Settings settings;
     private final Path diskBufferPath;
     private volatile OTelMetricsResources resources;
@@ -131,7 +134,7 @@ public class OtelSdkExportMeterSupplier implements MeterSupplier {
             .setInternalTelemetryVersion(InternalTelemetryVersion.LATEST)
             .setTimeout(OtelSdkSettings.TELEMETRY_EXPORT_SEND_TIMEOUT.get(settings).toDuration())
             .setConnectTimeout(OtelSdkSettings.TELEMETRY_EXPORT_CONNECT_TIMEOUT.get(settings).toDuration())
-            .setRetryPolicy(RetryPolicy.builder().setMaxAttempts(3).build());
+            .setRetryPolicy(OTLP_RETRY_POLICY);
         String authHeader = buildOtlpAuthorizationHeader(settings);
         if (authHeader != null) {
             builder.addHeader("Authorization", authHeader);

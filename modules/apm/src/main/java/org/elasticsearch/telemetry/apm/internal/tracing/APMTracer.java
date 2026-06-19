@@ -223,7 +223,7 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
     protected void doStop() {
         if (enabled) {
             try {
-                traceSupplier.attemptFlushTraces().join(Long.MAX_VALUE, TimeUnit.NANOSECONDS);
+                traceSupplier.attemptFlushTraces().join(OtelSdkSettings.OTEL_EXPORT_FLUSH_TIMEOUT.millis(), TimeUnit.MILLISECONDS);
             } catch (Exception e) {
                 logger.warn("Exception flushing trace supplier", e);
             }

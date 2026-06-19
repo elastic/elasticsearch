@@ -18,7 +18,6 @@ import io.opentelemetry.exporter.otlp.http.trace.OtlpHttpSpanExporterBuilder;
 import io.opentelemetry.sdk.OpenTelemetrySdk;
 import io.opentelemetry.sdk.common.CompletableResultCode;
 import io.opentelemetry.sdk.common.InternalTelemetryVersion;
-import io.opentelemetry.sdk.common.export.RetryPolicy;
 import io.opentelemetry.sdk.trace.SdkTracerProvider;
 import io.opentelemetry.sdk.trace.export.BatchSpanProcessor;
 import io.opentelemetry.sdk.trace.samplers.Sampler;
@@ -62,8 +61,7 @@ public class OtelSdkExportTracerSupplier implements TraceSupplier {
             .setInternalTelemetryVersion(InternalTelemetryVersion.LATEST)
             .setTimeout(OtelSdkSettings.TELEMETRY_EXPORT_SEND_TIMEOUT.get(settings).toDuration())
             .setConnectTimeout(OtelSdkSettings.TELEMETRY_EXPORT_CONNECT_TIMEOUT.get(settings).toDuration())
-            // Three total attempts (initial + 2 retries) with the SDK's default backoff, matching the metrics exporter.
-            .setRetryPolicy(RetryPolicy.builder().setMaxAttempts(3).build());
+            .setRetryPolicy(OtelSdkExportMeterSupplier.OTLP_RETRY_POLICY);
         String authHeader = OtelSdkExportMeterSupplier.buildOtlpAuthorizationHeader(settings);
         if (authHeader != null) {
             builder.addHeader("Authorization", authHeader);

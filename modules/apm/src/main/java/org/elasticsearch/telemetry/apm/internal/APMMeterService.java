@@ -24,6 +24,7 @@ import org.elasticsearch.telemetry.apm.APMMeterRegistry;
 import org.elasticsearch.telemetry.apm.internal.export.MeterSupplier;
 import org.elasticsearch.telemetry.apm.internal.export.agent.AgentExportMeterSupplier;
 import org.elasticsearch.telemetry.apm.internal.export.otelsdk.OtelSdkExportMeterSupplier;
+import org.elasticsearch.telemetry.apm.internal.export.otelsdk.OtelSdkSettings;
 
 import java.nio.file.Path;
 import java.util.concurrent.TimeUnit;
@@ -103,7 +104,7 @@ public class APMMeterService extends AbstractLifecycleComponent {
     protected void doStop() {
         if (enabled) {
             try {
-                otelMeterSupplier.attemptFlushMetrics().join(Long.MAX_VALUE, TimeUnit.NANOSECONDS);
+                otelMeterSupplier.attemptFlushMetrics().join(OtelSdkSettings.OTEL_EXPORT_FLUSH_TIMEOUT.millis(), TimeUnit.MILLISECONDS);
             } catch (Exception e) {
                 LOGGER.warn("Exception flushing OTel MeterSupplier", e);
             }

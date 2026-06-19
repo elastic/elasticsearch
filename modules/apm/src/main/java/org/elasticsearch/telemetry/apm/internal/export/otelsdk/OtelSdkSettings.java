@@ -28,6 +28,12 @@ public final class OtelSdkSettings {
 
     private OtelSdkSettings() {}
 
+    /**
+     * Ceiling for the best-effort flush of buffered metrics and spans on shutdown. Bounds the blocking wait so a
+     * stuck or unreachable exporter cannot hang node shutdown indefinitely.
+     */
+    public static final TimeValue OTEL_EXPORT_FLUSH_TIMEOUT = TimeValue.timeValueMinutes(1);
+
     // --- Resource attributes (all signals)
 
     /** External OTel resource attributes attached to every metric, span and log record exported by the SDK path. */

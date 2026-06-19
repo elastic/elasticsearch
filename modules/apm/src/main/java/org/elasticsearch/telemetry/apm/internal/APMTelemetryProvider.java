@@ -14,6 +14,7 @@ import io.opentelemetry.sdk.common.CompletableResultCode;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.telemetry.apm.APMMeterRegistry;
+import org.elasticsearch.telemetry.apm.internal.export.otelsdk.OtelSdkSettings;
 import org.elasticsearch.telemetry.apm.internal.tracing.APMTracer;
 
 import java.nio.file.Path;
@@ -57,7 +58,8 @@ public class APMTelemetryProvider implements TelemetryProvider {
         CompletableResultCode metrics = apmMeterService.attemptFlushMetrics();
         CompletableResultCode traces = apmTracer.attemptFlushTraces();
         CompletableResultCode logs = loggingService.forceFlush();
-        CompletableResultCode.ofAll(List.of(metrics, traces, logs)).join(Long.MAX_VALUE, TimeUnit.NANOSECONDS);
+        CompletableResultCode.ofAll(List.of(metrics, traces, logs))
+            .join(OtelSdkSettings.OTEL_EXPORT_FLUSH_TIMEOUT.millis(), TimeUnit.MILLISECONDS);
     }
 
     public APMLoggingService getLoggingService() {

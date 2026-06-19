@@ -80,6 +80,7 @@ public class MvSlice extends EsqlScalarFunction implements OptionalArgument, Eva
             "long",
             "unsigned_long",
             "version" },
+        briefSummary = "Returns a subset of a multi-value field using start and end indexes.",
         description = """
             Returns a subset of the multivalued field using the start and end index values. Indexes are 0-based.
             This is most useful when reading from a function that emits multivalued columns

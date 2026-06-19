@@ -25,7 +25,7 @@ import java.io.IOException;
 
 import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityExecutors;
 import static org.elasticsearch.xpack.inference.services.azureopenai.request.AzureOpenAiUtils.API_KEY_HEADER;
-import static org.elasticsearch.xpack.inference.services.azureopenai.secrets.AzureOpenAiOAuth2Secrets.USE_CLIENT_SECRET_ERROR;
+import static org.elasticsearch.xpack.inference.services.azureopenai.secrets.AzureOpenAiSecretsFactory.USE_CLIENT_SECRET_ERROR;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.emptyArray;
 import static org.hamcrest.Matchers.is;

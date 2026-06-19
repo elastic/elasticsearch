@@ -769,10 +769,7 @@ public final class ParallelParsingCoordinator {
         private void checkError() {
             Throwable t = firstError.get();
             if (t != null) {
-                if (t instanceof RuntimeException re) {
-                    throw re;
-                }
-                throw new RuntimeException("Parallel parsing failed", t);
+                throw ExternalFailures.surface(t, "Parallel parsing failed");
             }
         }
 

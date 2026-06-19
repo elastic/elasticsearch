@@ -195,8 +195,8 @@ public class ES92GpuHnswWriteGraphTests extends ESTestCase {
         var gpuSearcher = new IndexSearcher(gpuReader);
         var luceneSearcher = new IndexSearcher(luceneReader);
 
-        int gpuTotal = 0;
-        int luceneTotal = 0;
+        long gpuTotal = 0;
+        long luceneTotal = 0;
         for (int q = 0; q < numQueries; q++) {
             float[] queryVec = vectors[q];
             Set<Integer> groundTruth = bruteForceTopK(vectors, queryVec, k, sim);

@@ -37,6 +37,7 @@ public class Asin extends AbstractTrigonometricFunction {
 
     @FunctionInfo(
         returnType = "double",
+        briefSummary = "Returns the arcsine of a number.",
         description = "Returns the {wikipedia}/Inverse_trigonometric_functions[arcsine] of the input\n"
             + "numeric expression as an angle, expressed in radians.",
         examples = @Example(file = "floats", tag = "asin")

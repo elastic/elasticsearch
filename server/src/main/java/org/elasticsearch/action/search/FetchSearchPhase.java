@@ -134,14 +134,11 @@ class FetchSearchPhase extends SearchPhase {
             ? SearchPhaseController.getLastEmittedDocPerShard(reducedQueryPhase, numShards)
             : null;
         final List<Integer>[] docIdsToLoad = SearchPhaseController.fillDocIdsToLoad(numShards, scoreDocs);
+        context.addReleasable(fetchResults);
         final CountedCollector<FetchSearchResult> counter = new CountedCollector<>(
             fetchResults,
             docIdsToLoad.length, // we count down every shard in the result no matter if we got any results or not
-            () -> {
-                try (fetchResults) {
-                    moveToNextPhase(fetchResults.getAtomicArray(), reducedQueryPhase, phaseStartTimeInNanos);
-                }
-            },
+            () -> moveToNextPhase(fetchResults.getAtomicArray(), reducedQueryPhase, phaseStartTimeInNanos),
             context
         );
         for (int i = 0; i < docIdsToLoad.length; i++) {

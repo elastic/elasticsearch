@@ -38,6 +38,7 @@ public class Random extends UnaryScalarFunction {
 
     @FunctionInfo(
         returnType = { "integer" },
+        briefSummary = "Returns a pseudorandom integer between 0 (inclusive) and a bound (exclusive).",
         description = "Returns a pseudorandom number, uniformly distributed between 0 (inclusive) and bound (exclusive).",
         type = FunctionType.SCALAR
     )

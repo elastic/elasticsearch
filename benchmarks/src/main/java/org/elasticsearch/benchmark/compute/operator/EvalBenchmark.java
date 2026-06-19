@@ -86,10 +86,12 @@ import org.openjdk.jmh.annotations.Param;
 import org.openjdk.jmh.annotations.Scope;
 import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.annotations.Warmup;
+import org.openjdk.jmh.infra.Blackhole;
 
 import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneOffset;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
@@ -500,10 +502,10 @@ public class EvalBenchmark {
                 checkToUpperExpected(this, actual, true);
             }
         },
-        TSTEP_10("tstep(10)") {
+        TSTEP_5("tstep(5)") {
             @Override
             ExpressionEvaluator evaluator() {
-                return tStepEvaluator(10);
+                return tStepEvaluator(5);
             }
 
             @Override
@@ -511,10 +513,21 @@ public class EvalBenchmark {
                 checkTimeGroupingExpected(this, actual);
             }
         },
-        TBUCKET_10("tbucket(10)") {
+        TBUCKET_5("tbucket(5)") {
             @Override
             ExpressionEvaluator evaluator() {
-                return tBucketEvaluator(10);
+                return tBucketEvaluator(5);
+            }
+
+            @Override
+            void checkExpected(Page actual) {
+                checkTimeGroupingExpected(this, actual);
+            }
+        },
+        TSTEP_7("tstep(7)") {
+            @Override
+            ExpressionEvaluator evaluator() {
+                return tStepEvaluator(7);
             }
 
             @Override
@@ -537,6 +550,105 @@ public class EvalBenchmark {
             @Override
             ExpressionEvaluator evaluator() {
                 return tBucketEvaluator(99);
+            }
+
+            @Override
+            void checkExpected(Page actual) {
+                checkTimeGroupingExpected(this, actual);
+            }
+        },
+        TSTEP_64("tstep(64)") {
+            @Override
+            ExpressionEvaluator evaluator() {
+                return tStepEvaluator(64);
+            }
+
+            @Override
+            void checkExpected(Page actual) {
+                checkTimeGroupingExpected(this, actual);
+            }
+        },
+        TBUCKET_64("tbucket(64)") {
+            @Override
+            ExpressionEvaluator evaluator() {
+                return tBucketEvaluator(64);
+            }
+
+            @Override
+            void checkExpected(Page actual) {
+                checkTimeGroupingExpected(this, actual);
+            }
+        },
+        TSTEP_1024("tstep(1024)") {
+            @Override
+            ExpressionEvaluator evaluator() {
+                return tStepEvaluator(1024);
+            }
+
+            @Override
+            void checkExpected(Page actual) {
+                checkTimeGroupingExpected(this, actual);
+            }
+        },
+        TBUCKET_1024("tbucket(1024)") {
+            @Override
+            ExpressionEvaluator evaluator() {
+                return tBucketEvaluator(1024);
+            }
+
+            @Override
+            void checkExpected(Page actual) {
+                checkTimeGroupingExpected(this, actual);
+            }
+        },
+        TBUCKET_7("tbucket(7)") {
+            @Override
+            ExpressionEvaluator evaluator() {
+                return tBucketEvaluator(7);
+            }
+
+            @Override
+            void checkExpected(Page actual) {
+                checkTimeGroupingExpected(this, actual);
+            }
+        },
+        TBUCKET_5_UF("tbucket_uf(5)") {
+            @Override
+            ExpressionEvaluator evaluator() {
+                return nonUniformBucketEvaluator(5);
+            }
+
+            @Override
+            void checkExpected(Page actual) {
+                checkTimeGroupingExpected(this, actual);
+            }
+        },
+        TBUCKET_7_UF("tbucket_uf(7)") {
+            @Override
+            ExpressionEvaluator evaluator() {
+                return nonUniformBucketEvaluator(7);
+            }
+
+            @Override
+            void checkExpected(Page actual) {
+                checkTimeGroupingExpected(this, actual);
+            }
+        },
+        TBUCKET_99_UF("tbucket_uf(99)") {
+            @Override
+            ExpressionEvaluator evaluator() {
+                return nonUniformBucketEvaluator(99);
+            }
+
+            @Override
+            void checkExpected(Page actual) {
+                checkTimeGroupingExpected(this, actual);
+            }
+        },
+        TBUCKET_1024_UF("tbucket_uf(1024)") {
+            @Override
+            ExpressionEvaluator evaluator() {
+                return nonUniformBucketEvaluator(1024);
             }
 
             @Override
@@ -944,6 +1056,27 @@ public class EvalBenchmark {
             configuration()
         ).surrogate();
         return EvalMapper.toEvaluator(FOLD_CONTEXT, rewriteWithRule(surrogate, ts), layout(ts)).get(driverContext);
+    }
+
+    private static ExpressionEvaluator nonUniformBucketEvaluator(int bucketCount) {
+        FieldAttribute ts = timestampField();
+        return EvalMapper.toEvaluator(FOLD_CONTEXT, nonUniformRoundTo(ts, bucketCount), layout(ts)).get(driverContext);
+    }
+
+    /**
+     * Creates a RoundTo with quadratically-spaced points — guaranteed non-uniform so neither branch
+     * uses the fixed-interval fast path.
+     */
+    private static RoundTo nonUniformRoundTo(FieldAttribute ts, int bucketCount) {
+        long range = TBUCKET_RANGE_END_MILLIS - TBUCKET_RANGE_START_MILLIS;
+        List<Expression> literals = new ArrayList<>(bucketCount + 1);
+        for (int i = 0; i <= bucketCount; i++) {
+            // Quadratic distribution: denser near start, sparser near end
+            double fraction = (double) i * i / ((double) bucketCount * bucketCount);
+            long t = TBUCKET_RANGE_START_MILLIS + (long) (fraction * range);
+            literals.add(new Literal(Source.EMPTY, t, DataType.DATETIME));
+        }
+        return new RoundTo(Source.EMPTY, ts, literals);
     }
 
     private static Expression rewriteWithRule(Expression expression, FieldAttribute ts) {
@@ -1366,7 +1499,8 @@ public class EvalBenchmark {
 
     private static Page page(Operation operation) {
         return switch (operation) {
-            case TSTEP_10, TBUCKET_10, TSTEP_99, TBUCKET_99 -> bucketPage();
+            case TSTEP_5, TSTEP_7, TBUCKET_5, TSTEP_99, TBUCKET_99, TSTEP_64, TBUCKET_64, TSTEP_1024, TBUCKET_1024, TBUCKET_7, TBUCKET_5_UF,
+                TBUCKET_7_UF, TBUCKET_99_UF, TBUCKET_1024_UF -> bucketPage();
             case ABS, ADD, DATE_TRUNC, EQUAL_TO_CONST, MOD_LONG_CONST_60, DIV_LONG_CONST_60, ROUND_TO_4_VIA_CASE, ROUND_TO_2, ROUND_TO_3,
                 ROUND_TO_4 -> {
                 var builder = blockFactory.newLongBlockBuilder(BLOCK_LENGTH);
@@ -1523,10 +1657,11 @@ public class EvalBenchmark {
         long span = TBUCKET_RANGE_END_MILLIS - TBUCKET_RANGE_START_MILLIS;
         var builder = blockFactory.newLongBlockBuilder(BLOCK_LENGTH);
         for (int i = 0; i < BLOCK_LENGTH; i++) {
+            // These evaluators are built from bounded range metadata, so benchmark rows should model that same range filter.
             long value = switch (i & 3) {
                 case 0 -> TBUCKET_RANGE_START_MILLIS + (((long) i * 31) % span);
-                case 1 -> TBUCKET_RANGE_START_MILLIS - (((long) i * 17) % span);
-                case 2 -> TBUCKET_RANGE_END_MILLIS + (((long) i * 23) % span);
+                case 1 -> TBUCKET_RANGE_START_MILLIS + (((long) i * 17) % span);
+                case 2 -> TBUCKET_RANGE_END_MILLIS - (((long) i * 23) % span);
                 case 3 -> TBUCKET_RANGE_START_MILLIS + (((long) i * 61) % span);
                 default -> throw new IllegalStateException("unreachable");
             };
@@ -1557,11 +1692,11 @@ public class EvalBenchmark {
 
     @Benchmark
     @OperationsPerInvocation(1024 * BLOCK_LENGTH)
-    public void run() {
-        run(operation);
+    public void run(Blackhole bh) {
+        bh.consume(run(operation));
     }
 
-    private static void run(Operation operation) {
+    private static Object run(Operation operation) {
         try (var operator = operator(operation)) {
             Page page = page(operation);
             Page output = null;
@@ -1571,6 +1706,8 @@ public class EvalBenchmark {
             }
             // We only check the last one
             checkExpected(operation, output);
+
+            return output;
         }
     }
 }

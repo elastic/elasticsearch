@@ -37,10 +37,11 @@ public class OTelMetricsBufferingIT extends AbstractMetricsIT {
         .setting("telemetry.export.endpoint", () -> "http://" + recordingApmServer.getHttpAddress())
         .setting("telemetry.metrics.buffer.disk_size", "10mb")
         .setting("telemetry.metrics.buffer.ttl", "5m")
-        // export.interval must be > export.send_timeout so that the OTLP exporter can fully fail, and so that PeriodicMetricReader does
-        // not skip an export cycle
+        // The OTLP retry initial_backoff is hardcoded to 100ms. Keep the (now unvalidated) invariant
+        // interval > send_timeout > initial_backoff so a failing export fully fails within an interval and the
+        // PeriodicMetricReader does not skip a cycle.
         .setting("telemetry.export.interval", "500ms")
-        .setting("telemetry.export.send_timeout", "300ms")
+        .setting("telemetry.export.send_timeout", "200ms")
         .build();
 
     // make it bigger than export.send_timeout to allow the OTLP exporter to fully fail, and delegate to the disk buffering exporter

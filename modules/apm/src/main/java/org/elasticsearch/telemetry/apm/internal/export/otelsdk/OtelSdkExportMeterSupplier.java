@@ -30,6 +30,7 @@ import org.elasticsearch.telemetry.apm.internal.APMAgentSettings;
 import org.elasticsearch.telemetry.apm.internal.export.MeterSupplier;
 
 import java.nio.file.Path;
+import java.time.Duration;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
@@ -47,8 +48,12 @@ public class OtelSdkExportMeterSupplier implements MeterSupplier {
     // Internal JVM system property that enables OTel {@link RuntimeTelemetry} JVM metrics.
     private static final String OTEL_JVM_METRICS_ENABLED_SYSTEM_PROPERTY = "telemetry.metrics.otel_jvm.enabled";
 
-    /** Shared retry policy for all OTLP exporters: 3 total attempts (initial + 2 retries) with the SDK's default backoff. */
-    static final RetryPolicy OTLP_RETRY_POLICY = RetryPolicy.builder().setMaxAttempts(3).build();
+    /**
+     * Shared retry policy for all OTLP exporters: 3 total attempts (initial + 2 retries). The initial backoff is set
+     * well below the SDK's 1s default so a failing export stays within the per-send budget and falls back to disk
+     * buffering promptly; with 3 attempts the cumulative backoff stays around 250ms.
+     */
+    static final RetryPolicy OTLP_RETRY_POLICY = RetryPolicy.builder().setMaxAttempts(3).setInitialBackoff(Duration.ofMillis(100)).build();
 
     private final Settings settings;
     private final Path diskBufferPath;

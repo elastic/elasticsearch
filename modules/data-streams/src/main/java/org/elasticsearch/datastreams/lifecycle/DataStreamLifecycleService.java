@@ -495,12 +495,10 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
 
             int activeDownsamplingCount = 0;
             if (dataLifecycleEnabled && dataStream.getDataLifecycle().downsamplingRounds() != null) {
-                for (Index index : dataStream.getIndices()) {
-                    if (activelyDownsampled.contains(index)) {
-                        indicesToExcludeForRemainingRun.add(index);
-                        activeDownsamplingCount++;
-                    }
-                }
+                Set<Index> indicesBeingDownsampled = Sets.intersection(new HashSet<>(dataStream.getIndices()), activelyDownsampled);
+                activeDownsamplingCount += indicesBeingDownsampled.size();
+                indicesToExcludeForRemainingRun.addAll(indicesBeingDownsampled);
+
             }
             try {
                 indicesToExcludeForRemainingRun.addAll(
@@ -821,7 +819,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                 if (round.equals(lastRound)) {
                     // no maintenance needed for previously started downsampling actions and we are on the last matching round, so it's time
                     // to kick off downsampling if possible
-                    String sourceIndexName = backingIndex.getIndex().getName();
+                    String sourceIndexName = sourceIndex.getName();
                     if (canTriggerNewDownsampling) {
                         ErrorEntry error = errorStore.getError(project.id(), sourceIndexName);
                         if (ThrottledDownsampledIndexWarning.isThrottledDownsampledIndexWarning(error)) {

@@ -14,16 +14,27 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ServiceSettings;
+import org.elasticsearch.xcontent.AbstractObjectParser;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
+import org.elasticsearch.xpack.inference.services.amazonbedrock.embeddings.AmazonBedrockEmbeddingsServiceSettings;
+import org.elasticsearch.xpack.inference.services.llama.LlamaServiceSettings;
+import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 import org.elasticsearch.xpack.inference.services.settings.FilteredXContentObject;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
 import java.io.IOException;
+import java.net.URI;
 import java.util.EnumSet;
 import java.util.Map;
 import java.util.Objects;
 
+import static org.elasticsearch.xpack.inference.common.parser.StringParser.validateStringIsNotNullOrEmpty;
+import static org.elasticsearch.xpack.inference.services.ServiceFields.MODEL_ID;
+import static org.elasticsearch.xpack.inference.services.ServiceFields.URL;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.createUri;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredEnum;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredString;
 import static org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockConstants.MODEL_FIELD;
@@ -33,6 +44,27 @@ import static org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBed
 public abstract class AmazonBedrockServiceSettings extends FilteredXContentObject implements ServiceSettings {
 
     protected static final String AMAZON_BEDROCK_BASE_NAME = "amazon_bedrock";
+
+    /**
+     * Registers the common Llama service-settings fields (model_id, url, rate_limit) onto the given parser.
+     */
+    public static <B extends AmazonBedrockServiceSettings.Builder<? extends AmazonBedrockServiceSettings>> void declareCommonFields(
+        AbstractObjectParser<B, ConfigurationParseContext> parser
+    ) {
+        parser.declareString(AmazonBedrockServiceSettings.Builder::setModel, new ParseField(MODEL_FIELD));
+        parser.declareString(AmazonBedrockServiceSettings.Builder::setRegion, new ParseField(REGION_FIELD));
+        parser.declareString(AmazonBedrockServiceSettings.Builder::setProvider, new ParseField(PROVIDER_FIELD));
+        parser.declareObject(
+            AmazonBedrockServiceSettings.Builder::setRateLimitSettings,
+            // An explicitly empty rate_limit object ({}) resolves to the default rate limit rather than null, so the setter is never
+            // invoked with null.
+            (p, c) -> RateLimitSettings.createParser(c == ConfigurationParseContext.PERSISTENT, DEFAULT_RATE_LIMIT_SETTINGS).apply(p, null),
+            new ParseField(RateLimitSettings.FIELD_NAME)
+        );
+        // api_key appears in the same JSON block as service settings in REST requests; DefaultSecretSettings extracts it separately.
+        // Declare it here as a no-op so the strict REQUEST parser does not reject it as an unknown field.
+        parser.declareString((b, v) -> {}, new ParseField(DefaultSecretSettings.API_KEY));
+    }
 
     protected final String region;
     protected final String model;
@@ -45,6 +77,44 @@ public abstract class AmazonBedrockServiceSettings extends FilteredXContentObjec
     // decent throughput without exceeding the minimal for _most_ items. The user should consult
     // the table above if using a model that might have a lesser limit (e.g. Anthropic Claude 3.5)
     protected static final RateLimitSettings DEFAULT_RATE_LIMIT_SETTINGS = new RateLimitSettings(240);
+
+    /**
+     * Accumulates the parsed common fields and assembles a {@link AmazonBedrockServiceSettings}, enforcing that the required fields are
+     * present. Task-specific builders extend this and contribute their own fields.
+     *
+     * @param <T> the task-specific settings type produced by {@link #build(String, String, String, RateLimitSettings)}
+     */
+    public abstract static class Builder<T extends AmazonBedrockServiceSettings> {
+        private String model;
+        private String region;
+        private String provider;
+        private RateLimitSettings rateLimitSettings;
+
+        public void setModel(String model) {
+            this.model = model;
+        }
+
+        public void setRegion(String region) {
+            this.region = region;
+        }
+
+        public void setProvider(String provider) {
+            this.provider = provider;
+        }
+
+        public void setRateLimitSettings(RateLimitSettings rateLimitSettings) {
+            this.rateLimitSettings = rateLimitSettings;
+        }
+
+        public abstract T build(String model, String region, String provider, RateLimitSettings rateLimitSettings);
+
+        public final T build() {
+            validateStringIsNotNullOrEmpty(model, MODEL_FIELD);
+            validateStringIsNotNullOrEmpty(region, REGION_FIELD);
+            validateStringIsNotNullOrEmpty(provider, PROVIDER_FIELD);
+            return build(model, region, provider, rateLimitSettings);
+        }
+    }
 
     protected static AmazonBedrockCommonSettings fromMap(
         Map<String, Object> map,
@@ -145,5 +215,20 @@ public abstract class AmazonBedrockServiceSettings extends FilteredXContentObjec
         builder.field(MODEL_FIELD, model);
         builder.field(PROVIDER_FIELD, provider.name());
         rateLimitSettings.toXContent(builder, params);
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (o == null || getClass() != o.getClass()) return false;
+        AmazonBedrockServiceSettings that = (AmazonBedrockServiceSettings) o;
+        return Objects.equals(region, that.region)
+            && Objects.equals(model, that.model)
+            && provider == that.provider
+            && Objects.equals(rateLimitSettings, that.rateLimitSettings);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(region, model, provider, rateLimitSettings);
     }
 }

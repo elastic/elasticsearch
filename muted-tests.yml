@@ -650,3 +650,6 @@ tests:
 - class: org.elasticsearch.xpack.test.rest.XPackRestIT
   method: test {yaml=search.vectors/47_knn_search_bbq_disk_slice/KNN search with a different _slice returns that slice's nearest neighbor}
   issue: https://github.com/elastic/elasticsearch/issues/151703
+- class: org.elasticsearch.xpack.esql.CsvIT
+  method: test {csv-spec:string.mvAppendNull}
+  issue: https://github.com/elastic/elasticsearch/issues/151707

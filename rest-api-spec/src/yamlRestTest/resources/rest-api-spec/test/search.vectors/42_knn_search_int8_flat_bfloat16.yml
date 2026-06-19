@@ -54,7 +54,7 @@ setup:
         id: "3"
         body:
           name: rabbit.jpg
-          vector: [-0.5, 30, 40, -50, -156]
+          vector: [-0.5, 30, 40, -50, -156.0]
           another_vector: [-0.5, 11.0, 0, 12, 111.0]
 
   - do:
@@ -249,7 +249,7 @@ setup:
               script:
                 source: "cosineSimilarity(params.query_vector, 'vector')"
                 params:
-                  query_vector: [-0.5, 30, 40, -50, -156]
+                  query_vector: [-0.5, 30, 40, -50, -156.0]
 
   - match: {hits.total: 3}
 
@@ -469,7 +469,7 @@ setup:
           name: rabbit.jpg
           nested:
             - paragraph_id: 0
-              vector: [-0.5, 30, 40, -50, -156]
+              vector: [-0.5, 30, 40, -50, -156.0]
 
   - do:
       indices.refresh: {}

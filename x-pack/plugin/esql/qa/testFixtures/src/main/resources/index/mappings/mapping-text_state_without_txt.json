@@ -1,0 +1,8 @@
+{
+    "dynamic": "false",
+    "properties": {
+        "doc_id": {
+            "type": "keyword"
+        }
+    }
+}

@@ -193,80 +193,40 @@ book_no:keyword | author:text
 2847            | Colleen Faulkner
 ;
 
-qstrWithUnmappedFieldUnderLoad
+qstrTextMappedUnmappedAndNonExistentUnderLoad
 required_capability: optional_fields_v5
 required_capability: qstr_function
 required_capability: fix_unmapped_fields_in_esrelation
 
 SET unmapped_fields="load"\;
-FROM books
-| WHERE QSTR("author: Faulkner")
-| EVAL x = LENGTH(does_not_exist_field)
-| KEEP book_no, author, does_not_exist_field, x
-| SORT book_no
-| LIMIT 3
+FROM text_state_mapped, text_state_unmapped, text_state_nonexistent METADATA _index
+| WHERE QSTR("txt: Faulkner") OR txt IS NULL
+| KEEP _index, doc_id, txt
+| SORT _index
 ;
 
-book_no:keyword | author:text                                        | does_not_exist_field:keyword | x:integer
-2378            | [Carol Faulkner, Holly Byers Ochoa, Lucretia Mott] | null                         | null
-2713            | William Faulkner                                   | null                         | null
-2847            | Colleen Faulkner                                   | null                         | null
+_index:keyword          | doc_id:keyword | txt:text
+text_state_mapped       | mapped-1       | William Faulkner
+text_state_nonexistent  | nonexistent-1  | null
+text_state_unmapped     | unmapped-1     | null
 ;
 
-kqlWithUnmappedFieldUnderLoad
+kqlTextMappedUnmappedAndNonExistentUnderLoad
 required_capability: optional_fields_v5
 required_capability: kql_function
 required_capability: fix_unmapped_fields_in_esrelation
 
 SET unmapped_fields="load"\;
-FROM books
-| WHERE KQL("author: Faulkner")
-| EVAL x = LENGTH(does_not_exist_field)
-| KEEP book_no, author, does_not_exist_field, x
-| SORT book_no
-| LIMIT 3
+FROM text_state_mapped, text_state_unmapped, text_state_nonexistent METADATA _index
+| WHERE KQL("txt: Faulkner") OR txt IS NULL
+| KEEP _index, doc_id, txt
+| SORT _index
 ;
 
-book_no:keyword | author:text                                        | does_not_exist_field:keyword | x:integer
-2378            | [Carol Faulkner, Holly Byers Ochoa, Lucretia Mott] | null                         | null
-2713            | William Faulkner                                   | null                         | null
-2847            | Colleen Faulkner                                   | null                         | null
-;
-
-qstrWithSourceBackedUnmappedFieldUnderLoad
-required_capability: optional_fields_v5
-required_capability: qstr_function
-required_capability: fix_unmapped_fields_in_esrelation
-
-SET unmapped_fields="load"\;
-FROM partial_mapping_sample_data
-| WHERE QSTR("message: Connection*")
-| KEEP @timestamp, unmapped_message
-| SORT @timestamp DESC
-;
-
-@timestamp:date          | unmapped_message:keyword
-2024-10-23T13:53:55.832Z | Disconnection error
-2024-10-23T13:52:55.015Z | Disconnection error
-2024-10-23T13:51:54.732Z | Disconnection error
-;
-
-kqlWithSourceBackedUnmappedFieldUnderLoad
-required_capability: optional_fields_v5
-required_capability: kql_function
-required_capability: fix_unmapped_fields_in_esrelation
-
-SET unmapped_fields="load"\;
-FROM partial_mapping_sample_data
-| WHERE KQL("message: Connection*")
-| KEEP @timestamp, unmapped_message
-| SORT @timestamp DESC
-;
-
-@timestamp:date          | unmapped_message:keyword
-2024-10-23T13:53:55.832Z | Disconnection error
-2024-10-23T13:52:55.015Z | Disconnection error
-2024-10-23T13:51:54.732Z | Disconnection error
+_index:keyword          | doc_id:keyword | txt:text
+text_state_mapped       | mapped-1       | William Faulkner
+text_state_nonexistent  | nonexistent-1  | null
+text_state_unmapped     | unmapped-1     | null
 ;
 
 knnOnMappedDenseVectorFieldUnderLoad

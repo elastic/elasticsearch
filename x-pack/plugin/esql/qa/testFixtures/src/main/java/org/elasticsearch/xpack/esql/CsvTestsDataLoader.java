@@ -256,6 +256,9 @@ public class CsvTestsDataLoader {
                 )
             ),
         new TestDataset("books").withSetting("books-settings.json"),
+        new TestDataset("text_state_mapped", "mapping-text_state_mapped.json", "text_state_mapped.csv"),
+        new TestDataset("text_state_unmapped", "mapping-text_state_without_txt.json", "text_state_unmapped.csv"),
+        new TestDataset("text_state_nonexistent", "mapping-text_state_without_txt.json", "text_state_nonexistent.csv"),
         new TestDataset("semantic_text").withInferenceEndpoints("test_sparse_inference", "test_dense_inference"),
         new TestDataset("logs"),
         new TestDataset("dense_vector_text"),

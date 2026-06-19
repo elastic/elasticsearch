@@ -1086,7 +1086,7 @@ public class DynamicMappingTests extends MapperServiceTestCase {
         Mapper foo = update.getRoot().getMapper("foo");
         assertThat(foo, instanceOf(KeywordFieldMapper.class));
         assertFalse(((KeywordFieldMapper) foo).multiFields().iterator().hasNext());
-        assertTrue(((KeywordFieldMapper) foo).fieldType().usesBinaryDocValues());
+        assertFalse(((KeywordFieldMapper) foo).fieldType().usesBinaryDocValues());
         assertNull(doc.rootDoc().getField("foo.keyword"));
     }
 
@@ -1113,7 +1113,7 @@ public class DynamicMappingTests extends MapperServiceTestCase {
         Mapper field2 = update.getRoot().getMapper("field2");
         assertThat(field2, instanceOf(KeywordFieldMapper.class));
         assertFalse(((KeywordFieldMapper) field2).multiFields().iterator().hasNext());
-        assertTrue(((KeywordFieldMapper) field2).fieldType().usesBinaryDocValues());
+        assertFalse(((KeywordFieldMapper) field2).fieldType().usesBinaryDocValues());
         assertNull(doc.rootDoc().getField("field2.keyword"));
     }
 
@@ -1149,7 +1149,7 @@ public class DynamicMappingTests extends MapperServiceTestCase {
         Mapper baz = bar.getMapper("baz");
         assertThat(baz, instanceOf(KeywordFieldMapper.class));
         assertFalse(((KeywordFieldMapper) baz).multiFields().iterator().hasNext());
-        assertTrue(((KeywordFieldMapper) baz).fieldType().usesBinaryDocValues());
+        assertFalse(((KeywordFieldMapper) baz).fieldType().usesBinaryDocValues());
         assertNull(doc.rootDoc().getField("object.foo.bar.baz.keyword"));
     }
 

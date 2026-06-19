@@ -1,6 +1,6 @@
 {
   "uid": "promql-downsample-comparison",
-  "title": "PromQL downsample comparison",
+  "title": "Downsample PromQL comparison",
   "timezone": "utc",
   "schemaVersion": 41,
   "version": 3,

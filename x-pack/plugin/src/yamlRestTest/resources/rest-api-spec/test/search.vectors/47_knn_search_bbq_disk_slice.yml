@@ -91,6 +91,45 @@ setup:
   - match: { hits.hits.0._id: "2" }
   - match: { hits.hits.1._id: "4" }
 ---
+"KNN search with multiple _slice values searches across the requested slices":
+  - do:
+      search:
+        index: bbq_disk_slice
+        _slice: s1,s2
+        body:
+          knn:
+            field: vector
+            query_vector: [0.707107, 0.707107, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+            k: 4
+            num_candidates: 10
+
+  - match: { hits.total.value: 4 }
+  - length: { hits.hits: 4 }
+  - match: { hits.hits.0._id: "1" }
+  - match: { hits.hits.1._id: "2" }
+  - match: { hits.hits.2._id: "3" }
+  - match: { hits.hits.3._id: "4" }
+
+---
+"KNN search with multiple _slice values and duplicatessearches across the requested slices":
+  - do:
+      search:
+        index: bbq_disk_slice
+        _slice: s1,s2,s1,s2
+        body:
+          knn:
+            field: vector
+            query_vector: [0.707107, 0.707107, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+            k: 4
+            num_candidates: 10
+
+  - match: { hits.total.value: 4 }
+  - length: { hits.hits: 4 }
+  - match: { hits.hits.0._id: "1" }
+  - match: { hits.hits.1._id: "2" }
+  - match: { hits.hits.2._id: "3" }
+  - match: { hits.hits.3._id: "4" }
+---
 "Search without _slice is rejected on slice-enabled index":
   - do:
       catch: /\[_slice\] is required when \[index.slice.enabled\] is true for search request/

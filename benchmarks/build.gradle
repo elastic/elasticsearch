@@ -136,14 +136,19 @@ tasks.register("copyPainless", Copy) {
 
 tasks.named("run").configure {
   executable = "${buildParams.runtimeJavaHome.get()}/bin/java" + (OS.current() == OS.WINDOWS ? '.exe' : '')
-  dependsOn "copyExpression", "copyPainless", configurations.nativeLib
+  dependsOn "copyExpression", "copyPainless", configurations.nativeLib, ":libs:native:native-libraries:extractLibs"
   systemProperty 'plugins.dir', "${buildDir}/plugins"
   systemProperty 'tests.index', "${buildDir}/index"
-  systemProperty 'es.nativelibs.path', TestUtil.getTestLibraryPath(file("../libs/native/libraries/build/platform/").toString())
+  def nativeLibsPath = TestUtil.getTestLibraryPath(file("../libs/native/libraries/build/platform/").toString())
+  systemProperty 'es.nativelibs.path', nativeLibsPath
   // Arrow's MemoryUtil reflects into java.nio.Buffer.address during static init; the parquet
   // format reader transitively triggers this via BlockFactory.arrowAllocator(). Mirrors the
   // flag already set on the test task above and on :x-pack:plugin:esql-datasource-parquet:test.
   jvmArgs '--add-opens=java.base/java.nio=ALL-UNNAMED'
+  jvmArgs '--enable-native-access=ALL-UNNAMED'
+  jvmArgs '-Dorg.apache.lucene.vectorization.upperJavaFeatureVersion=' + buildParams.getRuntimeJavaVersion().map { it.majorVersion }.get()
+  // Forward es.nativelibs.path to JMH forked VMs via default jvmArgsAppend
+  args '-jvmArgsAppend', "-Des.nativelibs.path=${nativeLibsPath}"
 }
 
 tasks.named('test').configure {

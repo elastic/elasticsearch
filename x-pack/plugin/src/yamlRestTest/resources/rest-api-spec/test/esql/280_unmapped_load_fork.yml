@@ -69,6 +69,8 @@ setup:
 ---
 two-branches-one-index:
   - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
           query: 'SET unmapped_fields="load"; FROM index1 | FORK (WHERE NOT BYTE_LENGTH(lambda) < 11) (WHERE true) | KEEP lambda, _fork'
@@ -80,6 +82,8 @@ two-branches-one-index:
 ---
 one-branch-one-index:
   - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
           query: 'SET unmapped_fields="load"; FROM index2 | FORK (WHERE NOT BYTE_LENGTH(lambda) < 11) | KEEP lambda, _fork'
@@ -91,6 +95,8 @@ one-branch-one-index:
 ---
 two-branches-one-index-wildcard:
   - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
           query: 'SET unmapped_fields="load"; FROM index3* | FORK (WHERE NOT BYTE_LENGTH(lambda) < 11) (WHERE true) | KEEP lambda, _fork'
@@ -102,6 +108,8 @@ two-branches-one-index-wildcard:
 ---
 one-branch-multi-index:
   - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
           query: 'SET unmapped_fields="load"; FROM index1,index2 | FORK (WHERE NOT BYTE_LENGTH(lambda) < 11) | KEEP lambda, _fork'
@@ -113,6 +121,8 @@ one-branch-multi-index:
 ---
 two-branches-multi-index:
   - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
           query: 'SET unmapped_fields="load"; FROM index1,index2 | FORK (WHERE NOT BYTE_LENGTH(lambda) < 11) (WHERE true) | KEEP lambda, _fork'
@@ -124,6 +134,8 @@ two-branches-multi-index:
 ---
 two-branches-multi-index-wildcard:
   - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
           query: 'SET unmapped_fields="load"; FROM ind* | FORK (WHERE NOT BYTE_LENGTH(lambda) < 11) (WHERE true) | KEEP lambda, _fork'

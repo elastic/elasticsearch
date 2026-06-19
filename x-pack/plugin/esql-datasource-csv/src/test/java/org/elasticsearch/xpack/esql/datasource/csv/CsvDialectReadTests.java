@@ -12,6 +12,7 @@ import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.test.ESTestCase;
@@ -212,6 +213,58 @@ public class CsvDialectReadTests extends ESTestCase {
         assertEquals("present", values.get(1).get(2));
     }
 
+    /**
+     * Tripwire for the SCHEMA-INFERENCE path. Inference (here headerless → inferSchemaHeaderless)
+     * samples rows through the per-record iterator and its dialect schema. If that path were not
+     * dialect-aware, a field-leading {@code "} in the sample would open a quoted region and the
+     * sampling would glue rows — wrong count / mis-aligned columns. Under plain it stays data.
+     */
+    public void testPlainInferenceFieldLeadingQuoteDoesNotGlue() throws IOException {
+        StringBuilder tsv = new StringBuilder();
+        for (int i = 0; i < 30; i++) {
+            String note = i % 5 == 0 ? "\"quote-start " + i : "note " + i;
+            tsv.append("id").append(i).append('\t').append(note).append('\n');
+        }
+        List<List<String>> values = readAll(tsvReader(Map.of("dialect", "plain", "header_row", false)), tsv.toString());
+        assertEquals(30, values.size());
+        assertEquals("\"quote-start 0", values.get(0).get(1));
+    }
+
+    /**
+     * Tripwire for ESCAPED decoding ON THE INFERENCE PATH: a single column whose non-null samples
+     * are integers and whose nulls are {@code \N} must infer as a NUMERIC type — which is only
+     * possible if the sample {@code \N} was decoded to null before type inference. If the sample
+     * path skipped decoding, the literal {@code \N} string forces the column to keyword (BYTES_REF),
+     * and this assertion fails immediately.
+     */
+    public void testEscapedInferenceDecodesNullBeforeTypeInference() throws IOException {
+        StringBuilder tsv = new StringBuilder();
+        for (int i = 0; i < 30; i++) {
+            tsv.append(i % 3 == 0 ? "\\N" : Integer.toString(i)).append('\n');
+        }
+        List<ElementType> types = readColumnTypes(tsvReader(Map.of("dialect", "escaped", "header_row", false)), tsv.toString());
+        assertEquals(1, types.size());
+        assertNotEquals(
+            "escaped \\N must decode to null in the sample so the column infers numeric, not keyword",
+            ElementType.BYTES_REF,
+            types.get(0)
+        );
+    }
+
+    /**
+     * Same tripwire through the HEADERED inference path (inferSchemaFromBatchReader): a header with
+     * no {@code :type} annotations forces type inference from the sample.
+     */
+    public void testEscapedHeaderedInferenceDecodesNull() throws IOException {
+        StringBuilder tsv = new StringBuilder("id\tn\n");
+        for (int i = 0; i < 30; i++) {
+            tsv.append("id").append(i).append('\t').append(i % 3 == 0 ? "\\N" : Integer.toString(i)).append('\n');
+        }
+        List<ElementType> types = readColumnTypes(tsvReader(Map.of("dialect", "escaped")), tsv.toString());
+        assertEquals(2, types.size());
+        assertNotEquals("the n column must infer numeric, proving \\N decoded in the sample", ElementType.BYTES_REF, types.get(1));
+    }
+
     /** The no-quote splitter never reports a too-large record for well-formed newline-terminated data. */
     public void testNewlineSplitterBoundaries() throws IOException {
         NewlineRecordSplitter splitter = new NewlineRecordSplitter(32);
@@ -249,6 +302,26 @@ public class CsvDialectReadTests extends ESTestCase {
 
     private static CsvFormatReader configured(CsvFormatReader reader, Map<String, Object> config) {
         return (CsvFormatReader) reader.withConfigTrackingConsumedKeys(config).value();
+    }
+
+    /** The inferred per-column {@link ElementType} from the first page (used to assert type inference). */
+    private static List<ElementType> readColumnTypes(CsvFormatReader reader, String content) throws IOException {
+        StorageObject object = new InMemoryStorageObject(content.getBytes(StandardCharsets.UTF_8));
+        try (CloseableIterator<Page> pages = reader.read(object, FormatReadContext.of(null, 100))) {
+            if (pages.hasNext() == false) {
+                return List.of();
+            }
+            Page page = pages.next();
+            try {
+                List<ElementType> types = new ArrayList<>(page.getBlockCount());
+                for (int b = 0; b < page.getBlockCount(); b++) {
+                    types.add(page.getBlock(b).elementType());
+                }
+                return types;
+            } finally {
+                page.releaseBlocks();
+            }
+        }
     }
 
     /** Reads every page and renders each value as a string ({@code null} stays null). */

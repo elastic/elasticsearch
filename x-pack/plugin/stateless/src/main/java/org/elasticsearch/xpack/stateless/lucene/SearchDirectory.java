@@ -493,7 +493,7 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
                                 + blobLocationFromCommit;
                         // Case 3: not previously tracked, or blob location changed.
                         // Use newCommit's timestamp only when this file is internal to newCommit (i.e., the commit physically wrote it).
-                        // Files referenced from older CCs have no CC context here and report unknown.
+                        // Files referenced from older CCs have no timestamp info here and report unknown.
                         StatelessCompoundCommit.TimestampFieldValueRange ts = null;
                         if (newCommitInternalFiles != null && newCommitInternalFiles.contains(fileName)) {
                             ts = newCommitTimestamp;

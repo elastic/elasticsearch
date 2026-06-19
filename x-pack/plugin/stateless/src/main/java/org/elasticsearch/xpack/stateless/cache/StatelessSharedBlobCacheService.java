@@ -96,7 +96,7 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
     private final Executor shardReadThreadPoolExecutor;
     private final PluggableDirectoryMetricsHolder<BlobStoreCacheDirectoryMetrics> metricsHolder;
     private final boolean hasSearchRole;
-    private final boolean statelessCacheBoostPreferenceEnabled;
+    private final boolean CacheBoostPreferenceEnabled;
 
     // TODO Merge the two constructors
     public StatelessSharedBlobCacheService(
@@ -118,7 +118,7 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
         this.shardReadThreadPoolExecutor = threadPool.executor(StatelessPlugin.SHARD_READ_THREAD_POOL);
         this.metricsHolder = metricsHolder;
         this.hasSearchRole = DiscoveryNode.hasRole(settings, DiscoveryNodeRole.SEARCH_ROLE);
-        this.statelessCacheBoostPreferenceEnabled = STATELESS_CACHE_BOOST_PREFERENCE_ENABLED_SETTING.get(settings);
+        this.CacheBoostPreferenceEnabled = STATELESS_CACHE_BOOST_PREFERENCE_ENABLED_SETTING.get(settings);
     }
 
     // for tests
@@ -156,7 +156,7 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
         this.shardReadThreadPoolExecutor = IO_EXECUTOR;
         this.metricsHolder = metricsHolder;
         this.hasSearchRole = DiscoveryNode.hasRole(settings, DiscoveryNodeRole.SEARCH_ROLE);
-        this.statelessCacheBoostPreferenceEnabled = STATELESS_CACHE_BOOST_PREFERENCE_ENABLED_SETTING.get(settings);
+        this.CacheBoostPreferenceEnabled = STATELESS_CACHE_BOOST_PREFERENCE_ENABLED_SETTING.get(settings);
     }
 
     /**
@@ -278,6 +278,6 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
     }
 
     public boolean isCacheBoostPreferenceEnabled() {
-        return statelessCacheBoostPreferenceEnabled;
+        return CacheBoostPreferenceEnabled;
     }
 }

@@ -21,7 +21,7 @@ import org.elasticsearch.xpack.stateless.lucene.FileCacheKey;
 
 import java.util.Set;
 
-import static org.elasticsearch.blobcache.shared.SharedBlobCacheService.NO_TIMESTAMP;
+import static org.elasticsearch.blobcache.shared.SharedBlobCacheService.UNKNOWN_TIMESTAMP;
 import static org.elasticsearch.xpack.stateless.cache.PinnedWindowEvictionPolicy.PINNED_WINDOW_DURATION_SETTING;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -67,7 +67,7 @@ public class PinnedWindowEvictionPolicyTests extends ESTestCase {
 
             @Override
             public long timestampMillis() {
-                return NO_TIMESTAMP;
+                return UNKNOWN_TIMESTAMP;
             }
         };
     }

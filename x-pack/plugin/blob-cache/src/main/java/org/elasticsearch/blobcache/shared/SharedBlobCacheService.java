@@ -95,11 +95,10 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
     }
 
     /**
-     * Sentinel used when the data timestamp for a cache region is unavailable. E.g. region for an index without @timestamp field.
-     * It is a plain {@code long} at the cache layer: the cache assigns no semantic meaning to it beyond "unavailable".
-     * TODO: move out into a separate class if more than one sentinel is needed.
+     * Sentinel used when the data timestamp for a cache region is unknown or unavailable. It is a plain {@code long} at the cache layer:
+     * the cache assigns no semantic meaning to it beyond "unknown".
      */
-    public static final long NO_TIMESTAMP = -1L;
+    public static final long UNKNOWN_TIMESTAMP = -1L;
 
     private static final String SHARED_CACHE_SETTINGS_PREFIX = "xpack.searchable.snapshot.shared_cache.";
 
@@ -570,7 +569,7 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
     }
 
     CacheFileRegion<KeyType> get(KeyType cacheKey, long fileLength, int region) {
-        return get(cacheKey, fileLength, region, NO_TIMESTAMP);
+        return get(cacheKey, fileLength, region, UNKNOWN_TIMESTAMP);
     }
 
     CacheFileRegion<KeyType> get(KeyType cacheKey, long fileLength, int region, long timestampMillis) {
@@ -604,7 +603,7 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
         final Executor fetchExecutor,
         final ActionListener<Boolean> listener
     ) {
-        maybeFetchRegion(cacheKey, region, blobLength, writer, fetchExecutor, NO_TIMESTAMP, listener);
+        maybeFetchRegion(cacheKey, region, blobLength, writer, fetchExecutor, UNKNOWN_TIMESTAMP, listener);
     }
 
     public void maybeFetchRegion(
@@ -653,7 +652,7 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
         final boolean force,
         final ActionListener<Boolean> listener
     ) {
-        fetchRegion(cacheKey, region, blobLength, writer, fetchExecutor, force, NO_TIMESTAMP, listener);
+        fetchRegion(cacheKey, region, blobLength, writer, fetchExecutor, force, UNKNOWN_TIMESTAMP, listener);
     }
 
     public void fetchRegion(
@@ -722,7 +721,7 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
         final Executor fetchExecutor,
         final ActionListener<Boolean> listener
     ) {
-        maybeFetchRange(cacheKey, region, range, blobLength, writer, fetchExecutor, NO_TIMESTAMP, listener);
+        maybeFetchRange(cacheKey, region, range, blobLength, writer, fetchExecutor, UNKNOWN_TIMESTAMP, listener);
     }
 
     public void maybeFetchRange(
@@ -773,7 +772,7 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
         final boolean force,
         final ActionListener<Boolean> listener
     ) {
-        fetchRange(cacheKey, region, range, blobLength, writer, fetchExecutor, force, NO_TIMESTAMP, listener);
+        fetchRange(cacheKey, region, range, blobLength, writer, fetchExecutor, force, UNKNOWN_TIMESTAMP, listener);
     }
 
     public void fetchRange(
@@ -875,7 +874,7 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
                 this,
                 new RegionKey<>(cacheKey, region),
                 computeCacheFileRegionSize(length, region),
-                NO_TIMESTAMP
+                UNKNOWN_TIMESTAMP
             );
             return lfuCache.maybeEvictLeastUsed(incoming);
         }
@@ -1050,7 +1049,7 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
 
         final RegionKey<KeyType> regionKey;
         final SparseFileTracker tracker;
-        // Representative data timestamp (epoch millis) of the content in this region.
+        // Representative data timestamp (epoch millis) of the content in this region, or UNKNOWN_TIMESTAMP when unknown.
         private final long timestampMillis;
         // io can be null when not init'ed or after evict/take
         // io does not need volatile access on the read path, since it goes from null to a single value (and then possbily back to null).
@@ -1069,7 +1068,7 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
         ) {
             this.blobCacheService = blobCacheService;
             this.regionKey = regionKey;
-            assert timestampMillis > 0L || timestampMillis == NO_TIMESTAMP : timestampMillis;
+            assert timestampMillis > 0L || timestampMillis == UNKNOWN_TIMESTAMP : timestampMillis;
             this.timestampMillis = timestampMillis;
             assert regionSize > 0;
             // NOTE we use a constant string for description to avoid consume extra heap space
@@ -1974,7 +1973,7 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
     }
 
     public CacheFile getCacheFile(KeyType cacheKey, long length, CacheMissHandler cacheMissHandler) {
-        return getCacheFile(cacheKey, length, cacheMissHandler, NO_TIMESTAMP);
+        return getCacheFile(cacheKey, length, cacheMissHandler, UNKNOWN_TIMESTAMP);
     }
 
     public CacheFile getCacheFile(KeyType cacheKey, long length, CacheMissHandler cacheMissHandler, long timestampMillis) {

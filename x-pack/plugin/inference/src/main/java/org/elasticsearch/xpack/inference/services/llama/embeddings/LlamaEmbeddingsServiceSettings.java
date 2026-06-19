@@ -22,6 +22,7 @@ import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xpack.inference.common.parser.EnumParser;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.llama.LlamaServiceSettings;
+import org.elasticsearch.xpack.inference.services.settings.FieldUpdate;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
 import java.io.IOException;
@@ -243,18 +244,17 @@ public class LlamaEmbeddingsServiceSettings extends LlamaServiceSettings {
 
         static {
             LlamaServiceSettings.declareCommonUpdatableFields(PARSER);
-            PARSER.declareInt(Update::setMaxInputTokens, new ParseField(MAX_INPUT_TOKENS));
+            FieldUpdate.declareNullable(PARSER, (update, value) -> update.maxInputTokens = value, p -> {
+                Integer value = p.intValue();
+                validatePositiveInteger(value, MAX_INPUT_TOKENS);
+                return value;
+            }, new ParseField(MAX_INPUT_TOKENS), ObjectParser.ValueType.INT_OR_NULL);
         }
 
-        private Integer maxInputTokens;
-
-        private void setMaxInputTokens(Integer maxInputTokens) {
-            validatePositiveInteger(maxInputTokens, MAX_INPUT_TOKENS);
-            this.maxInputTokens = maxInputTokens;
-        }
+        private FieldUpdate<Integer> maxInputTokens = FieldUpdate.absent();
 
         public LlamaEmbeddingsServiceSettings mergeInto(LlamaEmbeddingsServiceSettings existing) {
-            var updatedMaxInputTokens = this.maxInputTokens != null ? this.maxInputTokens : existing.maxInputTokens();
+            var updatedMaxInputTokens = this.maxInputTokens.resolve(existing.maxInputTokens());
             return new LlamaEmbeddingsServiceSettings(
                 existing.modelId(),
                 existing.uri(),

@@ -96,14 +96,14 @@ public class CrossClusterInSubqueryIT extends AbstractCrossClusterTestCase {
             FROM events
             | WHERE id IN (FROM cluster-a:events | WHERE color == "red" | KEEP id)
             | SORT id
-            | KEEP id, color
+            | KEEP id, color, tag
             """, randomBoolean())) {
             List<List<Object>> values = getValuesList(resp);
             assertThat(values, hasSize(3));
-            assertEquals(List.of(1, "red"), values.get(0));
-            assertEquals(List.of(3, "red"), values.get(1));
-            assertEquals(List.of(5, "red"), values.get(2));
-            // outer FROM is local-only — no CCS execution info to assert
+            assertEquals(List.of(1, "red", "local"), values.get(0));
+            assertEquals(List.of(3, "red", "local"), values.get(1));
+            assertEquals(List.of(5, "red", "local"), values.get(2));
+            assertCCSExecutionInfoDetails(resp.getExecutionInfo());
         }
     }
 
@@ -156,13 +156,14 @@ public class CrossClusterInSubqueryIT extends AbstractCrossClusterTestCase {
             FROM events
             | WHERE id NOT IN (FROM cluster-a:events | WHERE color == "red" | KEEP id)
             | SORT id
-            | KEEP id, color
+            | KEEP id, color, tag
             """, randomBoolean())) {
             List<List<Object>> values = getValuesList(resp);
             assertThat(values, hasSize(3));
-            assertEquals(List.of(2, "blue"), values.get(0));
-            assertEquals(List.of(4, "blue"), values.get(1));
-            assertEquals(List.of(6, "blue"), values.get(2));
+            assertEquals(List.of(2, "blue", "local"), values.get(0));
+            assertEquals(List.of(4, "blue", "local"), values.get(1));
+            assertEquals(List.of(6, "blue", "local"), values.get(2));
+            assertCCSExecutionInfoDetails(resp.getExecutionInfo());
         }
     }
 
@@ -215,14 +216,15 @@ public class CrossClusterInSubqueryIT extends AbstractCrossClusterTestCase {
             FROM events
             | WHERE id IN (FROM cluster-a:events | WHERE color == "red" | KEEP id) OR id > 5
             | SORT id
-            | KEEP id
+            | KEEP id, tag
             """, randomBoolean())) {
             List<List<Object>> values = getValuesList(resp);
             assertThat(values, hasSize(4));
-            assertEquals(List.of(1), values.get(0));
-            assertEquals(List.of(3), values.get(1));
-            assertEquals(List.of(5), values.get(2));
-            assertEquals(List.of(6), values.get(3));
+            assertEquals(List.of(1, "local"), values.get(0));
+            assertEquals(List.of(3, "local"), values.get(1));
+            assertEquals(List.of(5, "local"), values.get(2));
+            assertEquals(List.of(6, "local"), values.get(3));
+            assertCCSExecutionInfoDetails(resp.getExecutionInfo());
         }
     }
 
@@ -478,6 +480,83 @@ public class CrossClusterInSubqueryIT extends AbstractCrossClusterTestCase {
                 | WHERE id IN (FROM cluster-a:remote_events_view | KEEP id)
                 """, null)
         );
+    }
+
+    // ---- negative tests: LOOKUP JOIN inside WHERE IN subquery body (issue #149877) ----
+
+    /**
+     * Negative test tracking https://github.com/elastic/elasticsearch/issues/149877.
+     *
+     * <p>A WHERE IN subquery whose body contains a LOOKUP JOIN referencing a remote lookup index
+     * currently errors in pre-analysis when {@code skipUnavailable=false}. The lookup index
+     * ({@code values_lookup}) exists only on {@code remote-b}, which is the cluster targeted by
+     * the subquery, but field resolution incorrectly contacts other remote clusters and fails when
+     * those clusters do not host the lookup index.
+     *
+     * <p>The correct result (once the bug is fixed) is 1 row with {@code v=4} from
+     * {@code cluster-a}: the subquery filters {@code remote-b:logs-2} to {@code v=4} via the
+     * lookup join, and the outer query selects that value from {@code cluster-a:logs-2}.
+     *
+     * <p>TODO: when issue #149877 is fixed, replace {@code expectThrows} with a positive
+     * assertion: {@code assertThat(values, hasSize(1)); assertEquals(4L, values.get(0).get(0))}.
+     */
+    public void testInSubqueryWithLookupJoinInSubqueryBodySkipUnavailableFalse() {
+        populateLookupIndex(REMOTE_CLUSTER_2, "values_lookup", 10);
+        setSkipUnavailable(REMOTE_CLUSTER_1, false);
+        setSkipUnavailable(REMOTE_CLUSTER_2, false);
+        try {
+            expectThrows(Exception.class, () -> runQuery("""
+                FROM cluster-a:logs-*
+                | WHERE v IN (
+                    FROM remote-b:logs-*
+                    | WHERE v > 1 AND v < 7
+                    | LOOKUP JOIN values_lookup ON v == lookup_key
+                    | KEEP v
+                  )
+                | KEEP v
+                """, false));
+        } finally {
+            clearSkipUnavailable(3);
+        }
+    }
+
+    /**
+     * Negative test tracking https://github.com/elastic/elasticsearch/issues/149877.
+     *
+     * <p>A WHERE IN subquery whose body contains a LOOKUP JOIN referencing a remote lookup index
+     * returns wrong results when {@code skipUnavailable=true}. The cluster hosting the lookup
+     * index ({@code remote-b}) is silently skipped during field resolution, so the inner subquery
+     * yields an empty set and the outer WHERE IN matches no rows.
+     *
+     * <p>The correct result (once the bug is fixed) is 1 row with {@code v=4} from
+     * {@code cluster-a}.
+     *
+     * <p>TODO: when issue #149877 is fixed, replace the {@code assertNotEquals} with:
+     * {@code assertThat(values, hasSize(1)); assertEquals(4L, values.get(0).get(0))}.
+     */
+    public void testInSubqueryWithLookupJoinInSubqueryBodySkipUnavailableTrue() {
+        populateLookupIndex(REMOTE_CLUSTER_2, "values_lookup", 10);
+        setSkipUnavailable(REMOTE_CLUSTER_1, true);
+        setSkipUnavailable(REMOTE_CLUSTER_2, true);
+        try {
+            try (EsqlQueryResponse resp = runQuery("""
+                FROM cluster-a:logs-*
+                | WHERE v IN (
+                    FROM remote-b:logs-*
+                    | WHERE v > 1 AND v < 7
+                    | LOOKUP JOIN values_lookup ON v == lookup_key
+                    | KEEP v
+                  )
+                | KEEP v
+                """, true)) {
+                List<List<Object>> values = getValuesList(resp);
+                // Bug: the correct result is List.of(List.of(4L)), but due to #149877 the
+                // lookup resolution fails silently and the inner subquery returns no values.
+                assertNotEquals(List.of(List.of(4L)), values);
+            }
+        } finally {
+            clearSkipUnavailable(3);
+        }
     }
 
     // ---- helpers ----

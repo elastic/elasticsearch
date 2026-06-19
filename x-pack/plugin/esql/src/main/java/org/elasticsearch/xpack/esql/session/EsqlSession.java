@@ -956,6 +956,7 @@ public class EsqlSession {
                             completionInfoAccumulator.accumulate(finalResult.completionInfo());
                             DriverCompletionInfo merged = completionInfoAccumulator.finish();
                             reconcileCapturedSourceStats(merged);
+                            EsqlCCSUtils.finalizeSubPlanOnlyRemoteClusters(executionInfo);
                             finalListener.onResponse(
                                 new Result(finalResult.schema(), finalResult.pages(), null, configuration, merged, executionInfo)
                             );

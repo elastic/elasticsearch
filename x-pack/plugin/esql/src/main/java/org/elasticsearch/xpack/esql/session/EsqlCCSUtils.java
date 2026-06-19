@@ -460,6 +460,24 @@ public class EsqlCCSUtils {
     }
 
     /**
+     * Finalize remote clusters that were only involved in sub-plan execution (e.g. an IN-subquery running on a remote cluster while
+     * the outer FROM is local). During sub-plan execution, {@code ClusterComputeHandler.updateExecutionInfo} never advances a cluster's
+     * status past {@code RUNNING} because {@code isMainPlan()} is {@code false}. After the main plan completes, any cluster still in
+     * {@code RUNNING} state was not touched by the main plan; mark it as {@code SUCCESSFUL} with zero shard counts (the remote
+     * sub-plan completed without errors, so the cluster did contribute results).
+     */
+    public static void finalizeSubPlanOnlyRemoteClusters(EsqlExecutionInfo executionInfo) {
+        for (String clusterAlias : executionInfo.clusterAliases()) {
+            if (RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY.equals(clusterAlias)) {
+                continue;
+            }
+            if (executionInfo.getCluster(clusterAlias).getStatus() == Cluster.Status.RUNNING) {
+                markClusterWithFinalStateAndNoShards(executionInfo, clusterAlias, Cluster.Status.SUCCESSFUL, null);
+            }
+        }
+    }
+
+    /**
      * Check whether this exception can be tolerated when partial results are on, or should be treated as fatal.
      * @return true if the exception can be tolerated, false if it should be treated as fatal.
      */

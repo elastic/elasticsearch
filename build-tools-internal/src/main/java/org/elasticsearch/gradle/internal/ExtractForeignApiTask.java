@@ -177,11 +177,14 @@ public abstract class ExtractForeignApiTask extends DefaultTask {
         int jdkVersion = Runtime.version().feature();
         if (jdkVersion != 21) {
             throw new IllegalStateException(
-                "extractForeignApi must be run with JDK 21 (found JDK " + jdkVersion + "). "
+                "extractForeignApi must be run with JDK 21 (found JDK "
+                    + jdkVersion
+                    + "). "
                     + "The Foreign Function & Memory API is preview in JDK 21 only; on JDK 22+ it is standard and this JAR is unnecessary."
             );
         }
     }
+
     private static void checkJava21(ClassNode cn) {
         int rawVersion = cn.version & 0xFFFF;
         if (rawVersion != V21) {

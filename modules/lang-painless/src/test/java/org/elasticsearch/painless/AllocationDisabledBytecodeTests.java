@@ -28,10 +28,13 @@ public class AllocationDisabledBytecodeTests extends ScriptTestCase {
     }
 
     public void testNoCounterBytecodeWhenDisabled() {
-        String asm = bytecode("return 1;", -1L);
+        // A script with an allocation site must still be bit-clean of tracking bytecode when the limit is off.
+        String asm = bytecode("int[] a = new int[] {1, 2, 3}; return 1;", -1L);
         assertThat(asm, not(containsString("$allocBytes")));
         assertThat(asm, not(containsString("$incAllocBytes")));
         assertThat(asm, not(containsString("getAllocBytes")));
+        assertThat(asm, not(containsString("$checkAllocBytes")));
+        assertThat(asm, not(containsString("AllocationGuard")));
     }
 
     public void testCounterBytecodePresentWhenEnabled() {
@@ -39,5 +42,18 @@ public class AllocationDisabledBytecodeTests extends ScriptTestCase {
         assertThat(asm, containsString("$allocBytes"));
         assertThat(asm, containsString("$incAllocBytes"));
         assertThat(asm, containsString("getAllocBytes"));
+        assertThat(asm, containsString("$checkAllocBytes"));
+    }
+
+    public void testPreCheckEmittedAtAllocationSiteWhenEnabled() {
+        // The allocation site invokes the script's $checkAllocBytes before allocating.
+        String asm = bytecode("int[] a = new int[] {1, 2, 3}; return 1;", 1024 * 1024L);
+        assertThat(asm, containsString("$checkAllocBytes"));
+    }
+
+    public void testPreCheckCallsAllocationGuardOnBreachPath() {
+        // The generated $checkAllocBytes delegates to AllocationGuard on the breach path.
+        String asm = bytecode("int[] a = new int[] {1, 2, 3}; return 1;", 1024 * 1024L);
+        assertThat(asm, containsString("AllocationGuard"));
     }
 }

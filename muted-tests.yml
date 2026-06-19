@@ -374,9 +374,6 @@ tests:
   method: "builds distribution from branches via archives extractedAssemble [bwcDistVersion: 8.2.1, bwcProject: major3, expectedAssembleTaskName:
     extractedAssemble, #2]"
   issue: https://github.com/elastic/elasticsearch/issues/150410
-- class: org.elasticsearch.xpack.ccr.CcrSeqNoPruningIT
-  method: testSeqNoPartiallyRetainedByCcrLease
-  issue: https://github.com/elastic/elasticsearch/issues/150435
 - class: org.elasticsearch.xpack.esql.action.FileSourceSecretDecryptionAcrossNodesIT
   method: testJoinedDataNodeDecryptsTheSecret
   issue: https://github.com/elastic/elasticsearch/issues/150440
@@ -458,9 +455,6 @@ tests:
 - class: org.elasticsearch.indices.memory.breaker.HierarchyCircuitBreakerTelemetryIT
   method: testCircuitBreakerTripCountMetric
   issue: https://github.com/elastic/elasticsearch/issues/150700
-- class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardDisruptionIT
-  method: testReshardWithDisruption
-  issue: https://github.com/elastic/elasticsearch/issues/150708
 - class: org.elasticsearch.xpack.esql.analysis.AnalyzerUnmappedGoldenTests
   method: testTypeConflictTimeseriesLongUnmappedWithCast
   issue: https://github.com/elastic/elasticsearch/issues/150722
@@ -473,9 +467,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.csv.ExternalCsvMultiNodePushdownIT
   method: testCountStarColdThenWarmShortCircuitsAcrossNodes
   issue: https://github.com/elastic/elasticsearch/issues/150594
-- class: org.elasticsearch.xpack.ml.integration.DatafeedCrossProjectIT
-  method: testGetDatafeedWithProjectRouting
-  issue: https://github.com/elastic/elasticsearch/issues/150835
 - class: org.elasticsearch.xpack.esql.action.ExternalCsvMultiScanPushdownIT
   method: testMultiScanColdDoesNotDoubleCountWarmCountStar
   issue: https://github.com/elastic/elasticsearch/issues/150836
@@ -587,9 +578,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.cluster.coordination.TransportConsistentClusterStateReadIT
   method: testWaitsUntilTheNodeRejoinsTheClusterToReturnAValidClusterState
   issue: https://github.com/elastic/elasticsearch/issues/151402
-- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
-  method: test {csv-spec:approximation.Approximate stats by with zero variance}
-  issue: https://github.com/elastic/elasticsearch/issues/151409
 - class: org.elasticsearch.xpack.stateless.StatelessHollowIndexShardsIT
   method: testRelocateHollowShards
   issue: https://github.com/elastic/elasticsearch/issues/151410
@@ -611,21 +599,12 @@ tests:
 - class: org.elasticsearch.xpack.logsdb.LogsdbRestIT
   method: testEsqlRuntimeFields
   issue: https://github.com/elastic/elasticsearch/issues/151547
-- class: org.elasticsearch.xpack.stateless.commits.StatelessFileDeletionIT
-  method: testCommitsOfScrollAreDeletedAfterIndexIsClosedAndOpened
-  issue: https://github.com/elastic/elasticsearch/issues/151558
 - class: org.elasticsearch.xpack.esql.qa.multi_node.GenerativeIT
   method: test {feature:BASELINE}
   issue: https://github.com/elastic/elasticsearch/issues/149746
-- class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
-  method: test {csv-spec:approximation.Approximate stats by with zero variance}
-  issue: https://github.com/elastic/elasticsearch/issues/151577
 - class: org.elasticsearch.index.store.BytesReadHeaderIT
   method: testMultiSearchSetsBytesReadHeader
   issue: https://github.com/elastic/elasticsearch/issues/151595
-- class: org.elasticsearch.blobcache.common.SparseFileTrackerTests
-  method: testThreadSafety
-  issue: https://github.com/elastic/elasticsearch/issues/151599
 - class: org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingServiceIT
   method: testCacheIsWarmedOnUnhollowing
   issue: https://github.com/elastic/elasticsearch/issues/151600
@@ -638,9 +617,51 @@ tests:
 - class: org.elasticsearch.xpack.stateless.StatelessMergePreWarmingIT
   method: testMergePreWarmingFailureDoesNotFailTheEngine
   issue: https://github.com/elastic/elasticsearch/issues/151618
-- class: org.elasticsearch.xpack.stateless.cluster.coordination.BlobStoreSyncDirectoryTests
-  method: testCloseCancelsOnGoingUploads
-  issue: https://github.com/elastic/elasticsearch/issues/151622
 - class: org.elasticsearch.gradle.internal.precommit.PomValidationPrecommitPluginFuncTest
   method: detects missing POM elements and reports structured problems
   issue: https://github.com/elastic/elasticsearch/issues/151636
+- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
+  method: test {csv-spec:lookup-join.byteEqualsLong}
+  issue: https://github.com/elastic/elasticsearch/issues/151650
+- class: org.elasticsearch.smoketest.SmokeTestMultiNodeClientYamlTestSuiteIT
+  method: test {yaml=scroll/10_basic/Basic scroll}
+  issue: https://github.com/elastic/elasticsearch/issues/151698
+- class: org.elasticsearch.xpack.ml.datafeed.DatafeedManagerTests
+  method: testUpdateDatafeedFirstTimeMigrationShouldHonourExplicitProjectRoutingInUpdate
+  issue: https://github.com/elastic/elasticsearch/issues/151699
+- class: org.elasticsearch.xpack.ml.datafeed.DatafeedManagerTests
+  method: testUpdateDatafeedFirstTimeMigrationShouldDefaultProjectRoutingToOrigin
+  issue: https://github.com/elastic/elasticsearch/issues/151700
+- class: org.elasticsearch.xpack.ml.datafeed.DatafeedManagerTests
+  method: testUpdateDatafeedAlreadyMigratedShouldNotDefaultRoutingOnRekey
+  issue: https://github.com/elastic/elasticsearch/issues/151701
+- class: org.elasticsearch.xpack.ml.datafeed.DatafeedManagerTests
+  method: testUpdateDatafeedFirstTimeMigrationShouldNotOverrideExistingProjectRouting
+  issue: https://github.com/elastic/elasticsearch/issues/151702
+- class: org.elasticsearch.xpack.test.rest.XPackRestIT
+  method: test {yaml=search.vectors/47_knn_search_bbq_disk_slice/KNN search with a different _slice returns that slice's nearest neighbor}
+  issue: https://github.com/elastic/elasticsearch/issues/151703
+- class: org.elasticsearch.xpack.esql.CsvIT
+  method: test {csv-spec:string.mvAppendNull}
+  issue: https://github.com/elastic/elasticsearch/issues/151707
+- class: org.elasticsearch.xpack.esql.CsvIT
+  method: test {csv-spec:fuse.fuseWithRowLinearAndMultiValueGroupColumn}
+  issue: https://github.com/elastic/elasticsearch/issues/151709
+- class: org.elasticsearch.indices.recovery.IndexRecoveryIT
+  method: testRerouteRecovery
+  issue: https://github.com/elastic/elasticsearch/issues/151731
+- class: org.elasticsearch.xpack.searchablesnapshots.cache.blob.SearchableSnapshotsBlobStoreCacheMaintenanceIntegTests
+  method: testCleanUpMigratedSystemIndexAfterIndicesAreDeleted
+  issue: https://github.com/elastic/elasticsearch/issues/151732
+- class: org.elasticsearch.simdvec.internal.vectorization.ES93BinaryQuantizedVectorScorerTests
+  method: testBulkScore {p0=SNAP p1=DOT_PRODUCT}
+  issue: https://github.com/elastic/elasticsearch/issues/151735
+- class: org.elasticsearch.simdvec.internal.vectorization.ES93BinaryQuantizedVectorScorerTests
+  method: testBulkScore {p0=MMAP p1=DOT_PRODUCT}
+  issue: https://github.com/elastic/elasticsearch/issues/151736
+- class: org.elasticsearch.simdvec.internal.vectorization.ES93BinaryQuantizedVectorScorerTests
+  method: testBulkScore {p0=SNAP p1=COSINE}
+  issue: https://github.com/elastic/elasticsearch/issues/151737
+- class: org.elasticsearch.simdvec.internal.vectorization.ES93BinaryQuantizedVectorScorerTests
+  method: testBulkScore {p0=MMAP p1=COSINE}
+  issue: https://github.com/elastic/elasticsearch/issues/151738

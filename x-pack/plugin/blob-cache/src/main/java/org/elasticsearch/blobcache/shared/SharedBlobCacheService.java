@@ -76,6 +76,11 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.blobcache.BlobCacheMetrics.ES_EXECUTOR_ATTRIBUTE_KEY;
+import static org.elasticsearch.blobcache.BlobCacheMetrics.EvictionScanMode.AllFrequencies;
+import static org.elasticsearch.blobcache.BlobCacheMetrics.EvictionScanMode.LowestFrequency;
+import static org.elasticsearch.blobcache.BlobCacheMetrics.EvictionScanOutcome.Evicted;
+import static org.elasticsearch.blobcache.BlobCacheMetrics.EvictionScanOutcome.Free;
+import static org.elasticsearch.blobcache.BlobCacheMetrics.EvictionScanOutcome.None;
 import static org.elasticsearch.blobcache.BlobCacheMetrics.LUCENE_FILE_EXTENSION_ATTRIBUTE_KEY;
 import static org.elasticsearch.blobcache.BlobCacheMetrics.NON_ES_EXECUTOR_TO_RECORD;
 import static org.elasticsearch.blobcache.BlobCacheMetrics.NON_LUCENE_EXTENSION_TO_RECORD;
@@ -386,7 +391,7 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
 
     private final Runnable evictIncrementer;
 
-    private final LongSupplier relativeTimeInNanosSupplier;
+    private final LongSupplier relativeNanosProvider;
     private final ThrottledTaskRunner asyncEvictionsRunner;
 
     public SharedBlobCacheService(
@@ -470,7 +475,7 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
 
         this.blobCacheMetrics = blobCacheMetrics;
         this.evictIncrementer = blobCacheMetrics.getEvictedCountNonZeroFrequency()::increment;
-        this.relativeTimeInNanosSupplier = relativeTimeInNanosSupplier;
+        this.relativeNanosProvider = relativeTimeInNanosSupplier;
         this.asyncEvictionsRunner = new ThrottledTaskRunner(
             "shared_blob_cache_evictions",
             SHARED_CACHE_CONCURRENT_EVICTIONS_SETTING.get(settings),
@@ -1201,8 +1206,17 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
          * @return true if successful, i.e., not evicted and data available, false if evicted
          */
         boolean tryRead(ByteBuffer buf, long offset) throws IOException {
+            return tryRead(buf, offset, SharedBytes.MADV_NORMAL);
+        }
+
+        /**
+         * Optimistically try to read from the region, applying the given madvise advice.
+         * @return true if successful, i.e., not evicted and data available, false if evicted
+         */
+        boolean tryRead(ByteBuffer buf, long offset, int advice) throws IOException {
             SharedBytes.IO ioRef = nonVolatileIO();
             if (ioRef != null) {
+                ioRef.madvise(advice);
                 int readBytes = ioRef.read(buf, blobCacheService.getRegionRelativePosition(offset));
                 if (isEvicted()) {
                     buf.position(buf.position() - readBytes);
@@ -1222,9 +1236,15 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
          * invoking the action when not available (not mmap'd, evicted, etc.).
          */
         boolean withByteBufferSlice(long offset, int length, CheckedConsumer<ByteBuffer, IOException> action) throws IOException {
+            return withByteBufferSlice(offset, length, action, SharedBytes.MADV_NORMAL);
+        }
+
+        boolean withByteBufferSlice(long offset, int length, CheckedConsumer<ByteBuffer, IOException> action, int advice)
+            throws IOException {
             SharedBytes.IO ioRef = nonVolatileIO();
             if (ioRef != null && tryIncRef()) {
                 try {
+                    ioRef.madvise(advice);
                     ByteBuffer slice = ioRef.byteBufferSlice(blobCacheService.getRegionRelativePosition(offset), length);
                     if (slice != null && isEvicted() == false) {
                         action.accept(slice);
@@ -1509,6 +1529,10 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
         }
 
         public boolean tryRead(ByteBuffer buf, long offset) throws IOException {
+            return tryRead(buf, offset, SharedBytes.MADV_NORMAL);
+        }
+
+        public boolean tryRead(ByteBuffer buf, long offset, int advice) throws IOException {
             assert assertOffsetsWithinFileLength(offset, buf.remaining(), length);
             final int startRegion = getRegion(offset);
             final long end = offset + buf.remaining();
@@ -1532,7 +1556,7 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
             if (region.tracker.checkAvailable(end - getRegionStart(startRegion)) == false) {
                 return false;
             }
-            boolean res = region.tryRead(buf, offset);
+            boolean res = region.tryRead(buf, offset, advice);
             lastAccessedRegion = res ? fileRegion : null;
             if (res && incrementReads) {
                 blobCacheMetrics.recordRead();
@@ -1547,6 +1571,11 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
          * {@code false} without invoking the action.
          */
         public boolean withByteBufferSlice(long offset, int length, CheckedConsumer<ByteBuffer, IOException> action) throws IOException {
+            return withByteBufferSlice(offset, length, action, SharedBytes.MADV_NORMAL);
+        }
+
+        public boolean withByteBufferSlice(long offset, int length, CheckedConsumer<ByteBuffer, IOException> action, int advice)
+            throws IOException {
             assert assertOffsetsWithinFileLength(offset, length, this.length);
             final int startRegion = getRegion(offset);
             final long end = offset + length;
@@ -1567,7 +1596,7 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
             if (region.tracker.checkAvailable(end - getRegionStart(startRegion)) == false) {
                 return false;
             }
-            boolean result = region.withByteBufferSlice(offset, length, action);
+            boolean result = region.withByteBufferSlice(offset, length, action, advice);
             if (result) {
                 lastAccessedRegion = fileRegion;
             }
@@ -1582,6 +1611,17 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
         @SuppressWarnings({ "unchecked", "rawtypes" })
         public boolean withByteBufferSlices(long[] offsets, int length, int count, CheckedConsumer<ByteBuffer[], IOException> action)
             throws IOException {
+            return withByteBufferSlices(offsets, length, count, action, SharedBytes.MADV_NORMAL);
+        }
+
+        @SuppressWarnings({ "unchecked", "rawtypes" })
+        public boolean withByteBufferSlices(
+            long[] offsets,
+            int length,
+            int count,
+            CheckedConsumer<ByteBuffer[], IOException> action,
+            int advice
+        ) throws IOException {
             if (DirectAccessInput.checkSlicesArgs(offsets, count)) {
                 return false;
             }
@@ -1618,6 +1658,7 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
                             return false;
                         }
                         held[heldCount++] = region;
+                        ioRef.madvise(advice);
                     }
 
                     results[i] = ioRef.byteBufferSlice(getRegionRelativePosition(offset), length);
@@ -1694,7 +1735,7 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
             }
             // We are interested in the total time that the system spends when fetching a result (including time spent queuing), so we start
             // our measurement here.
-            final long startTime = relativeTimeInNanosSupplier.getAsLong();
+            final long startTime = relativeNanosProvider.getAsLong();
             RangeMissingHandler writerInstrumentationDecorator = new DelegatingRangeMissingHandler(writer) {
                 @Override
                 public void fillCacheRange(
@@ -1716,7 +1757,7 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
                         length,
                         progressUpdater,
                         completionListener.map(unused -> {
-                            var elapsedTime = TimeUnit.NANOSECONDS.toMillis(relativeTimeInNanosSupplier.getAsLong() - startTime);
+                            var elapsedTime = TimeUnit.NANOSECONDS.toMillis(relativeNanosProvider.getAsLong() - startTime);
                             blobCacheMetrics.getCacheMissLoadTimes().record(elapsedTime);
                             blobCacheMetrics.getCacheMissCounter()
                                 .incrementBy(
@@ -2508,35 +2549,61 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
          */
         private SharedBytes.IO maybeEvictAndTake(final LFUCacheEntry incoming, final Runnable evictedNotification) {
             assert Thread.holdsLock(SharedBlobCacheService.this);
-
+            final long startNanos = relativeNanosProvider.getAsLong();
+            final int[] entriesScanned = new int[1];
             final long currentEpoch = epoch.get(); // must be captured before attempting to evict a freq 0
-            SharedBytes.IO result = maybeEvictAndTakeForFrequency(incoming, evictedNotification, 0);
+            SharedBytes.IO result = maybeEvictAndTakeForFrequency(incoming, evictedNotification, 0, entriesScanned);
             if (freqs[0].count < freq0DecayScheduleThreshold && freeRegions.isEmpty()) {
                 maybeScheduleDecayAndNewEpoch(currentEpoch);
             }
             if (result != null) {
+                logAndMetricEvictionScan(relativeNanosProvider.getAsLong() - startNanos, AllFrequencies, Evicted, entriesScanned[0]);
                 return result;
             }
             for (int currentFreq = 1; currentFreq < maxFreq; currentFreq++) {
                 // recheck this per freq in case we raced an eviction with an incref'er.
                 SharedBytes.IO freeRegion = freeRegions.poll();
                 if (freeRegion != null) {
+                    logAndMetricEvictionScan(relativeNanosProvider.getAsLong() - startNanos, AllFrequencies, Free, entriesScanned[0]);
                     return freeRegion;
                 }
-                result = maybeEvictAndTakeForFrequency(incoming, evictedNotification, currentFreq);
+                result = maybeEvictAndTakeForFrequency(incoming, evictedNotification, currentFreq, entriesScanned);
                 if (result != null) {
+                    logAndMetricEvictionScan(relativeNanosProvider.getAsLong() - startNanos, AllFrequencies, Evicted, entriesScanned[0]);
                     return result;
                 }
             }
-            return null; // Give up
+            logAndMetricEvictionScan(relativeNanosProvider.getAsLong() - startNanos, AllFrequencies, None, entriesScanned[0]);
+            return null;
+        }
+
+        private void logAndMetricEvictionScan(
+            final long elapsedNanos,
+            final BlobCacheMetrics.EvictionScanMode evictionScanMode,
+            final BlobCacheMetrics.EvictionScanOutcome outcome,
+            final int entriesScanned
+        ) {
+            blobCacheMetrics.recordEvictionScan(elapsedNanos, entriesScanned, evictionScanMode, outcome);
+            if (logger.isTraceEnabled()) {
+                logger.trace(
+                    "Eviction scan ({}) took {} across {} entries ({})",
+                    evictionScanMode,
+                    TimeValue.timeValueNanos(elapsedNanos),
+                    entriesScanned,
+                    outcome
+                );
+            }
         }
 
         private SharedBytes.IO maybeEvictAndTakeForFrequency(
             final LFUCacheEntry incoming,
             final Runnable evictedNotification,
-            final int freq
+            final int freq,
+            final int[] entriesScanned
         ) {
+            assert entriesScanned.length == 1 && entriesScanned[0] >= 0;
             for (LFUCacheEntry entry = freqs[freq].head; entry != null; entry = entry.next) {
+                entriesScanned[0]++;
                 if (evictionPolicy.canEvict(entry.chunk, incoming.chunk) == false) {
                     continue;
                 }
@@ -2590,8 +2657,13 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
          * @return true if an entry was evicted, false otherwise.
          */
         private boolean maybeEvictLeastUsed(final CacheFileRegion<KeyType> incoming) {
+            final long startNanos;
+            int entriesScanned = 0;
+            boolean found = false;
             synchronized (SharedBlobCacheService.this) {
+                startNanos = relativeNanosProvider.getAsLong();
                 for (LFUCacheEntry entry = freqs[0].head; entry != null; entry = entry.next) {
+                    entriesScanned++;
                     if (evictionPolicy.canEvict(entry.chunk, incoming) == false) {
                         continue;
                     }
@@ -2599,11 +2671,18 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
                     boolean evicted = entry.chunk.tryEvict();
                     if (evicted && entry.chunk.volatileIO() != null) {
                         unlinkAndRemoveForEviction(entry);
-                        return true;
+                        found = true;
+                        break;
                     }
                 }
             }
-            return false;
+            logAndMetricEvictionScan(
+                relativeNanosProvider.getAsLong() - startNanos,
+                LowestFrequency,
+                found ? Evicted : None,
+                entriesScanned
+            );
+            return found;
         }
 
         private void computeDecay() {

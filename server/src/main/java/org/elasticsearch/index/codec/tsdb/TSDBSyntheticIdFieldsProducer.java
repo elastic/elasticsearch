@@ -201,7 +201,7 @@ public class TSDBSyntheticIdFieldsProducer extends FieldsProducer {
             return term();
         }
 
-        private static BytesRef extractTsid(BytesRef id) {
+        private static BytesRef extractTsid(BytesRef id, int tsidLength) {
             // The synthetic id is Uid-encoded, possibly with a 0xfd escape prefix, so we need to skip that prefix
             // when extracting the tsid. See TsidExtractingIdFieldMapper#writeSyntheticId
             if (id.length == 0) {
@@ -224,13 +224,17 @@ public class TSDBSyntheticIdFieldsProducer extends FieldsProducer {
             if (len > Long.BYTES + Integer.BYTES) {
                 len -= (Long.BYTES + Integer.BYTES);
             }
+            // expand the lookup tsid as close to the tsid length as possible
+            if (len < tsidLength) {
+                len = Math.min(id.length - escapeBytes, tsidLength);
+            }
             return new BytesRef(id.bytes, id.offset + escapeBytes, len);
         }
 
         @Override
         public SeekStatus seekCeil(BytesRef id) throws IOException {
             assert id != null;
-            BytesRef tsid = extractTsid(id);
+            BytesRef tsid = extractTsid(id, docValues.getTsidFixedLength());
             if (tsid == null) {
                 resetDocID(DocIdSetIterator.NO_MORE_DOCS);
                 return SeekStatus.END;

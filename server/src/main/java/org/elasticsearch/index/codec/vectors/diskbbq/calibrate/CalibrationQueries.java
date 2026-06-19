@@ -17,15 +17,14 @@ import java.io.IOException;
 import java.util.Objects;
 
 /**
- * Late-materialized calibration queries: copies one query at a time into a caller-provided
- * buffer, optionally applying cosine normalization, Neyshabur lift, and random orthogonal
- * preconditioning. Avoids holding {@code float[][]} for all query vectors simultaneously.
+ * Late-materialized calibration queries: copies one query at a time from {@link FloatVectorValues}
+ * via sample ordinals into a caller-provided buffer, optionally applying cosine normalization,
+ * Neyshabur lift, and random orthogonal preconditioning.
  */
 public final class CalibrationQueries {
 
     private final FloatVectorValues baseFvv;
     private final int[] queryOrdinals;
-    private final float[][] materializedRows;
     private final int baseDim;
     private final int dimWork;
     private final boolean cosine;
@@ -33,9 +32,6 @@ public final class CalibrationQueries {
     private final Preconditioner preconditioner;
     private final float[] tmpPre;
 
-    /**
-     * Queries backed by segment {@link FloatVectorValues} and sample ordinals (production path).
-     */
     public CalibrationQueries(
         FloatVectorValues baseFvv,
         int[] queryOrdinals,
@@ -47,40 +43,6 @@ public final class CalibrationQueries {
     ) {
         this.baseFvv = Objects.requireNonNull(baseFvv);
         this.queryOrdinals = Objects.requireNonNull(queryOrdinals);
-        this.materializedRows = null;
-        this.baseDim = baseDim;
-        this.cosine = cosine;
-        this.neyshabur = neyshabur;
-        this.preconditioner = preconditioner;
-        this.dimWork = dimWork;
-        this.tmpPre = preconditioner != null ? new float[dimWork] : null;
-    }
-
-    /**
-     * Queries backed by a small materialized matrix (tests); {@code copyQuery} copies row {@code i}.
-     */
-    public static CalibrationQueries fromMaterializedRows(
-        float[][] rows,
-        int baseDim,
-        boolean cosine,
-        boolean neyshabur,
-        Preconditioner preconditioner,
-        int dimWork
-    ) {
-        return new CalibrationQueries(rows, baseDim, cosine, neyshabur, preconditioner, dimWork);
-    }
-
-    private CalibrationQueries(
-        float[][] materializedRows,
-        int baseDim,
-        boolean cosine,
-        boolean neyshabur,
-        Preconditioner preconditioner,
-        int dimWork
-    ) {
-        this.materializedRows = Objects.requireNonNull(materializedRows);
-        this.baseFvv = null;
-        this.queryOrdinals = null;
         this.baseDim = baseDim;
         this.cosine = cosine;
         this.neyshabur = neyshabur;
@@ -90,13 +52,7 @@ public final class CalibrationQueries {
     }
 
     public int size() {
-        if (materializedRows != null) {
-            return materializedRows.length;
-        } else if (queryOrdinals != null) {
-            return queryOrdinals.length;
-        } else {
-            throw new IllegalStateException("no query source");
-        }
+        return queryOrdinals.length;
     }
 
     public int dimension() {
@@ -109,26 +65,13 @@ public final class CalibrationQueries {
      * (reference calibration orthogonal branch).
      */
     public void copyQuery(int index, boolean usePreconditioned, float[] dst) throws IOException {
-        if (materializedRows != null) {
-            float[] row = materializedRows[index];
-            System.arraycopy(row, 0, dst, 0, Math.min(row.length, baseDim));
-            if (cosine) {
-                ESVectorUtil.l2Normalize(dst, baseDim);
-            }
-            if (neyshabur) {
-                dst[baseDim] = 0f;
-            }
-        } else {
-            assert baseFvv != null;
-            assert queryOrdinals != null;
-            float[] raw = baseFvv.vectorValue(queryOrdinals[index]);
-            System.arraycopy(raw, 0, dst, 0, baseDim);
-            if (cosine) {
-                ESVectorUtil.l2Normalize(dst, baseDim);
-            }
-            if (neyshabur) {
-                dst[baseDim] = 0f;
-            }
+        float[] raw = baseFvv.vectorValue(queryOrdinals[index]);
+        System.arraycopy(raw, 0, dst, 0, baseDim);
+        if (cosine) {
+            ESVectorUtil.l2Normalize(dst, baseDim);
+        }
+        if (neyshabur) {
+            dst[baseDim] = 0f;
         }
         if (usePreconditioned && preconditioner != null) {
             Objects.requireNonNull(tmpPre, "tmpPre");

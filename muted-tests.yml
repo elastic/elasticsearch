@@ -563,18 +563,6 @@ tests:
 - class: org.elasticsearch.index.store.BytesReadHeaderIT
   method: testMultipleIndicesAccumulateBytesRead
   issue: https://github.com/elastic/elasticsearch/issues/151380
-- class: org.elasticsearch.upgrades.MultiVersionRepositoryAccessIT
-  method: testCreateAndRestoreSnapshot
-  issue: https://github.com/elastic/elasticsearch/issues/151388
-- class: org.elasticsearch.upgrades.MultiVersionRepositoryAccessIT
-  method: testSnapshotCreatedInOldVersionCanBeDeletedInNew
-  issue: https://github.com/elastic/elasticsearch/issues/151389
-- class: org.elasticsearch.upgrades.MultiVersionRepositoryAccessIT
-  method: testReadOnlyRepo
-  issue: https://github.com/elastic/elasticsearch/issues/151390
-- class: org.elasticsearch.upgrades.MultiVersionRepositoryAccessIT
-  method: testUpgradeMovesRepoToNewMetaVersion
-  issue: https://github.com/elastic/elasticsearch/issues/151391
 - class: org.elasticsearch.xpack.stateless.cluster.coordination.TransportConsistentClusterStateReadIT
   method: testWaitsUntilTheNodeRejoinsTheClusterToReturnAValidClusterState
   issue: https://github.com/elastic/elasticsearch/issues/151402

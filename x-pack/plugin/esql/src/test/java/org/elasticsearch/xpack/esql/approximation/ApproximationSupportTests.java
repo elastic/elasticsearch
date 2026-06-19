@@ -67,6 +67,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Dedup;
 import org.elasticsearch.xpack.esql.plan.logical.Drop;
 import org.elasticsearch.xpack.esql.plan.logical.Explain;
 import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
+import org.elasticsearch.xpack.esql.plan.logical.Highlight;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.Keep;
 import org.elasticsearch.xpack.esql.plan.logical.LeafPlan;
@@ -146,6 +147,9 @@ public class ApproximationSupportTests extends ESTestCase {
         // SurrogateLogicalPlans: present in the analyzed plan but rewritten during the optimizer's
         // substitutions phase, before any approximation logic runs.
         Dedup.class, // rewritten to LimitBy
+
+        // HIGHLIGHT is not supported;
+        Highlight.class,
 
         // PromQL plans are not supported yet.
         // They require chained stats commands.

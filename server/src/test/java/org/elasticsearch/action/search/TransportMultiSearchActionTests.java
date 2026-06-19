@@ -35,6 +35,8 @@ import org.elasticsearch.threadpool.DefaultBuiltInExecutorBuilders;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
+import org.junit.After;
+import org.junit.Before;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -45,103 +47,60 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.ObjIntConsumer;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class TransportMultiSearchActionTests extends ESTestCase {
 
+    private Settings settings;
+    private ThreadPool threadPool;
+
+    @Before
+    public void createThreadPool() {
+        settings = Settings.builder().put("node.name", TransportMultiSearchActionTests.class.getSimpleName()).build();
+        threadPool = new ThreadPool(settings, MeterRegistry.NOOP, new DefaultBuiltInExecutorBuilders());
+    }
+
+    @After
+    public void terminateThreadPool() {
+        assertTrue(ESTestCase.terminate(threadPool));
+    }
+
     public void testParentTaskId() throws Exception {
-        // Initialize dependencies of TransportMultiSearchAction
-        Settings settings = Settings.builder().put("node.name", TransportMultiSearchActionTests.class.getSimpleName()).build();
-        ActionFilters actionFilters = mock(ActionFilters.class);
-        when(actionFilters.filters()).thenReturn(new ActionFilter[0]);
-        ThreadPool threadPool = new ThreadPool(settings, MeterRegistry.NOOP, new DefaultBuiltInExecutorBuilders());
-        try {
-            TransportService transportService = new TransportService(
-                Settings.EMPTY,
-                mock(Transport.class),
-                threadPool,
-                TransportService.NOOP_TRANSPORT_INTERCEPTOR,
-                boundAddress -> DiscoveryNodeUtils.builder(UUIDs.randomBase64UUID())
-                    .applySettings(settings)
-                    .address(boundAddress.publishAddress())
-                    .build(),
-                null,
-                Collections.emptySet()
-            );
-            ClusterService clusterService = mock(ClusterService.class);
-            when(clusterService.state()).thenReturn(ClusterState.builder(new ClusterName("test")).build());
-
-            String localNodeId = randomAlphaOfLengthBetween(3, 10);
-            int numSearchRequests = randomIntBetween(1, 100);
-            MultiSearchRequest multiSearchRequest = new MultiSearchRequest();
-            for (int i = 0; i < numSearchRequests; i++) {
-                multiSearchRequest.add(new SearchRequest());
+        String localNodeId = randomAlphaOfLengthBetween(3, 10);
+        int numSearchRequests = randomIntBetween(1, 100);
+        MultiSearchRequest multiSearchRequest = newMultiSearchRequest(numSearchRequests);
+        AtomicInteger counter = new AtomicInteger(0);
+        Task task = multiSearchRequest.createTask(randomLong(), "type", "action", null, Collections.emptyMap());
+        NodeClient client = new NodeClient(settings, threadPool, TestProjectResolvers.alwaysThrow()) {
+            @Override
+            public void search(final SearchRequest request, final ActionListener<SearchResponse> listener) {
+                assertEquals(task.getId(), request.getParentTask().getId());
+                assertEquals(localNodeId, request.getParentTask().getNodeId());
+                counter.incrementAndGet();
+                respondWithEmptySearchResponse(listener);
             }
-            AtomicInteger counter = new AtomicInteger(0);
-            Task task = multiSearchRequest.createTask(randomLong(), "type", "action", null, Collections.emptyMap());
-            NodeClient client = new NodeClient(settings, threadPool, TestProjectResolvers.alwaysThrow()) {
-                @Override
-                public void search(final SearchRequest request, final ActionListener<SearchResponse> listener) {
-                    assertEquals(task.getId(), request.getParentTask().getId());
-                    assertEquals(localNodeId, request.getParentTask().getNodeId());
-                    counter.incrementAndGet();
-                    var response = SearchResponse.emptyResponseBuilder().tookInMillis(1L).build();
-                    try {
-                        listener.onResponse(response);
-                    } finally {
-                        response.decRef();
-                    }
-                }
 
-                @Override
-                public String getLocalNodeId() {
-                    return localNodeId;
-                }
-            };
-            TransportMultiSearchAction action = new TransportMultiSearchAction(
-                actionFilters,
-                transportService,
-                clusterService,
-                10,
-                System::nanoTime,
-                client,
-                DefaultProjectResolver.INSTANCE
-            );
+            @Override
+            public String getLocalNodeId() {
+                return localNodeId;
+            }
+        };
+        TransportMultiSearchAction action = createAction(client);
 
-            PlainActionFuture<MultiSearchResponse> future = new PlainActionFuture<>();
-            action.execute(task, multiSearchRequest, future);
-            future.get();
-            assertEquals(numSearchRequests, counter.get());
-        } finally {
-            assertTrue(ESTestCase.terminate(threadPool));
-        }
+        PlainActionFuture<MultiSearchResponse> future = new PlainActionFuture<>();
+        action.execute(task, multiSearchRequest, future);
+        future.get();
+        assertEquals(numSearchRequests, counter.get());
     }
 
     public void testBatchExecute() throws ExecutionException, InterruptedException {
-        // Initialize dependencies of TransportMultiSearchAction
-        Settings settings = Settings.builder().put("node.name", TransportMultiSearchActionTests.class.getSimpleName()).build();
-        ActionFilters actionFilters = mock(ActionFilters.class);
-        when(actionFilters.filters()).thenReturn(new ActionFilter[0]);
-        ThreadPool threadPool = new ThreadPool(settings, MeterRegistry.NOOP, new DefaultBuiltInExecutorBuilders());
-        TransportService transportService = new TransportService(
-            Settings.EMPTY,
-            mock(Transport.class),
-            threadPool,
-            TransportService.NOOP_TRANSPORT_INTERCEPTOR,
-            boundAddress -> DiscoveryNodeUtils.builder(UUIDs.randomBase64UUID())
-                .applySettings(settings)
-                .address(boundAddress.publishAddress())
-                .build(),
-            null,
-            Collections.emptySet()
-        );
-        ClusterService clusterService = mock(ClusterService.class);
-        when(clusterService.state()).thenReturn(ClusterState.builder(new ClusterName("test")).build());
-
         // Keep track of the number of concurrent searches started by multi search api,
         // and if there are more searches than is allowed create an error and remember that.
         int maxAllowedConcurrentSearches = scaledRandomIntBetween(1, 16);
@@ -172,20 +131,7 @@ public class TransportMultiSearchActionTests extends ESTestCase {
                 final Executor executorService = rarely() ? rarelyExecutor : commonExecutor;
                 executorService.execute(() -> {
                     counter.decrementAndGet();
-                    var response = SearchResponseUtils.emptyWithTotalHits(
-                        null,
-                        0,
-                        0,
-                        0,
-                        0L,
-                        ShardSearchFailure.EMPTY_ARRAY,
-                        SearchResponse.Clusters.EMPTY
-                    );
-                    try {
-                        listener.onResponse(response);
-                    } finally {
-                        response.decRef();
-                    }
+                    respondWithEmptySearchResponse(listener);
                 });
             }
 
@@ -195,40 +141,25 @@ public class TransportMultiSearchActionTests extends ESTestCase {
             }
         };
 
-        TransportMultiSearchAction action = new TransportMultiSearchAction(
-            actionFilters,
-            transportService,
-            clusterService,
-            10,
-            System::nanoTime,
-            client,
-            DefaultProjectResolver.INSTANCE
-        );
+        TransportMultiSearchAction action = createAction(client);
 
         // Execute the multi search api and fail if we find an error after executing:
-        try {
-            /*
-             * Allow for a large number of search requests in a single batch as previous implementations could stack overflow if the number
-             * of requests in a single batch was large
-             */
-            int numSearchRequests = scaledRandomIntBetween(1, 8192);
-            MultiSearchRequest multiSearchRequest = new MultiSearchRequest();
-            multiSearchRequest.maxConcurrentSearchRequests(maxAllowedConcurrentSearches);
-            for (int i = 0; i < numSearchRequests; i++) {
-                multiSearchRequest.add(new SearchRequest());
-            }
+        /*
+         * Allow for a large number of search requests in a single batch as previous implementations could stack overflow if the number
+         * of requests in a single batch was large
+         */
+        int numSearchRequests = scaledRandomIntBetween(1, 8192);
+        MultiSearchRequest multiSearchRequest = newMultiSearchRequest(numSearchRequests);
+        multiSearchRequest.maxConcurrentSearchRequests(maxAllowedConcurrentSearches);
 
-            final PlainActionFuture<Void> future = new PlainActionFuture<>();
-            ActionTestUtils.execute(action, multiSearchRequest, future.delegateFailure((l, response) -> {
-                assertThat(response.getResponses().length, equalTo(numSearchRequests));
-                assertThat(requests.size(), equalTo(numSearchRequests));
-                assertThat(errorHolder.get(), nullValue());
-                l.onResponse(null);
-            }));
-            future.get();
-        } finally {
-            assertTrue(ESTestCase.terminate(threadPool));
-        }
+        final PlainActionFuture<Void> future = new PlainActionFuture<>();
+        ActionTestUtils.execute(action, multiSearchRequest, future.delegateFailure((l, response) -> {
+            assertThat(response.getResponses().length, equalTo(numSearchRequests));
+            assertThat(requests.size(), equalTo(numSearchRequests));
+            assertThat(errorHolder.get(), nullValue());
+            l.onResponse(null);
+        }));
+        future.get();
     }
 
     public void testDefaultMaxConcurrentSearches() {
@@ -249,4 +180,140 @@ public class TransportMultiSearchActionTests extends ESTestCase {
         assertThat(result, equalTo(1));
     }
 
+    public void testMultiSearchAggregatesSearchMetricsHeaders() throws Exception {
+        int numSearchRequests = randomIntBetween(2, 8);
+
+        NodeClient client = forkingSearchClient((listener, seq) -> {
+            addStoreBytesReadHeader(seq * 1000L);
+            respondWithEmptySearchResponse(listener);
+        });
+        TransportMultiSearchAction action = createAction(client);
+
+        List<String> headerValues = executeAndCaptureSearchMetricsHeader(action, newMultiSearchRequest(numSearchRequests));
+
+        assertThat(headerValues, notNullValue());
+        assertThat(headerValues, hasSize(numSearchRequests));
+        assertThat(sumStoreBytesRead(headerValues), equalTo(expectedTotalBytesRead(numSearchRequests)));
+    }
+
+    public void testMultiSearchAggregatesSearchMetricsHeadersOnlyForSuccessfulSubSearches() throws Exception {
+        int numSuccessful = randomIntBetween(1, 4);
+        int numFailing = randomIntBetween(1, 4);
+
+        NodeClient client = forkingSearchClient((listener, seq) -> {
+            if (seq <= numSuccessful) {
+                addStoreBytesReadHeader(seq * 1000L);
+                respondWithEmptySearchResponse(listener);
+            } else {
+                listener.onFailure(new IllegalStateException("simulated sub-search failure"));
+            }
+        });
+        TransportMultiSearchAction action = createAction(client);
+
+        List<String> headerValues = executeAndCaptureSearchMetricsHeader(action, newMultiSearchRequest(numSuccessful + numFailing));
+
+        assertThat(headerValues, notNullValue());
+        assertThat(headerValues, hasSize(numSuccessful));
+        assertThat(sumStoreBytesRead(headerValues), equalTo(expectedTotalBytesRead(numSuccessful)));
+    }
+
+    private TransportMultiSearchAction createAction(NodeClient client) {
+        ActionFilters actionFilters = mock(ActionFilters.class);
+        when(actionFilters.filters()).thenReturn(new ActionFilter[0]);
+        TransportService transportService = new TransportService(
+            Settings.EMPTY,
+            mock(Transport.class),
+            threadPool,
+            TransportService.NOOP_TRANSPORT_INTERCEPTOR,
+            boundAddress -> DiscoveryNodeUtils.builder(UUIDs.randomBase64UUID())
+                .applySettings(settings)
+                .address(boundAddress.publishAddress())
+                .build(),
+            null,
+            Collections.emptySet()
+        );
+        ClusterService clusterService = mock(ClusterService.class);
+        when(clusterService.state()).thenReturn(ClusterState.builder(new ClusterName("test")).build());
+        return new TransportMultiSearchAction(
+            actionFilters,
+            transportService,
+            clusterService,
+            10,
+            System::nanoTime,
+            client,
+            DefaultProjectResolver.INSTANCE
+        );
+    }
+
+    private NodeClient forkingSearchClient(ObjIntConsumer<ActionListener<SearchResponse>> onSearch) {
+        AtomicInteger requestSeq = new AtomicInteger();
+        return new NodeClient(settings, threadPool, TestProjectResolvers.alwaysThrow()) {
+            @Override
+            public void search(final SearchRequest request, final ActionListener<SearchResponse> listener) {
+                final int seq = requestSeq.incrementAndGet();
+                threadPool.generic().execute(() -> onSearch.accept(listener, seq));
+            }
+
+            @Override
+            public String getLocalNodeId() {
+                return "local_node_id";
+            }
+        };
+    }
+
+    private void addStoreBytesReadHeader(long bytesRead) {
+        threadPool.getThreadContext()
+            .addResponseHeader(AbstractSearchAsyncAction.RESPONSE_HEADER_SEARCH_METRICS, "store_bytes_read=" + bytesRead);
+    }
+
+    private List<String> executeAndCaptureSearchMetricsHeader(TransportMultiSearchAction action, MultiSearchRequest request)
+        throws Exception {
+        AtomicReference<List<String>> headerValues = new AtomicReference<>();
+        PlainActionFuture<Void> future = new PlainActionFuture<>();
+        ActionTestUtils.execute(action, request, future.delegateFailure((l, response) -> {
+            headerValues.set(
+                threadPool.getThreadContext().getResponseHeaders().get(AbstractSearchAsyncAction.RESPONSE_HEADER_SEARCH_METRICS)
+            );
+            l.onResponse(null);
+        }));
+        future.get();
+        return headerValues.get();
+    }
+
+    private static MultiSearchRequest newMultiSearchRequest(int numSearchRequests) {
+        MultiSearchRequest multiSearchRequest = new MultiSearchRequest();
+        for (int i = 0; i < numSearchRequests; i++) {
+            multiSearchRequest.add(new SearchRequest());
+        }
+        return multiSearchRequest;
+    }
+
+    private static void respondWithEmptySearchResponse(ActionListener<SearchResponse> listener) {
+        var response = SearchResponseUtils.emptyWithTotalHits(
+            null,
+            0,
+            0,
+            0,
+            0L,
+            ShardSearchFailure.EMPTY_ARRAY,
+            SearchResponse.Clusters.EMPTY
+        );
+        try {
+            listener.onResponse(response);
+        } finally {
+            response.decRef();
+        }
+    }
+
+    private static long sumStoreBytesRead(List<String> headerValues) {
+        return headerValues.stream().mapToLong(value -> Long.parseLong(value.substring(value.indexOf('=') + 1))).sum();
+    }
+
+    private static long expectedTotalBytesRead(int count) {
+        long total = 0L;
+        for (int seq = 1; seq <= count; seq++) {
+            total += seq * 1000L;
+        }
+        return total;
+    }
 }

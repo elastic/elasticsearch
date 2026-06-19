@@ -25,12 +25,16 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.List;
 import java.util.Queue;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -103,9 +107,10 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
         int numRequests = request.requests().size();
         final AtomicArray<MultiSearchResponse.Item> responses = new AtomicArray<>(numRequests);
         final AtomicInteger responseCounter = new AtomicInteger(numRequests);
+        final Set<String> searchMetricsHeaders = ConcurrentHashMap.newKeySet();
         int numConcurrentSearches = Math.min(numRequests, maxConcurrentSearches);
         for (int i = 0; i < numConcurrentSearches; i++) {
-            executeSearch(searchRequestSlots, responses, responseCounter, listener, relativeStartTime);
+            executeSearch(searchRequestSlots, responses, responseCounter, listener, relativeStartTime, searchMetricsHeaders);
         }
     }
 
@@ -135,7 +140,8 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
         final AtomicArray<MultiSearchResponse.Item> responses,
         final AtomicInteger responseCounter,
         final ActionListener<MultiSearchResponse> listener,
-        final long relativeStartTime
+        final long relativeStartTime,
+        final Set<String> searchMetricsHeaders
     ) {
         /*
          * The number of times that we poll an item from the queue here is the minimum of the number of requests and the maximum number
@@ -148,7 +154,8 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
         // If we have another request to execute, we execute it. If the execution forked #doExecuteSearch will return false and will
         // recursively call this method again eventually. If it did not fork and was able to execute the search right away #doExecuteSearch
         // will return true, in which case we continue and run the next search request here.
-        while (request != null && doExecuteSearch(requests, responses, responseCounter, relativeStartTime, request, listener)) {
+        while (request != null
+            && doExecuteSearch(requests, responses, responseCounter, relativeStartTime, request, listener, searchMetricsHeaders)) {
             request = requests.poll();
         }
     }
@@ -159,13 +166,15 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
         AtomicInteger responseCounter,
         long relativeStartTime,
         SearchRequestSlot request,
-        ActionListener<MultiSearchResponse> listener
+        ActionListener<MultiSearchResponse> listener,
+        Set<String> searchMetricsHeaders
     ) {
+        final ThreadContext threadContext = client.threadPool().getThreadContext();
         final SubscribableListener<MultiSearchResponse.Item> subscribeListener = new SubscribableListener<>();
-        client.search(request.request, subscribeListener.safeMap(searchResponse -> {
+        client.search(request.request, ActionListener.runBefore(subscribeListener.safeMap(searchResponse -> {
             searchResponse.mustIncRef(); // acquire reference on behalf of MultiSearchResponse.Item below
             return new MultiSearchResponse.Item(searchResponse, null);
-        }));
+        }), () -> collectSearchMetricsHeaders(threadContext, searchMetricsHeaders)));
         final ActionListener<MultiSearchResponse.Item> responseListener = new ActionListener<>() {
             @Override
             public void onResponse(final MultiSearchResponse.Item searchResponse) {
@@ -189,6 +198,9 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
             }
 
             private void finish() {
+                for (String value : searchMetricsHeaders) {
+                    threadContext.addResponseHeader(AbstractSearchAsyncAction.RESPONSE_HEADER_SEARCH_METRICS, value);
+                }
                 ActionListener.respondAndRelease(
                     listener,
                     new MultiSearchResponse(responses.toArray(new MultiSearchResponse.Item[responses.length()]), buildTookInMillis())
@@ -210,10 +222,17 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
         subscribeListener.addListener(
             ActionListener.runAfter(
                 responseListener,
-                () -> executeSearch(requests, responses, responseCounter, listener, relativeStartTime)
+                () -> executeSearch(requests, responses, responseCounter, listener, relativeStartTime, searchMetricsHeaders)
             )
         );
         return false;
+    }
+
+    private static void collectSearchMetricsHeaders(ThreadContext threadContext, Set<String> searchMetricsHeaders) {
+        List<String> values = threadContext.getResponseHeaders().get(AbstractSearchAsyncAction.RESPONSE_HEADER_SEARCH_METRICS);
+        if (values != null) {
+            searchMetricsHeaders.addAll(values);
+        }
     }
 
     record SearchRequestSlot(SearchRequest request, int responseSlot) {

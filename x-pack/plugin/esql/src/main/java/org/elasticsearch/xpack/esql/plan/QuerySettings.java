@@ -81,6 +81,8 @@ public class QuerySettings {
         with type `keyword`. Or nullifies them if absent from `_source`. {applies_to}`stack: preview 9.4`
         - `LOAD_ALL` : Loads all source fields not present in the index mapping into a synthetic `_unmapped_fields` column
         containing a JSON object with the unmapped field values. {applies_to}`stack: preview 9.5`
+        - `LOAD_ALL_EXPAND` : Like `LOAD_ALL`, but expands each unmapped field into its own dedicated `keyword` output column
+        instead of collecting them all into a single `_unmapped_fields` JSON column. {applies_to}`stack: preview 9.5`
 
         An `unmapped field` is a field referenced in a query that does not exist in the mapping of the index being queried.
         When querying multiple indices, a field is considered `partially unmapped` if it exists in the mapping of some
@@ -132,8 +134,8 @@ public class QuerySettings {
                     + "], must be one of "
                     + Arrays.toString(UnmappedResolution.values());
             }
-            if (parsed == UnmappedResolution.LOAD_ALL && ctx.isSnapshot() == false) {
-                return "unmapped_fields value [LOAD_ALL] requires a snapshot build";
+            if ((parsed == UnmappedResolution.LOAD_ALL || parsed == UnmappedResolution.LOAD_ALL_EXPAND) && ctx.isSnapshot() == false) {
+                return "unmapped_fields value [" + resolution + "] requires a snapshot build";
             }
             return null;
         },

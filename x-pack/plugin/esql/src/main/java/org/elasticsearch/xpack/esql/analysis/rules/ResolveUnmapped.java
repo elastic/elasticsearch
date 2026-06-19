@@ -85,7 +85,7 @@ public class ResolveUnmapped extends AnalyzerRules.ParameterizedAnalyzerRule<Log
         return switch (context.unmappedResolution()) {
             case UnmappedResolution.DEFAULT -> plan;
             case UnmappedResolution.NULLIFY -> resolve(plan, false);
-            case UnmappedResolution.LOAD, UnmappedResolution.LOAD_ALL -> resolve(plan, true);
+            case UnmappedResolution.LOAD, UnmappedResolution.LOAD_ALL, UnmappedResolution.LOAD_ALL_EXPAND -> resolve(plan, true);
         };
     }
 

@@ -2185,9 +2185,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
     }
 
     /**
-     * When {@code SET unmapped_fields="LOAD_ALL"} is in effect, annotates each non-LOOKUP
-     * {@link EsRelation} with the {@link UnmappedFieldsPattern} that describes which additional
-     * (currently unmapped) source fields would survive to the query output.
+     * When {@code SET unmapped_fields="LOAD_ALL"} or {@code "LOAD_ALL_EXPAND"} is in effect, annotates
+     * each non-LOOKUP {@link EsRelation} with the {@link UnmappedFieldsPattern} that describes which
+     * additional (currently unmapped) source fields would survive to the query output.
      *
      * <p>The rule runs in the Finish Analysis batch <em>before</em> {@link ResolvedProjects}, so
      * {@link ResolvingProject} nodes — which carry the original wildcard patterns — are still present.
@@ -2196,7 +2196,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
     private static class DetermineUnmappedFieldsToKeep extends ParameterizedRule<LogicalPlan, LogicalPlan, AnalyzerContext> {
         @Override
         public LogicalPlan apply(LogicalPlan plan, AnalyzerContext context) {
-            if (context.unmappedResolution() != UnmappedResolution.LOAD_ALL) {
+            UnmappedResolution resolution = context.unmappedResolution();
+            if (resolution != UnmappedResolution.LOAD_ALL && resolution != UnmappedResolution.LOAD_ALL_EXPAND) {
                 return plan;
             }
             UnmappedFieldsPattern pattern;
@@ -2207,7 +2208,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 // fall back to ALL so we never accidentally suppress fields.
                 pattern = UnmappedFieldsPattern.ALL;
             }
-            return annotate(plan, new UnmappedFieldsAttribute(Source.EMPTY, pattern));
+            boolean expand = resolution == UnmappedResolution.LOAD_ALL_EXPAND;
+            return annotate(plan, new UnmappedFieldsAttribute(Source.EMPTY, pattern, expand));
         }
 
         /**
@@ -2221,7 +2223,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 }
                 List<String> outputNames = esr.output().stream().map(Attribute::name).toList();
                 UnmappedFieldsPattern refined = attr.pattern().withAdditionalExcludes(outputNames);
-                return esr.withAdditionalAttribute(new UnmappedFieldsAttribute(attr.source(), refined));
+                return esr.withAdditionalAttribute(new UnmappedFieldsAttribute(attr.source(), refined, attr.expand()));
             }
             List<LogicalPlan> children = plan.children();
             if (children.isEmpty()) {

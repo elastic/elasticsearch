@@ -2972,6 +2972,13 @@ public class EsqlCapabilities {
         OPTIONAL_FIELDS_LOAD_ALL(Build.current().isSnapshot()),
 
         /**
+         * Support for {@code unmapped_fields="LOAD_ALL_EXPAND"}, which expands each unmapped source field
+         * into its own dedicated {@code keyword} output column instead of collecting them all into a single
+         * {@code _unmapped_fields} JSON column.
+         */
+        OPTIONAL_FIELDS_LOAD_ALL_EXPAND(Build.current().isSnapshot()),
+
+        /**
          * Support for the {@code ==} operator on the root of a {@code flattened} field in ES|QL.
          */
         FN_EQUALS_FLATTENED(Build.current().isSnapshot()),

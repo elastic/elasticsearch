@@ -13,6 +13,8 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.dlm.DataStreamLifecycleErrorStore;
@@ -24,7 +26,9 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
 
@@ -32,6 +36,7 @@ public class DLMFrozenTransitionPluginTests extends ESTestCase {
 
     private TestThreadPool threadPool;
     private ClusterService clusterService;
+    private DLMFrozenTransitionSettings transitionSettings;
     private DLMFrozenTransitionExecutor transitionExecutor;
 
     @Before
@@ -47,11 +52,19 @@ public class DLMFrozenTransitionPluginTests extends ESTestCase {
                 EsExecutors.TaskTrackingConfig.DEFAULT
             )
         );
-        clusterService = createClusterService(threadPool);
+        Set<Setting<?>> settingSet = new HashSet<>(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        settingSet.add(DLMFrozenTransitionSettings.TRANSITION_ENABLED_SETTING);
+        clusterService = createClusterService(
+            threadPool,
+            DiscoveryNodeUtils.create("node", "node"),
+            Settings.EMPTY,
+            new ClusterSettings(Settings.EMPTY, settingSet)
+        );
+        transitionSettings = DLMFrozenTransitionSettings.create(clusterService);
         transitionExecutor = new DLMFrozenTransitionExecutor(
             clusterService,
             4,
-            DLMFrozenTransitionSettings.create(clusterService),
+            transitionSettings,
             new DataStreamLifecycleErrorStore(System::currentTimeMillis),
             threadPool.executor(DLMFrozenTransitionPlugin.EXECUTOR_NAME)
         );
@@ -75,7 +88,8 @@ public class DLMFrozenTransitionPluginTests extends ESTestCase {
                 indexName,
                 new java.util.concurrent.CountDownLatch(0)
             ),
-            transitionExecutor
+            transitionExecutor,
+            transitionSettings
         );
         var cleanupService = new DLMFrozenCleanupService(clusterService, new NoOpClient(threadPool));
         var plugin = new DLMFrozenTransitionPlugin(List.of(transitionService, cleanupService));

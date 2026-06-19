@@ -50,6 +50,7 @@ public class AbsentOverTime extends TimeSeriesAggregateFunction implements Aggre
     @FunctionInfo(
         type = FunctionType.TIME_SERIES_AGGREGATE,
         returnType = { "boolean" },
+        briefSummary = "Calculates the absence of a field over a time range.",
         description = "Calculates the absence of a field in the output result over time range.",
         appliesTo = {
             @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.2.0"),

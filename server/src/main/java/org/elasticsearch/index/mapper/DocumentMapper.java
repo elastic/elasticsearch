@@ -41,7 +41,14 @@ public class DocumentMapper {
         RootObjectMapper root = new RootObjectMapper.Builder(
             MapperService.SINGLE_MAPPING_NAME,
             mapperService.getIndexMode().isStrictColumnar() ? ObjectMapper.Defaults.SUBOBJECTS_COLUMNAR : ObjectMapper.Defaults.SUBOBJECTS
-        ).build(MapperBuilderContext.root(false, false));
+        ).build(
+            MapperBuilderContext.root(
+                false,
+                false,
+                MapperService.MergeReason.MAPPING_UPDATE,
+                mapperService.getIndexMode().isStrictColumnar()
+            )
+        );
         MetadataFieldMapper[] metadata = mapperService.getMetadataBuilders()
             .values()
             .stream()
@@ -151,7 +158,7 @@ public class DocumentMapper {
             );
         }
 
-        settings.getMode().validateMapping(mappingLookup);
+        settings.getMode().validateMapping(mappingLookup, settings.getSettings());
         /*
          * Build an empty source loader to validate that the mapping is compatible
          * with the source loading strategy declared on the source field mapper.

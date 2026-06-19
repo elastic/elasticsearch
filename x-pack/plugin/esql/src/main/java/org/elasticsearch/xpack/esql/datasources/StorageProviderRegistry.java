@@ -14,6 +14,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.datasources.cache.StorageProviderCache;
 import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
+import org.elasticsearch.xpack.esql.datasources.spi.FileDataSourceConfiguration;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProviderFactory;
@@ -27,6 +28,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.BooleanSupplier;
 
 /**
  * Registry for StorageProvider implementations, keyed by URI scheme.
@@ -66,6 +68,7 @@ public class StorageProviderRegistry implements Closeable {
     private final StorageProviderCache configuredProviderCache = new StorageProviderCache();
 
     private final Settings settings;
+    private final BooleanSupplier workloadIdentityEnabled;
     /** Decrypts data-source secrets at the single provider-build chokepoint; {@code null} in tests with no encryption. */
     @Nullable
     private final DataSourceCredentials credentials;
@@ -75,16 +78,33 @@ public class StorageProviderRegistry implements Closeable {
     private final RetryScheduler retryScheduler;
 
     public StorageProviderRegistry(Settings settings) {
-        this(settings, null, RetryScheduler.DIRECT);
+        this(settings, null);
     }
 
+    /**
+     * Test-only convenience constructor. The default {@code workloadIdentityEnabled} supplier reads the cluster
+     * setting directly and does <b>not</b> apply the stateless gate that production wiring enforces in
+     * {@code EsqlPlugin} (where the boolean is forced to {@code false} when {@code DiscoveryNode.isStateless}).
+     * Production always goes through the four-argument constructor via {@code DataSourceModule}.
+     */
     public StorageProviderRegistry(Settings settings, @Nullable DataSourceCredentials credentials) {
-        this(settings, credentials, RetryScheduler.DIRECT);
+        this(
+            settings,
+            credentials,
+            () -> ExternalSourceSettings.WORKLOAD_IDENTITY_ENABLED.get(settings != null ? settings : Settings.EMPTY),
+            RetryScheduler.DIRECT
+        );
     }
 
-    public StorageProviderRegistry(Settings settings, @Nullable DataSourceCredentials credentials, RetryScheduler retryScheduler) {
+    public StorageProviderRegistry(
+        Settings settings,
+        @Nullable DataSourceCredentials credentials,
+        BooleanSupplier workloadIdentityEnabled,
+        RetryScheduler retryScheduler
+    ) {
         this.settings = settings != null ? settings : Settings.EMPTY;
         this.credentials = credentials;
+        this.workloadIdentityEnabled = workloadIdentityEnabled;
         this.retryScheduler = retryScheduler != null ? retryScheduler : RetryScheduler.DIRECT;
         this.maxConcurrentRequests = ExternalSourceSettings.MAX_CONCURRENT_REQUESTS.get(this.settings);
         this.throttleMaxRetryDurationSeconds = ExternalSourceSettings.THROTTLE_MAX_RETRY_DURATION.get(this.settings);
@@ -163,6 +183,13 @@ public class StorageProviderRegistry implements Closeable {
         StorageProviderFactory factory = factories.get(normalizedScheme);
         if (factory == null) {
             throw new IllegalArgumentException("No SPI storage factory registered for scheme: " + scheme);
+        }
+
+        // Gate auth=workload_identity on the cluster setting before constructing the provider. This covers the
+        // inline-WITH path where no PUT-datasource validation runs.
+        if (FileDataSourceConfiguration.isWorkloadIdentityAuth(storageConfig.get("auth"))
+            && workloadIdentityEnabled.getAsBoolean() == false) {
+            throw new IllegalArgumentException(FileDataSourceConfiguration.WORKLOAD_IDENTITY_DISABLED_MESSAGE);
         }
 
         // Cache providers by (scheme, storageConfig) so queries with the same configuration map

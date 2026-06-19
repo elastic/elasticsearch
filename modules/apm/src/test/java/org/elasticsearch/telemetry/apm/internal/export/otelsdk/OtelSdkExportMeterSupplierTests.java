@@ -11,7 +11,11 @@ package org.elasticsearch.telemetry.apm.internal.export.otelsdk;
 
 import io.opentelemetry.sdk.common.CompletableResultCode;
 import io.opentelemetry.sdk.common.InternalTelemetryVersion;
+import io.opentelemetry.sdk.metrics.Aggregation;
+import io.opentelemetry.sdk.metrics.InstrumentSelector;
 import io.opentelemetry.sdk.metrics.SdkMeterProvider;
+import io.opentelemetry.sdk.metrics.View;
+import io.opentelemetry.sdk.metrics.data.HistogramPointData;
 import io.opentelemetry.sdk.metrics.data.MetricData;
 import io.opentelemetry.sdk.testing.exporter.InMemoryMetricReader;
 import io.opentelemetry.sdk.testing.exporter.InMemorySpanExporter;
@@ -28,6 +32,7 @@ import org.elasticsearch.test.ESTestCase;
 import static org.elasticsearch.telemetry.TelemetryProvider.OTEL_METRICS_ENABLED_SYSTEM_PROPERTY;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -132,6 +137,37 @@ public class OtelSdkExportMeterSupplierTests extends ESTestCase {
             );
         }
         meterSupplier.close();
+    }
+
+    public void testExporterOperationDurationViewOverridesEmptyBuckets() {
+        InMemoryMetricReader reader = InMemoryMetricReader.create();
+        InstrumentSelector durationSelector = InstrumentSelector.builder().setName("otel.sdk.exporter.operation.duration").build();
+        SdkMeterProvider provider = SdkMeterProvider.builder()
+            .registerMetricReader(reader)
+            .registerView(
+                durationSelector,
+                View.builder()
+                    .setAggregation(Aggregation.explicitBucketHistogram(OtelSdkExportMeterSupplier.DURATION_HISTOGRAM_BUCKETS))
+                    .build()
+            )
+            .build();
+        provider.get("io.opentelemetry.exporters.test")
+            .histogramBuilder("otel.sdk.exporter.operation.duration")
+            .setUnit("s")
+            .build()
+            .record(0.05);
+
+        var metrics = reader.collectAllMetrics();
+        var durationMetric = metrics.stream().filter(m -> m.getName().equals("otel.sdk.exporter.operation.duration")).findFirst();
+        assertTrue("otel.sdk.exporter.operation.duration metric not found", durationMetric.isPresent());
+        HistogramPointData point = (HistogramPointData) durationMetric.get().getData().getPoints().iterator().next();
+        assertThat("expected non-empty bucket boundaries from the View override", point.getBoundaries().size(), greaterThan(0));
+        assertThat(
+            "expected DURATION_HISTOGRAM_BUCKETS boundaries to be applied",
+            point.getBoundaries().size(),
+            equalTo(OtelSdkExportMeterSupplier.DURATION_HISTOGRAM_BUCKETS.size())
+        );
+        provider.close();
     }
 
     /** attemptFlushMetrics() after close() must return a successful no-op result. */

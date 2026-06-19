@@ -1,0 +1,5 @@
+pr: 151760
+summary: Fix otel.sdk.exporter.operation.duration histogram by overriding empty bucket boundaries
+area: Infra/Metrics
+type: bug
+issues: []

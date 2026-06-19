@@ -18,7 +18,10 @@ import io.opentelemetry.sdk.OpenTelemetrySdk;
 import io.opentelemetry.sdk.common.CompletableResultCode;
 import io.opentelemetry.sdk.common.InternalTelemetryVersion;
 import io.opentelemetry.sdk.common.export.RetryPolicy;
+import io.opentelemetry.sdk.metrics.Aggregation;
+import io.opentelemetry.sdk.metrics.InstrumentSelector;
 import io.opentelemetry.sdk.metrics.SdkMeterProvider;
+import io.opentelemetry.sdk.metrics.View;
 import io.opentelemetry.sdk.metrics.export.AggregationTemporalitySelector;
 import io.opentelemetry.sdk.metrics.export.MetricExporter;
 import io.opentelemetry.sdk.metrics.export.PeriodicMetricReader;
@@ -29,6 +32,7 @@ import org.elasticsearch.telemetry.apm.internal.APMAgentSettings;
 import org.elasticsearch.telemetry.apm.internal.export.MeterSupplier;
 
 import java.nio.file.Path;
+import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
@@ -81,6 +85,24 @@ public class OtelSdkExportMeterSupplier implements MeterSupplier {
         return new OTelMetricsResources(systemProvider, runtimeTelemetry);
     }
 
+    // OTel semconv default HTTP duration boundaries in seconds.
+    static final List<Double> DURATION_HISTOGRAM_BUCKETS = List.of(
+        0.005,
+        0.01,
+        0.025,
+        0.05,
+        0.075,
+        0.1,
+        0.25,
+        0.5,
+        0.75,
+        1.0,
+        2.5,
+        5.0,
+        7.5,
+        10.0
+    );
+
     private SdkMeterProvider buildSystemMeterProvider(Supplier<MeterProvider> meterProviderSupplier) {
         var exporter = wrapWithBuffering(createOTLPExporter(meterProviderSupplier), diskBufferPath, meterProviderSupplier);
         return sdkMeterProvider(buildMetricReader(exporter));
@@ -104,7 +126,16 @@ public class OtelSdkExportMeterSupplier implements MeterSupplier {
     }
 
     private SdkMeterProvider sdkMeterProvider(PeriodicMetricReader reader) {
-        return SdkMeterProvider.builder().setResource(OtelSdkResource.get(settings)).registerMetricReader(reader).build();
+        // SDK 1.62.0 emits this histogram with empty boundaries; APM Server drops it unless we override.
+        InstrumentSelector exporterDuration = InstrumentSelector.builder().setName("otel.sdk.exporter.operation.duration").build();
+        return SdkMeterProvider.builder()
+            .setResource(OtelSdkResource.get(settings))
+            .registerMetricReader(reader)
+            .registerView(
+                exporterDuration,
+                View.builder().setAggregation(Aggregation.explicitBucketHistogram(DURATION_HISTOGRAM_BUCKETS)).build()
+            )
+            .build();
     }
 
     private OtlpHttpMetricExporter createOTLPExporter(Supplier<MeterProvider> meterProviderSupplier) {

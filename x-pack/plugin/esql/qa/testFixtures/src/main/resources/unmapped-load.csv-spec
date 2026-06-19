@@ -19,6 +19,27 @@ id:integer | name:keyword
 11         | kkkkk
 ;
 
+// Reproducer for #151525: explicit cast on a partially unmapped small numeric field must not CCE.
+// all_types maps `short` as short; all_types_no_short has `short` unmapped but with values in _source.
+// With unmapped_fields=load the field is a two-legged PUNK; short::integer must work on both legs.
+partiallyUnmappedSmallNumericFieldExplicitCast
+required_capability: optional_fields_v5
+
+SET unmapped_fields="load"\;
+FROM all_types, all_types_no_short
+| EVAL short_int = short::integer
+| STATS count = COUNT(*) BY integer, short_int
+| SORT integer ASC
+;
+
+count:long | integer:integer | short_int:integer
+2          | 1               | 10
+2          | 2               | 20
+2          | 3               | 30
+2          | 4               | 40
+2          | 5               | 50
+;
+
 
 // These ones verify we don't do anything extra when unmapped_fields is not set to "load"
 doesNotLoadUnmappedFieldsSort

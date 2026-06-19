@@ -181,7 +181,7 @@ import java.util.function.Function;
 import java.util.function.IntSupplier;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
-import java.util.function.ToLongBiFunction;
+import java.util.function.ToLongFunction;
 import java.util.stream.Collectors;
 import java.util.stream.LongStream;
 
@@ -772,7 +772,7 @@ public class InternalEngineTests extends EngineTestCase {
                 store,
                 createTempDir(),
                 LocalCheckpointTracker::new,
-                (engine, operation) -> seqNos.get(counter.getAndIncrement())
+                (engine) -> seqNos.get(counter.getAndIncrement())
             );
             for (int i = 0; i < docs; i++) {
                 final String id = Integer.toString(i);
@@ -5075,13 +5075,13 @@ public class InternalEngineTests extends EngineTestCase {
      *                                number
      * @return a sequence number generator
      */
-    private ToLongBiFunction<Engine, Engine.Operation> getStallingSeqNoGenerator(
+    private ToLongFunction<Engine> getStallingSeqNoGenerator(
         final AtomicReference<CountDownLatch> latchReference,
         final CyclicBarrier barrier,
         final AtomicBoolean stall,
         final AtomicLong expectedLocalCheckpoint
     ) {
-        return (engine, operation) -> {
+        return (engine) -> {
             final long seqNo = generateNewSeqNo(engine);
             final CountDownLatch latch = latchReference.get();
             if (stall.get()) {
@@ -5342,7 +5342,7 @@ public class InternalEngineTests extends EngineTestCase {
                 .build();
             noOpEngine = new InternalEngine(noopEngineConfig, IndexWriter.MAX_DOCS, supplier) {
                 @Override
-                protected long doGenerateSeqNoForOperation(Operation operation) {
+                protected long doGenerateSeqNo() {
                     throw new UnsupportedOperationException();
                 }
             };
@@ -5816,7 +5816,7 @@ public class InternalEngineTests extends EngineTestCase {
                 null,
                 localCheckpointTrackerSupplier,
                 null,
-                (engine, operation) -> seqNoGenerator.getAndIncrement()
+                (engine) -> seqNoGenerator.getAndIncrement()
             )
         ) {
             final String id = "id";

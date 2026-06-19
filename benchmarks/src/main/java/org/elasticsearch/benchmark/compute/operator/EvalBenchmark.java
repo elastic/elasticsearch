@@ -502,7 +502,7 @@ public class EvalBenchmark {
                 checkToUpperExpected(this, actual, true);
             }
         },
-        TSTEP_5("tstep(5)") {
+        TSTEP_5_EQUAL("tstep(5)") {
             @Override
             ExpressionEvaluator evaluator() {
                 return tStepEvaluator(5);
@@ -513,7 +513,7 @@ public class EvalBenchmark {
                 checkTimeGroupingExpected(this, actual);
             }
         },
-        TBUCKET_5("tbucket(5)") {
+        TBUCKET_5_EQUAL("tbucket(5)") {
             @Override
             ExpressionEvaluator evaluator() {
                 return tBucketEvaluator(5);
@@ -524,7 +524,7 @@ public class EvalBenchmark {
                 checkTimeGroupingExpected(this, actual);
             }
         },
-        TSTEP_7("tstep(7)") {
+        TSTEP_7_EQUAL("tstep(7)") {
             @Override
             ExpressionEvaluator evaluator() {
                 return tStepEvaluator(7);
@@ -535,7 +535,7 @@ public class EvalBenchmark {
                 checkTimeGroupingExpected(this, actual);
             }
         },
-        TSTEP_99("tstep(99)") {
+        TSTEP_99_EQUAL("tstep(99)") {
             @Override
             ExpressionEvaluator evaluator() {
                 return tStepEvaluator(99);
@@ -546,7 +546,7 @@ public class EvalBenchmark {
                 checkTimeGroupingExpected(this, actual);
             }
         },
-        TBUCKET_99("tbucket(99)") {
+        TBUCKET_99_EQUAL("tbucket(99)") {
             @Override
             ExpressionEvaluator evaluator() {
                 return tBucketEvaluator(99);
@@ -557,7 +557,7 @@ public class EvalBenchmark {
                 checkTimeGroupingExpected(this, actual);
             }
         },
-        TSTEP_64("tstep(64)") {
+        TSTEP_64_EQUAL("tstep(64)") {
             @Override
             ExpressionEvaluator evaluator() {
                 return tStepEvaluator(64);
@@ -568,7 +568,7 @@ public class EvalBenchmark {
                 checkTimeGroupingExpected(this, actual);
             }
         },
-        TBUCKET_64("tbucket(64)") {
+        TBUCKET_64_EQUAL("tbucket(64)") {
             @Override
             ExpressionEvaluator evaluator() {
                 return tBucketEvaluator(64);
@@ -579,7 +579,7 @@ public class EvalBenchmark {
                 checkTimeGroupingExpected(this, actual);
             }
         },
-        TSTEP_1024("tstep(1024)") {
+        TSTEP_1024_EQUAL("tstep(1024)") {
             @Override
             ExpressionEvaluator evaluator() {
                 return tStepEvaluator(1024);
@@ -590,7 +590,7 @@ public class EvalBenchmark {
                 checkTimeGroupingExpected(this, actual);
             }
         },
-        TBUCKET_1024("tbucket(1024)") {
+        TBUCKET_1024_EQUAL("tbucket(1024)") {
             @Override
             ExpressionEvaluator evaluator() {
                 return tBucketEvaluator(1024);
@@ -601,7 +601,7 @@ public class EvalBenchmark {
                 checkTimeGroupingExpected(this, actual);
             }
         },
-        TBUCKET_7("tbucket(7)") {
+        TBUCKET_7_EQUAL("tbucket(7)") {
             @Override
             ExpressionEvaluator evaluator() {
                 return tBucketEvaluator(7);
@@ -612,7 +612,7 @@ public class EvalBenchmark {
                 checkTimeGroupingExpected(this, actual);
             }
         },
-        TBUCKET_5_UF("tbucket_uf(5)") {
+        TBUCKET_5_NONEQUAL("tbucket_nonequal(5)") {
             @Override
             ExpressionEvaluator evaluator() {
                 return nonUniformBucketEvaluator(5);
@@ -623,7 +623,7 @@ public class EvalBenchmark {
                 checkTimeGroupingExpected(this, actual);
             }
         },
-        TBUCKET_7_UF("tbucket_uf(7)") {
+        TBUCKET_7_NONEQUAL("tbucket_nonequal(7)") {
             @Override
             ExpressionEvaluator evaluator() {
                 return nonUniformBucketEvaluator(7);
@@ -634,7 +634,7 @@ public class EvalBenchmark {
                 checkTimeGroupingExpected(this, actual);
             }
         },
-        TBUCKET_99_UF("tbucket_uf(99)") {
+        TBUCKET_99_NONEQUAL("tbucket_nonequal(99)") {
             @Override
             ExpressionEvaluator evaluator() {
                 return nonUniformBucketEvaluator(99);
@@ -645,7 +645,7 @@ public class EvalBenchmark {
                 checkTimeGroupingExpected(this, actual);
             }
         },
-        TBUCKET_1024_UF("tbucket_uf(1024)") {
+        TBUCKET_1024_NONEQUAL("tbucket_nonequal(1024)") {
             @Override
             ExpressionEvaluator evaluator() {
                 return nonUniformBucketEvaluator(1024);
@@ -1499,8 +1499,9 @@ public class EvalBenchmark {
 
     private static Page page(Operation operation) {
         return switch (operation) {
-            case TSTEP_5, TSTEP_7, TBUCKET_5, TSTEP_99, TBUCKET_99, TSTEP_64, TBUCKET_64, TSTEP_1024, TBUCKET_1024, TBUCKET_7, TBUCKET_5_UF,
-                TBUCKET_7_UF, TBUCKET_99_UF, TBUCKET_1024_UF -> bucketPage();
+            case TSTEP_5_EQUAL, TSTEP_7_EQUAL, TBUCKET_5_EQUAL, TSTEP_99_EQUAL, TBUCKET_99_EQUAL, TSTEP_64_EQUAL, TBUCKET_64_EQUAL,
+                TSTEP_1024_EQUAL, TBUCKET_1024_EQUAL, TBUCKET_7_EQUAL, TBUCKET_5_NONEQUAL, TBUCKET_7_NONEQUAL, TBUCKET_99_NONEQUAL,
+                TBUCKET_1024_NONEQUAL -> bucketPage();
             case ABS, ADD, DATE_TRUNC, EQUAL_TO_CONST, MOD_LONG_CONST_60, DIV_LONG_CONST_60, ROUND_TO_4_VIA_CASE, ROUND_TO_2, ROUND_TO_3,
                 ROUND_TO_4 -> {
                 var builder = blockFactory.newLongBlockBuilder(BLOCK_LENGTH);

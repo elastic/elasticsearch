@@ -9,7 +9,6 @@
 
 package org.elasticsearch.search.internal;
 
-import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.FuzzyQuery;
@@ -55,9 +54,6 @@ public final class MaxClauseCountQueryVisitor extends QueryVisitor {
     private long estimatedBytes;
     private final int maxClauseCount;
 
-    private final int maxDoc;
-    private final int numSegments;
-
     @Nullable
     private final CircuitBreaker breaker;
     private long breakerBaseline;
@@ -67,24 +63,16 @@ public final class MaxClauseCountQueryVisitor extends QueryVisitor {
     }
 
     public MaxClauseCountQueryVisitor(int maxClauseCount, @Nullable CircuitBreaker breaker) {
-        this(maxClauseCount, breaker, 0, 0);
-    }
-
-    public MaxClauseCountQueryVisitor(int maxClauseCount, @Nullable CircuitBreaker breaker, int maxDoc, int numSegments) {
         this.maxClauseCount = maxClauseCount;
         this.breaker = breaker;
         this.breakerBaseline = breaker == null ? 0L : breaker.getUsed();
-        this.maxDoc = maxDoc;
-        this.numSegments = numSegments;
     }
 
     /**
-     * Builds a visitor whose {@link PointRangeQuery} execution-memory model is sized from {@code reader}.
-     * */
-    public static MaxClauseCountQueryVisitor create(int maxClauseCount, @Nullable CircuitBreaker breaker, @Nullable IndexReader reader) {
-        int maxDoc = reader == null ? 0 : reader.maxDoc();
-        int numSegments = reader == null ? 0 : reader.leaves().size();
-        return new MaxClauseCountQueryVisitor(maxClauseCount, breaker, maxDoc, numSegments);
+     * Builds a clause-counting visitor that charges {@code breaker} mid-walk.
+     */
+    public static MaxClauseCountQueryVisitor create(int maxClauseCount, @Nullable CircuitBreaker breaker) {
+        return new MaxClauseCountQueryVisitor(maxClauseCount, breaker);
     }
 
     public int getMaxClauseCount() {
@@ -141,7 +129,7 @@ public final class MaxClauseCountQueryVisitor extends QueryVisitor {
         if (query instanceof FuzzyQuery fq) {
             bytes = FuzzyQueries.estimateBytes(fq);
         } else if (query instanceof PointRangeQuery prq) {
-            bytes = new PointRangeQueryCostEstimator(prq.getNumDims(), prq.getBytesPerDim(), maxDoc, numSegments).estimate();
+            bytes = new PointRangeQueryCostEstimator(prq.getNumDims(), prq.getBytesPerDim()).estimate();
         } else if (query instanceof Accountable a) {
             bytes = a.ramBytesUsed();
         } else {

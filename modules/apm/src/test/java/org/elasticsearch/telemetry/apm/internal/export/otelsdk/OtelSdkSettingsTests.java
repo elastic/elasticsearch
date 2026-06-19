@@ -13,6 +13,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 
+import static org.elasticsearch.telemetry.apm.internal.export.otelsdk.OtelSdkSettings.OTLP_RETRY_INITIAL_BACKOFF;
 import static org.elasticsearch.telemetry.apm.internal.export.otelsdk.OtelSdkSettings.TELEMETRY_EXPORT_INTERVAL;
 import static org.elasticsearch.telemetry.apm.internal.export.otelsdk.OtelSdkSettings.TELEMETRY_EXPORT_SEND_TIMEOUT;
 import static org.elasticsearch.telemetry.apm.internal.export.otelsdk.OtelSdkSettings.TELEMETRY_TRACING_MAX_QUEUE_SIZE;
@@ -48,6 +49,23 @@ public class OtelSdkSettingsTests extends ESTestCase {
     public void testExportIntervalDefaultIsRejectedWhenSendTimeoutIsHigher() {
         Settings settings = Settings.builder().put(TELEMETRY_EXPORT_SEND_TIMEOUT.getKey(), TimeValue.timeValueSeconds(75)).build();
         expectThrows(IllegalArgumentException.class, () -> TELEMETRY_EXPORT_INTERVAL.get(settings));
+    }
+
+    public void testSendTimeoutGreaterThanInitialBackoffIsValid() {
+        Settings settings = Settings.builder().put(TELEMETRY_EXPORT_SEND_TIMEOUT.getKey(), TimeValue.timeValueMillis(200)).build();
+        TELEMETRY_EXPORT_SEND_TIMEOUT.get(settings);
+    }
+
+    public void testSendTimeoutEqualToInitialBackoffIsRejected() {
+        Settings settings = Settings.builder().put(TELEMETRY_EXPORT_SEND_TIMEOUT.getKey(), OTLP_RETRY_INITIAL_BACKOFF).build();
+        expectThrows(IllegalArgumentException.class, () -> TELEMETRY_EXPORT_SEND_TIMEOUT.get(settings));
+    }
+
+    public void testSendTimeoutLessThanInitialBackoffIsRejected() {
+        Settings settings = Settings.builder()
+            .put(TELEMETRY_EXPORT_SEND_TIMEOUT.getKey(), TimeValue.timeValueMillis(OTLP_RETRY_INITIAL_BACKOFF.millis() - 1))
+            .build();
+        expectThrows(IllegalArgumentException.class, () -> TELEMETRY_EXPORT_SEND_TIMEOUT.get(settings));
     }
 
     public void testDefaultValuesAreValid() {

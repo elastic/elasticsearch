@@ -48,13 +48,28 @@ public final class OtelSdkSettings {
      * Required when the SDK metrics or trace path is active. */
     public static final Setting<String> TELEMETRY_EXPORT_ENDPOINT = Setting.simpleString("telemetry.export.endpoint", "", NodeScope);
 
+    /** Initial backoff of the shared OTLP retry policy ({@link OtelSdkExportMeterSupplier#OTLP_RETRY_POLICY}); held below
+     * {@link #TELEMETRY_EXPORT_SEND_TIMEOUT} (enforced by validation) so a retry's backoff sleep stays within the send budget. */
+    public static final TimeValue OTLP_RETRY_INITIAL_BACKOFF = TimeValue.timeValueMillis(100);
+
     /** Total deadline for one OTLP send() including retries; must stay below the export interval so a slow export
-     * does not stretch into the next cycle. */
+     * does not stretch into the next cycle, and above {@link #OTLP_RETRY_INITIAL_BACKOFF}. */
     public static final Setting<TimeValue> TELEMETRY_EXPORT_SEND_TIMEOUT = Setting.timeSetting(
         "telemetry.export.send_timeout",
         TimeValue.timeValueSeconds(5),
         TimeValue.timeValueMillis(1),
         TimeValue.timeValueSeconds(60),
+        value -> {
+            if (value.compareTo(OTLP_RETRY_INITIAL_BACKOFF) <= 0) {
+                throw new IllegalArgumentException(
+                    "telemetry.export.send_timeout ("
+                        + value
+                        + ") must be greater than the OTLP retry initial backoff ("
+                        + OTLP_RETRY_INITIAL_BACKOFF
+                        + ")"
+                );
+            }
+        },
         NodeScope
     );
 

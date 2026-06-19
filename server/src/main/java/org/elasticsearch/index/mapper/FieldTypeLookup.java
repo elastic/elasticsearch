@@ -46,7 +46,7 @@ final class FieldTypeLookup {
     private final int maxParentPathDots;
 
     FieldTypeLookup(Collection<FieldMapper> fieldMappers, Collection<FieldAliasMapper> fieldAliasMappers) {
-        this(fieldMappers, fieldAliasMappers, List.of(), List.of());
+        this(fieldMappers, fieldAliasMappers, List.of(), List.of(), Map.of());
     }
 
     FieldTypeLookup(
@@ -55,12 +55,29 @@ final class FieldTypeLookup {
         Collection<PassThroughFieldSource> passThroughSources,
         Collection<RuntimeField> runtimeFields
     ) {
+        this(fieldMappers, fieldAliasMappers, passThroughSources, runtimeFields, Map.of());
+    }
+
+    FieldTypeLookup(
+        Collection<FieldMapper> fieldMappers,
+        Collection<FieldAliasMapper> fieldAliasMappers,
+        Collection<PassThroughFieldSource> passThroughSources,
+        Collection<RuntimeField> runtimeFields,
+        Map<String, Integer> passthroughByPrefix
+    ) {
 
         final Map<String, MappedFieldType> fullNameToFieldType = new HashMap<>();
         final Map<String, String> fullSubfieldNameToParentPath = new HashMap<>();
         final Map<String, DynamicFieldType> dynamicFieldTypes = new HashMap<>();
         final Map<String, Set<String>> fieldToCopiedFields = new HashMap<>();
         final Set<String> copiedFields = new HashSet<>();
+
+        // For strict columnar mode: build prefix→fieldType with priority-conflict resolution so that
+        // short-name aliases can be registered for flat fields that originated from passthrough objects.
+        // Conflicts (same alias from two passthroughs) are resolved by keeping the highest priority.
+        Map<String, Integer> ptAliasPriorities = passthroughByPrefix.isEmpty() ? Map.of() : new HashMap<>();
+        Map<String, MappedFieldType> ptAliasTypes = passthroughByPrefix.isEmpty() ? Map.of() : new HashMap<>();
+
         for (FieldMapper fieldMapper : fieldMappers) {
             String fieldName = fieldMapper.fullPath();
             MappedFieldType fieldType = fieldMapper.fieldType();
@@ -79,6 +96,20 @@ final class FieldTypeLookup {
                     fieldToCopiedFields.put(targetField, fieldCopiedFields);
                 }
                 fieldToCopiedFields.get(targetField).add(fieldName);
+            }
+            if (passthroughByPrefix.isEmpty() == false) {
+                for (Map.Entry<String, Integer> ptEntry : passthroughByPrefix.entrySet()) {
+                    String ptPrefix = ptEntry.getKey() + ".";
+                    if (fieldName.startsWith(ptPrefix)) {
+                        String alias = fieldName.substring(ptPrefix.length());
+                        int priority = ptEntry.getValue();
+                        Integer existing = ptAliasPriorities.get(alias);
+                        if (existing == null || priority > existing) {
+                            ptAliasPriorities.put(alias, priority);
+                            ptAliasTypes.put(alias, fieldType);
+                        }
+                    }
+                }
             }
         }
 
@@ -112,6 +143,19 @@ final class FieldTypeLookup {
             fullNameToFieldType.put(name, fieldType);
             if (fieldType instanceof DynamicFieldType) {
                 dynamicFieldTypes.put(name, (DynamicFieldType) fieldType);
+            }
+        }
+
+        // Register prefix-based aliases for flat passthrough fields (strict columnar mode).
+        // Concrete root fields always win — only add alias if name is not already taken.
+        for (Map.Entry<String, MappedFieldType> entry : ptAliasTypes.entrySet()) {
+            String alias = entry.getKey();
+            if (fullNameToFieldType.containsKey(alias) == false) {
+                MappedFieldType fieldType = entry.getValue();
+                fullNameToFieldType.put(alias, fieldType);
+                if (fieldType instanceof DynamicFieldType dft) {
+                    dynamicFieldTypes.put(alias, dft);
+                }
             }
         }
 

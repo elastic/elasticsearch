@@ -16,7 +16,6 @@ import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.InvertableType;
-import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.DocValuesSkipIndexType;
@@ -545,8 +544,9 @@ public final class KeywordFieldMapper extends FieldMapper {
 
             DocValuesParameter.Values docValuesParameters = this.docValuesParameters.get();
             if (docValuesParameters.enabled() && docValuesParameters.cardinality() == DocValuesParameter.Values.Cardinality.LOW) {
-                DocValuesType dvType = docValuesParameters.multiValue() ? DocValuesType.SORTED_SET : DocValuesType.SORTED;
-                fieldtype.setDocValuesType(dvType);
+                // Always use SORTED_SET so index-sort (SortedSetSortField) works at segment-merge time
+                // even for multi_value=false fields. Single-valuedness is enforced at parse time instead.
+                fieldtype.setDocValuesType(DocValuesType.SORTED_SET);
             } else {
                 // NOTE: we still set DocValuesType.NONE on the fieldtype even when using binary doc values (cardinality == HIGH).
                 // Values are written to a separate MultiValuedBinaryDocValuesField, so we must set this fieldtype to DocValuesType.NONE
@@ -735,10 +735,6 @@ public final class KeywordFieldMapper extends FieldMapper {
             return usesBinaryDocValuesForIgnoredFields;
         }
 
-        private boolean usesSingleValuedDocValues() {
-            return docValuesParams != null && docValuesParams.multiValue() == false;
-        }
-
         @Override
         public boolean isSearchable() {
             return indexType.hasTerms() || hasDocValues();
@@ -751,8 +747,6 @@ public final class KeywordFieldMapper extends FieldMapper {
                 return super.termQuery(value, context);
             } else if (usesBinaryDocValues) {
                 return new SlowCustomBinaryDocValuesTermQuery(name(), indexedValueForSearch(value));
-            } else if (usesSingleValuedDocValues()) {
-                return SortedDocValuesField.newSlowExactQuery(name(), indexedValueForSearch(value));
             } else {
                 return SortedSetDocValuesField.newSlowExactQuery(name(), indexedValueForSearch(value));
             }
@@ -766,9 +760,6 @@ public final class KeywordFieldMapper extends FieldMapper {
             } else if (usesBinaryDocValues) {
                 List<BytesRef> bytesRefs = values.stream().map(this::indexedValueForSearch).toList();
                 return new SlowCustomBinaryDocValuesTermInSetQuery(name(), bytesRefs);
-            } else if (usesSingleValuedDocValues()) {
-                Collection<BytesRef> bytesRefs = values.stream().map(this::indexedValueForSearch).toList();
-                return SortedDocValuesField.newSlowSetQuery(name(), bytesRefs);
             } else {
                 Collection<BytesRef> bytesRefs = values.stream().map(this::indexedValueForSearch).toList();
                 return SortedSetDocValuesField.newSlowSetQuery(name(), bytesRefs);
@@ -793,14 +784,6 @@ public final class KeywordFieldMapper extends FieldMapper {
                     name(),
                     lowerTerm == null ? null : indexedValueForSearch(lowerTerm).utf8ToString(),
                     upperTerm == null ? null : indexedValueForSearch(upperTerm).utf8ToString(),
-                    includeLower,
-                    includeUpper
-                );
-            } else if (usesSingleValuedDocValues()) {
-                return SortedDocValuesField.newSlowRangeQuery(
-                    name(),
-                    lowerTerm == null ? null : indexedValueForSearch(lowerTerm),
-                    upperTerm == null ? null : indexedValueForSearch(upperTerm),
                     includeLower,
                     includeUpper
                 );

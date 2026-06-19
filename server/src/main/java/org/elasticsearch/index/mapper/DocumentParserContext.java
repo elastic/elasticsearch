@@ -37,7 +37,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.BiConsumer;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.index.mapper.IdFieldMapper.standardIdField;
 
@@ -410,10 +409,10 @@ public abstract class DocumentParserContext {
     }
 
     public final void enforceNonNullableFields() {
+        nonNullableFields.removeAll(ignoredFields);
         if (nonNullableFields.isEmpty() == false) {
-            throw new IllegalArgumentException("Field(s) ["
-                + String.join(",", nonNullableFields)
-                + "] are configured with [nullability=false] but were null"
+            throw new IllegalArgumentException(
+                "Field(s) [" + String.join(",", nonNullableFields) + "] are configured with [nullability=false] but were null"
             );
         }
     }

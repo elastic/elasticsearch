@@ -256,6 +256,7 @@ public abstract class FieldMapper extends Mapper {
         context.path().add(leafName());
         for (FieldMapper mapper : builderParams.multiFields.mappers) {
             mapper.parse(context);
+            context.encounterNonNullableField(mapper.fullPath());
         }
         context.path().remove();
     }

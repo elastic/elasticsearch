@@ -897,9 +897,9 @@ public final class DocumentParser {
             throwOnNoFieldName(context);
         }
         Mapper mapper = getLeafMapper(context, currentFieldName);
-        context.encounterNonNullableField(currentFieldName);
         if (mapper != null) {
             parseObjectOrField(context, mapper);
+            context.encounterNonNullableField(mapper.fullPath());
         } else {
             parseDynamicValue(context, currentFieldName);
         }

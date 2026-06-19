@@ -62,7 +62,7 @@ setup:
         id: "3"
         body:
           name: rabbit.jpg
-          vector: [0.5, 111.3, -13.0, 14.8, -156.0]
+          vector: [-0.5, 30, 40, -50, -156]
           another_vector: [-0.5, 11.0, 0, 12, 111.0]
   # Flush in order to provoke a merge later
   - do:
@@ -359,7 +359,7 @@ setup:
               script:
                 source: "cosineSimilarity(params.query_vector, 'vector')"
                 params:
-                  query_vector: [0.5, 111.3, -13.0, 14.8, -156.0]
+                  query_vector: [-0.5, 30, 40, -50, -156]
 
   - match: {hits.total: 3}
 
@@ -395,7 +395,7 @@ setup:
               k: 3
               num_candidates: 3
               field: vector
-              query_vector: [0.5, 111.3, -13.0, 14.8, -156.0]
+              query_vector: [-0.5, 30, 40, -50, -156]
               rescore_vector:
                 oversample: 1.5
 
@@ -418,7 +418,7 @@ setup:
               script:
                 source: "1.0 / (1.0 + Math.pow(l2norm(params.query_vector, 'vector'), 2.0))"
                 params:
-                  query_vector: [0.5, 111.3, -13.0, 14.8, -156.0]
+                  query_vector: [-0.5, 30, 40, -50, -156]
 
   # Compare scores as hit IDs may change depending on how things are distributed
   - match: { hits.total: 3 }

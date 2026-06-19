@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.downsample;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.internal.hppc.IntArrayList;
+import org.apache.lucene.internal.hppc.LongArrayList;
 import org.elasticsearch.action.downsample.DownsampleConfig;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -194,7 +195,7 @@ abstract sealed class NumericMetricFieldDownsampler extends AbstractFieldDownsam
 
         public void collect(
             SortedNumericDoubleValues counterDocValues,
-            long[] timestamps,
+            LongArrayList timestampBuffer,
             IntArrayList docIdBuffer,
             Temporality temporality
         ) throws IOException {
@@ -205,10 +206,10 @@ abstract sealed class NumericMetricFieldDownsampler extends AbstractFieldDownsam
                     case CUMULATIVE, DEFAULT -> cumulativeCollector;
                 };
             }
-            assert timestamps.length == docIdBuffer.size() : "timestamps and docIdBuffer should have the same size";
+            assert timestampBuffer.size() == docIdBuffer.size() : "timestampBuffer and docIdBuffer should have the same size";
             for (int i = 0; i < docIdBuffer.size(); i++) {
                 int docId = docIdBuffer.get(i);
-                var currentTimestamp = timestamps[i];
+                var currentTimestamp = timestampBuffer.get(i);
                 if (counterDocValues.advanceExact(docId) == false || currentTimestamp < 0) {
                     continue;
                 }
@@ -262,7 +263,7 @@ abstract sealed class NumericMetricFieldDownsampler extends AbstractFieldDownsam
         }
 
         /**
-         * Throws UnsupportedOperationException, use {@link #collect(SortedNumericDoubleValues, long[], IntArrayList, Temporality) }
+         * Throws UnsupportedOperationException, use {@link #collect(SortedNumericDoubleValues, LongArrayList, IntArrayList, Temporality) }
          * instead.
          */
         @Override
@@ -271,7 +272,7 @@ abstract sealed class NumericMetricFieldDownsampler extends AbstractFieldDownsam
         }
 
         /**
-         * Throws UnsupportedOperationException, use {@link #collect(SortedNumericDoubleValues, long[], IntArrayList, Temporality) }
+         * Throws UnsupportedOperationException, use {@link #collect(SortedNumericDoubleValues, LongArrayList, IntArrayList, Temporality) }
          * instead.
          */
         @Override

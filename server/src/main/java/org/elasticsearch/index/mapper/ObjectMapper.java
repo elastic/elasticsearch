@@ -407,12 +407,10 @@ public class ObjectMapper extends Mapper {
             String fullName = parentContext.buildFullName(path.pathAsText(leafName()));
             ensureBuilderFlattenable(parentContext, fullName);
             if (parentContext.isStrictColumnar() && enabled.value() == false) {
-                // Capture the disabled prefix and skip recursion: children of a disabled object
-                // are neither flattened into indexed leaf mappers nor stored. At index time,
-                // resolveDynamic returns Dynamic.FALSE for any field under this prefix, so the
-                // subtree is dropped entirely — consistent with columnar's dynamic:false behaviour.
+                // Capture the disabled prefix; children are still recursed into and flattened
+                // as indexed leaf mappers — consistent with dynamic:false, where explicitly
+                // declared fields are indexed while only unmapped fields are dropped at index time.
                 enabledCollector.put(fullName, Boolean.FALSE);
-                return;
             }
             if (parentContext.isStrictColumnar() && dynamic != null) {
                 dynamicCollector.put(fullName, dynamic);

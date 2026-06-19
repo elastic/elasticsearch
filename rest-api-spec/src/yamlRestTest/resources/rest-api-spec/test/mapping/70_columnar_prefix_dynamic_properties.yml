@@ -615,6 +615,48 @@ setup:
   - is_false: test_columnar_enabled_false.mappings.properties.attributes\.region
 
 ---
+"columnar: explicitly declared field under enabled:false is still indexed":
+  - do:
+      indices.create:
+        index: test_columnar_enabled_mapped
+        body:
+          settings:
+            index.mode: columnar
+          mappings:
+            properties:
+              attributes:
+                enabled: false
+                properties:
+                  host:
+                    type: keyword
+
+  - do:
+      indices.get_mapping:
+        index: test_columnar_enabled_mapped
+  - match: { test_columnar_enabled_mapped.mappings.prefix_properties.enabled.attributes: false }
+  # Declared child is flattened into an indexed leaf mapper
+  - is_true: test_columnar_enabled_mapped.mappings.properties.attributes\.host
+
+  # Declared field can be indexed and searched
+  - do:
+      index:
+        index: test_columnar_enabled_mapped
+        refresh: true
+        body:
+          attributes:
+            host: "es-node-1"
+          name: "test"
+
+  - do:
+      search:
+        index: test_columnar_enabled_mapped
+        body:
+          query:
+            term:
+              attributes.host: "es-node-1"
+  - match: { hits.total.value: 1 }
+
+---
 "columnar: index created with prefix_properties.enabled in mapping body is preserved on get_mapping":
   - do:
       indices.create:
@@ -710,6 +752,48 @@ setup:
         index: test_logsdb_columnar_enabled_false
   - is_true: test_logsdb_columnar_enabled_false.mappings.properties.@timestamp
   - is_false: test_logsdb_columnar_enabled_false.mappings.properties.attributes\.host
+
+---
+"logsdb_columnar: explicitly declared field under enabled:false is still indexed":
+  - do:
+      indices.create:
+        index: test_logsdb_columnar_enabled_mapped
+        body:
+          settings:
+            index.mode: logsdb_columnar
+          mappings:
+            properties:
+              attributes:
+                enabled: false
+                properties:
+                  host:
+                    type: keyword
+
+  - do:
+      indices.get_mapping:
+        index: test_logsdb_columnar_enabled_mapped
+  - match: { test_logsdb_columnar_enabled_mapped.mappings.prefix_properties.enabled.attributes: false }
+  # Declared child is flattened into an indexed leaf mapper
+  - is_true: test_logsdb_columnar_enabled_mapped.mappings.properties.attributes\.host
+
+  # Declared field can be indexed and searched
+  - do:
+      index:
+        index: test_logsdb_columnar_enabled_mapped
+        refresh: true
+        body:
+          "@timestamp": "2024-01-01T00:00:00Z"
+          attributes:
+            host: "es-node-1"
+
+  - do:
+      search:
+        index: test_logsdb_columnar_enabled_mapped
+        body:
+          query:
+            term:
+              attributes.host: "es-node-1"
+  - match: { hits.total.value: 1 }
 
 ---
 "logsdb_columnar: index created with prefix_properties.enabled in mapping body is preserved on get_mapping":

@@ -1205,6 +1205,32 @@ public class DocumentParserTests extends MapperServiceTestCase {
         }
     }
 
+    public void testColumnarEnabledFalseDoesNotDropMappedField() throws Exception {
+        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        for (IndexMode indexMode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
+            Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), indexMode.getName()).build();
+            DocumentMapper mapper = createMapperService(settings, mapping(b -> {
+                b.startObject("@timestamp").field("type", "date").endObject();
+                b.startObject("attributes");
+                {
+                    b.field("enabled", false);
+                    b.startObject("properties");
+                    b.startObject("host").field("type", "keyword").endObject();
+                    b.endObject();
+                }
+                b.endObject();
+            })).documentMapper();
+
+            // Explicitly declared field under an enabled:false prefix must still be indexed,
+            // consistent with dynamic:false where declared fields ARE indexed.
+            ParsedDocument doc = mapper.parse(columnarSource(b -> b.field("attributes.host", "myhost")));
+            assertFalse(
+                "explicitly mapped field under enabled:false must still be indexed",
+                doc.rootDoc().getFields("attributes.host").isEmpty()
+            );
+        }
+    }
+
     public void testDynamicStrictNull() throws Exception {
         DocumentMapper mapper = createDocumentMapper(topMapping(b -> b.field("dynamic", "strict")));
         DocumentParsingException exception = expectThrows(

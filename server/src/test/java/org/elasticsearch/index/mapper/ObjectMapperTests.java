@@ -908,8 +908,12 @@ public class ObjectMapperTests extends MapperServiceTestCase {
             }));
             // The disabled object is flattened away — no ObjectMapper in the tree
             assertNull(mapperService.mappingLookup().objectMappers().get("attributes"));
-            // Children of a disabled object are NOT flattened into indexed leaf mappers
-            assertNull("children of an enabled:false object must not appear as indexed fields", mapperService.fieldType("attributes.host"));
+            // Explicitly declared children ARE flattened into indexed leaf mappers,
+            // consistent with dynamic:false (only unmapped fields are dropped at index time).
+            assertNotNull(
+                "explicitly declared children of an enabled:false object must still be indexed",
+                mapperService.fieldType("attributes.host")
+            );
             // The enabled:false prefix is captured
             RootObjectMapper root = mapperService.mappingLookup().getMapping().getRoot();
             assertEquals(Boolean.FALSE, root.getEnabledByPrefix().get("attributes"));

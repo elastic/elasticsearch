@@ -2871,7 +2871,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                                 rewrapped = rewrapped.withPotentiallyUnmappedExpression(rewrappedUnmapped);
                             } else {
                                 // At the moment this path is exercised by TO_DEGREES/TO_RADIANS for single-type PUNKs under LOAD.
-                                // Function cannot consume keyword, so keep mapped branches and nullify unmapped ones.
+                                // Function cannot consume keyword, so keep mapped branches and nullify unmapped ones. See #150378.
                                 rewrapped = rewrapped.withPotentiallyUnmappedExpression(null);
                             }
                         } else if (unmappedExpr != null) {

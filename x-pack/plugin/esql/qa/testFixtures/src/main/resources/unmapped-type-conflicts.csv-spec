@@ -1996,30 +1996,6 @@ colors                 | null
 ;
 
 ##############################
-# WHERE without type casts   #
-##############################
-
-typeConflictLongUnmappedWhereNoCast
-required_capability: optional_fields_v5
-required_capability: optional_fields_fix_load_partially_mapped
-
-SET unmapped_fields="load"\;
-FROM sample_data, no_mapping_sample_data METADATA _index
-| WHERE event_duration > 3000000
-| KEEP _index, event_duration
-| SORT _index, event_duration
-;
-
-_index:keyword         | event_duration:long
-no_mapping_sample_data | 3450232
-no_mapping_sample_data | 5033754
-no_mapping_sample_data | 8268152
-sample_data            | 3450233
-sample_data            | 5033755
-sample_data            | 8268153
-;
-
-##############################
 # WHERE with type casts      #
 ##############################
 

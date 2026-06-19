@@ -1156,6 +1156,55 @@ public class DocumentParserTests extends MapperServiceTestCase {
         }
     }
 
+    public void testColumnarEnabledFalseDropsDottedNotation() throws Exception {
+        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        for (IndexMode indexMode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
+            Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), indexMode.getName()).build();
+            DocumentMapper mapper = createMapperService(settings, mapping(b -> {
+                b.startObject("@timestamp").field("type", "date").endObject();
+                b.startObject("attributes");
+                {
+                    b.field("enabled", false);
+                }
+                b.endObject();
+            })).documentMapper();
+
+            // dotted-notation field under the disabled prefix must be dropped entirely
+            ParsedDocument doc = mapper.parse(columnarSource(b -> b.field("attributes.host", "myhost")));
+            assertTrue(doc.rootDoc().getFields("attributes.host").isEmpty());
+            assertNull(
+                "enabled:false prefix must drop the field (not store to _ignored_source)",
+                doc.rootDoc().getField(IgnoredSourceFieldMapper.NAME)
+            );
+        }
+    }
+
+    public void testColumnarEnabledFalseDropsObjectNotation() throws Exception {
+        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        for (IndexMode indexMode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
+            Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), indexMode.getName()).build();
+            DocumentMapper mapper = createMapperService(settings, mapping(b -> {
+                b.startObject("@timestamp").field("type", "date").endObject();
+                b.startObject("attributes");
+                {
+                    b.field("enabled", false);
+                }
+                b.endObject();
+            })).documentMapper();
+
+            // object-notation field under the disabled prefix must be dropped entirely
+            ParsedDocument doc = mapper.parse(
+                columnarSource(b -> b.startObject("attributes").field("host", "myhost").field("region", "us-east").endObject())
+            );
+            assertTrue(doc.rootDoc().getFields("attributes.host").isEmpty());
+            assertTrue(doc.rootDoc().getFields("attributes.region").isEmpty());
+            assertNull(
+                "enabled:false prefix must drop the subtree (not store to _ignored_source)",
+                doc.rootDoc().getField(IgnoredSourceFieldMapper.NAME)
+            );
+        }
+    }
+
     public void testDynamicStrictNull() throws Exception {
         DocumentMapper mapper = createDocumentMapper(topMapping(b -> b.field("dynamic", "strict")));
         DocumentParsingException exception = expectThrows(

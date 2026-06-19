@@ -891,4 +891,40 @@ public class ObjectMapperTests extends MapperServiceTestCase {
             containsString("the value of [dynamic] (FALSE) is not compatible with the value from its parent context")
         );
     }
+
+    public void testStrictColumnarModesAllowEnabledFalse() throws Exception {
+        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        for (IndexMode indexMode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
+            Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), indexMode.getName()).build();
+            MapperService mapperService = createMapperService(settings, mapping(b -> {
+                b.startObject("attributes");
+                {
+                    b.field("enabled", false);
+                    b.startObject("properties");
+                    b.startObject("host").field("type", "keyword").endObject();
+                    b.endObject();
+                }
+                b.endObject();
+            }));
+            // The disabled object is flattened away — no ObjectMapper in the tree
+            assertNull(mapperService.mappingLookup().objectMappers().get("attributes"));
+            // Children of a disabled object are NOT flattened into indexed leaf mappers
+            assertNull("children of an enabled:false object must not appear as indexed fields", mapperService.fieldType("attributes.host"));
+            // The enabled:false prefix is captured
+            RootObjectMapper root = mapperService.mappingLookup().getMapping().getRoot();
+            assertEquals(Boolean.FALSE, root.getEnabledByPrefix().get("attributes"));
+            // No dynamic entry for the disabled prefix (it is not needed; resolveDynamic handles it via enabledByPrefix)
+            assertNull(root.getDynamicByPrefix().get("attributes"));
+        }
+    }
+
+    public void testNonColumnarSubobjectsFalseStillRejectsEnabledFalse() {
+        // Regression: plain subobjects:false (non-columnar) must still throw for enabled:false
+        MapperBuilderContext rootContext = MapperBuilderContext.root(false, false);
+        ObjectMapper.Builder parentBuilder = new ObjectMapper.Builder("parent", Explicit.of(ObjectMapper.Subobjects.DISABLED)).add(
+            new ObjectMapper.Builder("child").enabled(false)
+        );
+        MapperParsingException exception = expectThrows(MapperParsingException.class, () -> parentBuilder.build(rootContext));
+        assertThat(exception.getMessage(), containsString("the value of [enabled] is [false]"));
+    }
 }

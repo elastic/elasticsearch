@@ -870,4 +870,133 @@ public class RootObjectMapperTests extends MapperServiceTestCase {
             );
         }
     }
+
+    public void testEnabledByPrefixSerializationRoundTrip() throws Exception {
+        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        for (IndexMode indexMode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
+            Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), indexMode.getName()).build();
+            MapperService mapperService = createMapperService(settings, mapping(b -> {
+                b.startObject("attributes");
+                {
+                    b.field("enabled", false);
+                }
+                b.endObject();
+                b.startObject("resource");
+                {
+                    b.field("enabled", false);
+                }
+                b.endObject();
+            }));
+
+            // Serialize the mapping to a string
+            String mappingJson1 = Strings.toString(mapperService.documentMapper().mapping());
+
+            // Re-parse and re-serialize — must be identical (idempotence)
+            MapperService mapperService2 = createMapperService(settings, mappingJson1);
+            String mappingJson2 = Strings.toString(mapperService2.documentMapper().mapping());
+            assertEquals("prefix_properties.enabled must survive round-trip serialization for " + indexMode, mappingJson1, mappingJson2);
+
+            // The stored mapping must contain prefix_properties.enabled in the expected shape
+            assertThat(mappingJson1, containsString("\"prefix_properties\""));
+            assertThat(mappingJson1, containsString("\"enabled\":{"));
+            assertThat(mappingJson1, containsString("\"attributes\":false"));
+            assertThat(mappingJson1, containsString("\"resource\":false"));
+
+            // The enabledByPrefix map must be populated on re-parsed root
+            RootObjectMapper root2 = mapperService2.mappingLookup().getMapping().getRoot();
+            assertEquals(Boolean.FALSE, root2.getEnabledByPrefix().get("attributes"));
+            assertEquals(Boolean.FALSE, root2.getEnabledByPrefix().get("resource"));
+        }
+    }
+
+    public void testEnabledByPrefixMergeAddsEntry() throws Exception {
+        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        for (IndexMode indexMode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
+            Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), indexMode.getName()).build();
+            // Initial mapping: attributes enabled=false
+            MapperService mapperService = createMapperService(settings, mapping(b -> {
+                b.startObject("attributes");
+                {
+                    b.field("enabled", false);
+                }
+                b.endObject();
+            }));
+
+            // Merge update: add resource enabled=false
+            merge(mapperService, mapping(b -> {
+                b.startObject("resource");
+                {
+                    b.field("enabled", false);
+                }
+                b.endObject();
+            }));
+
+            RootObjectMapper root = mapperService.documentMapper().mapping().getRoot();
+            assertEquals(Boolean.FALSE, root.getEnabledByPrefix().get("attributes"));
+            assertEquals(Boolean.FALSE, root.getEnabledByPrefix().get("resource"));
+        }
+    }
+
+    public void testEnabledAndDynamicCoexistInPrefixProperties() throws Exception {
+        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        for (IndexMode indexMode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
+            Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), indexMode.getName()).build();
+            MapperService mapperService = createMapperService(settings, mapping(b -> {
+                b.startObject("attributes");
+                {
+                    b.field("dynamic", "false");
+                    b.startObject("properties");
+                    b.startObject("host").field("type", "keyword").endObject();
+                    b.endObject();
+                }
+                b.endObject();
+                b.startObject("disabled");
+                {
+                    b.field("enabled", false);
+                }
+                b.endObject();
+            }));
+
+            String mappingJson = Strings.toString(mapperService.documentMapper().mapping());
+
+            // Both facets must be present
+            assertThat(mappingJson, containsString("\"dynamic\":{"));
+            assertThat(mappingJson, containsString("\"enabled\":{"));
+
+            // Round-trip must be identical
+            MapperService mapperService2 = createMapperService(settings, mappingJson);
+            assertEquals(mappingJson, Strings.toString(mapperService2.documentMapper().mapping()));
+
+            RootObjectMapper root = mapperService.mappingLookup().getMapping().getRoot();
+            assertEquals(ObjectMapper.Dynamic.FALSE, root.getDynamicByPrefix().get("attributes"));
+            assertEquals(Boolean.FALSE, root.getEnabledByPrefix().get("disabled"));
+            // The dynamic prefix must not bleed into the enabled prefix and vice versa
+            assertNull(root.getDynamicByPrefix().get("disabled"));
+            assertNull(root.getEnabledByPrefix().get("attributes"));
+        }
+    }
+
+    public void testPrefixPropertiesEnabledParseValidation() throws Exception {
+        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        for (IndexMode indexMode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
+            Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), indexMode.getName()).build();
+            // enabled sub-object must be a map, not a scalar
+            MapperParsingException e1 = expectThrows(MapperParsingException.class, () -> createMapperService(settings, topMapping(b -> {
+                b.startObject("prefix_properties");
+                b.field("enabled", "notamap");
+                b.endObject();
+            })));
+            assertThat(e1.getMessage(), containsString("[prefix_properties.enabled] must be an object"));
+
+            // non-boolean value inside enabled map must be rejected
+            MapperParsingException e2 = expectThrows(MapperParsingException.class, () -> createMapperService(settings, topMapping(b -> {
+                b.startObject("prefix_properties");
+                b.startObject("enabled");
+                b.field("attributes", "notaboolean");
+                b.endObject();
+                b.endObject();
+            })));
+            assertThat(e2.getMessage(), containsString("prefix_properties.enabled.attributes"));
+        }
+    }
 }

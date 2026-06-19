@@ -137,6 +137,14 @@ public class ObjectMapper extends Mapper {
          * Read by {@link RootObjectMapper.Builder#build} to persist the entries so they survive round-trips.
          */
         protected final Map<String, Dynamic> dynamicByPrefix = new HashMap<>();
+        /**
+         * Accumulates per-prefix {@code enabled:false} objects captured during auto-flattening in strict columnar mode.
+         * Keys are the full dotted paths of declared {@code enabled:false} object mappers; values are always
+         * {@code false}. Populated by {@link #asFlattenedFieldBuilders} when
+         * {@link MapperBuilderContext#isStrictColumnar()} is {@code true}.
+         * Read by {@link RootObjectMapper.Builder#build} to persist the entries so they survive round-trips.
+         */
+        protected final Map<String, Boolean> enabledByPrefix = new HashMap<>();
 
         public Builder(String name) {
             this(name, Defaults.SUBOBJECTS);
@@ -357,7 +365,13 @@ public class ObjectMapper extends Mapper {
             Map<String, Mapper.Builder> map = new HashMap<>();
             for (Mapper.Builder builder : builders) {
                 if (subobjects.value() == Subobjects.DISABLED && builder instanceof ObjectMapper.Builder objectMapperBuilder) {
-                    objectMapperBuilder.asFlattenedFieldBuilders(builderContext, map, new ContentPath(), this.dynamicByPrefix);
+                    objectMapperBuilder.asFlattenedFieldBuilders(
+                        builderContext,
+                        map,
+                        new ContentPath(),
+                        this.dynamicByPrefix,
+                        this.enabledByPrefix
+                    );
                 } else {
                     Mapper.Builder existing = map.get(builder.leafName());
                     if (existing != null) {
@@ -380,22 +394,33 @@ public class ObjectMapper extends Mapper {
          * @param dynamicCollector accumulates per-prefix {@code dynamic} values in strict columnar mode;
          *                         must be the root builder's {@code dynamicByPrefix} map so all entries
          *                         from the full nested hierarchy land in one place
+         * @param enabledCollector accumulates per-prefix {@code enabled:false} objects in strict columnar mode;
+         *                         must be the root builder's {@code enabledByPrefix} map
          */
         private void asFlattenedFieldBuilders(
             MapperBuilderContext parentContext,
             Map<String, Mapper.Builder> result,
             ContentPath path,
-            Map<String, Dynamic> dynamicCollector
+            Map<String, Dynamic> dynamicCollector,
+            Map<String, Boolean> enabledCollector
         ) {
             String fullName = parentContext.buildFullName(path.pathAsText(leafName()));
             ensureBuilderFlattenable(parentContext, fullName);
+            if (parentContext.isStrictColumnar() && enabled.value() == false) {
+                // Capture the disabled prefix and skip recursion: children of a disabled object
+                // are neither flattened into indexed leaf mappers nor stored. At index time,
+                // resolveDynamic returns Dynamic.FALSE for any field under this prefix, so the
+                // subtree is dropped entirely — consistent with columnar's dynamic:false behaviour.
+                enabledCollector.put(fullName, Boolean.FALSE);
+                return;
+            }
             if (parentContext.isStrictColumnar() && dynamic != null) {
                 dynamicCollector.put(fullName, dynamic);
             }
             path.add(leafName());
             for (Mapper.Builder childBuilder : mappersBuilders) {
                 if (childBuilder instanceof ObjectMapper.Builder objectMapperBuilder) {
-                    objectMapperBuilder.asFlattenedFieldBuilders(parentContext, result, path, dynamicCollector);
+                    objectMapperBuilder.asFlattenedFieldBuilders(parentContext, result, path, dynamicCollector, enabledCollector);
                 } else if (childBuilder instanceof FieldMapper.Builder fieldMapperBuilder) {
                     fieldMapperBuilder.setLeafName(path.pathAsText(fieldMapperBuilder.leafName()));
                     result.put(fieldMapperBuilder.leafName(), fieldMapperBuilder);
@@ -423,7 +448,9 @@ public class ObjectMapper extends Mapper {
                     "the value of [" + Mapper.SYNTHETIC_SOURCE_KEEP_PARAM + "] is [ " + sourceKeepMode.get() + " ]"
                 );
             }
-            if (enabled.value() == false) {
+            // In strict columnar mode, enabled:false objects are allowed; the prefix is captured in
+            // enabledByPrefix and the subtree is dropped at index time (same as dynamic:false).
+            if (enabled.value() == false && context.isStrictColumnar() == false) {
                 throwAutoFlatteningException(fullName, "the value of [enabled] is [false]");
             }
             if (subobjects.explicit() && subobjects.value() == Subobjects.ENABLED) {

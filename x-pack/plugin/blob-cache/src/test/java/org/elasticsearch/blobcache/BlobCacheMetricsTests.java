@@ -19,10 +19,14 @@ import java.util.Arrays;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.IntStream;
 
+import static org.elasticsearch.blobcache.BlobCacheMetrics.BLOB_CACHE_EVICTION_SCANNED_ENTRIES;
+import static org.elasticsearch.blobcache.BlobCacheMetrics.BLOB_CACHE_EVICTION_SCAN_TIME;
 import static org.elasticsearch.blobcache.BlobCacheMetrics.BLOB_CACHE_PREFETCH_TOTAL;
 import static org.elasticsearch.blobcache.BlobCacheMetrics.NON_ES_EXECUTOR_TO_RECORD;
 import static org.elasticsearch.blobcache.BlobCacheMetrics.PREFETCH_RESULT_ATTRIBUTE_KEY;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 
 public class BlobCacheMetricsTests extends ESTestCase {
@@ -108,6 +112,43 @@ public class BlobCacheMetricsTests extends ESTestCase {
             .findFirst()
             .orElseThrow();
         assertThat(first.attributes().keySet(), contains(PREFETCH_RESULT_ATTRIBUTE_KEY));
+    }
+
+    public void testRecordEvictionScan() {
+        // keep the elapsed time above one microsecond so the nanos -> micros conversion never truncates to zero
+        long elapsedNanos = randomLongBetween(TimeUnit.MICROSECONDS.toNanos(1), TimeUnit.SECONDS.toNanos(1));
+        long scannedEntries = randomNonNegativeLong();
+        BlobCacheMetrics.EvictionScanMode mode = randomFrom(BlobCacheMetrics.EvictionScanMode.values());
+        BlobCacheMetrics.EvictionScanOutcome outcome = randomFrom(BlobCacheMetrics.EvictionScanOutcome.values());
+
+        metrics.recordEvictionScan(elapsedNanos, scannedEntries, mode, outcome);
+
+        // the scan-time histogram records the elapsed time converted from nanoseconds to microseconds
+        var scanTimeMeasurements = recordingMeterRegistry.getRecorder()
+            .getMeasurements(InstrumentType.LONG_HISTOGRAM, BLOB_CACHE_EVICTION_SCAN_TIME);
+        assertThat(scanTimeMeasurements, hasSize(1));
+        assertThat(scanTimeMeasurements.get(0).getLong(), is(TimeUnit.NANOSECONDS.toMicros(elapsedNanos)));
+        assertEvictionScanAttributes(scanTimeMeasurements.get(0), mode, outcome);
+
+        // the scanned-entries histogram records the raw count
+        var scannedEntriesMeasurements = recordingMeterRegistry.getRecorder()
+            .getMeasurements(InstrumentType.LONG_HISTOGRAM, BLOB_CACHE_EVICTION_SCANNED_ENTRIES);
+        assertThat(scannedEntriesMeasurements, hasSize(1));
+        assertThat(scannedEntriesMeasurements.get(0).getLong(), is(scannedEntries));
+        assertEvictionScanAttributes(scannedEntriesMeasurements.get(0), mode, outcome);
+    }
+
+    private static void assertEvictionScanAttributes(
+        Measurement measurement,
+        BlobCacheMetrics.EvictionScanMode mode,
+        BlobCacheMetrics.EvictionScanOutcome outcome
+    ) {
+        assertThat(measurement.attributes().get(BlobCacheMetrics.EVICTION_SCAN_MODE_ATTRIBUTE_KEY), is(mode.name()));
+        assertThat(measurement.attributes().get(BlobCacheMetrics.EVICTION_SCAN_OUTCOME_ATTRIBUTE_KEY), is(outcome.name()));
+        assertThat(
+            measurement.attributes().keySet(),
+            containsInAnyOrder(BlobCacheMetrics.EVICTION_SCAN_MODE_ATTRIBUTE_KEY, BlobCacheMetrics.EVICTION_SCAN_OUTCOME_ATTRIBUTE_KEY)
+        );
     }
 
     private long sumPrefetchMeasurementsFor(BlobCacheMetrics.PrefetchResult result) {

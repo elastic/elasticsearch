@@ -581,8 +581,8 @@ tasks.named("checkPart1").configure {
   ],
   releaseTestCheckEsqlDatasourceQa: [
     ':x-pack:plugin:esql-datasource-csv:qa',
-    ':x-pack:plugin:esql-datasource-gcs:qa',
-    ':x-pack:plugin:esql-datasource-grpc:qa',
+    ':x-pack:plugin:esql-datasource-gcs',
+    ':x-pack:plugin:esql-datasource-grpc',
     ':x-pack:plugin:esql-datasource-iceberg:qa',
     ':x-pack:plugin:esql-datasource-ndjson:qa',
     ':x-pack:plugin:esql-datasource-orc:qa',

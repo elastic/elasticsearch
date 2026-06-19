@@ -1269,64 +1269,63 @@ public class EsqlSession {
                 }
             }
             return r;
-        })
-            .<PreAnalysisResult>andThen((l, r) -> preAnalyzeLookupIndices(preAnalysis.lookupIndices().iterator(), r, executionInfo, l))
-            .andThenApply(r -> {
-                executionInfo.queryProfile().indicesResolutionMarker().stop();
-                return r;
-            })
-            .<PreAnalysisResult>andThen((l, r) -> preAnalyzeExternalSources(parsed, preAnalysis, r, l))
-            .<PreAnalysisResult>andThen((l, r) -> {
-                // Do not update PreAnalysisResult.minimumTransportVersion, that's already been determined during main index resolution.
-                executionInfo.queryProfile().enrichResolutionMarker().start();
-                enrichPolicyResolver.resolvePolicies(
-                    preAnalysis.enriches(),
-                    executionInfo,
-                    r.minimumTransportVersion(),
-                    l.delegateFailureAndWrap((ll, enrichResolution) -> {
-                        executionInfo.queryProfile().enrichResolutionMarker().stop();
-                        ll.onResponse(r.withEnrichResolution(enrichResolution));
-                    })
-                );
-            })
-            .<PreAnalysisResult>andThen((l, r) -> {
-                executionInfo.queryProfile().inferenceResolutionMarker().start();
-                inferenceService.resolveInferenceIds(preAnalysis.inferenceIds(), l.delegateFailureAndWrap((ll, inferenceResolution) -> {
-                    executionInfo.queryProfile().inferenceResolutionMarker().stop();
-                    ll.onResponse(r.withInferenceResolution(inferenceResolution));
-                }));
-            })
-            .<Versioned<LogicalPlan>>andThen((l, r) -> {
-                analyzeWithRetry(
-                    parsed,
-                    nullify ? UnmappedResolution.NULLIFY : unmappedResolution,
-                    configuration,
-                    executionInfo,
-                    description,
-                    requestFilter,
-                    timestampBounds,
-                    preAnalysis,
-                    r,
-                    l
-                );
-            })
-            .addListener(logicalPlanListener);
+        }).<PreAnalysisResult>andThen((l, r) -> preAnalyzeLookupIndices(preAnalysis, r, executionInfo, l)).andThenApply(r -> {
+            executionInfo.queryProfile().indicesResolutionMarker().stop();
+            return r;
+        }).<PreAnalysisResult>andThen((l, r) -> preAnalyzeExternalSources(parsed, preAnalysis, r, l)).<PreAnalysisResult>andThen((l, r) -> {
+            // Do not update PreAnalysisResult.minimumTransportVersion, that's already been determined during main index resolution.
+            executionInfo.queryProfile().enrichResolutionMarker().start();
+            enrichPolicyResolver.resolvePolicies(
+                preAnalysis.enriches(),
+                executionInfo,
+                r.minimumTransportVersion(),
+                l.delegateFailureAndWrap((ll, enrichResolution) -> {
+                    executionInfo.queryProfile().enrichResolutionMarker().stop();
+                    ll.onResponse(r.withEnrichResolution(enrichResolution));
+                })
+            );
+        }).<PreAnalysisResult>andThen((l, r) -> {
+            executionInfo.queryProfile().inferenceResolutionMarker().start();
+            inferenceService.resolveInferenceIds(preAnalysis.inferenceIds(), l.delegateFailureAndWrap((ll, inferenceResolution) -> {
+                executionInfo.queryProfile().inferenceResolutionMarker().stop();
+                ll.onResponse(r.withInferenceResolution(inferenceResolution));
+            }));
+        }).<Versioned<LogicalPlan>>andThen((l, r) -> {
+            analyzeWithRetry(
+                parsed,
+                nullify ? UnmappedResolution.NULLIFY : unmappedResolution,
+                configuration,
+                executionInfo,
+                description,
+                requestFilter,
+                timestampBounds,
+                preAnalysis,
+                r,
+                l
+            );
+        }).addListener(logicalPlanListener);
     }
 
     /**
      * Perform a field caps request for each lookup index. Does not update the minimum transport version.
      */
     private void preAnalyzeLookupIndices(
-        Iterator<IndexPattern> lookupIndices,
+        PreAnalyzer.PreAnalysis preAnalysis,
         PreAnalysisResult preAnalysisResult,
         EsqlExecutionInfo executionInfo,
         ActionListener<PreAnalysisResult> listener
     ) {
-        forAll(lookupIndices, preAnalysisResult, (lookupIndex, r, l) -> preAnalyzeLookupIndex(lookupIndex, r, executionInfo, l), listener);
+        forAll(
+            preAnalysis.lookupIndices().iterator(),
+            preAnalysisResult,
+            (lookupIndex, r, l) -> preAnalyzeLookupIndex(lookupIndex, preAnalysis, r, executionInfo, l),
+            listener
+        );
     }
 
     private void preAnalyzeLookupIndex(
         IndexPattern lookupIndexPattern,
+        PreAnalyzer.PreAnalysis preAnalysis,
         PreAnalysisResult result,
         EsqlExecutionInfo executionInfo,
         ActionListener<PreAnalysisResult> listener
@@ -1339,19 +1338,71 @@ public class EsqlSession {
             ThreadPool.Names.SEARCH_COORDINATION,
             ThreadPool.Names.SYSTEM_READ
         );
+        // The lookup index only has to be present on the clusters referenced by the scope that contains the LOOKUP JOIN - either the
+        // enclosing subquery or, for a lookup that is not nested in a subquery, the whole query's main FROM.
+        Set<String> relevantClusters = relevantClustersForLookupIndex(lookupIndexPattern, preAnalysis, result, executionInfo);
         // No need to update the minimum transport version in the PreAnalysisResult,
         // it should already have been determined during the main index resolution.
         executionInfo.queryProfile().incFieldCapsCalls();
         indexResolver.resolveLookupIndices(
-            EsqlCCSUtils.createQualifiedLookupIndexExpressionFromAvailableClusters(executionInfo, localPattern),
+            EsqlCCSUtils.createQualifiedLookupIndexExpressionFromAvailableClusters(executionInfo, relevantClusters, localPattern),
             result.wildcardJoinIndices().contains(localPattern) ? IndexResolver.ALL_FIELDS : result.fieldNames,
             // We use the minimum version determined in the main index resolution, because for remote LOOKUP JOIN, we're only considering
             // remote lookup indices in the field caps request - but the coordinating cluster must be considered, too!
             // The main index resolution should already have taken the version of the coordinating cluster into account and this should
             // be reflected in result.minimumTransportVersion().
             result.minimumTransportVersion(),
-            listener.map(indexResolution -> receiveLookupIndexResolution(result, localPattern, executionInfo, indexResolution))
+            listener.map(
+                indexResolution -> receiveLookupIndexResolution(result, localPattern, relevantClusters, executionInfo, indexResolution)
+            )
         );
+    }
+
+    /**
+     * The set of clusters that must contain the given lookup index. When the LOOKUP JOIN lives inside a subquery, only the clusters
+     * referenced by that subquery's main FROM are relevant; the lookup index does not need to exist on clusters that are only referenced
+     * by sibling subqueries. When the lookup is not nested in a subquery, the clusters of the whole query's main FROM are relevant.
+     * <p>
+     * A lookup whose scope has no main patterns is fed only by coordinator-only data (e.g. a {@code ROW} subquery): its {@code LOOKUP JOIN}
+     * executes on the local coordinator, so the lookup index is relevant on the local cluster only - never on the remote clusters that feed
+     * the main FROM or sibling subqueries.
+     */
+    private static Set<String> relevantClustersForLookupIndex(
+        IndexPattern lookupIndexPattern,
+        PreAnalyzer.PreAnalysis preAnalysis,
+        PreAnalysisResult result,
+        EsqlExecutionInfo executionInfo
+    ) {
+        // A sourceless query (e.g. ROW ... | LOOKUP JOIN) has no main FROM and therefore no clusters in the execution info. Both the
+        // lookup index expression construction and the resolution handling special-case the empty-cluster scenario, so the relevant
+        // clusters are unused; return early to avoid querying the running clusters, which asserts a non-empty cluster map.
+        if (executionInfo.getClusters().isEmpty()) {
+            return Set.of();
+        }
+        Set<String> runningClusters = executionInfo.getRunningClusterAliases().collect(toSet());
+        Set<IndexPattern> mainPatterns = preAnalysis.lookupIndexPatternsToMainAndSubqueryIndexPatterns().get(lookupIndexPattern);
+        if (mainPatterns == null) {
+            // Defensive: a lookup that could not be associated with any scope. Fall back to requiring it on all running clusters.
+            return runningClusters;
+        }
+        if (mainPatterns.isEmpty()) {
+            // The lookup is fed only by coordinator-only data (a ROW subquery), so it runs on the local coordinator and must be resolved
+            // against the local cluster only. Resolving it on the remote clusters that feed sibling scopes would spuriously report it as
+            // an unknown index qualified with a cluster alias it never touches.
+            return Set.of(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
+        }
+        Set<String> relevantClusters = new HashSet<>();
+        for (IndexPattern mainPattern : mainPatterns) {
+            IndexResolution mainResolution = result.indexResolution().get(mainPattern);
+            if (mainResolution != null && mainResolution.isValid() && mainResolution.get() != null) {
+                for (String clusterAlias : mainResolution.get().originalIndices().keySet()) {
+                    if (runningClusters.contains(clusterAlias)) {
+                        relevantClusters.add(clusterAlias);
+                    }
+                }
+            }
+        }
+        return relevantClusters;
     }
 
     /**
@@ -1430,6 +1481,7 @@ public class EsqlSession {
     private PreAnalysisResult receiveLookupIndexResolution(
         PreAnalysisResult result,
         String index,
+        Set<String> relevantClusters,
         EsqlExecutionInfo executionInfo,
         IndexResolution lookupIndexResolution
     ) {
@@ -1475,10 +1527,15 @@ public class EsqlSession {
             return result.addLookupIndexResolution(index, lookupIndexResolution);
         }
 
-        // Collect resolved clusters from the index resolution, verify that each cluster has a single resolution for the lookup index
+        // Collect resolved clusters from the index resolution, verify that each cluster has a single resolution for the lookup index.
+        // Only the clusters referenced by the subquery that contains this LOOKUP JOIN are considered (for a lookup that is not scoped to
+        // a subquery, these are all the running clusters); indices resolved on clusters that only belong to sibling subqueries are ignored.
         Map<String, String> clustersWithResolvedIndices = new HashMap<>(lookupIndexResolution.resolvedIndices().size());
         lookupIndexResolution.get().indexNameWithModes().forEach((indexName, indexMode) -> {
             String clusterAlias = RemoteClusterAware.splitIndexName(indexName).getClusterGroupingKey();
+            if (relevantClusters.contains(clusterAlias) == false) {
+                return;
+            }
             // Check that all indices are in lookup mode
             if (indexMode != IndexMode.LOOKUP) {
                 skipClusterOrError(
@@ -1508,9 +1565,9 @@ public class EsqlSession {
             }
         });
 
-        // These are clusters that are still in the running, we need to have the index on all of them
-        // Verify that all active clusters have the lookup index resolved
-        executionInfo.getRunningClusterAliases().forEach(clusterAlias -> {
+        // We only need the lookup index on the clusters referenced by the subquery that contains this LOOKUP JOIN (for a lookup that is
+        // not scoped to a subquery, these are all the running clusters). Verify that each of those clusters has the lookup index resolved.
+        relevantClusters.forEach(clusterAlias -> {
             if (clustersWithResolvedIndices.containsKey(clusterAlias) == false) {
                 // Missing cluster resolution
                 skipClusterOrError(clusterAlias, executionInfo, findFailure(lookupIndexResolution.failures(), index, clusterAlias));

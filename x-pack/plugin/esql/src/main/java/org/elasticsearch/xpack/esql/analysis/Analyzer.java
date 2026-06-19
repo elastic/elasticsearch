@@ -1193,7 +1193,15 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 }
                 config = new JoinConfig(type, leftKeys, rightKeys, joinOnConditions);
 
-                return new LookupJoin(join.source(), join.left(), join.right(), config, join.isRemote() || context.includesRemoteIndices());
+                // A LOOKUP JOIN runs remotely only when its left input actually reaches remote data nodes, i.e. the left subtree reads
+                // from a (non-lookup) index. A sourceless left side (e.g. a ROW subquery) keeps its data on the coordinator, so its lookup
+                // must run locally even when other parts of the query touch remote clusters; marking it remote would route it to data
+                // nodes that have no rows for it and produce a data node plan without concrete indices.
+                boolean leftReadsFromIndices = join.left()
+                    .anyMatch(p -> p instanceof EsRelation relation && relation.indexMode() != IndexMode.LOOKUP);
+                boolean isRemote = join.isRemote() || (context.includesRemoteIndices() && leftReadsFromIndices);
+
+                return new LookupJoin(join.source(), join.left(), join.right(), config, isRemote);
             } else {
                 // everything else is unsupported for now
                 UnresolvedAttribute errorAttribute = new UnresolvedAttribute(join.source(), "unsupported", "Unsupported join type");

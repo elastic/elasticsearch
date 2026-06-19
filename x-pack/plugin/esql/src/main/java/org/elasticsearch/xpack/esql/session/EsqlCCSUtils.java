@@ -168,11 +168,23 @@ public class EsqlCCSUtils {
         }
     }
 
-    static String createQualifiedLookupIndexExpressionFromAvailableClusters(EsqlExecutionInfo executionInfo, String localPattern) {
+    /**
+     * Builds the qualified field-caps expression for a lookup index, restricted to the clusters that actually need it.
+     * <p>
+     * A {@code LOOKUP JOIN} only requires its lookup index on the clusters whose data reaches the join - for a lookup nested in a
+     * subquery these are the clusters of that subquery's main {@code FROM}, and for a lookup in the main query these are all running
+     * clusters (see {@code relevantClustersForLookupIndex}). Qualifying the expression to exactly those clusters means a lookup index that
+     * is missing from a cluster which does not feed the join is never queried there, so it is not spuriously reported as unknown.
+     */
+    static String createQualifiedLookupIndexExpressionFromAvailableClusters(
+        EsqlExecutionInfo executionInfo,
+        Set<String> relevantClusters,
+        String localPattern
+    ) {
         if (executionInfo.getClusters().isEmpty()) {
             return localPattern;
         }
-        return executionInfo.getRunningClusterAliases()
+        return relevantClusters.stream()
             .map(clusterAlias -> RemoteClusterAware.buildRemoteIndexName(clusterAlias, localPattern))
             .collect(joining(","));
     }

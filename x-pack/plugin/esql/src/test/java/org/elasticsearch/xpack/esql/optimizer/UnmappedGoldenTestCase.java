@@ -63,9 +63,9 @@ public abstract class UnmappedGoldenTestCase extends GoldenTestCase {
     }
 
     protected void runTestsLoadOnly(String query, EnumSet<Stage> stages, String... nestedPaths) {
-        tryRunTestsLoadOnly(query, stages, null, Map.of(), nestedPaths).ifPresent(e -> {
-            throw new RuntimeException("Load mode failed", e);
-        });
+        tryRunTestsLoadOnly(query, stages, null, Map.of(), nestedPaths).ifPresent(
+            e -> { throw new RuntimeException("Load mode failed", e); }
+        );
     }
 
     private Optional<Throwable> tryRunTestsNullifyOnly(
@@ -75,9 +75,7 @@ public abstract class UnmappedGoldenTestCase extends GoldenTestCase {
         Map<String, String> views,
         String... nestedPaths
     ) {
-        var builder = builder(setUnmappedNullify(query)).views(views)
-            .nestedPath(ArrayUtils.prepend("nullify", nestedPaths))
-            .stages(stages);
+        var builder = builder(setUnmappedNullify(query)).views(views).nestedPath(ArrayUtils.prepend("nullify", nestedPaths)).stages(stages);
         if (minimumSupportedVersion != null) {
             builder.transportVersion(TransportVersionUtils.randomVersionSupporting(minimumSupportedVersion));
         }

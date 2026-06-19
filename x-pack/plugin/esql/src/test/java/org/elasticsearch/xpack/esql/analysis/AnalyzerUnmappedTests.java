@@ -195,24 +195,21 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
     public void testSubquerysMixAndLookupJoinLoad() {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
 
-        test().addLanguages()
-            .addSampleData()
-            .addLanguagesLookup()
-            .statement(setUnmappedLoad("""
-                FROM test,
-                    (FROM languages
-                     | WHERE language_code > 10
-                     | RENAME language_name as languageName),
-                    (FROM sample_data
-                    | STATS max(@timestamp)),
-                    (FROM test
-                    | EVAL language_code = languages
-                    | LOOKUP JOIN languages_lookup ON language_code)
-                | WHERE emp_no > 10000 OR does_not_exist1::LONG < 10
-                | STATS COUNT(*) BY emp_no, language_code, does_not_exist2
-                | RENAME emp_no AS empNo, language_code AS languageCode
-                | MV_EXPAND languageCode
-                """));
+        test().addLanguages().addSampleData().addLanguagesLookup().statement(setUnmappedLoad("""
+            FROM test,
+                (FROM languages
+                 | WHERE language_code > 10
+                 | RENAME language_name as languageName),
+                (FROM sample_data
+                | STATS max(@timestamp)),
+                (FROM test
+                | EVAL language_code = languages
+                | LOOKUP JOIN languages_lookup ON language_code)
+            | WHERE emp_no > 10000 OR does_not_exist1::LONG < 10
+            | STATS COUNT(*) BY emp_no, language_code, does_not_exist2
+            | RENAME emp_no AS empNo, language_code AS languageCode
+            | MV_EXPAND languageCode
+            """));
     }
 
     public void testFailSubquerysWithNoMainAndStatsOnlyNullify() {
@@ -609,19 +606,16 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
 
     // Decision C (#142033): language_code is mapped as INTEGER in the languages branch but unmapped (loaded as KEYWORD) in the test
     // subquery branch. The two branches surface conflicting types for the same column. KEEP-ing the column is tolerated (it becomes an
-    // unsupported union attribute, autocast deferred to #141912), but using it forces type resolution, which UnionAll#checkUnionAll rejects.
+    // unsupported union attribute, autocast deferred to #141912), but using it forces type resolution, which UnionAll#checkUnionAll
+    // rejects.
     public void testLoadModeDisallowsCrossBranchTypeConflict() {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
-        test().addLanguages()
-            .statementError(
-                setUnmappedLoad("""
-                    FROM languages,
-                        (FROM test | KEEP emp_no, language_code)
-                    | EVAL x = language_code + 1
-                    | KEEP language_code, x
-                    """),
-                containsString("Column [language_code] has conflicting data types in subqueries: [integer, keyword]")
-            );
+        test().addLanguages().statementError(setUnmappedLoad("""
+            FROM languages,
+                (FROM test | KEEP emp_no, language_code)
+            | EVAL x = language_code + 1
+            | KEEP language_code, x
+            """), containsString("Column [language_code] has conflicting data types in subqueries: [integer, keyword]"));
     }
 
     // Decision C (#142033): the same cross-branch conflict is tolerated as long as the conflicting column is only kept (it becomes an

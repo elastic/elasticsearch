@@ -28,7 +28,7 @@ import static java.util.Collections.emptyList;
 import static org.elasticsearch.core.TimeValue.timeValueMillis;
 import static org.hamcrest.Matchers.equalTo;
 
-public class BulkIndexByScrollResponseTests extends ESTestCase {
+public class BulkIndexByPaginatedSearchResponseTests extends ESTestCase {
     public void testMergeConstructor() {
         int mergeCount = between(2, 10);
         List<BulkByPaginatedSearchResponse> responses = new ArrayList<>(mergeCount);

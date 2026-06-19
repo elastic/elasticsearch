@@ -455,9 +455,6 @@ tests:
 - class: org.elasticsearch.indices.memory.breaker.HierarchyCircuitBreakerTelemetryIT
   method: testCircuitBreakerTripCountMetric
   issue: https://github.com/elastic/elasticsearch/issues/150700
-- class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardDisruptionIT
-  method: testReshardWithDisruption
-  issue: https://github.com/elastic/elasticsearch/issues/150708
 - class: org.elasticsearch.xpack.esql.analysis.AnalyzerUnmappedGoldenTests
   method: testTypeConflictTimeseriesLongUnmappedWithCast
   issue: https://github.com/elastic/elasticsearch/issues/150722
@@ -620,9 +617,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.StatelessMergePreWarmingIT
   method: testMergePreWarmingFailureDoesNotFailTheEngine
   issue: https://github.com/elastic/elasticsearch/issues/151618
-- class: org.elasticsearch.xpack.stateless.cluster.coordination.BlobStoreSyncDirectoryTests
-  method: testCloseCancelsOnGoingUploads
-  issue: https://github.com/elastic/elasticsearch/issues/151622
 - class: org.elasticsearch.gradle.internal.precommit.PomValidationPrecommitPluginFuncTest
   method: detects missing POM elements and reports structured problems
   issue: https://github.com/elastic/elasticsearch/issues/151636
@@ -644,12 +638,27 @@ tests:
 - class: org.elasticsearch.xpack.ml.datafeed.DatafeedManagerTests
   method: testUpdateDatafeedFirstTimeMigrationShouldNotOverrideExistingProjectRouting
   issue: https://github.com/elastic/elasticsearch/issues/151702
-- class: org.elasticsearch.xpack.test.rest.XPackRestIT
-  method: test {yaml=search.vectors/47_knn_search_bbq_disk_slice/KNN search with a different _slice returns that slice's nearest neighbor}
-  issue: https://github.com/elastic/elasticsearch/issues/151703
 - class: org.elasticsearch.xpack.esql.CsvIT
   method: test {csv-spec:string.mvAppendNull}
   issue: https://github.com/elastic/elasticsearch/issues/151707
 - class: org.elasticsearch.xpack.esql.CsvIT
   method: test {csv-spec:fuse.fuseWithRowLinearAndMultiValueGroupColumn}
   issue: https://github.com/elastic/elasticsearch/issues/151709
+- class: org.elasticsearch.indices.recovery.IndexRecoveryIT
+  method: testRerouteRecovery
+  issue: https://github.com/elastic/elasticsearch/issues/151731
+- class: org.elasticsearch.xpack.searchablesnapshots.cache.blob.SearchableSnapshotsBlobStoreCacheMaintenanceIntegTests
+  method: testCleanUpMigratedSystemIndexAfterIndicesAreDeleted
+  issue: https://github.com/elastic/elasticsearch/issues/151732
+- class: org.elasticsearch.simdvec.internal.vectorization.ES93BinaryQuantizedVectorScorerTests
+  method: testBulkScore {p0=SNAP p1=DOT_PRODUCT}
+  issue: https://github.com/elastic/elasticsearch/issues/151735
+- class: org.elasticsearch.simdvec.internal.vectorization.ES93BinaryQuantizedVectorScorerTests
+  method: testBulkScore {p0=MMAP p1=DOT_PRODUCT}
+  issue: https://github.com/elastic/elasticsearch/issues/151736
+- class: org.elasticsearch.simdvec.internal.vectorization.ES93BinaryQuantizedVectorScorerTests
+  method: testBulkScore {p0=SNAP p1=COSINE}
+  issue: https://github.com/elastic/elasticsearch/issues/151737
+- class: org.elasticsearch.simdvec.internal.vectorization.ES93BinaryQuantizedVectorScorerTests
+  method: testBulkScore {p0=MMAP p1=COSINE}
+  issue: https://github.com/elastic/elasticsearch/issues/151738

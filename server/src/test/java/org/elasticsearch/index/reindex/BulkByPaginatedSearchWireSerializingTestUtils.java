@@ -41,11 +41,11 @@ import static org.elasticsearch.index.reindex.resumeinfo.SliceStatusWireSerializ
 import static org.elasticsearch.xcontent.json.JsonXContent.jsonXContent;
 
 /**
- * Shared helpers for bulk-by-scroll wire serialization tests.
+ * Shared helpers for bulk-by-paginated-search wire serialization tests.
  */
-public final class BulkByScrollWireSerializingTestUtils {
+public final class BulkByPaginatedSearchWireSerializingTestUtils {
 
-    private BulkByScrollWireSerializingTestUtils() {}
+    private BulkByPaginatedSearchWireSerializingTestUtils() {}
 
     /**
      * Registry sufficient for {@link ReindexRequest}, {@link UpdateByQueryRequest}, {@link DeleteByQueryRequest},
@@ -260,7 +260,7 @@ public final class BulkByScrollWireSerializingTestUtils {
     }
 
     /**
-     * Minimal random resume info for embedding in bulk-by-scroll requests (worker or multi-slice).
+     * Minimal random resume info for embedding in bulk-by-paginated-search requests (worker or multi-slice).
      */
     public static void fillRandomBulkFields(AbstractBulkByPaginatedSearchRequest<?> request) {
         if (ESTestCase.randomBoolean()) {
@@ -349,7 +349,7 @@ public final class BulkByScrollWireSerializingTestUtils {
             case 13 -> mutatedRequest.setResumeInfo(
                 ESTestCase.randomValueOtherThan(
                     originalRequest.getResumeInfo().orElse(null),
-                    BulkByScrollWireSerializingTestUtils::randomResumeInfo
+                    BulkByPaginatedSearchWireSerializingTestUtils::randomResumeInfo
                 )
             );
             case 14 -> {

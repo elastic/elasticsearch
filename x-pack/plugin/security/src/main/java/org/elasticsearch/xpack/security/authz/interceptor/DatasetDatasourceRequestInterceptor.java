@@ -56,10 +56,8 @@ public class DatasetDatasourceRequestInterceptor implements RequestInterceptor {
         if (EsqlDatasetActionNames.ESQL_PUT_DATASET_ACTION_NAME.equals(action)) {
             return true;
         }
-        // The read-path resolve runs after the security filter replaced the request indices with the authorized
-        // resolution, so dataSourceNames() holds the parent datasources of exactly the surviving datasets. Empty
-        // means no dataset survived (or none was targeted) — nothing to authorize, unlike PUT where the single
-        // datasource is always present.
+        // On the resolve path the filter has already narrowed the request to authorized datasets, so
+        // dataSourceNames() is their parents; empty means none survived — nothing to authorize (PUT always has one).
         return EsqlDatasetActionNames.ESQL_RESOLVE_DATASET_ACTION_NAME.equals(action) && dsi.dataSourceNames().length > 0;
     }
 }

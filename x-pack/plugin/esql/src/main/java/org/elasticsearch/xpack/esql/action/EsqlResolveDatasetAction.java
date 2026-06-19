@@ -42,14 +42,12 @@ import java.util.Objects;
 import java.util.Set;
 
 /**
- * Read-authorization gate for {@code FROM <dataset>}: narrows the concrete dataset names a query would read
- * to the subset the caller is authorized to read. Mirrors {@link EsqlResolveViewAction} for views — the
- * {@link Request} is an {@link IndicesRequest.Replaceable} with {@code resolveDatasets(true)}, so the security
- * filter checks each name against the caller's permissions (a read on the dataset name; unauthorized names are
- * filtered like unauthorized indices and views, hiding their existence) and the view/dataset DLS/FLS interceptor
- * rejects DLS/FLS-restricted datasets. The request also implements {@link DataSourceRequestInfo} so security's
- * dataset-datasource interceptor can additionally enforce {@code global.data_source: read} on the parent
- * datasource of every dataset that survives the filter — the same dual-axis model PUT dataset enforces on create.
+ * Read-authorization gate for {@code FROM <dataset>}: narrows the dataset names a query would read to the subset
+ * the caller may read. Mirrors {@link EsqlResolveViewAction} — the {@link Request} is an
+ * {@link IndicesRequest.Replaceable} with {@code resolveDatasets(true)}, so the security filter drops unauthorized
+ * names (hiding their existence) and the DLS/FLS interceptor rejects restricted datasets. It also implements
+ * {@link DataSourceRequestInfo} so the datasource interceptor enforces {@code global.data_source: read} on each
+ * surviving dataset's parent — the dual-axis model PUT dataset enforces on create.
  */
 public class EsqlResolveDatasetAction extends TransportLocalProjectMetadataAction<
     EsqlResolveDatasetAction.Request,
@@ -96,10 +94,8 @@ public class EsqlResolveDatasetAction extends TransportLocalProjectMetadataActio
 
         /**
          * @param indices             the concrete dataset names the query would read if fully authorized
-         * @param datasetToDataSource registered dataset name → parent datasource name, captured from the coordinator's
-         *                            cluster state. {@link #dataSourceNames()} derives from it for whatever names are
-         *                            in {@link #indices()} at evaluation time, so after the security filter replaces
-         *                            the indices with the authorized resolution it reflects exactly the surviving datasets.
+         * @param datasetToDataSource registered dataset → parent datasource; {@link #dataSourceNames()} reads it for
+         *                            the surviving {@link #indices()} after the filter replaces them
          */
         public Request(TimeValue masterTimeout, String[] indices, Map<String, String> datasetToDataSource) {
             super(masterTimeout);
@@ -130,9 +126,8 @@ public class EsqlResolveDatasetAction extends TransportLocalProjectMetadataActio
 
         @Override
         public String[] dataSourceNames() {
-            // The constructor always sets indices and the security filter replaces with a non-null array.
-            // Returning empty on null would silently skip the datasource check downstream — fail instead:
-            // AssertionError under tests, NPE from the stream below in production. Never silently empty.
+            // Non-null in practice (ctor + filter); on null, fail closed via the stream NPE rather than
+            // returning empty and silently skipping the datasource check.
             assert indices != null;
             return Arrays.stream(indices).map(datasetToDataSource::get).filter(Objects::nonNull).distinct().toArray(String[]::new);
         }

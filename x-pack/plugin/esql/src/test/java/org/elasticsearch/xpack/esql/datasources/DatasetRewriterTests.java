@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.datasources;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.cluster.metadata.DataSourceReference;
 import org.elasticsearch.cluster.metadata.Dataset;
-import org.elasticsearch.cluster.metadata.DatasetMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.ProjectId;
@@ -618,7 +617,7 @@ public class DatasetRewriterTests extends ESTestCase {
 
     /** Rewrite with every registered dataset authorized — the unsecured-cluster behavior. */
     private static LogicalPlan rewrite(LogicalPlan parsed, ProjectMetadata project) {
-        return DatasetRewriter.rewrite(parsed, project, RESOLVER, DatasetMetadata.get(project).datasets().keySet());
+        return DatasetRewriter.rewrite(parsed, project, RESOLVER, DatasetRewriter.allDatasets(project));
     }
 
     private static UnresolvedRelation relationOf(String pattern) {

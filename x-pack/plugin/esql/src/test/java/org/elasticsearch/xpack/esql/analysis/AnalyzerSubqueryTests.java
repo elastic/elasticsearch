@@ -6041,7 +6041,8 @@ public class AnalyzerSubqueryTests extends ESTestCase {
         LogicalPlan rewritten = DatasetRewriter.rewrite(
             TEST_PARSER.parseQuery(query),
             projectMetadata,
-            TestIndexNameExpressionResolver.newInstance()
+            TestIndexNameExpressionResolver.newInstance(),
+            DatasetRewriter.allDatasets(projectMetadata)
         );
         ExternalSourceResolution resolution = new ExternalSourceResolution(
             Map.of(

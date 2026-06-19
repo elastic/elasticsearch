@@ -1165,15 +1165,10 @@ public class EsqlSession {
 
         TimeSpanMarker datasetResolutionProfile = executionInfo.queryProfile().datasetResolution();
         datasetResolutionProfile.start();
-        // Rewrite FROM targets that resolve to datasets into UnresolvedExternalRelation so the rest of
-        // pre-analysis + analysis treats them identically to the inline EXTERNAL command. Pattern
-        // expansion (wildcards, exclusions, date math, etc.) flows through the same
-        // IndexNameExpressionResolver path indices use. Before rewriting, the resolver routes the
-        // dataset names through the security filter (EsqlResolveDatasetAction) so a read on the name,
-        // global.data_source read on the parent datasource, and DLS/FLS-incompatibility are all enforced
-        // — the dataset names are gone from the plan after this point and would otherwise never reach
-        // authorization. Completes synchronously when no FROM pattern can match a registered dataset
-        // (in particular when there are none — the feature flag gates the CRUD layer that puts them there).
+        // Rewrite FROM <dataset> targets into UnresolvedExternalRelation so analysis treats them like the inline
+        // EXTERNAL command. The resolver first read-authorizes the names through the security filter — they are
+        // stripped from the plan here and would otherwise never reach authorization. Completes synchronously when
+        // no FROM pattern can match a registered dataset.
         datasetResolver.replaceDatasets(
             parsed,
             projectMetadata,

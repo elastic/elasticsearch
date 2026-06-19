@@ -1369,6 +1369,7 @@ emp_no:integer | first_name:keyword
 // must traverse into ViewUnionAll and NamedSubquery to annotate the inner EsRelation; if it does
 // not, _unmapped_fields is never introduced and the outer KEEP @timestamp, _unmapped_fields fails.
 // This test documents the correct intended behaviour; it will fail until the production gap is fixed.
+// "optimized incorrectly due to duplicate output attribute _unmapped_fields{m}"
 viewHasUnmappedFields
 required_capability: optional_fields_load_all
 required_capability: views_with_no_branching

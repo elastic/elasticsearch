@@ -29,6 +29,7 @@ FROM partial_mapping_sample_data
 
 // KEEP unmapped* — include pattern narrows to unmapped*; language_code is excluded.
 // The output column is only _unmapped_fields (no mapped columns match unmapped*).
+// (gap): "No matches found for pattern [unmapped*]"
 keepUnmappedStar
 required_capability: optional_fields_load_all
 
@@ -552,6 +553,7 @@ FROM synthetic_source_partial_mapping
 
 // All fields unmapped: the index mapping is empty (dynamic:false), so every source field
 // lands in _unmapped_fields. The output has only the synthetic column.
+// (gap): "optimized incorrectly due to missing references [<no-fields>{r$}#"
 allFieldsUnmapped
 required_capability: optional_fields_load_all
 

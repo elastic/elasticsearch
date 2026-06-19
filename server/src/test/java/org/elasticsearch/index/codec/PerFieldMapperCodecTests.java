@@ -30,6 +30,7 @@ import org.elasticsearch.index.codec.tsdb.pipeline.MetricRole;
 import org.elasticsearch.index.codec.tsdb.pipeline.PipelineConfig;
 import org.elasticsearch.index.codec.tsdb.pipeline.PipelineDescriptor;
 import org.elasticsearch.index.codec.tsdb.pipeline.StaticPipelineConfigResolver;
+import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
@@ -371,6 +372,15 @@ public class PerFieldMapperCodecTests extends ESTestCase {
         assertThat((perFieldMapperCodec.useTSDBDocValuesFormat(SeqNoFieldMapper.NAME)), is(true));
     }
 
+    public void testIdField() throws IOException {
+        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        PerFieldFormatSupplier perFieldMapperCodec = createFormatSupplier(
+            randomFrom(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR, IndexMode.LOGSDB),
+            LOGS_MAPPING
+        );
+        assertThat((perFieldMapperCodec.useTSDBDocValuesFormat(IdFieldMapper.NAME)), is(true));
+    }
+
     private PerFieldFormatSupplier createFormatSupplier(IndexMode mode, String mapping) throws IOException {
         return createFormatSupplier(null, false, mode, mapping);
     }
@@ -434,12 +444,16 @@ public class PerFieldMapperCodecTests extends ESTestCase {
         return mode == IndexMode.LOGSDB ? "hostname" : "gauge";
     }
 
-    public void testES95UsedAcrossModesWhenSettingEnabled() throws IOException {
+    public void testES95OnlyUsedForTimeSeriesWhenSettingEnabled() throws IOException {
         assumeTrue("es95_codec feature flag must be enabled", IndexSettings.ES95_CODEC_FEATURE_FLAG.isEnabled());
         for (IndexMode mode : INDEX_MODES_UNDER_TEST) {
             final PerFieldFormatSupplier supplier = createFormatSupplierWithVersion(mode, mappingFor(mode), IndexVersion.current());
             final DocValuesFormat format = supplier.getDocValuesFormatForField(fieldFor(mode));
-            assertThat("mode=" + mode, format, instanceOf(ES95TSDBDocValuesFormat.class));
+            if (mode == IndexMode.TIME_SERIES) {
+                assertThat("mode=" + mode, format, instanceOf(ES95TSDBDocValuesFormat.class));
+            } else {
+                assertFalse("mode=" + mode + " expected non-ES95", format instanceof ES95TSDBDocValuesFormat);
+            }
         }
     }
 
@@ -517,8 +531,8 @@ public class PerFieldMapperCodecTests extends ESTestCase {
         if (useTimeSeriesDocValuesFormat) {
             settings.put(IndexSettings.USE_TIME_SERIES_DOC_VALUES_FORMAT_SETTING.getKey(), true);
         }
-        if (es95Enabled && IndexSettings.ES95_CODEC_FEATURE_FLAG.isEnabled()) {
-            settings.put(IndexSettings.TIME_SERIES_ES95_CODEC_ENABLED_SETTING.getKey(), true);
+        if (IndexSettings.ES95_CODEC_FEATURE_FLAG.isEnabled()) {
+            settings.put(IndexSettings.TIME_SERIES_ES95_CODEC_ENABLED_SETTING.getKey(), es95Enabled);
         }
         final MapperService mapperService = MapperTestUtils.newMapperService(xContentRegistry(), createTempDir(), settings.build(), "test");
         mapperService.merge("type", new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE);

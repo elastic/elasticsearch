@@ -190,6 +190,27 @@ public abstract class AbstractPrometheusRestIT extends ESRestTestCase {
     protected void ingestTestData(String metricName) throws IOException {
         long baseTimestamp = 1767225600000L; // 2026-01-01T00:00:00Z
 
+        RemoteWrite.WriteRequest.Builder writeRequestBuilder = RemoteWrite.WriteRequest.newBuilder();
+        for (int i = 0; i < 5; i++) {
+            writeRequestBuilder.addTimeseries(
+                RemoteWrite.TimeSeries.newBuilder()
+                    .addLabels(label("__name__", metricName))
+                    .addLabels(label("job", "test_job"))
+                    .addLabels(label("instance", "localhost:9090"))
+                    .addSamples(sample(i * 10.0, baseTimestamp + i * 60_000L))
+                    .build()
+            );
+        }
+
+        ingestTestData(writeRequestBuilder.build());
+    }
+
+    /**
+     * Pins the TSDS start_time to 2026-01-01T00:00:00Z, sends the given pre-built remote-write request to
+     * {@code /_prometheus/api/v1/write}, refreshes {@link #DEFAULT_DATA_STREAM}, and asserts zero indexing
+     * failures. Use this when a test needs full control over the time series and samples being ingested.
+     */
+    protected void ingestTestData(RemoteWrite.WriteRequest writeRequestPayload) throws IOException {
         Request putCustomTemplate = new Request("PUT", "/_component_template/metrics-prometheus@custom");
         putCustomTemplate.setJsonEntity("""
             {
@@ -206,22 +227,8 @@ public abstract class AbstractPrometheusRestIT extends ESRestTestCase {
             """);
         client().performRequest(putCustomTemplate);
 
-        RemoteWrite.WriteRequest.Builder writeRequestBuilder = RemoteWrite.WriteRequest.newBuilder();
-        for (int i = 0; i < 5; i++) {
-            writeRequestBuilder.addTimeseries(
-                RemoteWrite.TimeSeries.newBuilder()
-                    .addLabels(label("__name__", metricName))
-                    .addLabels(label("job", "test_job"))
-                    .addLabels(label("instance", "localhost:9090"))
-                    .addSamples(sample(i * 10.0, baseTimestamp + i * 60_000L))
-                    .build()
-            );
-        }
-
         Request writeRequest = new Request("POST", "/_prometheus/api/v1/write");
-        writeRequest.setEntity(
-            new ByteArrayEntity(writeRequestBuilder.build().toByteArray(), ContentType.create("application/x-protobuf"))
-        );
+        writeRequest.setEntity(new ByteArrayEntity(writeRequestPayload.toByteArray(), ContentType.create("application/x-protobuf")));
         addWriteAuth(writeRequest);
         Response writeResponse = client().performRequest(writeRequest);
         assertThat(writeResponse.getStatusLine().getStatusCode(), equalTo(204));

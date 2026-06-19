@@ -321,7 +321,9 @@ public class BlobStoreSyncDirectoryTests extends ESTestCase {
 
             try {
                 syncFuture.get();
-            } catch (Exception ignored) {}
+            } catch (Exception ignored) {
+                fail("we don't expect any exception to be thrown during sync");
+            }
 
             assertThat(uploadedFiles, is(empty()));
         }

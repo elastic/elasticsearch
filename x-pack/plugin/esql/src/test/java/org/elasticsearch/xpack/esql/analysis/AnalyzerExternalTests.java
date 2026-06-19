@@ -152,7 +152,7 @@ public class AnalyzerExternalTests extends ESTestCase {
 
         external().error(
             "EXTERNAL \"" + S3_PATH + "\" | WHERE KQL(\"first_name: foo\")",
-            containsString("function cannot be used after EXTERNAL")
+            containsString("[KQL] function cannot be used after [EXTERNAL \"" + S3_PATH + "\"]")
         );
     }
 
@@ -164,7 +164,7 @@ public class AnalyzerExternalTests extends ESTestCase {
 
         external().error(
             "EXTERNAL \"" + S3_PATH + "\" | WHERE QSTR(\"first_name: foo\")",
-            containsString("function cannot be used after EXTERNAL")
+            containsString("[QSTR] function cannot be used after [EXTERNAL \"" + S3_PATH + "\"]")
         );
     }
 

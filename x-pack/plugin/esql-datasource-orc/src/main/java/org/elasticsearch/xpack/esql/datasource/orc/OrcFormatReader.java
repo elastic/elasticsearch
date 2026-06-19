@@ -997,7 +997,7 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
                     ? intStats.getMinimum()
                     : null;
                 case INT -> sortType.getCategory() == TypeDescription.Category.INT && stats instanceof IntegerColumnStatistics intStats
-                    ? (long) intStats.getMinimum()
+                    ? intStats.getMinimum()
                     : null;
                 case DOUBLE -> stats instanceof DoubleColumnStatistics doubleStats ? rawDouble(doubleStats.getMinimum()) : null;
                 case BOOLEAN -> stats instanceof BooleanColumnStatistics booleanStats ? (booleanStats.getFalseCount() > 0 ? 0L : 1L) : null;
@@ -1011,7 +1011,7 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
                     ? intStats.getMaximum()
                     : null;
                 case INT -> sortType.getCategory() == TypeDescription.Category.INT && stats instanceof IntegerColumnStatistics intStats
-                    ? (long) intStats.getMaximum()
+                    ? intStats.getMaximum()
                     : null;
                 case DOUBLE -> stats instanceof DoubleColumnStatistics doubleStats ? rawDouble(doubleStats.getMaximum()) : null;
                 case BOOLEAN -> stats instanceof BooleanColumnStatistics booleanStats ? (booleanStats.getTrueCount() > 0 ? 1L : 0L) : null;

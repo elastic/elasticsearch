@@ -311,7 +311,7 @@ public final class StreamingParallelParsingCoordinator {
             this.executor = executor;
 
             @SuppressWarnings("unchecked")
-            ArrayBlockingQueue<Page>[] queues = new ArrayBlockingQueue[pageQueueRingSize];
+            ArrayBlockingQueue<Page>[] queues = (ArrayBlockingQueue<Page>[]) new ArrayBlockingQueue<?>[pageQueueRingSize];
             this.pageQueues = queues;
             for (int i = 0; i < pageQueueRingSize; i++) {
                 pageQueues[i] = new ArrayBlockingQueue<>(16);
@@ -946,10 +946,7 @@ public final class StreamingParallelParsingCoordinator {
         private void checkError() {
             Throwable t = firstError.get();
             if (t != null) {
-                if (t instanceof RuntimeException re) {
-                    throw re;
-                }
-                throw new RuntimeException("Streaming parallel parsing failed", t);
+                throw ExternalFailures.surface(t, "Streaming parallel parsing failed");
             }
         }
 

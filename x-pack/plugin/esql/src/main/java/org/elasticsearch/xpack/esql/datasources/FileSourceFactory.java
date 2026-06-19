@@ -61,6 +61,16 @@ final class FileSourceFactory implements ExternalSourceFactory {
      */
     static final Set<String> COORDINATOR_KEYS;
 
+    /**
+     * Coordinator keys deliberately NOT exposed as dataset settings: the {@link #CONFIG_FORMAT} and
+     * {@link FormatNameResolver#CONFIG_READER} overrides remain EXTERNAL-only development knobs (a
+     * dataset implies its format from the registered resource's extension). Pinned against
+     * {@link #COORDINATOR_KEYS} and the dataset key set by {@code FileSourceFactoryValidationTests}
+     * so neither can drift: any new coordinator key must either be added to the dataset vocabulary or
+     * explicitly listed here.
+     */
+    static final Set<String> EXTERNAL_ONLY_KEYS = Set.of(CONFIG_FORMAT, FormatNameResolver.CONFIG_READER);
+
     static {
         Set<String> keys = new HashSet<>();
         keys.add(CONFIG_FORMAT);

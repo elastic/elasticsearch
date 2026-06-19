@@ -64,6 +64,7 @@ public class ConfidenceInterval extends EsqlScalarFunction {
 
     @FunctionInfo(
         returnType = { "double", },
+        briefSummary = "Computes a confidence interval and its reliability from bootstrap estimates.",
         description = "Computes the confidence interval and its reliability for the given best estimate and bootstrap estimates. The "
             + "output usually is an array with three values: lower bound, upper bound, and the fraction of trials that give a reliable "
             + "interval. If no sensible interval is found, the function returns null instead. "

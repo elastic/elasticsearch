@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.planner;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.Build;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -161,6 +160,7 @@ import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.FuseScoreEvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.GrokExec;
 import org.elasticsearch.xpack.esql.plan.physical.HashJoinExec;
+import org.elasticsearch.xpack.esql.plan.physical.HighlightExec;
 import org.elasticsearch.xpack.esql.plan.physical.LimitByExec;
 import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
 import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
@@ -186,6 +186,7 @@ import org.elasticsearch.xpack.esql.plan.physical.UserAgentExec;
 import org.elasticsearch.xpack.esql.plan.physical.inference.CompletionExec;
 import org.elasticsearch.xpack.esql.plan.physical.inference.RerankExec;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders.ShardContext;
+import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.score.ScoreMapper;
 import org.elasticsearch.xpack.esql.session.Configuration;
@@ -359,6 +360,8 @@ public class LocalExecutionPlanner {
             return planMvExpand(mvExpand, context);
         } else if (node instanceof TimeSeriesCollapseExec tsCollapse) {
             return planTimeSeriesCollapse(tsCollapse, context);
+        } else if (node instanceof HighlightExec) {
+            throw new UnsupportedOperationException("HIGHLIGHT is not implemented yet");
         } else if (node instanceof RerankExec rerank) {
             return planRerank(rerank, context);
         } else if (node instanceof ChangePointExec changePoint) {
@@ -1290,17 +1293,16 @@ public class LocalExecutionPlanner {
     private static final TransportVersion ESQL_LOOKUP_PLANNING = TransportVersion.fromName("esql_lookup_planning");
 
     /**
-     * Determines whether streaming lookup should be used based on the target node's transport version.
+     * Determines whether streaming lookup should be used based on the {@link EsqlPlugin#LOOKUP_JOIN_STREAMING}
+     * setting and the target nodes' transport versions.
      * Streaming lookup requires all target nodes to support the streaming protocol.
-     * Currently only enabled in snapshot builds.
      */
     private boolean shouldUseStreamingOperator(LookupFromIndexService service, String indexName) {
-        // Streaming lookup is only enabled in snapshot builds
-        if (Build.current().isSnapshot() == false) {
-            return false;
-        }
-
         try {
+            if (service.getClusterService().getClusterSettings().get(EsqlPlugin.LOOKUP_JOIN_STREAMING) == false) {
+                return false;
+            }
+
             ClusterState clusterState = service.getClusterService().state();
 
             // Resolve target nodes for the lookup index

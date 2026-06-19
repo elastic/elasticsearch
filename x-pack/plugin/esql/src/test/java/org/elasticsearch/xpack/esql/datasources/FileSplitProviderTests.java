@@ -714,7 +714,7 @@ public class FileSplitProviderTests extends ESTestCase {
 
         // Read each split range with recordAligned=true and count total rows.
         var meta = csvReader.metadata(obj);
-        var withSchema = (CsvFormatReader) csvReader.withSchema(meta.schema());
+        var withSchema = csvReader.withSchema(meta.schema());
         long totalRows = 0;
         for (int i = 0; i < starts.size(); i++) {
             long start = starts.get(i);

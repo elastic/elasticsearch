@@ -1167,10 +1167,24 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
         if (predicateColumnPaths != null) {
             counters.addPredicateColumns(predicateColumnPaths);
         }
+
+        // Gate ColumnIndex/OffsetIndex prefetch to the columns a plan actually consumes (see
+        // computeIndexColumnPaths). A full scan with no filter and no threshold consumes none of
+        // them, so this emits zero index ranges.
+        IndexColumnPaths indexColumnPaths = computeIndexColumnPaths(
+            FilterCompat.isFilteringRequired(recordFilter),
+            filterPredicate != null,
+            predicateColumnPaths,
+            dynamicThreshold != null ? dynamicThreshold.columnName() : null,
+            projectedSchema
+        );
+
         PreloadedRowGroupMetadata preloadedMetadata = PreloadedRowGroupMetadata.preload(
             reader,
             storageObject,
             predicateColumnPaths,
+            indexColumnPaths.columnIndexPaths(),
+            indexColumnPaths.offsetIndexPaths(),
             blockFactory.arrowAllocator()
         );
         boolean metadataHandedOff = false;
@@ -1283,6 +1297,47 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                 preloadedMetadata.close();
             }
         }
+    }
+
+    /**
+     * The dot-string column paths whose ColumnIndex / OffsetIndex should be prefetched. A
+     * {@code null} set means "unrestricted" — fetch the index for every column (legacy behavior).
+     */
+    record IndexColumnPaths(Set<String> columnIndexPaths, Set<String> offsetIndexPaths) {}
+
+    /**
+     * Restricts page-index prefetch to the columns a plan actually consumes, so a full scan does not
+     * pay for ColumnIndex/OffsetIndex bytes nothing reads. Index ranges are only used when a Parquet
+     * {@link FilterPredicate} drives {@code RowRanges} ({@code pageRangeFilterActive}) or for the
+     * dynamic-threshold sort column. Returns {@code null} sets (unrestricted, legacy behavior) when a
+     * filter is active but its predicate columns can't be enumerated ({@code predicateColumnPaths == null}).
+     */
+    static IndexColumnPaths computeIndexColumnPaths(
+        boolean filteringRequired,
+        boolean pageRangeFilterActive,
+        Set<String> predicateColumnPaths,
+        String thresholdColumn,
+        MessageType projectedSchema
+    ) {
+        if (filteringRequired && predicateColumnPaths == null) {
+            return new IndexColumnPaths(null, null);
+        }
+        Set<String> columnIndexPaths = new HashSet<>();
+        Set<String> offsetIndexPaths = new HashSet<>();
+        if (pageRangeFilterActive && predicateColumnPaths != null) {
+            columnIndexPaths.addAll(predicateColumnPaths);
+            offsetIndexPaths.addAll(predicateColumnPaths);
+        }
+        if (thresholdColumn != null) {
+            columnIndexPaths.add(thresholdColumn);
+            offsetIndexPaths.add(thresholdColumn);
+        }
+        if (pageRangeFilterActive) {
+            for (ColumnDescriptor descriptor : projectedSchema.getColumns()) {
+                offsetIndexPaths.add(String.join(".", descriptor.getPath()));
+            }
+        }
+        return new IndexColumnPaths(columnIndexPaths, offsetIndexPaths);
     }
 
     private static ColumnDescriptor resolveDynamicThresholdColumn(MessageType schema, DynamicThreshold dynamicThreshold) {

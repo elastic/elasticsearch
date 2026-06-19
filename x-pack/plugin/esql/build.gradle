@@ -100,6 +100,10 @@ dependencies {
   internalClusterTestImplementation project(xpackModule('mapper-aggregate-metric'))
   internalClusterTestImplementation project(path: xpackModule('esql-datasource-csv'))
   internalClusterTestImplementation project(path: xpackModule('esql-datasource-ndjson'))
+  internalClusterTestImplementation project(path: xpackModule('esql-datasource-s3'))
+  internalClusterTestImplementation project(path: xpackModule('esql-datasource-netty-commons'))
+  internalClusterTestImplementation project(':test:fixtures:s3-fixture')
+  internalClusterTestImplementation project(':test:fixtures:aws-fixture-utils')
   internalClusterTestImplementation project(path: xpackModule('esql-datasource-compression-libs'))
   internalClusterTestImplementation project(path: xpackModule('esql-datasource-bzip2'))
   internalClusterTestImplementation project(path: xpackModule('esql-datasource-gzip'))
@@ -115,6 +119,10 @@ dependencies {
   // JarHell check aborts boot. There is no Gradle exclusion that strips a class from inside a
   // module's own jar, so the ORC reader cannot share this classpath; ORC is therefore omitted
   // from AbstractExternalMetadataMatrixIT's per-format subclasses.
+}
+
+tasks.named('compileInternalClusterTestJava').configure {
+  options.compilerArgs << '-Xlint:-classfile'
 }
 
 tasks.named('splitPackagesAudit').configure {

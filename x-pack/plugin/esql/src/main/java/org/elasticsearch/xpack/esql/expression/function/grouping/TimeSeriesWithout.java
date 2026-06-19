@@ -10,12 +10,11 @@ package org.elasticsearch.xpack.esql.expression.function.grouping;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
-import org.elasticsearch.xpack.esql.core.expression.NameId;
+import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -31,13 +30,13 @@ import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
 import java.io.IOException;
-import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Set;
 
 /**
- * Grouping function that keeps time-series grouping generic while excluding the specified dimensions.
- * An empty field list means "group by all dimensions".
+ * Groups by all dimensions except the specified ones.
+ * <p>
+ * This function is implemented in block loader and translated to {@code _timeseries} field attribute by
+ * {@link org.elasticsearch.xpack.esql.optimizer.rules.logical.TranslateTimeSeriesWithout}.
  */
 public class TimeSeriesWithout extends GroupingFunction.NonEvaluatableGroupingFunction implements OptionalArgument {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
@@ -52,6 +51,7 @@ public class TimeSeriesWithout extends GroupingFunction.NonEvaluatableGroupingFu
 
     @FunctionInfo(
         returnType = "keyword",
+        briefSummary = "Groups by all time-series dimensions except the specified ones.",
         description = "Groups by all time-series dimensions except the specified ones. "
             + "When called with no arguments, groups by all dimensions.",
         detailedDescription = """
@@ -112,22 +112,16 @@ public class TimeSeriesWithout extends GroupingFunction.NonEvaluatableGroupingFu
         super(source, fields);
     }
 
+    public TimeSeriesWithout(Source source) {
+        this(source, List.of());
+    }
+
     private TimeSeriesWithout(StreamInput in) throws IOException {
         this(Source.readFrom((PlanStreamInput) in), in.readNamedWriteableCollectionAsList(Expression.class));
     }
 
-    /**
-     * Returns the canonical grouping expression for the {@code _timeseries} metadata column.
-     */
-    public Alias toAttribute() {
-        return toAttribute(null);
-    }
-
-    /**
-     * Returns the canonical grouping expression for the {@code _timeseries} metadata column.
-     */
-    public Alias toAttribute(@Nullable NameId id) {
-        return new Alias(source(), MetadataAttribute.TIMESERIES, this, id);
+    public NamedExpression createNamedExpression() {
+        return new Alias(source(), MetadataAttribute.TIMESERIES, this);
     }
 
     @Override
@@ -163,35 +157,20 @@ public class TimeSeriesWithout extends GroupingFunction.NonEvaluatableGroupingFu
 
     @Override
     protected TypeResolution resolveType() {
+        // Excluded labels are matched by name, so any label reference is acceptable - including labels that are not
+        // (or not yet known to be) dimensions. Excluding a label that is absent from a series is simply a no-op.
         for (Expression field : children()) {
-            if (field instanceof FieldAttribute fa) {
-                if (fa.isDimension() == false) {
-                    return new TypeResolution("WITHOUT requires dimension fields, but [" + fa.sourceText() + "] is not a dimension");
-                }
-            } else {
+            if (field instanceof Attribute == false) {
                 return new TypeResolution(
-                    "WITHOUT requires dimension field names, got [" + field.sourceText() + "] of type [" + field.dataType().typeName() + "]"
+                    ENTRY.name + " requires label names, got [" + field.sourceText() + "] of type [" + field.dataType().typeName() + "]"
                 );
             }
         }
         return TypeResolution.TYPE_RESOLVED;
     }
 
-    /**
-     * Returns the set of field names to exclude from the time-series grouping.
-     */
-    public Set<String> excludedFieldNames() {
-        Set<String> excluded = new LinkedHashSet<>();
-        for (Expression field : children()) {
-            if (field instanceof FieldAttribute fa) {
-                excluded.add(fa.fieldName().string());
-            }
-        }
-        return excluded;
-    }
-
     @Override
     public String toString() {
-        return "TimeSeriesWithout{fields=" + children() + "}";
+        return ENTRY.name + "{fields=" + children() + "}";
     }
 }

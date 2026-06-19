@@ -24,6 +24,7 @@ import java.io.IOException;
 import java.time.Instant;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -164,5 +165,46 @@ public class S3AnonymousAccessTests extends ESTestCase {
      */
     public void testConfigurationAnonymousModeConflictsWithCredentials() {
         expectThrows(org.elasticsearch.common.ValidationException.class, () -> S3Configuration.fromFields("ak", "sk", null, null, "none"));
+    }
+
+    /**
+     * auth=workload_identity delegates to {@code buildWorkloadIdentityCredentialsProvider()}, which
+     * by default returns an {@code AwsCredentialsProviderChain}. Tests may subclass and override
+     * that method to inject a static provider — the same seam used by GcsStorageProvider.
+     */
+    public void testWorkloadIdentityCredentialsProviderType() {
+        S3Configuration config = S3Configuration.fromFields(null, null, null, "us-east-1", "workload_identity");
+        assertNotNull(config);
+        assertTrue(config.isWorkloadIdentity());
+        var provider = S3StorageProvider.forTesting(null, null).credentialsProvider(config);
+        assertThat(provider, instanceOf(software.amazon.awssdk.auth.credentials.AwsCredentialsProviderChain.class));
+    }
+
+    /**
+     * Verifies that overriding {@code buildWorkloadIdentityCredentialsProvider()} allows injecting
+     * a test credential — the unit-test seam for wrong-credential counter-proofs.
+     */
+    public void testWorkloadIdentityCredentialOverrideSeam() {
+        S3Configuration config = S3Configuration.fromFields(null, null, null, "us-east-1", "workload_identity");
+        var injected = software.amazon.awssdk.auth.credentials.StaticCredentialsProvider.create(
+            software.amazon.awssdk.auth.credentials.AwsBasicCredentials.create("test-key", "test-secret")
+        );
+        var provider = new S3StorageProvider(null, null, null) {
+            @Override
+            protected software.amazon.awssdk.auth.credentials.AwsCredentialsProvider buildWorkloadIdentityCredentialsProvider() {
+                return injected;
+            }
+        }.credentialsProvider(config);
+        assertSame("credentialsProvider() must delegate to buildWorkloadIdentityCredentialsProvider()", injected, provider);
+    }
+
+    /**
+     * auth=workload_identity is mutually exclusive with explicit credentials.
+     */
+    public void testWorkloadIdentityModeConflictsWithCredentials() {
+        expectThrows(
+            org.elasticsearch.common.ValidationException.class,
+            () -> S3Configuration.fromFields("ak", "sk", null, null, "workload_identity")
+        );
     }
 }

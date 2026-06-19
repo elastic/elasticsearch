@@ -2959,10 +2959,14 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             // lists a virtual column either. This is why we key off the Keep node identity rather
             // than the namespace of the column name.
             Set<String> explicitlyKept = explicitlyKeptVirtualNames(plan);
-            // The name fallback below only makes sense when the plan reads an external dataset; on a
-            // plan made of regular indices, an attribute named _file.path is a real mapped field and
-            // stripping it would be silent data loss.
-            boolean hasExternalRelation = plan.anyMatch(ExternalRelation.class::isInstance);
+            // External metadata is hidden from default output (and surfaced via KEEP) ONLY for the
+            // EXTERNAL command. Its shim auto-injects the whole _file.* family because EXTERNAL has
+            // no METADATA grammar to be selective, so KEEP is how the user picks what surfaces. On
+            // the FROM <dataset> path the user names metadata explicitly in a METADATA clause, so it
+            // must surface unconditionally — KEEP there is ordinary projection, not a metadata gate.
+            // The two are distinguishable on the relation: a FROM <dataset> leaf carries a
+            // datasetName; the EXTERNAL shim's leaf does not.
+            boolean hasExternalCommandRelation = plan.anyMatch(p -> p instanceof ExternalRelation er && er.datasetName() == null);
             List<Attribute> output = plan.output();
             List<Attribute> newOutput = new ArrayList<>(output.size());
             for (Attribute attr : output) {
@@ -2970,23 +2974,17 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 if (attr.synthetic() && attr != NO_FIELDS.getFirst()) {
                     continue;
                 }
-                // Strip by type OR by well-known virtual name. The name fallback is a defense layer:
-                // downstream rules — notably FORK's output re-derivation through
-                // toReferenceAttributesPreservingIds — can drop the VirtualAttribute marker. The fallback
-                // is namespaced to the _file.* family and gated on the plan actually containing an
-                // ExternalRelation: it is the only virtual-attribute namespace whose names are
-                // guaranteed not to collide with real metadata attributes on external relations
-                // (_index, _version etc. on a non-external relation are real MetadataAttributes, not
-                // virtual). KEEP-provenance still overrides — naming a virtual column in KEEP _file.path
-                // resurfaces it.
-                // TODO: identify which downstream rule drops the marker and fix it at the source, then
-                // remove the name fallback.
-                boolean isVirtualByType = attr instanceof VirtualAttribute;
-                boolean isVirtualByName = isVirtualByType == false
-                    && hasExternalRelation
-                    && FileMetadataColumns.NAMES.contains(attr.name());
-                if ((isVirtualByType || isVirtualByName) && explicitlyKept.contains(attr.name()) == false) {
-                    continue;
+                // EXTERNAL command only: hide its shim-injected metadata from default output unless
+                // KEEP'd. Strip by VirtualAttribute type OR by well-known _file.* name (a defense
+                // layer: downstream rules — notably FORK's output re-derivation through
+                // toReferenceAttributesPreservingIds — can drop the VirtualAttribute marker). On the
+                // FROM path nothing is stripped: every metadata column there was explicitly named in
+                // METADATA and must reach the output.
+                if (hasExternalCommandRelation) {
+                    boolean isVirtual = attr instanceof VirtualAttribute || FileMetadataColumns.NAMES.contains(attr.name());
+                    if (isVirtual && explicitlyKept.contains(attr.name()) == false) {
+                        continue;
+                    }
                 }
                 newOutput.add(attr);
             }

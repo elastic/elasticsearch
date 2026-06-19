@@ -39,8 +39,11 @@ import java.util.Set;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.notNullValue;
 
 /**
  * End-to-end integration for subqueries in the FROM clause whose source is a registered dataset
@@ -564,6 +567,23 @@ public class FromDatasetSubqueryIT extends AbstractEsqlIntegTestCase {
             List<List<Object>> rows = getValuesList(response);
             assertThat(rows, hasSize(1));
             assertThat(rows.get(0).get(0).toString(), equalTo("employees"));
+        }
+    }
+
+    public void testFileMetadataOnDatasetInSubquery() {
+        registerEmployees();
+
+        // KEEP is irrelevant to metadata presence on the FROM path: METADATA _file.path must surface
+        // _file.path in the output with NO explicit KEEP, inside a subquery too.
+        try (var response = run(syncEsqlQueryRequest("FROM (FROM employees METADATA _file.path) | LIMIT 1"), TIMEOUT)) {
+            List<? extends ColumnInfo> columns = response.columns();
+            List<String> names = columns.stream().map(ColumnInfo::name).toList();
+            assertThat("_file.path must surface without an explicit KEEP, got " + names, names, hasItem("_file.path"));
+
+            int idx = names.indexOf("_file.path");
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows.get(0).get(idx), notNullValue());
+            assertThat(rows.get(0).get(idx).toString(), containsString(".csv"));
         }
     }
 

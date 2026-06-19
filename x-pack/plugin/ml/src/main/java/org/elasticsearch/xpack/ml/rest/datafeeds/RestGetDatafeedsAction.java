@@ -9,13 +9,10 @@ package org.elasticsearch.xpack.ml.rest.datafeeds;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.RestResponse;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
-import org.elasticsearch.rest.action.RestBuilderListener;
 import org.elasticsearch.rest.action.RestCancellableNodeClient;
-import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.ml.action.GetDatafeedsAction;
 import org.elasticsearch.xpack.core.ml.action.GetDatafeedsAction.Request;
 import org.elasticsearch.xpack.core.ml.action.GetDatafeedsStatsAction;
@@ -55,13 +52,7 @@ public class RestGetDatafeedsAction extends BaseRestHandler {
         return channel -> new RestCancellableNodeClient(client, restRequest.getHttpChannel()).execute(
             GetDatafeedsAction.INSTANCE,
             request,
-            new RestBuilderListener<>(channel) {
-                @Override
-                public RestResponse buildResponse(GetDatafeedsAction.Response response, XContentBuilder builder) throws Exception {
-                    response.toXContent(builder, restRequest);
-                    return new RestResponse(RestStatus.OK, builder);
-                }
-            }
+            new RestToXContentListener<>(channel)
         );
     }
 

@@ -11,6 +11,7 @@ import com.carrotsearch.randomizedtesting.annotations.Listeners;
 
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.compute.operator.PlanTimeProfile;
@@ -18,6 +19,7 @@ import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.search.internal.AliasFilter;
@@ -40,6 +42,8 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
+import org.elasticsearch.xpack.esql.datasources.DatasetRewriter;
+import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolution;
 import org.elasticsearch.xpack.esql.enrich.LookupFromIndexService;
 import org.elasticsearch.xpack.esql.enrich.MatchConfig;
 import org.elasticsearch.xpack.esql.index.EsIndex;
@@ -158,7 +162,20 @@ public abstract class GoldenTestCase extends ESTestCase {
         String... nestedPath
     ) {
         String testName = RANDOMIZED_RUNNER_SEED_SUFFIX_AT_END.matcher(getTestName()).replaceFirst("");
-        new Test(baseFile, testName, nestedPath, esqlQuery, stages, searchStats, transportVersion, null, null, Map.of()).doTest();
+        new Test(
+            baseFile,
+            testName,
+            nestedPath,
+            esqlQuery,
+            stages,
+            searchStats,
+            transportVersion,
+            null,
+            null,
+            null,
+            ExternalSourceResolution.EMPTY,
+            Map.of()
+        ).doTest();
     }
 
     protected TestBuilder builder(String esqlQuery) {
@@ -173,6 +190,8 @@ public abstract class GoldenTestCase extends ESTestCase {
         private TransportVersion transportVersion;
         private Function<LogicalOptimizerContext, LogicalPlanOptimizer> optimizerFactory;
         private AliasFilter aliasFilter;
+        private ProjectMetadata datasetMetadata;
+        private ExternalSourceResolution externalSourceResolution = ExternalSourceResolution.EMPTY;
         private Map<String, String> views = Map.of();
 
         private TestBuilder(
@@ -245,6 +264,26 @@ public abstract class GoldenTestCase extends ESTestCase {
             return aliasFilter;
         }
 
+        /**
+         * Registers external datasets (a {@link ProjectMetadata} carrying the data-source / dataset definitions) so that
+         * {@code FROM <dataset>} references in the query are rewritten into external relations by {@link DatasetRewriter}, mirroring
+         * {@code EsqlSession}. Must be paired with {@link #externalSourceResolution} so the analyzer can resolve those relations' schemas.
+         */
+        public TestBuilder datasetMetadata(ProjectMetadata datasetMetadata) {
+            this.datasetMetadata = datasetMetadata;
+            return this;
+        }
+
+        /** Pre-resolved schemas for the external datasets registered via {@link #datasetMetadata}. */
+        public TestBuilder externalSourceResolution(ExternalSourceResolution externalSourceResolution) {
+            this.externalSourceResolution = externalSourceResolution;
+            return this;
+        }
+
+        public ExternalSourceResolution externalSourceResolution() {
+            return externalSourceResolution;
+        }
+
         public TestBuilder views(Map<String, String> views) {
             this.views = views;
             return this;
@@ -252,8 +291,20 @@ public abstract class GoldenTestCase extends ESTestCase {
 
         public void run() {
             String testName = RANDOMIZED_RUNNER_SEED_SUFFIX_AT_END.matcher(getTestName()).replaceFirst("");
-            new Test(baseFile, testName, nestedPath, esqlQuery, stages, searchStats, transportVersion, optimizerFactory, aliasFilter, views)
-                .doTest();
+            new Test(
+                baseFile,
+                testName,
+                nestedPath,
+                esqlQuery,
+                stages,
+                searchStats,
+                transportVersion,
+                optimizerFactory,
+                aliasFilter,
+                datasetMetadata,
+                externalSourceResolution,
+                views
+            ).doTest();
         }
 
         public Optional<Throwable> tryRun() {
@@ -276,6 +327,8 @@ public abstract class GoldenTestCase extends ESTestCase {
         TransportVersion transportVersion,
         Function<LogicalOptimizerContext, LogicalPlanOptimizer> optimizerFactory,
         AliasFilter aliasFilter,
+        ProjectMetadata datasetMetadata,
+        ExternalSourceResolution externalSourceResolution,
         Map<String, String> views
     ) {
 
@@ -305,6 +358,10 @@ public abstract class GoldenTestCase extends ESTestCase {
                 views.forEach(viewAnalyzer::addView);
                 parsedPlan = viewAnalyzer.resolveViewsAndInSubqueries(statement.plan());
             }
+            // Then turn FROM <dataset> targets into UnresolvedExternalRelation, exactly as EsqlSession does. A
+            // null datasetMetadata (the default) makes this a no-op, so plain golden tests are unaffected; when a
+            // test registers datasets, external relations are excluded from CSV index discovery below.
+            parsedPlan = DatasetRewriter.rewrite(parsedPlan, datasetMetadata, TestIndexNameExpressionResolver.newInstance());
             String[] queryPathParts = new String[nestedPath.length + 2];
             queryPathParts[0] = testName;
             System.arraycopy(nestedPath, 0, queryPathParts, 1, nestedPath.length);
@@ -318,6 +375,7 @@ public abstract class GoldenTestCase extends ESTestCase {
                 .addAnalysisTestsEnrichResolution()
                 .addAnalysisTestsInferenceResolution()
                 .minimumTransportVersion(transportVersion)
+                .externalSourceResolution(externalSourceResolution)
                 .unmappedResolution(unmappedResolution);
             boolean trackUnmappedFieldIndices = unmappedResolution == UnmappedResolution.LOAD
                 || parsedPlan.anyMatch(p -> p instanceof Insist);

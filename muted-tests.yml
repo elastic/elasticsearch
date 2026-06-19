@@ -248,9 +248,6 @@ tests:
 - class: org.elasticsearch.cluster.routing.allocation.decider.WriteLoadConstraintDeciderIT
   method: testMaxQueueLatencyMetricIsPublished
   issue: https://github.com/elastic/elasticsearch/issues/146283
-- class: org.elasticsearch.reindex.ReindexBasicTests
-  method: testReindexFailsWhenSourceIndexIsClosed
-  issue: https://github.com/elastic/elasticsearch/issues/151024
 - class: org.elasticsearch.index.codec.tsdb.TSDBSyntheticIdPostingsFormatTests
   method: testSeek
   issue: https://github.com/elastic/elasticsearch/issues/150912

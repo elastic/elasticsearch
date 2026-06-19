@@ -37,6 +37,7 @@ import org.elasticsearch.xpack.esql.session.EsqlCCSUtils;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -157,12 +158,11 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
     private void updateExecutionInfo(EsqlExecutionInfo executionInfo, String clusterAlias, ComputeResponse resp) {
         executionInfo.swapCluster(clusterAlias, (k, v) -> {
             var builder = new EsqlExecutionInfo.Cluster.Builder(v);
-            if (executionInfo.isMainPlan()) {
-                builder.setTotalShards(resp.getTotalShards())
-                    .setSuccessfulShards(resp.getSuccessfulShards())
-                    .setSkippedShards(resp.getSkippedShards())
-                    .setFailedShards(resp.getFailedShards());
-            }
+            // Accumulate shard counts across all executions (sub-plans and main plan), mirroring how took is accumulated.
+            builder.setTotalShards(Objects.requireNonNullElse(v.getTotalShards(), 0) + resp.getTotalShards())
+                .setSuccessfulShards(Objects.requireNonNullElse(v.getSuccessfulShards(), 0) + resp.getSuccessfulShards())
+                .setSkippedShards(Objects.requireNonNullElse(v.getSkippedShards(), 0) + resp.getSkippedShards())
+                .setFailedShards(Objects.requireNonNullElse(v.getFailedShards(), 0) + resp.getFailedShards());
             if (v.getTook() != null && resp.getTook() != null) {
                 // This can happen when we had some subplan executions before the main plan - we need to accumulate the took time
                 builder.setTook(TimeValue.timeValueNanos(v.getTook().nanos() + resp.getTook().nanos()));

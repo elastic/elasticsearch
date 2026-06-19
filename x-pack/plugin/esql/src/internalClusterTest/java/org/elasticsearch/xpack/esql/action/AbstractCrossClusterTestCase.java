@@ -394,6 +394,40 @@ public abstract class AbstractCrossClusterTestCase extends AbstractMultiClusters
         }
     }
 
+    /**
+     * Extends {@link #assertCCSExecutionInfoDetails} with exact shard-level checks for each remote
+     * cluster. {@code expectedTotalShardsPerCluster} must list every remote cluster that appears in
+     * execution info and vice-versa; mismatches (unexpected cluster, missing cluster, wrong count)
+     * all cause assertion failures. Counts accumulate across sub-plan and main-plan executions on
+     * the same cluster.
+     */
+    protected static void assertCCSExecutionInfoDetailsWithShards(
+        EsqlExecutionInfo executionInfo,
+        Map<String, Integer> expectedTotalShardsPerCluster
+    ) {
+        assertCCSExecutionInfoDetails(executionInfo);
+        for (String clusterAlias : executionInfo.clusterAliases()) {
+            if (RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY.equals(clusterAlias)) {
+                continue;
+            }
+            Integer expected = expectedTotalShardsPerCluster.get(clusterAlias);
+            assertNotNull("unexpected remote cluster [" + clusterAlias + "] found in execution info", expected);
+            EsqlExecutionInfo.Cluster cluster = executionInfo.getCluster(clusterAlias);
+            assertThat("remote cluster [" + clusterAlias + "] total shards", cluster.getTotalShards(), equalTo(expected));
+            assertThat(
+                "remote cluster [" + clusterAlias + "] all shards should have succeeded",
+                cluster.getSuccessfulShards(),
+                equalTo(expected)
+            );
+        }
+        for (String clusterAlias : expectedTotalShardsPerCluster.keySet()) {
+            assertNotNull(
+                "expected remote cluster [" + clusterAlias + "] is missing from execution info",
+                executionInfo.getCluster(clusterAlias)
+            );
+        }
+    }
+
     protected void setupAlias(String clusterAlias, String indexName, String aliasName) {
         Client client = client(clusterAlias);
         IndicesAliasesRequestBuilder indicesAliasesRequestBuilder = client.admin()

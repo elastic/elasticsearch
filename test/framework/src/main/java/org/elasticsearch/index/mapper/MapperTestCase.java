@@ -557,7 +557,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
     }
 
     public void testDisableDefaultIndex() throws IOException {
-        assumeTrue("feature under test must be enabled", IndexSettings.INDEX_DISABLED_BY_DEFAULT_FEATURE_FLAG.isEnabled());
+        assumeTrue("feature under test must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
 
         ParameterChecker checker = new ParameterChecker();
         registerParameters(checker);

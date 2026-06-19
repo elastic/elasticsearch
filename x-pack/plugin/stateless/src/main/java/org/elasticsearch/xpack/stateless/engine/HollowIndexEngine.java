@@ -143,10 +143,11 @@ public class HollowIndexEngine extends Engine {
      * This is used by internal functions of the Engine that are not supported by the hollow engine, e.g., getReferenceManager, to
      * return an exception that qualifies for the
      * {@link org.elasticsearch.action.support.TransportActions#isShardNotAvailableException(java.lang.Throwable)} function.
-     *
+     * <p>
      * Some operations that may unhollow (e.g., force merge, pre-update) via
-     * {@link HollowShardsService#beforeMutableOperation(IndexShard, boolean, ActionListener)} ultimately can still race with hollowing
-     * as they do not prevent a shard from being relocated. So they may end up calling these unsupported functions on a hollow engine,
+     * {@link HollowShardsService#beforeMutableOperation(IndexShard, boolean, java.util.concurrent.Executor, ActionListener)}
+     * ultimately can still race with hollowing as they do not prevent a shard from being relocated. So they may end up calling
+     * these unsupported functions on a hollow engine,
      * similarly to how they may end up calling the functions on a closed/relocated shard. They handle such eventualities by handling
      * qualifying exceptions specially, e.g., by ignoring them (in the case of force merge) or retrying (in the case of pre-update).
      */

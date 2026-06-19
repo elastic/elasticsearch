@@ -11,7 +11,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.blobcache.BlobCacheMetrics;
 import org.elasticsearch.blobcache.common.ByteRange;
-import org.elasticsearch.blobcache.shared.EvictionPolicy;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
@@ -53,9 +52,7 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
     public static final Setting<StatelessCacheEvictionPolicyType> STATELESS_CACHE_BOOST_PREFERENCE_EVICTION_POLICY_SETTING = Setting
         .enumSetting(
             StatelessCacheEvictionPolicyType.class,
-            settings -> DiscoveryNode.hasRole(settings, DiscoveryNodeRole.SEARCH_ROLE)
-                ? StatelessCacheEvictionPolicyType.PINNED_WINDOW.name()
-                : StatelessCacheEvictionPolicyType.ALWAYS.name(),
+            settings -> StatelessCacheEvictionPolicyType.resolveEvictionPolicyFromSettings(settings).name(),
             "stateless.cache_boost_preference.eviction_policy",
             s -> {},
             Setting.Property.NodeScope
@@ -78,7 +75,14 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
         ClusterService clusterService,
         PluggableDirectoryMetricsHolder<BlobStoreCacheDirectoryMetrics> metricsHolder
     ) {
-        super(environment, settings, threadPool, IO_EXECUTOR, blobCacheMetrics, createEvictionPolicy(settings, clusterService));
+        super(
+            environment,
+            settings,
+            threadPool,
+            IO_EXECUTOR,
+            blobCacheMetrics,
+            StatelessCacheEvictionPolicyType.createEvictionPolicy(settings, clusterService)
+        );
         this.shardReadThreadPoolExecutor = threadPool.executor(StatelessPlugin.SHARD_READ_THREAD_POOL);
         this.metricsHolder = metricsHolder;
         this.hasSearchRole = DiscoveryNode.hasRole(settings, DiscoveryNodeRole.SEARCH_ROLE);
@@ -101,15 +105,11 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
             IO_EXECUTOR,
             blobCacheMetrics,
             relativeTimeInNanosSupplier,
-            createEvictionPolicy(settings, clusterService)
+            StatelessCacheEvictionPolicyType.createEvictionPolicy(settings, clusterService)
         );
         this.shardReadThreadPoolExecutor = IO_EXECUTOR;
         this.metricsHolder = metricsHolder;
         this.hasSearchRole = DiscoveryNode.hasRole(settings, DiscoveryNodeRole.SEARCH_ROLE);
-    }
-
-    static EvictionPolicy<FileCacheKey> createEvictionPolicy(Settings settings, ClusterService clusterService) {
-        return StatelessCacheEvictionPolicyType.fromSettings(settings).create(clusterService);
     }
 
     /**

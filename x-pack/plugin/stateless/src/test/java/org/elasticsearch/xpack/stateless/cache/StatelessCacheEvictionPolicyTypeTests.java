@@ -38,7 +38,7 @@ public class StatelessCacheEvictionPolicyTypeTests extends ESTestCase {
                 StatelessCacheEvictionPolicyType.INDEX_AGE
             );
         }
-        EvictionPolicy<FileCacheKey> policy = StatelessSharedBlobCacheService.createEvictionPolicy(
+        EvictionPolicy<FileCacheKey> policy = StatelessCacheEvictionPolicyType.createEvictionPolicy(
             settingsBuilder.build(),
             mock(ClusterService.class)
         );
@@ -53,7 +53,7 @@ public class StatelessCacheEvictionPolicyTypeTests extends ESTestCase {
                 StatelessCacheEvictionPolicyType.ALWAYS
             )
             .build();
-        EvictionPolicy<FileCacheKey> policy = StatelessSharedBlobCacheService.createEvictionPolicy(settings, mock(ClusterService.class));
+        EvictionPolicy<FileCacheKey> policy = StatelessCacheEvictionPolicyType.createEvictionPolicy(settings, mock(ClusterService.class));
         assertThat(policy, instanceOf(DefaultEvictionPolicy.class));
     }
 
@@ -65,7 +65,7 @@ public class StatelessCacheEvictionPolicyTypeTests extends ESTestCase {
                 StatelessCacheEvictionPolicyType.INDEX_AGE
             )
             .build();
-        EvictionPolicy<FileCacheKey> policy = StatelessSharedBlobCacheService.createEvictionPolicy(settings, mock(ClusterService.class));
+        EvictionPolicy<FileCacheKey> policy = StatelessCacheEvictionPolicyType.createEvictionPolicy(settings, mock(ClusterService.class));
         assertThat(policy, instanceOf(IndexAgeEvictionPolicy.class));
     }
 
@@ -77,7 +77,7 @@ public class StatelessCacheEvictionPolicyTypeTests extends ESTestCase {
             .put(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), DiscoveryNodeRole.SEARCH_ROLE.roleName())
             .build();
         try (var clusterService = ClusterServiceUtils.createClusterService(taskQueue.getThreadPool(), clusterSettings)) {
-            EvictionPolicy<FileCacheKey> policy = StatelessSharedBlobCacheService.createEvictionPolicy(settings, clusterService);
+            EvictionPolicy<FileCacheKey> policy = StatelessCacheEvictionPolicyType.createEvictionPolicy(settings, clusterService);
             assertThat(policy, instanceOf(PinnedWindowEvictionPolicy.class));
         }
     }
@@ -90,7 +90,7 @@ public class StatelessCacheEvictionPolicyTypeTests extends ESTestCase {
             .put(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), DiscoveryNodeRole.INDEX_ROLE.roleName())
             .build();
         try (var clusterService = ClusterServiceUtils.createClusterService(taskQueue.getThreadPool(), clusterSettings)) {
-            EvictionPolicy<FileCacheKey> policy = StatelessSharedBlobCacheService.createEvictionPolicy(settings, clusterService);
+            EvictionPolicy<FileCacheKey> policy = StatelessCacheEvictionPolicyType.createEvictionPolicy(settings, clusterService);
             assertThat(policy, instanceOf(DefaultEvictionPolicy.class));
         }
     }

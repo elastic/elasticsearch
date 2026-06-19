@@ -72,7 +72,11 @@ public abstract class TermBasedFieldType extends SimpleMappedFieldType {
     public Query termsQuery(Collection<?> values, SearchExecutionContext context) {
         failIfNotIndexed();
         List<BytesRef> bytesRefs = values.stream().map(this::indexedValueForSearch).toList();
-        return new TermInSetQuery(name(), bytesRefs);
+        if (bytesRefs.size() == 1) {
+            return new TermQuery(new Term(name(), bytesRefs.getFirst()));
+        } else {
+            return new TermInSetQuery(name(), bytesRefs);
+        }
     }
 
 }

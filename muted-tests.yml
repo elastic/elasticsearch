@@ -98,6 +98,9 @@ tests:
 - class: org.elasticsearch.action.RejectionActionIT
   method: testSimulatedSearchRejectionLoad
   issue: https://github.com/elastic/elasticsearch/issues/146022
+- class: org.elasticsearch.xpack.security.transport.filter.IpFilteringIntegrationTests
+  method: testThatIpFilteringIsIntegratedIntoNettyPipelineViaHttp
+  issue: https://github.com/elastic/elasticsearch/issues/146102
 - class: org.elasticsearch.cluster.remote.test.RemoteClustersIT
   method: testHAProxyModeConnectionWithSNIToCluster1Works
   issue: https://github.com/elastic/elasticsearch/issues/139170

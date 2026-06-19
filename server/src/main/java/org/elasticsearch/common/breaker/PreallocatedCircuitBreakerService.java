@@ -171,18 +171,25 @@ public class PreallocatedCircuitBreakerService extends CircuitBreakerService imp
             }
             if (preallocationUsed < preallocated) {
                 /*
-                 * We only need to give bytes back if we haven't used up
-                 * all of our preallocated bytes. This is because if we
-                 * *have* used up all of our preallcated bytes then all
-                 * operations hit the underlying breaker directly, including
-                 * deallocations. This is using up the bytes is a one way
-                 * transition - as soon as we transition we know all
-                 * deallocations will go directly to the underlying breaker.
-                 *
-                 * The release reuses the same label that was used for the admit on construction so that
-                 * the per-category es.breaker.memory.held.usage gauge stays balanced (admit and release cancel
-                 * out under category="preallocate[<label>]").
+                 * "Used fewer bytes" state: the underlying breaker still holds the whole preallocated reservation
+                 * (callers only ever touched the in-memory buffer), so give those real bytes back. Reusing the
+                 * construction label keeps both the real used bytes and the per-category
+                 * es.breaker.memory.held.usage gauge balanced - the admit and this release cancel out under
+                 * category="preallocate[<label>]".
                  */
+                next.addWithoutBreaking(-preallocated, preallocateLabel);
+            } else {
+                /*
+                 * "Used all" state: this is a one-way transition, after which every operation - including
+                 * deallocations - hits the underlying breaker directly. Well-behaved callers therefore already
+                 * returned the preallocated bytes to the real breaker, so we must NOT release real bytes again.
+                 *
+                 * The held gauge, however, still carries the +preallocated admit recorded under
+                 * category="preallocate[<label>]" at construction; left alone it would accumulate a permanent
+                 * positive per preallocation. Cancel just that gauge entry, without disturbing real used bytes, by
+                 * re-bucketing the reservation into the uncategorized category (the two ops net to zero real bytes).
+                 */
+                next.addWithoutBreaking(preallocated, ChildMemoryCircuitBreaker.UNCATEGORIZED_RELEASE);
                 next.addWithoutBreaking(-preallocated, preallocateLabel);
             }
             closed = true;

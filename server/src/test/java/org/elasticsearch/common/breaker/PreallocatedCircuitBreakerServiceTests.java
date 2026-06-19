@@ -162,6 +162,42 @@ public class PreallocatedCircuitBreakerServiceTests extends ESTestCase {
         assertThat(real.getBreaker(CircuitBreaker.REQUEST).getUsed(), equalTo(0L));
     }
 
+    public void testCloseBalancesMemoryHeldUnderPreallocateLabelWhenFullyConsumed() {
+        final RecordingMeterRegistry meter = new RecordingMeterRegistry();
+        final HierarchyCircuitBreakerService real = realWithMeter(meter);
+
+        final long preallocate = 4096L;
+        try (
+            PreallocatedCircuitBreakerService preallocated = new PreallocatedCircuitBreakerService(
+                real,
+                CircuitBreaker.REQUEST,
+                preallocate,
+                "test"
+            )
+        ) {
+            final CircuitBreaker b = preallocated.getBreaker(CircuitBreaker.REQUEST);
+            // Allocate more than was preallocated to drive the breaker into the "used all" state, then release it.
+            b.addEstimateBytesAndMaybeBreak(preallocate * 2, "test");
+            b.addWithoutBreaking(-(preallocate * 2), "test");
+        }
+
+        final Map<String, Object> preallocateAttrs = Map.of(
+            ChildMemoryCircuitBreaker.BREAKER_METRIC_TYPE_ATTRIBUTE,
+            CircuitBreaker.REQUEST,
+            ChildMemoryCircuitBreaker.CIRCUIT_BREAKER_CATEGORY_ATTRIBUTE,
+            "preallocate[test]"
+        );
+
+        final Map<Map<String, Object>, Long> heldByAttrs = meter.getRecorder()
+            .getMeasurements(InstrumentType.LONG_UP_DOWN_COUNTER, CircuitBreakerMetrics.ES_BREAKER_MEMORY_HELD)
+            .stream()
+            .collect(Collectors.groupingBy(Measurement::attributes, Collectors.summingLong(Measurement::getLong)));
+
+        assertTrue("expected preallocate admission to be recorded", heldByAttrs.containsKey(preallocateAttrs));
+        assertEquals("preallocate label must return to zero even when fully consumed", Long.valueOf(0L), heldByAttrs.get(preallocateAttrs));
+        assertThat(real.getBreaker(CircuitBreaker.REQUEST).getUsed(), equalTo(0L));
+    }
+
     private HierarchyCircuitBreakerService real() {
         return realWithMetrics(CircuitBreakerMetrics.NOOP);
     }

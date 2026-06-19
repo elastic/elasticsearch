@@ -1,4 +1,10 @@
 // Tests for Iceberg tables with metadata
+//
+// Authored as FROM <dataset>: each test declares its source via a `dataset:` directive. IcebergSpecIT does not
+// enable dataset mode (the extension-less s3://.../employees resource needs Iceberg-specific format detection a
+// dataset cannot carry), so the harness always rebuilds the equivalent EXTERNAL query from this directive —
+// behavior is identical to the pre-migration spec. The bare name `employees` collides with the ES|QL employees
+// index twin, so the dataset is named employees_ds.
 
 simpleRow
 ROW a = 1, b = "iceberg";
@@ -11,7 +17,9 @@ a:integer | b:keyword
 
 readAllEmployees
 required_capability: external_command
-EXTERNAL "s3://iceberg-test/warehouse/employees"
+dataset: employees_ds: "s3://iceberg-test/warehouse/employees"
+
+FROM employees_ds
 | KEEP emp_no, first_name, last_name, birth_date, gender, hire_date, languages, height, salary, still_hired
 | SORT emp_no
 | LIMIT 5;
@@ -26,7 +34,9 @@ emp_no:integer | first_name:keyword | last_name:keyword | birth_date:date       
 
 selectSpecificColumns
 required_capability: external_command
-EXTERNAL "s3://iceberg-test/warehouse/employees"
+dataset: employees_ds: "s3://iceberg-test/warehouse/employees"
+
+FROM employees_ds
 | KEEP emp_no, first_name, last_name, salary
 | SORT emp_no
 | LIMIT 5;
@@ -41,7 +51,9 @@ emp_no:integer | first_name:keyword | last_name:keyword | salary:integer
 
 filterByEmployeeNumber
 required_capability: external_command
-EXTERNAL "s3://iceberg-test/warehouse/employees"
+dataset: employees_ds: "s3://iceberg-test/warehouse/employees"
+
+FROM employees_ds
 | WHERE emp_no == 10001
 | KEEP emp_no, first_name, last_name;
 
@@ -51,7 +63,9 @@ emp_no:integer | first_name:keyword | last_name:keyword
 
 filterBySalaryRange
 required_capability: external_command
-EXTERNAL "s3://iceberg-test/warehouse/employees"
+dataset: employees_ds: "s3://iceberg-test/warehouse/employees"
+
+FROM employees_ds
 | WHERE salary > 60000 AND salary < 70000
 | KEEP emp_no, first_name, salary
 | SORT emp_no
@@ -67,7 +81,9 @@ emp_no:integer | first_name:keyword | salary:integer
 
 filterByGender
 required_capability: external_command
-EXTERNAL "s3://iceberg-test/warehouse/employees"
+dataset: employees_ds: "s3://iceberg-test/warehouse/employees"
+
+FROM employees_ds
 | WHERE gender == "F"
 | KEEP emp_no, first_name, last_name, gender
 | SORT emp_no
@@ -81,7 +97,9 @@ emp_no:integer | first_name:keyword | last_name:keyword | gender:keyword
 
 filterByEmploymentStatus
 required_capability: external_command
-EXTERNAL "s3://iceberg-test/warehouse/employees"
+dataset: employees_ds: "s3://iceberg-test/warehouse/employees"
+
+FROM employees_ds
 | WHERE still_hired == false
 | KEEP emp_no, first_name, last_name, still_hired
 | SORT emp_no
@@ -95,7 +113,9 @@ emp_no:integer | first_name:keyword | last_name:keyword | still_hired:boolean
 
 aggregateCount
 required_capability: external_command
-EXTERNAL "s3://iceberg-test/warehouse/employees"
+dataset: employees_ds: "s3://iceberg-test/warehouse/employees"
+
+FROM employees_ds
 | STATS count = COUNT(*);
 
 count:long
@@ -104,7 +124,9 @@ count:long
 
 aggregateByGender
 required_capability: external_command
-EXTERNAL "s3://iceberg-test/warehouse/employees"
+dataset: employees_ds: "s3://iceberg-test/warehouse/employees"
+
+FROM employees_ds
 | STATS count = COUNT(*) BY gender
 | SORT gender;
 
@@ -116,7 +138,9 @@ count:long | gender:keyword
 
 aggregateAverageSalary
 required_capability: external_command
-EXTERNAL "s3://iceberg-test/warehouse/employees"
+dataset: employees_ds: "s3://iceberg-test/warehouse/employees"
+
+FROM employees_ds
 | STATS avg_salary = AVG(salary);
 
 avg_salary:double
@@ -125,7 +149,9 @@ avg_salary:double
 
 aggregateSalaryStats
 required_capability: external_command
-EXTERNAL "s3://iceberg-test/warehouse/employees"
+dataset: employees_ds: "s3://iceberg-test/warehouse/employees"
+
+FROM employees_ds
 | STATS min_salary = MIN(salary), max_salary = MAX(salary), avg_salary = AVG(salary);
 
 min_salary:integer | max_salary:integer | avg_salary:double
@@ -134,7 +160,9 @@ min_salary:integer | max_salary:integer | avg_salary:double
 
 aggregateSalaryByGender
 required_capability: external_command
-EXTERNAL "s3://iceberg-test/warehouse/employees"
+dataset: employees_ds: "s3://iceberg-test/warehouse/employees"
+
+FROM employees_ds
 | STATS avg_salary = AVG(salary), count = COUNT(*) BY gender
 | SORT gender;
 
@@ -146,7 +174,9 @@ avg_salary:double    | count:long | gender:keyword
 
 filterAndSort
 required_capability: external_command
-EXTERNAL "s3://iceberg-test/warehouse/employees"
+dataset: employees_ds: "s3://iceberg-test/warehouse/employees"
+
+FROM employees_ds
 | WHERE salary > 70000
 | KEEP emp_no, first_name, salary
 | SORT salary DESC
@@ -162,7 +192,9 @@ emp_no:integer | first_name:keyword | salary:integer
 
 evalComputedColumn
 required_capability: external_command
-EXTERNAL "s3://iceberg-test/warehouse/employees"
+dataset: employees_ds: "s3://iceberg-test/warehouse/employees"
+
+FROM employees_ds
 | EVAL annual_bonus = salary * 0.1
 | KEEP emp_no, first_name, salary, annual_bonus
 | SORT emp_no
@@ -176,7 +208,9 @@ emp_no:integer | first_name:keyword | salary:integer | annual_bonus:double
 
 complexQuery
 required_capability: external_command
-EXTERNAL "s3://iceberg-test/warehouse/employees"
+dataset: employees_ds: "s3://iceberg-test/warehouse/employees"
+
+FROM employees_ds
 | WHERE still_hired == true AND salary > 55000
 | EVAL salary_category = CASE(salary < 60000, "standard", salary < 70000, "senior", "principal")
 | STATS count = COUNT(*), avg_salary = AVG(salary) BY salary_category
@@ -192,7 +226,9 @@ count:long | avg_salary:double | salary_category:keyword
 
 selectAdditionalColumns
 required_capability: external_command
-EXTERNAL "s3://iceberg-test/warehouse/employees"
+dataset: employees_ds: "s3://iceberg-test/warehouse/employees"
+
+FROM employees_ds
 | KEEP emp_no, first_name, `languages.long`, avg_worked_seconds
 | SORT emp_no
 | LIMIT 5;
@@ -207,7 +243,9 @@ emp_no:integer | first_name:keyword | languages.long:long | avg_worked_seconds:l
 
 selectHeightVariants
 required_capability: external_command
-EXTERNAL "s3://iceberg-test/warehouse/employees"
+dataset: employees_ds: "s3://iceberg-test/warehouse/employees"
+
+FROM employees_ds
 | EVAL height_float_rounded = ROUND(`height.float`, 2), height_half_float_rounded = ROUND(`height.half_float`, 2)
 | KEEP emp_no, height, height_float_rounded, `height.scaled_float`, height_half_float_rounded
 | SORT emp_no

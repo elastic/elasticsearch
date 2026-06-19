@@ -442,13 +442,13 @@ public class SequenceMatcher {
         prevRamBytesUsedCompleted = newRamBytesUsedCompleted;
     }
 
+    /**
+     * Probes the circuit breaker for {@code bytes} without permanently tracking them. Throws if the limit would be exceeded.
+     */
     void checkMemory(long bytes) {
         if (bytes > 0) {
-            try {
-                circuitBreaker.addEstimateBytesAndMaybeBreak(bytes, CB_INFLIGHT_LABEL);
-            } finally {
-                circuitBreaker.addWithoutBreaking(-bytes);
-            }
+            addRequestCircuitBreakerBytes(bytes, CB_INFLIGHT_LABEL);
+            addRequestCircuitBreakerBytes(-bytes, CB_INFLIGHT_LABEL);
         }
     }
 

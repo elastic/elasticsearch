@@ -442,6 +442,16 @@ public class SequenceMatcher {
         prevRamBytesUsedCompleted = newRamBytesUsedCompleted;
     }
 
+    void checkMemory(long bytes) {
+        if (bytes > 0) {
+            try {
+                circuitBreaker.addEstimateBytesAndMaybeBreak(bytes, CB_INFLIGHT_LABEL);
+            } finally {
+                circuitBreaker.addWithoutBreaking(-bytes);
+            }
+        }
+    }
+
     private void addRequestCircuitBreakerBytes(long bytes, String label) {
         // Only use the potential to circuit break if bytes are being incremented, In the case of 0
         // bytes, it will trigger the parent circuit breaker.

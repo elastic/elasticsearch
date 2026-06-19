@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.cluster.metadata.View;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.plugins.Plugin;
@@ -23,6 +24,8 @@ import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceSetting;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourceValidator;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
+import org.elasticsearch.xpack.esql.view.DeleteViewAction;
+import org.elasticsearch.xpack.esql.view.PutViewAction;
 import org.junit.After;
 import org.junit.Before;
 
@@ -168,8 +171,21 @@ public class FromDatasetSubqueryIT extends AbstractEsqlIntegTestCase {
      */
     private static final Set<String> CREATED_DATASETS = Set.of("employees", "employees_alt", "salaries_int", "salaries_long");
 
+    /** Names every view {@code testXxx} bodies PUT, dropped after each method so the SUITE cluster stays clean. */
+    private static final Set<String> CREATED_VIEWS = Set.of("emp_meta_view");
+
     @After
     public void cleanupRegistry() {
+        try {
+            client().execute(
+                DeleteViewAction.INSTANCE,
+                new DeleteViewAction.Request(TIMEOUT, TIMEOUT, CREATED_VIEWS.toArray(String[]::new))
+            ).actionGet(TIMEOUT);
+        } catch (ResourceNotFoundException ignored) {
+            // none created by this test
+        } catch (Exception e) {
+            logger.warn("view cleanup failed", e);
+        }
         for (String ds : CREATED_DATASETS) {
             try {
                 client().execute(DeleteDatasetAction.INSTANCE, deleteDatasetRequest(ds)).actionGet(TIMEOUT);
@@ -558,15 +574,16 @@ public class FromDatasetSubqueryIT extends AbstractEsqlIntegTestCase {
         // Standard metadata binds on a dataset inside a subquery, consistent with how it binds on a
         // regular index in the same position (see IndexResolutionIT / subquery.csv-spec). _index
         // resolves to the dataset name. This used to be rejected only because dataset metadata was
-        // unsupported anywhere; it is supported now.
-        try (var response = run(syncEsqlQueryRequest("FROM (FROM employees METADATA _index | KEEP _index) | LIMIT 1"), TIMEOUT)) {
-            List<? extends ColumnInfo> columns = response.columns();
-            assertThat(columns, hasSize(1));
-            assertThat(columns.get(0).name(), equalTo("_index"));
+        // unsupported anywhere; it is supported now. KEEP is irrelevant to metadata presence on the
+        // FROM path: METADATA _index surfaces _index with no explicit KEEP.
+        try (var response = run(syncEsqlQueryRequest("FROM (FROM employees METADATA _index) | LIMIT 1"), TIMEOUT)) {
+            List<String> names = response.columns().stream().map(ColumnInfo::name).toList();
+            assertThat("_index must surface without an explicit KEEP, got " + names, names, hasItem("_index"));
 
+            int idx = names.indexOf("_index");
             List<List<Object>> rows = getValuesList(response);
             assertThat(rows, hasSize(1));
-            assertThat(rows.get(0).get(0).toString(), equalTo("employees"));
+            assertThat(rows.get(0).get(idx).toString(), equalTo("employees"));
         }
     }
 
@@ -584,6 +601,44 @@ public class FromDatasetSubqueryIT extends AbstractEsqlIntegTestCase {
             List<List<Object>> rows = getValuesList(response);
             assertThat(rows.get(0).get(idx), notNullValue());
             assertThat(rows.get(0).get(idx).toString(), containsString(".csv"));
+        }
+    }
+
+    public void testMetadataSurvivesDeepSubqueryNesting() {
+        registerEmployees();
+
+        // Surfacing is independent of subquery depth: METADATA named two levels down still reaches the
+        // top-level output with no KEEP at any level. Mixes standard (_index) and file (_file.path)
+        // metadata in one clause to prove both families ride the same no-KEEP path.
+        try (var response = run(syncEsqlQueryRequest("FROM (FROM (FROM employees METADATA _index, _file.path)) | LIMIT 1"), TIMEOUT)) {
+            List<String> names = response.columns().stream().map(ColumnInfo::name).toList();
+            assertThat("_index must surface through nested subqueries without KEEP, got " + names, names, hasItem("_index"));
+            assertThat("_file.path must surface through nested subqueries without KEEP, got " + names, names, hasItem("_file.path"));
+
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(1));
+            assertThat(rows.get(0).get(names.indexOf("_index")).toString(), equalTo("employees"));
+            assertThat(rows.get(0).get(names.indexOf("_file.path")).toString(), containsString(".csv"));
+        }
+    }
+
+    public void testMetadataSurfacesThroughViewOverDataset() {
+        registerEmployees();
+        createView("emp_meta_view", "FROM employees METADATA _index, _file.path");
+
+        // A view is a saved query; FROM <view> expands to it, so metadata named in the view's body
+        // surfaces at the call site with no KEEP — directly and inside a subquery, matching the FROM
+        // contract. The view body carries the METADATA clause; the caller adds nothing.
+        for (String query : List.of("FROM emp_meta_view | LIMIT 1", "FROM (FROM emp_meta_view) | LIMIT 1")) {
+            try (var response = run(syncEsqlQueryRequest(query), TIMEOUT)) {
+                List<String> names = response.columns().stream().map(ColumnInfo::name).toList();
+                assertThat(query + " must surface _index without KEEP, got " + names, names, hasItem("_index"));
+                assertThat(query + " must surface _file.path without KEEP, got " + names, names, hasItem("_file.path"));
+
+                List<List<Object>> rows = getValuesList(response);
+                assertThat(rows.get(0).get(names.indexOf("_index")).toString(), equalTo("employees"));
+                assertThat(rows.get(0).get(names.indexOf("_file.path")).toString(), containsString(".csv"));
+            }
         }
     }
 
@@ -1358,6 +1413,12 @@ public class FromDatasetSubqueryIT extends AbstractEsqlIntegTestCase {
                 PutDatasetAction.INSTANCE,
                 putDatasetRequest("employees", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"))
             )
+        );
+    }
+
+    private void createView(String name, String query) {
+        assertAcked(
+            client().execute(PutViewAction.INSTANCE, new PutViewAction.Request(TIMEOUT, TIMEOUT, new View(name, query))).actionGet(TIMEOUT)
         );
     }
 

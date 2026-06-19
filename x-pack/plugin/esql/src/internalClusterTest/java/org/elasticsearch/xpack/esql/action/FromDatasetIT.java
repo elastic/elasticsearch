@@ -44,6 +44,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
 
@@ -386,21 +387,16 @@ public class FromDatasetIT extends AbstractEsqlIntegTestCase {
             )
         );
 
-        try (
-            var response = run(
-                syncEsqlQueryRequest("FROM employees METADATA _index | SORT emp_no | KEEP emp_no, _index | LIMIT 10"),
-                TIMEOUT
-            )
-        ) {
-            List<? extends ColumnInfo> columns = response.columns();
-            assertThat(columns, hasSize(2));
-            assertThat(columns.get(0).name(), equalTo("emp_no"));
-            assertThat(columns.get(1).name(), equalTo("_index"));
+        // METADATA surfaces _index with no KEEP; it resolves to the dataset name.
+        try (var response = run(syncEsqlQueryRequest("FROM employees METADATA _index | SORT emp_no | LIMIT 10"), TIMEOUT)) {
+            List<String> names = response.columns().stream().map(ColumnInfo::name).toList();
+            assertThat("_index must surface without KEEP; got " + names, names, hasItem("_index"));
+            int idx = names.indexOf("_index");
 
             List<List<Object>> rows = getValuesList(response);
             assertThat(rows, hasSize(3));
             for (List<Object> row : rows) {
-                assertThat(row.get(1).toString(), equalTo("employees"));
+                assertThat(row.get(idx).toString(), equalTo("employees"));
             }
         }
     }
@@ -423,25 +419,25 @@ public class FromDatasetIT extends AbstractEsqlIntegTestCase {
             )
         );
 
-        try (
-            var response = run(
-                syncEsqlQueryRequest(
-                    "FROM events_hive METADATA _index | SORT emp_no | KEEP emp_no, _index, `_partition._index` | LIMIT 10"
-                ),
-                TIMEOUT
-            )
-        ) {
-            List<? extends ColumnInfo> columns = response.columns();
-            assertThat(columns, hasSize(3));
-            assertThat(columns.get(1).name(), equalTo("_index"));
-            assertThat(columns.get(2).name(), equalTo("_partition._index"));
+        // No KEEP: METADATA _index surfaces _index on its own, and the renamed partition column
+        // _partition._index surfaces as an ordinary data column. Both are found by name, not position.
+        try (var response = run(syncEsqlQueryRequest("FROM events_hive METADATA _index | SORT emp_no | LIMIT 10"), TIMEOUT)) {
+            List<String> names = response.columns().stream().map(ColumnInfo::name).toList();
+            assertThat("_index must surface without KEEP, got " + names, names, hasItem("_index"));
+            assertThat("renamed partition column must stay queryable, got " + names, names, hasItem("_partition._index"));
+            int indexIdx = names.indexOf("_index");
+            int partitionIdx = names.indexOf("_partition._index");
 
             List<List<Object>> rows = getValuesList(response);
             assertThat(rows, hasSize(3));
             String[] expectedPartition = { "alpha", "alpha", "beta" };
             for (int i = 0; i < rows.size(); i++) {
-                assertThat("spec-defined _index must carry the dataset name", rows.get(i).get(1).toString(), equalTo("events_hive"));
-                assertThat("layout value stays queryable under the rename", rows.get(i).get(2).toString(), equalTo(expectedPartition[i]));
+                assertThat("spec-defined _index must carry the dataset name", rows.get(i).get(indexIdx).toString(), equalTo("events_hive"));
+                assertThat(
+                    "layout value stays queryable under the rename",
+                    rows.get(i).get(partitionIdx).toString(),
+                    equalTo(expectedPartition[i])
+                );
             }
         }
     }
@@ -463,19 +459,13 @@ public class FromDatasetIT extends AbstractEsqlIntegTestCase {
             )
         );
 
-        try (
-            var response = run(
-                syncEsqlQueryRequest(
-                    "FROM employees METADATA _id, _file.record_ref | SORT emp_no | KEEP emp_no, _id, `_file.record_ref` | LIMIT 10"
-                ),
-                TIMEOUT
-            )
-        ) {
-            List<? extends ColumnInfo> columns = response.columns();
-            assertThat(columns, hasSize(3));
-            assertThat(columns.get(0).name(), equalTo("emp_no"));
-            assertThat(columns.get(1).name(), equalTo("_id"));
-            assertThat(columns.get(2).name(), equalTo("_file.record_ref"));
+        // No KEEP: METADATA _id, _file.record_ref surfaces both on their own; columns found by name.
+        try (var response = run(syncEsqlQueryRequest("FROM employees METADATA _id, _file.record_ref | SORT emp_no | LIMIT 10"), TIMEOUT)) {
+            List<String> names = response.columns().stream().map(ColumnInfo::name).toList();
+            assertThat("_id must surface without KEEP, got " + names, names, hasItem("_id"));
+            assertThat("_file.record_ref must surface without KEEP, got " + names, names, hasItem("_file.record_ref"));
+            int idIdx = names.indexOf("_id");
+            int refIdx = names.indexOf("_file.record_ref");
 
             List<List<Object>> rows = getValuesList(response);
             assertThat(rows, hasSize(3));
@@ -483,11 +473,15 @@ public class FromDatasetIT extends AbstractEsqlIntegTestCase {
             long[] expectedOffsets = { 34, 42, 48 };
             Set<String> distinctIds = new HashSet<>();
             for (int i = 0; i < rows.size(); i++) {
-                String id = rows.get(i).get(1).toString();
+                String id = rows.get(i).get(idIdx).toString();
                 assertTrue("rendered _id [" + id + "] must be fixed-length base64url", id.matches("[A-Za-z0-9_-]{32}"));
                 assertThat("storage location must not leak into _id [" + id + "]", id, not(containsString("employees")));
                 distinctIds.add(id);
-                assertThat("file-global byte offset for row " + i, ((Number) rows.get(i).get(2)).longValue(), equalTo(expectedOffsets[i]));
+                assertThat(
+                    "file-global byte offset for row " + i,
+                    ((Number) rows.get(i).get(refIdx)).longValue(),
+                    equalTo(expectedOffsets[i])
+                );
             }
             assertThat("all _id values are distinct", distinctIds, hasSize(3));
         }

@@ -42,6 +42,7 @@ import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQuery
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
@@ -154,6 +155,18 @@ public abstract class AbstractExternalMetadataMatrixIT extends AbstractEsqlInteg
         );
     }
 
+    /**
+     * Index of metadata column {@code name} in the response columns, asserting it surfaced. On the
+     * FROM path METADATA surfaces a column with no KEEP, so the data columns are present too and the
+     * metadata column's position is not fixed — look it up by name.
+     */
+    private static int columnIndex(List<? extends ColumnInfo> columns, String name) {
+        List<String> names = columns.stream().map(ColumnInfo::name).toList();
+        int idx = names.indexOf(name);
+        assertThat(name + " must surface without KEEP; got columns " + names, idx, greaterThanOrEqualTo(0));
+        return idx;
+    }
+
     @After
     public void cleanupRegistry() throws Exception {
         try {
@@ -198,34 +211,25 @@ public abstract class AbstractExternalMetadataMatrixIT extends AbstractEsqlInteg
     }
 
     private List<String> collectIds() throws Exception {
-        try (var response = run(syncEsqlQueryRequest("FROM employees METADATA _id | SORT emp_no | KEEP emp_no, _id | LIMIT 10"), TIMEOUT)) {
-            List<? extends ColumnInfo> columns = response.columns();
-            assertThat(columns, hasSize(2));
-            assertThat(columns.get(0).name(), equalTo("emp_no"));
-            assertThat(columns.get(1).name(), equalTo("_id"));
+        // METADATA surfaces _id with no KEEP.
+        try (var response = run(syncEsqlQueryRequest("FROM employees METADATA _id | SORT emp_no | LIMIT 10"), TIMEOUT)) {
+            int idx = columnIndex(response.columns(), "_id");
             List<String> ids = new ArrayList<>();
             for (List<Object> row : getValuesList(response)) {
-                ids.add(row.get(1).toString());
+                ids.add(row.get(idx).toString());
             }
             return ids;
         }
     }
 
     public void testIndexIsDatasetName() throws Exception {
-        try (
-            var response = run(
-                syncEsqlQueryRequest("FROM employees METADATA _index | SORT emp_no | KEEP emp_no, _index | LIMIT 10"),
-                TIMEOUT
-            )
-        ) {
-            List<? extends ColumnInfo> columns = response.columns();
-            assertThat(columns, hasSize(2));
-            assertThat(columns.get(1).name(), equalTo("_index"));
-
+        // METADATA surfaces _index with no KEEP; it resolves to the dataset name.
+        try (var response = run(syncEsqlQueryRequest("FROM employees METADATA _index | SORT emp_no | LIMIT 10"), TIMEOUT)) {
+            int idx = columnIndex(response.columns(), "_index");
             List<List<Object>> rows = getValuesList(response);
             assertThat(rows, hasSize(3));
             for (List<Object> row : rows) {
-                assertThat(row.get(1).toString(), equalTo("employees"));
+                assertThat(row.get(idx).toString(), equalTo("employees"));
             }
         }
     }
@@ -313,22 +317,15 @@ public abstract class AbstractExternalMetadataMatrixIT extends AbstractEsqlInteg
         // mtime → _version threading is caught.
         long fixtureMtimeMillis = Files.getLastModifiedTime(PathUtils.get(URI.create(fixtureUri))).toMillis();
 
-        try (
-            var response = run(
-                syncEsqlQueryRequest("FROM employees METADATA _version | SORT emp_no | KEEP emp_no, _version | LIMIT 10"),
-                TIMEOUT
-            )
-        ) {
-            List<? extends ColumnInfo> columns = response.columns();
-            assertThat(columns, hasSize(2));
-            assertThat(columns.get(1).name(), equalTo("_version"));
-
+        // METADATA surfaces _version with no KEEP; it equals the fixture file's mtime in millis.
+        try (var response = run(syncEsqlQueryRequest("FROM employees METADATA _version | SORT emp_no | LIMIT 10"), TIMEOUT)) {
+            int idx = columnIndex(response.columns(), "_version");
             List<List<Object>> rows = getValuesList(response);
             assertThat(rows, hasSize(3));
             for (List<Object> row : rows) {
                 assertThat(
                     "_version must equal the fixture file's last-modified-time in millis",
-                    ((Number) row.get(1)).longValue(),
+                    ((Number) row.get(idx)).longValue(),
                     equalTo(fixtureMtimeMillis)
                 );
             }
@@ -340,30 +337,32 @@ public abstract class AbstractExternalMetadataMatrixIT extends AbstractEsqlInteg
         // the same shapes as the legacy EXTERNAL command auto-attaches them: per-file constants
         // populated from the file's StoragePath + stat. _file.record_ref is exercised via _id by
         // testIdRendersLocationAndRowPosition; this test pins the per-file constants.
-        String query = "FROM employees METADATA _file.path, _file.name, _file.directory, _file.size, _file.modified "
-            + "| SORT emp_no "
-            + "| KEEP emp_no, `_file.path`, `_file.name`, `_file.directory`, `_file.size`, `_file.modified` "
-            + "| LIMIT 10";
+        String query =
+            "FROM employees METADATA _file.path, _file.name, _file.directory, _file.size, _file.modified | SORT emp_no | LIMIT 10";
 
         try (var response = run(syncEsqlQueryRequest(query), TIMEOUT)) {
-            List<String> names = response.columns().stream().map(ColumnInfo::name).toList();
-            assertThat(names, equalTo(List.of("emp_no", "_file.path", "_file.name", "_file.directory", "_file.size", "_file.modified")));
+            // METADATA surfaces the _file.* family with no KEEP.
+            int pathI = columnIndex(response.columns(), "_file.path");
+            int nameI = columnIndex(response.columns(), "_file.name");
+            int dirI = columnIndex(response.columns(), "_file.directory");
+            int sizeI = columnIndex(response.columns(), "_file.size");
+            int modI = columnIndex(response.columns(), "_file.modified");
 
             List<List<Object>> rows = getValuesList(response);
             assertThat(rows, hasSize(3));
-            String firstPath = objToString(rows.get(0).get(1));
-            String firstName = objToString(rows.get(0).get(2));
-            String firstDirectory = objToString(rows.get(0).get(3));
+            String firstPath = objToString(rows.get(0).get(pathI));
+            String firstName = objToString(rows.get(0).get(nameI));
+            String firstDirectory = objToString(rows.get(0).get(dirI));
             for (List<Object> row : rows) {
-                assertThat("_file.path is non-null", row.get(1), notNullValue());
-                assertThat("_file.name is non-null", row.get(2), notNullValue());
-                assertThat("_file.directory is non-null", row.get(3), notNullValue());
-                assertThat("_file.size is positive", ((Number) row.get(4)).longValue(), greaterThan(0L));
-                assertThat("_file.modified is non-null", row.get(5), notNullValue());
+                assertThat("_file.path is non-null", row.get(pathI), notNullValue());
+                assertThat("_file.name is non-null", row.get(nameI), notNullValue());
+                assertThat("_file.directory is non-null", row.get(dirI), notNullValue());
+                assertThat("_file.size is positive", ((Number) row.get(sizeI)).longValue(), greaterThan(0L));
+                assertThat("_file.modified is non-null", row.get(modI), notNullValue());
                 // All rows come from the same single-file fixture, so every per-file constant matches.
-                assertThat("_file.path is per-file constant", objToString(row.get(1)), equalTo(firstPath));
-                assertThat("_file.name is per-file constant", objToString(row.get(2)), equalTo(firstName));
-                assertThat("_file.directory is per-file constant", objToString(row.get(3)), equalTo(firstDirectory));
+                assertThat("_file.path is per-file constant", objToString(row.get(pathI)), equalTo(firstPath));
+                assertThat("_file.name is per-file constant", objToString(row.get(nameI)), equalTo(firstName));
+                assertThat("_file.directory is per-file constant", objToString(row.get(dirI)), equalTo(firstDirectory));
             }
         }
     }
@@ -376,28 +375,32 @@ public abstract class AbstractExternalMetadataMatrixIT extends AbstractEsqlInteg
         // _tier is snapshot-only — see testTierIsNullOnExternalRowsSnapshotOnly.
         String query = "FROM employees METADATA _id, _source, _index, _version, _ignored, _index_mode, _tsid, _size, _score "
             + "| SORT emp_no "
-            + "| KEEP emp_no, _id, _source, _index, _version, _ignored, _index_mode, _tsid, _size, _score "
             + "| LIMIT 10";
 
         try (var response = run(syncEsqlQueryRequest(query), TIMEOUT)) {
-            List<String> names = response.columns().stream().map(ColumnInfo::name).toList();
-            assertThat(
-                names,
-                equalTo(List.of("emp_no", "_id", "_source", "_index", "_version", "_ignored", "_index_mode", "_tsid", "_size", "_score"))
-            );
+            // METADATA surfaces every named standard column with no KEEP.
+            int idI = columnIndex(response.columns(), "_id");
+            int sourceI = columnIndex(response.columns(), "_source");
+            int indexI = columnIndex(response.columns(), "_index");
+            int versionI = columnIndex(response.columns(), "_version");
+            int ignoredI = columnIndex(response.columns(), "_ignored");
+            int indexModeI = columnIndex(response.columns(), "_index_mode");
+            int tsidI = columnIndex(response.columns(), "_tsid");
+            int sizeI = columnIndex(response.columns(), "_size");
+            int scoreI = columnIndex(response.columns(), "_score");
 
             List<List<Object>> rows = getValuesList(response);
             assertThat(rows, hasSize(3));
             for (List<Object> row : rows) {
-                assertThat("_id is composed per-row, non-null", row.get(1), notNullValue());
-                assertThat("_source deserializes to a Map", asMap(row.get(2)), notNullValue());
-                assertThat("_index is the dataset name", row.get(3).toString(), equalTo("employees"));
-                assertThat("_version is non-null", row.get(4), notNullValue());
-                assertThat("_ignored is null on external rows", row.get(5), nullValue());
-                assertThat("_index_mode is null on external rows", row.get(6), nullValue());
-                assertThat("_tsid is null on external rows", row.get(7), nullValue());
-                assertThat("_size is null on external rows", row.get(8), nullValue());
-                assertThat("_score is null on external rows", row.get(9), nullValue());
+                assertThat("_id is composed per-row, non-null", row.get(idI), notNullValue());
+                assertThat("_source deserializes to a Map", asMap(row.get(sourceI)), notNullValue());
+                assertThat("_index is the dataset name", row.get(indexI).toString(), equalTo("employees"));
+                assertThat("_version is non-null", row.get(versionI), notNullValue());
+                assertThat("_ignored is null on external rows", row.get(ignoredI), nullValue());
+                assertThat("_index_mode is null on external rows", row.get(indexModeI), nullValue());
+                assertThat("_tsid is null on external rows", row.get(tsidI), nullValue());
+                assertThat("_size is null on external rows", row.get(sizeI), nullValue());
+                assertThat("_score is null on external rows", row.get(scoreI), nullValue());
             }
         }
     }
@@ -414,16 +417,14 @@ public abstract class AbstractExternalMetadataMatrixIT extends AbstractEsqlInteg
             org.elasticsearch.xpack.esql.core.expression.MetadataAttribute.dataType("_tier") != null
         );
 
-        String query = "FROM employees METADATA _tier | SORT emp_no | KEEP emp_no, _tier | LIMIT 10";
+        String query = "FROM employees METADATA _tier | SORT emp_no | LIMIT 10";
 
         try (var response = run(syncEsqlQueryRequest(query), TIMEOUT)) {
-            List<String> names = response.columns().stream().map(ColumnInfo::name).toList();
-            assertThat(names, equalTo(List.of("emp_no", "_tier")));
-
+            int idx = columnIndex(response.columns(), "_tier");
             List<List<Object>> rows = getValuesList(response);
             assertThat(rows, hasSize(3));
             for (List<Object> row : rows) {
-                assertThat("_tier is null on external rows", row.get(1), nullValue());
+                assertThat("_tier is null on external rows", row.get(idx), nullValue());
             }
         }
     }

@@ -547,7 +547,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
             // threshold at creation time. But a higher threshold would likely perform better?
             int threshold = ctx.reader().maxDoc() >> 7;
             if (numDocs >= threshold) {
-                 BulkScorer bulkScorer = weight.bulkScorer(ctx);
+                BulkScorer bulkScorer = weight.bulkScorer(ctx);
                 if (bulkScorer != null) {
                     if (cancellable.isEnabled()) {
                         bulkScorer = new CancellableBulkScorer(bulkScorer, cancellable::checkCancelled);

@@ -10,6 +10,7 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
@@ -34,6 +35,9 @@ import static org.elasticsearch.rest.RestRequest.Method.PUT;
 
 public class RestMonitoringBulkAction extends BaseRestHandler {
 
+    static final String DEPRECATION_MESSAGE =
+        "Legacy monitoring is deprecated and will be removed in Elasticsearch 10.0.";
+
     public static final String MONITORING_ID = "system_id";
     public static final String MONITORING_VERSION = "system_api_version";
     public static final String INTERVAL = "interval";
@@ -54,7 +58,10 @@ public class RestMonitoringBulkAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(POST, "/_monitoring/bulk"), new Route(PUT, "/_monitoring/bulk"));
+        return List.of(
+            Route.builder(POST, "/_monitoring/bulk").deprecatedForRemoval(DEPRECATION_MESSAGE, RestApiVersion.current()).build(),
+            Route.builder(PUT, "/_monitoring/bulk").deprecatedForRemoval(DEPRECATION_MESSAGE, RestApiVersion.current()).build()
+        );
     }
 
     @Override

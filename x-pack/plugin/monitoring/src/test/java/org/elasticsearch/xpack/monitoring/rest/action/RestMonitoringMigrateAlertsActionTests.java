@@ -7,7 +7,10 @@
 
 package org.elasticsearch.xpack.monitoring.rest.action;
 
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.RestChannel;
+import org.elasticsearch.rest.RestHandler.Route;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
@@ -35,6 +38,14 @@ public class RestMonitoringMigrateAlertsActionTests extends ESTestCase {
 
     public void testGetName() {
         assertThat(action.getName(), is("monitoring_migrate_alerts"));
+    }
+
+    public void testRoutesAreDeprecatedForRemoval() {
+        for (Route route : action.routes()) {
+            assertTrue(route.isDeprecated());
+            assertThat(route.getDeprecationMessage(), is(RestMonitoringMigrateAlertsAction.DEPRECATION_MESSAGE));
+            assertEquals(RestApiVersion.current(), route.getRestApiVersion());
+        }
     }
 
     public void testSupportsAllContentTypes() {

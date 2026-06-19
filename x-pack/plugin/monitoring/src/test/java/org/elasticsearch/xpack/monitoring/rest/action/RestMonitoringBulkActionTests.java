@@ -10,8 +10,11 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.RestChannel;
+import org.elasticsearch.rest.RestHandler.Route;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
@@ -44,6 +47,14 @@ public class RestMonitoringBulkActionTests extends ESTestCase {
     public void testGetName() {
         // Are you sure that you want to change the name?
         assertThat(action.getName(), is("monitoring_bulk"));
+    }
+
+    public void testRoutesAreDeprecatedForRemoval() {
+        for (Route route : action.routes()) {
+            assertTrue(route.isDeprecated());
+            assertThat(route.getDeprecationMessage(), is(RestMonitoringBulkAction.DEPRECATION_MESSAGE));
+            assertEquals(RestApiVersion.current(), route.getRestApiVersion());
+        }
     }
 
     public void testSupportsBulkContent() {

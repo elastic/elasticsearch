@@ -87,6 +87,8 @@ teardown:
             xpack.monitoring.collection.enabled: true
 
   - do:
+      allowed_warnings:
+        - "Legacy monitoring is deprecated and will be removed in Elasticsearch 10.0."
       headers:
         # Authorization: logstash_agent
         Authorization: "Basic bG9nc3Rhc2hfYWdlbnQ6czNrcml0LXBhc3N3b3Jk"
@@ -125,6 +127,8 @@ teardown:
 
   - do:
       catch: forbidden
+      allowed_warnings:
+        - "Legacy monitoring is deprecated and will be removed in Elasticsearch 10.0."
       headers:
         # Authorization: unknown_agent
         Authorization: "Basic dW5rbm93bl9hZ2VudDpzM2tyaXQtcGFzc3dvcmQ="

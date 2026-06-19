@@ -131,7 +131,6 @@ public class Verifier {
 
         ConfigurationAware.verifyNoMarkerConfiguration(plan, failures);
 
-        // Temporary check before we implement https://github.com/elastic/elasticsearch/issues/141995.
         // Partially-unmapped non-keyword field references are checked before the bail-out so that a query with both
         // an UnsupportedAttribute and a PUNK field produces both errors in one batch.
         if (unmappedResolution == UnmappedResolution.LOAD) {
@@ -559,15 +558,17 @@ public class Verifier {
     }
 
     /**
-     * Reject queries that refer to partially unmapped non-keyword fields (PUNKs) when {@code unmapped_fields="load"}.
-     * Any expression referencing a PUNK attribute is flagged as a verification failure unless it's within a conversion
-     * function or KEEP/DROP.
+     * Reject queries that refer to partially unmapped non-keyword fields (PUNKs) that couldn't be auto-cast by
+     * {@code ResolveTwoLeggedPunksInEsRelation} when {@code unmapped_fields="load"}.
+     *
+     * Expressions referencing these non-auto-castable PUNKs are flagged as a verification failure, except in KEEP/DROP.
+     *
      * <p>
      * Example
      * <p>
      * With the two indices below
      * <ol>
-     *     <li>index1 has foo(long) and bar(keyword)</li>
+     *     <li>index1 has foo(aggregate_metric_double)</li>
      *     <li>index2 has bar(keyword)</li>
      * </ol>
      *
@@ -575,13 +576,13 @@ public class Verifier {
      * <ul>
      *     <li>KEEP foo</li>
      *     <li>DROP foo*</li>
-     *     <li>EVAL x = foo::long</li>
      * </ul>
      * The following queries should fail (assume unmapped_fields="load" and reading from both indices)
      * <ul>
      *     <li>RENAME foo as x</li>
      *     <li>EVAL x = foo</li>
-     *     <li>WHERE foo > 1</li>
+     *     <li>EVAL x = foo::aggregate_metric_double</li>
+     *     <li>WHERE foo IS NOT NULL</li>
      * </ul>
      */
     private static void checkPartiallyUnmappedNonKeywordReferences(LogicalPlan plan, Failures failures, AnalyzerContext context) {

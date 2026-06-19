@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 151431
+summary: Make views REST API available in serverless
+type: enhancement

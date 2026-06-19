@@ -1043,11 +1043,21 @@ public final class IndexSettings {
 
     /**
      * Opt in setting that enables the ES95 TSDB doc values codec for a given time series index.
-     * Registered only when {@link #ES95_CODEC_FEATURE_FLAG} is enabled, defaults to {@code false}.
+     * Registered only when {@link #ES95_CODEC_FEATURE_FLAG} is enabled. Defaults to {@code true}
+     * for time series indices created on or after
+     * {@link IndexVersions#TIME_SERIES_ES95_CODEC_DEFAULT_FEATURE_FLAG}, {@code false} otherwise.
      */
     public static final Setting<Boolean> TIME_SERIES_ES95_CODEC_ENABLED_SETTING = Setting.boolSetting(
         "index.time_series.es95_codec.enabled",
-        false,
+        settings -> {
+            if (settings == null) {
+                return Boolean.FALSE.toString();
+            }
+            IndexVersion indexVersion = SETTING_INDEX_VERSION_CREATED.get(settings);
+            boolean isTimeSeries = IndexMode.TIME_SERIES.equals(MODE.get(settings));
+            boolean onByDefault = indexVersion.onOrAfter(IndexVersions.TIME_SERIES_ES95_CODEC_DEFAULT_FEATURE_FLAG);
+            return Boolean.toString(isTimeSeries && onByDefault);
+        },
         Property.IndexScope,
         Property.Final
     );

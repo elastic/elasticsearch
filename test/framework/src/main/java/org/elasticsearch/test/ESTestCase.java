@@ -147,6 +147,8 @@ import org.elasticsearch.test.junit.listeners.ReproduceInfoPrinter;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.BytesTransportMessage;
+import org.elasticsearch.transport.BytesTransportMessageTestUtils;
 import org.elasticsearch.transport.LeakTracker;
 import org.elasticsearch.transport.netty4.Netty4Plugin;
 import org.elasticsearch.xcontent.MediaType;
@@ -2149,7 +2151,10 @@ public abstract class ESTestCase extends LuceneTestCase {
         Writeable.Reader<T> reader,
         TransportVersion version
     ) throws IOException {
-        return copyInstance(original, namedWriteableRegistry, StreamOutput::writeWriteable, reader, version);
+        final Writeable.Writer<T> writer = original instanceof BytesTransportMessage
+            ? (out, value) -> BytesTransportMessageTestUtils.writeThinWithBytes(out, (BytesTransportMessage) value)
+            : StreamOutput::writeWriteable;
+        return copyInstance(original, namedWriteableRegistry, writer, reader, version);
     }
 
     /**

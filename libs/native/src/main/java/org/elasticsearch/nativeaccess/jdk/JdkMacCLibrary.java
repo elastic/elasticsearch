@@ -9,6 +9,7 @@
 
 package org.elasticsearch.nativeaccess.jdk;
 
+import org.elasticsearch.foreign.MemorySegmentUtil;
 import org.elasticsearch.nativeaccess.lib.MacCLibrary;
 
 import java.lang.foreign.Arena;
@@ -20,7 +21,7 @@ import java.lang.invoke.MethodHandle;
 import static java.lang.foreign.ValueLayout.ADDRESS;
 import static java.lang.foreign.ValueLayout.JAVA_INT;
 import static java.lang.foreign.ValueLayout.JAVA_LONG;
-import static org.elasticsearch.nativeaccess.jdk.LinkerHelper.downcallHandle;
+import static org.elasticsearch.foreign.LinkerHelper.downcallHandle;
 
 class JdkMacCLibrary implements MacCLibrary {
 

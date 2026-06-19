@@ -10,11 +10,12 @@
 package org.elasticsearch.nativeaccess.jdk;
 
 import org.apache.lucene.util.Constants;
+import org.elasticsearch.foreign.MemorySegmentUtil;
 import org.elasticsearch.nativeaccess.NativeAccess;
+import org.elasticsearch.nativeaccess.jdk.JdkMacCLibrary.JdkErrorReference;
 import org.elasticsearch.nativeaccess.lib.MacCLibrary;
 import org.elasticsearch.nativeaccess.lib.NativeLibraryProvider;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.nativeaccess.jdk.JdkMacCLibrary.JdkErrorReference;
 import org.junit.Before;
 
 import java.lang.foreign.Arena;

@@ -144,7 +144,7 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
         SearchResponseMetrics searchResponseMetrics = new SearchResponseMetrics(meterRegistry);
 
         return new AbstractSearchAsyncAction<>(
-            "test",
+            "query",
             logger,
             null,
             searchTransportService,
@@ -329,7 +329,7 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
         assertThat(exception.get(), instanceOf(SearchPhaseExecutionException.class));
         SearchPhaseExecutionException searchPhaseExecutionException = (SearchPhaseExecutionException) exception.get();
         assertEquals("Partial shards failure (" + (numShards - 1) + " shards unavailable)", searchPhaseExecutionException.getMessage());
-        assertEquals("test", searchPhaseExecutionException.getPhaseName());
+        assertEquals("query", searchPhaseExecutionException.getPhaseName());
         assertEquals(0, searchPhaseExecutionException.shardFailures().length);
         assertEquals(0, searchPhaseExecutionException.getSuppressed().length);
     }

@@ -428,8 +428,7 @@ public class FieldSortBuilderTests extends AbstractSortTestCase<FieldSortBuilder
                         null,
                         null,
                         false,
-                        false,
-                        true
+                        false
                     );
                 } else {
                     fieldType = new NumberFieldMapper.NumberFieldType(name, numberType);

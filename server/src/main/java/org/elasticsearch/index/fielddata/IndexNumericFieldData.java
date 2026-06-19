@@ -73,10 +73,6 @@ public abstract class IndexNumericFieldData implements IndexFieldData<LeafNumeri
         public final ValuesSourceType getValuesSourceType() {
             return valuesSourceType;
         }
-
-        public final SortField.Type getSortFieldType() {
-            return sortFieldType;
-        }
     }
 
     /**
@@ -115,28 +111,12 @@ public abstract class IndexNumericFieldData implements IndexFieldData<LeafNumeri
             return sortField;
         }
 
-        return buildIndexSortField(targetNumericType, sortMode, reverse, source, missingValue, canUseOptimizedSort(indexType()));
-    }
-
-    /**
-     * Builds the Lucene {@link SortField} used for index sorting. Overriding this allows subclasses to substitute a
-     * plain {@link SortField} when the field stores single-valued NUMERIC doc values rather than SORTED_NUMERIC, because
-     * Lucene validates that the doc-values type matches the sort-field type at merge time.
-     */
-    protected SortField buildIndexSortField(
-        NumericType targetNumericType,
-        MultiValueMode sortMode,
-        boolean reverse,
-        XFieldComparatorSource source,
-        Object missingValue,
-        boolean canOptimize
-    ) {
         SortedNumericSelector.Type selectorType = sortMode == MultiValueMode.MAX
             ? SortedNumericSelector.Type.MAX
             : SortedNumericSelector.Type.MIN;
         SortField sortField = new SortedNumericSortField(getFieldName(), getNumericType().sortFieldType, reverse, selectorType);
         sortField.setMissingValue(source.missingObject(missingValue, reverse));
-        sortField.setOptimizeSortWithPoints(canOptimize);
+        sortField.setOptimizeSortWithPoints(canUseOptimizedSort(indexType()));
         return sortField;
     }
 

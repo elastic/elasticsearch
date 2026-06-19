@@ -156,8 +156,7 @@ public class CollapseBuilderTests extends AbstractXContentSerializingTestCase<Co
                 null,
                 null,
                 false,
-                false,
-                true
+                false
             );
             when(searchExecutionContext.getFieldType("field")).thenReturn(numberFieldType);
             IllegalArgumentException exc = expectThrows(IllegalArgumentException.class, () -> builder.build(searchExecutionContext));
@@ -176,8 +175,7 @@ public class CollapseBuilderTests extends AbstractXContentSerializingTestCase<Co
                 null,
                 null,
                 false,
-                false,
-                true
+                false
             );
             when(searchExecutionContext.getFieldType("field")).thenReturn(numberFieldType);
             builder.setInnerHits(new InnerHitBuilder().setName("field"));

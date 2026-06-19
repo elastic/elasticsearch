@@ -2123,7 +2123,6 @@ public class NumberFieldMapper extends FieldMapper {
         private final IndexMode indexMode;
         private final boolean isSyntheticSource;
         private final boolean readInArrayOrder;
-        private final boolean multiValue;
 
         public NumberFieldType(
             String name,
@@ -2138,8 +2137,7 @@ public class NumberFieldMapper extends FieldMapper {
             MetricType metricType,
             IndexMode indexMode,
             boolean isSyntheticSource,
-            boolean readInArrayOrder,
-            boolean multiValue
+            boolean readInArrayOrder
         ) {
             super(name, indexType, isStored, meta);
             this.type = Objects.requireNonNull(type);
@@ -2151,7 +2149,6 @@ public class NumberFieldMapper extends FieldMapper {
             this.indexMode = indexMode;
             this.isSyntheticSource = isSyntheticSource;
             this.readInArrayOrder = readInArrayOrder;
-            this.multiValue = multiValue;
         }
 
         NumberFieldType(String name, Builder builder, boolean isSyntheticSource) {
@@ -2170,8 +2167,7 @@ public class NumberFieldMapper extends FieldMapper {
                 isSyntheticSource,
                 builder.offsetsFieldName != null
                     && builder.docValuesParameters.getValue().multiValue()
-                    && builder.indexSettings.getMode().isStrictColumnar(),
-                builder.docValuesParameters.getValue().multiValue()
+                    && builder.indexSettings.getMode().isStrictColumnar()
             );
         }
 
@@ -2193,8 +2189,7 @@ public class NumberFieldMapper extends FieldMapper {
                 null,
                 null,
                 false,
-                false,
-                true
+                false
             );
         }
 
@@ -2212,8 +2207,7 @@ public class NumberFieldMapper extends FieldMapper {
                 null,
                 null,
                 false,
-                false,
-                true
+                false
             );
         }
 
@@ -2356,11 +2350,7 @@ public class NumberFieldMapper extends FieldMapper {
                 : type.numericType.getValuesSourceType();
 
             if ((operation == FielddataOperation.SEARCH || operation == FielddataOperation.SCRIPT) && hasDocValues()) {
-                IndexFieldData.Builder builder = type.getFieldDataBuilder(this, valuesSourceType);
-                if (multiValue == false && builder instanceof IndexFieldData.SingleValuedBuilder svBuilder) {
-                    svBuilder.singleValued();
-                }
-                return builder;
+                return type.getFieldDataBuilder(this, valuesSourceType);
             }
 
             if (operation == FielddataOperation.SCRIPT) {

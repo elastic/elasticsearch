@@ -104,8 +104,7 @@ public class ScriptScoreBenchmark {
                 null,
                 null,
                 false,
-                false,
-                true
+                false
             )
         )
     );

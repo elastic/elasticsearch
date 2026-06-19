@@ -523,7 +523,7 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
     }
 
     /**
-     * Process a scroll response.
+     * Process a paginated search response.
      * @param lastBatchStartTimeNS the time when the last batch started. Used to calculate the throttling delay.
      * @param lastBatchSizeToUse the size of the last batch. Used to calculate the throttling delay.
      * @param asyncResponse the response to process from {@link PaginatedHitSource}
@@ -531,7 +531,7 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
     void onPaginatedSearchResponse(long lastBatchStartTimeNS, int lastBatchSizeToUse, ScrollConsumableHitsResponse asyncResponse) {
         currentScrollResponse.set(asyncResponse);
         PaginatedHitSource.Response response = asyncResponse.response();
-        logger.debug("[{}]: got scroll response with [{}] hits", task.getId(), asyncResponse.remainingHits());
+        logger.debug("[{}]: got paginated search response with [{}] hits", task.getId(), asyncResponse.remainingHits());
         if (task.isCancelled()) {
             logger.debug("[{}]: finishing early because the task was cancelled", task.getId());
             tryReleaseCurrentResponse(asyncResponse);

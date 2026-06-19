@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.downsample;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.internal.hppc.IntArrayList;
+import org.apache.lucene.internal.hppc.LongArrayList;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.elasticsearch.action.downsample.DownsampleConfig;
 import org.elasticsearch.core.Nullable;
@@ -302,7 +303,7 @@ abstract sealed class NumericMetricFieldDownsampler extends AbstractFieldDownsam
 
         public void collect(
             SortedNumericDoubleValues counterDocValues,
-            long[] timestamps,
+            LongArrayList timestampBuffer,
             IntArrayList docIdBuffer,
             Temporality temporality
         ) throws IOException {
@@ -310,7 +311,7 @@ abstract sealed class NumericMetricFieldDownsampler extends AbstractFieldDownsam
             if (docIdBuffer.isEmpty()) {
                 return;
             }
-            assert timestamps.length == docIdBuffer.size() : "timestamps and docIdBuffer should have the same size";
+            assert timestampBuffer.size() == docIdBuffer.size() : "timestampBuffer and docIdBuffer should have the same size";
             if (temporalityCollector == null) {
                 temporalityCollector = switch (temporality) {
                     case DELTA -> deltaCollector;
@@ -319,23 +320,23 @@ abstract sealed class NumericMetricFieldDownsampler extends AbstractFieldDownsam
             }
             DocIdSetIterator docIdIterator = counterDocValues.docIdIterator();
             if (docIdIterator == null) {
-                collectCounterUsingAdvanceExact(counterDocValues, timestamps, docIdBuffer);
+                collectCounterUsingAdvanceExact(counterDocValues, timestampBuffer, docIdBuffer);
             } else {
                 resetLeafIteratorStateIfNeeded(docIdIterator);
                 if (leafIteratorExhausted == false) {
-                    collectCounterUsingDocIdIterator(counterDocValues, timestamps, docIdBuffer);
+                    collectCounterUsingDocIdIterator(counterDocValues, timestampBuffer, docIdBuffer);
                 }
             }
         }
 
         private void collectCounterUsingAdvanceExact(
             SortedNumericDoubleValues counterDocValues,
-            long[] timestamps,
+            LongArrayList timestampBuffer,
             IntArrayList docIdBuffer
         ) throws IOException {
             for (int i = 0; i < docIdBuffer.size(); i++) {
                 int docId = docIdBuffer.get(i);
-                long currentTimestamp = timestamps[i];
+                long currentTimestamp = timestampBuffer.get(i);
                 if (counterDocValues.advanceExact(docId) == false || currentTimestamp < 0) {
                     continue;
                 }
@@ -357,7 +358,7 @@ abstract sealed class NumericMetricFieldDownsampler extends AbstractFieldDownsam
          */
         private void collectCounterUsingDocIdIterator(
             SortedNumericDoubleValues counterDocValues,
-            long[] timestamps,
+            LongArrayList timestampBuffer,
             IntArrayList docIdBuffer
         ) throws IOException {
             int bufferedDocCount = docIdBuffer.size();
@@ -383,7 +384,7 @@ abstract sealed class NumericMetricFieldDownsampler extends AbstractFieldDownsam
                 }
 
                 if (leafDocIdIteratorDoc == targetDocId) {
-                    long timestamp = timestamps[index];
+                    long timestamp = timestampBuffer.get(index);
                     if (timestamp >= 0) {
                         int docValuesCount = counterDocValues.docValueCount();
                         assert docValuesCount > 0;
@@ -445,7 +446,7 @@ abstract sealed class NumericMetricFieldDownsampler extends AbstractFieldDownsam
         }
 
         /**
-         * Throws UnsupportedOperationException, use {@link #collect(SortedNumericDoubleValues, long[], IntArrayList, Temporality) }
+         * Throws UnsupportedOperationException, use {@link #collect(SortedNumericDoubleValues, LongArrayList, IntArrayList, Temporality) }
          * instead.
          */
         @Override
@@ -454,7 +455,7 @@ abstract sealed class NumericMetricFieldDownsampler extends AbstractFieldDownsam
         }
 
         /**
-         * Throws UnsupportedOperationException, use {@link #collect(SortedNumericDoubleValues, long[], IntArrayList, Temporality) }
+         * Throws UnsupportedOperationException, use {@link #collect(SortedNumericDoubleValues, LongArrayList, IntArrayList, Temporality) }
          * instead.
          */
         @Override

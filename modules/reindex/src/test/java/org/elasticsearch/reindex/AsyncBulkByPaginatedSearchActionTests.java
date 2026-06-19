@@ -256,7 +256,7 @@ public class AsyncBulkByPaginatedSearchActionTests extends ESTestCase {
     }
 
     /**
-     * Simulates a paginated response by setting scroll or search_after state and firing onScrollResponse.
+     * Simulates a paginated response by setting scroll or search_after state and firing onPaginatedSearchResponse.
      */
     private void simulatePaginatedResponse(
         DummyAsyncBulkByPaginatedSearchAction action,
@@ -270,7 +270,7 @@ public class AsyncBulkByPaginatedSearchActionTests extends ESTestCase {
         } else {
             action.setScroll(scrollId());
         }
-        action.onScrollResponse(
+        action.onPaginatedSearchResponse(
             lastBatchTime,
             lastBatchSize,
             new AbstractAsyncBulkByPaginatedSearchAction.ScrollConsumableHitsResponse(new PaginatedHitSource.AsyncResponse() {
@@ -754,7 +754,7 @@ public class AsyncBulkByPaginatedSearchActionTests extends ESTestCase {
         } else {
             action.setScroll(scrollId());
         }
-        action.onScrollResponse(
+        action.onPaginatedSearchResponse(
             System.nanoTime(),
             0,
             new AbstractAsyncBulkByPaginatedSearchAction.ScrollConsumableHitsResponse(new PaginatedHitSource.AsyncResponse() {
@@ -1798,7 +1798,7 @@ public class AsyncBulkByPaginatedSearchActionTests extends ESTestCase {
                     backoffPolicy,
                     threadPool,
                     worker::countSearchRetry,
-                    this::onScrollResponse,
+                    this::onPaginatedSearchResponse,
                     this::finishHim,
                     new ParentTaskAssigningClient(client, localNode, testTask),
                     searchRequest,
@@ -1862,7 +1862,7 @@ public class AsyncBulkByPaginatedSearchActionTests extends ESTestCase {
                     backoffPolicy,
                     threadPool,
                     worker::countSearchRetry,
-                    this::onScrollResponse,
+                    this::onPaginatedSearchResponse,
                     this::finishHim,
                     new ParentTaskAssigningClient(client, localNode, testTask),
                     searchRequest,
@@ -2035,7 +2035,7 @@ public class AsyncBulkByPaginatedSearchActionTests extends ESTestCase {
 
     /**
      * When relocation is requested with a target node available during scroll search, verifies that remaining hits
-     * in the response are consumed via onScrollResponse before relocating; relocation does not happen while hits remain.
+     * in the response are consumed via onPaginatedSearchResponse before relocating; relocation does not happen while hits remain.
      */
     public void testNotifyDoneConsumesRemainingHitsBeforeRelocatingWithScrollSearch() {
         configurePitOrScroll(false);
@@ -2046,7 +2046,7 @@ public class AsyncBulkByPaginatedSearchActionTests extends ESTestCase {
         final AtomicBoolean onScrollResponseCalled = new AtomicBoolean();
         final DummyAsyncBulkByPaginatedSearchAction action = new DummyAsyncBulkByPaginatedSearchAction() {
             @Override
-            void onScrollResponse(final AbstractAsyncBulkByPaginatedSearchAction.ScrollConsumableHitsResponse asyncResponse) {
+            void onPaginatedSearchResponse(final AbstractAsyncBulkByPaginatedSearchAction.ScrollConsumableHitsResponse asyncResponse) {
                 onScrollResponseCalled.set(true);
                 // don't call super - continues ingesting and listener might complete before assertions
             }
@@ -2073,13 +2073,13 @@ public class AsyncBulkByPaginatedSearchActionTests extends ESTestCase {
 
         action.notifyDone(System.nanoTime(), asyncResponse, 0);
 
-        assertThat("should continue consuming remaining hits via onScrollResponse", onScrollResponseCalled.get(), equalTo(true));
+        assertThat("should continue consuming remaining hits via onPaginatedSearchResponse", onScrollResponseCalled.get(), equalTo(true));
         assertThat("listener should not be done - relocation should not happen while hits remain", listener.isDone(), equalTo(false));
     }
 
     /**
      * When relocation is requested with a target node available during PIT search, verifies that remaining hits
-     * in the response are consumed via onScrollResponse before relocating; relocation does not happen while hits remain.
+     * in the response are consumed via onPaginatedSearchResponse before relocating; relocation does not happen while hits remain.
      */
     public void testNotifyDoneConsumesRemainingHitsBeforeRelocatingWithPITSearch() {
         configurePitOrScroll(true);
@@ -2090,7 +2090,7 @@ public class AsyncBulkByPaginatedSearchActionTests extends ESTestCase {
         final AtomicBoolean onScrollResponseCalled = new AtomicBoolean();
         final DummyAsyncBulkByPaginatedSearchAction action = new DummyAsyncBulkByPaginatedSearchAction() {
             @Override
-            void onScrollResponse(final AbstractAsyncBulkByPaginatedSearchAction.ScrollConsumableHitsResponse asyncResponse) {
+            void onPaginatedSearchResponse(final AbstractAsyncBulkByPaginatedSearchAction.ScrollConsumableHitsResponse asyncResponse) {
                 onScrollResponseCalled.set(true);
                 // don't call super - continues ingesting and listener might complete before assertions
             }
@@ -2117,7 +2117,7 @@ public class AsyncBulkByPaginatedSearchActionTests extends ESTestCase {
 
         action.notifyDone(System.nanoTime(), asyncResponse, 0);
 
-        assertThat("should continue consuming remaining hits via onScrollResponse", onScrollResponseCalled.get(), equalTo(true));
+        assertThat("should continue consuming remaining hits via onPaginatedSearchResponse", onScrollResponseCalled.get(), equalTo(true));
         assertThat("listener should not be done - relocation should not happen while hits remain", listener.isDone(), equalTo(false));
     }
 

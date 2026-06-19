@@ -41,17 +41,17 @@ import static org.elasticsearch.index.reindex.resumeinfo.SliceStatusWireSerializ
 import static org.elasticsearch.xcontent.json.JsonXContent.jsonXContent;
 
 /**
- * Shared helpers for bulk-by-scroll wire serialization tests.
+ * Shared helpers for bulk-by-paginated-search wire serialization tests.
  */
-public final class BulkByScrollWireSerializingTestUtils {
+public final class BulkByPaginatedSearchWireSerializingTestUtils {
 
-    private BulkByScrollWireSerializingTestUtils() {}
+    private BulkByPaginatedSearchWireSerializingTestUtils() {}
 
     /**
      * Registry sufficient for {@link ReindexRequest}, {@link UpdateByQueryRequest}, {@link DeleteByQueryRequest},
      * and {@link ResumeBulkByPaginatedSearchRequest} when the delegate carries {@link ResumeInfo}.
      */
-    public static NamedWriteableRegistry bulkScrollRequestNamedWriteableRegistry() {
+    public static NamedWriteableRegistry bulkPaginatedSearchRequestNamedWriteableRegistry() {
         List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();
         SearchModule searchModule = new SearchModule(Settings.EMPTY, Collections.emptyList());
         entries.addAll(searchModule.getNamedWriteables());
@@ -80,7 +80,7 @@ public final class BulkByScrollWireSerializingTestUtils {
         return new NamedWriteableRegistry(entries);
     }
 
-    public static boolean abstractBulkByScrollRequestsEqual(
+    public static boolean abstractBulkByPaginatedSearchRequestsEqual(
         AbstractBulkByPaginatedSearchRequest<?> firstRequest,
         AbstractBulkByPaginatedSearchRequest<?> secondRequest
     ) {
@@ -193,18 +193,18 @@ public final class BulkByScrollWireSerializingTestUtils {
         return true;
     }
 
-    public static boolean abstractBulkIndexByScrollRequestsEqual(
+    public static boolean abstractBulkIndexByPaginatedSearchRequestsEqual(
         AbstractBulkIndexByPaginatedSearchRequest<?> firstRequest,
         AbstractBulkIndexByPaginatedSearchRequest<?> secondRequest
     ) {
-        if (abstractBulkByScrollRequestsEqual(firstRequest, secondRequest) == false) {
+        if (abstractBulkByPaginatedSearchRequestsEqual(firstRequest, secondRequest) == false) {
             return false;
         }
         return Objects.equals(firstRequest.getScript(), secondRequest.getScript());
     }
 
     public static boolean reindexRequestsEqual(ReindexRequest firstRequest, ReindexRequest secondRequest) {
-        if (abstractBulkIndexByScrollRequestsEqual(firstRequest, secondRequest) == false) {
+        if (abstractBulkIndexByPaginatedSearchRequestsEqual(firstRequest, secondRequest) == false) {
             return false;
         }
         if (Objects.equals(firstRequest.getDestination().index(), secondRequest.getDestination().index()) == false) {
@@ -220,14 +220,14 @@ public final class BulkByScrollWireSerializingTestUtils {
     }
 
     public static boolean updateByQueryRequestsEqual(UpdateByQueryRequest firstRequest, UpdateByQueryRequest secondRequest) {
-        if (abstractBulkIndexByScrollRequestsEqual(firstRequest, secondRequest) == false) {
+        if (abstractBulkIndexByPaginatedSearchRequestsEqual(firstRequest, secondRequest) == false) {
             return false;
         }
         return Objects.equals(firstRequest.getPipeline(), secondRequest.getPipeline());
     }
 
     public static boolean deleteByQueryRequestsEqual(DeleteByQueryRequest firstRequest, DeleteByQueryRequest secondRequest) {
-        return abstractBulkByScrollRequestsEqual(firstRequest, secondRequest);
+        return abstractBulkByPaginatedSearchRequestsEqual(firstRequest, secondRequest);
     }
 
     public static BytesReference matchAllQueryBytes() {
@@ -260,7 +260,7 @@ public final class BulkByScrollWireSerializingTestUtils {
     }
 
     /**
-     * Minimal random resume info for embedding in bulk-by-scroll requests (worker or multi-slice).
+     * Minimal random resume info for embedding in bulk-by-paginated-search requests (worker or multi-slice).
      */
     public static void fillRandomBulkFields(AbstractBulkByPaginatedSearchRequest<?> request) {
         if (ESTestCase.randomBoolean()) {
@@ -294,7 +294,7 @@ public final class BulkByScrollWireSerializingTestUtils {
      * Mutates {@code mutatedRequest} (a copy of {@code originalRequest}) by changing exactly one serialized field of
      * {@link AbstractBulkByPaginatedSearchRequest}.
      */
-    public static void mutateAbstractBulkByScrollRequest(
+    public static void mutateAbstractBulkByPaginatedSearchRequest(
         AbstractBulkByPaginatedSearchRequest<?> originalRequest,
         AbstractBulkByPaginatedSearchRequest<?> mutatedRequest
     ) {
@@ -349,7 +349,7 @@ public final class BulkByScrollWireSerializingTestUtils {
             case 13 -> mutatedRequest.setResumeInfo(
                 ESTestCase.randomValueOtherThan(
                     originalRequest.getResumeInfo().orElse(null),
-                    BulkByScrollWireSerializingTestUtils::randomResumeInfo
+                    BulkByPaginatedSearchWireSerializingTestUtils::randomResumeInfo
                 )
             );
             case 14 -> {

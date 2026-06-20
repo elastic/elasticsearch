@@ -674,6 +674,21 @@ class IndexLifecycleRunner {
 
         @Override
         protected ClusterState doExecute(ProjectState currentState) {
+            // If ILM is no longer running (i.e. it is stopping or stopped), don't keep retrying the failed step: doing so can flood the
+            // master node with cluster state updates at the very moment an operator is trying to stabilize it via the _ilm/stop API. This
+            // is a best-effort no-op for tasks that were already queued before ILM stopped; the index stays on the ERROR step and is
+            // retried once ILM restarts.
+            final OperationMode currentMode = currentILMMode(currentState.metadata());
+            if (OperationMode.RUNNING.equals(currentMode) == false) {
+                logger.debug(
+                    "skipping retry of failed step [{}] for index [{}] with policy [{}] because ILM is [{}]",
+                    failedStep.getKey().name(),
+                    index.getName(),
+                    policy,
+                    currentMode
+                );
+                return currentState.cluster();
+            }
             final var updatedProject = IndexLifecycleTransition.moveIndexToPreviouslyFailedStep(
                 currentState.metadata(),
                 index.getName(),

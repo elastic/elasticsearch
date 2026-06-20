@@ -71,6 +71,7 @@ import org.elasticsearch.xpack.ilm.history.ILMHistoryItem;
 import org.elasticsearch.xpack.ilm.history.ILMHistoryStore;
 import org.junit.After;
 import org.junit.Before;
+import org.mockito.ArgumentCaptor;
 import org.mockito.ArgumentMatcher;
 import org.mockito.Mockito;
 
@@ -97,6 +98,7 @@ import static org.elasticsearch.xpack.ilm.LifecyclePolicyTestsUtils.newTestLifec
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
@@ -333,6 +335,71 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         runner.runPeriodicStep(state, policyName, indexMetadata);
 
         Mockito.verify(taskQueue, times(1)).submitTask(anyString(), any(), any());
+    }
+
+    /**
+     * When ILM is no longer running (stopping or stopped), a retry task that was already queued for an index on the ERROR step should
+     * resolve as a no-op (returning the unchanged cluster state) instead of moving the index back to its failed step. This prevents
+     * already-queued retries from flooding the master node with cluster state updates after an operator has issued the _ilm/stop API,
+     * which transitions ILM through STOPPING before reaching STOPPED.
+     */
+    public void testRetryFailedStepIsNoOpWhenILMStopped() {
+        String policyName = "rollover_policy";
+        String phaseName = "hot";
+        TimeValue after = randomTimeValue(0, 1_000_000_000, TimeUnit.SECONDS, TimeUnit.MINUTES, TimeUnit.HOURS, TimeUnit.DAYS);
+        Map<String, LifecycleAction> actions = new HashMap<>();
+        RolloverAction action = RolloverActionTests.randomInstance();
+        actions.put(RolloverAction.NAME, action);
+        Phase phase = new Phase(phaseName, after, actions);
+        PhaseExecutionInfo phaseExecutionInfo = new PhaseExecutionInfo(policyName, phase, 1, randomNonNegativeLong());
+        String phaseJson = Strings.toString(phaseExecutionInfo);
+        NoOpClient client = new NoOpClient(threadPool);
+        List<Step> waitForRolloverStepList = action.toSteps(client, phaseName, null)
+            .stream()
+            .filter(s -> s.getKey().name().equals(WaitForRolloverReadyStep.NAME))
+            .toList();
+        assertThat(waitForRolloverStepList.size(), is(1));
+        Step waitForRolloverStep = waitForRolloverStepList.get(0);
+        StepKey stepKey = waitForRolloverStep.getKey();
+
+        PolicyStepsRegistry stepRegistry = createOneStepPolicyStepRegistry(policyName, waitForRolloverStep);
+        ClusterService clusterService = mock(ClusterService.class);
+        MasterServiceTaskQueue<IndexLifecycleClusterStateUpdateTask> taskQueue = newMockTaskQueue(clusterService);
+        when(clusterService.state()).thenReturn(ClusterState.EMPTY_STATE);
+        IndexLifecycleRunner runner = new IndexLifecycleRunner(stepRegistry, historyStore, clusterService, threadPool, () -> 0L);
+        LifecycleExecutionState.Builder newState = LifecycleExecutionState.builder();
+        newState.setFailedStep(stepKey.name());
+        newState.setIsAutoRetryableError(true);
+        newState.setPhase(stepKey.phase());
+        newState.setAction(stepKey.action());
+        newState.setStep(ErrorStep.NAME);
+        newState.setPhaseDefinition(phaseJson);
+        IndexMetadata indexMetadata = IndexMetadata.builder("test")
+            .settings(randomIndexSettings().put(LifecycleSettings.LIFECYCLE_NAME, policyName))
+            .putCustom(ILM_CUSTOM_METADATA_KEY, newState.build().asMap())
+            .build();
+
+        // The periodic step still queues the retry task (it doesn't itself check the operation mode); we want to verify that the task
+        // becomes a no-op once it actually executes against a state where ILM is not running. Both STOPPING and STOPPED must no-op, since
+        // _ilm/stop first transitions to STOPPING and already-queued retries can execute in that window.
+        OperationMode stoppedMode = randomFrom(OperationMode.STOPPING, OperationMode.STOPPED);
+        IndexLifecycleMetadata ilm = new IndexLifecycleMetadata(Map.of(), stoppedMode);
+        final var state = projectStateFromProject(
+            ProjectMetadata.builder(randomProjectIdOrDefault()).put(indexMetadata, true).putCustom(IndexLifecycleMetadata.TYPE, ilm)
+        );
+        runner.runPeriodicStep(state, policyName, indexMetadata);
+
+        ArgumentCaptor<IndexLifecycleClusterStateUpdateTask> taskCaptor = ArgumentCaptor.forClass(
+            IndexLifecycleClusterStateUpdateTask.class
+        );
+        Mockito.verify(taskQueue, times(1)).submitTask(anyString(), taskCaptor.capture(), any());
+
+        try {
+            ClusterState updatedState = taskCaptor.getValue().execute(state);
+            assertThat(updatedState, sameInstance(state.cluster()));
+        } catch (Exception e) {
+            throw new AssertionError("retry task execution should not throw when ILM is [" + stoppedMode + "]", e);
+        }
     }
 
     public void testRunStateChangePolicyWithNoNextStep() throws Exception {

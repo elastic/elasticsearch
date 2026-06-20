@@ -37,7 +37,7 @@ abstract sealed class NumericMetricFieldDownsampler extends AbstractFieldDownsam
     // Keep the active iterator and read its docID() when switching back to it instead of storing per-leaf positions.
     private DocIdSetIterator leafDocIdIterator;
     private int leafDocIdIteratorDoc = -1;
-    private LeafIteratorState leafIteratorState = LeafIteratorState.EMPTY;
+    private boolean leafIteratorExhausted;
 
     NumericMetricFieldDownsampler(String name, IndexFieldData<?> fieldData) {
         super(name, fieldData);
@@ -56,7 +56,7 @@ abstract sealed class NumericMetricFieldDownsampler extends AbstractFieldDownsam
         }
 
         resetLeafIteratorStateIfNeeded(docIdIterator);
-        if (leafIteratorState == LeafIteratorState.EXHAUSTED) {
+        if (leafIteratorExhausted) {
             return;
         }
 
@@ -78,9 +78,7 @@ abstract sealed class NumericMetricFieldDownsampler extends AbstractFieldDownsam
             // If we see a previously used iterator again, its own docID() is the last position for that leaf.
             leafDocIdIterator = docIdIterator;
             leafDocIdIteratorDoc = docIdIterator.docID();
-            leafIteratorState = leafDocIdIteratorDoc == DocIdSetIterator.NO_MORE_DOCS
-                ? LeafIteratorState.EXHAUSTED
-                : LeafIteratorState.EMPTY;
+            leafIteratorExhausted = leafDocIdIteratorDoc == DocIdSetIterator.NO_MORE_DOCS;
         }
     }
 
@@ -125,14 +123,14 @@ abstract sealed class NumericMetricFieldDownsampler extends AbstractFieldDownsam
         if (leafDocIdIteratorDoc < firstBufferedDocId) {
             // advance to the closest doc that >= firstBufferedDocId
             advanceLeafDocIdIterator(firstBufferedDocId);
-            if (leafIteratorState == LeafIteratorState.EXHAUSTED) {
+            if (leafIteratorExhausted) {
                 return;
             }
         }
 
         // find the closest index in bufferedDocIds that points to a doc that is >= leafDocIdIteratorDoc
         int index = lowerBound(bufferedDocIds, 0, bufferedDocCount, leafDocIdIteratorDoc);
-        while (index < bufferedDocCount && leafIteratorState != LeafIteratorState.EXHAUSTED && isDone() == false) {
+        while (index < bufferedDocCount && leafIteratorExhausted == false && isDone() == false) {
             int targetDocId = bufferedDocIds[index];
             if (leafDocIdIteratorDoc < targetDocId) {
                 // advance to the closest doc that is >= targetDocId
@@ -157,9 +155,7 @@ abstract sealed class NumericMetricFieldDownsampler extends AbstractFieldDownsam
 
     private void advanceLeafDocIdIterator(int targetDocId) throws IOException {
         leafDocIdIteratorDoc = leafDocIdIterator.advance(targetDocId);
-        leafIteratorState = leafDocIdIteratorDoc == DocIdSetIterator.NO_MORE_DOCS
-            ? LeafIteratorState.EXHAUSTED
-            : LeafIteratorState.IN_PROGRESS;
+        leafIteratorExhausted = leafDocIdIteratorDoc == DocIdSetIterator.NO_MORE_DOCS;
     }
 
     private static int lowerBound(int[] values, int from, int to, int target) {
@@ -185,12 +181,6 @@ abstract sealed class NumericMetricFieldDownsampler extends AbstractFieldDownsam
     public static boolean supportsFieldType(MappedFieldType fieldType) {
         TimeSeriesParams.MetricType metricType = fieldType.getMetricType();
         return metricType == TimeSeriesParams.MetricType.GAUGE || metricType == TimeSeriesParams.MetricType.COUNTER;
-    }
-
-    private enum LeafIteratorState {
-        EMPTY,
-        IN_PROGRESS,
-        EXHAUSTED
     }
 
     static NumericMetricFieldDownsampler create(

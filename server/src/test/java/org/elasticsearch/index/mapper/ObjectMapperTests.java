@@ -846,8 +846,8 @@ public class ObjectMapperTests extends MapperServiceTestCase {
             assertNotNull(mapperService.fieldType("resource.service"));
             // Prefix→dynamic map is populated
             RootObjectMapper root = mapperService.mappingLookup().getMapping().getRoot();
-            assertEquals(ObjectMapper.Dynamic.FALSE, root.getDynamicByPrefix().get("attributes"));
-            assertEquals(ObjectMapper.Dynamic.STRICT, root.getDynamicByPrefix().get("resource"));
+            assertEquals(ObjectMapper.Dynamic.FALSE, root.getPrefixProperties().get("attributes").dynamic());
+            assertEquals(ObjectMapper.Dynamic.STRICT, root.getPrefixProperties().get("resource").dynamic());
         }
     }
 
@@ -874,8 +874,8 @@ public class ObjectMapperTests extends MapperServiceTestCase {
                 b.endObject();
             }));
             RootObjectMapper root = mapperService.mappingLookup().getMapping().getRoot();
-            assertEquals(ObjectMapper.Dynamic.FALSE, root.getDynamicByPrefix().get("foo"));
-            assertEquals(ObjectMapper.Dynamic.TRUE, root.getDynamicByPrefix().get("foo.bar"));
+            assertEquals(ObjectMapper.Dynamic.FALSE, root.getPrefixProperties().get("foo").dynamic());
+            assertEquals(ObjectMapper.Dynamic.TRUE, root.getPrefixProperties().get("foo.bar").dynamic());
         }
     }
 

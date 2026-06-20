@@ -45,13 +45,20 @@ import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.SearchModule;
+import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.tasks.TaskManager;
+import org.elasticsearch.telemetry.RecordingMeterRegistry;
+import org.elasticsearch.telemetry.TelemetryProvider;
+import org.elasticsearch.telemetry.TelemetryProvider.NoopTelemetryProvider;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TestEsExecutors;
 import org.elasticsearch.test.tasks.MockTaskManager;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.BytesTransportMessage;
+import org.elasticsearch.transport.BytesTransportMessageTestUtils;
 import org.elasticsearch.transport.ClusterConnectionManager;
 import org.elasticsearch.transport.ClusterSettingsLinkedProjectConfigService;
 import org.elasticsearch.transport.ConnectTransportException;
@@ -91,7 +98,6 @@ import java.util.function.Supplier;
 
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
-import static org.mockito.Mockito.spy;
 
 /**
  * A mock delegate service that allows to simulate different network topology failures.
@@ -262,8 +268,17 @@ public class MockTransportService extends TransportService {
             interceptor,
             localNodeFactory,
             clusterSettings,
-            createTaskManager(settings, threadPool, taskHeaders, Tracer.NOOP, nodeId),
+            MockTaskManager.create(settings, threadPool, taskHeaders, Tracer.NOOP, nodeId),
             new ClusterSettingsLinkedProjectConfigService(settings, clusterSettings, DefaultProjectResolver.INSTANCE),
+            new NoopTelemetryProvider() {
+                final MeterRegistry meterRegistry = new RecordingMeterRegistry();
+
+                @Override
+                public MeterRegistry getMeterRegistry() {
+                    return meterRegistry;
+                }
+            },
+            new CrossProjectModeDecider(settings),
             DefaultProjectResolver.INSTANCE
         );
     }
@@ -277,6 +292,8 @@ public class MockTransportService extends TransportService {
         @Nullable ClusterSettings clusterSettings,
         TaskManager taskManager,
         LinkedProjectConfigService linkedProjectConfigService,
+        TelemetryProvider telemetryProvider,
+        CrossProjectModeDecider crossProjectModeDecider,
         ProjectResolver projectResolver
     ) {
         super(
@@ -289,6 +306,8 @@ public class MockTransportService extends TransportService {
             new StubbableConnectionManager(new ClusterConnectionManager(settings, transport, threadPool.getThreadContext())),
             taskManager,
             linkedProjectConfigService,
+            telemetryProvider,
+            crossProjectModeDecider,
             projectResolver
         );
         this.original = transport.getDelegate();
@@ -310,31 +329,6 @@ public class MockTransportService extends TransportService {
         transportAddresses.addAll(Arrays.asList(boundTransportAddress.boundAddresses()));
         transportAddresses.add(boundTransportAddress.publishAddress());
         return transportAddresses.toArray(new TransportAddress[transportAddresses.size()]);
-    }
-
-    public static TaskManager createTaskManager(
-        Settings settings,
-        ThreadPool threadPool,
-        Set<String> taskHeaders,
-        Tracer tracer,
-        String nodeId
-    ) {
-        TaskManager mockTaskManager = createMockTaskManager(settings, threadPool, taskHeaders, tracer, nodeId);
-        return MockTaskManager.SPY_TASK_MANAGER_SETTING.get(settings) ? spy(mockTaskManager) : mockTaskManager;
-    }
-
-    private static TaskManager createMockTaskManager(
-        Settings settings,
-        ThreadPool threadPool,
-        Set<String> taskHeaders,
-        Tracer tracer,
-        String nodeId
-    ) {
-        if (MockTaskManager.USE_MOCK_TASK_MANAGER_SETTING.get(settings)) {
-            return new MockTaskManager(settings, threadPool, taskHeaders);
-        } else {
-            return new TaskManager(settings, threadPool, taskHeaders, tracer, nodeId);
-        }
     }
 
     /**
@@ -576,7 +570,11 @@ public class MockTransportService extends TransportService {
 
                 // poor mans request cloning...
                 BytesStreamOutput bStream = new BytesStreamOutput();
-                request.writeTo(bStream);
+                if (request instanceof BytesTransportMessage bytesRequest) {
+                    BytesTransportMessageTestUtils.writeThinWithBytes(bStream, bytesRequest);
+                } else {
+                    request.writeTo(bStream);
+                }
                 RequestHandlerRegistry<?> reg = MockTransportService.this.getRequestHandler(action);
                 final TransportRequest clonedRequest = reg.newRequest(bStream.bytes().streamInput());
                 assert clonedRequest.getClass().equals(MasterNodeRequestHelper.unwrapTermOverride(request).getClass())

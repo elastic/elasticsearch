@@ -28,7 +28,6 @@ import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.FeatureFlag;
 import org.elasticsearch.test.cluster.local.LocalClusterConfigProvider;
-import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.test.rest.TestFeatureService;
 import org.elasticsearch.test.rest.yaml.restspec.ClientYamlSuiteRestApi;
@@ -50,7 +49,6 @@ import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
@@ -68,8 +66,13 @@ import static java.util.Collections.unmodifiableList;
  * defined in CCS_APIS against the "search" cluster, while all other operations like indexing are performed
  * using the client running against the "write" cluster.
  *
+ * Running all the YAML tests in a single test suite can lead to the suite timing out.
+ * To avoid timeouts subsets of the tests are executed in specific test suites according
+ * to the logic in {@link TestSuiteApiCheck}. To further split the tests add another suite
+ * by subclassing this class then add an entry to {@link TestSuiteApiCheck} mapping the API
+ * name(s) to the new class.
  */
-@TimeoutSuite(millis = 20 * TimeUnits.MINUTE) // to account for slow as hell VMs
+@TimeoutSuite(millis = 25 * TimeUnits.MINUTE) // to account for slow as hell VMs
 public class CcsCommonYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
 
     private static final Logger logger = LogManager.getLogger(CcsCommonYamlTestSuiteIT.class);
@@ -98,8 +101,9 @@ public class CcsCommonYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
         // geohex_grid requires gold license
         .setting("xpack.license.self_generated.type", "trial")
         .feature(FeatureFlag.TIME_SERIES_MODE)
-        .feature(FeatureFlag.SUB_OBJECTS_AUTO_ENABLED)
-        .feature(FeatureFlag.SYNTHETIC_VECTORS);
+        .feature(FeatureFlag.SYNTHETIC_VECTORS)
+        .feature(FeatureFlag.EXTENDED_DOC_VALUES_PARAMS)
+        .feature(FeatureFlag.COLUMNAR_INDEX_MODE_FEATURE_FLAG);
 
     private static ElasticsearchCluster remoteCluster = ElasticsearchCluster.local()
         .name(REMOTE_CLUSTER_NAME)
@@ -300,6 +304,17 @@ public class CcsCommonYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
     }
 
     @Override
+    public void test() throws IOException {
+        boolean shouldBeExecutedByThisSuite = TestSuiteApiCheck.shouldExecuteTest(this, getTestCandidate().getApi());
+        assumeTrue(
+            "Skipping test as the API [" + getTestCandidate().getApi() + "] is not covered by this suite",
+            shouldBeExecutedByThisSuite
+        );
+
+        super.test();
+    }
+
+    @Override
     protected ClientYamlTestExecutionContext createRestTestExecutionContext(
         ClientYamlTestCandidate clientYamlTestCandidate,
         ClientYamlTestClient clientYamlTestClient,
@@ -315,13 +330,10 @@ public class CcsCommonYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
                 // Reconcile and provide unified features, os, version(s), based on both clientYamlTestClient and searchYamlTestClient
                 var searchOs = readOsFromNodesInfo(adminSearchClient);
                 var searchNodeVersions = readVersionsFromNodesInfo(adminSearchClient);
-                var semanticNodeVersions = searchNodeVersions.stream()
-                    .map(ESRestTestCase::parseLegacyVersion)
-                    .flatMap(Optional::stream)
-                    .collect(Collectors.toSet());
+
                 final TestFeatureService searchTestFeatureService = createTestFeatureService(
                     getClusterStateFeatures(adminSearchClient),
-                    semanticNodeVersions
+                    fromSemanticVersions(searchNodeVersions)
                 );
                 final TestFeatureService combinedTestFeatureService = (featureId, any) -> {
                     boolean adminFeature = testFeatureService.clusterHasFeature(featureId, any);
@@ -356,11 +368,23 @@ public class CcsCommonYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
     }
 
     @AfterClass
-    public static void closeSearchClients() throws IOException {
+    public static void resetSearchClientState() throws IOException {
         try {
             IOUtils.close(searchClient, adminSearchClient);
         } finally {
+            // These clients and their connection state are static and shared by every suite that extends this base class.
+            // Reset them all so that a sibling suite running later in the same JVM re-initializes against its own freshly
+            // started cluster, rather than reusing these now-closed clients (or stale flags) via the searchClient == null
+            // guard in initSearchClient().
+            searchClient = null;
+            adminSearchClient = null;
+            searchYamlTestClient = null;
             clusterHosts = null;
+            isRemoteConfigured.set(false);
+            isCombinedComputed.set(false);
+            combinedTestFeatureServiceRef.set(null);
+            combinedOsSetRef.set(null);
+            combinedNodeVersionsRef.set(null);
         }
     }
 
@@ -382,8 +406,10 @@ public class CcsCommonYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
 
         // we overwrite this method so the search client can modify the index names by prefixing them with the
         // remote cluster name before sending the requests
+        @Override
         public ClientYamlTestResponse callApi(
             String apiName,
+            String method,
             Map<String, String> params,
             HttpEntity entity,
             Map<String, String> headers,
@@ -409,7 +435,7 @@ public class CcsCommonYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
                 }
                 params.put(parameterName, String.join(",", expandedIndices));
             }
-            return super.callApi(apiName, params, entity, headers, nodeSelector, pathPredicate);
+            return super.callApi(apiName, method, params, entity, headers, nodeSelector, pathPredicate);
         }
 
         private boolean shouldReplaceIndexWithRemote(String apiName) {

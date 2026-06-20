@@ -9,6 +9,7 @@
 
 package org.elasticsearch.index.fielddata;
 
+import org.apache.lucene.search.DoubleValues;
 import org.apache.lucene.search.LongValues;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.test.ESTestCase;
@@ -43,7 +44,7 @@ public class FieldDataTests extends ESTestCase {
         LongValues values = new DummyValues(valueBits);
 
         SortedNumericDoubleValues asMultiDoubles = FieldData.sortableLongBitsToDoubles(SortedNumericLongValues.singleton(values));
-        NumericDoubleValues asDoubles = FieldData.unwrapSingleton(asMultiDoubles);
+        DoubleValues asDoubles = SortedNumericDoubleValues.unwrapSingleton(asMultiDoubles);
         assertNotNull(asDoubles);
         assertTrue(asDoubles.advanceExact(0));
         assertEquals(value, asDoubles.doubleValue(), 0);
@@ -53,7 +54,7 @@ public class FieldDataTests extends ESTestCase {
         LongValues backToLongs = SortedNumericLongValues.unwrapSingleton(FieldData.toSortableLongBits(asMultiDoubles));
         assertSame(values, backToLongs);
 
-        SortedNumericLongValues multiValues = new SortedNumericLongValues() {
+        SortedNumericLongValues multiValues = new SortedNumericLongValues(null) {
 
             @Override
             public boolean advanceExact(int target) {
@@ -80,7 +81,7 @@ public class FieldDataTests extends ESTestCase {
         final double value = randomDouble();
         final long valueBits = NumericUtils.doubleToSortableLong(value);
 
-        NumericDoubleValues values = new NumericDoubleValues() {
+        DoubleValues values = new DoubleValues() {
             @Override
             public boolean advanceExact(int doc) throws IOException {
                 return true;
@@ -98,7 +99,7 @@ public class FieldDataTests extends ESTestCase {
         assertTrue(asLongs.advanceExact(0));
         assertEquals(valueBits, asLongs.longValue());
 
-        SortedNumericDoubleValues multiValues = new SortedNumericDoubleValues() {
+        SortedNumericDoubleValues multiValues = new SortedNumericDoubleValues(null) {
             @Override
             public double nextValue() {
                 return value;
@@ -161,8 +162,8 @@ public class FieldDataTests extends ESTestCase {
         assertEquals(4L, replaced.longValue());
     }
 
-    private static NumericDoubleValues asNumericDoubleValues(Double... values) {
-        return new NumericDoubleValues() {
+    private static DoubleValues asNumericDoubleValues(Double... values) {
+        return new DoubleValues() {
 
             int docID = -1;
 
@@ -180,8 +181,8 @@ public class FieldDataTests extends ESTestCase {
     }
 
     public void testReplaceMissingDoubles() throws IOException {
-        final NumericDoubleValues values = asNumericDoubleValues(null, 1.3, 1.2, null, 1.5, null);
-        final NumericDoubleValues replaced = FieldData.replaceMissing(values, 1.4);
+        final DoubleValues values = asNumericDoubleValues(null, 1.3, 1.2, null, 1.5, null);
+        final DoubleValues replaced = FieldData.replaceMissing(values, 1.4);
 
         assertTrue(replaced.advanceExact(0));
         assertEquals(1.4, replaced.doubleValue(), 0d);

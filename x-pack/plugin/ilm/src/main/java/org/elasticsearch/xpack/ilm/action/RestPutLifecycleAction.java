@@ -83,6 +83,6 @@ public class RestPutLifecycleAction extends BaseRestHandler {
 
     @Override
     public Set<String> supportedCapabilities() {
-        return Set.of("max_size_deprecation");
+        return Set.of("max_size_deprecation", "searchable_snapshot_force_merge_on_clone");
     }
 }

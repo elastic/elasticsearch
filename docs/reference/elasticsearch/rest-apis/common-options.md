@@ -96,8 +96,8 @@ Responds:
   }
 }
 ```
-%  TESTRESPONSE[s/"took" : 3/"took" : $body.took/]
-%  TESTRESPONSE[s/1.6375021/$body.hits.hits.0._score/]
+% TESTRESPONSE[s/"took" : 3/"took" : $body.took/]
+% TESTRESPONSE[s/1.6375021/$body.hits.hits.0._score/]
 
 It also supports the `*` wildcard character to match any field or part of a field’s name:
 
@@ -230,9 +230,9 @@ Returns:
   }
 }
 ```
-%  TESTRESPONSE[s/1474389951325/$body.my-index-000001.settings.index\\\\.creation_date/]
-%  TESTRESPONSE[s/n6gzFZTgS664GUfx0Xrpjw/$body.my-index-000001.settings.index\\\\.uuid/]
-%  TESTRESPONSE[s/"index.version.created": \.\.\./"index.version.created": $body.my-index-000001.settings.index\\\\.version\\\\.created/]
+% TESTRESPONSE[s/1474389951325/$body.my-index-000001.settings.index\\\\.creation_date/]
+% TESTRESPONSE[s/n6gzFZTgS664GUfx0Xrpjw/$body.my-index-000001.settings.index\\\\.uuid/]
+% TESTRESPONSE[s/"index.version.created": \.\.\./"index.version.created": $body.my-index-000001.settings.index\\\\.version\\\\.created/]
 
 When the `flat_settings` flag is `false`, settings are returned in a more human readable structured format:
 
@@ -268,9 +268,9 @@ Returns:
   }
 }
 ```
-%  TESTRESPONSE[s/1474389951325/$body.my-index-000001.settings.index.creation_date/]
-%  TESTRESPONSE[s/n6gzFZTgS664GUfx0Xrpjw/$body.my-index-000001.settings.index.uuid/]
-%  TESTRESPONSE[s/"created": \.\.\./"created": $body.my-index-000001.settings.index.version.created/]
+% TESTRESPONSE[s/1474389951325/$body.my-index-000001.settings.index.creation_date/]
+% TESTRESPONSE[s/n6gzFZTgS664GUfx0Xrpjw/$body.my-index-000001.settings.index.uuid/]
+% TESTRESPONSE[s/"created": \.\.\./"created": $body.my-index-000001.settings.index.version.created/]
 
 By default `flat_settings` is set to `false`.
 
@@ -364,6 +364,6 @@ The response looks like:
   "status": 400
 }
 ```
-%  TESTRESPONSE[s/"stack_trace": "Failed to parse int parameter.+\.\.\."/"stack_trace": $body.error.root_cause.0.stack_trace/]
-%  TESTRESPONSE[s/"stack_trace": "java.lang.IllegalArgum.+\.\.\."/"stack_trace": $body.error.stack_trace/]
-%  TESTRESPONSE[s/"stack_trace": "java.lang.Number.+\.\.\."/"stack_trace": $body.error.caused_by.stack_trace/]
+% TESTRESPONSE[s/"stack_trace": "Failed to parse int parameter.+\.\.\."/"stack_trace": $body.error.root_cause.0.stack_trace/]
+% TESTRESPONSE[s/"stack_trace": "java.lang.IllegalArgum.+\.\.\."/"stack_trace": $body.error.stack_trace/]
+% TESTRESPONSE[s/"stack_trace": "java.lang.Number.+\.\.\."/"stack_trace": $body.error.caused_by.stack_trace/]

@@ -1,5 +1,0 @@
-pr: 134458
-summary: Enable caching of all filters in `knn` queries
-area: Vector Search
-type: enhancement
-issues: []

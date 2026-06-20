@@ -9,8 +9,8 @@
 
 package org.elasticsearch.index.fielddata;
 
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.Accountable;
-import org.elasticsearch.core.Releasable;
 import org.elasticsearch.script.field.DocValuesScriptFieldFactory;
 import org.elasticsearch.search.DocValueFormat;
 
@@ -19,7 +19,7 @@ import java.io.IOException;
 /**
  * The thread safe {@link org.apache.lucene.index.LeafReader} level cache of the data.
  */
-public interface LeafFieldData extends Accountable, Releasable {
+public interface LeafFieldData extends Accountable {
 
     /**
      * Returns an {@link DocValuesScriptFieldFactory} to access either
@@ -31,9 +31,6 @@ public interface LeafFieldData extends Accountable, Releasable {
      * Return a String representation of the values.
      */
     SortedBinaryDocValues getBytesValues();
-
-    @Override
-    default void close() {}
 
     /**
      * Return a formatted representation of the values
@@ -54,6 +51,11 @@ public interface LeafFieldData extends Accountable, Releasable {
             @Override
             public Object nextValue() throws IOException {
                 return format.format(values.nextValue());
+            }
+
+            @Override
+            public DocIdSetIterator docIdIterator() {
+                return values.docIdIterator();
             }
         };
     }

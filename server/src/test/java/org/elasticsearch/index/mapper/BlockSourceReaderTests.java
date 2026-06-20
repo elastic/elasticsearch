@@ -12,10 +12,12 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.CheckedBiConsumer;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
-import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper.IgnoredSourceFormat;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
 import org.elasticsearch.search.lookup.SourceFilter;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -31,6 +33,10 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class BlockSourceReaderTests extends MapperServiceTestCase {
     public void testSingle() throws IOException {
+        assumeTrue(
+            "requires ignored_source_as_doc_values feature flag enabled",
+            IgnoredSourceFieldMapper.IGNORED_SOURCE_AS_DOC_VALUES_FF.isEnabled()
+        );
         withIndex(
             source -> source.field("field", "foo"),
             (mapperService, ctx) -> loadBlock(mapperService, ctx, block -> assertThat(block.get(0), equalTo(new BytesRef("foo"))))
@@ -38,10 +44,18 @@ public class BlockSourceReaderTests extends MapperServiceTestCase {
     }
 
     public void testMissing() throws IOException {
+        assumeTrue(
+            "requires ignored_source_as_doc_values feature flag enabled",
+            IgnoredSourceFieldMapper.IGNORED_SOURCE_AS_DOC_VALUES_FF.isEnabled()
+        );
         withIndex(source -> {}, (mapperService, ctx) -> loadBlock(mapperService, ctx, block -> assertThat(block.get(0), nullValue())));
     }
 
     public void testArray() throws IOException {
+        assumeTrue(
+            "requires ignored_source_as_doc_values feature flag enabled",
+            IgnoredSourceFieldMapper.IGNORED_SOURCE_AS_DOC_VALUES_FF.isEnabled()
+        );
         withIndex(
             source -> source.startArray("field").value("foo").value("bar").endArray(),
             (mapperService, ctx) -> loadBlock(
@@ -53,6 +67,10 @@ public class BlockSourceReaderTests extends MapperServiceTestCase {
     }
 
     public void testEmptyArray() throws IOException {
+        assumeTrue(
+            "requires ignored_source_as_doc_values feature flag enabled",
+            IgnoredSourceFieldMapper.IGNORED_SOURCE_AS_DOC_VALUES_FF.isEnabled()
+        );
         withIndex(
             source -> source.startArray("field").endArray(),
             (mapperService, ctx) -> loadBlock(mapperService, ctx, block -> assertThat(block.get(0), nullValue()))
@@ -60,6 +78,10 @@ public class BlockSourceReaderTests extends MapperServiceTestCase {
     }
 
     public void testMoreFields() throws IOException {
+        assumeTrue(
+            "requires ignored_source_as_doc_values feature flag enabled",
+            IgnoredSourceFieldMapper.IGNORED_SOURCE_AS_DOC_VALUES_FF.isEnabled()
+        );
         withIndex(
             source -> source.field("field", "foo").field("other_field", "bar").field("other_field_2", 1L),
             (mapperService, ctx) -> loadBlock(mapperService, ctx, block -> assertThat(block.get(0), equalTo(new BytesRef("foo"))))
@@ -75,31 +97,37 @@ public class BlockSourceReaderTests extends MapperServiceTestCase {
             : BlockSourceReader.lookupMatchingAll();
         BlockLoader loader = new BlockSourceReader.BytesRefsBlockLoader(valueFetcher, lookup);
         assertThat(loader.columnAtATimeReader(ctx), nullValue());
-        BlockLoader.RowStrideReader reader = loader.rowStrideReader(ctx);
-        assertThat(
-            loader.rowStrideStoredFieldSpec(),
-            equalTo(
-                StoredFieldsSpec.withSourcePaths(
-                    syntheticSource ? IgnoredSourceFormat.COALESCED_SINGLE_IGNORED_SOURCE : IgnoredSourceFormat.NO_IGNORED_SOURCE,
-                    Set.of("field")
+        CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(1));
+        try (BlockLoader.RowStrideReader reader = loader.rowStrideReader(breaker, ctx)) {
+            assertThat(
+                loader.rowStrideStoredFieldSpec(),
+                equalTo(
+                    StoredFieldsSpec.withSourcePaths(
+                        syntheticSource
+                            ? IgnoredSourceFieldMapper.IgnoredSourceFormat.DOC_VALUES_IGNORED_SOURCE
+                            : IgnoredSourceFieldMapper.IgnoredSourceFormat.NO_IGNORED_SOURCE,
+                        Set.of("field")
+                    )
                 )
-            )
-        );
-        var sourceLoader = mapperService.mappingLookup()
-            .newSourceLoader(new SourceFilter(new String[] { "field" }, null), SourceFieldMetrics.NOOP);
-        var sourceLoaderLeaf = sourceLoader.leaf(ctx.reader(), null);
+            );
+            var sourceLoader = mapperService.mappingLookup()
+                .newSourceLoader(new SourceFilter(new String[] { "field" }, null), SourceFieldMetrics.NOOP);
+            var sourceLoaderLeaf = sourceLoader.leaf(ctx.reader(), null);
 
-        assertThat(loader.rowStrideStoredFieldSpec().requiresSource(), equalTo(true));
-        var storedFields = new BlockLoaderStoredFieldsFromLeafLoader(
-            StoredFieldLoader.fromSpec(loader.rowStrideStoredFieldSpec()).getLoader(ctx, null),
-            sourceLoaderLeaf
-        );
-        BlockLoader.Builder builder = loader.builder(TestBlock.factory(), 1);
-        storedFields.advanceTo(0);
-        reader.read(0, storedFields, builder);
-        TestBlock block = (TestBlock) builder.build();
-        assertThat(block.size(), equalTo(1));
-        test.accept(block);
+            assertThat(loader.rowStrideStoredFieldSpec().requiresSource(), equalTo(true));
+            var storedFieldSpec = loader.rowStrideStoredFieldSpec()
+                .merge(new StoredFieldsSpec(true, false, sourceLoader.requiredStoredFields()));
+            var storedFields = new BlockLoaderStoredFieldsFromLeafLoader(
+                StoredFieldLoader.fromSpec(storedFieldSpec).getLoader(ctx, null),
+                sourceLoaderLeaf
+            );
+            BlockLoader.Builder builder = loader.builder(TestBlock.factory(), 1);
+            storedFields.advanceTo(0);
+            reader.read(0, storedFields, builder);
+            TestBlock block = (TestBlock) builder.build();
+            assertThat(block.size(), equalTo(1));
+            test.accept(block);
+        }
     }
 
     private void withIndex(
@@ -124,6 +152,8 @@ public class BlockSourceReaderTests extends MapperServiceTestCase {
         var settings = Settings.builder()
             .put("index.mapping.source.mode", "synthetic")
             .put("index.mapping.synthetic_source_keep", "arrays")
+            // DOC_VALUES_IGNORED_SOURCE requires the TSDB doc values format to be enabled
+            .put(IndexSettings.USE_TIME_SERIES_DOC_VALUES_FORMAT_SETTING.getKey(), true)
             .build();
         return createMapperService(getVersion(), settings, () -> true, mappings);
     }

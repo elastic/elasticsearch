@@ -7,9 +7,14 @@
 
 package org.elasticsearch.xpack.inference.external.request.elastic;
 
+import org.apache.http.HttpHeaders;
 import org.apache.http.client.methods.HttpPost;
+import org.elasticsearch.inference.InferenceString;
+import org.elasticsearch.inference.InferenceStringTests;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.inference.external.request.RequestTests;
+import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMAuthenticationApplierFactory;
 import org.elasticsearch.xpack.inference.services.elastic.request.ElasticInferenceServiceRerankRequest;
 import org.elasticsearch.xpack.inference.services.elastic.rerank.ElasticInferenceServiceRerankModelTests;
 import org.elasticsearch.xpack.inference.telemetry.TraceContext;
@@ -18,6 +23,7 @@ import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
+import static org.elasticsearch.xpack.inference.external.request.RequestUtils.apiKey;
 import static org.elasticsearch.xpack.inference.services.elastic.request.ElasticInferenceServiceRequestTests.randomElasticInferenceServiceRequestMetadata;
 import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.instanceOf;
@@ -27,13 +33,13 @@ public class ElasticInferenceServiceRerankRequestTests extends ESTestCase {
 
     public void testTraceContextPropagatedThroughHTTPHeaders() {
         var url = "http://eis-gateway.com";
-        var query = "query";
-        var documents = List.of("document 1", "document 2", "document 3");
+        var query = InferenceString.ofText("query");
+        var documents = InferenceString.fromStringList(List.of("document 1", "document 2", "document 3"));
         var modelId = "my-model-id";
         var topN = 3;
 
         var request = createRequest(url, modelId, query, documents, topN);
-        var httpRequest = request.createHttpRequest();
+        var httpRequest = RequestTests.getHttpRequestSync(request);
 
         assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
         var httpPost = (HttpPost) httpRequest.httpRequestBase();
@@ -47,31 +53,63 @@ public class ElasticInferenceServiceRerankRequestTests extends ESTestCase {
 
     public void testTruncate_DoesNotTruncate() throws IOException {
         var url = "http://eis-gateway.com";
-        var query = "query";
-        var documents = List.of("document 1", "document 2", "document 3");
+        var query = InferenceString.ofText("query");
+        var documents = InferenceString.fromStringList(List.of("document 1", "document 2", "document 3"));
         var modelId = "my-model-id";
         var topN = 3;
 
         var request = createRequest(url, modelId, query, documents, topN);
         var truncatedRequest = request.truncate();
 
-        var httpRequest = truncatedRequest.createHttpRequest();
+        var httpRequest = RequestTests.getHttpRequestSync(truncatedRequest);
         assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
 
         var httpPost = (HttpPost) httpRequest.httpRequestBase();
         var requestMap = entityAsMap(httpPost.getEntity().getContent());
         assertThat(requestMap, aMapWithSize(4));
-        assertThat(requestMap.get("query"), is(query));
+        assertThat(requestMap.get("query"), is(InferenceStringTests.inferenceStringToMap(query)));
         assertThat(requestMap.get("model"), is(modelId));
-        assertThat(requestMap.get("documents"), is(documents));
+        assertThat(requestMap.get("documents"), is(documents.stream().map(InferenceStringTests::inferenceStringToMap).toList()));
         assertThat(requestMap.get("top_n"), is(topN));
+    }
+
+    public void testDecorate_HttpRequest_WithAuthorizationHeader() {
+        var url = "http://eis-gateway.com";
+        var query = InferenceString.ofText("query");
+        var documents = InferenceString.fromStringList(List.of("document 1", "document 2", "document 3"));
+        var modelId = "my-model-id";
+        var topN = 3;
+        var secret = "secret";
+
+        var request = new ElasticInferenceServiceRerankRequest(
+            query,
+            documents,
+            topN,
+            ElasticInferenceServiceRerankModelTests.createModel(url, modelId),
+            new TraceContext(randomAlphaOfLength(10), randomAlphaOfLength(10)),
+            randomElasticInferenceServiceRequestMetadata(),
+            new CCMAuthenticationApplierFactory.AuthenticationHeaderApplier(secret)
+        );
+        var httpRequest = RequestTests.getHttpRequestSync(request);
+
+        assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
+        var httpPost = (HttpPost) httpRequest.httpRequestBase();
+
+        var traceParent = request.getTraceContext().traceParent();
+        var traceState = request.getTraceContext().traceState();
+
+        assertThat(httpPost.getLastHeader(Task.TRACE_PARENT_HTTP_HEADER).getValue(), is(traceParent));
+        assertThat(httpPost.getLastHeader(Task.TRACE_STATE).getValue(), is(traceState));
+        var headers = httpPost.getHeaders(HttpHeaders.AUTHORIZATION);
+        assertThat(headers.length, is(1));
+        assertThat(headers[0].getValue(), is(apiKey(secret)));
     }
 
     private ElasticInferenceServiceRerankRequest createRequest(
         String url,
         String modelId,
-        String query,
-        List<String> documents,
+        InferenceString query,
+        List<InferenceString> documents,
         Integer topN
     ) {
         var rerankModel = ElasticInferenceServiceRerankModelTests.createModel(url, modelId);
@@ -82,7 +120,8 @@ public class ElasticInferenceServiceRerankRequestTests extends ESTestCase {
             topN,
             rerankModel,
             new TraceContext(randomAlphaOfLength(10), randomAlphaOfLength(10)),
-            randomElasticInferenceServiceRequestMetadata()
+            randomElasticInferenceServiceRequestMetadata(),
+            CCMAuthenticationApplierFactory.NOOP_APPLIER
         );
     }
 

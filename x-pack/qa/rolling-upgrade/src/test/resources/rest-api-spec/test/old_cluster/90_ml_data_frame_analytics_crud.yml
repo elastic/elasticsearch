@@ -33,6 +33,21 @@ setup:
       indices.refresh:
         index: bwc_ml_*
 
+  # Ensure source indices are fully replicated so they remain available when a
+  # node is taken offline during the rolling-upgrade mixed-cluster phase.
+  - do:
+      indices.put_settings:
+        index: bwc_ml_*
+        body:
+          settings:
+            index.number_of_replicas: 2
+
+  - do:
+      cluster.health:
+        index: bwc_ml_*
+        wait_for_status: green
+        timeout: 30s
+
 ---
 "Put outlier_detection job on the old cluster":
 

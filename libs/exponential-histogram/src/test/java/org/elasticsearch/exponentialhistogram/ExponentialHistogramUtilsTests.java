@@ -21,10 +21,16 @@
 
 package org.elasticsearch.exponentialhistogram;
 
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 import java.util.OptionalDouble;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.not;
 
 public class ExponentialHistogramUtilsTests extends ExponentialHistogramTestCase {
 
@@ -184,5 +190,35 @@ public class ExponentialHistogramUtilsTests extends ExponentialHistogramTestCase
         );
         assertThat(estimate.isPresent(), equalTo(true));
         assertThat(estimate.getAsDouble(), equalTo(0.0));
+    }
+
+    public void testRemoveMergeNoise() {
+        List<ExponentialHistogram> histograms = IntStream.range(0, between(0, 1000))
+            .mapToObj(j -> ExponentialHistogramTestUtils.randomHistogram())
+            .collect(Collectors.toCollection(ArrayList::new));
+
+        int bucketCount = randomIntBetween(4, 200);
+
+        ExponentialHistogramCircuitBreaker cb = ExponentialHistogramCircuitBreaker.noop();
+        ExponentialHistogram a = ExponentialHistogram.merge(bucketCount, cb, histograms.toArray(ExponentialHistogram[]::new));
+        Collections.shuffle(histograms, random());
+        ExponentialHistogram b = ExponentialHistogram.merge(bucketCount, cb, histograms.toArray(ExponentialHistogram[]::new));
+
+        ExponentialHistogram additionalInput = ExponentialHistogramTestUtils.randomHistogram();
+        while (additionalInput.valueCount() == 0) {
+            additionalInput = ExponentialHistogramTestUtils.randomHistogram();
+        }
+        histograms.add(additionalInput);
+
+        ExponentialHistogram c = ExponentialHistogram.merge(bucketCount, cb, histograms.toArray(ExponentialHistogram[]::new));
+
+        ExponentialHistogramUtils.HistogramPair pairAB = ExponentialHistogramUtils.removeMergeNoise(a, b);
+        assertThat(pairAB.first(), equalTo(pairAB.second()));
+
+        ExponentialHistogramUtils.HistogramPair pairAC = ExponentialHistogramUtils.removeMergeNoise(a, c);
+        assertThat(pairAC.first(), not(equalTo(pairAC.second())));
+
+        ExponentialHistogramUtils.HistogramPair pairBC = ExponentialHistogramUtils.removeMergeNoise(b, c);
+        assertThat(pairBC.first(), not(equalTo(pairBC.second())));
     }
 }

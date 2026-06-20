@@ -16,22 +16,22 @@ import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
- * {@link EvalOperator.ExpressionEvaluator} implementation for {@link AutomataMatch}.
+ * {@link ExpressionEvaluator} implementation for {@link AutomataMatch}.
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
-public final class AutomataMatchEvaluator implements EvalOperator.ExpressionEvaluator {
+public final class AutomataMatchEvaluator implements ExpressionEvaluator {
   private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(AutomataMatchEvaluator.class);
 
   private final Source source;
 
-  private final EvalOperator.ExpressionEvaluator input;
+  private final ExpressionEvaluator input;
 
   private final ByteRunAutomaton automaton;
 
@@ -41,7 +41,7 @@ public final class AutomataMatchEvaluator implements EvalOperator.ExpressionEval
 
   private Warnings warnings;
 
-  public AutomataMatchEvaluator(Source source, EvalOperator.ExpressionEvaluator input,
+  public AutomataMatchEvaluator(Source source, ExpressionEvaluator input,
       ByteRunAutomaton automaton, String pattern, DriverContext driverContext) {
     this.source = source;
     this.input = input;
@@ -113,27 +113,22 @@ public final class AutomataMatchEvaluator implements EvalOperator.ExpressionEval
 
   private Warnings warnings() {
     if (warnings == null) {
-      this.warnings = Warnings.createWarnings(
-              driverContext.warningsMode(),
-              source.source().getLineNumber(),
-              source.source().getColumnNumber(),
-              source.text()
-          );
+      this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
     }
     return warnings;
   }
 
-  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+  static class Factory implements ExpressionEvaluator.Factory {
     private final Source source;
 
-    private final EvalOperator.ExpressionEvaluator.Factory input;
+    private final ExpressionEvaluator.Factory input;
 
     private final ByteRunAutomaton automaton;
 
     private final String pattern;
 
-    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory input,
-        ByteRunAutomaton automaton, String pattern) {
+    public Factory(Source source, ExpressionEvaluator.Factory input, ByteRunAutomaton automaton,
+        String pattern) {
       this.source = source;
       this.input = input;
       this.automaton = automaton;

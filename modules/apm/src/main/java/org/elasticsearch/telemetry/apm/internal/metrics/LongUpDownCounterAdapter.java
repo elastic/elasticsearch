@@ -35,7 +35,7 @@ public class LongUpDownCounterAdapter extends AbstractInstrument<LongUpDownCount
 
     @Override
     public void add(long inc, Map<String, Object> attributes) {
-        getInstrument().add(inc, OtelHelper.fromMap(attributes));
+        getInstrument().add(inc, OtelHelper.fromMap(getName(), attributes));
     }
 
     private static class Builder extends AbstractInstrument.Builder<LongUpDownCounter> {

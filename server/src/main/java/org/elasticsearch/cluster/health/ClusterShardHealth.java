@@ -9,7 +9,6 @@
 
 package org.elasticsearch.cluster.health;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -96,11 +95,7 @@ public final class ClusterShardHealth implements Writeable, ToXContentFragment {
         initializingShards = in.readVInt();
         unassignedShards = in.readVInt();
         primaryActive = in.readBoolean();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
-            unassignedPrimaryShards = in.readVInt();
-        } else {
-            unassignedPrimaryShards = 0;
-        }
+        unassignedPrimaryShards = in.readVInt();
     }
 
     /**
@@ -167,19 +162,17 @@ public final class ClusterShardHealth implements Writeable, ToXContentFragment {
         out.writeVInt(initializingShards);
         out.writeVInt(unassignedShards);
         out.writeBoolean(primaryActive);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
-            out.writeVInt(unassignedPrimaryShards);
-        }
+        out.writeVInt(unassignedPrimaryShards);
     }
 
     /**
      * Checks if an inactive primary shard should cause the cluster health to go RED.
      *
      * An inactive primary shard in an index should cause the cluster health to be RED to make it visible that some of the existing data is
-     * unavailable. In case of index creation, snapshot restore or index shrinking, which are unexceptional events in the cluster lifecycle,
-     * cluster health should not turn RED for the time where primaries are still in the initializing state but go to YELLOW instead.
-     * However, in case of exceptional events, for example when the primary shard cannot be assigned to a node or initialization fails at
-     * some point, cluster health should still turn RED.
+     * unavailable. In case of index creation, snapshot restore, index shrinking or reshard split, which are unexceptional events in the
+     * cluster lifecycle, cluster health should not turn RED for the time when primaries are still in the initializing state but go to
+     * YELLOW instead. However, in case of exceptional events, for example when the primary shard cannot be assigned to a node or
+     * initialization fails at some point, cluster health should still turn RED.
      *
      * NB: this method should *not* be called on active shards nor on non-primary shards.
      */
@@ -194,7 +187,8 @@ public final class ClusterShardHealth implements Writeable, ToXContentFragment {
             && unassignedInfo.failedAllocations() == 0
             && (recoveryType == RecoverySource.Type.EMPTY_STORE
                 || recoveryType == RecoverySource.Type.LOCAL_SHARDS
-                || recoveryType == RecoverySource.Type.SNAPSHOT)) {
+                || recoveryType == RecoverySource.Type.SNAPSHOT
+                || recoveryType == RecoverySource.Type.RESHARD_SPLIT)) {
             return ClusterHealthStatus.YELLOW;
         } else {
             return ClusterHealthStatus.RED;

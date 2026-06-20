@@ -31,6 +31,7 @@ import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.search.MultiSearchRequest;
 import org.elasticsearch.action.search.MultiSearchRequestBuilder;
 import org.elasticsearch.action.search.MultiSearchResponse;
+import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
@@ -240,6 +241,18 @@ public class JobResultsProvider {
                                     );
                                 }
                             }
+                            delegate.onFailure(e);
+                            return;
+                        }
+                        if (e instanceof SearchPhaseExecutionException) {
+                            LOGGER.debug(
+                                () -> "["
+                                    + job.getId()
+                                    + "] search failed during left-over document check, "
+                                    + "assuming no left-over documents",
+                                e
+                            );
+                            continue;
                         }
                         delegate.onFailure(e);
                         return;
@@ -307,16 +320,18 @@ public class JobResultsProvider {
         String readAliasName = AnomalyDetectorsIndex.jobResultsAliasedName(job.getId());
         String writeAliasName = AnomalyDetectorsIndex.resultsWriteAlias(job.getId());
         String tempIndexName = job.getInitialResultsIndexName();
+
+        // Ensure the index name is valid
+        tempIndexName = MlIndexAndAlias.ensureValidResultsIndexName(tempIndexName);
+
         // Find all indices starting with this name and pick the latest one
-        String[] concreteIndices = resolver.concreteIndexNames(state, IndicesOptions.lenientExpandOpen(), tempIndexName + "*");
-        if (concreteIndices.length > 0) {
-            tempIndexName = MlIndexAndAlias.latestIndex(concreteIndices);
-        }
+        tempIndexName = MlIndexAndAlias.latestIndexMatchingBaseName(tempIndexName, resolver, state);
 
         // Our read/write aliases should point to the concrete index
         // If the initial index is NOT an alias, either it is already a concrete index, or it does not exist yet
         if (state.getMetadata().getProject().hasAlias(tempIndexName)) {
 
+            String[] concreteIndices = resolver.concreteIndexNames(state, IndicesOptions.lenientExpandOpen(), tempIndexName + "*");
             // SHOULD NOT be closed as in typical call flow checkForLeftOverDocuments already verified this
             // if it is closed, we bailout and return an error
             if (concreteIndices.length == 0) {
@@ -642,7 +657,7 @@ public class JobResultsProvider {
                     ShardSearchFailure[] shardFailures = searchResponse.getShardFailures();
                     int unavailableShards = searchResponse.getTotalShards() - searchResponse.getSuccessfulShards();
                     if (CollectionUtils.isEmpty(shardFailures) == false) {
-                        LOGGER.error("[{}] Search request returned shard failures: {}", jobId, Arrays.toString(shardFailures));
+                        LOGGER.warn("[{}] Search request returned shard failures: {}", jobId, Arrays.toString(shardFailures));
                         listener.onFailure(
                             new ElasticsearchStatusException(
                                 ExceptionsHelper.shardFailuresToErrorMsg(jobId, shardFailures),
@@ -753,7 +768,7 @@ public class JobResultsProvider {
                     ShardSearchFailure[] shardFailures = searchResponse.getShardFailures();
                     int unavailableShards = searchResponse.getTotalShards() - searchResponse.getSuccessfulShards();
                     if (CollectionUtils.isEmpty(shardFailures) == false) {
-                        LOGGER.error("[{}] Search request returned shard failures: {}", jobId, Arrays.toString(shardFailures));
+                        LOGGER.warn("[{}] Search request returned shard failures: {}", jobId, Arrays.toString(shardFailures));
                         errorHandler.accept(
                             new ElasticsearchStatusException(
                                 ExceptionsHelper.shardFailuresToErrorMsg(jobId, shardFailures),

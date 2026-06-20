@@ -1,5 +1,4 @@
----
-synthetic_source_keep defaults:
+setup:
   - requires:
       test_runner_features: [ capabilities ]
       capabilities:
@@ -8,6 +7,8 @@ synthetic_source_keep defaults:
           capabilities: [ logsdb_index_mode ]
       reason: "Support for 'logsdb' index mode capability required"
 
+---
+synthetic_source_keep defaults:
   - do:
       indices.create:
         index: test1
@@ -37,3 +38,35 @@ synthetic_source_keep defaults:
   - is_true: test2
   - is_false: test2.settings.index.mode
   - match: { test2.defaults.index.mapping.synthetic_source_keep: "none" }
+
+---
+total_fields.ignore_dynamic_beyond_limit defaults:
+  - do:
+      indices.put_index_template:
+        name: template-foo
+        body:
+          index_patterns: ["logs-foo-*"]
+          data_stream: {}
+          priority: 1000
+
+  - do:
+      indices.create_data_stream:
+        name: logs-foo-default
+
+  - do:
+      indices.get_data_stream:
+        name: logs-foo-default
+  - set: { data_streams.0.indices.0.index_name: backing_index }
+
+  - do:
+      indices.get_settings:
+        index: logs-foo-default
+        include_defaults: true
+  - match: { .$backing_index.defaults.index.mapping.total_fields.ignore_dynamic_beyond_limit: "true" }
+
+  - do:
+      indices.get_settings:
+        index: logs-foo-default
+        name: index.mapping.total_fields.ignore_dynamic_beyond_limit
+        include_defaults: true
+  - match: { .$backing_index.defaults.index.mapping.total_fields.ignore_dynamic_beyond_limit: "true" }

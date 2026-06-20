@@ -21,6 +21,7 @@ import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.sagemaker.schema.SageMakerSchemas;
 import org.elasticsearch.xpack.inference.services.sagemaker.schema.SageMakerStoredServiceSchema;
 
@@ -38,7 +39,7 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractReq
  * Maintains the settings for SageMaker that cannot be changed without impacting semantic search and AI assistants.
  * Model-specific settings are stored in {@link SageMakerStoredServiceSchema}.
  */
-record SageMakerServiceSettings(
+public record SageMakerServiceSettings(
     String endpointName,
     String region,
     String api,
@@ -50,16 +51,16 @@ record SageMakerServiceSettings(
 ) implements ServiceSettings {
 
     static final String NAME = "sage_maker_service_settings";
-    private static final String API = "api";
-    private static final String ENDPOINT_NAME = "endpoint_name";
-    private static final String REGION = "region";
-    private static final String TARGET_MODEL = "target_model";
-    private static final String TARGET_CONTAINER_HOSTNAME = "target_container_hostname";
-    private static final String INFERENCE_COMPONENT_NAME = "inference_component_name";
-    private static final String BATCH_SIZE = "batch_size";
+    static final String API = "api";
+    static final String ENDPOINT_NAME = "endpoint_name";
+    static final String REGION = "region";
+    static final String TARGET_MODEL = "target_model";
+    static final String TARGET_CONTAINER_HOSTNAME = "target_container_hostname";
+    static final String INFERENCE_COMPONENT_NAME = "inference_component_name";
+    static final String BATCH_SIZE = "batch_size";
     private static final TransportVersion ML_INFERENCE_SAGEMAKER = TransportVersion.fromName("ml_inference_sagemaker");
 
-    SageMakerServiceSettings {
+    public SageMakerServiceSettings {
         Objects.requireNonNull(endpointName);
         Objects.requireNonNull(region);
         Objects.requireNonNull(api);
@@ -134,13 +135,24 @@ record SageMakerServiceSettings(
 
     @Override
     public ToXContentObject getFilteredXContentObject() {
-        return this;
+        return (builder, params) -> {
+            builder.startObject();
+            writeCommonFields(builder);
+            // Render the api-specific settings' exposed view so internal-only fields (e.g. dimensions_set_by_user) are not returned.
+            apiServiceSettings.getFilteredXContentObject().toXContent(builder, params);
+            return builder.endObject();
+        };
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
+        writeCommonFields(builder);
+        apiServiceSettings.toXContent(builder, params);
+        return builder.endObject();
+    }
 
+    private void writeCommonFields(XContentBuilder builder) throws IOException {
         builder.field(ENDPOINT_NAME, endpointName());
         builder.field(REGION, region());
         builder.field(API, api());
@@ -148,9 +160,6 @@ record SageMakerServiceSettings(
         optionalField(TARGET_CONTAINER_HOSTNAME, targetContainerHostname(), builder);
         optionalField(INFERENCE_COMPONENT_NAME, inferenceComponentName(), builder);
         optionalField(BATCH_SIZE, batchSize(), builder);
-        apiServiceSettings.toXContent(builder, params);
-
-        return builder.endObject();
     }
 
     private static <T> void optionalField(String name, T value, XContentBuilder builder) throws IOException {
@@ -159,8 +168,13 @@ record SageMakerServiceSettings(
         }
     }
 
-    static SageMakerServiceSettings fromMap(SageMakerSchemas schemas, TaskType taskType, Map<String, Object> serviceSettingsMap) {
-        ValidationException validationException = new ValidationException();
+    static SageMakerServiceSettings fromMap(
+        SageMakerSchemas schemas,
+        TaskType taskType,
+        Map<String, Object> serviceSettingsMap,
+        ConfigurationParseContext context
+    ) {
+        var validationException = new ValidationException();
 
         var endpointName = extractRequiredString(
             serviceSettingsMap,
@@ -198,7 +212,7 @@ record SageMakerServiceSettings(
         validationException.throwIfValidationErrorsExist();
 
         var schema = schemas.schemaFor(taskType, api);
-        var apiServiceSettings = schema.apiServiceSettings(serviceSettingsMap, validationException);
+        var apiServiceSettings = schema.apiServiceSettings(serviceSettingsMap, context, validationException);
 
         validationException.throwIfValidationErrorsExist();
 
@@ -211,6 +225,32 @@ record SageMakerServiceSettings(
             inferenceComponentName,
             batchSize,
             apiServiceSettings
+        );
+    }
+
+    @Override
+    public SageMakerServiceSettings updateServiceSettings(Map<String, Object> serviceSettings) {
+        var validationException = new ValidationException();
+
+        var extractedBatchSize = extractOptionalPositiveInteger(
+            serviceSettings,
+            BATCH_SIZE,
+            ModelConfigurations.SERVICE_SETTINGS,
+            validationException
+        );
+
+        var updatedApiServiceSettings = this.apiServiceSettings().updateServiceSettings(serviceSettings);
+
+        validationException.throwIfValidationErrorsExist();
+        return new SageMakerServiceSettings(
+            this.endpointName(),
+            this.region(),
+            this.api(),
+            this.targetModel(),
+            this.targetContainerHostname(),
+            this.inferenceComponentName(),
+            extractedBatchSize != null ? extractedBatchSize : this.batchSize(),
+            updatedApiServiceSettings
         );
     }
 

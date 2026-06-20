@@ -220,7 +220,7 @@ qu?ck bro*
 Be aware that wildcard queries can use an enormous amount of memory and perform very badly — just think how many terms need to be queried to match the query string `"a* b* c*"`.
 
 ::::{warning}
-Pure wildcards `\*` are rewritten to [`exists`](/reference/query-languages/query-dsl/query-dsl-exists-query.md) queries for efficiency. As a consequence, the wildcard `"field:*"` would match documents with an empty value like the following:
+Pure wildcards `*` are rewritten to [`exists`](/reference/query-languages/query-dsl/query-dsl-exists-query.md) queries for efficiency. As a consequence, the wildcard `"field:*"` would match documents with an empty value like the following:
 
 ```
 {
@@ -448,7 +448,7 @@ GET /my-index-000001/_search
   }
 }
 ```
-%  TEST[setup:my_index]
+% TEST[setup:my_index]
 
 The reserved characters are:  `+ - = && || > < ! ( ) { } [ ] ^ " ~ * ? : \ /`
 

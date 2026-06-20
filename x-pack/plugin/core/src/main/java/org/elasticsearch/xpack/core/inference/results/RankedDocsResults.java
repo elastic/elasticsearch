@@ -14,7 +14,6 @@ import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.inference.InferenceServiceResults;
-import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
@@ -32,7 +31,7 @@ import java.util.stream.Collectors;
 
 public class RankedDocsResults implements InferenceServiceResults {
     public static final String NAME = "rerank_service_results";
-    public static final String RERANK = TaskType.RERANK.toString();
+    public static final String RERANK = "rerank";
 
     List<RankedDoc> rankedDocs;
 

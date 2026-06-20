@@ -12,18 +12,22 @@ import com.squareup.javapoet.TypeName;
 import com.squareup.javapoet.TypeSpec;
 
 import java.util.List;
+import java.util.function.Consumer;
 
 import javax.lang.model.element.Modifier;
 
 import static org.elasticsearch.compute.gen.Methods.getMethod;
 import static org.elasticsearch.compute.gen.Types.BOOLEAN_BLOCK;
-import static org.elasticsearch.compute.gen.Types.BYTES_REF;
 import static org.elasticsearch.compute.gen.Types.BYTES_REF_BLOCK;
 import static org.elasticsearch.compute.gen.Types.DOUBLE_BLOCK;
+import static org.elasticsearch.compute.gen.Types.EXPONENTIAL_HISTOGRAM_BLOCK;
 import static org.elasticsearch.compute.gen.Types.EXPRESSION_EVALUATOR;
 import static org.elasticsearch.compute.gen.Types.EXPRESSION_EVALUATOR_FACTORY;
+import static org.elasticsearch.compute.gen.Types.FLOAT_BLOCK;
 import static org.elasticsearch.compute.gen.Types.INT_BLOCK;
 import static org.elasticsearch.compute.gen.Types.LONG_BLOCK;
+import static org.elasticsearch.compute.gen.Types.LONG_RANGE_BLOCK;
+import static org.elasticsearch.compute.gen.Types.TDIGEST_BLOCK;
 import static org.elasticsearch.compute.gen.Types.blockType;
 import static org.elasticsearch.compute.gen.Types.vectorType;
 
@@ -34,6 +38,11 @@ public record StandardArgument(TypeName type, String name) implements Argument {
             return isBlockType() ? type : blockType(type);
         }
         return vectorType(type);
+    }
+
+    @Override
+    public boolean supportsVectorReadAccess() {
+        return dataType(false) != null;
     }
 
     @Override
@@ -80,15 +89,25 @@ public record StandardArgument(TypeName type, String name) implements Argument {
     }
 
     @Override
-    public void resolveVectors(MethodSpec.Builder builder, String invokeBlockEval) {
+    public void resolveVectors(MethodSpec.Builder builder, Consumer<MethodSpec.Builder> onBlock, Consumer<MethodSpec.Builder> onAllNull) {
         builder.addStatement("$T $LVector = $LBlock.asVector()", vectorType(type), name, name);
-        builder.beginControlFlow("if ($LVector == null)", name).addStatement(invokeBlockEval).endControlFlow();
+        builder.beginControlFlow("if ($LVector == null)", name);
+
+        if (onAllNull != null) {
+            builder.beginControlFlow("if ($LBlock.areAllValuesNull())", name);
+            onAllNull.accept(builder);
+            builder.endControlFlow();
+        }
+
+        onBlock.accept(builder);
+
+        builder.endControlFlow();
     }
 
     @Override
     public void createScratch(MethodSpec.Builder builder) {
-        if (type.equals(BYTES_REF)) {
-            builder.addStatement("$T $LScratch = new $T()", BYTES_REF, name, BYTES_REF);
+        if (scratchType() != null) {
+            builder.addStatement("$T $LScratch = new $T()", scratchType(), name, scratchType());
         }
     }
 
@@ -110,17 +129,20 @@ public record StandardArgument(TypeName type, String name) implements Argument {
         return type.equals(INT_BLOCK)
             || type.equals(LONG_BLOCK)
             || type.equals(DOUBLE_BLOCK)
+            || type.equals(FLOAT_BLOCK)
             || type.equals(BOOLEAN_BLOCK)
-            || type.equals(BYTES_REF_BLOCK);
+            || type.equals(BYTES_REF_BLOCK)
+            || type.equals(EXPONENTIAL_HISTOGRAM_BLOCK)
+            || type.equals(TDIGEST_BLOCK)
+            || type.equals(LONG_RANGE_BLOCK);
     }
 
     @Override
     public void read(MethodSpec.Builder builder, boolean blockStyle) {
         String params = blockStyle ? paramName(true) + ".getFirstValueIndex(p)" : "p";
-        if (type.equals(BYTES_REF)) {
-            params += ", " + name + "Scratch";
+        if (scratchType() != null) {
+            params += ", " + scratchName();
         }
-
         builder.addStatement("$T $L = $L.$L($L)", type, name, paramName(blockStyle), getMethod(type), params);
     }
 
@@ -145,6 +167,19 @@ public record StandardArgument(TypeName type, String name) implements Argument {
     @Override
     public void sumBaseRamBytesUsed(MethodSpec.Builder builder) {
         builder.addStatement("baseRamBytesUsed += $L.baseRamBytesUsed()", name);
+    }
+
+    @Override
+    public void startBlockProcessingLoop(MethodSpec.Builder builder) {
+        builder.addStatement("int $L = $L.getFirstValueIndex(p)", startName(), blockName());
+        builder.addStatement("int $L = $L + $LValueCount", endName(), startName(), name());
+        builder.beginControlFlow("for (int $L = $L; $L < $L; $L++)", offsetName(), startName(), offsetName(), endName(), offsetName());
+        read(builder, blockName(), offsetName());
+    }
+
+    @Override
+    public void endBlockProcessingLoop(MethodSpec.Builder builder) {
+        builder.endControlFlow();
     }
 
     static void skipNull(MethodSpec.Builder builder, String value) {

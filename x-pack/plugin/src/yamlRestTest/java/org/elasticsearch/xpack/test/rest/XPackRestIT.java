@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.test.rest;
 
+import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
@@ -45,7 +46,6 @@ public class XPackRestIT extends AbstractXPackRestTest {
         .setting("xpack.searchable.snapshot.shared_cache.region_size", "256KB")
         .user("x_pack_rest_user", "x-pack-test-password")
         .feature(FeatureFlag.TIME_SERIES_MODE)
-        .feature(FeatureFlag.SUB_OBJECTS_AUTO_ENABLED)
         .configFile("testnode.pem", Resource.fromClasspath("org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.pem"))
         .configFile("testnode.crt", Resource.fromClasspath("org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt"))
         .configFile("service_tokens", Resource.fromClasspath("service_tokens"))
@@ -53,9 +53,12 @@ public class XPackRestIT extends AbstractXPackRestTest {
             final String enabled = System.getProperty("es.queryable_built_in_roles_enabled");
             return Objects.requireNonNullElse(enabled, "");
         })
+        .feature(FeatureFlag.EXTENDED_DOC_VALUES_PARAMS)
+        .feature(FeatureFlag.COLUMNAR_INDEX_MODE_FEATURE_FLAG)
+        .feature(FeatureFlag.SLICE_INDEXING)
         .build();
 
-    public XPackRestIT(ClientYamlTestCandidate testCandidate) {
+    public XPackRestIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {
         super(testCandidate);
     }
 

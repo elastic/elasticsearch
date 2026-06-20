@@ -28,6 +28,7 @@ import java.util.function.LongSupplier;
 
 import static java.lang.Math.max;
 import static java.lang.Math.min;
+import static org.elasticsearch.common.bytes.BytesReferenceTestUtils.equalBytes;
 import static org.hamcrest.Matchers.equalTo;
 
 public class LongBoundsTests extends ESTestCase {
@@ -137,7 +138,7 @@ public class LongBoundsTests extends ESTestCase {
             readBytes = out.bytes();
         }
 
-        assertEquals(origBytes, readBytes);
+        assertThat(readBytes, equalBytes(origBytes));
     }
 
     public void testXContentRoundTrip() throws Exception {

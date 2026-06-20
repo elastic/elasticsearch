@@ -21,8 +21,12 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.BytesTransportMessage;
+import org.elasticsearch.transport.BytesTransportMessageTestUtils;
 import org.elasticsearch.transport.CloseableConnection;
 import org.elasticsearch.transport.ClusterConnectionManager;
 import org.elasticsearch.transport.RemoteTransportException;
@@ -48,6 +52,8 @@ import static org.apache.lucene.tests.util.LuceneTestCase.rarely;
  * A basic transport implementation that allows to intercept requests that have been sent
  */
 public class MockTransport extends StubbableTransport {
+
+    private static final Logger logger = LogManager.getLogger(MockTransport.class);
 
     private TransportMessageListener listener;
     private final ConcurrentMap<Long, Tuple<DiscoveryNode, String>> requests = new ConcurrentHashMap<>();
@@ -91,10 +97,16 @@ public class MockTransport extends StubbableTransport {
     @SuppressWarnings("unchecked")
     public <Response extends TransportResponse> void handleResponse(final long requestId, final Response response) {
         final TransportResponseHandler<Response> transportResponseHandler = getTransportResponseHandler(requestId);
-        if (transportResponseHandler != null) {
+        if (transportResponseHandler == null) {
+            logger.trace("response handler for request [{}] not found", requestId);
+        } else {
             final Response deliveredResponse;
             try (BytesStreamOutput output = new BytesStreamOutput()) {
-                response.writeTo(output);
+                if (response instanceof BytesTransportMessage bytesResponse) {
+                    BytesTransportMessageTestUtils.writeThinWithBytes(output, bytesResponse);
+                } else {
+                    response.writeTo(output);
+                }
                 deliveredResponse = transportResponseHandler.read(
                     new NamedWriteableAwareStreamInput(output.bytes().streamInput(), writeableRegistry())
                 );

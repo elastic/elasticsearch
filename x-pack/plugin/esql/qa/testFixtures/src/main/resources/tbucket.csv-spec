@@ -346,3 +346,73 @@ day_total:long | hour_med:double | h:datetime               | message:keyword
 1              | 1756467.0       | 2023-10-23T13:00:00.000Z | Connected to 10.1.0.1
 1              | 1232382.0       | 2023-10-23T13:00:00.000Z | Disconnected
 ;
+
+tbucketWithNumericBucketsAndExplicitFromToCount
+required_capability: tbucket_from_to
+
+// tag::tbucketWithNumericBucketsAndExplicitFromToCount[]
+FROM sample_data
+| STATS count = COUNT(*) BY bucket = TBUCKET(3, "2023-10-23T12:00:00Z", "2023-10-23T14:00:00Z")
+| SORT bucket
+// end::tbucketWithNumericBucketsAndExplicitFromToCount[]
+;
+
+// tag::tbucketWithNumericBucketsAndExplicitFromToCount-result[]
+count:long | bucket:datetime
+2          | 2023-10-23T12:00:00.000Z
+5          | 2023-10-23T13:00:00.000Z
+// end::tbucketWithNumericBucketsAndExplicitFromToCount-result[]
+;
+
+tbucketWithNumericBucketsAndExplicitFromToCountFinerGranularity
+required_capability: tbucket_from_to
+
+// tag::tbucketWithNumericBucketsAndExplicitFromToCountFinerGranularity[]
+FROM sample_data
+| STATS count = COUNT(*) BY bucket = TBUCKET(20, "2023-10-23T12:00:00Z", "2023-10-23T14:00:00Z")
+| SORT bucket
+// end::tbucketWithNumericBucketsAndExplicitFromToCountFinerGranularity[]
+;
+
+// tag::tbucketWithNumericBucketsAndExplicitFromToCountFinerGranularity-result[]
+count:long | bucket:datetime
+1          | 2023-10-23T12:10:00.000Z
+1          | 2023-10-23T12:20:00.000Z
+1          | 2023-10-23T13:30:00.000Z
+4          | 2023-10-23T13:50:00.000Z
+// end::tbucketWithNumericBucketsAndExplicitFromToCountFinerGranularity-result[]
+;
+
+
+tbucketWithTimezoneAndDuration
+required_capability: ts_command_v0
+required_capability: date_trunc_timezone_support
+// tag::set-timezone-example[]
+SET time_zone = "+05:00"\;
+TS k8s
+| WHERE @timestamp == "2024-05-10T00:04:49.000Z"
+| STATS by @timestamp, bucket = TBUCKET(3 hours)
+| SORT @timestamp
+| LIMIT 2
+// end::set-timezone-example[]
+;
+
+@timestamp:datetime      | bucket:datetime
+2024-05-10T00:04:49.000Z | 2024-05-09T22:00:00.000Z
+;
+
+tbucketWithTimezoneAndPeriod
+required_capability: ts_command_v0
+required_capability: date_trunc_timezone_support
+
+SET time_zone = "+05:00"\;
+TS k8s
+| WHERE @timestamp == "2024-05-10T00:04:49.000Z"
+| STATS by @timestamp, bucket = TBUCKET(1 day)
+| SORT @timestamp
+| LIMIT 2
+;
+
+@timestamp:datetime      | bucket:datetime
+2024-05-10T00:04:49.000Z | 2024-05-09T19:00:00.000Z
+;

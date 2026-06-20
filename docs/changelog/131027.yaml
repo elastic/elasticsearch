@@ -1,6 +1,0 @@
-pr: 131027
-summary: Handle structured log messages
-area: Ingest Node
-type: feature
-issues:
- - 130333

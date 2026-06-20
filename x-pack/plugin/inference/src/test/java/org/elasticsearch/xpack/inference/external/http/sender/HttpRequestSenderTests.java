@@ -9,13 +9,18 @@ package org.elasticsearch.xpack.inference.external.http.sender;
 
 import org.apache.http.HttpHeaders;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.ElasticsearchTimeoutException;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.TestPlainActionFuture;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceServiceResults;
-import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
@@ -27,10 +32,11 @@ import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.RequestExecutor;
 import org.elasticsearch.xpack.inference.external.http.retry.RequestSender;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
-import org.elasticsearch.xpack.inference.external.request.Request;
+import org.elasticsearch.xpack.inference.external.request.OutboundRequest;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 import org.elasticsearch.xpack.inference.services.ServiceComponentsTests;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceResponseHandler;
+import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMAuthenticationApplierFactory;
 import org.elasticsearch.xpack.inference.services.elastic.request.ElasticInferenceServiceAuthorizationRequest;
 import org.elasticsearch.xpack.inference.services.elastic.response.ElasticInferenceServiceAuthorizationResponseEntity;
 import org.elasticsearch.xpack.inference.telemetry.TraceContext;
@@ -39,16 +45,17 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.EnumSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiFunction;
 
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResultsTests.buildExpectationFloat;
+import static org.elasticsearch.xpack.inference.Utils.encodeFloatsAsOpenAiBase64;
 import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityExecutors;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
@@ -56,6 +63,7 @@ import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
 import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
 import static org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceService.ELASTIC_INFERENCE_SERVICE_IDENTIFIER;
 import static org.elasticsearch.xpack.inference.services.elastic.request.ElasticInferenceServiceRequestTests.randomElasticInferenceServiceRequestMetadata;
+import static org.elasticsearch.xpack.inference.services.elastic.response.ElasticInferenceServiceAuthorizationResponseEntityTests.getEisElserAuthorizationResponse;
 import static org.elasticsearch.xpack.inference.services.openai.OpenAiUtils.ORGANIZATION_HEADER;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -69,14 +77,18 @@ import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 public class HttpRequestSenderTests extends ESTestCase {
-    private static final TimeValue TIMEOUT = new TimeValue(30, TimeUnit.SECONDS);
+    private static final String INFERENCE_ID = "id";
+    private static final TimeValue ONE_NANOSECOND = TimeValue.timeValueNanos(1);
+
     private final MockWebServer webServer = new MockWebServer();
     private ThreadPool threadPool;
     private HttpClientManager clientManager;
     private final AtomicReference<Thread> threadRef = new AtomicReference<>();
+    private CountDownLatch blockStartLatch;
 
     @Before
     public void init() throws Exception {
@@ -84,12 +96,16 @@ public class HttpRequestSenderTests extends ESTestCase {
         threadPool = createThreadPool(inferenceUtilityExecutors());
         clientManager = HttpClientManager.create(Settings.EMPTY, threadPool, mockClusterServiceEmpty(), mock(ThrottlerManager.class));
         threadRef.set(null);
+        blockStartLatch = new CountDownLatch(1);
     }
 
     @After
     public void shutdown() throws IOException, InterruptedException {
+        // Unblock any service.start() calls blocked on blockStartLatch before terminating the pool
+        blockStartLatch.countDown();
+
         if (threadRef.get() != null) {
-            threadRef.get().join(TIMEOUT.millis());
+            threadRef.get().join(TEST_REQUEST_TIMEOUT.millis());
         }
 
         clientManager.close();
@@ -114,9 +130,9 @@ public class HttpRequestSenderTests extends ESTestCase {
         var senderFactory = new HttpRequestSender.Factory(createWithEmptySettings(threadPool), mockManager, mockClusterServiceEmpty());
 
         try (var sender = createSender(senderFactory)) {
-            sender.startSynchronously();
-            sender.startSynchronously();
-            sender.startSynchronously();
+            startSynchronously(sender);
+            startSynchronously(sender);
+            startSynchronously(sender);
         }
 
         verify(mockManager, times(1)).start();
@@ -131,7 +147,7 @@ public class HttpRequestSenderTests extends ESTestCase {
 
     public void testStart_ThrowsExceptionWaitingForStartToComplete_WhenAnErrorOccurs() throws IOException {
         var mockManager = createMockHttpClientManager();
-        doThrow(new Error("failed")).when(mockManager).start();
+        doThrow(new ElasticsearchException("failed")).when(mockManager).start();
 
         var senderFactory = new HttpRequestSender.Factory(
             ServiceComponentsTests.createWithEmptySettings(threadPool),
@@ -139,60 +155,118 @@ public class HttpRequestSenderTests extends ESTestCase {
             mockClusterServiceEmpty()
         );
 
-        try (var sender = senderFactory.createSender()) {
-            var exception = expectThrows(Error.class, sender::startSynchronously);
+        try (var sender = (HttpRequestSender) senderFactory.createSender()) {
+            var exception = expectThrows(ElasticsearchException.class, () -> startSynchronously(sender));
 
-            assertThat(exception.getMessage(), is("failed"));
+            assertThat(exception.getMessage(), is("Failed to initialize inference components"));
+            assertThat(exception.getCause().getMessage(), is("failed"));
         }
     }
 
-    public void testStart_ThrowsExceptionWaitingForStartToComplete() {
-        var mockManager = createMockHttpClientManager();
-        doThrow(new IllegalArgumentException("failed")).when(mockManager).start();
-
-        // Force the startup to never complete
-        var latch = new CountDownLatch(1);
-        var sender = new HttpRequestSender(
-            threadPool,
-            mockManager,
-            mock(RequestSender.class),
-            mock(RequestExecutor.class),
-            latch,
-            // Override the wait time so we don't block the test for too long
-            TimeValue.timeValueMillis(1)
-        );
-
-        var exception = expectThrows(IllegalStateException.class, sender::startSynchronously);
-
-        assertThat(exception.getMessage(), is("Http sender startup did not complete in time"));
+    private RequestExecutor createMockRequestExecutorThatBlocksOnStart() {
+        var mockService = mock(RequestExecutor.class);
+        doAnswer(invocation -> {
+            // Block service.start() to simulate a hung startup; blockStartLatch is counted down in @After
+            blockStartLatch.await();
+            return null;
+        }).when(mockService).start();
+        return mockService;
     }
 
-    public void testStartAsync_WaitsAsyncForStartToComplete_ThrowsWhenItTimesOut_ThenSucceeds() {
+    public void testStartAsync_ThrowsServiceUnavailableWhenStartupTimesOut() throws Exception {
         var mockManager = createMockHttpClientManager();
-        var latch = new CountDownLatch(1);
-        var sender = new HttpRequestSender(
-            threadPool,
-            mockManager,
-            mock(RequestSender.class),
-            mock(RequestExecutor.class),
-            latch,
-            // Override the wait time so we don't block the test for too long
-            TimeValue.timeValueMillis(1)
-        );
+
+        var mockService = createMockRequestExecutorThatBlocksOnStart();
+        var sender = new HttpRequestSender(threadPool, mockManager, mock(RequestSender.class), mockService);
 
         var listener = new PlainActionFuture<Void>();
-        sender.startAsynchronously(listener);
+        // Pass a very short timeout so the test doesn't hang
+        sender.startAsynchronously(listener, TimeValue.timeValueMillis(1));
 
-        var exception = expectThrows(IllegalStateException.class, () -> listener.actionGet(TIMEOUT));
+        var exception = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TEST_REQUEST_TIMEOUT));
         assertThat(exception.getMessage(), is("Http sender startup did not complete in time"));
+        assertThat(exception.status(), is(RestStatus.SERVICE_UNAVAILABLE));
+    }
 
-        // simulate the start completing
-        latch.countDown();
+    public void testStartAsync_PerCallerTimeoutDoesNotPoisonSharedState() {
+        var mockManager = createMockHttpClientManager();
 
-        var listenerCompleted = new PlainActionFuture<Void>();
-        sender.startAsynchronously(listenerCompleted);
-        assertNull(listenerCompleted.actionGet(TIMEOUT));
+        var mockService = createMockRequestExecutorThatBlocksOnStart();
+        var sender = new HttpRequestSender(threadPool, mockManager, mock(RequestSender.class), mockService);
 
+        // First caller times out — per-caller ListenerTimeouts fires, not the shared startupNotifier
+        var timedListener = new TestPlainActionFuture<Void>();
+        sender.startAsynchronously(timedListener, TimeValue.timeValueMillis(1));
+        var ex = expectThrows(ElasticsearchStatusException.class, () -> timedListener.actionGet(TEST_REQUEST_TIMEOUT));
+        assertThat(ex.getMessage(), is("Http sender startup did not complete in time"));
+        assertThat(ex.status(), is(RestStatus.SERVICE_UNAVAILABLE));
+
+        // Second caller with no timeout should get notified when startup completes, not get a timeout from the first caller's timeout
+        var noTimeoutListener = new TestPlainActionFuture<Void>();
+        sender.startAsynchronously(noTimeoutListener, null);
+
+        // Unblock startup so startupNotifier resolves successfully
+        blockStartLatch.countDown();
+
+        // The second caller should succeed, indicating that the first caller's timeout did not poison the shared startup state
+        assertNull(noTimeoutListener.actionGet(TEST_REQUEST_TIMEOUT));
+
+        // Third caller with no timeout should succeed after the shared startup state is successfully resolved
+        var successListener = new TestPlainActionFuture<Void>();
+        sender.startAsynchronously(successListener, null);
+        assertNull(successListener.actionGet(TEST_REQUEST_TIMEOUT));
+        verify(mockManager, times(1)).start();
+    }
+
+    public void testStartAsync_LateListenerGetsImmediateNotification() {
+        var mockManager = createMockHttpClientManager();
+        var sender = new HttpRequestSender(threadPool, mockManager, mock(RequestSender.class), mock(RequestExecutor.class));
+
+        startSynchronously(sender);  // startup completes, startupNotifier already resolved
+        verify(mockManager, times(1)).start();
+
+        // Listener registered after startup completes should be notified immediately
+        var listener = new TestPlainActionFuture<Void>();
+        sender.startAsynchronously(listener, null);
+        assertNull(listener.actionGet(TEST_REQUEST_TIMEOUT));
+        verifyNoMoreInteractions(mockManager);
+    }
+
+    public void testConcurrentStartAsync_AllListenersReceiveFailure() throws InterruptedException {
+        var mockManager = createMockHttpClientManager();
+        doAnswer(invocation -> {
+            blockStartLatch.await();
+            throw new ElasticsearchException("failed");
+        }).when(mockManager).start();
+        var sender = new HttpRequestSender(threadPool, mockManager, mock(RequestSender.class), mock(RequestExecutor.class));
+
+        final var threadCount = between(4, 8);
+        final var barrier = new CyclicBarrier(threadCount);
+        final var threads = new ArrayList<Thread>();
+        final var futures = new ArrayList<TestPlainActionFuture<Void>>();
+
+        for (int i = 0; i < threadCount; i++) {
+            final var future = new TestPlainActionFuture<Void>();
+            futures.add(future);
+            threads.add(new Thread(() -> {
+                safeAwait(barrier);
+                sender.startAsynchronously(future, null);
+            }));
+        }
+
+        for (var thread : threads) {
+            thread.start();
+        }
+        blockStartLatch.countDown();  // unblock → manager.start() throws → startupNotifier.onFailure
+        for (var thread : threads) {
+            thread.join(TEST_REQUEST_TIMEOUT.millis());
+        }
+
+        for (var future : futures) {
+            var exception = expectThrows(ElasticsearchException.class, () -> future.actionGet(TEST_REQUEST_TIMEOUT));
+            assertThat(exception.getMessage(), is("Failed to initialize inference components"));
+            assertThat(exception.getCause().getMessage(), is("failed"));
+        }
         verify(mockManager, times(1)).start();
     }
 
@@ -207,12 +281,12 @@ public class HttpRequestSenderTests extends ESTestCase {
             for (int i = 0; i < asyncCalls; i++) {
                 PlainActionFuture<Void> listener = new PlainActionFuture<>();
                 listenerList.add(listener);
-                sender.startAsynchronously(listener);
+                sender.startAsynchronously(listener, null);
             }
 
             for (int i = 0; i < asyncCalls; i++) {
                 PlainActionFuture<Void> listener = listenerList.get(i);
-                assertNull(listener.actionGet(TIMEOUT));
+                assertNull(listener.actionGet(TEST_REQUEST_TIMEOUT));
             }
         }
 
@@ -230,13 +304,13 @@ public class HttpRequestSenderTests extends ESTestCase {
             for (int i = 0; i < asyncCalls; i++) {
                 PlainActionFuture<Void> listener = new PlainActionFuture<>();
                 listenerList.add(listener);
-                sender.startAsynchronously(listener);
-                sender.startSynchronously();
+                sender.startAsynchronously(listener, null);
+                startSynchronously(sender);
             }
 
             for (int i = 0; i < asyncCalls; i++) {
                 PlainActionFuture<Void> listener = listenerList.get(i);
-                assertNull(listener.actionGet(TIMEOUT));
+                assertNull(listener.actionGet(TEST_REQUEST_TIMEOUT));
             }
         }
 
@@ -247,19 +321,15 @@ public class HttpRequestSenderTests extends ESTestCase {
         var senderFactory = new HttpRequestSender.Factory(createWithEmptySettings(threadPool), clientManager, mockClusterServiceEmpty());
 
         try (var sender = createSender(senderFactory)) {
-            sender.startSynchronously();
-
-            String responseJson = """
+            // Wire-shape parity with production OpenAI: base64-encoded float32 embedding.
+            String responseJson = Strings.format("""
                 {
                   "object": "list",
                   "data": [
                       {
                           "object": "embedding",
                           "index": 0,
-                          "embedding": [
-                              0.0123,
-                              -0.0123
-                          ]
+                          "embedding": "%s"
                       }
                   ],
                   "model": "text-embedding-ada-002-v2",
@@ -268,7 +338,7 @@ public class HttpRequestSenderTests extends ESTestCase {
                       "total_tokens": 8
                   }
                 }
-                """;
+                """, encodeFloatsAsOpenAiBase64(0.0123F, -0.0123F));
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
@@ -279,7 +349,7 @@ public class HttpRequestSenderTests extends ESTestCase {
                 listener
             );
 
-            var result = listener.actionGet(TIMEOUT);
+            var result = listener.actionGet(TEST_REQUEST_TIMEOUT);
             assertThat(result.asMap(), is(buildExpectationFloat(List.of(new float[] { 0.0123F, -0.0123F }))));
 
             assertThat(webServer.requests(), hasSize(1));
@@ -289,9 +359,10 @@ public class HttpRequestSenderTests extends ESTestCase {
             assertNull(webServer.requests().get(0).getHeader(ORGANIZATION_HEADER));
 
             var requestMap = entityAsMap(webServer.requests().get(0).getBody());
-            assertThat(requestMap.size(), is(2));
+            assertThat(requestMap.size(), is(3));
             assertThat(requestMap.get("input"), is(List.of("abc")));
             assertThat(requestMap.get("model"), is("model"));
+            assertThat(requestMap.get("encoding_format"), is("base64"));
         }
     }
 
@@ -299,25 +370,16 @@ public class HttpRequestSenderTests extends ESTestCase {
         var senderFactory = createSenderFactory(clientManager, threadRef);
 
         try (var sender = createSender(senderFactory)) {
-            sender.startSynchronously();
-
-            String responseJson = """
-                {
-                    "models": [
-                        {
-                          "model_name": "model-a",
-                          "task_types": ["embed/text/sparse", "chat"]
-                        }
-                    ]
-                }
-                """;
-            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
+            var url = getUrl(webServer);
+            var elserResponse = getEisElserAuthorizationResponse(url);
+            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(elserResponse.responseJson()));
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             var request = new ElasticInferenceServiceAuthorizationRequest(
                 getUrl(webServer),
                 new TraceContext("", ""),
-                randomElasticInferenceServiceRequestMetadata()
+                randomElasticInferenceServiceRequestMetadata(),
+                CCMAuthenticationApplierFactory.NOOP_APPLIER
             );
             var responseHandler = new ElasticInferenceServiceResponseHandler(
                 String.format(Locale.ROOT, "%s sparse embeddings", ELASTIC_INFERENCE_SERVICE_IDENTIFIER),
@@ -326,65 +388,14 @@ public class HttpRequestSenderTests extends ESTestCase {
 
             sender.sendWithoutQueuing(mock(Logger.class), request, responseHandler, null, listener);
 
-            var result = listener.actionGet(TIMEOUT);
+            var result = listener.actionGet(TEST_REQUEST_TIMEOUT);
             assertThat(result, instanceOf(ElasticInferenceServiceAuthorizationResponseEntity.class));
             var authResponse = (ElasticInferenceServiceAuthorizationResponseEntity) result;
-            assertThat(
-                authResponse.getAuthorizedModels(),
-                is(
-                    List.of(
-                        new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedModel(
-                            "model-a",
-                            EnumSet.of(TaskType.SPARSE_EMBEDDING, TaskType.CHAT_COMPLETION)
-                        )
-                    )
-                )
-            );
-        }
-    }
-
-    public void testHttpRequestSender_Throws_WhenCallingSendBeforeStart() throws Exception {
-        var senderFactory = new HttpRequestSender.Factory(
-            ServiceComponentsTests.createWithEmptySettings(threadPool),
-            clientManager,
-            mockClusterServiceEmpty()
-        );
-
-        try (var sender = senderFactory.createSender()) {
-            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            var thrownException = expectThrows(
-                AssertionError.class,
-                () -> sender.send(RequestManagerTests.createMock(), new EmbeddingsInput(List.of(), null), null, listener)
-            );
-            assertThat(thrownException.getMessage(), is("call start() before sending a request"));
+            assertThat(authResponse.authorizedEndpoints(), is(elserResponse.responseEntity().authorizedEndpoints()));
         }
     }
 
     public void testHttpRequestSender_Throws_WhenATimeoutOccurs() throws Exception {
-        var mockManager = mock(HttpClientManager.class);
-        when(mockManager.getHttpClient()).thenReturn(mock(HttpClient.class));
-
-        var senderFactory = new HttpRequestSender.Factory(
-            ServiceComponentsTests.createWithEmptySettings(threadPool),
-            mockManager,
-            mockClusterServiceEmpty()
-        );
-
-        try (var sender = senderFactory.createSender()) {
-            assertThat(sender, instanceOf(HttpRequestSender.class));
-            sender.startSynchronously();
-
-            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            sender.send(RequestManagerTests.createMock(), new EmbeddingsInput(List.of(), null), TimeValue.timeValueNanos(1), listener);
-
-            var thrownException = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TIMEOUT));
-
-            assertThat(thrownException.getMessage(), is(format("Request timed out after [%s]", TimeValue.timeValueNanos(1))));
-            assertThat(thrownException.status().getStatus(), is(408));
-        }
-    }
-
-    public void testHttpRequestSenderWithTimeout_Throws_WhenATimeoutOccurs() throws Exception {
         var mockManager = createMockHttpClientManager();
 
         var senderFactory = new HttpRequestSender.Factory(
@@ -394,15 +405,23 @@ public class HttpRequestSenderTests extends ESTestCase {
         );
 
         try (var sender = senderFactory.createSender()) {
-            sender.startSynchronously();
+            assertThat(sender, instanceOf(HttpRequestSender.class));
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            sender.send(RequestManagerTests.createMock(), new EmbeddingsInput(List.of(), null), TimeValue.timeValueNanos(1), listener);
+            sender.send(
+                RequestManagerTests.createMockWithRateLimitingEnabled(INFERENCE_ID),
+                new EmbeddingsInput(List.of(), null),
+                TimeValue.timeValueNanos(1),
+                listener
+            );
 
-            var thrownException = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TIMEOUT));
+            var thrownException = expectThrows(ElasticsearchTimeoutException.class, () -> listener.actionGet(TEST_REQUEST_TIMEOUT));
 
-            assertThat(thrownException.getMessage(), is(format("Request timed out after [%s]", TimeValue.timeValueNanos(1))));
-            assertThat(thrownException.status().getStatus(), is(408));
+            assertThat(
+                thrownException.getMessage(),
+                is(format("Request timed out after [%s] for inference id [%s]", ONE_NANOSECOND, INFERENCE_ID))
+            );
+            assertThat(thrownException.status(), is(RestStatus.TOO_MANY_REQUESTS));
         }
     }
 
@@ -416,22 +435,97 @@ public class HttpRequestSenderTests extends ESTestCase {
         );
 
         try (var sender = senderFactory.createSender()) {
-            sender.startSynchronously();
-
+            var request = mock(OutboundRequest.class);
+            when(request.getInferenceEntityId()).thenReturn(INFERENCE_ID);
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            sender.sendWithoutQueuing(
-                mock(Logger.class),
-                mock(Request.class),
-                mock(ResponseHandler.class),
-                TimeValue.timeValueNanos(1),
-                listener
+            sender.sendWithoutQueuing(mock(Logger.class), request, mock(ResponseHandler.class), TimeValue.timeValueNanos(1), listener);
+
+            var thrownException = expectThrows(ElasticsearchTimeoutException.class, () -> listener.actionGet(TEST_REQUEST_TIMEOUT));
+
+            assertThat(
+                thrownException.getMessage(),
+                is(format("Request timed out after [%s] for inference id [%s]", ONE_NANOSECOND, INFERENCE_ID))
             );
-
-            var thrownException = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TIMEOUT));
-
-            assertThat(thrownException.getMessage(), is(format("Request timed out after [%s]", TimeValue.timeValueNanos(1))));
-            assertThat(thrownException.status().getStatus(), is(408));
+            assertThat(thrownException.status(), is(RestStatus.TOO_MANY_REQUESTS));
         }
+    }
+
+    public void testConcurrentSend_OnlyStartsOnce() throws Exception {
+        // At a minimum we need 1 for the startAsynchronously to kick off the init tasks, and allowing 1 more to allow for a race to occur
+        final var maxUtilityThreads = 2;
+        final var maxResponseThreads = 2;
+        try (var smallThreadPool = createThreadPool(inferenceUtilityExecutors(maxUtilityThreads, maxResponseThreads))) {
+            var mockManager = createMockHttpClientManager();
+            var mockService = mock(RequestExecutor.class);
+            doAnswer(invocation -> {
+                ActionListener<InferenceServiceResults> listener = invocation.getArgument(3);
+                listener.onFailure(new ElasticsearchStatusException("test", RestStatus.SERVICE_UNAVAILABLE));
+                return null;
+            }).when(mockService).execute(any(), any(), any(), any());
+            var sender = new HttpRequestSender(smallThreadPool, mockManager, mock(RequestSender.class), mockService);
+
+            runConcurrentSendTest(mockManager, maxUtilityThreads, (barrier, future) -> new Thread(() -> {
+                safeAwait(barrier);
+                sender.send(
+                    RequestManagerTests.createMockWithRateLimitingEnabled(),
+                    new EmbeddingsInput(List.of(), null),
+                    TimeValue.timeValueNanos(1),
+                    future
+                );
+            }), ElasticsearchStatusException.class);
+        }
+    }
+
+    public void testConcurrentSendWithoutQueuing_OnlyStartsOnce() throws Exception {
+        // At a minimum we need 1 for the startAsynchronously to kick off the init tasks, and allowing 1 more to allow for a race to occur
+        final var maxUtilityThreads = 2;
+        final var maxResponseThreads = 2;
+        try (var smallThreadPool = createThreadPool(inferenceUtilityExecutors(maxUtilityThreads, maxResponseThreads))) {
+            var mockManager = createMockHttpClientManager();
+            var sender = new HttpRequestSender(smallThreadPool, mockManager, mock(RequestSender.class), mock(RequestExecutor.class));
+
+            runConcurrentSendTest(mockManager, maxUtilityThreads, (barrier, future) -> {
+                var request = mock(OutboundRequest.class);
+                when(request.getInferenceEntityId()).thenReturn(INFERENCE_ID);
+                return new Thread(() -> {
+                    safeAwait(barrier);
+                    sender.sendWithoutQueuing(mock(Logger.class), request, mock(ResponseHandler.class), ONE_NANOSECOND, future);
+                });
+            }, ElasticsearchTimeoutException.class);
+        }
+    }
+
+    private <E extends Exception> void runConcurrentSendTest(
+        HttpClientManager mockManager,
+        int maxUtilityThreads,
+        BiFunction<CyclicBarrier, PlainActionFuture<InferenceServiceResults>, Thread> threadFactory,
+        Class<E> expectedExceptionClass
+    ) throws InterruptedException {
+        // Use more threads than the utility thread pool size
+        final var threadCountMinimum = maxUtilityThreads + 2;
+        final var threadCount = between(threadCountMinimum, threadCountMinimum + 5);
+        final var barrier = new CyclicBarrier(threadCount);
+        final var threads = new ArrayList<Thread>();
+        final var futures = new ArrayList<PlainActionFuture<InferenceServiceResults>>();
+
+        for (int i = 0; i < threadCount; i++) {
+            final var future = new PlainActionFuture<InferenceServiceResults>();
+            futures.add(future);
+            threads.add(threadFactory.apply(barrier, future));
+        }
+
+        for (var thread : threads) {
+            thread.start();
+        }
+        for (var thread : threads) {
+            thread.join(TEST_REQUEST_TIMEOUT.millis());
+        }
+
+        for (var future : futures) {
+            expectThrows(expectedExceptionClass, () -> future.actionGet(TEST_REQUEST_TIMEOUT));
+        }
+
+        verify(mockManager, times(1)).start();
     }
 
     private static HttpRequestSender.Factory createSenderFactory(HttpClientManager clientManager, AtomicReference<Thread> threadRef) {
@@ -477,7 +571,19 @@ public class HttpRequestSenderTests extends ESTestCase {
         );
     }
 
-    public static Sender createSender(HttpRequestSender.Factory factory) {
-        return factory.createSender();
+    public static HttpRequestSender createSender(HttpRequestSender.Factory factory) {
+        return (HttpRequestSender) factory.createSender();
+    }
+
+    private static void startSynchronously(HttpRequestSender sender) {
+        startSynchronously(sender, TEST_REQUEST_TIMEOUT);
+    }
+
+    private static void startSynchronously(HttpRequestSender sender, TimeValue timeout) {
+        var listener = new TestPlainActionFuture<Void>();
+        sender.startAsynchronously(listener, timeout);
+        // Intentionally using a test timeout. That way a short timeout can be passed to startAsynchronously
+        // to test a valid timeout scenario without the actionGet() accidentally completing first.
+        listener.actionGet(TEST_REQUEST_TIMEOUT);
     }
 }

@@ -340,13 +340,12 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
 
                         @Override
                         public void onFailure(Exception e) {
+                            logger.warn(() -> format("[%s] failed to open managed connection to node [%s]", clusterAlias, node), e);
                             if (e instanceof ConnectTransportException || e instanceof IllegalStateException) {
                                 // ISE if we fail the handshake with an version incompatible node
                                 // fair enough we can't connect just move on
-                                logger.debug(() -> format("[%s] failed to open managed connection to node [%s]", clusterAlias, node), e);
                                 handleNodes(nodesIter);
                             } else {
-                                logger.warn(() -> format("[%s] failed to open managed connection to node [%s]", clusterAlias, node), e);
                                 IOUtils.closeWhileHandlingException(connection);
                                 collectRemoteNodes(seedNodes, listener);
                             }
@@ -536,6 +535,18 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
         @Override
         public int hashCode() {
             return Objects.hash(seedNodes, maxConnectionsPerCluster, numNodesConnected);
+        }
+
+        @Override
+        public String toString() {
+            return "SniffModeInfo{"
+                + "seedNodes="
+                + seedNodes
+                + ", maxConnectionsPerCluster="
+                + maxConnectionsPerCluster
+                + ", numNodesConnected="
+                + numNodesConnected
+                + '}';
         }
     }
 }

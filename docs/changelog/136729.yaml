@@ -1,5 +1,0 @@
-pr: 136729
-summary: Start readiness service after http is started
-area: Infra/Node Lifecycle
-type: bug
-issues: []

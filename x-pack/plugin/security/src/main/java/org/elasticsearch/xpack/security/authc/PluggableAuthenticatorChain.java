@@ -96,6 +96,14 @@ public class PluggableAuthenticatorChain implements Authenticator {
                         iteratingListener.onResponse(response);
                     } else if (response.getStatus() == AuthenticationResult.Status.TERMINATE) {
                         final Exception ex = response.getException();
+                        logger.debug(
+                            () -> format(
+                                "Authentication of token [%s] was terminated: %s (caused by: %s)",
+                                token.principal(),
+                                response.getMessage(),
+                                ex
+                            )
+                        );
                         if (ex == null) {
                             iteratingListener.onFailure(context.getRequest().authenticationFailed(token));
                         } else {

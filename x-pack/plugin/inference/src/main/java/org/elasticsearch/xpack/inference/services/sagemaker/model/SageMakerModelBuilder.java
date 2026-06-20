@@ -12,6 +12,7 @@ import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.inference.common.amazon.AwsSecretSettings;
+import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.sagemaker.schema.SageMakerSchemas;
 
 import java.util.Map;
@@ -32,7 +33,7 @@ public class SageMakerModelBuilder {
         var validationException = new ValidationException();
         var serviceSettingsMap = removeFromMapOrThrowIfNull(requestMap, ModelConfigurations.SERVICE_SETTINGS);
         var awsSecretSettings = AwsSecretSettings.fromMap(serviceSettingsMap);
-        var serviceSettings = SageMakerServiceSettings.fromMap(schemas, taskType, serviceSettingsMap);
+        var serviceSettings = SageMakerServiceSettings.fromMap(schemas, taskType, serviceSettingsMap, ConfigurationParseContext.REQUEST);
 
         var schema = schemas.schemaFor(taskType, serviceSettings.api());
 
@@ -65,6 +66,7 @@ public class SageMakerModelBuilder {
         Map<String, Object> secrets
     ) {
         var validationException = new ValidationException();
+
         var awsSecretSettings = secrets != null
             ? AwsSecretSettings.fromMap(removeFromMapOrThrowIfNull(secrets, ModelSecrets.SECRET_SETTINGS))
             : null;
@@ -72,7 +74,8 @@ public class SageMakerModelBuilder {
         var serviceSettings = SageMakerServiceSettings.fromMap(
             schemas,
             taskType,
-            removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS)
+            removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS),
+            ConfigurationParseContext.PERSISTENT
         );
 
         var schema = schemas.schemaFor(taskType, serviceSettings.api());
@@ -89,13 +92,19 @@ public class SageMakerModelBuilder {
         throwIfNotEmptyMap(taskSettingsMap, service);
         throwIfNotEmptyMap(secrets, service);
 
-        var modelConfigurations = new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings);
+        return fromStorage(
+            new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings),
+            new ModelSecrets(awsSecretSettings)
+        );
+    }
+
+    public SageMakerModel fromStorage(ModelConfigurations config, ModelSecrets secrets) {
         return new SageMakerModel(
-            modelConfigurations,
-            new ModelSecrets(awsSecretSettings),
-            serviceSettings,
-            taskSettings,
-            awsSecretSettings
+            config,
+            secrets,
+            (SageMakerServiceSettings) config.getServiceSettings(),
+            (SageMakerTaskSettings) config.getTaskSettings(),
+            (AwsSecretSettings) secrets.getSecretSettings()
         );
     }
 

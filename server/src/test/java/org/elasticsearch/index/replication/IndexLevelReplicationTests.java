@@ -445,7 +445,7 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
                 assertThat(col, hasSize(1));
                 return addDocument(col.iterator().next());
             }
-        }, null, null, config);
+        }, config);
         try (ReplicationGroup shards = new ReplicationGroup(buildIndexMetadata(0)) {
             @Override
             protected EngineFactory getEngineFactory(ShardRouting routing) {
@@ -698,7 +698,7 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
                 new IndexRequest(index.getName()).source("{}", XContentType.JSON),
                 primary
             );
-            final String docId = Iterables.get(getShardDocUIDs(primary), 0);
+            final String docId = Iterables.get(getShardDocIDs(primary), 0);
             final BulkShardRequest deleteRequest = deleteOnPrimary(new DeleteRequest(index.getName()).id(docId), primary);
             deleteOnReplica(deleteRequest, shards, replica);
             indexOnReplica(indexRequest, shards, replica);

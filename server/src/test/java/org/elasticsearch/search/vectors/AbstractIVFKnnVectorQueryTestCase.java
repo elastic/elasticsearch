@@ -47,7 +47,6 @@ import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
@@ -71,7 +70,10 @@ import org.apache.lucene.util.BitSetIterator;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.common.logging.LogConfigurator;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormat;
+import org.elasticsearch.index.codec.vectors.diskbbq.TestIvfQueryConfigResolver;
+import org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -90,7 +92,6 @@ abstract class AbstractIVFKnnVectorQueryTestCase extends LuceneTestCase {
     static final float EPSILON = 0.001f;
 
     static {
-        LogConfigurator.loadLog4jPlugins();
         LogConfigurator.configureESLogging(); // native access requires logging to be initialized
     }
     KnnVectorsFormat format;
@@ -103,12 +104,36 @@ abstract class AbstractIVFKnnVectorQueryTestCase extends LuceneTestCase {
 
     abstract AbstractIVFKnnVectorQuery getKnnVectorQuery(String field, float[] query, int k, Query queryFilter, float visitRatio);
 
+    protected TestIvfQueryConfigResolver testResolver() {
+        return new TestIvfQueryConfigResolver(ESNextDiskBBQVectorsFormat.QuantEncoding.ONE_BIT_4BIT_QUERY, false, 1.0f);
+    }
+
+    AbstractIVFKnnVectorQuery getStableKnnVectorQuery(String field, float[] query, int k, Query queryFilter, float visitRatio) {
+        return getKnnVectorQuery(field, query, k, queryFilter, visitRatio);
+    }
+
     final AbstractIVFKnnVectorQuery getKnnVectorQuery(String field, float[] query, int k, Query queryFilter) {
         return getKnnVectorQuery(field, query, k, queryFilter, 0.05f);
     }
 
+    AbstractIVFKnnVectorQuery getStableKnnVectorQuery(String field, float[] query, int k, Query queryFilter) {
+        return getStableKnnVectorQuery(field, query, k, queryFilter, 0.05f);
+    }
+
     final AbstractIVFKnnVectorQuery getKnnVectorQuery(String field, float[] query, int k) {
         return getKnnVectorQuery(field, query, k, null);
+    }
+
+    final AbstractIVFKnnVectorQuery getStableKnnVectorQuery(String field, float[] query, int k) {
+        return getStableKnnVectorQuery(field, query, k, null);
+    }
+
+    void decorateIWC(IndexWriterConfig indexWriterConfig) {
+        // default is no-op
+    }
+
+    Document getDocumentToIndex() {
+        return new Document();
     }
 
     abstract float[] randomVector(int dim);
@@ -298,7 +323,7 @@ abstract class AbstractIVFKnnVectorQueryTestCase extends LuceneTestCase {
         }
         try (Directory d = getStableIndexStore("field", vectors); IndexReader reader = DirectoryReader.open(d)) {
             IndexSearcher searcher = new IndexSearcher(reader);
-            AbstractIVFKnnVectorQuery query = getKnnVectorQuery("field", new float[] { 2, 3 }, 3);
+            AbstractIVFKnnVectorQuery query = getStableKnnVectorQuery("field", new float[] { 2, 3 }, 3);
             Query rewritten = query.rewrite(searcher);
             Weight weight = searcher.createWeight(rewritten, ScoreMode.COMPLETE, 1);
             Scorer scorer = weight.scorer(reader.leaves().get(0));
@@ -341,7 +366,7 @@ abstract class AbstractIVFKnnVectorQueryTestCase extends LuceneTestCase {
         ) {
             assertEquals(1, reader.leaves().size());
             IndexSearcher searcher = new IndexSearcher(reader);
-            AbstractIVFKnnVectorQuery query = getKnnVectorQuery("field", new float[] { 2, 3 }, 3);
+            AbstractIVFKnnVectorQuery query = getStableKnnVectorQuery("field", new float[] { 2, 3 }, 3);
             Query rewritten = query.rewrite(searcher);
             Weight weight = searcher.createWeight(rewritten, ScoreMode.COMPLETE, 1);
             Scorer scorer = weight.scorer(reader.leaves().get(0));
@@ -385,7 +410,7 @@ abstract class AbstractIVFKnnVectorQueryTestCase extends LuceneTestCase {
             IndexReader reader = DirectoryReader.open(d)
         ) {
             IndexSearcher searcher = newSearcher(reader);
-            AbstractIVFKnnVectorQuery kvq = getKnnVectorQuery("field", new float[] { 0, -1 }, 10);
+            AbstractIVFKnnVectorQuery kvq = getStableKnnVectorQuery("field", new float[] { 0, -1 }, 10);
             assertMatches(searcher, kvq, 3);
             ScoreDoc[] scoreDocs = searcher.search(kvq, 3).scoreDocs;
             assertIdMatches(reader, "id2", scoreDocs[0]);
@@ -400,9 +425,11 @@ abstract class AbstractIVFKnnVectorQueryTestCase extends LuceneTestCase {
 
     public void testExplain() throws IOException {
         try (Directory d = newDirectoryForTest()) {
-            try (IndexWriter w = new IndexWriter(d, new IndexWriterConfig())) {
+            IndexWriterConfig config = new IndexWriterConfig();
+            decorateIWC(config);
+            try (IndexWriter w = new IndexWriter(d, config)) {
                 for (int j = 0; j < 5; j++) {
-                    Document doc = new Document();
+                    Document doc = getDocumentToIndex();
                     doc.add(getKnnVectorField("field", new float[] { j, j }));
                     w.addDocument(doc);
                 }
@@ -428,9 +455,11 @@ abstract class AbstractIVFKnnVectorQueryTestCase extends LuceneTestCase {
 
     public void testExplainMultipleSegments() throws IOException {
         try (Directory d = newDirectoryForTest()) {
-            try (IndexWriter w = new IndexWriter(d, new IndexWriterConfig())) {
+            IndexWriterConfig config = new IndexWriterConfig();
+            decorateIWC(config);
+            try (IndexWriter w = new IndexWriter(d, config)) {
                 for (int j = 0; j < 5; j++) {
-                    Document doc = new Document();
+                    Document doc = getDocumentToIndex();
                     doc.add(getKnnVectorField("field", new float[] { j, j }));
                     w.addDocument(doc);
                     w.commit();
@@ -477,13 +506,13 @@ abstract class AbstractIVFKnnVectorQueryTestCase extends LuceneTestCase {
             }
             try (IndexReader reader = DirectoryReader.open(d)) {
                 IndexSearcher searcher = newSearcher(reader);
-                TopDocs results = searcher.search(getKnnVectorQuery("field", new float[] { 0, 0 }, 8), 10);
+                TopDocs results = searcher.search(getStableKnnVectorQuery("field", new float[] { 0, 0 }, 8), 10);
                 assertEquals(8, results.scoreDocs.length);
                 assertIdMatches(reader, "id0", results.scoreDocs[0]);
                 assertIdMatches(reader, "id7", results.scoreDocs[7]);
 
                 // test some results in the middle of the sequence - also tests docid tiebreaking
-                results = searcher.search(getKnnVectorQuery("field", new float[] { 10, 10 }, 8), 10);
+                results = searcher.search(getStableKnnVectorQuery("field", new float[] { 10, 10 }, 8), 10);
                 assertEquals(8, results.scoreDocs.length);
                 assertIdMatches(reader, "id10", results.scoreDocs[0]);
                 assertIdMatches(reader, "id6", results.scoreDocs[7]);
@@ -496,7 +525,6 @@ abstract class AbstractIVFKnnVectorQueryTestCase extends LuceneTestCase {
         assertRandomConsistency(false);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/apache/lucene/issues/14180")
     public void testRandomConsistencyMultiThreaded() throws IOException {
         assertRandomConsistency(true);
     }
@@ -514,9 +542,10 @@ abstract class AbstractIVFKnnVectorQueryTestCase extends LuceneTestCase {
             iwc.setMergePolicy(NoMergePolicy.INSTANCE);
             iwc.setMaxBufferedDocs(numDocs);
             iwc.setRAMBufferSizeMB(IndexWriterConfig.DISABLE_AUTO_FLUSH);
+            decorateIWC(iwc);
             try (IndexWriter w = new IndexWriter(d, iwc)) {
                 for (int i = 0; i < numDocs; i++) {
-                    Document doc = new Document();
+                    Document doc = getDocumentToIndex();
                     if (everyDocHasAVector || random().nextInt(10) != 2) {
                         doc.add(getKnnVectorField("field", randomVector(dimension)));
                     }
@@ -554,9 +583,11 @@ abstract class AbstractIVFKnnVectorQueryTestCase extends LuceneTestCase {
         int numIters = atLeast(10);
         boolean everyDocHasAVector = random().nextBoolean();
         try (Directory d = newDirectoryForTest()) {
-            RandomIndexWriter w = new RandomIndexWriter(random(), d);
+            IndexWriterConfig iwc = newIndexWriterConfig();
+            decorateIWC(iwc);
+            RandomIndexWriter w = new RandomIndexWriter(random(), d, iwc);
             for (int i = 0; i < numDocs; i++) {
-                Document doc = new Document();
+                Document doc = getDocumentToIndex();
                 if (everyDocHasAVector || random().nextInt(10) != 2) {
                     doc.add(getKnnVectorField("field", randomVector(dimension)));
                 }
@@ -599,9 +630,10 @@ abstract class AbstractIVFKnnVectorQueryTestCase extends LuceneTestCase {
             // implementation.
             IndexWriterConfig iwc = configStandardCodec();
             iwc.setCodec(TestUtil.alwaysKnnVectorsFormat(format));
+            decorateIWC(iwc);
             RandomIndexWriter w = new RandomIndexWriter(random(), d, iwc);
             for (int i = 0; i < numDocs; i++) {
-                Document doc = new Document();
+                Document doc = getDocumentToIndex();
                 doc.add(getKnnVectorField("field", randomVector(dimension)));
                 doc.add(new NumericDocValuesField("tag", i));
                 doc.add(new IntPoint("tag", i));
@@ -660,10 +692,11 @@ abstract class AbstractIVFKnnVectorQueryTestCase extends LuceneTestCase {
             // implementation.
             IndexWriterConfig iwc = configStandardCodec();
             iwc.setCodec(TestUtil.alwaysKnnVectorsFormat(format));
+            decorateIWC(iwc);
             IndexWriter w = new IndexWriter(d, iwc);
             float[] vector = randomVector(dimension);
             for (int i = 0; i < numDocs; i++) {
-                Document doc = new Document();
+                Document doc = getDocumentToIndex();
                 doc.add(getKnnVectorField("field", vector));
                 doc.add(new IntPoint("tag", i));
                 w.addDocument(doc);
@@ -690,11 +723,13 @@ abstract class AbstractIVFKnnVectorQueryTestCase extends LuceneTestCase {
     }
 
     public void testDeletes() throws IOException {
-        try (Directory dir = newDirectoryForTest(); IndexWriter w = new IndexWriter(dir, newIndexWriterConfig())) {
+        IndexWriterConfig config = newIndexWriterConfig();
+        decorateIWC(config);
+        try (Directory dir = newDirectoryForTest(); IndexWriter w = new IndexWriter(dir, config)) {
             final int numDocs = atLeast(100);
             final int dim = 30;
             for (int i = 0; i < numDocs; ++i) {
-                Document d = new Document();
+                Document d = getDocumentToIndex();
                 d.add(new StringField("index", String.valueOf(i), Field.Store.YES));
                 if (frequently()) {
                     d.add(getKnnVectorField("vector", randomVector(dim)));
@@ -741,7 +776,7 @@ abstract class AbstractIVFKnnVectorQueryTestCase extends LuceneTestCase {
             }
             w.commit();
 
-            w.deleteDocuments(new MatchAllDocsQuery());
+            w.deleteDocuments(Queries.ALL_DOCS_INSTANCE);
             w.commit();
 
             try (IndexReader reader = DirectoryReader.open(dir)) {
@@ -795,11 +830,12 @@ abstract class AbstractIVFKnnVectorQueryTestCase extends LuceneTestCase {
      */
     public void testNoLiveDocsReader() throws IOException {
         IndexWriterConfig iwc = newIndexWriterConfig();
+        decorateIWC(iwc);
         try (Directory dir = newDirectoryForTest(); IndexWriter w = new IndexWriter(dir, iwc)) {
             final int numDocs = 10;
             final int dim = 30;
             for (int i = 0; i < numDocs; ++i) {
-                Document d = new Document();
+                Document d = getDocumentToIndex();
                 d.add(new StringField("index", String.valueOf(i), Field.Store.NO));
                 d.add(getKnnVectorField("vector", randomVector(dim)));
                 w.addDocument(d);
@@ -822,11 +858,12 @@ abstract class AbstractIVFKnnVectorQueryTestCase extends LuceneTestCase {
      */
     public void testBitSetQuery() throws IOException {
         IndexWriterConfig iwc = newIndexWriterConfig();
+        decorateIWC(iwc);
         try (Directory dir = newDirectoryForTest(); IndexWriter w = new IndexWriter(dir, iwc)) {
             final int numDocs = 100;
             final int dim = 30;
             for (int i = 0; i < numDocs; ++i) {
-                Document d = new Document();
+                Document d = getDocumentToIndex();
                 d.add(getKnnVectorField("vector", randomVector(dim)));
                 w.addDocument(d);
             }
@@ -857,16 +894,17 @@ abstract class AbstractIVFKnnVectorQueryTestCase extends LuceneTestCase {
         Directory indexStore = newDirectoryForTest();
         IndexWriterConfig indexWriterConfig = LuceneTestCase.newIndexWriterConfig(random(), new MockAnalyzer(random()));
         indexWriterConfig.setCodec(TestUtil.alwaysKnnVectorsFormat(format));
+        decorateIWC(indexWriterConfig);
         RandomIndexWriter writer = new RandomIndexWriter(random(), indexStore, indexWriterConfig);
         for (int i = 0; i < contents.length; ++i) {
-            Document doc = new Document();
+            Document doc = getDocumentToIndex();
             doc.add(getKnnVectorField(field, contents[i], vectorSimilarityFunction));
             doc.add(new StringField("id", "id" + i, Field.Store.YES));
             writer.addDocument(doc);
             if (randomBoolean()) {
                 // Add some documents without a vector
                 for (int j = 0; j < randomIntBetween(1, 5); j++) {
-                    doc = new Document();
+                    doc = getDocumentToIndex();
                     doc.add(new StringField("other", "value", Field.Store.NO));
                     // Add fields that will be matched by our test filters but won't have vectors
                     doc.add(new StringField("id", "id" + j, Field.Store.YES));
@@ -876,7 +914,7 @@ abstract class AbstractIVFKnnVectorQueryTestCase extends LuceneTestCase {
         }
         // Add some documents without a vector
         for (int i = 0; i < 5; i++) {
-            Document doc = new Document();
+            Document doc = getDocumentToIndex();
             doc.add(new StringField("other", "value", Field.Store.NO));
             writer.addDocument(doc);
         }

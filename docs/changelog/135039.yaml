@@ -1,5 +1,0 @@
-pr: 135039
-summary: Use optimized field visitor for ignored source queries
-area: Mapping
-type: enhancement
-issues: []

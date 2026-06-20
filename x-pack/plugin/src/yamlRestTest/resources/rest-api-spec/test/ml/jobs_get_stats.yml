@@ -273,7 +273,7 @@ setup:
 
   - do:
       indices.delete:
-        index: .ml-anomalies-shared
+        index: .ml-anomalies-shared-000001
 
   - do:
       ml.get_job_stats: {}
@@ -347,7 +347,7 @@ setup:
 
   - do:
       indices.close:
-        index: .ml-anomalies-shared
+        index: .ml-anomalies-shared-000001
 
   # With the index closed the low level ML API reports a problem
   - do:

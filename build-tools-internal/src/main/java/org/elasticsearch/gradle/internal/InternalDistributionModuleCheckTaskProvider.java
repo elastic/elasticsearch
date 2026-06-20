@@ -52,10 +52,13 @@ public class InternalDistributionModuleCheckTaskProvider {
     private static final List<String> EXPECTED_ES_SERVER_MODULES = List.of(
         "org.elasticsearch.base",
         "org.elasticsearch.cli",
+        "org.elasticsearch.cli.terminal",
         "org.elasticsearch.entitlement",
         "org.elasticsearch.exponentialhistogram",
+        "org.elasticsearch.foreign",
         "org.elasticsearch.geo",
         "org.elasticsearch.grok",
+        "org.elasticsearch.iplocation.api",
         "org.elasticsearch.logging",
         "org.elasticsearch.lz4",
         "org.elasticsearch.nativeaccess",
@@ -64,6 +67,7 @@ public class InternalDistributionModuleCheckTaskProvider {
         "org.elasticsearch.server",
         "org.elasticsearch.simdvec",
         "org.elasticsearch.tdigest",
+        "org.elasticsearch.useragent.api",
         "org.elasticsearch.xcontent"
     );
 

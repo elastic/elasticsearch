@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.esql.optimizer.rules.logical.local;
 
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
+import org.elasticsearch.xpack.esql.TestOptimizer;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
@@ -16,7 +18,7 @@ import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateTrunc;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.RoundTo;
-import org.elasticsearch.xpack.esql.optimizer.LocalLogicalPlanOptimizerTests;
+import org.elasticsearch.xpack.esql.optimizer.AbstractLocalLogicalPlanOptimizerTests;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
@@ -24,17 +26,19 @@ import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
+import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
 
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_CFG;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
 
 //@TestLogging(value = "org.elasticsearch.xpack.esql:TRACE", reason = "debug")
-public class ReplaceDateTruncBucketWithRoundToTests extends LocalLogicalPlanOptimizerTests {
+public class ReplaceDateTruncBucketWithRoundToTests extends AbstractLocalLogicalPlanOptimizerTests {
 
     // Key is the predicate,
     // Value is the number of items in the round_to function, if the number of item is 0, that means the min/max in predicates do not
@@ -76,7 +80,7 @@ public class ReplaceDateTruncBucketWithRoundToTests extends LocalLogicalPlanOpti
     );
 
     // The date range of SearchStats is from 2023-10-20 to 2023-10-23.
-    private static final SearchStats searchStats = searchStats();
+    private static final SearchStats searchStats = searchStats("hire_date", 1697804103360L, 1698069301543L);
 
     public void testSubstituteDateTruncInEvalWithRoundTo() {
         for (Map.Entry<String, Integer> predicate : predicatesWithDateTruncBucket.entrySet()) {
@@ -90,7 +94,8 @@ public class ReplaceDateTruncBucketWithRoundToTests extends LocalLogicalPlanOpti
                 {}
                 | limit 5
                 """, predicateString);
-            LogicalPlan localPlan = localPlan(query, searchStats);
+            Configuration configuration = TEST_CFG;
+            LogicalPlan localPlan = localPlan(testAnalyzer().coordinatorPlan(query), configuration, searchStats);
             Project project = as(localPlan, Project.class);
             TopN topN = as(project.child(), TopN.class);
             Eval eval = as(topN.child(), Eval.class);
@@ -113,7 +118,8 @@ public class ReplaceDateTruncBucketWithRoundToTests extends LocalLogicalPlanOpti
                 {}
                 | stats count(*) by x = date_trunc(1 day, hire_date)
                 """, predicateString);
-            LogicalPlan localPlan = localPlan(query, searchStats);
+            Configuration configuration = TEST_CFG;
+            LogicalPlan localPlan = localPlan(testAnalyzer().coordinatorPlan(query), configuration, searchStats);
             Limit limit = as(localPlan, Limit.class);
             Aggregate aggregate = as(limit.child(), Aggregate.class);
             Eval eval = as(aggregate.child(), Eval.class);
@@ -136,7 +142,8 @@ public class ReplaceDateTruncBucketWithRoundToTests extends LocalLogicalPlanOpti
                 {}
                 | stats count(*) by x = bucket(hire_date, 1 day)
                 """, predicateString);
-            LogicalPlan localPlan = localPlan(query, searchStats);
+            Configuration configuration = TEST_CFG;
+            LogicalPlan localPlan = localPlan(testAnalyzer().coordinatorPlan(query), configuration, searchStats);
             Limit limit = as(localPlan, Limit.class);
             Aggregate aggregate = as(limit.child(), Aggregate.class);
             Eval eval = as(aggregate.child(), Eval.class);
@@ -166,7 +173,8 @@ public class ReplaceDateTruncBucketWithRoundToTests extends LocalLogicalPlanOpti
                 | keep emp_no, {}, y
                 | limit 5
                 """, predicateString, fieldName, fieldName);
-            LogicalPlan localPlan = localPlan(query, searchStats);
+            Configuration configuration = TEST_CFG;
+            LogicalPlan localPlan = localPlan(testAnalyzer().coordinatorPlan(query), configuration, searchStats);
             Project project = as(localPlan, Project.class);
             TopN topN = as(project.child(), TopN.class);
             Eval eval = as(topN.child(), Eval.class);
@@ -193,7 +201,8 @@ public class ReplaceDateTruncBucketWithRoundToTests extends LocalLogicalPlanOpti
                 {}
                 | stats count(*) by y = bucket({}, 1 day)
                 """, predicateString, fieldName);
-            LogicalPlan localPlan = localPlan(query, searchStats);
+            Configuration configuration = TEST_CFG;
+            LogicalPlan localPlan = localPlan(testAnalyzer().coordinatorPlan(query), configuration, searchStats);
             Limit limit = as(localPlan, Limit.class);
             Aggregate aggregate = as(limit.child(), Aggregate.class);
             Eval eval = as(aggregate.child(), Eval.class);
@@ -220,7 +229,8 @@ public class ReplaceDateTruncBucketWithRoundToTests extends LocalLogicalPlanOpti
                 {}
                 | stats count(*) by y = date_trunc(1 day, {})
                 """, predicateString, fieldName);
-            LogicalPlan localPlan = localPlan(query, searchStats);
+            Configuration configuration = TEST_CFG;
+            LogicalPlan localPlan = localPlan(testAnalyzer().coordinatorPlan(query), configuration, searchStats);
             Limit limit = as(localPlan, Limit.class);
             Aggregate aggregate = as(limit.child(), Aggregate.class);
             Eval eval = as(aggregate.child(), Eval.class);
@@ -235,21 +245,28 @@ public class ReplaceDateTruncBucketWithRoundToTests extends LocalLogicalPlanOpti
     }
 
     private void verifySubstitution(Alias a, int roundToPointsSize) {
-        FieldAttribute fa = null;
         Expression e = a.child();
         if (roundToPointsSize > 0) {
             RoundTo roundTo = as(e, RoundTo.class);
-            fa = as(roundTo.field(), FieldAttribute.class);
+            FieldAttribute fa = as(roundTo.field(), FieldAttribute.class);
             assertEquals(roundToPointsSize, roundTo.points().size());
+            assertEquals("hire_date", fa.name());
+            assertEquals(DATETIME, fa.dataType());
         } else if (roundToPointsSize == 0) {
+            // Predicates exclude all rounding points so DateTrunc/Bucket was kept as-is
+            FieldAttribute fa;
             if (e instanceof DateTrunc dateTrunc) {
                 fa = as(dateTrunc.field(), FieldAttribute.class);
             } else if (e instanceof Bucket bucket) {
                 fa = as(bucket.field(), FieldAttribute.class);
             } else {
                 fail(e.getClass() + " is not supported");
+                return;
             }
+            assertEquals("hire_date", fa.name());
+            assertEquals(DATETIME, fa.dataType());
         } else {
+            // DateTrunc/Bucket applied to a non-field expression so substitution was not possible
             if (e instanceof DateTrunc dateTrunc) {
                 assertTrue(dateTrunc.field() instanceof ReferenceAttribute);
             } else if (e instanceof Bucket bucket) {
@@ -258,21 +275,38 @@ public class ReplaceDateTruncBucketWithRoundToTests extends LocalLogicalPlanOpti
                 fail(e.getClass() + " is not supported");
             }
         }
-        if (roundToPointsSize >= 0) {
-            assertEquals("hire_date", fa.name());
-            assertEquals(DATETIME, fa.dataType());
-        }
     }
 
-    private LogicalPlan localPlan(String query, SearchStats searchStats) {
-        var plan = plan(query);
-        return localPlan(plan, searchStats);
+    private static SearchStats searchStats(String field, long min, long max) {
+        return new EsqlTestUtils.TestSearchStatsWithMinMax(Map.of(field, min), Map.of(field, max));
     }
 
-    private static SearchStats searchStats() {
-        // create a SearchStats with min and max millis
-        Map<String, Object> minValue = Map.of("hire_date", 1697804103360L); // 2023-10-20T12:15:03.360Z
-        Map<String, Object> maxValue = Map.of("hire_date", 1698069301543L); // 2023-10-23T13:55:01.543Z
-        return new EsqlTestUtils.TestSearchStatsWithMinMax(minValue, maxValue);
+    /**
+     * TStep (upper-bound) buckets are NOT substituted with a {@link RoundTo}: ceiling lookup needs a
+     * specialized RoundTo path that does not exist yet, so the rule keeps the {@link Bucket} so the
+     * eval path uses the wrapped {@code Rounding.Prepared} directly.
+     */
+    public void testRightClosedBucketIsNotSubstituted() {
+        assumeTrue("TSTEP requires corresponding capability", EsqlCapabilities.Cap.TSTEP.isEnabled());
+        assumeTrue("TSTEP explicit bounds requires corresponding capability", EsqlCapabilities.Cap.TSTEP_EXPLICIT_BOUNDS.isEnabled());
+        String query = """
+            FROM sample_data
+            | WHERE @timestamp >= "2023-10-23T12:00:00Z" AND @timestamp <= "2023-10-23T14:00:00Z"
+            | STATS count(*) BY x = TSTEP(10 minutes, "2023-10-23T12:15:00Z", "2023-10-23T14:00:00Z")
+            """;
+        TestOptimizer analyzer = EsqlTestUtils.optimizer().addSampleData();
+        SearchStats stats = searchStats("@timestamp", 1698063303360L, 1698069301543L);
+        LogicalPlan localPlan = localPlan(analyzer.coordinatorPlan(query), TEST_CFG, stats);
+        Limit limit = as(localPlan, Limit.class);
+        Aggregate aggregate = as(limit.child(), Aggregate.class);
+        Eval eval = as(aggregate.child(), Eval.class);
+        List<Alias> fields = eval.fields();
+        assertEquals(1, fields.size());
+        Alias a = fields.get(0);
+        assertEquals("x", a.name());
+        Bucket bucket = as(a.child(), Bucket.class);
+        FieldAttribute fa = as(bucket.field(), FieldAttribute.class);
+        assertEquals("@timestamp", fa.name());
+        assertEquals(DATETIME, fa.dataType());
     }
 }

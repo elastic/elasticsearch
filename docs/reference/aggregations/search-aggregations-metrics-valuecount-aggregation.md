@@ -65,8 +65,8 @@ POST /sales/_search
   }
 }
 ```
-%  TEST[setup:sales]
-%  TEST[s/_search/_search?filter_path=aggregations/]
+% TEST[setup:sales]
+% TEST[s/_search/_search?filter_path=aggregations/]
 
 ## Histogram fields [search-aggregations-metrics-valuecount-aggregation-histogram-fields]
 

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.slm;
 
+import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
@@ -24,6 +25,7 @@ import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.scheduler.SchedulerEngine;
 import org.elasticsearch.core.FixForMultiProject;
@@ -264,9 +266,7 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
 
                 @Override
                 public void onFailure(Exception e) {
-                    SnapshotHistoryStore.logErrorOrWarning(
-                        logger,
-                        clusterService.state(),
+                    logger.warn(
                         () -> format("failed to create snapshot for snapshot lifecycle policy [%s]", policyMetadata.getPolicy().getId()),
                         e
                     );
@@ -589,11 +589,14 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
 
         @Override
         public void onFailure(Exception e) {
-            logger.error(
-                "failed to record snapshot policy execution status [{}] for snapshot [{}] in policy [{}]: {}",
-                exception.isPresent() ? "failure" : "success",
-                snapshotId.getName(),
-                policyName,
+            logger.log(
+                MasterService.isPublishFailureException(e) ? Level.INFO : Level.WARN,
+                format(
+                    "failed to record snapshot policy execution status [%s] for snapshot [%s] in policy [%s]",
+                    exception.isPresent() ? "failure" : "success",
+                    snapshotId.getName(),
+                    policyName
+                ),
                 e
             );
         }

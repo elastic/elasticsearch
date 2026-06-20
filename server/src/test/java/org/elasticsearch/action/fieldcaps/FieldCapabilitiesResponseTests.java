@@ -11,7 +11,6 @@ package org.elasticsearch.action.fieldcaps;
 
 import org.elasticsearch.ElasticsearchExceptionTests;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -50,10 +49,10 @@ public class FieldCapabilitiesResponseTests extends AbstractWireSerializingTestC
         int numResponse = randomIntBetween(0, 10);
         for (int i = 0; i < numResponse; i++) {
             Map<String, IndexFieldCapabilities> fieldCaps = FieldCapabilitiesIndexResponseTests.randomFieldCaps();
-            var indexMode = randomFrom(IndexMode.values());
+            var indexMode = randomFrom(IndexMode.availableModes());
             responses.add(new FieldCapabilitiesIndexResponse("index_" + i, null, fieldCaps, randomBoolean(), indexMode));
         }
-        randomResponse = new FieldCapabilitiesResponse(responses, Collections.emptyList());
+        randomResponse = FieldCapabilitiesResponse.builder().withIndexResponses(responses).build();
         return randomResponse;
     }
 
@@ -88,7 +87,7 @@ public class FieldCapabilitiesResponseTests extends AbstractWireSerializingTestC
                 );
             }
         }
-        return new FieldCapabilitiesResponse(null, mutatedResponses, Collections.emptyList());
+        return FieldCapabilitiesResponse.builder().withFields(mutatedResponses).build();
     }
 
     public void testFailureSerialization() throws IOException {
@@ -144,7 +143,7 @@ public class FieldCapabilitiesResponseTests extends AbstractWireSerializingTestC
                 failures.get(failures.size() - 1).addIndex(index);
             }
         }
-        return new FieldCapabilitiesResponse(indices, Collections.emptyMap(), failures);
+        return FieldCapabilitiesResponse.builder().withIndices(indices).withFailures(failures).build();
     }
 
     private static FieldCapabilitiesResponse randomCCSResponse(List<FieldCapabilitiesIndexResponse> indexResponses) {
@@ -154,7 +153,7 @@ public class FieldCapabilitiesResponseTests extends AbstractWireSerializingTestC
             String index = "index_" + i;
             failures.add(new FieldCapabilitiesFailure(new String[] { index }, ElasticsearchExceptionTests.randomExceptions().v2()));
         }
-        return new FieldCapabilitiesResponse(indexResponses, failures);
+        return FieldCapabilitiesResponse.builder().withIndexResponses(indexResponses).withFailures(failures).build();
     }
 
     public void testSerializeCCSResponseBetweenNewClusters() throws Exception {
@@ -165,10 +164,17 @@ public class FieldCapabilitiesResponseTests extends AbstractWireSerializingTestC
         );
         Randomness.shuffle(indexResponses);
         FieldCapabilitiesResponse inResponse = randomCCSResponse(indexResponses);
-        final TransportVersion version = TransportVersionUtils.randomVersionBetween(
-            random(),
-            TransportVersions.V_8_2_0,
-            TransportVersion.current()
+        final TransportVersion version = TransportVersionUtils.randomCompatibleVersion();
+        final boolean hasColumnarMode = indexResponses.stream()
+            .anyMatch(r -> r.getIndexMode() == IndexMode.COLUMNAR || r.getIndexMode() == IndexMode.LOGSDB_COLUMNAR);
+        assumeTrue(
+            "columnar index modes require transport version " + IndexMode.COLUMNAR_INDEX_MODES_ADDED,
+            hasColumnarMode == false || version.supports(IndexMode.COLUMNAR_INDEX_MODES_ADDED)
+        );
+        final boolean hasVectordbDocumentMode = indexResponses.stream().anyMatch(r -> r.getIndexMode() == IndexMode.VECTORDB_DOCUMENT);
+        assumeTrue(
+            "vectordb_document index mode requires transport version " + IndexMode.VECTORDB_DOCUMENT_INDEX_MODE,
+            hasVectordbDocumentMode == false || version.supports(IndexMode.VECTORDB_DOCUMENT_INDEX_MODE)
         );
         final FieldCapabilitiesResponse outResponse = copyInstance(inResponse, version);
         assertThat(

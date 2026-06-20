@@ -7,19 +7,39 @@
 
 package org.elasticsearch.xpack.esql.session;
 
+import com.carrotsearch.randomizedtesting.annotations.Name;
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
-import org.elasticsearch.xpack.esql.parser.EsqlParser;
+import org.elasticsearch.xpack.esql.analysis.InSubqueryResolver;
 
+import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
+import static org.elasticsearch.xpack.esql.session.FieldNameUtils.parentPrefixes;
 import static org.elasticsearch.xpack.esql.session.IndexResolver.ALL_FIELDS;
 import static org.elasticsearch.xpack.esql.session.IndexResolver.INDEX_METADATA_FIELD;
 import static org.hamcrest.Matchers.equalTo;
 
 public class FieldNameUtilsTests extends ESTestCase {
 
-    private static final EsqlParser parser = new EsqlParser();
+    @ParametersFactory
+    public static Iterable<Object[]> parameters() {
+        return List.of(new Object[] { true }, new Object[] { false });
+    }
+
+    /**
+     * This test parameter controls whether we want the pre-analysis field name resolution to include dot-delimited superfields. When true,
+     * field resolution behaves as if {@code unmapped_fields="load"}, and additionally loads field "foo" if query contained field "foo.a".
+     */
+    private final boolean includePrefixFields;
+
+    public FieldNameUtilsTests(@Name("unmappedFieldLoad") boolean includePrefixFields) {
+        this.includePrefixFields = includePrefixFields;
+    }
 
     public void testBasicFromCommand() {
         assertFieldNames("from test", ALL_FIELDS);
@@ -65,7 +85,7 @@ public class FieldNameUtilsTests extends ESTestCase {
     }
 
     public void testForkEval() {
-        assertFieldNames("FROM employees | fork (eval x = 1 | keep x) (eval y = 2 | keep y) (eval z = 3 | keep z)", Set.of("*"));
+        assertFieldNames("FROM employees | fork (eval x = 1 | keep x) (eval y = 2 | keep y) (eval z = 3 | keep z)", Set.of("_index"));
     }
 
     public void testSort1() {
@@ -132,19 +152,27 @@ public class FieldNameUtilsTests extends ESTestCase {
     }
 
     public void testConvertFromIntAndLong() {
+        Set<String> expected = Set.of(
+            "_index",
+            "emp_no",
+            "emp_no.*",
+            "salary_change*",
+            "salary_change.int.*",
+            "salary_change.int",
+            "salary_change.long.*",
+            "salary_change.long"
+        );
+
+        if (includePrefixFields) {
+            // dot-delimited prefixes are additionally requested
+            expected = new HashSet<>(expected);
+            expected.add("salary_change");
+        }
+
         assertFieldNames(
             "from employees | keep emp_no, salary_change*"
                 + "| eval int2bool = to_boolean(salary_change.int), long2bool = to_boolean(salary_change.long) | limit 10",
-            Set.of(
-                "_index",
-                "emp_no",
-                "emp_no.*",
-                "salary_change*",
-                "salary_change.int.*",
-                "salary_change.int",
-                "salary_change.long.*",
-                "salary_change.long"
-            )
+            expected
         );
     }
 
@@ -156,14 +184,27 @@ public class FieldNameUtilsTests extends ESTestCase {
     }
 
     public void testLongToLong() {
-        assertFieldNames(
-            """
-                from employees
-                | where languages.long < avg_worked_seconds
-                | limit 1
-                | keep emp_no""",
-            Set.of("_index", "emp_no", "emp_no.*", "languages.long", "languages.long.*", "avg_worked_seconds", "avg_worked_seconds.*")
+        Set<String> expected = Set.of(
+            "_index",
+            "emp_no",
+            "emp_no.*",
+            "languages.long",
+            "languages.long.*",
+            "avg_worked_seconds",
+            "avg_worked_seconds.*"
         );
+
+        if (includePrefixFields) {
+            // dot-delimited prefixes are additionally requested
+            expected = new HashSet<>(expected);
+            expected.add("languages");
+        }
+
+        assertFieldNames("""
+            from employees
+            | where languages.long < avg_worked_seconds
+            | limit 1
+            | keep emp_no""", expected);
     }
 
     public void testDateToDate() {
@@ -904,13 +945,21 @@ public class FieldNameUtilsTests extends ESTestCase {
     }
 
     public void testMvSum() {
+        Set<String> expected = Set.of("_index", "emp_no", "emp_no.*", "salary_change.int", "salary_change.int.*");
+
+        if (includePrefixFields) {
+            // dot-delimited prefixes are additionally requested
+            expected = new HashSet<>(expected);
+            expected.add("salary_change");
+        }
+
         assertFieldNames("""
             from employees
             | where emp_no > 10008
             | eval salary_change = mv_sum(salary_change.int)
             | sort emp_no
             | keep emp_no, salary_change.int, salary_change
-            | limit 7""", Set.of("_index", "emp_no", "emp_no.*", "salary_change.int", "salary_change.int.*"));
+            | limit 7""", expected);
     }
 
     public void testMetaIndexAliasedInAggs() {
@@ -979,7 +1028,15 @@ public class FieldNameUtilsTests extends ESTestCase {
     }
 
     public void testMaxOfLong() {
-        assertFieldNames("from employees | stats l = max(languages.long)", Set.of("_index", "languages.long", "languages.long.*"));
+        Set<String> expected = Set.of("_index", "languages.long", "languages.long.*");
+
+        if (includePrefixFields) {
+            // dot-delimited prefixes are additionally requested
+            expected = new HashSet<>(expected);
+            expected.add("languages");
+        }
+
+        assertFieldNames("from employees | stats l = max(languages.long)", expected);
     }
 
     public void testGroupByAlias() {
@@ -1017,11 +1074,19 @@ public class FieldNameUtilsTests extends ESTestCase {
     }
 
     public void testByLongAndLong() {
+        Set<String> expected = Set.of("_index", "avg_worked_seconds", "avg_worked_seconds.*", "languages.long", "languages.long.*");
+
+        if (includePrefixFields) {
+            // dot-delimited prefixes are additionally requested
+            expected = new HashSet<>(expected);
+            expected.add("languages");
+        }
+
         assertFieldNames("""
             from employees
             | eval trunk_worked_seconds = avg_worked_seconds / 100000000 * 100000000
             | stats c = count(languages.long) by languages.long, trunk_worked_seconds
-            | sort c desc""", Set.of("_index", "avg_worked_seconds", "avg_worked_seconds.*", "languages.long", "languages.long.*"));
+            | sort c desc""", expected);
     }
 
     public void testByDateAndKeywordAndIntWithAlias() {
@@ -1055,12 +1120,17 @@ public class FieldNameUtilsTests extends ESTestCase {
     }
 
     public void testPercentileOfLong() {
-        assertFieldNames(
-            """
-                from employees
-                | stats p0 = percentile(salary_change.long, 0), p50 = percentile(salary_change.long, 50)""",
-            Set.of("_index", "salary_change.long", "salary_change.long.*")
-        );
+        Set<String> expected = Set.of("_index", "salary_change.long", "salary_change.long.*");
+
+        if (includePrefixFields) {
+            // dot-delimited prefixes are additionally requested
+            expected = new HashSet<>(expected);
+            expected.add("salary_change");
+        }
+
+        assertFieldNames("""
+            from employees
+            | stats p0 = percentile(salary_change.long, 0), p50 = percentile(salary_change.long, 50)""", expected);
     }
 
     public void testMedianOfInteger() {
@@ -1121,14 +1191,27 @@ public class FieldNameUtilsTests extends ESTestCase {
     }
 
     public void testByUnmentionedLongAndLong() {
-        assertFieldNames(
-            """
-                from employees
-                | eval trunk_worked_seconds = avg_worked_seconds / 100000000 * 100000000
-                | stats c = count(gender) by languages.long, trunk_worked_seconds
-                | sort c desc""",
-            Set.of("_index", "avg_worked_seconds", "avg_worked_seconds.*", "languages.long", "languages.long.*", "gender", "gender.*")
+        Set<String> expected = Set.of(
+            "_index",
+            "avg_worked_seconds",
+            "avg_worked_seconds.*",
+            "languages.long",
+            "languages.long.*",
+            "gender",
+            "gender.*"
         );
+
+        if (includePrefixFields) {
+            // dot-delimited prefixes are additionally requested
+            expected = new HashSet<>(expected);
+            expected.add("languages");
+        }
+
+        assertFieldNames("""
+            from employees
+            | eval trunk_worked_seconds = avg_worked_seconds / 100000000 * 100000000
+            | stats c = count(gender) by languages.long, trunk_worked_seconds
+            | sort c desc""", expected);
     }
 
     public void testRenameNopProject() {
@@ -1626,21 +1709,25 @@ public class FieldNameUtilsTests extends ESTestCase {
 
     public void testMetrics() {
         var query = "TS k8s | STATS bytes=sum(rate(network.total_bytes_in)), sum(rate(network.total_cost)) BY cluster";
-        assertFieldNames(
-            query,
-            Set.of(
-                "_index",
-                "@timestamp",
-                "@timestamp.*",
-                "network.total_bytes_in",
-                "network.total_bytes_in.*",
-                "network.total_cost",
-                "network.total_cost.*",
-                "cluster",
-                "cluster.*"
-            )
-
+        Set<String> expected = Set.of(
+            "_index",
+            "@timestamp",
+            "@timestamp.*",
+            "network.total_bytes_in",
+            "network.total_bytes_in.*",
+            "network.total_cost",
+            "network.total_cost.*",
+            "cluster",
+            "cluster.*"
         );
+
+        if (includePrefixFields) {
+            // dot-delimited prefixes are additionally requested
+            expected = new HashSet<>(expected);
+            expected.add("network");
+        }
+
+        assertFieldNames(query, expected);
     }
 
     public void testLookupJoin() {
@@ -1956,30 +2043,43 @@ public class FieldNameUtilsTests extends ESTestCase {
     }
 
     public void testJoinMaskingKeep() {
-        assertFieldNames(
-            """
-                from languag*
-                | eval type = null
-                | rename language_name as message
-                | lookup join message_types_lookup on message
-                | rename type as message
-                | lookup join message_types_lookup on message
-                | keep `language.name`""",
-            Set.of(
-                "_index",
-                "language.name",
-                "type",
-                "language_name",
-                "message",
-                "language_name.*",
-                "message.*",
-                "type.*",
-                "language.name.*"
-            )
+        Set<String> expected = Set.of(
+            "_index",
+            "language.name",
+            "type",
+            "language_name",
+            "message",
+            "language_name.*",
+            "message.*",
+            "type.*",
+            "language.name.*"
         );
+
+        if (includePrefixFields) {
+            // dot-delimited prefixes are additionally requested
+            expected = new HashSet<>(expected);
+            expected.add("language");
+        }
+
+        assertFieldNames("""
+            from languag*
+            | eval type = null
+            | rename language_name as message
+            | lookup join message_types_lookup on message
+            | rename type as message
+            | lookup join message_types_lookup on message
+            | keep `language.name`""", expected);
     }
 
     public void testJoinMaskingKeep2() {
+        Set<String> expected = Set.of("_index", "language.name", "type", "message", "message.*", "type.*", "language.name.*");
+
+        if (includePrefixFields) {
+            // dot-delimited prefixes are additionally requested
+            expected = new HashSet<>(expected);
+            expected.add("language");
+        }
+
         assertFieldNames("""
             from languag*
             | eval type = "foo"
@@ -1987,7 +2087,7 @@ public class FieldNameUtilsTests extends ESTestCase {
             | lookup join message_types_lookup on message
             | rename type as message
             | lookup join message_types_lookup on message
-            | keep `language.name`""", Set.of("_index", "language.name", "type", "message", "message.*", "type.*", "language.name.*"));
+            | keep `language.name`""", expected);
     }
 
     public void testEnrichMaskingEvalOn() {
@@ -2167,7 +2267,7 @@ public class FieldNameUtilsTests extends ESTestCase {
             | FORK (WHERE c > 1 AND a < 10000 | EVAL d = a + 500)
                    (STATS x = count(*), y=min(z))
             | WHERE x > y
-            """, Set.of("_index", "x", "y", "a", "c", "z", "y.*", "x.*", "z.*", "a.*", "c.*"));
+            """, ALL_FIELDS);
     }
 
     public void testForkFieldsWithEnrichAndLookupJoins() {
@@ -2738,7 +2838,20 @@ public class FieldNameUtilsTests extends ESTestCase {
             FROM languages
             | FORK ( WHERE language_name == "English" | KEEP language_name, language_code )
             ( WHERE language_name != "English" )
-            | SORT _fork, language_name""", Set.of("_index", "language_name", "language_code", "language_code.*", "language_name.*"));
+            | SORT _fork, language_name""", ALL_FIELDS);
+    }
+
+    public void testForkBranchWithKeep2() {
+        assertFieldNames("FROM employees | fork (eval x = 1 | keep x) (eval y = 2 | keep y) (eval z = 3)", ALL_FIELDS);
+    }
+
+    public void testForkBranchWithKeep3() {
+        assertFieldNames("""
+            FROM employees
+            | FORK (EVAL x = 1 | KEEP x)
+                   (EVAL y = 2 | KEEP y)
+                   (WHERE emp_no > 10000)
+            """, ALL_FIELDS);
     }
 
     public void testForkBeforeRename() {
@@ -2817,74 +2930,89 @@ public class FieldNameUtilsTests extends ESTestCase {
     }
 
     public void testForkAfterEnrich() {
-        assertFieldNames(
-            """
-                FROM addresses
-                | KEEP city.country.continent.planet.name, city.country.name, city.name
-                | EVAL city.name = REPLACE(city.name, "San Francisco", "South San Francisco")
-                | ENRICH city_names ON city.name WITH city.country.continent.planet.name = airport
-                | FORK (WHERE city.name != "Amsterdam")
-                (WHERE city.country.name == "Japan")
-                | SORT _fork, city.name""",
-            Set.of(
-                "_index",
-                "city.name",
-                "airport",
-                "city.country.continent.planet.name",
-                "city.country.name",
-                "city.country.continent.planet.name.*",
-                "city.name.*",
-                "city.country.name.*",
-                "airport.*"
-            )
+        Set<String> expected = Set.of(
+            "_index",
+            "city.name",
+            "airport",
+            "city.country.continent.planet.name",
+            "city.country.name",
+            "city.country.continent.planet.name.*",
+            "city.name.*",
+            "city.country.name.*",
+            "airport.*"
         );
+
+        if (includePrefixFields) {
+            // dot-delimited prefixes are additionally requested
+            expected = new HashSet<>(expected);
+            expected.addAll(Set.of("city", "city.country", "city.country.continent", "city.country.continent.planet"));
+        }
+
+        assertFieldNames("""
+            FROM addresses
+            | KEEP city.country.continent.planet.name, city.country.name, city.name
+            | EVAL city.name = REPLACE(city.name, "San Francisco", "South San Francisco")
+            | ENRICH city_names ON city.name WITH city.country.continent.planet.name = airport
+            | FORK (WHERE city.name != "Amsterdam")
+            (WHERE city.country.name == "Japan")
+            | SORT _fork, city.name""", expected);
     }
 
     public void testForkBranchWithEnrich() {
-        assertFieldNames(
-            """
-                FROM addresses
-                | KEEP city.country.continent.planet.name, city.country.name, city.name
-                | EVAL city.name = REPLACE(city.name, "San Francisco", "South San Francisco")
-                | FORK (ENRICH city_names ON city.name WITH city.country.continent.planet.name = airport)
-                (ENRICH city_names ON city.name WITH city.country.continent.planet.name = airport)
-                | SORT _fork, city.name""",
-            Set.of(
-                "_index",
-                "city.name",
-                "airport",
-                "city.country.continent.planet.name",
-                "city.country.name",
-                "city.country.continent.planet.name.*",
-                "city.name.*",
-                "city.country.name.*",
-                "airport.*"
-            )
+        Set<String> expected = Set.of(
+            "_index",
+            "city.name",
+            "airport",
+            "city.country.continent.planet.name",
+            "city.country.name",
+            "city.country.continent.planet.name.*",
+            "city.name.*",
+            "city.country.name.*",
+            "airport.*"
         );
+
+        if (includePrefixFields) {
+            // dot-delimited prefixes are additionally requested
+            expected = new HashSet<>(expected);
+            expected.addAll(Set.of("city", "city.country", "city.country.continent", "city.country.continent.planet"));
+        }
+
+        assertFieldNames("""
+            FROM addresses
+            | KEEP city.country.continent.planet.name, city.country.name, city.name
+            | EVAL city.name = REPLACE(city.name, "San Francisco", "South San Francisco")
+            | FORK (ENRICH city_names ON city.name WITH city.country.continent.planet.name = airport)
+            (ENRICH city_names ON city.name WITH city.country.continent.planet.name = airport)
+            | SORT _fork, city.name""", expected);
     }
 
     public void testForkBeforeEnrich() {
-        assertFieldNames(
-            """
-                FROM addresses
-                | KEEP city.country.continent.planet.name, city.country.name, city.name
-                | EVAL city.name = REPLACE(city.name, "San Francisco", "South San Francisco")
-                | FORK (WHERE city.country.name == "Netherlands")
-                (WHERE city.country.name != "Japan")
-                | ENRICH city_names ON city.name WITH city.country.continent.planet.name = airport
-                | SORT _fork, city.name""",
-            Set.of(
-                "_index",
-                "city.name",
-                "airport",
-                "city.country.name",
-                "city.country.continent.planet.name",
-                "city.country.continent.planet.name.*",
-                "city.name.*",
-                "city.country.name.*",
-                "airport.*"
-            )
+        Set<String> expected = Set.of(
+            "_index",
+            "city.name",
+            "airport",
+            "city.country.continent.planet.name",
+            "city.country.name",
+            "city.country.continent.planet.name.*",
+            "city.name.*",
+            "city.country.name.*",
+            "airport.*"
         );
+
+        if (includePrefixFields) {
+            // dot-delimited prefixes are additionally requested
+            expected = new HashSet<>(expected);
+            expected.addAll(Set.of("city", "city.country", "city.country.continent", "city.country.continent.planet"));
+        }
+
+        assertFieldNames("""
+            FROM addresses
+            | KEEP city.country.continent.planet.name, city.country.name, city.name
+            | EVAL city.name = REPLACE(city.name, "San Francisco", "South San Francisco")
+            | FORK (WHERE city.country.name == "Netherlands")
+            (WHERE city.country.name != "Japan")
+            | ENRICH city_names ON city.name WITH city.country.continent.planet.name = airport
+            | SORT _fork, city.name""", expected);
     }
 
     public void testForkBeforeMvExpand() {
@@ -3142,6 +3270,264 @@ public class FieldNameUtilsTests extends ESTestCase {
             """, Set.of("_index", "@timestamp", "@timestamp.*", "event_duration", "event_duration.*", "client_ip", "client_ip.*"));
     }
 
+    public void testSubqueryInFrom() {
+        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        assertFieldNames(
+            """
+                FROM employees, (FROM books | WHERE author:"Faulkner" | KEEP title, author | SORT title | LIMIT 5)
+                | WHERE emp_no == 10000 OR author IS NOT NULL
+                | KEEP emp_no, first_name, last_name, author, title
+                | SORT emp_no, author
+                """,
+            Set.of(
+                "title.*",
+                "last_name.*",
+                "_index",
+                "emp_no",
+                "author",
+                "first_name.*",
+                "last_name",
+                "title",
+                "author.*",
+                "first_name",
+                "emp_no.*"
+            )
+        );
+    }
+
+    public void testSubqueryInFromWithFork() {
+        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        // nested fork may trigger assertion in FieldNameUtils, defer the check of nested subqueries or subquery with fork
+        // to logical plan optimizer.
+        assertFieldNames(
+            """
+                FROM employees,
+                (FROM books | FORK (WHERE author:"Faulkner")
+                (WHERE title:"Ring") | KEEP title, author | SORT title | LIMIT 5)
+                | WHERE emp_no == 10000 OR author IS NOT NULL
+                | KEEP emp_no, first_name, last_name, author, title
+                | SORT emp_no, author
+                """,
+            Set.of(
+                "title.*",
+                "last_name.*",
+                "_index",
+                "emp_no",
+                "author",
+                "first_name.*",
+                "last_name",
+                "title",
+                "author.*",
+                "first_name",
+                "emp_no.*"
+            )
+        );
+
+        assertFieldNames(
+            """
+                FROM books, (FROM employees | WHERE emp_no == 10000)
+                | FORK (WHERE author:"Faulkner") (WHERE title:"Ring")
+                | KEEP emp_no, first_name, last_name, author, title
+                | SORT emp_no, author
+                """,
+            Set.of(
+                "title.*",
+                "last_name.*",
+                "_index",
+                "emp_no",
+                "author",
+                "first_name.*",
+                "last_name",
+                "title",
+                "author.*",
+                "first_name",
+                "emp_no.*"
+            )
+        );
+    }
+
+    public void testParentPrefixes() {
+        assertEquals(parentPrefixes("a"), List.of());
+        assertEquals(parentPrefixes("a.a"), List.of("a"));
+        assertEquals(parentPrefixes("a.b.c"), List.of("a", "a.b"));
+        assertEquals(parentPrefixes("a.b.c.d"), List.of("a", "a.b", "a.b.c"));
+        assertEquals(parentPrefixes("a.b.c*"), List.of("a", "a.b"));
+        assertEquals(parentPrefixes("a.b.c.*"), List.of("a", "a.b", "a.b.c"));
+        assertEquals(parentPrefixes("a.b.c..d"), List.of("a", "a.b", "a.b.c", "a.b.c."));
+        assertEquals(
+            parentPrefixes("foo*...\n\\n \t\n\n..a"),
+            List.of("foo*", "foo*.", "foo*..", "foo*...\n\\n \t\n\n", "foo*...\n\\n \t\n\n.")
+        );
+        assertEquals(parentPrefixes("foo*\n\\n \t\n\n.a"), List.of("foo*\n\\n \t\n\n"));
+        assertEquals(parentPrefixes("..."), List.of("", ".", ".."));
+        assertEquals(parentPrefixes("a.*.*.*.*"), List.of("a", "a.*", "a.*.*", "a.*.*.*"));
+    }
+
+    public void testUriPartsResolvesOnlyInput() {
+        assumeTrue("requires uri_parts command capability", EsqlCapabilities.Cap.URI_PARTS_COMMAND.isEnabled());
+        assertFieldNames("""
+            from employees
+            | uri_parts u = first_name
+            | keep u.domain""", Set.of("_index", "first_name", "first_name.*"));
+    }
+
+    public void testRegisteredDomainResolvesOnlyInput() {
+        assumeTrue("requires registered_domain command capability", EsqlCapabilities.Cap.REGISTERED_DOMAIN_COMMAND.isEnabled());
+        assertFieldNames("""
+            from employees
+            | registered_domain rd = first_name
+            | keep rd.registered_domain""", Set.of("_index", "first_name", "first_name.*"));
+    }
+
+    public void testUserAgentResolvesOnlyInput() {
+        assumeTrue("requires user_agent command capability", EsqlCapabilities.Cap.USER_AGENT_COMMAND.isEnabled());
+        assertFieldNames("""
+            from employees
+            | user_agent ua = first_name WITH { "extract_device_type": true }
+            | keep ua.name""", Set.of("_index", "first_name", "first_name.*"));
+    }
+
+    // IN subquery tests
+
+    public void testInSubquery() {
+        assumeTrue("IN_SUBQUERY required", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITHOUT_VIEW.isEnabled());
+        assertFieldNames(
+            "FROM employees | WHERE emp_no IN (FROM employees | SORT emp_no | LIMIT 3 | KEEP emp_no) | KEEP emp_no, first_name",
+            Set.of("_index", "emp_no", "emp_no.*", "first_name", "first_name.*")
+        );
+    }
+
+    public void testInSubqueryDifferentIndex() {
+        assumeTrue("IN_SUBQUERY required", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITHOUT_VIEW.isEnabled());
+        // The subquery references a different index; field names from both should be collected
+        assertFieldNames(
+            "FROM employees | WHERE emp_no IN (FROM languages | KEEP language_id) | KEEP emp_no, first_name",
+            Set.of("_index", "emp_no", "emp_no.*", "first_name", "first_name.*", "language_id", "language_id.*")
+        );
+    }
+
+    public void testInSubqueryWithMoreFields() {
+        assumeTrue("IN_SUBQUERY required", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITHOUT_VIEW.isEnabled());
+        // The subquery references fields (salary) not used in the main query
+        assertFieldNames(
+            "FROM employees | WHERE emp_no IN (FROM employees | WHERE salary > 70000 | KEEP emp_no) | KEEP emp_no",
+            Set.of("_index", "emp_no", "emp_no.*", "salary", "salary.*")
+        );
+    }
+
+    public void testFromSubqueryInsideInSubquery() {
+        assumeTrue("IN_SUBQUERY required", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITHOUT_VIEW.isEnabled());
+        assertFieldNames(
+            """
+                FROM employees
+                | WHERE emp_no IN (
+                    FROM (FROM employees | KEEP emp_no), (FROM languages | KEEP language_id)
+                    | KEEP emp_no
+                  )
+                | KEEP emp_no, first_name""",
+            Set.of("_index", "emp_no", "emp_no.*", "first_name", "first_name.*", "language_id", "language_id.*")
+        );
+    }
+
+    public void testInSubqueryInsideFromSubquery() {
+        assumeTrue("IN_SUBQUERY required", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITHOUT_VIEW.isEnabled());
+        assertFieldNames("""
+            FROM
+                (FROM employees
+                 | SORT emp_no
+                 | LIMIT 3
+                 | KEEP emp_no ),
+                (FROM employees
+                 | WHERE languages IN (FROM languages | WHERE language_id < 5 | KEEP language_id)
+                 | SORT emp_no DESC | LIMIT 3 | KEEP emp_no)
+            """, Set.of("_index", "emp_no", "emp_no.*", "language_id", "language_id.*", "languages", "languages.*"));
+    }
+
+    public void testNestedInSubqueries() {
+        assumeTrue("IN_SUBQUERY required", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITHOUT_VIEW.isEnabled());
+        // Nested IN subquery: the inner subquery references salary, the outer references emp_no and first_name
+        // The inner subquery's STATS alias (max_sal) is also visible in the plan tree after InSubqueryResolver
+        assertFieldNames(
+            """
+                FROM employees
+                | WHERE emp_no IN (
+                    FROM employees
+                    | WHERE salary IN (FROM employees | WHERE languages == 1 | STATS max_sal = MAX(salary) | KEEP max_sal)
+                    | KEEP emp_no
+                  )
+                | KEEP emp_no, first_name""",
+            Set.of(
+                "_index",
+                "emp_no",
+                "emp_no.*",
+                "first_name",
+                "first_name.*",
+                "salary",
+                "salary.*",
+                "languages",
+                "languages.*",
+                "max_sal",
+                "max_sal.*"
+            )
+        );
+    }
+
+    public void testNotInSubquery() {
+        assumeTrue("IN_SUBQUERY required", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITHOUT_VIEW.isEnabled());
+        assertFieldNames(
+            "FROM employees | WHERE emp_no NOT IN (FROM employees | WHERE salary > 70000 | KEEP emp_no) | KEEP emp_no",
+            Set.of("_index", "emp_no", "emp_no.*", "salary", "salary.*")
+        );
+    }
+
+    public void testInSubqueryNoFieldReduction() {
+        assumeTrue("IN_SUBQUERY required", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITHOUT_VIEW.isEnabled());
+        // Main query has no KEEP/PROJECT, so it returns ALL_FIELDS regardless of the subquery's KEEP
+        assertFieldNames("FROM employees | WHERE emp_no IN (FROM employees | SORT emp_no | LIMIT 3 | KEEP emp_no)", ALL_FIELDS);
+    }
+
+    public void testInSubqueryNoFieldReductionWithInlineStats() {
+        assumeTrue("IN_SUBQUERY required", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITHOUT_VIEW.isEnabled());
+        assertFieldNames("""
+            FROM employees
+            | WHERE emp_no IN (FROM employees | INLINE STATS max_sal = MAX(salary))
+            | KEEP emp_no
+            """, ALL_FIELDS);
+    }
+
+    public void testInSubqueryFieldReductionWithInlineStatsKeep() {
+        assumeTrue("IN_SUBQUERY required", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITHOUT_VIEW.isEnabled());
+        assertFieldNames("""
+            FROM employees
+            | WHERE emp_no IN (FROM employees | INLINE STATS max_sal = MAX(salary) | KEEP emp_no)
+            | KEEP emp_no
+            """, Set.of("_index", "emp_no", "emp_no.*", "salary", "salary.*"));
+    }
+
+    public void testInSubqueryFieldReductionWithInlineStatsKeepBeforeAfter() {
+        assumeTrue("IN_SUBQUERY required", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITHOUT_VIEW.isEnabled());
+        assertFieldNames("""
+            FROM employees
+            | WHERE emp_no IN (FROM employees | KEEP emp_no, salary | INLINE STATS max_sal = MAX(salary) | KEEP emp_no)
+            | KEEP emp_no
+            """, Set.of("_index", "emp_no", "emp_no.*", "salary", "salary.*"));
+    }
+
+    public void testInSubqueryWithDateComparison() {
+        assumeTrue("IN_SUBQUERY required", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITHOUT_VIEW.isEnabled());
+        assertFieldNames("""
+            FROM employees
+            | WHERE emp_no IN (
+                FROM employees
+                | WHERE hire_date >= "1989-01-01T00:00:00.000Z" AND hire_date < "1990-01-01T00:00:00.000Z"
+                | KEEP emp_no
+              )
+            | SORT emp_no
+            | KEEP emp_no, first_name
+            | LIMIT 5
+            """, Set.of("_index", "emp_no", "emp_no.*", "first_name", "first_name.*", "hire_date", "hire_date.*"));
+    }
+
     private void assertFieldNames(String query, Set<String> expected) {
         assertFieldNames(query, false, expected, Set.of());
     }
@@ -3151,7 +3537,8 @@ public class FieldNameUtilsTests extends ESTestCase {
     }
 
     private void assertFieldNames(String query, boolean hasEnriches, Set<String> expected, Set<String> wildCardIndices) {
-        var preAnalysisResult = FieldNameUtils.resolveFieldNames(parser.createStatement(query), hasEnriches);
+        var parsed = InSubqueryResolver.resolve(TEST_PARSER.parseQuery(query));
+        var preAnalysisResult = FieldNameUtils.resolveFieldNames(parsed, hasEnriches, includePrefixFields);
         assertThat("Query-wide field names", preAnalysisResult.fieldNames(), equalTo(expected));
         assertThat("Lookup Indices that expect wildcard lookups", preAnalysisResult.wildcardJoinIndices(), equalTo(wildCardIndices));
     }

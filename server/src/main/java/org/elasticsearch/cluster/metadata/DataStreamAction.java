@@ -9,7 +9,7 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import org.elasticsearch.TransportVersions;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -28,9 +28,13 @@ import java.util.function.Supplier;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 /**
- * Operations on data streams. Currently supports adding and removing backing indices.
+ * Operations on data streams. Currently, supports adding, removing, and deleting backing indices.
  */
 public class DataStreamAction implements Writeable, ToXContentObject {
+
+    public static final TransportVersion DELETE_BACKING_INDEX_ACTION_ADDED = TransportVersion.fromName(
+        "data_stream_modify_delete_backing_index"
+    );
 
     private static final ParseField DATA_STREAM = new ParseField("data_stream");
     private static final ParseField INDEX = new ParseField("index");
@@ -38,10 +42,12 @@ public class DataStreamAction implements Writeable, ToXContentObject {
 
     private static final ParseField ADD_BACKING_INDEX = new ParseField("add_backing_index");
     private static final ParseField REMOVE_BACKING_INDEX = new ParseField("remove_backing_index");
+    private static final ParseField DELETE_BACKING_INDEX = new ParseField("delete_backing_index");
 
     public enum Type {
         ADD_BACKING_INDEX((byte) 0, DataStreamAction.ADD_BACKING_INDEX),
-        REMOVE_BACKING_INDEX((byte) 1, DataStreamAction.REMOVE_BACKING_INDEX);
+        REMOVE_BACKING_INDEX((byte) 1, DataStreamAction.REMOVE_BACKING_INDEX),
+        DELETE_BACKING_INDEX((byte) 2, DataStreamAction.DELETE_BACKING_INDEX);
 
         private final byte value;
         private final String fieldName;
@@ -59,6 +65,7 @@ public class DataStreamAction implements Writeable, ToXContentObject {
             return switch (value) {
                 case 0 -> ADD_BACKING_INDEX;
                 case 1 -> REMOVE_BACKING_INDEX;
+                case 2 -> DELETE_BACKING_INDEX;
                 default -> throw new IllegalArgumentException("no data stream action type for [" + value + "]");
             };
         }
@@ -85,11 +92,19 @@ public class DataStreamAction implements Writeable, ToXContentObject {
         return new DataStreamAction(Type.REMOVE_BACKING_INDEX, dataStream, index, true);
     }
 
+    public static DataStreamAction deleteBackingIndex(String dataStream, String index) {
+        return new DataStreamAction(Type.DELETE_BACKING_INDEX, dataStream, index, false);
+    }
+
+    public static DataStreamAction deleteFailureStoreIndex(String dataStream, String index) {
+        return new DataStreamAction(Type.DELETE_BACKING_INDEX, dataStream, index, true);
+    }
+
     public DataStreamAction(StreamInput in) throws IOException {
         this.type = Type.fromValue(in.readByte());
         this.dataStream = in.readString();
         this.index = in.readString();
-        this.failureStore = in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0) && in.readBoolean();
+        this.failureStore = in.readBoolean();
     }
 
     private DataStreamAction(Type type, String dataStream, String index, boolean failureStore) {
@@ -153,12 +168,13 @@ public class DataStreamAction implements Writeable, ToXContentObject {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        if (Type.DELETE_BACKING_INDEX == type && out.getTransportVersion().supports(DELETE_BACKING_INDEX_ACTION_ADDED) == false) {
+            throw new IllegalArgumentException("data stream action type [delete_backing_index] is unsupported in this cluster");
+        }
         out.writeByte(type.value());
         out.writeString(dataStream);
         out.writeString(index);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
-            out.writeBoolean(failureStore);
-        }
+        out.writeBoolean(failureStore);
     }
 
     public static DataStreamAction fromXContent(XContentParser parser) throws IOException {
@@ -172,6 +188,10 @@ public class DataStreamAction implements Writeable, ToXContentObject {
     private static final ObjectParser<DataStreamAction, Void> REMOVE_BACKING_INDEX_PARSER = parser(
         REMOVE_BACKING_INDEX.getPreferredName(),
         () -> new DataStreamAction(Type.REMOVE_BACKING_INDEX)
+    );
+    private static final ObjectParser<DataStreamAction, Void> DELETE_BACKING_INDEX_PARSER = parser(
+        DELETE_BACKING_INDEX.getPreferredName(),
+        () -> new DataStreamAction(Type.DELETE_BACKING_INDEX)
     );
     static {
         ADD_BACKING_INDEX_PARSER.declareField(
@@ -195,6 +215,19 @@ public class DataStreamAction implements Writeable, ToXContentObject {
         );
         REMOVE_BACKING_INDEX_PARSER.declareField(DataStreamAction::setIndex, XContentParser::text, INDEX, ObjectParser.ValueType.STRING);
         REMOVE_BACKING_INDEX_PARSER.declareField(
+            DataStreamAction::setFailureStore,
+            XContentParser::booleanValue,
+            FAILURE_STORE,
+            ObjectParser.ValueType.BOOLEAN
+        );
+        DELETE_BACKING_INDEX_PARSER.declareField(
+            DataStreamAction::setDataStream,
+            XContentParser::text,
+            DATA_STREAM,
+            ObjectParser.ValueType.STRING
+        );
+        DELETE_BACKING_INDEX_PARSER.declareField(DataStreamAction::setIndex, XContentParser::text, INDEX, ObjectParser.ValueType.STRING);
+        DELETE_BACKING_INDEX_PARSER.declareField(
             DataStreamAction::setFailureStore,
             XContentParser::booleanValue,
             FAILURE_STORE,
@@ -227,6 +260,7 @@ public class DataStreamAction implements Writeable, ToXContentObject {
     static {
         PARSER.declareObject(optionalConstructorArg(), ADD_BACKING_INDEX_PARSER, ADD_BACKING_INDEX);
         PARSER.declareObject(optionalConstructorArg(), REMOVE_BACKING_INDEX_PARSER, REMOVE_BACKING_INDEX);
+        PARSER.declareObject(optionalConstructorArg(), DELETE_BACKING_INDEX_PARSER, DELETE_BACKING_INDEX);
     }
 
     @Override

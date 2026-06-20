@@ -283,8 +283,8 @@ GET my-index-000001/_search
   ]
 }
 ```
-%  TEST[continued]
-%  TEST[s/_search/_search?filter_path=aggregations,hits.hits&sort=my_id/]
+% TEST[continued]
+% TEST[s/_search/_search?filter_path=aggregations,hits.hits&sort=my_id/]
 
 1. Querying the `parent id` field (also see the [`has_parent` query](/reference/query-languages/query-dsl/query-dsl-has-parent-query.md) and the [`has_child` query](/reference/query-languages/query-dsl/query-dsl-has-child-query.md))
 2. Aggregating on the `parent id` field (also see the [`children`](/reference/aggregations/search-aggregations-bucket-children-aggregation.md) aggregation)

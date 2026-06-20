@@ -174,10 +174,9 @@ public class Setting<T> implements ToXContentObject {
         IndexSettingDeprecatedInV9AndRemovedInV10,
 
         /**
-         * Indicates that this setting is accessible by non-operator users (public) in serverless
+         * Indicates that this index-level setting is accessible by non-operator users (public) in serverless.
          * Users will be allowed to set and see values of this setting.
-         * All other settings will be rejected when used on a PUT request
-         * and filtered out on a GET
+         * All other settings will be rejected when used on a PUT request and filtered out on a GET.
          */
         ServerlessPublic,
 
@@ -243,7 +242,13 @@ public class Setting<T> implements ToXContentObject {
             checkPropertyRequiresIndexScope(propertiesAsSet, Property.IndexSettingDeprecatedInV7AndRemovedInV8);
             checkPropertyRequiresIndexScope(propertiesAsSet, Property.IndexSettingDeprecatedInV8AndRemovedInV9);
             checkPropertyRequiresIndexScope(propertiesAsSet, Property.IndexSettingDeprecatedInV9AndRemovedInV10);
+            checkPropertyRequiresIndexScope(propertiesAsSet, Property.ServerlessPublic);
             checkPropertyRequiresNodeScope(propertiesAsSet);
+            if (propertiesAsSet.contains(Property.IndexScope) && propertiesAsSet.contains(Property.Deprecated)) {
+                throw new IllegalArgumentException(
+                    "index-scoped setting [" + this.key + "] can not have property [" + Property.Deprecated + "]"
+                );
+            }
             this.properties = propertiesAsSet;
         }
     }
@@ -1469,9 +1474,19 @@ public class Setting<T> implements ToXContentObject {
         );
     }
 
+    public static Setting<Long> longSetting(String key, Setting<Long> fallbackSetting, long minValue, Property... properties) {
+        boolean isFiltered = isFiltered(properties);
+        return new Setting<>(key, fallbackSetting, s -> parseLong(s, minValue, key, isFiltered), properties);
+    }
+
     public static Setting<Long> longSetting(String key, long defaultValue, long minValue, Property... properties) {
         boolean isFiltered = isFiltered(properties);
         return new Setting<>(key, Long.toString(defaultValue), s -> parseLong(s, minValue, key, isFiltered), properties);
+    }
+
+    public static Setting<Long> longSetting(String key, Function<Settings, String> defaultValueFn, long minValue, Property... properties) {
+        boolean isFiltered = isFiltered(properties);
+        return new Setting<>(key, defaultValueFn, s -> parseLong(s, minValue, key, isFiltered), properties);
     }
 
     public static Setting<Instant> dateSetting(String key, Instant defaultValue, Validator<Instant> validator, Property... properties) {
@@ -2073,6 +2088,23 @@ public class Setting<T> implements ToXContentObject {
             key,
             defaultValue.getStringRep(),
             minMaxTimeValueParser(key, minValue, maxValue, isFiltered(properties)),
+            properties
+        );
+    }
+
+    public static Setting<TimeValue> timeSetting(
+        final String key,
+        final TimeValue defaultValue,
+        final TimeValue minValue,
+        final TimeValue maxValue,
+        final Validator<TimeValue> validator,
+        final Property... properties
+    ) {
+        return new Setting<>(
+            key,
+            defaultValue.getStringRep(),
+            minMaxTimeValueParser(key, minValue, maxValue, isFiltered(properties)),
+            validator,
             properties
         );
     }

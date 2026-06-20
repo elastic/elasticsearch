@@ -30,7 +30,6 @@ import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
@@ -47,7 +46,10 @@ import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.tests.util.TestUtil;
 import org.elasticsearch.common.logging.LogConfigurator;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormat;
+import org.elasticsearch.index.codec.vectors.diskbbq.TestIvfQueryConfigResolver;
+import org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -65,6 +67,10 @@ import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
  */
 abstract class AbstractDiversifyingChildrenIVFKnnVectorQueryTestCase extends LuceneTestCase {
 
+    protected TestIvfQueryConfigResolver testResolver() {
+        return new TestIvfQueryConfigResolver(ESNextDiskBBQVectorsFormat.QuantEncoding.ONE_BIT_4BIT_QUERY, false, 1.0f);
+    }
+
     static String encodeInts(int[] i) {
         return Arrays.toString(i);
     }
@@ -77,7 +83,6 @@ abstract class AbstractDiversifyingChildrenIVFKnnVectorQueryTestCase extends Luc
     }
 
     static {
-        LogConfigurator.loadLog4jPlugins();
         LogConfigurator.configureESLogging(); // native access requires logging to be initialized
     }
 
@@ -154,7 +159,7 @@ abstract class AbstractDiversifyingChildrenIVFKnnVectorQueryTestCase extends Luc
                 assertEquals(0, topDocs.scoreDocs.length);
 
                 // Test with match_all filter and large k to test exact search
-                query = getDiversifyingChildrenKnnQuery("field", new float[] { 2, 2 }, new MatchAllDocsQuery(), 10, parentFilter);
+                query = getDiversifyingChildrenKnnQuery("field", new float[] { 2, 2 }, Queries.ALL_DOCS_INSTANCE, 10, parentFilter);
                 topDocs = searcher.search(query, 3);
                 assertEquals(0, topDocs.totalHits.value());
                 assertEquals(0, topDocs.scoreDocs.length);
@@ -195,7 +200,7 @@ abstract class AbstractDiversifyingChildrenIVFKnnVectorQueryTestCase extends Luc
                 assertEquals(0, topDocs.scoreDocs.length);
 
                 // Test with match_all filter and large k to test exact search
-                query = getDiversifyingChildrenKnnQuery("field", new float[] { 2, 2 }, new MatchAllDocsQuery(), 10, parentFilter);
+                query = getDiversifyingChildrenKnnQuery("field", new float[] { 2, 2 }, Queries.ALL_DOCS_INSTANCE, 10, parentFilter);
                 topDocs = searcher.search(query, 3);
                 assertEquals(0, topDocs.totalHits.value());
                 assertEquals(0, topDocs.scoreDocs.length);
@@ -253,15 +258,15 @@ abstract class AbstractDiversifyingChildrenIVFKnnVectorQueryTestCase extends Luc
                 IndexSearcher searcher = new IndexSearcher(reader);
                 BitSetProducer parentFilter = parentFilter(searcher.getIndexReader());
                 Query query = getDiversifyingChildrenKnnQuery("field", new float[] { 2, 2 }, null, 3, parentFilter);
-                assertScorerResults(searcher, query, new float[] { 1f, 1f / 51f }, new String[] { "2", "7" }, 2);
+                assertScorerResults(searcher, query, new float[] { 1f, 1f / 51f }, new String[] { "2", "7" }, 2, 0.0001f);
 
                 query = getDiversifyingChildrenKnnQuery("field", new float[] { 6, 6 }, null, 3, parentFilter);
-                assertScorerResults(searcher, query, new float[] { 1f / 3f, 1f / 3f }, new String[] { "5", "7" }, 2);
-                query = getDiversifyingChildrenKnnQuery("field", new float[] { 6, 6 }, new MatchAllDocsQuery(), 20, parentFilter);
-                assertScorerResults(searcher, query, new float[] { 1f / 3f, 1f / 3f }, new String[] { "5", "7" }, 2);
+                assertScorerResults(searcher, query, new float[] { 1f / 3f, 1f / 3f }, new String[] { "5", "7" }, 2, 0.0001f);
+                query = getDiversifyingChildrenKnnQuery("field", new float[] { 6, 6 }, Queries.ALL_DOCS_INSTANCE, 20, parentFilter);
+                assertScorerResults(searcher, query, new float[] { 1f / 3f, 1f / 3f }, new String[] { "5", "7" }, 2, 0.0001f);
 
-                query = getDiversifyingChildrenKnnQuery("field", new float[] { 6, 6 }, new MatchAllDocsQuery(), 1, parentFilter);
-                assertScorerResults(searcher, query, new float[] { 1f / 3f, 1f / 3f }, new String[] { "5", "7" }, 1);
+                query = getDiversifyingChildrenKnnQuery("field", new float[] { 6, 6 }, Queries.ALL_DOCS_INSTANCE, 1, parentFilter);
+                assertScorerResults(searcher, query, new float[] { 1f / 3f, 1f / 3f }, new String[] { "5", "7" }, 1, 0.0001f);
             }
         }
     }
@@ -347,7 +352,7 @@ abstract class AbstractDiversifyingChildrenIVFKnnVectorQueryTestCase extends Luc
         assertEquals(expectedId, actualId);
     }
 
-    void assertScorerResults(IndexSearcher searcher, Query query, float[] possibleScores, String[] possibleIds, int count)
+    void assertScorerResults(IndexSearcher searcher, Query query, float[] possibleScores, String[] possibleIds, int count, float delta)
         throws IOException {
         IndexReader reader = searcher.getIndexReader();
         Query rewritten = query.rewrite(searcher);
@@ -365,7 +370,7 @@ abstract class AbstractDiversifyingChildrenIVFKnnVectorQueryTestCase extends Luc
             assertNotEquals(NO_MORE_DOCS, docId);
             String actualId = reader.storedFields().document(docId).get("id");
             assertTrue(idToScore.containsKey(actualId));
-            assertEquals(idToScore.get(actualId), scorer.score(), 0.0001);
+            assertEquals(idToScore.get(actualId), scorer.score(), delta);
         }
     }
 

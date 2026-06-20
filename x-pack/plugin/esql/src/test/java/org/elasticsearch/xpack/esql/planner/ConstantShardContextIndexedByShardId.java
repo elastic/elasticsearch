@@ -9,15 +9,19 @@ package org.elasticsearch.xpack.esql.planner;
 
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.compute.lucene.IndexedByShardId;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.SourceLoader;
+import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.search.stats.ShardSearchStats;
 import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.sort.SortBuilder;
 
-import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -32,6 +36,16 @@ public class ConstantShardContextIndexedByShardId implements IndexedByShardId<Es
     private static final EsPhysicalOperationProviders.ShardContext CONTEXT = new EsPhysicalOperationProviders.ShardContext() {
         @Override
         public Query toQuery(QueryBuilder queryBuilder) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public IndexSettings indexSettings() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public MappingLookup mappingLookup() {
             throw new UnsupportedOperationException();
         }
 
@@ -69,13 +83,22 @@ public class ConstantShardContextIndexedByShardId implements IndexedByShardId<Es
         public BlockLoader blockLoader(
             String name,
             boolean asUnsupportedSource,
-            MappedFieldType.FieldExtractPreference fieldExtractPreference
+            MappedFieldType.FieldExtractPreference fieldExtractPreference,
+            BlockLoaderFunctionConfig blockLoaderFunctionConfig,
+            org.elasticsearch.index.mapper.blockloader.Warnings warnings,
+            ByteSizeValue blockLoaderSizeOrdinals,
+            ByteSizeValue blockLoaderSizeScript
         ) {
             throw new UnsupportedOperationException();
         }
 
         @Override
         public MappedFieldType fieldType(String name) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public ShardSearchStats stats() {
             throw new UnsupportedOperationException();
         }
 
@@ -89,8 +112,13 @@ public class ConstantShardContextIndexedByShardId implements IndexedByShardId<Es
     }
 
     @Override
-    public Collection<? extends EsPhysicalOperationProviders.ShardContext> collection() {
+    public Iterable<? extends EsPhysicalOperationProviders.ShardContext> iterable() {
         return List.of(CONTEXT);
+    }
+
+    @Override
+    public int size() {
+        return 1;
     }
 
     @Override

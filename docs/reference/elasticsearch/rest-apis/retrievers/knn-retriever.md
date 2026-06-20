@@ -18,9 +18,13 @@ A kNN retriever returns top documents from a [k-nearest neighbor search (kNN)](d
 
 
 `query_vector`
-:   (Required if `query_vector_builder` is not defined, array of `float`)
+:   (Required if `query_vector_builder` is not defined, array of `float` or string)
 
-    Query vector. Must have the same number of dimensions as the vector field you are searching against. Must be either an array of floats or a hex-encoded byte vector.
+    Query vector. Must have the same number of dimensions as the vector field you are searching against.
+    Must be one of:
+      - An array of floats
+      - A hex-encoded byte vector (one byte per dimension; for `bit`, one byte per 8 dimensions). {applies_to}`stack: ga 9.0-9.3`
+      - A base64-encoded vector string. Base64 supports `float` and `bfloat16` (big-endian), `byte`, and `bit` encodings depending on the target field type. {applies_to}`stack: ga 9.4` {applies_to}`serverless: ga`
 
 
 `query_vector_builder`
@@ -36,7 +40,7 @@ A kNN retriever returns top documents from a [k-nearest neighbor search (kNN)](d
 
 
 `num_candidates`
-:   (Required, integer)
+:   (Optional, integer {applies_to}`stack: ga 9.5`; in earlier versions this parameter is required)
 
     The number of nearest neighbor candidates to consider per shard. Needs to be greater than `k`, or `size` if `k` is omitted, and cannot exceed 10,000. {{es}} collects `num_candidates` results from each shard, then merges them to find the top `k` results. Increasing `num_candidates` tends to improve the accuracy of the final `k` results. Defaults to `Math.min(1.5 * k, 10_000)`.
 
@@ -66,7 +70,7 @@ A kNN retriever returns top documents from a [k-nearest neighbor search (kNN)](d
     Read more here: [knn similarity search](docs-content://solutions/search/vector/knn.md#knn-similarity-search)
 
 
-`rescore_vector` {applies_to}`stack: preview 9.0, ga 9.1`
+`rescore_vector` {applies_to}`stack: preview =9.0, ga 9.1+`
 :   (Optional, object) Apply oversampling and rescoring to quantized vectors.
 
 ::::{note}

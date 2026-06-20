@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.scalar.internal.PackDimension;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.plan.GeneratingPlan;
 
@@ -41,8 +42,9 @@ public class Eval extends UnaryPlan
         GeneratingPlan<Eval>,
         PostAnalysisVerificationAware,
         TelemetryAware,
-        CardinalityPreserving,
-        SortAgnostic {
+        Streaming,
+        SortAgnostic,
+        SortPreserving {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(LogicalPlan.class, "Eval", Eval::new);
 
     private final List<Alias> fields;
@@ -173,7 +175,7 @@ public class Eval extends UnaryPlan
         fields.forEach(field -> {
             // check supported types
             DataType dataType = field.dataType();
-            if (DataType.isRepresentable(dataType) == false) {
+            if (DataType.isRepresentable(dataType) == false && (Alias.unwrap(field) instanceof PackDimension == false)) {
                 failures.add(
                     fail(
                         field,

@@ -720,7 +720,7 @@ public class AuthenticationTestHelper {
                 if (transportVersion == null) {
                     transportVersion = TransportVersion.current();
                 }
-                if (transportVersion.before(authentication.getEffectiveSubject().getTransportVersion())) {
+                if (transportVersion.supports(authentication.getEffectiveSubject().getTransportVersion()) == false) {
                     return authentication.maybeRewriteForOlderVersion(transportVersion);
                 } else {
                     return authentication;

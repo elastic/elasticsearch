@@ -1,5 +1,0 @@
-pr: 135337
-summary: Do not pass `ProjectMetadata` to lazy index permissions builder
-area: Security
-type: enhancement
-issues: []

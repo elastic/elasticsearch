@@ -9,7 +9,9 @@ package org.elasticsearch.xpack.core.ml.datafeed;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.SimpleDiffable;
@@ -17,10 +19,13 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregationBuilder;
@@ -29,7 +34,9 @@ import org.elasticsearch.search.aggregations.bucket.composite.DateHistogramValue
 import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -43,6 +50,7 @@ import org.elasticsearch.xpack.core.ml.utils.QueryProvider;
 import org.elasticsearch.xpack.core.ml.utils.RuntimeMappingsValidator;
 import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
 import org.elasticsearch.xpack.core.ml.utils.XContentObjectTransformer;
+import org.elasticsearch.xpack.core.security.cloud.PersistedCloudCredential;
 import org.elasticsearch.xpack.core.security.xcontent.XContentUtils;
 
 import java.io.IOException;
@@ -58,6 +66,7 @@ import java.util.Optional;
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.xpack.core.ClientHelper.assertNoAuthorizationHeader;
 import static org.elasticsearch.xpack.core.ml.job.messages.Messages.DATAFEED_AGGREGATIONS_COMPOSITE_AGG_DATE_HISTOGRAM_SORT;
 import static org.elasticsearch.xpack.core.ml.job.messages.Messages.DATAFEED_AGGREGATIONS_COMPOSITE_AGG_DATE_HISTOGRAM_SOURCE_MISSING_BUCKET;
@@ -83,7 +92,7 @@ import static org.elasticsearch.xpack.core.ml.utils.ToXContentParams.EXCLUDE_GEN
  * used around integral types and booleans so they can take <code>null</code>
  * values.
  */
-public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXContentObject {
+public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXContentObject, Releasable {
 
     public static final int DEFAULT_SCROLL_SIZE = 1000;
 
@@ -107,6 +116,53 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
      */
     public static final String DOC_COUNT = "doc_count";
 
+    // FEATURE FLAG REMOVAL CHECKLIST (when DATAFEED_CROSS_PROJECT goes GA):
+    // 1. Delete this feature flag declaration.
+    // 2. In isCPSAllowed(decider, featureEnabled): delete the overload and inline the decider-only check
+    // at all call sites, OR keep isCPSAllowed(decider) as a thin alias of decider.crossProjectEnabled().
+    // 3. In Builder.build(): delete both feature-flag rejection branches around resolveIndexExpression and projectRouting.
+    // 4. Delete validateNoCrossProjectWhenCrossProjectIsDisabled and validateNoCrossProjectWhenCrossProjectFeatureIsDisabled.
+    // 5. Drop the featureEnabled parameter from withCrossProjectModeIfEnabled.
+    // 6. Update DatafeedConfigTests accordingly.
+    public static final FeatureFlag DATAFEED_CROSS_PROJECT = new FeatureFlag("datafeed_cross_project");
+
+    static final TransportVersion DATAFEED_PROJECT_ROUTING = TransportVersion.fromName("datafeed_project_routing");
+    public static final TransportVersion DATAFEED_CLOUD_INTERNAL_CREDENTIAL = TransportVersion.fromName(
+        "datafeed_cloud_internal_credential"
+    );
+
+    /**
+     * Returns whether ML cross-project search (CPS) is allowed for datafeeds in the current environment.
+     * <p>
+     * Both the cluster-level {@code serverless.cross_project.enabled} setting and the ML CPS feature flag
+     * ({@link #DATAFEED_CROSS_PROJECT}) must be enabled. Without this combined gate, every datafeed start on a
+     * CPS-enabled cluster — including ones targeting only local indices — would be promoted to cross-project mode,
+     * which violates the "off by default on main" contract of the ML CPS scaffolding.
+     */
+    public static boolean isCPSAllowed(CrossProjectModeDecider crossProjectModeDecider) {
+        return isCPSAllowed(crossProjectModeDecider, DATAFEED_CROSS_PROJECT.isEnabled());
+    }
+
+    // visible for testing — mirrors the withCrossProjectModeIfEnabled overload shape so unit tests
+    // can pin the flag value regardless of snapshot/release build.
+    static boolean isCPSAllowed(CrossProjectModeDecider crossProjectModeDecider, boolean featureEnabled) {
+        Objects.requireNonNull(crossProjectModeDecider, "crossProjectModeDecider must not be null");
+        if (featureEnabled == false) {
+            return false;
+        }
+        if (crossProjectModeDecider.crossProjectEnabled() == false) {
+            return false;
+        }
+        return true;
+    }
+
+    public static final String PROJECT_ROUTING_REQUIRES_CPS_MESSAGE =
+        "project_routing is only supported in environments that support cross-project calls";
+
+    public static ElasticsearchStatusException projectRoutingRequiresCpsException() {
+        return new ElasticsearchStatusException(PROJECT_ROUTING_REQUIRES_CPS_MESSAGE, RestStatus.BAD_REQUEST);
+    }
+
     // Accessing `Job.ID` here causes an NPE in tests as a DatafeedConfig parser is referenced in the Job parser
     public static final ParseField JOB_ID = new ParseField("job_id");
     public static final ParseField ID = new ParseField("datafeed_id");
@@ -125,6 +181,8 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
     public static final ParseField DELAYED_DATA_CHECK_CONFIG = new ParseField("delayed_data_check_config");
     public static final ParseField MAX_EMPTY_SEARCHES = new ParseField("max_empty_searches");
     public static final ParseField INDICES_OPTIONS = new ParseField("indices_options");
+    public static final ParseField PROJECT_ROUTING = new ParseField("project_routing");
+    public static final ParseField CLOUD_INTERNAL_CREDENTIAL = new ParseField("cloud_internal_credential");
 
     // These parsers follow the pattern that metadata is parsed leniently (to allow for enhancements), whilst config is parsed strictly
     public static final ObjectParser<Builder, Void> LENIENT_PARSER = createParser(true);
@@ -151,6 +209,22 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
         Builder.checkNoMoreCompositeAggregations(histogramAggregation.getSubAggregations());
         Builder.checkHistogramAggregationHasChildMaxTimeAgg(histogramAggregation);
         Builder.checkHistogramIntervalIsPositive(histogramAggregation);
+    }
+
+    public ElasticsearchException validateNoCrossProjectWhenCrossProjectIsDisabled(
+        CrossProjectModeDecider crossProjectModeDecider,
+        ElasticsearchException validationException
+    ) {
+        if (crossProjectModeDecider.crossProjectEnabled() == false) {
+            // When cross-project is disabled, check if indices have cross-project mode enabled
+            if (indicesOptions != null && indicesOptions.crossProjectModeOptions().resolveIndexExpression()) {
+                validationException = new ElasticsearchStatusException(
+                    "Cross-project search is not enabled for Datafeeds",
+                    RestStatus.FORBIDDEN
+                );
+            }
+        }
+        return validationException;
     }
 
     private static ObjectParser<Builder, Void> createParser(boolean ignoreUnknownFields) {
@@ -195,6 +269,12 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
             // Headers are not parsed by the strict (config) parser, so headers supplied in the _body_ of a REST request will be rejected.
             // (For config, headers are explicitly transferred from the auth headers by code in the put/update datafeed actions.)
             parser.declareObject(Builder::setHeaders, (p, c) -> p.mapStrings(), HEADERS);
+            // cloud_internal_credential is only parsed from internal storage (lenient parser), not from REST requests.
+            parser.declareObject(
+                Builder::setCloudInternalCredential,
+                (p, c) -> PersistedCloudCredential.fromXContent(p),
+                CLOUD_INTERNAL_CREDENTIAL
+            );
         }
         parser.declareObject(
             Builder::setDelayedDataCheckConfig,
@@ -208,6 +288,7 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
             INDICES_OPTIONS
         );
         parser.declareObject(Builder::setRuntimeMappings, (p, c) -> p.map(), SearchSourceBuilder.RUNTIME_MAPPINGS_FIELD);
+        parser.declareString(Builder::setProjectRouting, PROJECT_ROUTING);
         return parser;
     }
 
@@ -230,11 +311,15 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
     private final List<SearchSourceBuilder.ScriptField> scriptFields;
     private final Integer scrollSize;
     private final ChunkingConfig chunkingConfig;
-    private final Map<String, String> headers;
+    private Map<String, String> headers;
     private final DelayedDataCheckConfig delayedDataCheckConfig;
     private final Integer maxEmptySearches;
     private final IndicesOptions indicesOptions;
     private final Map<String, Object> runtimeMappings;
+    @Nullable
+    private final String projectRouting;
+    @Nullable
+    private final PersistedCloudCredential cloudInternalCredential;
 
     private DatafeedConfig(
         String id,
@@ -251,7 +336,9 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
         DelayedDataCheckConfig delayedDataCheckConfig,
         Integer maxEmptySearches,
         IndicesOptions indicesOptions,
-        Map<String, Object> runtimeMappings
+        Map<String, Object> runtimeMappings,
+        String projectRouting,
+        PersistedCloudCredential cloudInternalCredential
     ) {
         this.id = id;
         this.jobId = jobId;
@@ -263,11 +350,13 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
         this.scriptFields = scriptFields == null ? null : Collections.unmodifiableList(scriptFields);
         this.scrollSize = scrollSize;
         this.chunkingConfig = chunkingConfig;
-        this.headers = Collections.unmodifiableMap(headers);
+        setHeaders(headers);
         this.delayedDataCheckConfig = delayedDataCheckConfig;
         this.maxEmptySearches = maxEmptySearches;
         this.indicesOptions = ExceptionsHelper.requireNonNull(indicesOptions, INDICES_OPTIONS);
         this.runtimeMappings = Collections.unmodifiableMap(runtimeMappings);
+        this.projectRouting = projectRouting;
+        this.cloudInternalCredential = cloudInternalCredential;
     }
 
     public DatafeedConfig(StreamInput in) throws IOException {
@@ -297,6 +386,45 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
         maxEmptySearches = in.readOptionalVInt();
         indicesOptions = IndicesOptions.readIndicesOptions(in);
         runtimeMappings = in.readGenericMap();
+        if (in.getTransportVersion().supports(DATAFEED_PROJECT_ROUTING)) {
+            this.projectRouting = in.readOptionalString();
+        } else {
+            this.projectRouting = null;
+        }
+        if (in.getTransportVersion().supports(DATAFEED_CLOUD_INTERNAL_CREDENTIAL)) {
+            this.cloudInternalCredential = in.readOptionalWriteable(PersistedCloudCredential::new);
+        } else {
+            this.cloudInternalCredential = null;
+        }
+    }
+
+    public static DatafeedConfig withCrossProjectModeIfEnabled(DatafeedConfig datafeed, CrossProjectModeDecider crossProjectModeDecider) {
+        return withCrossProjectModeIfEnabled(datafeed, crossProjectModeDecider, DATAFEED_CROSS_PROJECT.isEnabled());
+    }
+
+    // visible for testing
+    // remove the featureEnabled parameter and inline DATAFEED_CROSS_PROJECT.isEnabled() when the feature is launched
+    static DatafeedConfig withCrossProjectModeIfEnabled(
+        DatafeedConfig datafeed,
+        CrossProjectModeDecider crossProjectModeDecider,
+        boolean featureEnabled
+    ) {
+        Objects.requireNonNull(datafeed, "datafeed must not be null");
+        Objects.requireNonNull(crossProjectModeDecider, "crossProjectModeDecider must not be null");
+
+        if (isCPSAllowed(crossProjectModeDecider, featureEnabled) == false) {
+            return datafeed;
+        }
+
+        IndicesOptions baseOptions = datafeed.getIndicesOptions();
+        // Only rebuild if CPS mode is not already enabled to avoid unnecessary object creation
+        if (baseOptions.resolveCrossProjectIndexExpression() == false) {
+            IndicesOptions modifiedOptions = IndicesOptions.builder(baseOptions)
+                .crossProjectModeOptions(new IndicesOptions.CrossProjectModeOptions(true))
+                .build();
+            return new DatafeedConfig.Builder(datafeed).setIndicesOptions(modifiedOptions).build();
+        }
+        return datafeed;
     }
 
     /**
@@ -307,6 +435,37 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
      */
     public static String documentId(String datafeedId) {
         return TYPE + "-" + datafeedId;
+    }
+
+    public ActionRequestValidationException validateNoCrossProjectWhenCrossProjectIsDisabled(
+        CrossProjectModeDecider crossProjectModeDecider,
+        ActionRequestValidationException validationException
+    ) {
+        // Only reject CPS-shaped config in the gap: cluster CPS on but ML feature flag off.
+        // If the cluster doesn't support CPS at all, the environment itself handles validation.
+        if (crossProjectModeDecider.crossProjectEnabled() && isCPSAllowed(crossProjectModeDecider) == false) {
+            return validateNoCrossProjectWhenCrossProjectFeatureIsDisabled(false, validationException);
+        }
+        return validationException;
+    }
+
+    // visible for testing
+    // remove both this and validateNoCrossProjectWhenCrossProjectIsDisabled when the feature is launched
+    ActionRequestValidationException validateNoCrossProjectWhenCrossProjectFeatureIsDisabled(
+        boolean featureEnabled,
+        ActionRequestValidationException validationException
+    ) {
+        if (featureEnabled == false) {
+            // verify there are no remote indices
+            var remoteIndices = RemoteClusterAware.getRemoteIndexExpressions(getIndices().toArray(new String[0]));
+            if (remoteIndices.isEmpty() == false) {
+                validationException = addValidationError(
+                    "Cross-project calls are not supported, but remote indices were requested: " + remoteIndices,
+                    validationException
+                );
+            }
+        }
+        return validationException;
     }
 
     public String getId() {
@@ -488,6 +647,11 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
         return headers;
     }
 
+    public DatafeedConfig setHeaders(Map<String, String> headers) {
+        this.headers = headers == null ? Collections.emptyMap() : Collections.unmodifiableMap(headers);
+        return this;
+    }
+
     public DelayedDataCheckConfig getDelayedDataCheckConfig() {
         return delayedDataCheckConfig;
     }
@@ -502,6 +666,27 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
 
     public Map<String, Object> getRuntimeMappings() {
         return runtimeMappings;
+    }
+
+    @Nullable
+    public String getProjectRouting() {
+        return projectRouting;
+    }
+
+    @Nullable
+    public PersistedCloudCredential getCloudInternalCredential() {
+        return cloudInternalCredential;
+    }
+
+    /**
+     * Releases the underlying {@link PersistedCloudCredential} and its {@link org.elasticsearch.common.settings.SecureString}, if present.
+     * Idempotent: safe to call more than once.
+     */
+    @Override
+    public void close() {
+        if (cloudInternalCredential != null) {
+            cloudInternalCredential.close();
+        }
     }
 
     @Override
@@ -535,6 +720,12 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
         out.writeOptionalVInt(maxEmptySearches);
         indicesOptions.writeIndicesOptions(out);
         out.writeGenericMap(runtimeMappings);
+        if (out.getTransportVersion().supports(DATAFEED_PROJECT_ROUTING)) {
+            out.writeOptionalString(projectRouting);
+        }
+        if (out.getTransportVersion().supports(DATAFEED_CLOUD_INTERNAL_CREDENTIAL)) {
+            out.writeOptionalWriteable(cloudInternalCredential);
+        }
     }
 
     @Override
@@ -547,13 +738,15 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
             if (forInternalStorage) {
                 builder.field(CONFIG_TYPE.getPreferredName(), TYPE);
             }
-            if (headers.isEmpty() == false) {
-                if (forInternalStorage) {
+            if (forInternalStorage) {
+                if (headers.isEmpty() == false) {
                     assertNoAuthorizationHeader(headers);
                     builder.field(HEADERS.getPreferredName(), headers);
-                } else {
-                    XContentUtils.addAuthorizationInfo(builder, headers);
                 }
+            } else if (cloudInternalCredential != null) {
+                XContentUtils.addCloudApiKeyAuthorization(builder, cloudInternalCredential.id());
+            } else if (headers.isEmpty() == false) {
+                XContentUtils.addAuthorizationInfo(builder, headers);
             }
             builder.field(QUERY_DELAY.getPreferredName(), queryDelay.getStringRep());
             if (chunkingConfig != null) {
@@ -601,6 +794,13 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
         }
         if (runtimeMappings.isEmpty() == false) {
             builder.field(SearchSourceBuilder.RUNTIME_MAPPINGS_FIELD.getPreferredName(), runtimeMappings);
+        }
+        if (projectRouting != null) {
+            builder.field(PROJECT_ROUTING.getPreferredName(), projectRouting);
+        }
+        if (forInternalStorage && cloudInternalCredential != null) {
+            builder.field(CLOUD_INTERNAL_CREDENTIAL.getPreferredName());
+            cloudInternalCredential.toXContent(builder, params);
         }
         builder.endObject();
         return builder;
@@ -662,7 +862,9 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
             && Objects.equals(this.delayedDataCheckConfig, that.delayedDataCheckConfig)
             && Objects.equals(this.maxEmptySearches, that.maxEmptySearches)
             && Objects.equals(this.indicesOptions, that.indicesOptions)
-            && Objects.equals(this.runtimeMappings, that.runtimeMappings);
+            && Objects.equals(this.runtimeMappings, that.runtimeMappings)
+            && Objects.equals(this.projectRouting, that.projectRouting)
+            && Objects.equals(this.cloudInternalCredential, that.cloudInternalCredential);
     }
 
     @Override
@@ -682,7 +884,9 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
             delayedDataCheckConfig,
             maxEmptySearches,
             indicesOptions,
-            runtimeMappings
+            runtimeMappings,
+            projectRouting,
+            cloudInternalCredential
         );
     }
 
@@ -756,6 +960,8 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
         private Integer maxEmptySearches;
         private IndicesOptions indicesOptions;
         private Map<String, Object> runtimeMappings = Collections.emptyMap();
+        private String projectRouting;
+        private PersistedCloudCredential cloudInternalCredential;
 
         public Builder() {}
 
@@ -781,6 +987,8 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
             this.maxEmptySearches = config.getMaxEmptySearches();
             this.indicesOptions = config.indicesOptions;
             this.runtimeMappings = new HashMap<>(config.runtimeMappings);
+            this.projectRouting = config.projectRouting;
+            this.cloudInternalCredential = config.cloudInternalCredential;
         }
 
         public Builder(StreamInput in) throws IOException {
@@ -812,6 +1020,12 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
                 indicesOptions = IndicesOptions.readIndicesOptions(in);
             }
             runtimeMappings = in.readGenericMap();
+            if (in.getTransportVersion().supports(DATAFEED_PROJECT_ROUTING)) {
+                projectRouting = in.readOptionalString();
+            }
+            if (in.getTransportVersion().supports(DATAFEED_CLOUD_INTERNAL_CREDENTIAL)) {
+                cloudInternalCredential = in.readOptionalWriteable(PersistedCloudCredential::new);
+            }
         }
 
         @Override
@@ -848,6 +1062,12 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
                 indicesOptions.writeIndicesOptions(out);
             }
             out.writeGenericMap(runtimeMappings);
+            if (out.getTransportVersion().supports(DATAFEED_PROJECT_ROUTING)) {
+                out.writeOptionalString(projectRouting);
+            }
+            if (out.getTransportVersion().supports(DATAFEED_CLOUD_INTERNAL_CREDENTIAL)) {
+                out.writeOptionalWriteable(cloudInternalCredential);
+            }
         }
 
         @Override
@@ -869,7 +1089,9 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
                 && Objects.equals(delayedDataCheckConfig, builder.delayedDataCheckConfig)
                 && Objects.equals(maxEmptySearches, builder.maxEmptySearches)
                 && Objects.equals(indicesOptions, builder.indicesOptions)
-                && Objects.equals(runtimeMappings, builder.runtimeMappings);
+                && Objects.equals(runtimeMappings, builder.runtimeMappings)
+                && Objects.equals(projectRouting, builder.projectRouting)
+                && Objects.equals(cloudInternalCredential, builder.cloudInternalCredential);
         }
 
         @Override
@@ -889,7 +1111,9 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
                 delayedDataCheckConfig,
                 maxEmptySearches,
                 indicesOptions,
-                runtimeMappings
+                runtimeMappings,
+                projectRouting,
+                cloudInternalCredential
             );
         }
 
@@ -1032,6 +1256,25 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
             return this;
         }
 
+        public Builder setProjectRouting(String projectRouting) {
+            this.projectRouting = projectRouting;
+            return this;
+        }
+
+        public String getProjectRouting() {
+            return projectRouting;
+        }
+
+        public Builder setCloudInternalCredential(PersistedCloudCredential cloudInternalCredential) {
+            this.cloudInternalCredential = cloudInternalCredential;
+            return this;
+        }
+
+        @Nullable
+        public PersistedCloudCredential getCloudInternalCredential() {
+            return cloudInternalCredential;
+        }
+
         public DatafeedConfig build() {
             ExceptionsHelper.requireNonNull(id, ID.getPreferredName());
             ExceptionsHelper.requireNonNull(jobId, JOB_ID.getPreferredName());
@@ -1050,6 +1293,23 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
             if (indicesOptions == null) {
                 indicesOptions = IndicesOptions.STRICT_EXPAND_OPEN_HIDDEN_FORBID_CLOSED;
             }
+
+            if (indicesOptions.crossProjectModeOptions().resolveIndexExpression() && DATAFEED_CROSS_PROJECT.isEnabled() == false) {
+                throw new ElasticsearchStatusException("Cross-project search is not enabled for Datafeeds", RestStatus.FORBIDDEN);
+            }
+
+            // Validate project_routing requires CPS feature flag
+            // Note: CPS mode in IndicesOptions is applied at runtime via withCrossProjectModeIfEnabled()
+            // when the datafeed starts, so we don't validate it here.
+            if (projectRouting != null) {
+                if (DATAFEED_CROSS_PROJECT.isEnabled() == false) {
+                    throw new ElasticsearchStatusException(
+                        "project_routing requires cross-project search feature to be enabled for Datafeeds",
+                        RestStatus.FORBIDDEN
+                    );
+                }
+            }
+
             return new DatafeedConfig(
                 id,
                 jobId,
@@ -1065,7 +1325,9 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
                 delayedDataCheckConfig,
                 maxEmptySearches,
                 indicesOptions,
-                runtimeMappings
+                runtimeMappings,
+                projectRouting,
+                cloudInternalCredential
             );
         }
 

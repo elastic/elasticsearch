@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.core.ilm;
 
+import org.elasticsearch.action.downsample.DownsampleConfig;
 import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
@@ -34,7 +35,12 @@ public class DownsampleActionTests extends AbstractActionTestCase<DownsampleActi
     public static final TimeValue WAIT_TIMEOUT = new TimeValue(1, TimeUnit.MINUTES);
 
     static DownsampleAction randomInstance() {
-        return new DownsampleAction(ConfigTestHelpers.randomInterval(), WAIT_TIMEOUT, randomBoolean() ? null : randomBoolean());
+        return new DownsampleAction(
+            ConfigTestHelpers.randomInterval(),
+            WAIT_TIMEOUT,
+            randomBoolean() ? null : randomBoolean(),
+            randomSamplingMethod()
+        );
     }
 
     @Override
@@ -52,14 +58,16 @@ public class DownsampleActionTests extends AbstractActionTestCase<DownsampleActi
         var interval = instance.fixedInterval();
         var waitTimeout = instance.waitTimeout();
         var forceMerge = instance.forceMergeIndex();
-        switch (between(0, 2)) {
+        var samplingMethod = instance.samplingMethod();
+        switch (between(0, 3)) {
             case 0 -> interval = randomValueOtherThan(interval, ConfigTestHelpers::randomInterval);
             case 1 -> waitTimeout = TimeValue.timeValueMillis(
                 randomValueOtherThan(waitTimeout.millis(), () -> randomLongBetween(1, 10000))
             );
             case 2 -> forceMerge = forceMerge == null ? randomBoolean() : forceMerge == false;
+            case 3 -> samplingMethod = randomValueOtherThan(samplingMethod, DownsampleActionTests::randomSamplingMethod);
         }
-        return new DownsampleAction(interval, waitTimeout, forceMerge);
+        return new DownsampleAction(interval, waitTimeout, forceMerge, samplingMethod);
     }
 
     @Override
@@ -74,7 +82,89 @@ public class DownsampleActionTests extends AbstractActionTestCase<DownsampleActi
 
     @Override
     public void testToSteps() {
-        DownsampleAction action = new DownsampleAction(ConfigTestHelpers.randomInterval(), WAIT_TIMEOUT, randomBoolean() ? null : true);
+        DownsampleAction action = new DownsampleAction(
+            ConfigTestHelpers.randomInterval(),
+            WAIT_TIMEOUT,
+            randomBoolean() ? null : false,
+            randomSamplingMethod()
+        );
+        String phase = randomAlphaOfLengthBetween(1, 10);
+        StepKey nextStepKey = new StepKey(
+            randomAlphaOfLengthBetween(1, 10),
+            randomAlphaOfLengthBetween(1, 10),
+            randomAlphaOfLengthBetween(1, 10)
+        );
+        List<Step> steps = action.toSteps(null, phase, nextStepKey);
+        assertNotNull(steps);
+        assertEquals(15, steps.size());
+
+        assertTrue(steps.get(0) instanceof BranchingStep);
+        assertThat(steps.get(0).getKey().name(), equalTo(CONDITIONAL_TIME_SERIES_CHECK_KEY));
+        expectThrows(IllegalStateException.class, () -> steps.get(0).getNextStepKey());
+        assertThat(((BranchingStep) steps.get(0)).getNextStepKeyOnFalse(), equalTo(nextStepKey));
+        assertThat(((BranchingStep) steps.get(0)).getNextStepKeyOnTrue().name(), equalTo(CheckNotDataStreamWriteIndexStep.NAME));
+
+        assertTrue(steps.get(1) instanceof CheckNotDataStreamWriteIndexStep);
+        assertThat(steps.get(1).getKey().name(), equalTo(CheckNotDataStreamWriteIndexStep.NAME));
+        assertThat(steps.get(1).getNextStepKey().name(), equalTo(WaitForNoFollowersStep.NAME));
+
+        assertTrue(steps.get(2) instanceof WaitForNoFollowersStep);
+        assertThat(steps.get(2).getKey().name(), equalTo(WaitForNoFollowersStep.NAME));
+        assertThat(steps.get(2).getNextStepKey().name(), equalTo(WaitUntilTimeSeriesEndTimePassesStep.NAME));
+
+        assertTrue(steps.get(3) instanceof WaitUntilTimeSeriesEndTimePassesStep);
+        assertThat(steps.get(3).getKey().name(), equalTo(WaitUntilTimeSeriesEndTimePassesStep.NAME));
+        assertThat(steps.get(3).getNextStepKey().name(), equalTo(ReadOnlyStep.NAME));
+
+        assertTrue(steps.get(4) instanceof ReadOnlyStep);
+        assertThat(steps.get(4).getKey().name(), equalTo(ReadOnlyStep.NAME));
+        assertThat(steps.get(4).getNextStepKey().name(), equalTo(DownsamplePrepareLifeCycleStateStep.NAME));
+
+        assertTrue(steps.get(5) instanceof NoopStep);
+        assertThat(steps.get(5).getKey().name(), equalTo(DownsampleAction.BWC_CLEANUP_TARGET_INDEX_NAME));
+        assertThat(steps.get(5).getNextStepKey().name(), equalTo(DownsampleStep.NAME));
+
+        assertTrue(steps.get(6) instanceof DownsamplePrepareLifeCycleStateStep);
+        assertThat(steps.get(6).getKey().name(), equalTo(DownsamplePrepareLifeCycleStateStep.NAME));
+        assertThat(steps.get(6).getNextStepKey().name(), equalTo(DownsampleStep.NAME));
+
+        assertTrue(steps.get(7) instanceof DownsampleStep);
+        assertThat(steps.get(7).getKey().name(), equalTo(DownsampleStep.NAME));
+        assertThat(steps.get(7).getNextStepKey().name(), equalTo(WaitForIndexColorStep.NAME));
+
+        assertTrue(steps.get(8) instanceof ClusterStateWaitUntilThresholdStep);
+        assertThat(steps.get(8).getKey().name(), equalTo(WaitForIndexColorStep.NAME));
+        assertThat(steps.get(8).getNextStepKey().name(), equalTo(CopyExecutionStateStep.NAME));
+
+        assertTrue(steps.get(9) instanceof CopyExecutionStateStep);
+        assertThat(steps.get(9).getKey().name(), equalTo(CopyExecutionStateStep.NAME));
+        assertThat(steps.get(9).getNextStepKey().name(), equalTo(CopySettingsStep.NAME));
+
+        assertTrue(steps.get(10) instanceof CopySettingsStep);
+        assertThat(steps.get(10).getKey().name(), equalTo(CopySettingsStep.NAME));
+        assertThat(steps.get(10).getNextStepKey().name(), equalTo(CONDITIONAL_DATASTREAM_CHECK_KEY));
+
+        assertTrue(steps.get(11) instanceof BranchingStep);
+        assertThat(steps.get(11).getKey().name(), equalTo(CONDITIONAL_DATASTREAM_CHECK_KEY));
+        expectThrows(IllegalStateException.class, () -> steps.get(11).getNextStepKey());
+        assertThat(((BranchingStep) steps.get(11)).getNextStepKeyOnFalse().name(), equalTo(SwapAliasesAndDeleteSourceIndexStep.NAME));
+        assertThat(((BranchingStep) steps.get(11)).getNextStepKeyOnTrue().name(), equalTo(ReplaceDataStreamBackingIndexStep.NAME));
+
+        assertTrue(steps.get(12) instanceof ReplaceDataStreamBackingIndexStep);
+        assertThat(steps.get(12).getKey().name(), equalTo(ReplaceDataStreamBackingIndexStep.NAME));
+        assertThat(steps.get(12).getNextStepKey().name(), equalTo(DeleteStep.NAME));
+
+        assertTrue(steps.get(13) instanceof DeleteStep);
+        assertThat(steps.get(13).getKey().name(), equalTo(DeleteStep.NAME));
+        assertThat(steps.get(13).getNextStepKey(), equalTo(nextStepKey));
+
+        assertTrue(steps.get(14) instanceof SwapAliasesAndDeleteSourceIndexStep);
+        assertThat(steps.get(14).getKey().name(), equalTo(SwapAliasesAndDeleteSourceIndexStep.NAME));
+        assertThat(steps.get(14).getNextStepKey(), equalTo(nextStepKey));
+    }
+
+    public void testToStepsWithForceMerge() {
+        DownsampleAction action = new DownsampleAction(ConfigTestHelpers.randomInterval(), WAIT_TIMEOUT, true, randomSamplingMethod());
         String phase = randomAlphaOfLengthBetween(1, 10);
         StepKey nextStepKey = new StepKey(
             randomAlphaOfLengthBetween(1, 10),
@@ -158,87 +248,10 @@ public class DownsampleActionTests extends AbstractActionTestCase<DownsampleActi
         assertThat(steps.get(16).getNextStepKey(), equalTo(nextStepKey));
     }
 
-    public void testToStepsWithoutForceMerge() {
-        DownsampleAction action = new DownsampleAction(ConfigTestHelpers.randomInterval(), WAIT_TIMEOUT, false);
-        String phase = randomAlphaOfLengthBetween(1, 10);
-        StepKey nextStepKey = new StepKey(
-            randomAlphaOfLengthBetween(1, 10),
-            randomAlphaOfLengthBetween(1, 10),
-            randomAlphaOfLengthBetween(1, 10)
-        );
-        List<Step> steps = action.toSteps(null, phase, nextStepKey);
-        assertNotNull(steps);
-        assertEquals(15, steps.size());
-
-        assertTrue(steps.get(0) instanceof BranchingStep);
-        assertThat(steps.get(0).getKey().name(), equalTo(CONDITIONAL_TIME_SERIES_CHECK_KEY));
-        expectThrows(IllegalStateException.class, () -> steps.get(0).getNextStepKey());
-        assertThat(((BranchingStep) steps.get(0)).getNextStepKeyOnFalse(), equalTo(nextStepKey));
-        assertThat(((BranchingStep) steps.get(0)).getNextStepKeyOnTrue().name(), equalTo(CheckNotDataStreamWriteIndexStep.NAME));
-
-        assertTrue(steps.get(1) instanceof CheckNotDataStreamWriteIndexStep);
-        assertThat(steps.get(1).getKey().name(), equalTo(CheckNotDataStreamWriteIndexStep.NAME));
-        assertThat(steps.get(1).getNextStepKey().name(), equalTo(WaitForNoFollowersStep.NAME));
-
-        assertTrue(steps.get(2) instanceof WaitForNoFollowersStep);
-        assertThat(steps.get(2).getKey().name(), equalTo(WaitForNoFollowersStep.NAME));
-        assertThat(steps.get(2).getNextStepKey().name(), equalTo(WaitUntilTimeSeriesEndTimePassesStep.NAME));
-
-        assertTrue(steps.get(3) instanceof WaitUntilTimeSeriesEndTimePassesStep);
-        assertThat(steps.get(3).getKey().name(), equalTo(WaitUntilTimeSeriesEndTimePassesStep.NAME));
-        assertThat(steps.get(3).getNextStepKey().name(), equalTo(ReadOnlyStep.NAME));
-
-        assertTrue(steps.get(4) instanceof ReadOnlyStep);
-        assertThat(steps.get(4).getKey().name(), equalTo(ReadOnlyStep.NAME));
-        assertThat(steps.get(4).getNextStepKey().name(), equalTo(DownsamplePrepareLifeCycleStateStep.NAME));
-
-        assertTrue(steps.get(5) instanceof NoopStep);
-        assertThat(steps.get(5).getKey().name(), equalTo(DownsampleAction.BWC_CLEANUP_TARGET_INDEX_NAME));
-        assertThat(steps.get(5).getNextStepKey().name(), equalTo(DownsampleStep.NAME));
-
-        assertTrue(steps.get(6) instanceof DownsamplePrepareLifeCycleStateStep);
-        assertThat(steps.get(6).getKey().name(), equalTo(DownsamplePrepareLifeCycleStateStep.NAME));
-        assertThat(steps.get(6).getNextStepKey().name(), equalTo(DownsampleStep.NAME));
-
-        assertTrue(steps.get(7) instanceof DownsampleStep);
-        assertThat(steps.get(7).getKey().name(), equalTo(DownsampleStep.NAME));
-        assertThat(steps.get(7).getNextStepKey().name(), equalTo(WaitForIndexColorStep.NAME));
-
-        assertTrue(steps.get(8) instanceof ClusterStateWaitUntilThresholdStep);
-        assertThat(steps.get(8).getKey().name(), equalTo(WaitForIndexColorStep.NAME));
-        assertThat(steps.get(8).getNextStepKey().name(), equalTo(CopyExecutionStateStep.NAME));
-
-        assertTrue(steps.get(9) instanceof CopyExecutionStateStep);
-        assertThat(steps.get(9).getKey().name(), equalTo(CopyExecutionStateStep.NAME));
-        assertThat(steps.get(9).getNextStepKey().name(), equalTo(CopySettingsStep.NAME));
-
-        assertTrue(steps.get(10) instanceof CopySettingsStep);
-        assertThat(steps.get(10).getKey().name(), equalTo(CopySettingsStep.NAME));
-        assertThat(steps.get(10).getNextStepKey().name(), equalTo(CONDITIONAL_DATASTREAM_CHECK_KEY));
-
-        assertTrue(steps.get(11) instanceof BranchingStep);
-        assertThat(steps.get(11).getKey().name(), equalTo(CONDITIONAL_DATASTREAM_CHECK_KEY));
-        expectThrows(IllegalStateException.class, () -> steps.get(11).getNextStepKey());
-        assertThat(((BranchingStep) steps.get(11)).getNextStepKeyOnFalse().name(), equalTo(SwapAliasesAndDeleteSourceIndexStep.NAME));
-        assertThat(((BranchingStep) steps.get(11)).getNextStepKeyOnTrue().name(), equalTo(ReplaceDataStreamBackingIndexStep.NAME));
-
-        assertTrue(steps.get(12) instanceof ReplaceDataStreamBackingIndexStep);
-        assertThat(steps.get(12).getKey().name(), equalTo(ReplaceDataStreamBackingIndexStep.NAME));
-        assertThat(steps.get(12).getNextStepKey().name(), equalTo(DeleteStep.NAME));
-
-        assertTrue(steps.get(13) instanceof DeleteStep);
-        assertThat(steps.get(13).getKey().name(), equalTo(DeleteStep.NAME));
-        assertThat(steps.get(13).getNextStepKey(), equalTo(nextStepKey));
-
-        assertTrue(steps.get(14) instanceof SwapAliasesAndDeleteSourceIndexStep);
-        assertThat(steps.get(14).getKey().name(), equalTo(SwapAliasesAndDeleteSourceIndexStep.NAME));
-        assertThat(steps.get(14).getNextStepKey(), equalTo(nextStepKey));
-    }
-
     public void testDownsamplingPrerequisitesStep() {
         DateHistogramInterval fixedInterval = ConfigTestHelpers.randomInterval();
         boolean withForceMerge = randomBoolean();
-        DownsampleAction action = new DownsampleAction(fixedInterval, WAIT_TIMEOUT, withForceMerge);
+        DownsampleAction action = new DownsampleAction(fixedInterval, WAIT_TIMEOUT, withForceMerge, randomSamplingMethod());
         String phase = randomAlphaOfLengthBetween(1, 10);
         StepKey nextStepKey = new StepKey(
             randomAlphaOfLengthBetween(1, 10),
@@ -312,5 +325,13 @@ public class DownsampleActionTests extends AbstractActionTestCase<DownsampleActi
 
     public static IndexMetadata newIndexMeta(String name, Settings indexSettings) {
         return IndexMetadata.builder(name).settings(indexSettings(IndexVersion.current(), 1, 1).put(indexSettings)).build();
+    }
+
+    public static DownsampleConfig.SamplingMethod randomSamplingMethod() {
+        if (between(0, DownsampleConfig.SamplingMethod.values().length) == 0) {
+            return null;
+        } else {
+            return randomFrom(DownsampleConfig.SamplingMethod.values());
+        }
     }
 }

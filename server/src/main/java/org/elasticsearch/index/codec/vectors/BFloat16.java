@@ -9,51 +9,56 @@
 
 package org.elasticsearch.index.codec.vectors;
 
-import org.apache.lucene.util.BitUtil;
+import org.elasticsearch.simdvec.BFloat16Support;
+import org.elasticsearch.simdvec.ESVectorUtil;
 
+import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
-import java.nio.ShortBuffer;
 
 public final class BFloat16 {
 
     public static final int BYTES = Short.BYTES;
 
     public static short floatToBFloat16(float f) {
-        // this rounds towards 0
-        // zero - zero exp, zero fraction
-        // denormal - zero exp, non-zero fraction
-        // infinity - all-1 exp, zero fraction
-        // NaN - all-1 exp, non-zero fraction
-        // the Float.NaN constant is 0x7fc0_0000, so this won't turn the most common NaN values into
-        // infinities
-        return (short) (Float.floatToIntBits(f) >>> 16);
+        return BFloat16Support.floatToBFloat16(f);
+    }
+
+    public static float truncateToBFloat16(float f) {
+        return BFloat16Support.truncateToBFloat16(f);
     }
 
     public static float bFloat16ToFloat(short bf) {
-        return Float.intBitsToFloat(bf << 16);
+        return BFloat16Support.bFloat16ToFloat(bf);
     }
 
-    public static void floatToBFloat16(float[] floats, ShortBuffer bFloats) {
-        assert bFloats.remaining() == floats.length;
-        assert bFloats.order() == ByteOrder.LITTLE_ENDIAN;
-        for (float v : floats) {
-            bFloats.put(floatToBFloat16(v));
-        }
+    public static void floatToBFloat16(float[] floats, byte[] bfBytes) {
+        ESVectorUtil.floatToBFloat16(floats, 0, bfBytes, 0, floats.length, ByteOrder.LITTLE_ENDIAN);
+    }
+
+    /**
+     * Converts {@code floatCount} floats from {@code floats}, starting at {@code floatOffset},
+     * and put the bfloats in {@code byteOrder} order into {@code bfBytes} starting at {@code bfOffset}.
+     */
+    public static void floatToBFloat16(float[] floats, int floatOffset, byte[] bfBytes, int bfOffset, int floatCount, ByteOrder byteOrder) {
+        ESVectorUtil.floatToBFloat16(floats, floatOffset, bfBytes, bfOffset, floatCount, byteOrder);
     }
 
     public static void bFloat16ToFloat(byte[] bfBytes, float[] floats) {
-        assert floats.length * 2 == bfBytes.length;
-        for (int i = 0; i < floats.length; i++) {
-            floats[i] = bFloat16ToFloat((short) BitUtil.VH_LE_SHORT.get(bfBytes, i * 2));
-        }
+        ESVectorUtil.bFloat16ToFloat(bfBytes, 0, floats, 0, floats.length, ByteOrder.LITTLE_ENDIAN);
     }
 
-    public static void bFloat16ToFloat(ShortBuffer bFloats, float[] floats) {
-        assert floats.length == bFloats.remaining();
-        assert bFloats.order() == ByteOrder.LITTLE_ENDIAN;
-        for (int i = 0; i < floats.length; i++) {
-            floats[i] = bFloat16ToFloat(bFloats.get());
-        }
+    public static void bFloat16ToFloat(ByteBuffer bfBytes, float[] floats) {
+        int pos = bfBytes.position();
+        bfBytes.position(pos + floats.length * 2);   // change the position now so it does a bounds check for us
+        ESVectorUtil.bFloat16ToFloat(bfBytes.array(), bfBytes.arrayOffset() + pos, floats, 0, floats.length, bfBytes.order());
+    }
+
+    /**
+     * Converts {@code floatCount} bfloats from {@code bfBytes} in {@code byteOrder} order, starting at {@code bfOffset},
+     * and put the floats into {@code floats} starting at {@code floatOffset}.
+     */
+    public static void bFloat16ToFloat(byte[] bfBytes, int bfOffset, float[] floats, int floatOffset, int floatCount, ByteOrder byteOrder) {
+        ESVectorUtil.bFloat16ToFloat(bfBytes, bfOffset, floats, floatOffset, floatCount, byteOrder);
     }
 
     private BFloat16() {}

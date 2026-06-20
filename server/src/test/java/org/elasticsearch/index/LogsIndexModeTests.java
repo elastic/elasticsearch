@@ -165,6 +165,11 @@ public class LogsIndexModeTests extends ESTestCase {
         assertThat("_last", equalTo(getIndexSetting(settings, IndexSortConfig.INDEX_SORT_MISSING_SETTING.getKey())));
     }
 
+    public void testIndexDisabledByDefault() {
+        assumeTrue("columnar feature flag must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        assertFalse(IndexSettings.INDEX_DISABLED_BY_DEFAULT.get(buildSettings()));
+    }
+
     private Settings buildSettings() {
         return Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB.getName()).build();
     }

@@ -26,8 +26,18 @@
     },
     "params": {
       "format": {
-        "type": "string",
-        "description": "a short version of the Accept header, e.g. json, yaml"
+        "type": "enum",
+        "description": "A short version of the Accept header, e.g. json, yaml.\n\n`csv`, `tsv`, and `txt` formats will return results in a tabular format, excluding other metadata fields from the response.\n\nFor async requests, nothing will be returned if the async query doesn't finish within the timeout.\nThe query ID and running status are available in the `X-Elasticsearch-Async-Id` and `X-Elasticsearch-Async-Is-Running` HTTP headers of the response, respectively.",
+        "options": [
+          "csv",
+          "json",
+          "tsv",
+          "txt",
+          "yaml",
+          "cbor",
+          "smile",
+          "arrow"
+        ]
       },
       "delimiter": {
         "type": "string",

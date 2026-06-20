@@ -10,12 +10,10 @@
 package org.elasticsearch.action.get;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.LegacyActionRequest;
-import org.elasticsearch.action.RealtimeRequest;
 import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.ParsingException;
@@ -25,8 +23,8 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.VersionType;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.xcontent.ParseField;
@@ -43,13 +41,10 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 
-// It's not possible to suppress teh warning at #realtime(boolean) at a method-level.
-@SuppressWarnings("unchecked")
 public class MultiGetRequest extends LegacyActionRequest
     implements
         Iterable<MultiGetRequest.Item>,
         CompositeIndicesRequest,
-        RealtimeRequest,
         ToXContentObject {
 
     private static final ParseField DOCS = new ParseField("docs");
@@ -57,6 +52,7 @@ public class MultiGetRequest extends LegacyActionRequest
     private static final ParseField TYPE = new ParseField("_type");
     private static final ParseField ID = new ParseField("_id");
     private static final ParseField ROUTING = new ParseField("routing");
+    private static final ParseField SLICE = new ParseField(SliceIndexing.PARAM_NAME);
     private static final ParseField VERSION = new ParseField("version");
     private static final ParseField VERSION_TYPE = new ParseField("version_type");
     private static final ParseField FIELDS = new ParseField("fields");
@@ -71,6 +67,10 @@ public class MultiGetRequest extends LegacyActionRequest
         private String index;
         private String id;
         private String routing;
+        // Whether this item's routing came from the _slice parameter. Like GetRequest, this is provenance used for
+        // coordinating-node validation only and is intentionally not serialized (the routing value itself is what the
+        // shard needs to build the slice-scoped identity term).
+        private boolean routingFromSlice;
         private String[] storedFields;
         private long version = Versions.MATCH_ANY;
         private VersionType versionType = VersionType.INTERNAL;
@@ -82,9 +82,6 @@ public class MultiGetRequest extends LegacyActionRequest
 
         public Item(StreamInput in) throws IOException {
             index = in.readString();
-            if (in.getTransportVersion().before(TransportVersions.V_8_0_0)) {
-                in.readOptionalString();
-            }
             id = in.readString();
             routing = in.readOptionalString();
             storedFields = in.readOptionalStringArray();
@@ -134,6 +131,16 @@ public class MultiGetRequest extends LegacyActionRequest
             return this.routing;
         }
 
+        /** Mark whether this item's {@link #routing()} was supplied via the {@code _slice} parameter. */
+        public Item setRoutingFromSlice(boolean routingFromSlice) {
+            this.routingFromSlice = routingFromSlice;
+            return this;
+        }
+
+        public boolean isRoutingFromSlice() {
+            return this.routingFromSlice;
+        }
+
         public Item storedFields(String... fields) {
             this.storedFields = fields;
             return this;
@@ -176,9 +183,6 @@ public class MultiGetRequest extends LegacyActionRequest
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(index);
-            if (out.getTransportVersion().before(TransportVersions.V_8_0_0)) {
-                out.writeOptionalString(MapperService.SINGLE_MAPPING_NAME);
-            }
             out.writeString(id);
             out.writeOptionalString(routing);
             out.writeOptionalStringArray(storedFields);
@@ -260,11 +264,7 @@ public class MultiGetRequest extends LegacyActionRequest
         refresh = in.readBoolean();
         realtime = in.readBoolean();
         items = in.readCollectionAsList(Item::new);
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
-            forceSyntheticSource = in.readBoolean();
-        } else {
-            forceSyntheticSource = false;
-        }
+        forceSyntheticSource = in.readBoolean();
     }
 
     @Override
@@ -274,13 +274,7 @@ public class MultiGetRequest extends LegacyActionRequest
         out.writeBoolean(refresh);
         out.writeBoolean(realtime);
         out.writeCollection(items);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
-            out.writeBoolean(forceSyntheticSource);
-        } else {
-            if (forceSyntheticSource) {
-                throw new IllegalArgumentException("force_synthetic_source is not supported before 8.4.0");
-            }
-        }
+        out.writeBoolean(forceSyntheticSource);
     }
 
     public List<Item> getItems() {
@@ -334,7 +328,6 @@ public class MultiGetRequest extends LegacyActionRequest
         return this.realtime;
     }
 
-    @Override
     public MultiGetRequest realtime(boolean realtime) {
         this.realtime = realtime;
         return this;
@@ -378,6 +371,18 @@ public class MultiGetRequest extends LegacyActionRequest
         XContentParser parser,
         boolean allowExplicitIndex
     ) throws IOException {
+        return add(defaultIndex, defaultFields, defaultFetchSource, defaultRouting, false, parser, allowExplicitIndex);
+    }
+
+    public MultiGetRequest add(
+        @Nullable String defaultIndex,
+        @Nullable String[] defaultFields,
+        @Nullable FetchSourceContext defaultFetchSource,
+        @Nullable String defaultRouting,
+        boolean defaultRoutingFromSlice,
+        XContentParser parser,
+        boolean allowExplicitIndex
+    ) throws IOException {
         Token token;
         String currentFieldName = null;
         if ((token = parser.nextToken()) != Token.START_OBJECT) {
@@ -389,9 +394,18 @@ public class MultiGetRequest extends LegacyActionRequest
                 currentFieldName = parser.currentName();
             } else if (token == Token.START_ARRAY) {
                 if ("docs".equals(currentFieldName)) {
-                    parseDocuments(parser, this.items, defaultIndex, defaultFields, defaultFetchSource, defaultRouting, allowExplicitIndex);
+                    parseDocuments(
+                        parser,
+                        this.items,
+                        defaultIndex,
+                        defaultFields,
+                        defaultFetchSource,
+                        defaultRouting,
+                        defaultRoutingFromSlice,
+                        allowExplicitIndex
+                    );
                 } else if ("ids".equals(currentFieldName)) {
-                    parseIds(parser, this.items, defaultIndex, defaultFields, defaultFetchSource, defaultRouting);
+                    parseIds(parser, this.items, defaultIndex, defaultFields, defaultFetchSource, defaultRouting, defaultRoutingFromSlice);
                 } else {
                     final String message = String.format(
                         Locale.ROOT,
@@ -422,6 +436,7 @@ public class MultiGetRequest extends LegacyActionRequest
         @Nullable String[] defaultFields,
         @Nullable FetchSourceContext defaultFetchSource,
         @Nullable String defaultRouting,
+        boolean defaultRoutingFromSlice,
         boolean allowExplicitIndex
     ) throws IOException {
         String currentFieldName = null;
@@ -433,6 +448,8 @@ public class MultiGetRequest extends LegacyActionRequest
             String index = defaultIndex;
             String id = null;
             String routing = defaultRouting;
+            boolean routingFromSlice = defaultRoutingFromSlice;
+            String slice = null;
             List<String> storedFields = null;
             long version = Versions.MATCH_ANY;
             VersionType versionType = VersionType.INTERNAL;
@@ -452,6 +469,9 @@ public class MultiGetRequest extends LegacyActionRequest
                         id = parser.text();
                     } else if (ROUTING.match(currentFieldName, parser.getDeprecationHandler())) {
                         routing = parser.text();
+                        routingFromSlice = false;
+                    } else if (SLICE.match(currentFieldName, parser.getDeprecationHandler())) {
+                        slice = parser.text();
                     } else if (FIELDS.match(currentFieldName, parser.getDeprecationHandler())) {
                         throw new ParsingException(
                             parser.getTokenLocation(),
@@ -547,8 +567,17 @@ public class MultiGetRequest extends LegacyActionRequest
             } else {
                 aFields = defaultFields;
             }
+            if (slice != null) {
+                if (routingFromSlice == false && routing != null) {
+                    throw new IllegalArgumentException("[routing] is not allowed together with [" + SliceIndexing.PARAM_NAME + "]");
+                }
+                SliceIndexing.validateUserSliceValue(slice);
+                routing = slice;
+                routingFromSlice = true;
+            }
             items.add(
                 new Item(index, id).routing(routing)
+                    .setRoutingFromSlice(routingFromSlice)
                     .storedFields(aFields)
                     .version(version)
                     .versionType(versionType)
@@ -563,7 +592,8 @@ public class MultiGetRequest extends LegacyActionRequest
         @Nullable String defaultIndex,
         @Nullable String[] defaultFields,
         @Nullable FetchSourceContext defaultFetchSource,
-        @Nullable String defaultRouting
+        @Nullable String defaultRouting,
+        boolean defaultRoutingFromSlice
     ) throws IOException {
         Token token;
         while ((token = parser.nextToken()) != Token.END_ARRAY) {
@@ -574,6 +604,7 @@ public class MultiGetRequest extends LegacyActionRequest
                 new Item(defaultIndex, parser.text()).storedFields(defaultFields)
                     .fetchSourceContext(defaultFetchSource)
                     .routing(defaultRouting)
+                    .setRoutingFromSlice(defaultRoutingFromSlice)
             );
         }
     }

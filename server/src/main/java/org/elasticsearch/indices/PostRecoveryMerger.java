@@ -23,8 +23,8 @@ import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardLongFieldRange;
-import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
 import org.elasticsearch.indices.recovery.RecoveryFailedException;
+import org.elasticsearch.indices.recovery.RecoveryListener;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -47,7 +47,7 @@ class PostRecoveryMerger {
     private static final boolean TRIGGER_MERGE_AFTER_RECOVERY;
 
     static {
-        @UpdateForV10(owner = UpdateForV10.Owner.DISTRIBUTED_INDEXING) // remove this escape hatch
+        @UpdateForV10(owner = UpdateForV10.Owner.DISTRIBUTED) // remove this escape hatch
         final var propertyValue = System.getProperty("es.trigger_merge_after_recovery");
         if (propertyValue == null) {
             TRIGGER_MERGE_AFTER_RECOVERY = true;
@@ -84,11 +84,7 @@ class PostRecoveryMerger {
                     || DiscoveryNode.hasRole(settings, INDEX_ROLE));
     }
 
-    PeerRecoveryTargetService.RecoveryListener maybeMergeAfterRecovery(
-        IndexMetadata indexMetadata,
-        ShardRouting shardRouting,
-        PeerRecoveryTargetService.RecoveryListener recoveryListener
-    ) {
+    RecoveryListener maybeMergeAfterRecovery(IndexMetadata indexMetadata, ShardRouting shardRouting, RecoveryListener recoveryListener) {
         if (enabled == false) {
             return recoveryListener;
         }
@@ -102,7 +98,7 @@ class PostRecoveryMerger {
         }
 
         final var shardId = shardRouting.shardId();
-        return new PeerRecoveryTargetService.RecoveryListener() {
+        return new RecoveryListener() {
             @Override
             public void onRecoveryDone(
                 RecoveryState state,
@@ -116,6 +112,11 @@ class PostRecoveryMerger {
             @Override
             public void onRecoveryFailure(RecoveryFailedException e, boolean sendShardFailure) {
                 recoveryListener.onRecoveryFailure(e, sendShardFailure);
+            }
+
+            @Override
+            public void onRecoveryAborted() {
+                recoveryListener.onRecoveryAborted();
             }
         };
     }

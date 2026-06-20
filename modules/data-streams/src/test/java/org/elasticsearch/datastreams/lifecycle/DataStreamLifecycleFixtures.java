@@ -10,6 +10,7 @@
 package org.elasticsearch.datastreams.lifecycle;
 
 import org.elasticsearch.action.admin.indices.rollover.MaxAgeCondition;
+import org.elasticsearch.action.admin.indices.rollover.RolloverConditions;
 import org.elasticsearch.action.admin.indices.rollover.RolloverInfo;
 import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
 import org.elasticsearch.action.downsample.DownsampleConfig;
@@ -24,6 +25,7 @@ import org.elasticsearch.cluster.metadata.ResettableValue;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
@@ -38,8 +40,15 @@ import java.util.function.Supplier;
 
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.newInstance;
 import static org.elasticsearch.test.ESIntegTestCase.client;
+import static org.elasticsearch.test.ESTestCase.between;
 import static org.elasticsearch.test.ESTestCase.frequently;
+import static org.elasticsearch.test.ESTestCase.randomBoolean;
+import static org.elasticsearch.test.ESTestCase.randomByteSizeValue;
+import static org.elasticsearch.test.ESTestCase.randomFrom;
 import static org.elasticsearch.test.ESTestCase.randomIntBetween;
+import static org.elasticsearch.test.ESTestCase.randomMillisUpToYear9999;
+import static org.elasticsearch.test.ESTestCase.randomNonNegativeLong;
+import static org.elasticsearch.test.ESTestCase.randomPositiveTimeValue;
 import static org.junit.Assert.assertTrue;
 
 /**
@@ -143,14 +152,18 @@ public class DataStreamLifecycleFixtures {
     }
 
     static DataStreamLifecycle.Template randomDataLifecycleTemplate() {
-        return DataStreamLifecycle.createDataLifecycleTemplate(
-            frequently(),
-            randomResettable(ESTestCase::randomTimeValue),
-            randomResettable(DataStreamLifecycleFixtures::randomDownsamplingRounds)
+        ResettableValue<List<DataStreamLifecycle.DownsamplingRound>> downsampling = randomResettable(
+            DataStreamLifecycleFixtures::randomDownsamplingRounds
         );
+        return DataStreamLifecycle.dataLifecycleBuilder()
+            .enabled(frequently())
+            .dataRetention(randomResettable(ESTestCase::randomTimeValue))
+            .downsamplingRounds(downsampling)
+            .downsamplingMethod(randomResettable(() -> randomSamplingMethod(downsampling.get())))
+            .buildTemplate();
     }
 
-    private static <T> ResettableValue<T> randomResettable(Supplier<T> supplier) {
+    public static <T> ResettableValue<T> randomResettable(Supplier<T> supplier) {
         return switch (randomIntBetween(0, 2)) {
             case 0 -> ResettableValue.undefined();
             case 1 -> ResettableValue.reset();
@@ -164,7 +177,7 @@ public class DataStreamLifecycleFixtures {
         List<DataStreamLifecycle.DownsamplingRound> rounds = new ArrayList<>();
         var previous = new DataStreamLifecycle.DownsamplingRound(
             TimeValue.timeValueDays(randomIntBetween(1, 365)),
-            new DownsampleConfig(new DateHistogramInterval(randomIntBetween(1, 24) + "h"))
+            new DateHistogramInterval(randomIntBetween(1, 24) + "h")
         );
         rounds.add(previous);
         for (int i = 0; i < count; i++) {
@@ -177,9 +190,45 @@ public class DataStreamLifecycleFixtures {
 
     private static DataStreamLifecycle.DownsamplingRound nextRound(DataStreamLifecycle.DownsamplingRound previous) {
         var after = TimeValue.timeValueDays(previous.after().days() + randomIntBetween(1, 10));
-        var fixedInterval = new DownsampleConfig(
-            new DateHistogramInterval((previous.config().getFixedInterval().estimateMillis() * randomIntBetween(2, 5)) + "ms")
-        );
+        var fixedInterval = new DateHistogramInterval((previous.fixedInterval().estimateMillis() * randomIntBetween(2, 5)) + "ms");
         return new DataStreamLifecycle.DownsamplingRound(after, fixedInterval);
+    }
+
+    /**
+     * In order to produce valid data stream lifecycle configurations, the sampling method can be defined only when
+     * the downsampling rounds are also defined.
+     */
+    public static DownsampleConfig.SamplingMethod randomSamplingMethod(List<DataStreamLifecycle.DownsamplingRound> downsamplingRounds) {
+        if (downsamplingRounds == null || between(0, DownsampleConfig.SamplingMethod.values().length) == 0) {
+            return null;
+        } else {
+            return randomFrom(DownsampleConfig.SamplingMethod.values());
+        }
+    }
+
+    public static RolloverConditions randomRolloverConditions(boolean includeMaxAge) {
+        ByteSizeValue maxSize = randomBoolean() ? randomByteSizeValue() : null;
+        ByteSizeValue maxPrimaryShardSize = randomBoolean() ? randomByteSizeValue() : null;
+        Long maxDocs = randomBoolean() ? randomNonNegativeLong() : null;
+        TimeValue maxAge = includeMaxAge && randomBoolean() ? TimeValue.timeValueMillis(randomMillisUpToYear9999()) : null;
+        Long maxPrimaryShardDocs = randomBoolean() ? randomNonNegativeLong() : null;
+        ByteSizeValue minSize = randomBoolean() ? randomByteSizeValue() : null;
+        ByteSizeValue minPrimaryShardSize = randomBoolean() ? randomByteSizeValue() : null;
+        Long minDocs = randomBoolean() ? randomNonNegativeLong() : null;
+        TimeValue minAge = randomBoolean() ? randomPositiveTimeValue() : null;
+        Long minPrimaryShardDocs = randomBoolean() ? randomNonNegativeLong() : null;
+
+        return RolloverConditions.newBuilder()
+            .addMaxIndexSizeCondition(maxSize)
+            .addMaxPrimaryShardSizeCondition(maxPrimaryShardSize)
+            .addMaxIndexAgeCondition(maxAge)
+            .addMaxIndexDocsCondition(maxDocs)
+            .addMaxPrimaryShardDocsCondition(maxPrimaryShardDocs)
+            .addMinIndexSizeCondition(minSize)
+            .addMinPrimaryShardSizeCondition(minPrimaryShardSize)
+            .addMinIndexAgeCondition(minAge)
+            .addMinIndexDocsCondition(minDocs)
+            .addMinPrimaryShardDocsCondition(minPrimaryShardDocs)
+            .build();
     }
 }

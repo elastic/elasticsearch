@@ -8,6 +8,7 @@
  */
 package org.elasticsearch.search.aggregations.bucket.range;
 
+import org.apache.lucene.search.DoubleValues;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.ScorerSupplier;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -15,8 +16,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.core.CheckedFunction;
-import org.elasticsearch.index.fielddata.FieldData;
-import org.elasticsearch.index.fielddata.NumericDoubleValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.mapper.DateFieldMapper.DateFieldType;
 import org.elasticsearch.index.mapper.DateFieldMapper.Resolution;
@@ -643,7 +642,7 @@ public abstract class RangeAggregator extends BucketsAggregator {
         @Override
         public LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx, LeafBucketCollector sub) throws IOException {
             final SortedNumericDoubleValues values = ((ValuesSource.Numeric) this.valuesSource).doubleValues(aggCtx.getLeafReaderContext());
-            final NumericDoubleValues singleton = FieldData.unwrapSingleton(values);
+            final DoubleValues singleton = SortedNumericDoubleValues.unwrapSingleton(values);
 
             if (singleton != null) {
                 super.singletonRanges++;
@@ -889,6 +888,9 @@ public abstract class RangeAggregator extends BucketsAggregator {
     }
 
     public static boolean hasOverlap(Range[] ranges) {
+        if (ranges.length == 0) {
+            return false;
+        }
         double lastEnd = ranges[0].to;
         for (int i = 1; i < ranges.length; ++i) {
             if (ranges[i].from < lastEnd) {

@@ -36,7 +36,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.MMapDirectory;
 import org.apache.lucene.tests.store.MockDirectoryWrapper;
 import org.apache.lucene.util.VectorUtil;
-import org.elasticsearch.index.codec.vectors.BaseHnswVectorsFormatTestCase;
+import org.elasticsearch.index.codec.vectors.BaseQuantizedHnswVectorsFormatTestCase;
 
 import java.io.IOException;
 import java.util.Locale;
@@ -53,21 +53,21 @@ import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.oneOf;
 
-public class ES818HnswBinaryQuantizedVectorsFormatTests extends BaseHnswVectorsFormatTestCase {
+public class ES818HnswBinaryQuantizedVectorsFormatTests extends BaseQuantizedHnswVectorsFormatTestCase {
 
     @Override
     protected KnnVectorsFormat createFormat() {
-        return new ES818HnswBinaryQuantizedVectorsFormat();
+        return new ES818HnswBinaryQuantizedRWVectorsFormat();
     }
 
     @Override
     protected KnnVectorsFormat createFormat(int maxConn, int beamWidth) {
-        return new ES818HnswBinaryQuantizedVectorsFormat(maxConn, beamWidth);
+        return new ES818HnswBinaryQuantizedRWVectorsFormat(maxConn, beamWidth);
     }
 
     @Override
     protected KnnVectorsFormat createFormat(int maxConn, int beamWidth, int numMergeWorkers, ExecutorService service) {
-        return new ES818HnswBinaryQuantizedVectorsFormat(maxConn, beamWidth, numMergeWorkers, service);
+        return new ES818HnswBinaryQuantizedRWVectorsFormat(maxConn, beamWidth, numMergeWorkers, service);
     }
 
     public void testToString() {
@@ -92,7 +92,12 @@ public class ES818HnswBinaryQuantizedVectorsFormatTests extends BaseHnswVectorsF
         for (VectorSimilarityFunction similarityFunction : VectorSimilarityFunction.values()) {
             try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, newIndexWriterConfig())) {
                 Document doc = new Document();
-                if (similarityFunction == VectorSimilarityFunction.COSINE) {
+                // DOT_PRODUCT and COSINE scorers clamp the quantized score to [-1, 1] before normalization (following apache/lucene#15411),
+                // VectorSimilarityFunction.{DOT_PRODUCT,COSINE}.compare() performs no such clamp, so for unnormalized inputs with |dot| > 1
+                // the
+                // scorer's output and the reference compare() diverge.
+                // To avoid that, use l2-normalized inputs.
+                if (similarityFunction == VectorSimilarityFunction.COSINE || similarityFunction == VectorSimilarityFunction.DOT_PRODUCT) {
                     VectorUtil.l2normalize(vector);
                 }
                 doc.add(new KnnFloatVectorField("f", vector, similarityFunction));
@@ -107,7 +112,8 @@ public class ES818HnswBinaryQuantizedVectorsFormatTests extends BaseHnswVectorsF
                         assertArrayEquals(vector, vectorValues.vectorValue(docIndexIterator.index()), 0.00001f);
                     }
                     float[] randomVector = randomVector(vector.length);
-                    if (similarityFunction == VectorSimilarityFunction.COSINE) {
+                    if (similarityFunction == VectorSimilarityFunction.COSINE
+                        || similarityFunction == VectorSimilarityFunction.DOT_PRODUCT) {
                         VectorUtil.l2normalize(randomVector);
                     }
                     float trueScore = similarityFunction.compare(vector, randomVector);

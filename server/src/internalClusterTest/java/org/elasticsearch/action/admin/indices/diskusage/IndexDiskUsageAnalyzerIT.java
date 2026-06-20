@@ -10,7 +10,6 @@
 package org.elasticsearch.action.admin.indices.diskusage;
 
 import org.apache.lucene.tests.util.English;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
@@ -64,9 +63,7 @@ public class IndexDiskUsageAnalyzerIT extends ESIntegTestCase {
 
     @Override
     protected Settings.Builder setRandomIndexSettings(Random random, Settings.Builder builder) {
-        var b = super.setRandomIndexSettings(random, builder);
-        b.remove(IndexSettings.SEQ_NO_INDEX_OPTIONS_SETTING.getKey());
-        return b;
+        return super.setRandomIndexSettings(random, builder).remove(IndexSettings.SEQ_NO_INDEX_OPTIONS_SETTING.getKey());
     }
 
     private static final Set<ShardId> failOnFlushShards = ConcurrentCollections.newConcurrentSet();
@@ -76,7 +73,7 @@ public class IndexDiskUsageAnalyzerIT extends ESIntegTestCase {
         public Optional<EngineFactory> getEngineFactory(IndexSettings indexSettings) {
             return Optional.of(config -> new InternalEngine(config) {
                 @Override
-                protected void flushHoldingLock(boolean force, boolean waitIfOngoing, ActionListener<FlushResult> listener) {
+                protected void flushHoldingLock(boolean force, boolean waitIfOngoing, FlushResultListener listener) {
                     final ShardId shardId = config.getShardId();
                     if (failOnFlushShards.contains(shardId)) {
                         listener.onFailure(new EngineException(shardId, "simulated IO"));
@@ -162,7 +159,7 @@ public class IndexDiskUsageAnalyzerIT extends ESIntegTestCase {
         assertThat(valueField.getPointsBytes(), greaterThan(0L));
         assertThat(valueField.getDocValuesBytes(), greaterThan(0L));
 
-        assertMetadataFields(stats);
+        assertMetadataFields(stats, indexColumnarIdMode(index));
     }
 
     public void testFailOnFlush() throws Exception {
@@ -296,7 +293,7 @@ public class IndexDiskUsageAnalyzerIT extends ESIntegTestCase {
         }
     }
 
-    void assertMetadataFields(IndexDiskUsageStats stats) {
+    void assertMetadataFields(IndexDiskUsageStats stats, boolean columnarId) {
         final IndexDiskUsageStats.PerFieldDiskUsage sourceField = stats.getFields().get("_source");
         assertThat(sourceField.getInvertedIndexBytes(), equalTo(0L));
         assertThat(sourceField.getStoredFieldBytes(), greaterThan(0L));
@@ -305,9 +302,9 @@ public class IndexDiskUsageAnalyzerIT extends ESIntegTestCase {
 
         final IndexDiskUsageStats.PerFieldDiskUsage idField = stats.getFields().get("_id");
         assertThat(idField.getInvertedIndexBytes(), greaterThan(0L));
-        assertThat(idField.getStoredFieldBytes(), greaterThan(0L));
+        assertThat(idField.getStoredFieldBytes(), columnarId ? equalTo(0L) : greaterThan(0L));
         assertThat(idField.getPointsBytes(), equalTo(0L));
-        assertThat(idField.getDocValuesBytes(), equalTo(0L));
+        assertThat(idField.getDocValuesBytes(), columnarId ? greaterThan(0L) : equalTo(0L));
 
         final IndexDiskUsageStats.PerFieldDiskUsage seqNoField = stats.getFields().get("_seq_no");
         assertThat(seqNoField.getInvertedIndexBytes(), equalTo(0L));

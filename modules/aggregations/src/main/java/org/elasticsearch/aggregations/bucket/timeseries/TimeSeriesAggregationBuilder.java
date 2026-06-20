@@ -10,7 +10,6 @@
 package org.elasticsearch.aggregations.bucket.timeseries;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
@@ -145,16 +144,16 @@ public class TimeSeriesAggregationBuilder extends AbstractAggregationBuilder<Tim
         if (o == null || getClass() != o.getClass()) return false;
         if (super.equals(o) == false) return false;
         TimeSeriesAggregationBuilder that = (TimeSeriesAggregationBuilder) o;
-        return keyed == that.keyed;
+        return keyed == that.keyed && size == that.size;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), keyed);
+        return Objects.hash(super.hashCode(), keyed, size);
     }
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_8_1_0;
+        return TransportVersion.minimumCompatible();
     }
 }

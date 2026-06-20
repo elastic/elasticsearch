@@ -49,12 +49,14 @@ public class ValuesTests extends AbstractAggregationTestCase {
             MultiRowTestCaseSupplier.doubleCases(1, 1000, -Double.MAX_VALUE, Double.MAX_VALUE, true),
             MultiRowTestCaseSupplier.dateCases(1, 1000),
             MultiRowTestCaseSupplier.dateNanosCases(1, 1000),
+            MultiRowTestCaseSupplier.dateRangeCases(1, 1000),
             MultiRowTestCaseSupplier.booleanCases(1, 1000),
             MultiRowTestCaseSupplier.ipCases(1, 1000),
             MultiRowTestCaseSupplier.versionCases(1, 1000),
             // Lower values for strings, as they take more space and may trigger the circuit breaker
             MultiRowTestCaseSupplier.stringCases(1, 20, DataType.KEYWORD),
             MultiRowTestCaseSupplier.stringCases(1, 20, DataType.TEXT),
+            MultiRowTestCaseSupplier.flattenedCases(1, 20),
             // For spatial types, we can have many rows for points, but reduce rows for shapes to avoid circuit breaker
             MultiRowTestCaseSupplier.geoPointCases(1, 1000, MultiRowTestCaseSupplier.IncludingAltitude.NO),
             MultiRowTestCaseSupplier.cartesianPointCases(1, 1000, MultiRowTestCaseSupplier.IncludingAltitude.NO),
@@ -65,7 +67,7 @@ public class ValuesTests extends AbstractAggregationTestCase {
             MultiRowTestCaseSupplier.geohexCases(1, 100)
         ).flatMap(List::stream).map(ValuesTests::makeSupplier).collect(Collectors.toCollection(() -> suppliers));
 
-        return parameterSuppliersFromTypedDataWithDefaultChecks(suppliers, false);
+        return parameterSuppliersFromTypedDataWithDefaultChecks(suppliers);
     }
 
     @Override
@@ -76,7 +78,7 @@ public class ValuesTests extends AbstractAggregationTestCase {
     private static TestCaseSupplier makeSupplier(TestCaseSupplier.TypedDataSupplier fieldSupplier) {
         return new TestCaseSupplier(fieldSupplier.name(), List.of(fieldSupplier.type()), () -> {
             var fieldTypedData = fieldSupplier.get();
-            var expected = new HashSet<>(fieldTypedData.multiRowData());
+            var expected = new HashSet<>(fieldTypedData.originalMultiRowData());
             return new TestCaseSupplier.TestCase(
                 List.of(fieldTypedData),
                 standardAggregatorNameAllBytesTheSame("Values", fieldSupplier.type()),

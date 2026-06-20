@@ -54,6 +54,11 @@ public class Murmur3FieldMapper extends FieldMapper {
         }
 
         @Override
+        public String contentType() {
+            return CONTENT_TYPE;
+        }
+
+        @Override
         public Murmur3FieldMapper build(MapperBuilderContext context) {
             return new Murmur3FieldMapper(
                 leafName(),
@@ -85,7 +90,7 @@ public class Murmur3FieldMapper extends FieldMapper {
         @Override
         public IndexFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
             failIfNoDocValues();
-            return new SortedNumericIndexFieldData.Builder(name(), NumericType.LONG, Murmur3DocValueField::new, false);
+            return new SortedNumericIndexFieldData.Builder(name(), NumericType.LONG, Murmur3DocValueField::new, indexType);
         }
 
         @Override

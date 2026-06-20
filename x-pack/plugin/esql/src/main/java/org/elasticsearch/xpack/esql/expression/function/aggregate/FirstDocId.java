@@ -29,11 +29,11 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.DOC_DATA_TYPE;
 public class FirstDocId extends AggregateFunction implements ToAggregator {
 
     public FirstDocId(Source source, Expression v) {
-        this(source, v, Literal.TRUE);
+        this(source, v, Literal.TRUE, NO_WINDOW);
     }
 
-    public FirstDocId(Source source, Expression field, Expression filter) {
-        super(source, field, filter, emptyList());
+    public FirstDocId(Source source, Expression field, Expression filter, Expression window) {
+        super(source, field, filter, window, emptyList());
     }
 
     @Override
@@ -43,17 +43,17 @@ public class FirstDocId extends AggregateFunction implements ToAggregator {
 
     @Override
     protected NodeInfo<FirstDocId> info() {
-        return NodeInfo.create(this, FirstDocId::new, field(), filter());
+        return NodeInfo.create(this, FirstDocId::new, field(), filter(), window());
     }
 
     @Override
     public FirstDocId replaceChildren(List<Expression> newChildren) {
-        return new FirstDocId(source(), newChildren.get(0), newChildren.get(1));
+        return new FirstDocId(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2));
     }
 
     @Override
     public FirstDocId withFilter(Expression filter) {
-        return new FirstDocId(source(), field(), filter);
+        return new FirstDocId(source(), field(), filter, window());
     }
 
     @Override

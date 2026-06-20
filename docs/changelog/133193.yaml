@@ -1,5 +1,0 @@
-pr: 133193
-summary: Fix offset handling in Murmur3Hasher
-area: Infra/Core
-type: bug
-issues: []

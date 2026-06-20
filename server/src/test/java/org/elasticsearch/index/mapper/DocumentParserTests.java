@@ -19,8 +19,9 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.CompositeFieldScript;
@@ -559,7 +560,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
         assertEquals(
             """
                 {"_doc":{"dynamic":"false","runtime":{"foo.bar.baz":{"type":"keyword"},"foo.baz":{"type":"keyword"}}}}""",
-            Strings.toString(doc.dynamicMappingsUpdate())
+            doc.dynamicMappingsUpdate().string()
         );
     }
 
@@ -635,7 +636,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
     public void testSingleMappingUpdate() throws Exception {
         DocumentMapper docMapper = createDummyMapping();
         ParsedDocument doc = docMapper.parse(source(b -> b.field("foo", 10)));
-        Mapping mapping = doc.dynamicMappingsUpdate();
+        Mapping mapping = parseDynamicUpdate(doc.dynamicMappingsUpdate());
         assertNotNull(mapping);
         assertNotNull(mapping.getRoot().getMapper("foo"));
     }
@@ -643,7 +644,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
     public void testSingleRuntimeFieldMappingUpdate() throws Exception {
         DocumentMapper docMapper = createDummyMapping();
         ParsedDocument doc = docMapper.parse(source(b -> b.field("runtime-field", "10")));
-        Mapping mapping = doc.dynamicMappingsUpdate();
+        Mapping mapping = parseDynamicUpdate(doc.dynamicMappingsUpdate());
         assertNotNull(mapping);
         assertNull(mapping.getRoot().getMapper("runtime-field"));
         assertNotNull(mapping.getRoot().getRuntimeField("runtime-field"));
@@ -652,7 +653,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
     public void testSubfieldMappingUpdate() throws Exception {
         DocumentMapper docMapper = createDummyMapping();
         ParsedDocument doc = docMapper.parse(source(b -> b.field("x.foo", 10)));
-        Mapping mapping = doc.dynamicMappingsUpdate();
+        Mapping mapping = parseDynamicUpdate(doc.dynamicMappingsUpdate());
         assertNotNull(mapping);
         Mapper xMapper = mapping.getRoot().getMapper("x");
         assertNotNull(xMapper);
@@ -664,7 +665,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
     public void testRuntimeSubfieldMappingUpdate() throws Exception {
         DocumentMapper docMapper = createDocumentMapper(topMapping(b -> b.field("dynamic", "runtime")));
         ParsedDocument doc = docMapper.parse(source(b -> b.field("runtime.foo", 10)));
-        Mapping mapping = doc.dynamicMappingsUpdate();
+        Mapping mapping = parseDynamicUpdate(doc.dynamicMappingsUpdate());
         assertNotNull(mapping);
         Mapper xMapper = mapping.getRoot().getMapper("runtime");
         assertNull(xMapper);
@@ -677,7 +678,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
             b.field("x.foo", 10);
             b.field("x.bar", 20);
         }));
-        Mapping mapping = doc.dynamicMappingsUpdate();
+        Mapping mapping = parseDynamicUpdate(doc.dynamicMappingsUpdate());
         assertNotNull(mapping);
         Mapper xMapper = mapping.getRoot().getMapper("x");
         assertNotNull(xMapper);
@@ -690,7 +691,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
     public void testDeepSubfieldMappingUpdate() throws Exception {
         DocumentMapper docMapper = createDummyMapping();
         ParsedDocument doc = docMapper.parse(source(b -> b.field("x.subx.foo", 10)));
-        Mapping mapping = doc.dynamicMappingsUpdate();
+        Mapping mapping = parseDynamicUpdate(doc.dynamicMappingsUpdate());
         assertNotNull(mapping);
         Mapper xMapper = mapping.getRoot().getMapper("x");
         assertNotNull(xMapper);
@@ -707,7 +708,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
             b.field("x.a", 10);
             b.field("x.subx.b", 10);
         }));
-        Mapping mapping = doc.dynamicMappingsUpdate();
+        Mapping mapping = parseDynamicUpdate(doc.dynamicMappingsUpdate());
         assertNotNull(mapping);
         Mapper xMapper = mapping.getRoot().getMapper("x");
         assertNotNull(xMapper);
@@ -729,7 +730,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
             b.field("field", 10);
             b.endObject();
         }));
-        Mapping mapping = doc.dynamicMappingsUpdate();
+        Mapping mapping = parseDynamicUpdate(doc.dynamicMappingsUpdate());
         assertNotNull(mapping);
         Mapper fooMapper = mapping.getRoot().getMapper("foo");
         assertNotNull(fooMapper);
@@ -747,7 +748,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
             b.startObject("foo");
             b.endObject();
         }));
-        Mapping mapping = doc.dynamicMappingsUpdate();
+        Mapping mapping = parseDynamicUpdate(doc.dynamicMappingsUpdate());
         assertNotNull(mapping);
         Mapper foo = mapping.getRoot().getMapper("foo");
         assertThat(foo, instanceOf(ObjectMapper.class));
@@ -838,7 +839,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
         DocumentMapper mapper = createDocumentMapper(topMapping(b -> b.field("dynamic", "runtime")));
         ParsedDocument doc = mapper.parse(source(b -> b.startArray("foo").value(0).value(1).endArray()));
         assertEquals(0, doc.rootDoc().getFields("foo").size());
-        RuntimeField foo = doc.dynamicMappingsUpdate().getRoot().getRuntimeField("foo");
+        RuntimeField foo = parseDynamicUpdate(doc.dynamicMappingsUpdate()).getRoot().getRuntimeField("foo");
         assertEquals("""
             {"foo":{"type":"long"}}""", Strings.toString(foo));
     }
@@ -847,7 +848,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
         DocumentMapper mapper = createDocumentMapper(topMapping(b -> b.field("dynamic", "runtime")));
         ParsedDocument doc = mapper.parse(source(b -> b.startArray("foo").value(0.25).value(1.43).endArray()));
         assertEquals(0, doc.rootDoc().getFields("foo").size());
-        RuntimeField foo = doc.dynamicMappingsUpdate().getRoot().getRuntimeField("foo");
+        RuntimeField foo = parseDynamicUpdate(doc.dynamicMappingsUpdate()).getRoot().getRuntimeField("foo");
         assertEquals("""
             {"foo":{"type":"double"}}""", Strings.toString(foo));
     }
@@ -856,7 +857,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
         DocumentMapper mapper = createDocumentMapper(topMapping(b -> b.field("dynamic", "runtime")));
         ParsedDocument doc = mapper.parse(source(b -> b.startArray("foo").value("test1").value("test2").endArray()));
         assertEquals(0, doc.rootDoc().getFields("foo").size());
-        RuntimeField foo = doc.dynamicMappingsUpdate().getRoot().getRuntimeField("foo");
+        RuntimeField foo = parseDynamicUpdate(doc.dynamicMappingsUpdate()).getRoot().getRuntimeField("foo");
         assertEquals("""
             {"foo":{"type":"keyword"}}""", Strings.toString(foo));
     }
@@ -865,7 +866,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
         DocumentMapper mapper = createDocumentMapper(topMapping(b -> b.field("dynamic", "runtime")));
         ParsedDocument doc = mapper.parse(source(b -> b.startArray("foo").value(true).value(false).endArray()));
         assertEquals(0, doc.rootDoc().getFields("foo").size());
-        RuntimeField foo = doc.dynamicMappingsUpdate().getRoot().getRuntimeField("foo");
+        RuntimeField foo = parseDynamicUpdate(doc.dynamicMappingsUpdate()).getRoot().getRuntimeField("foo");
         assertEquals("""
             {"foo":{"type":"boolean"}}""", Strings.toString(foo));
     }
@@ -874,7 +875,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
         DocumentMapper mapper = createDocumentMapper(topMapping(b -> b.field("dynamic", "runtime")));
         ParsedDocument doc = mapper.parse(source(b -> b.startArray("foo").value("2020-12-15").value("2020-12-09").endArray()));
         assertEquals(0, doc.rootDoc().getFields("foo").size());
-        RuntimeField foo = doc.dynamicMappingsUpdate().getRoot().getRuntimeField("foo");
+        RuntimeField foo = parseDynamicUpdate(doc.dynamicMappingsUpdate()).getRoot().getRuntimeField("foo");
         assertEquals("""
             {"foo":{"type":"date"}}""", Strings.toString(foo));
     }
@@ -974,6 +975,187 @@ public class DocumentParserTests extends MapperServiceTestCase {
         assertEquals(0, doc.rootDoc().getFields("bar").size());
     }
 
+    // In columnar mode, unmapped fields with dynamic:false must be dropped entirely rather than
+    // stored in _ignored_source (documented data loss, not a bug).
+    public void testColumnarDynamicFalseValueDropped() throws Exception {
+        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        DocumentMapper mapper = createColumnarModeDocumentMapper(topMapping(b -> b.field("dynamic", "false")));
+        ParsedDocument doc = mapper.parse(source(b -> b.field("unmapped_field", "some_value")));
+        assertEquals(0, doc.rootDoc().getFields("unmapped_field").size());
+        assertNull(
+            "unmapped dynamic:false leaf must not be stored in _ignored_source in columnar mode",
+            doc.rootDoc().getField(IgnoredSourceFieldMapper.NAME)
+        );
+    }
+
+    public void testColumnarDynamicFalseObjectDropped() throws Exception {
+        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        DocumentMapper mapper = createColumnarModeDocumentMapper(topMapping(b -> b.field("dynamic", "false")));
+        ParsedDocument doc = mapper.parse(source(b -> b.startObject("unmapped_obj").field("key", "value").endObject()));
+        assertEquals(0, doc.rootDoc().getFields("unmapped_obj.key").size());
+        assertNull(
+            "unmapped dynamic:false object must not be stored in _ignored_source in columnar mode",
+            doc.rootDoc().getField(IgnoredSourceFieldMapper.NAME)
+        );
+    }
+
+    public void testColumnarDynamicFalseArrayDropped() throws Exception {
+        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        DocumentMapper mapper = createColumnarModeDocumentMapper(topMapping(b -> b.field("dynamic", "false")));
+        ParsedDocument doc = mapper.parse(source(b -> b.startArray("unmapped_arr").value(1).value(2).endArray()));
+        assertEquals(0, doc.rootDoc().getFields("unmapped_arr").size());
+        assertNull(
+            "unmapped dynamic:false array must not be stored in _ignored_source in columnar mode",
+            doc.rootDoc().getField(IgnoredSourceFieldMapper.NAME)
+        );
+    }
+
+    // Per-prefix dynamic resolution in strict columnar mode.
+
+    private DocumentMapper createColumnarMapperWithPrefixDynamic(
+        IndexMode indexMode,
+        String prefix,
+        String prefixDynamic,
+        String leafField,
+        String leafType
+    ) throws Exception {
+        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), indexMode.getName()).build();
+        return createMapperService(settings, mapping(b -> {
+            // LOGSDB_COLUMNAR is a data-stream mode that requires @timestamp to be mapped.
+            b.startObject("@timestamp").field("type", "date").endObject();
+            b.startObject(prefix);
+            {
+                b.field("dynamic", prefixDynamic);
+                b.startObject("properties");
+                b.startObject(leafField).field("type", leafType).endObject();
+                b.endObject();
+            }
+            b.endObject();
+        })).documentMapper();
+    }
+
+    /**
+     * Builds a {@link SourceToParse} that always includes {@code @timestamp} so the document is valid
+     * for data-stream index modes (e.g. {@code LOGSDB_COLUMNAR}) as well as plain columnar modes.
+     */
+    private SourceToParse columnarSource(CheckedConsumer<XContentBuilder, IOException> build) throws IOException {
+        return source(b -> {
+            b.field("@timestamp", "2021-04-28T00:01:00Z");
+            build.accept(b);
+        });
+    }
+
+    public void testColumnarPerPrefixDynamicFalseDropsLeafDottedNotation() throws Exception {
+        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        for (IndexMode indexMode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
+            DocumentMapper mapper = createColumnarMapperWithPrefixDynamic(indexMode, "attributes", "false", "host", "keyword");
+            // dotted-notation unmapped field under attributes.* prefix
+            ParsedDocument doc = mapper.parse(columnarSource(b -> b.field("attributes.unknown", "value")));
+            assertTrue(doc.rootDoc().getFields("attributes.unknown").isEmpty());
+            assertNull(
+                "prefix dynamic:false must drop the field (not store to _ignored_source)",
+                doc.rootDoc().getField(IgnoredSourceFieldMapper.NAME)
+            );
+        }
+    }
+
+    public void testColumnarPerPrefixDynamicFalseDropsLeafObjectNotation() throws Exception {
+        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        for (IndexMode indexMode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
+            DocumentMapper mapper = createColumnarMapperWithPrefixDynamic(indexMode, "attributes", "false", "host", "keyword");
+            // object-notation unmapped field under attributes.* prefix
+            ParsedDocument doc = mapper.parse(columnarSource(b -> b.startObject("attributes").field("unknown", "value").endObject()));
+            assertTrue(doc.rootDoc().getFields("attributes.unknown").isEmpty());
+            assertNull(
+                "prefix dynamic:false must drop the field (not store to _ignored_source)",
+                doc.rootDoc().getField(IgnoredSourceFieldMapper.NAME)
+            );
+        }
+    }
+
+    public void testColumnarPerPrefixDynamicFalseDoesNotDropMappedField() throws Exception {
+        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        for (IndexMode indexMode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
+            DocumentMapper mapper = createColumnarMapperWithPrefixDynamic(indexMode, "attributes", "false", "host", "keyword");
+            // Mapped field under the prefix must still be indexed
+            ParsedDocument doc = mapper.parse(columnarSource(b -> b.field("attributes.host", "myhost")));
+            assertFalse(doc.rootDoc().getFields("attributes.host").isEmpty());
+        }
+    }
+
+    public void testColumnarPerPrefixDynamicStrictThrowsDottedNotation() throws Exception {
+        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        for (IndexMode indexMode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
+            DocumentMapper mapper = createColumnarMapperWithPrefixDynamic(indexMode, "resource", "strict", "service", "keyword");
+            StrictDynamicMappingException e = expectThrows(
+                StrictDynamicMappingException.class,
+                () -> mapper.parse(columnarSource(b -> b.field("resource.unknown", "value")))
+            );
+            assertThat(e.getMessage(), containsString("[resource.unknown]"));
+        }
+    }
+
+    public void testColumnarPerPrefixDynamicStrictThrowsObjectNotation() throws Exception {
+        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        for (IndexMode indexMode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
+            DocumentMapper mapper = createColumnarMapperWithPrefixDynamic(indexMode, "resource", "strict", "service", "keyword");
+            StrictDynamicMappingException e = expectThrows(
+                StrictDynamicMappingException.class,
+                () -> mapper.parse(columnarSource(b -> b.startObject("resource").field("unknown", "value").endObject()))
+            );
+            assertThat(e.getMessage(), containsString("[resource.unknown]"));
+        }
+    }
+
+    public void testColumnarPerPrefixDynamicFallbackToRootDynamic() throws Exception {
+        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        for (IndexMode indexMode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
+            // Root dynamic=true, attributes dynamic=false; field under a different prefix should still be created
+            DocumentMapper mapper = createColumnarMapperWithPrefixDynamic(indexMode, "attributes", "false", "host", "keyword");
+            ParsedDocument doc = mapper.parse(columnarSource(b -> b.field("other.unmapped", 42)));
+            // The field "other.unmapped" is under no registered prefix → root dynamic=true → field created
+            assertFalse(
+                "field outside any prefix should be created via root dynamic:true",
+                doc.rootDoc().getFields("other.unmapped").isEmpty()
+            );
+        }
+    }
+
+    public void testColumnarPerPrefixDynamicLongestPrefixWins() throws Exception {
+        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        for (IndexMode indexMode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
+            // foo dynamic=false, foo.bar dynamic=true — longer prefix wins
+            Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), indexMode.getName()).build();
+            DocumentMapper mapper = createMapperService(settings, mapping(b -> {
+                // LOGSDB_COLUMNAR is a data-stream mode that requires @timestamp to be mapped.
+                b.startObject("@timestamp").field("type", "date").endObject();
+                b.startObject("foo");
+                {
+                    b.field("dynamic", "false");
+                    b.startObject("properties");
+                    b.startObject("bar");
+                    {
+                        b.field("dynamic", "true");
+                        b.startObject("properties");
+                        b.startObject("x").field("type", "keyword").endObject();
+                        b.endObject();
+                    }
+                    b.endObject();
+                    b.endObject();
+                }
+                b.endObject();
+            })).documentMapper();
+
+            // foo.bar.unmapped → longest prefix foo.bar (true) → field created
+            ParsedDocument doc1 = mapper.parse(columnarSource(b -> b.field("foo.bar.unmapped", "value")));
+            assertFalse(doc1.rootDoc().getFields("foo.bar.unmapped").isEmpty());
+
+            // foo.other → prefix foo (false) → dropped
+            ParsedDocument doc2 = mapper.parse(columnarSource(b -> b.field("foo.other", "value")));
+            assertTrue(doc2.rootDoc().getFields("foo.other").isEmpty());
+        }
+    }
+
     public void testDynamicStrictNull() throws Exception {
         DocumentMapper mapper = createDocumentMapper(topMapping(b -> b.field("dynamic", "strict")));
         DocumentParsingException exception = expectThrows(
@@ -1050,7 +1232,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
 
         ParsedDocument doc = mapper.parse(source(b -> b.startArray("foo.bar.baz").value(0).value(1).endArray()));
         assertEquals(2, doc.rootDoc().getFields("foo.bar.baz").size());
-        Mapper fooMapper = doc.dynamicMappingsUpdate().getRoot().getMapper("foo");
+        Mapper fooMapper = parseDynamicUpdate(doc.dynamicMappingsUpdate()).getRoot().getMapper("foo");
         assertNotNull(fooMapper);
         assertThat(fooMapper, instanceOf(ObjectMapper.class));
         Mapper barMapper = ((ObjectMapper) fooMapper).getMapper("bar");
@@ -1081,7 +1263,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
 
         ParsedDocument doc = mapper.parse(source(b -> b.startArray("foo.bar.baz").value(0).value(1).endArray()));
         assertEquals(2, doc.rootDoc().getFields("foo.bar.baz").size());
-        Mapper fooMapper = doc.dynamicMappingsUpdate().getRoot().getMapper("foo");
+        Mapper fooMapper = parseDynamicUpdate(doc.dynamicMappingsUpdate()).getRoot().getMapper("foo");
         assertNotNull(fooMapper);
         assertThat(fooMapper, instanceOf(ObjectMapper.class));
         Mapper barMapper = ((ObjectMapper) fooMapper).getMapper("bar");
@@ -1169,6 +1351,45 @@ public class DocumentParserTests extends MapperServiceTestCase {
         assertThat(fields.get(0).fieldType(), sameInstance(GeoPointFieldMapper.LatLonPointWithDocValues.TYPE));
     }
 
+    public void testWithDynamicTemplateParams() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(topMapping(b -> {
+            b.startArray("dynamic_templates");
+            {
+                b.startObject();
+                {
+                    b.startObject("my_dynamic_template");
+                    {
+                        b.startObject("mapping");
+                        {
+                            b.field("type", "keyword");
+                            b.startObject("meta");
+                            {
+                                b.field("unit", "{{unit}}");
+                            }
+                            b.endObject();
+                        }
+                        b.endObject();
+                    }
+                    b.endObject();
+                }
+                b.endObject();
+            }
+            b.endArray();
+        }));
+
+        ParsedDocument doc = mapper.parse(source("1", b -> b.field("foo", "bar"), null, Map.of("foo", "my_dynamic_template")));
+        Mapper fieldMapper = parseDynamicUpdate(doc.dynamicMappingsUpdate()).getRoot().getMapper("foo");
+        assertThat(fieldMapper, instanceOf(KeywordFieldMapper.class));
+        assertThat(((KeywordFieldMapper) fieldMapper).fieldType().meta().get("unit"), equalTo(""));
+
+        doc = mapper.parse(
+            source("1", b -> b.field("foo", "bar"), null, Map.of("foo", "my_dynamic_template"), Map.of("foo", Map.of("unit", "By")))
+        );
+        fieldMapper = parseDynamicUpdate(doc.dynamicMappingsUpdate()).getRoot().getMapper("foo");
+        assertThat(fieldMapper, instanceOf(KeywordFieldMapper.class));
+        assertThat(((KeywordFieldMapper) fieldMapper).fieldType().meta().get("unit"), equalTo("By"));
+    }
+
     public void testDynamicTemplatesNotFound() throws Exception {
         DocumentMapper mapper = createDocumentMapper(topMapping(b -> {
             b.startArray("dynamic_templates");
@@ -1248,7 +1469,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
         ParsedDocument doc = mapper.parse(source(b -> b.startArray("field.bar.baz").value(0).value(1).endArray()));
 
         assertEquals(2, doc.rootDoc().getFields("field.bar.baz").size());
-        Mapper fooMapper = doc.dynamicMappingsUpdate().getRoot().getMapper("field");
+        Mapper fooMapper = parseDynamicUpdate(doc.dynamicMappingsUpdate()).getRoot().getMapper("field");
         assertNotNull(fooMapper);
         assertThat(fooMapper, instanceOf(ObjectMapper.class));
         Mapper barMapper = ((ObjectMapper) fooMapper).getMapper("bar");
@@ -1290,7 +1511,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
         DocumentMapper mapper = createDocumentMapper(mapping(b -> {}));
         ParsedDocument doc = mapper.parse(source(b -> b.field("foo.bar.baz", 0)));
         assertEquals(1, doc.rootDoc().getFields("foo.bar.baz").size());
-        Mapper fooMapper = doc.dynamicMappingsUpdate().getRoot().getMapper("foo");
+        Mapper fooMapper = parseDynamicUpdate(doc.dynamicMappingsUpdate()).getRoot().getMapper("foo");
         assertNotNull(fooMapper);
         assertThat(fooMapper, instanceOf(ObjectMapper.class));
         Mapper barMapper = ((ObjectMapper) fooMapper).getMapper("bar");
@@ -1321,7 +1542,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
 
         ParsedDocument doc = mapper.parse(source(b -> b.field("foo.bar.baz", 0)));
         assertEquals(1, doc.rootDoc().getFields("foo.bar.baz").size());
-        Mapper fooMapper = doc.dynamicMappingsUpdate().getRoot().getMapper("foo");
+        Mapper fooMapper = parseDynamicUpdate(doc.dynamicMappingsUpdate()).getRoot().getMapper("foo");
         assertNotNull(fooMapper);
         assertThat(fooMapper, instanceOf(ObjectMapper.class));
         Mapper barMapper = ((ObjectMapper) fooMapper).getMapper("bar");
@@ -1336,7 +1557,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "object")));
         ParsedDocument doc = mapper.parse(source(b -> b.field("field.bar.baz", 0)));
         assertEquals(1, doc.rootDoc().getFields("field.bar.baz").size());
-        Mapper fooMapper = doc.dynamicMappingsUpdate().getRoot().getMapper("field");
+        Mapper fooMapper = parseDynamicUpdate(doc.dynamicMappingsUpdate()).getRoot().getMapper("field");
         assertNotNull(fooMapper);
         assertThat(fooMapper, instanceOf(ObjectMapper.class));
         Mapper barMapper = ((ObjectMapper) fooMapper).getMapper("bar");
@@ -1378,7 +1599,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
         DocumentMapper mapper = createDocumentMapper(mapping(b -> {}));
         ParsedDocument doc = mapper.parse(source(b -> b.startObject("foo.bar.baz").field("a", 0).endObject()));
         assertEquals(1, doc.rootDoc().getFields("foo.bar.baz.a").size());
-        Mapper fooMapper = doc.dynamicMappingsUpdate().getRoot().getMapper("foo");
+        Mapper fooMapper = parseDynamicUpdate(doc.dynamicMappingsUpdate()).getRoot().getMapper("foo");
         assertNotNull(fooMapper);
         assertThat(fooMapper, instanceOf(ObjectMapper.class));
         Mapper barMapper = ((ObjectMapper) fooMapper).getMapper("bar");
@@ -1413,7 +1634,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
         ParsedDocument doc = mapper.parse(source(b -> b.startObject("foo.bar.baz").field("a", 0).endObject()));
 
         assertEquals(1, doc.rootDoc().getFields("foo.bar.baz.a").size());
-        Mapper fooMapper = doc.dynamicMappingsUpdate().getRoot().getMapper("foo");
+        Mapper fooMapper = parseDynamicUpdate(doc.dynamicMappingsUpdate()).getRoot().getMapper("foo");
         assertNotNull(fooMapper);
         assertThat(fooMapper, instanceOf(ObjectMapper.class));
         Mapper barMapper = ((ObjectMapper) fooMapper).getMapper("bar");
@@ -1431,7 +1652,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "object")));
         ParsedDocument doc = mapper.parse(source(b -> b.startObject("field.bar.baz").field("a", 0).endObject()));
         assertEquals(1, doc.rootDoc().getFields("field.bar.baz.a").size());
-        Mapper fooMapper = doc.dynamicMappingsUpdate().getRoot().getMapper("field");
+        Mapper fooMapper = parseDynamicUpdate(doc.dynamicMappingsUpdate()).getRoot().getMapper("field");
         assertNotNull(fooMapper);
         assertThat(fooMapper, instanceOf(ObjectMapper.class));
         Mapper barMapper = ((ObjectMapper) fooMapper).getMapper("bar");
@@ -1807,7 +2028,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
         // Even though we matched the dynamic format, we do not match on numbers,
         // which are too likely to be false positives
         ParsedDocument doc = mapper.parse(source(b -> b.field("foo", "2016")));
-        Mapping update = doc.dynamicMappingsUpdate();
+        Mapping update = parseDynamicUpdate(doc.dynamicMappingsUpdate());
         assertNotNull(update);
         Mapper dateMapper = update.getRoot().getMapper("foo");
         assertNotNull(dateMapper);
@@ -1819,7 +2040,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
 
         // We should have generated a date field
         ParsedDocument doc = mapper.parse(source(b -> b.field("foo", "2016 12")));
-        Mapping update = doc.dynamicMappingsUpdate();
+        Mapping update = parseDynamicUpdate(doc.dynamicMappingsUpdate());
         assertNotNull(update);
         Mapper dateMapper = update.getRoot().getMapper("foo");
         assertNotNull(dateMapper);
@@ -1986,7 +2207,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
         MapperService mapperService = createMapperService(mappingNoSubobjects(b -> {}));
         for (String fieldName : VALID_FIELD_NAMES_NO_SUBOBJECTS) {
             ParsedDocument doc = mapperService.documentMapper().parse(source("{\"" + fieldName + "\":1}"));
-            merge(mapperService, dynamicMapping(doc.dynamicMappingsUpdate()));
+            mergeDynamicUpdate(mapperService, doc.dynamicMappingsUpdate());
             assertNotNull(mapperService.fieldType(fieldName));
         }
     }
@@ -2006,7 +2227,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
               }
             }
             """));
-        Mapping mappingsUpdate = doc.dynamicMappingsUpdate();
+        Mapping mappingsUpdate = parseDynamicUpdate(doc.dynamicMappingsUpdate());
         assertNotNull(mappingsUpdate);
         Mapper metricsMapper = mappingsUpdate.getRoot().getMapper("metrics");
         assertNotNull(metricsMapper);
@@ -2032,7 +2253,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
               }
             }
             """));
-        Mapping mappingsUpdate = doc.dynamicMappingsUpdate();
+        Mapping mappingsUpdate = parseDynamicUpdate(doc.dynamicMappingsUpdate());
 
         assertNotNull(mappingsUpdate);
         Mapper metricsMapper = mappingsUpdate.getRoot().getMapper("metrics");
@@ -2085,7 +2306,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
             }
             """));
 
-        Mapping mappingsUpdate = doc.dynamicMappingsUpdate();
+        Mapping mappingsUpdate = parseDynamicUpdate(doc.dynamicMappingsUpdate());
         assertNotNull(mappingsUpdate);
         assertNotNull(mappingsUpdate.getRoot().getMapper("metrics.service.time"));
         assertNotNull(mappingsUpdate.getRoot().getMapper("metrics.service.time.max"));
@@ -2211,8 +2432,8 @@ public class DocumentParserTests extends MapperServiceTestCase {
         assertNoSubobjects(doc);
     }
 
-    private static void assertNoSubobjects(ParsedDocument doc) {
-        Mapping mappingsUpdate = doc.dynamicMappingsUpdate();
+    private void assertNoSubobjects(ParsedDocument doc) {
+        Mapping mappingsUpdate = parseDynamicUpdate(doc.dynamicMappingsUpdate());
         assertNotNull(mappingsUpdate);
         Mapper metrics = mappingsUpdate.getRoot().mappers.get("metrics");
         assertThat(metrics, instanceOf(ObjectMapper.class));
@@ -2548,9 +2769,9 @@ public class DocumentParserTests extends MapperServiceTestCase {
         assertNotNull(doc.rootDoc().getField("obj.sub.foo.bar"));
         assertNotNull(doc.rootDoc().getField("sub.foo.bar"));
         assertNotNull(doc.dynamicMappingsUpdate());
-        assertNotNull(doc.dynamicMappingsUpdate().getRoot().getMapper("obj.baz"));
-        assertNotNull(doc.dynamicMappingsUpdate().getRoot().getMapper("obj.sub.foo.bar"));
-        assertNotNull(doc.dynamicMappingsUpdate().getRoot().getMapper("sub.foo.bar"));
+        assertNotNull(parseDynamicUpdate(doc.dynamicMappingsUpdate()).getRoot().getMapper("obj.baz"));
+        assertNotNull(parseDynamicUpdate(doc.dynamicMappingsUpdate()).getRoot().getMapper("obj.sub.foo.bar"));
+        assertNotNull(parseDynamicUpdate(doc.dynamicMappingsUpdate()).getRoot().getMapper("sub.foo.bar"));
     }
 
     public void testDynamicFalseMatchesRoutingPath() throws IOException {
@@ -2630,72 +2851,6 @@ public class DocumentParserTests extends MapperServiceTestCase {
         }
     }
 
-    public void testMergeSubfieldWhileBuildingMappers() throws Exception {
-        MapperService mapperService = createMapperService();
-        /*
-        We had a bug (https://github.com/elastic/elasticsearch/issues/88573) building an object mapper (ObjectMapper.Builder#buildMappers).
-        A sub-field that already exists is merged with the existing one. As a result, the leaf field would get the wrong field path
-        (missing the first portion of its path). The only way to trigger this scenario for dynamic mappings is to either allow duplicate
-        JSON keys or ingest the same field with dots collapsed as well as expanded within the same document. Note that the two fields with
-        same name need to be part  of the same mappings (hence the same document). If they are in two distinct mappings they are properly
-        merged as part of RootObjectMapper#merge.
-         */
-        ParsedDocument doc = mapperService.documentMapper().parse(source("""
-            {
-              "foo" : {
-                "bar" : {
-                  "baz" : 1
-                }
-              },
-              "foo.bar.baz" : 2
-            }
-            """));
-        Mapping mapping = doc.dynamicMappingsUpdate();
-        assertNotNull(mapping);
-        Mapper fooMapper = mapping.getRoot().getMapper("foo");
-        assertNotNull(fooMapper);
-        assertTrue(fooMapper instanceof ObjectMapper);
-        Mapper barMapper = ((ObjectMapper) fooMapper).getMapper("bar");
-        assertTrue(barMapper instanceof ObjectMapper);
-        Mapper baz = ((ObjectMapper) barMapper).getMapper("baz");
-        assertNotNull(baz);
-        assertEquals("foo.bar.baz", baz.fullPath());
-        assertEquals("baz", baz.leafName());
-        List<IndexableField> fields = doc.rootDoc().getFields("foo.bar.baz");
-        assertEquals(2, fields.size());
-        String[] fieldStrings = fields.stream().map(Object::toString).toArray(String[]::new);
-        assertArrayEquals(new String[] { "LongField <foo.bar.baz:1>", "LongField <foo.bar.baz:2>" }, fieldStrings);
-
-        // merge without going through toXContent and reparsing, otherwise the potential leaf path issue gets fixed on its own
-        Mapping newMapping = MapperService.mergeMappings(
-            mapperService.documentMapper(),
-            mapping,
-            MapperService.MergeReason.MAPPING_UPDATE,
-            mapperService.getIndexSettings()
-        );
-        DocumentMapper newDocMapper = new DocumentMapper(
-            mapperService.documentParser(),
-            newMapping,
-            newMapping.toCompressedXContent(),
-            IndexVersion.current(),
-            MapperMetrics.NOOP,
-            "myIndex"
-        );
-        ParsedDocument doc2 = newDocMapper.parse(source("""
-            {
-              "foo" : {
-                "bar" : {
-                  "baz" : 10
-                }
-              }
-            }
-            """));
-        assertNull(doc2.dynamicMappingsUpdate());
-        List<IndexableField> fields2 = doc2.rootDoc().getFields("foo.bar.baz");
-        assertEquals(1, fields2.size());
-        assertEquals("LongField <foo.bar.baz:10>", fields2.get(0).toString());
-    }
-
     public void testDeeplyNestedDocument() throws Exception {
         int depth = 20;
 
@@ -2748,7 +2903,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
         for (String s : Arrays.asList("metrics.service.time.max", "metrics.service.time.min", "metrics.object.field")) {
             assertThat(parsedDocument.rootDoc().getField(s), instanceOf(LongField.class));
         }
-        ObjectMapper metrics = (ObjectMapper) parsedDocument.dynamicMappingsUpdate().getRoot().getMapper("metrics");
+        ObjectMapper metrics = (ObjectMapper) parseDynamicUpdate(parsedDocument.dynamicMappingsUpdate()).getRoot().getMapper("metrics");
         assertEquals(2, metrics.mappers.size());
         ObjectMapper object = (ObjectMapper) metrics.getMapper("object");
         assertThat(object.getMapper("field"), instanceOf(NumberFieldMapper.class));
@@ -2786,7 +2941,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
         for (String s : Arrays.asList("time", "time.min", "time.max")) {
             assertThat(parsedDocument.rootDoc().getField(s), instanceOf(LongField.class));
         }
-        RootObjectMapper root = parsedDocument.dynamicMappingsUpdate().getRoot();
+        RootObjectMapper root = parseDynamicUpdate(parsedDocument.dynamicMappingsUpdate()).getRoot();
         assertEquals(4, root.mappers.size());
         assertThat(root.getMapper("host.id"), instanceOf(TextFieldMapper.class));
         for (String s : Arrays.asList("time", "time.min", "time.max")) {
@@ -2809,7 +2964,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
             }
             """));
 
-        Mapping mappingsUpdate = doc.dynamicMappingsUpdate();
+        Mapping mappingsUpdate = parseDynamicUpdate(doc.dynamicMappingsUpdate());
         assertNotNull(mappingsUpdate);
         assertNull(mappingsUpdate.getRoot().getMapper("time"));
         assertNull(mappingsUpdate.getRoot().getMapper("time.range"));
@@ -2846,7 +3001,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
             assertThat(doc.rootDoc().getField(s), instanceOf(LongField.class));
         }
 
-        Mapping mappingsUpdate = doc.dynamicMappingsUpdate();
+        Mapping mappingsUpdate = parseDynamicUpdate(doc.dynamicMappingsUpdate());
         assertNotNull(mappingsUpdate);
 
         for (String s : Arrays.asList(
@@ -2895,11 +3050,53 @@ public class DocumentParserTests extends MapperServiceTestCase {
             assertThat(parsedDocument.rootDoc().getField(s), instanceOf(LongField.class));
         }
         assertNotNull(parsedDocument.dynamicMappingsUpdate());
-        RootObjectMapper root = parsedDocument.dynamicMappingsUpdate().getRoot();
+        RootObjectMapper root = parseDynamicUpdate(parsedDocument.dynamicMappingsUpdate()).getRoot();
         assertEquals(4, root.mappers.size());
         for (String s : Arrays.asList("service.time", "service.time.min", "service.time.max", "service.time.avg")) {
             assertThat(root.getMapper(s), instanceOf(NumberFieldMapper.class));
         }
+    }
+
+    public void testSubobjectsFalseWithStrictDynamicSkipsDynamicForMappedPrefix() throws Exception {
+        // Usage of dynamic=strict is important here, to test that DocumentParser#parseObjectDynamic(...) isn't invoked.
+        // DocumentParser#parseObjectDynamic(...) fails because dynamic=strict.
+        DocumentMapper mapper = createDocumentMapper(topMapping(b -> {
+            b.field("subobjects", false).field("dynamic", "strict");
+            b.startObject("properties");
+            {
+                b.startObject("host.name");
+                b.field("type", "keyword");
+                b.endObject();
+            }
+            b.endObject();
+        }));
+
+        // Object notation for a pre-mapped prefix must succeed. If parseObjectDynamic were
+        // called for "host", strict mode would throw "dynamic introduction of [host]".
+        ParsedDocument doc = mapper.parse(source("""
+            { "host": { "name": "localhost" } }
+            """));
+        assertThat(doc.rootDoc().getField("host.name"), instanceOf(KeywordFieldMapper.KeywordField.class));
+    }
+
+    public void testSubobjectsFalseWithStrictDynamicRejectsUnmappedPrefix() throws Exception {
+        // Usage of dynamic=strict is important here, to test that invoking DocumentParser#parseObjectDynamic(...) fails.
+        DocumentMapper mapper = createDocumentMapper(topMapping(b -> {
+            b.field("subobjects", false).field("dynamic", "strict");
+            b.startObject("properties");
+            {
+                b.startObject("host.name");
+                b.field("type", "keyword");
+                b.endObject();
+            }
+            b.endObject();
+        }));
+
+        // "env" has no mapped fields with it as a prefix, so the dynamic path is taken and strict rejects it.
+        DocumentParsingException ex = expectThrows(DocumentParsingException.class, () -> mapper.parse(source("""
+            { "env": { "name": "prod" } }
+            """)));
+        assertThat(ex.getMessage(), containsString("dynamic introduction of [env]"));
     }
 
     public void testSubobjectsFalseDocWithInnerObjectsNullValues() throws Exception {
@@ -3025,7 +3222,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
             """));
         assertThat(parsedDocument.rootDoc().getField("metrics.service.time.min"), instanceOf(LongField.class));
         assertNotNull(parsedDocument.dynamicMappingsUpdate());
-        RootObjectMapper root = parsedDocument.dynamicMappingsUpdate().getRoot();
+        RootObjectMapper root = parseDynamicUpdate(parsedDocument.dynamicMappingsUpdate()).getRoot();
         assertEquals(1, root.mappers.size());
         ObjectMapper metrics = (ObjectMapper) root.getMapper("metrics");
         assertNotNull(metrics);
@@ -3063,7 +3260,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
         assertThat(parsedDocument.rootDoc().getField("metrics.service.time.current.min"), instanceOf(LongField.class));
         assertThat(parsedDocument.rootDoc().getField("metrics.service.time.current.max"), instanceOf(LongField.class));
         assertNotNull(parsedDocument.dynamicMappingsUpdate());
-        RootObjectMapper root = parsedDocument.dynamicMappingsUpdate().getRoot();
+        RootObjectMapper root = parseDynamicUpdate(parsedDocument.dynamicMappingsUpdate()).getRoot();
         assertEquals(1, root.mappers.size());
         Mapper metrics = root.getMapper("metrics");
         assertNotNull(metrics);
@@ -3146,7 +3343,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
         }
 
         assertNotNull(parsedDocument.dynamicMappingsUpdate());
-        RootObjectMapper root = parsedDocument.dynamicMappingsUpdate().getRoot();
+        RootObjectMapper root = parseDynamicUpdate(parsedDocument.dynamicMappingsUpdate()).getRoot();
         assertEquals(1, root.mappers.size());
         ObjectMapper metrics = (ObjectMapper) root.getMapper("metrics");
         assertEquals(4, metrics.mappers.size());
@@ -3175,7 +3372,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
         }
 
         assertNotNull(parsedDocument.dynamicMappingsUpdate());
-        RootObjectMapper root = parsedDocument.dynamicMappingsUpdate().getRoot();
+        RootObjectMapper root = parseDynamicUpdate(parsedDocument.dynamicMappingsUpdate()).getRoot();
         assertEquals(1, root.mappers.size());
         ObjectMapper metrics = (ObjectMapper) root.getMapper("metrics");
         assertEquals(2, metrics.mappers.size());
@@ -3216,10 +3413,53 @@ public class DocumentParserTests extends MapperServiceTestCase {
             """));
 
         assertThat(parsedDocument.rootDoc().getField("location"), instanceOf(GeoPointFieldMapper.LatLonPointWithDocValues.class));
-        RootObjectMapper root = parsedDocument.dynamicMappingsUpdate().getRoot();
+        RootObjectMapper root = parseDynamicUpdate(parsedDocument.dynamicMappingsUpdate()).getRoot();
         assertEquals(1, root.mappers.size());
         assertThat(root.getMapper("location"), instanceOf(GeoPointFieldMapper.class));
         assertNotNull(parsedDocument.dynamicMappingsUpdate());
+    }
+
+    /**
+     * When subobjects are disabled, an intermediate object that matches no dynamic template is auto-flattened:
+     * its children are mapped as leaf fields prefixed with the object's name.
+     */
+    public void testSubobjectsFalseObjectWithNoMatchingDynamicTemplateIsFlattened() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(topMapping(b -> {
+            b.startArray("dynamic_templates");
+            {
+                b.startObject();
+                b.startObject("timestamps");
+                {
+                    b.field("match", "timestamp");
+                    b.startObject("mapping");
+                    {
+                        b.field("type", "date");
+                    }
+                    b.endObject();
+                }
+                b.endObject();
+                b.endObject();
+            }
+            b.endArray();
+            b.field("subobjects", false);
+        }));
+
+        ParsedDocument parsedDocument = mapper.parse(source("""
+            {
+              "metrics" : {
+                "cpu": 1.5,
+                "memory": 2.0
+              }
+            }
+            """));
+
+        // The intermediate "metrics" object must not appear as a mapper; its children are flattened.
+        RootObjectMapper root = parseDynamicUpdate(parsedDocument.dynamicMappingsUpdate()).getRoot();
+        assertNull(root.getMapper("metrics"));
+        assertThat(root.getMapper("metrics.cpu"), instanceOf(NumberFieldMapper.class));
+        assertThat(root.getMapper("metrics.memory"), instanceOf(NumberFieldMapper.class));
+        assertNotNull(parsedDocument.rootDoc().getField("metrics.cpu"));
+        assertNotNull(parsedDocument.rootDoc().getField("metrics.memory"));
     }
 
     public void testSubobjectsFalseIngestDifferentObjectsRepresentation() throws Exception {
@@ -3266,10 +3506,394 @@ public class DocumentParserTests extends MapperServiceTestCase {
             assertNotNull(doc.dynamicMappingsUpdate());
             for (String s : Arrays.asList("foo.bar.baz.max", "foo.bar.baz.min")) {
                 assertThat(doc.rootDoc().getField(s), instanceOf(LongField.class));
-                assertThat(doc.dynamicMappingsUpdate().getRoot().getMapper(s), instanceOf(NumberFieldMapper.class));
+                assertThat(parseDynamicUpdate(doc.dynamicMappingsUpdate()).getRoot().getMapper(s), instanceOf(NumberFieldMapper.class));
 
             }
         }
+    }
+
+    public void testArrayObjectsLimitAtExactLimit() throws Exception {
+        int limit = 3;
+        DocumentMapper mapper = createMapperService(
+            Settings.builder().put(getIndexSettings()).put(MapperService.INDEX_MAPPING_ARRAY_OBJECTS_LIMIT_SETTING.getKey(), limit).build(),
+            mapping(b -> {})
+        ).documentMapper();
+
+        mapper.parse(source(b -> {
+            b.startArray("array");
+            for (int i = 0; i < limit; i++) {
+                b.startObject().field("value", i).endObject();
+            }
+            b.endArray();
+        }));
+    }
+
+    public void testArrayObjectsLimitExceeded() throws Exception {
+        int limit = 3;
+        DocumentMapper mapper = createMapperService(
+            Settings.builder().put(getIndexSettings()).put(MapperService.INDEX_MAPPING_ARRAY_OBJECTS_LIMIT_SETTING.getKey(), limit).build(),
+            mapping(b -> {})
+        ).documentMapper();
+
+        DocumentParsingException e = expectThrows(DocumentParsingException.class, () -> mapper.parse(source(b -> {
+            b.startArray("array");
+            for (int i = 0; i < limit + 1; i++) {
+                b.startObject().field("value", i).endObject();
+            }
+            b.endArray();
+        })));
+        assertThat(
+            e.getMessage(),
+            containsString(
+                "The total number of objects across all arrays in the document has exceeded the allowed limit of [" + limit + "]"
+            )
+        );
+    }
+
+    public void testArrayObjectsLimitWithMixedMappedAndDynamicFields() throws Exception {
+        int limit = 3;
+        DocumentMapper mapper = createMapperService(
+            Settings.builder().put(getIndexSettings()).put(MapperService.INDEX_MAPPING_ARRAY_OBJECTS_LIMIT_SETTING.getKey(), limit).build(),
+            mapping(b -> {
+                b.startObject("array").startObject("properties");
+                b.startObject("value").field("type", "integer").endObject();
+                b.endObject().endObject();
+            })
+        ).documentMapper();
+
+        DocumentParsingException e = expectThrows(DocumentParsingException.class, () -> mapper.parse(source(b -> {
+            b.startArray("array");
+            for (int i = 0; i < limit + 1; i++) {
+                b.startObject().field("value", i).endObject();
+            }
+            b.endArray();
+        })));
+        assertThat(
+            e.getMessage(),
+            containsString(
+                "The total number of objects across all arrays in the document has exceeded the allowed limit of [" + limit + "]"
+            )
+        );
+    }
+
+    public void testArrayObjectsLimitNestedArraysCountCumulatively() throws Exception {
+        int limit = 2;
+        DocumentMapper mapper = createMapperService(
+            Settings.builder().put(getIndexSettings()).put(MapperService.INDEX_MAPPING_ARRAY_OBJECTS_LIMIT_SETTING.getKey(), limit).build(),
+            mapping(b -> {})
+        ).documentMapper();
+
+        DocumentParsingException e = expectThrows(DocumentParsingException.class, () -> mapper.parse(source(b -> {
+            b.startObject("outer");
+            b.startArray("a");
+            for (int i = 0; i < limit; i++) {
+                b.startObject().field("v", i).endObject();
+            }
+            b.endArray();
+            b.startArray("b");
+            for (int i = 0; i < limit; i++) {
+                b.startObject().field("v", i).endObject();
+            }
+            b.endArray();
+            b.endObject();
+        })));
+        assertThat(
+            e.getMessage(),
+            containsString(
+                "The total number of objects across all arrays in the document has exceeded the allowed limit of [" + limit + "]"
+            )
+        );
+    }
+
+    public void testArrayObjectsLimitSiblingArraysCountCumulatively() throws Exception {
+        int limit = 2;
+        DocumentMapper mapper = createMapperService(
+            Settings.builder().put(getIndexSettings()).put(MapperService.INDEX_MAPPING_ARRAY_OBJECTS_LIMIT_SETTING.getKey(), limit).build(),
+            mapping(b -> {})
+        ).documentMapper();
+
+        DocumentParsingException e = expectThrows(DocumentParsingException.class, () -> mapper.parse(source(b -> {
+            b.startArray("arrayA");
+            for (int i = 0; i < limit; i++) {
+                b.startObject().field("v", i).endObject();
+            }
+            b.endArray();
+            b.startArray("arrayB");
+            b.startObject().field("v", 0).endObject();
+            b.endArray();
+        })));
+        assertThat(
+            e.getMessage(),
+            containsString(
+                "The total number of objects across all arrays in the document has exceeded the allowed limit of [" + limit + "]"
+            )
+        );
+    }
+
+    public void testArrayObjectsLimitDeeplyNestedArraysCountCumulatively() throws Exception {
+        int limit = 3;
+        DocumentMapper mapper = createMapperService(
+            Settings.builder().put(getIndexSettings()).put(MapperService.INDEX_MAPPING_ARRAY_OBJECTS_LIMIT_SETTING.getKey(), limit).build(),
+            mapping(b -> {})
+        ).documentMapper();
+
+        DocumentParsingException e = expectThrows(DocumentParsingException.class, () -> mapper.parse(source(b -> {
+            b.startArray("outer");
+            for (int i = 0; i < 2; i++) {
+                b.startArray();
+                for (int j = 0; j < limit; j++) {
+                    b.startObject().field("v", j).endObject();
+                }
+                b.endArray();
+            }
+            b.endArray();
+        })));
+        assertThat(
+            e.getMessage(),
+            containsString(
+                "The total number of objects across all arrays in the document has exceeded the allowed limit of [" + limit + "]"
+            )
+        );
+    }
+
+    public void testArrayObjectsLimitEmptyArrayAccepted() throws Exception {
+        DocumentMapper mapper = createMapperService(
+            Settings.builder().put(getIndexSettings()).put(MapperService.INDEX_MAPPING_ARRAY_OBJECTS_LIMIT_SETTING.getKey(), 1).build(),
+            mapping(b -> {})
+        ).documentMapper();
+
+        mapper.parse(source(b -> {
+            b.startArray("array");
+            b.endArray();
+        }));
+    }
+
+    public void testArrayObjectsLimitRejectsNonPositiveValues() {
+
+        for (long invalid : new long[] { 0L, -1L, Long.MIN_VALUE }) {
+            IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> MapperService.INDEX_MAPPING_ARRAY_OBJECTS_LIMIT_SETTING.get(
+                    Settings.builder().put(MapperService.INDEX_MAPPING_ARRAY_OBJECTS_LIMIT_SETTING.getKey(), invalid).build()
+                )
+            );
+            assertThat(e.getMessage(), containsString(MapperService.INDEX_MAPPING_ARRAY_OBJECTS_LIMIT_SETTING.getKey()));
+        }
+    }
+
+    public void testArrayObjectsLimitAcceptsUnboundedSentinel() throws Exception {
+        DocumentMapper mapper = createMapperService(
+            Settings.builder()
+                .put(getIndexSettings())
+                .put(MapperService.INDEX_MAPPING_ARRAY_OBJECTS_LIMIT_SETTING.getKey(), Long.MAX_VALUE)
+                .build(),
+            mapping(b -> {})
+        ).documentMapper();
+
+        mapper.parse(source(b -> {
+            b.startArray("array");
+            for (int i = 0; i < 1000; i++) {
+                b.startObject().field("value", i).endObject();
+            }
+            b.endArray();
+        }));
+    }
+
+    public void testArrayObjectsLimitAppliesToNestedObjectArrays() throws Exception {
+        int limit = 2;
+        DocumentMapper mapper = createMapperService(
+            Settings.builder().put(getIndexSettings()).put(MapperService.INDEX_MAPPING_ARRAY_OBJECTS_LIMIT_SETTING.getKey(), limit).build(),
+            mapping(b -> {
+                b.startObject("children");
+                b.field("type", "nested");
+                b.endObject();
+            })
+        ).documentMapper();
+
+        DocumentParsingException e = expectThrows(DocumentParsingException.class, () -> mapper.parse(source(b -> {
+            b.startArray("children");
+            for (int i = 0; i < limit + 1; i++) {
+                b.startObject().field("value", i).endObject();
+            }
+            b.endArray();
+        })));
+        assertThat(
+            e.getMessage(),
+            containsString(
+                "The total number of objects across all arrays in the document has exceeded the allowed limit of [" + limit + "]"
+            )
+        );
+    }
+
+    public void testArrayObjectsLimitIsIndependentOfNestedDocsLimit() throws Exception {
+        int arrayLimit = 5;
+        DocumentMapper mapper = createMapperService(
+            Settings.builder()
+                .put(getIndexSettings())
+                .put(MapperService.INDEX_MAPPING_ARRAY_OBJECTS_LIMIT_SETTING.getKey(), arrayLimit)
+                .put(MapperService.INDEX_MAPPING_NESTED_DOCS_LIMIT_SETTING.getKey(), 1000L)
+                .build(),
+            mapping(b -> {
+                b.startObject("children");
+                b.field("type", "nested");
+                b.endObject();
+            })
+        ).documentMapper();
+
+        mapper.parse(source(b -> {
+            b.startArray("children");
+            for (int i = 0; i < arrayLimit; i++) {
+                b.startObject().field("value", i).endObject();
+            }
+            b.endArray();
+        }));
+    }
+
+    public void testArrayObjectsLimitCountsCopyToDestinations() throws Exception {
+        int limit = 2;
+        DocumentMapper mapper = createMapperService(
+            Settings.builder().put(getIndexSettings()).put(MapperService.INDEX_MAPPING_ARRAY_OBJECTS_LIMIT_SETTING.getKey(), limit).build(),
+            mapping(b -> {
+                b.startObject("source");
+                b.field("type", "object");
+                b.startObject("properties");
+                b.startObject("value").field("type", "keyword").field("copy_to", "destination").endObject();
+                b.endObject();
+                b.endObject();
+                b.startObject("destination").field("type", "keyword").endObject();
+            })
+        ).documentMapper();
+
+        DocumentParsingException e = expectThrows(DocumentParsingException.class, () -> mapper.parse(source(b -> {
+            b.startArray("source");
+            for (int i = 0; i < limit + 1; i++) {
+                b.startObject().field("value", "v" + i).endObject();
+            }
+            b.endArray();
+        })));
+        assertThat(
+            e.getMessage(),
+            containsString(
+                "The total number of objects across all arrays in the document has exceeded the allowed limit of [" + limit + "]"
+            )
+        );
+    }
+
+    /**
+     * Verifies that keyword array order inside a logsdb object array is preserved. In logsdb,
+     * source_keep defaults to ARRAYS for object mappers, causing addIgnoredFieldFromContext at the
+     * object array level. The keyword's offset recording must still work correctly within this context.
+     */
+    public void testSyntheticSourceKeywordArrayInsideLogsdbObjectArray() throws IOException {
+        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), "logsdb").build();
+        DocumentMapper mapper = createMapperService(
+            settings,
+            mapping(
+                b -> b.startObject("obj")
+                    .field("type", "object")
+                    .startObject("properties")
+                    .startObject("kw")
+                    .field("type", "keyword")
+                    .endObject()
+                    .endObject()
+                    .endObject()
+            )
+        ).documentMapper();
+
+        String result = syntheticSource(mapper, b -> {
+            b.startArray("obj");
+            {
+                b.startObject();
+                b.array("kw", "b", "a");
+                b.endObject();
+            }
+            b.endArray();
+            b.field("@timestamp", "2024-01-01T00:00:00Z");
+        });
+        assertThat(result, containsString("\"kw\":[\"b\",\"a\"]"));
+    }
+
+    /**
+     * Verifies that keyword array order is preserved inside a logsdb-like object array
+     * when the keyword array contains a trailing nested empty array. The trailing empty
+     * array causes maybeRecordEmptyArray to create offset metadata. With addIgnoredFieldFromContext
+     * storing per-value data for fields with native offset support (our fix), the _ignored_source
+     * at the object level faithfully preserves both the keyword values and the empty sub-array.
+     */
+    public void testSyntheticSourceKeywordArrayWithTrailingEmptyArrayInObjectArray() throws IOException {
+        Settings settings = Settings.builder()
+            .put("index.mapping.source.mode", "synthetic")
+            .put("index.mapping.synthetic_source_keep", "arrays")
+            .build();
+        DocumentMapper mapper = createMapperService(
+            settings,
+            mapping(
+                b -> b.startObject("obj")
+                    .field("type", "object")
+                    .startObject("properties")
+                    .startObject("kw")
+                    .field("type", "keyword")
+                    .endObject()
+                    .endObject()
+                    .endObject()
+            )
+        ).documentMapper();
+
+        String result = syntheticSource(mapper, b -> {
+            b.startArray("obj");
+            {
+                b.startObject();
+                b.startArray("kw");
+                b.value("b");
+                b.value("a");
+                b.startArray().endArray();
+                b.endArray();
+                b.endObject();
+            }
+            b.endArray();
+        });
+        assertThat(result, containsString("\"kw\":[\"b\",\"a\",[]]"));
+    }
+
+    /**
+     * Verifies that parseObject restores immediateXContentParent after parsing a flattened object
+     * element in a keyword array. With subobjects=false, objects in a keyword array are flattened
+     * rather than rejected. Without restoring the parent, subsequent value elements in the same
+     * array see START_OBJECT instead of START_ARRAY, preventing offset recording.
+     */
+    public void testSyntheticSourceKeywordArrayWithFlattenedObjectRestoresParent() throws IOException {
+        Settings settings = Settings.builder()
+            .put("index.mapping.source.mode", "synthetic")
+            .put("index.mapping.synthetic_source_keep", "arrays")
+            .build();
+        DocumentMapper mapper = createMapperService(
+            settings,
+            mapping(
+                b -> b.startObject("parent")
+                    .field("type", "object")
+                    .field("subobjects", false)
+                    .startObject("properties")
+                    .startObject("kw")
+                    .field("type", "keyword")
+                    .endObject()
+                    .startObject("kw.sub")
+                    .field("type", "keyword")
+                    .endObject()
+                    .endObject()
+                    .endObject()
+            )
+        ).documentMapper();
+
+        String result = syntheticSource(mapper, b -> {
+            b.startObject("parent");
+            b.startArray("kw");
+            b.startObject().field("sub", "x").endObject();
+            b.value("b");
+            b.value("a");
+            b.endArray();
+            b.endObject();
+        });
+        assertThat(result, containsString("\"kw\":[\"b\",\"a\"]"));
     }
 
     /**

@@ -30,8 +30,8 @@ GET sales/_search
   }
 }
 ```
-%  TEST[setup:sales]
-%  TEST[s/_search/_search\?filter_path=aggregations/]
+% TEST[setup:sales]
+% TEST[s/_search/_search\?filter_path=aggregations/]
 
 Response:
 
@@ -88,8 +88,8 @@ GET sales/_search
   }
 }
 ```
-%  TEST[setup:sales]
-%  TEST[s/_search/_search\?filter_path=aggregations/]
+% TEST[setup:sales]
+% TEST[s/_search/_search\?filter_path=aggregations/]
 
 Response:
 
@@ -141,8 +141,8 @@ GET sales/_search
   }
 }
 ```
-%  TEST[setup:sales]
-%  TEST[s/_search/_search\?filter_path=aggregations/]
+% TEST[setup:sales]
+% TEST[s/_search/_search\?filter_path=aggregations/]
 
 Response:
 
@@ -208,8 +208,8 @@ GET sales/_search
   }
 }
 ```
-%  TEST[setup:sales]
-%  TEST[s/_search/_search\?filter_path=aggregations/]
+% TEST[setup:sales]
+% TEST[s/_search/_search\?filter_path=aggregations/]
 
 ## Sub Aggregations [_sub_aggregations_2]
 
@@ -239,8 +239,8 @@ GET sales/_search
   }
 }
 ```
-%  TEST[setup:sales]
-%  TEST[s/_search/_search\?filter_path=aggregations/]
+% TEST[setup:sales]
+% TEST[s/_search/_search\?filter_path=aggregations/]
 
 Response:
 
@@ -296,7 +296,7 @@ Response:
 
 ## Histogram fields [search-aggregations-bucket-range-aggregation-histogram-fields]
 
-Running a range aggregation over histogram fields computes the total number of counts for each configured range.
+Running a range aggregation over histogram fields computes the total number of counts for each configured range. The same applies to [exponential histogram fields](/reference/elasticsearch/mapping-reference/exponential-histogram.md) {applies_to}`stack: ga 9.4`.
 
 This is done without interpolating between the histogram field values. Consequently, it is possible to have a range that is "in-between" two histogram values. The resulting range bucket would have a zero doc count.
 

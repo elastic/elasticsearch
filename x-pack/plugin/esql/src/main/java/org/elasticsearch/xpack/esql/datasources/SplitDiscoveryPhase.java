@@ -1,0 +1,152 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+package org.elasticsearch.xpack.esql.datasources;
+
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceFactory;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
+import org.elasticsearch.xpack.esql.datasources.spi.FileList;
+import org.elasticsearch.xpack.esql.datasources.spi.SplitDiscoveryContext;
+import org.elasticsearch.xpack.esql.datasources.spi.SplitProvider;
+import org.elasticsearch.xpack.esql.plan.physical.ExternalSourceExec;
+import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
+import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.esql.plan.physical.UnaryExec;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+
+import static org.elasticsearch.xpack.esql.expression.predicate.Predicates.splitAnd;
+
+/**
+ * Walks the physical plan tree, discovers splits for each {@link ExternalSourceExec},
+ * and replaces them with split-enriched copies via {@link ExternalSourceExec#withSplits}.
+ *
+ * <p>Filter expressions from {@link FilterExec} ancestors are collected per-source so that
+ * each {@link ExternalSourceExec} only receives filters from its own ancestor chain, not
+ * from unrelated branches of the plan tree.
+ */
+public final class SplitDiscoveryPhase {
+
+    private SplitDiscoveryPhase() {}
+
+    public static PhysicalPlan resolveExternalSplits(PhysicalPlan plan, Map<String, ExternalSourceFactory> sourceFactories) {
+        return resolveExternalSplits(
+            plan,
+            sourceFactories,
+            org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES
+        );
+    }
+
+    public static PhysicalPlan resolveExternalSplits(
+        PhysicalPlan plan,
+        Map<String, ExternalSourceFactory> sourceFactories,
+        int maxRecordBytes
+    ) {
+        return resolveRecursive(plan, List.of(), sourceFactories, maxRecordBytes);
+    }
+
+    private static PhysicalPlan resolveRecursive(
+        PhysicalPlan plan,
+        List<Expression> ancestorFilters,
+        Map<String, ExternalSourceFactory> sourceFactories,
+        int maxRecordBytes
+    ) {
+        if (plan instanceof ExternalSourceExec exec) {
+            return resolveExternalSource(exec, ancestorFilters, sourceFactories, maxRecordBytes);
+        }
+
+        List<Expression> filtersForChildren = ancestorFilters;
+        if (plan instanceof FilterExec filterExec) {
+            List<Expression> extended = new ArrayList<>(ancestorFilters);
+            for (Expression conjunction : splitAnd(filterExec.condition())) {
+                extended.add(conjunction);
+            }
+            filtersForChildren = List.copyOf(extended);
+        }
+
+        List<PhysicalPlan> children = plan.children();
+        if (children.isEmpty()) {
+            return plan;
+        }
+
+        boolean changed = false;
+        List<PhysicalPlan> newChildren = new ArrayList<>(children.size());
+        for (PhysicalPlan child : children) {
+            PhysicalPlan resolved = resolveRecursive(child, filtersForChildren, sourceFactories, maxRecordBytes);
+            if (resolved != child) {
+                changed = true;
+            }
+            newChildren.add(resolved);
+        }
+
+        if (changed == false) {
+            return plan;
+        }
+
+        if (plan instanceof UnaryExec unary && newChildren.size() == 1) {
+            return unary.replaceChild(newChildren.get(0));
+        }
+        return plan.replaceChildren(newChildren);
+    }
+
+    private static PhysicalPlan resolveExternalSource(
+        ExternalSourceExec exec,
+        List<Expression> ancestorFilters,
+        Map<String, ExternalSourceFactory> sourceFactories,
+        int maxRecordBytes
+    ) {
+        ExternalSourceFactory factory = sourceFactories.get(exec.sourceType());
+        SplitProvider splitProvider = factory != null ? factory.splitProvider() : SplitProvider.SINGLE;
+
+        FileList fileList = exec.fileList();
+        PartitionMetadata partitionInfo = fileList != null ? fileList.partitionMetadata() : null;
+
+        List<Attribute> queryDataAttributes = new ArrayList<>(exec.output().size());
+        for (Attribute attr : exec.output()) {
+            if (attr instanceof MetadataAttribute == false) {
+                queryDataAttributes.add(attr);
+            }
+        }
+        ExternalSchema querySchema = new ExternalSchema(queryDataAttributes);
+
+        SplitDiscoveryContext context = new SplitDiscoveryContext(
+            null,
+            fileList != null ? fileList : FileList.UNRESOLVED,
+            exec.schemaMap(),
+            exec.config(),
+            partitionInfo,
+            ancestorFilters,
+            querySchema,
+            exec.unifiedSchema(),
+            maxRecordBytes
+        );
+
+        List<ExternalSplit> splits;
+        try {
+            splits = splitProvider.discoverSplits(context);
+        } catch (ElasticsearchException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new ElasticsearchException(
+                "failed to discover splits for external source [{}] of type [{}]",
+                e,
+                exec.sourcePath(),
+                exec.sourceType()
+            );
+        }
+        if (splits.isEmpty()) {
+            return exec;
+        }
+        return exec.withSplits(splits);
+    }
+}

@@ -106,7 +106,7 @@ public class StemmerTokenFilterFactoryTests extends ESTokenStreamTestCase {
     }
 
     public void testGermanAndGerman2Stemmer() throws IOException {
-        IndexVersion v = IndexVersionUtils.randomVersionBetween(random(), IndexVersions.UPGRADE_TO_LUCENE_10_0_0, IndexVersion.current());
+        IndexVersion v = IndexVersionUtils.randomVersionBetween(IndexVersions.UPGRADE_TO_LUCENE_10_0_0, IndexVersion.current());
         Analyzer analyzer = createGermanStemmer("german", v);
         assertAnalyzesTo(analyzer, "Buecher Bücher", new String[] { "Buch", "Buch" });
 
@@ -141,6 +141,29 @@ public class StemmerTokenFilterFactoryTests extends ESTokenStreamTestCase {
         return analyzer;
     }
 
+    public void testNynorskStemmers() throws IOException {
+        for (String language : new String[] { "light_nynorsk", "lightNynorsk", "minimal_nynorsk", "minimalNynorsk" }) {
+            IndexVersion v = IndexVersionUtils.randomVersion();
+            Settings settings = Settings.builder()
+                .put("index.analysis.filter.my_nynorsk.type", "stemmer")
+                .put("index.analysis.filter.my_nynorsk.language", language)
+                .put("index.analysis.analyzer.my_nynorsk.tokenizer", "whitespace")
+                .put("index.analysis.analyzer.my_nynorsk.filter", "my_nynorsk")
+                .put(SETTING_VERSION_CREATED, v)
+                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
+                .build();
+
+            ESTestCase.TestAnalysis analysis = AnalysisTestsHelper.createTestAnalysisFromSettings(settings, PLUGIN);
+            TokenFilterFactory tokenFilter = analysis.tokenFilter.get("my_nynorsk");
+            assertThat(tokenFilter, instanceOf(StemmerTokenFilterFactory.class));
+            Tokenizer tokenizer = new WhitespaceTokenizer();
+            tokenizer.setReader(new StringReader("jenta"));
+            // Constructing the filter must not throw (see https://github.com/elastic/elasticsearch/issues/150341)
+            TokenStream create = tokenFilter.create(tokenizer);
+            assertNotNull(create);
+        }
+    }
+
     public void testKpDeprecation() throws IOException {
         IndexVersion v = IndexVersionUtils.randomVersion();
         Settings settings = Settings.builder()
@@ -151,7 +174,7 @@ public class StemmerTokenFilterFactoryTests extends ESTokenStreamTestCase {
             .build();
 
         AnalysisTestsHelper.createTestAnalysisFromSettings(settings, PLUGIN);
-        assertCriticalWarnings("The [dutch_kp] stemmer is deprecated and will be removed in a future version.");
+        assertWarnings("The [dutch_kp] stemmer is deprecated and will be removed in a future version.");
     }
 
     public void testLovinsDeprecation() throws IOException {
@@ -164,6 +187,6 @@ public class StemmerTokenFilterFactoryTests extends ESTokenStreamTestCase {
             .build();
 
         AnalysisTestsHelper.createTestAnalysisFromSettings(settings, PLUGIN);
-        assertCriticalWarnings("The [lovins] stemmer is deprecated and will be removed in a future version.");
+        assertWarnings("The [lovins] stemmer is deprecated and will be removed in a future version.");
     }
 }

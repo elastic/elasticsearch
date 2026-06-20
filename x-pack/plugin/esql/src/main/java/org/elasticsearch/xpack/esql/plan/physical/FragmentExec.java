@@ -7,13 +7,13 @@
 
 package org.elasticsearch.xpack.esql.plan.physical;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
+import org.elasticsearch.xpack.esql.core.tree.NodeStringMapper;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -53,11 +53,7 @@ public class FragmentExec extends LeafExec implements EstimatesRowSize {
         super(Source.readFrom((PlanStreamInput) in));
         this.fragment = in.readNamedWriteable(LogicalPlan.class);
         this.esFilter = in.readOptionalNamedWriteable(QueryBuilder.class);
-        if (in.getTransportVersion().supports(TransportVersions.V_8_18_0)) {
-            this.estimatedRowSize = in.readVInt();
-        } else {
-            this.estimatedRowSize = Objects.requireNonNull(in.readOptionalVInt());
-        }
+        this.estimatedRowSize = in.readVInt();
     }
 
     @Override
@@ -65,11 +61,7 @@ public class FragmentExec extends LeafExec implements EstimatesRowSize {
         Source.EMPTY.writeTo(out);
         out.writeNamedWriteable(fragment());
         out.writeOptionalNamedWriteable(esFilter());
-        if (out.getTransportVersion().supports(TransportVersions.V_8_18_0)) {
-            out.writeVInt(estimatedRowSize);
-        } else {
-            out.writeOptionalVInt(estimatedRowSize());
-        }
+        out.writeVInt(estimatedRowSize);
     }
 
     @Override
@@ -137,17 +129,15 @@ public class FragmentExec extends LeafExec implements EstimatesRowSize {
     }
 
     @Override
-    public String nodeString() {
-        StringBuilder sb = new StringBuilder();
+    public void nodeString(StringBuilder sb, NodeStringFormat format, NodeStringMapper mapper) {
         sb.append(nodeName());
-        sb.append("[filter=");
-        sb.append(esFilter);
-        sb.append(", estimatedRowSize=");
-        sb.append(estimatedRowSize);
-        sb.append(", reducer=[");
-        sb.append("], fragment=[<>\n");
-        sb.append(fragment.toString());
+        // esFilter is a raw QueryBuilder DSL from request.filter() — opaque content; route it through
+        // the opaque mapper so it prints raw under identity and redacts under anonymization.
+        sb.append("[filter=").append(mapper.opaque(String.valueOf(esFilter)));
+        sb.append(", estimatedRowSize=").append(estimatedRowSize);
+        sb.append(", reducer=[], fragment=[<>\n");
+        sb.append(fragment.toString(format, mapper));
         sb.append("<>]]");
-        return sb.toString();
     }
+
 }

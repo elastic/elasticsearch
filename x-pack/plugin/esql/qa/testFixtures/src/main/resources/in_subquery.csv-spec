@@ -1,0 +1,2823 @@
+// CSV spec for IN and NOT IN subqueries
+
+basicInSubquery
+required_capability: where_in_subquery_without_view
+
+FROM employees
+| WHERE emp_no IN (FROM employees | SORT emp_no ASC | LIMIT 3 | KEEP emp_no)
+| SORT emp_no
+| KEEP emp_no, first_name
+;
+
+emp_no:integer | first_name:keyword
+10001          | Georgi
+10002          | Bezalel
+10003          | Parto
+;
+
+basicNotInSubquery
+required_capability: where_in_subquery_without_view
+
+FROM employees
+| WHERE emp_no NOT IN (FROM employees | SORT emp_no ASC | LIMIT 3 | KEEP emp_no)
+| SORT emp_no
+| KEEP emp_no, first_name
+| LIMIT 3
+;
+
+emp_no:integer | first_name:keyword
+10004          | Chirstian
+10005          | Kyoichi
+10006          | Anneke
+;
+
+inSubqueryEmptyResults
+required_capability: where_in_subquery_without_view
+
+FROM employees
+| WHERE emp_no IN (FROM employees | WHERE salary > 100000 | KEEP emp_no)
+| SORT emp_no
+| KEEP emp_no
+;
+
+emp_no:integer
+;
+
+notInSubqueryEmptyResults
+required_capability: where_in_subquery_without_view
+
+FROM employees
+| WHERE emp_no NOT IN (FROM employees | WHERE salary < 10000 | KEEP emp_no)
+| SORT emp_no
+| KEEP emp_no
+| LIMIT 3
+;
+
+emp_no:integer
+10001
+10002
+10003
+;
+
+inSubqueryWithStatsInsideInSubquery
+required_capability: where_in_subquery_without_view
+
+FROM employees
+| WHERE salary IN (FROM employees | STATS m = max(salary) by languages | KEEP m)
+| KEEP emp_no, salary, languages
+| SORT emp_no
+;
+
+emp_no:integer | salary:integer | languages:integer
+10007          | 74572          | 4
+10019          | 73717          | 1
+10029          | 74999          | null
+10045          | 74970          | 3
+10094          | 66817          | 5
+10099          | 73578          | 2
+;
+
+inSubqueryWithStatsBeforeAndAfterInSubquery
+required_capability: where_in_subquery_without_view
+
+FROM employees
+| STATS cnt = COUNT(*) BY gender
+| WHERE gender IN (FROM employees | KEEP gender)
+| STATS cnt = COUNT(*)
+;
+
+cnt:long
+2
+;
+
+inSubqueryWithStatsInsideAndAfterInSubquery
+required_capability: where_in_subquery_without_view
+
+FROM employees
+| WHERE salary IN (FROM employees | STATS m = max(salary) by languages | KEEP m)
+| STATS cnt = COUNT(*) BY gender
+| SORT gender
+;
+
+cnt:long | gender:keyword
+3        | F
+2        | M
+1        | null
+;
+
+inSubqueryWithStatsAfterInSubqueryWithNull
+required_capability: where_in_subquery_without_view
+
+FROM employees
+| WHERE first_name IN (FROM employees | KEEP first_name)
+| STATS cnt = COUNT(*)
+;
+
+cnt:long
+90
+;
+
+inSubqueryWithInlineStatsInsideInSubquery
+required_capability: where_in_subquery_without_view
+
+FROM employees
+| WHERE salary IN (FROM employees | INLINE STATS m = max(salary) by languages | KEEP m)
+| KEEP emp_no, salary
+| SORT emp_no
+;
+
+emp_no:integer | salary:integer
+10007          | 74572
+10019          | 73717
+10029          | 74999
+10045          | 74970
+10094          | 66817
+10099          | 73578
+;
+
+inSubqueryWithInlineStatsBeforeInSubquery
+required_capability: where_in_subquery_without_view
+
+FROM employees
+| INLINE STATS cnt = COUNT(*) BY gender
+| WHERE first_name IN (FROM employees | WHERE salary < 30000 | KEEP first_name)
+| KEEP first_name, salary, cnt
+| SORT salary DESC
+;
+
+first_name:keyword | salary:integer | cnt:long
+Breannda           | 29175          | 57
+Charlene           | 28941          | 57
+Yongqiao           | 28336          | 57
+Tuval              | 28035          | 57
+Ebbe               | 27215          | 33
+Florian            | 26436          | 57
+Valdiodio          | 25976          | 33
+Guoxiang           | 25324          | 10
+;
+
+inSubqueryWithInlineStatsAfterInSubqueryWithNull
+required_capability: where_in_subquery_without_view
+
+FROM employees
+| WHERE first_name IN (FROM employees | KEEP first_name)
+| INLINE STATS cnt = COUNT(*)
+| KEEP cnt
+| LIMIT 1
+;
+
+cnt:long
+90
+;
+
+inSubqueryWithInlineStatsBeforeAndAfterInSubquery
+required_capability: where_in_subquery_without_view
+
+FROM employees
+| INLINE STATS cnt1 = COUNT(*) BY gender
+| WHERE first_name IN (FROM employees | WHERE salary < 30000 | KEEP first_name)
+| INLINE STATS cnt2 = COUNT(*)
+| KEEP first_name, salary, cnt1, cnt2
+| SORT salary DESC
+;
+
+first_name:keyword | salary:integer | cnt1:long | cnt2:long
+Breannda           | 29175          | 57        | 8
+Charlene           | 28941          | 57        | 8
+Yongqiao           | 28336          | 57        | 8
+Tuval              | 28035          | 57        | 8
+Ebbe               | 27215          | 33        | 8
+Florian            | 26436          | 57        | 8
+Valdiodio          | 25976          | 33        | 8
+Guoxiang           | 25324          | 10        | 8
+;
+
+inSubqueryWithFilterInsideInSubquery
+required_capability: where_in_subquery_without_view
+
+FROM employees
+| WHERE emp_no IN (FROM employees | WHERE salary > 70000 | KEEP emp_no)
+| SORT emp_no
+| KEEP emp_no
+;
+
+emp_no:integer
+10007
+10019
+10027
+10029
+10033
+10045
+10097
+10099
+;
+
+inSubqueryWithFilterAfterInSubquery
+required_capability: where_in_subquery_without_view
+
+FROM employees
+| WHERE emp_no IN (FROM employees | WHERE salary > 60000 | KEEP emp_no)
+| WHERE salary < 70000
+| SORT emp_no
+| KEEP emp_no, salary
+;
+
+emp_no:integer | salary:integer
+10003          | 61805
+10005          | 63528
+10006          | 60335
+10009          | 66174
+10016          | 61358
+10021          | 60408
+10024          | 64675
+10030          | 67492
+10032          | 62233
+10036          | 60781
+10054          | 65367
+10062          | 65030
+10076          | 62405
+10078          | 69904
+10086          | 68547
+10094          | 66817
+10100          | 68431
+;
+
+inSubqueryWithEvalInsideInSubquery
+required_capability: where_in_subquery_without_view
+
+FROM employees
+| WHERE emp_no IN (FROM employees | WHERE salary > 70000 | EVAL x = emp_no | KEEP x)
+| SORT emp_no
+| KEEP emp_no, first_name
+;
+
+emp_no:integer | first_name:keyword
+10007          | Tzvetan
+10019          | Lillian
+10027          | Divier
+10029          | Otmar
+10033          | null
+10045          | Moss
+10097          | Remzi
+10099          | Valter
+;
+
+inSubqueryWithEvalBeforeInSubquery
+required_capability: where_in_subquery_without_view
+
+FROM employees
+| EVAL x = emp_no
+| WHERE x IN (FROM employees | WHERE salary > 70000 | EVAL x = emp_no | KEEP x)
+| SORT x
+| KEEP x, first_name
+;
+
+x:integer | first_name:keyword
+10007     | Tzvetan
+10019     | Lillian
+10027     | Divier
+10029     | Otmar
+10033     | null
+10045     | Moss
+10097     | Remzi
+10099     | Valter
+;
+
+inSubqueryWithEvalAfterInSubquery
+required_capability: where_in_subquery_without_view
+
+FROM employees
+| WHERE emp_no IN (FROM employees | WHERE salary > 70000 | EVAL x = emp_no | KEEP x)
+| EVAL x = emp_no
+| SORT x
+| KEEP x, first_name
+;
+
+x:integer | first_name:keyword
+10007     | Tzvetan
+10019     | Lillian
+10027     | Divier
+10029     | Otmar
+10033     | null
+10045     | Moss
+10097     | Remzi
+10099     | Valter
+;
+
+inSubqueryWithFromSubqueryInsideInSubquery
+required_capability: where_in_subquery_without_view
+
+FROM employees
+| WHERE emp_no IN (FROM
+                      (FROM employees | SORT emp_no | LIMIT 3 | KEEP emp_no),
+                      (FROM employees | SORT emp_no DESC | LIMIT 3 | KEEP emp_no)
+                  )
+| SORT emp_no
+| KEEP emp_no, first_name
+;
+
+emp_no:integer | first_name:keyword
+10001          | Georgi
+10002          | Bezalel
+10003          | Parto
+10098          | Sreekrishna
+10099          | Valter
+10100          | Hironobu
+;
+
+inSubqueryWithInSubqueryInsideFromSubqueryWithLookupJoin
+required_capability: where_in_subquery_without_view
+
+FROM 
+  (FROM employees
+   | WHERE languages IN (FROM languages | WHERE language_name IN ("English", "German") | KEEP language_code) 
+   | KEEP emp_no, languages),
+  (FROM employees 
+   | WHERE languages NOT IN (FROM languages | WHERE language_name IN ("French", "English") | KEEP language_code) 
+   | KEEP emp_no, languages)
+| LOOKUP JOIN languages_lookup ON languages == language_code
+| STATS cnt = COUNT(*) BY languages, language_name
+| SORT cnt DESC
+;
+
+cnt:long | languages:integer | language_name:keyword
+36       | 4                 | German
+21       | 5                 | null
+17       | 3                 | Spanish
+15       | 1                 | English
+;
+
+inSubqueryWithHashJoin
+required_capability: where_in_subquery_without_view
+
+FROM employees
+| WHERE emp_no IN (FROM
+                      (FROM employees | KEEP emp_no),
+                      (FROM employees_incompatible | EVAL emp_no = emp_no::int + 10000 | KEEP emp_no)
+                   | KEEP emp_no)
+| SORT emp_no
+| KEEP emp_no, first_name
+| LIMIT 3
+;
+
+emp_no:integer | first_name:keyword
+10001          | Georgi
+10002          | Bezalel
+10003          | Parto
+;
+
+notInSubqueryHashJoin
+required_capability: where_in_subquery_without_view
+
+FROM employees
+| WHERE emp_no NOT IN (FROM
+                          (FROM employees | EVAL emp_no = emp_no + 20000 | KEEP emp_no),
+                          (FROM employees_incompatible | EVAL emp_no = emp_no::int + 10000 | KEEP emp_no)
+                       | KEEP emp_no)
+| SORT emp_no
+| KEEP emp_no, first_name
+| LIMIT 3
+;
+
+emp_no:integer | first_name:keyword
+10001          | Georgi
+10002          | Bezalel
+10003          | Parto
+;
+
+nestedInSubqueryInsideInSubquery
+required_capability: where_in_subquery_without_view
+
+FROM employees
+| WHERE emp_no IN (
+    FROM employees
+    | WHERE salary IN (FROM employees | SORT salary DESC | LIMIT 3 | KEEP salary)
+    | KEEP emp_no
+  )
+| SORT emp_no
+| KEEP emp_no, first_name, salary
+;
+
+emp_no:integer | first_name:keyword | salary:integer
+10007          | Tzvetan            | 74572
+10029          | Otmar              | 74999
+10045          | Moss               | 74970
+;
+
+nestedNotInSubqueryInsideInSubquery
+required_capability: where_in_subquery_without_view
+
+FROM employees
+| WHERE emp_no IN (
+    FROM employees
+    | WHERE salary NOT IN (
+        FROM employees | SORT salary DESC | LIMIT 3 | KEEP salary
+      )
+    | KEEP emp_no
+  )
+| SORT emp_no
+| KEEP emp_no, first_name
+| LIMIT 3
+;
+
+emp_no:integer | first_name:keyword
+10001          | Georgi
+10002          | Bezalel
+10003          | Parto
+;
+
+fromSubqueryWithNestedInSubquery
+required_capability: where_in_subquery_without_view
+
+FROM
+  (FROM employees
+   | WHERE emp_no IN (
+       FROM employees
+       | WHERE salary IN (FROM employees | SORT salary DESC | LIMIT 3 | KEEP salary)
+       | KEEP emp_no)
+   | KEEP emp_no, first_name, salary, languages),
+  (FROM employees | WHERE languages == 1 | KEEP emp_no, first_name, salary, languages)
+| SORT emp_no
+| KEEP emp_no, first_name, salary, languages
+| LIMIT 6
+;
+
+emp_no:integer | first_name:keyword | salary:integer | languages:integer
+10005          | Kyoichi            | 63528          | 1
+10007          | Tzvetan            | 74572          | 4
+10009          | Sumant             | 66174          | 1
+10013          | Eberhardt          | 48735          | 1
+10019          | Lillian            | 73717          | 1
+10029          | Otmar              | 74999          | null
+;
+
+fromSubqueryWithNestedNotInSubquery
+required_capability: where_in_subquery_without_view
+
+FROM
+  (FROM employees | WHERE salary > 70000 | KEEP emp_no, first_name, salary, languages),
+  (FROM employees
+   | WHERE emp_no IN (
+       FROM employees
+       | WHERE salary NOT IN (
+           FROM employees | SORT salary DESC | LIMIT 3 | KEEP salary
+         )
+       | KEEP emp_no)
+   | WHERE languages == 1
+   | KEEP emp_no, first_name, salary, languages)
+| SORT emp_no
+| KEEP emp_no, first_name, salary, languages
+| LIMIT 6
+;
+
+emp_no:integer | first_name:keyword | salary:integer | languages:integer
+10005          | Kyoichi            | 63528          | 1
+10007          | Tzvetan            | 74572          | 4
+10009          | Sumant             | 66174          | 1
+10013          | Eberhardt          | 48735          | 1
+10019          | Lillian            | 73717          | 1
+10019          | Lillian            | 73717          | 1
+;
+
+multipleConjunctiveInSubqueries
+required_capability: where_in_subquery_without_view
+
+FROM employees
+| WHERE emp_no NOT IN (FROM employees | WHERE languages IN (1, 2) | KEEP emp_no)
+    AND emp_no IN (FROM employees | WHERE salary > 70000 | KEEP emp_no)
+    AND languages > 0
+| SORT emp_no
+| KEEP emp_no, languages, salary
+;
+
+emp_no:integer | languages:integer | salary:integer
+10007          | 4                 | 74572
+10045          | 3                 | 74970
+10097          | 3                 | 71165
+;
+
+multipleConjunctiveInSubqueriesInsideFromSubquery
+required_capability: where_in_subquery_without_view
+
+FROM 
+  (FROM employees
+   | WHERE emp_no NOT IN (FROM employees | WHERE languages IN (1, 2) | KEEP emp_no)
+       AND emp_no IN (FROM employees | WHERE salary > 70000 | KEEP emp_no)
+   | KEEP emp_no, languages, salary),
+  (FROM employees
+   | WHERE emp_no NOT IN (FROM employees | WHERE languages IN (1, 2) | KEEP emp_no)
+       AND emp_no IN (FROM employees | WHERE salary < 30000 | KEEP emp_no)
+   | KEEP emp_no, languages, salary)
+| SORT emp_no
+| KEEP emp_no, languages, salary
+;
+
+emp_no:integer | languages:integer | salary:integer
+10007          | 4                 | 74572
+10015          | 5                 | 25324
+10026          | null              | 28336
+10027          | null              | 73851
+10029          | null              | 74999
+10035          | 5                 | 25945
+10045          | 3                 | 74970
+10048          | 3                 | 26436
+10057          | 4                 | 27215
+10068          | 3                 | 28941
+10097          | 3                 | 71165
+;
+
+multipleDisjunctiveInSubqueries
+required_capability: where_in_subquery_without_view
+
+FROM employees
+| WHERE emp_no NOT IN (FROM employees | WHERE languages > 1 | KEEP emp_no)
+     OR emp_no IN (FROM employees | WHERE salary > 70000 | KEEP emp_no)
+     OR languages is null
+| SORT emp_no
+| KEEP emp_no, languages, salary
+| LIMIT 10
+;
+
+emp_no:integer | languages:integer | salary:integer
+10005          | 1                 | 63528
+10007          | 4                 | 74572
+10009          | 1                 | 66174
+10013          | 1                 | 48735
+10019          | 1                 | 73717
+10020          | null              | 40031
+10021          | null              | 60408
+10022          | null              | 48233
+10023          | null              | 47896
+10024          | null              | 64675
+;
+
+multipleDisjunctiveInSubqueriesMixedWithConjunctivePredicates
+required_capability: where_in_subquery_without_view
+
+FROM employees
+| WHERE (emp_no NOT IN (FROM employees | WHERE languages > 1 | KEEP emp_no) AND salary > 70000 )
+     OR emp_no IN (FROM employees | WHERE salary > 70000 | KEEP emp_no) 
+     OR languages is null
+| SORT emp_no
+| KEEP emp_no, languages, salary
+| LIMIT 10
+;
+
+emp_no:integer | languages:integer | salary:integer
+10007          | 4                 | 74572
+10019          | 1                 | 73717
+10020          | null              | 40031
+10021          | null              | 60408
+10022          | null              | 48233
+10023          | null              | 47896
+10024          | null              | 64675
+10025          | null              | 47411
+10026          | null              | 28336
+10027          | null              | 73851
+;
+
+lookupJoinInsideInSubquery
+required_capability: where_in_subquery_without_view
+required_capability: join_lookup_v12
+
+FROM employees
+| WHERE emp_no IN (
+    FROM employees
+    | EVAL language_code = languages
+    | LOOKUP JOIN languages_lookup ON language_code
+    | WHERE language_name == "German"
+    | KEEP emp_no
+  )
+| SORT emp_no
+| KEEP emp_no, first_name
+| LIMIT 5
+;
+
+emp_no:integer | first_name:keyword
+10003          | Parto
+10007          | Tzvetan
+10010          | Duangkaew
+10031          | null
+10036          | null
+;
+
+lookupJoinBeforeInSubquery
+required_capability: where_in_subquery_without_view
+required_capability: join_lookup_v12
+
+FROM employees
+| EVAL language_code = languages
+| LOOKUP JOIN languages_lookup ON language_code
+| WHERE language_name IN (FROM languages | WHERE language_code < 3 | KEEP language_name)
+| SORT emp_no
+| KEEP emp_no, first_name, language_name
+| LIMIT 5
+;
+
+emp_no:integer | first_name:keyword | language_name:keyword
+10001          | Georgi             | French
+10005          | Kyoichi            | English
+10008          | Saniya             | French
+10009          | Sumant             | English
+10013          | Eberhardt          | English
+;
+
+lookupJoinAfterNotInSubquery
+required_capability: where_in_subquery_without_view
+required_capability: join_lookup_v12
+
+FROM employees
+| WHERE emp_no NOT IN (FROM employees | WHERE salary > 70000 | KEEP emp_no)
+| EVAL language_code = languages
+| LOOKUP JOIN languages_lookup ON language_code
+| WHERE language_name IS NOT NULL
+| SORT emp_no
+| KEEP emp_no, first_name, language_name
+| LIMIT 5
+;
+
+emp_no:integer | first_name:keyword | language_name:keyword
+10001          | Georgi             | French
+10003          | Parto              | German
+10005          | Kyoichi            | English
+10006          | Anneke             | Spanish
+10008          | Saniya             | French
+;
+
+enrichBeforeInSubquery
+skip_flattened_rewrite: enrich_output_type_mismatch
+required_capability: where_in_subquery_without_view
+
+FROM employees
+| ENRICH languages_policy ON languages WITH language_name
+| WHERE language_name IN (FROM languages | KEEP language_name)
+| SORT emp_no
+| KEEP emp_no, language_name
+| LIMIT 5
+;
+
+emp_no:integer | language_name:keyword
+10001          | French
+10003          | German
+10005          | English
+10006          | Spanish
+10007          | German
+;
+
+enrichInsideInSubquery
+skip_flattened_rewrite: enrich_output_type_mismatch
+required_capability: where_in_subquery_without_view
+
+FROM employees
+| WHERE languages IN (
+    FROM employees
+    | ENRICH languages_policy ON languages WITH language_name
+    | WHERE language_name == "German"
+    | KEEP languages
+  )
+| SORT emp_no
+| KEEP emp_no, first_name, languages
+| LIMIT 5
+;
+
+emp_no:integer | first_name:keyword | languages:integer
+10003          | Parto              | 4
+10007          | Tzvetan            | 4
+10010          | Duangkaew          | 4
+10031          | null               | 4
+10036          | null               | 4
+;
+
+enrichInsideNotInSubquery
+skip_flattened_rewrite: enrich_output_type_mismatch
+required_capability: where_in_subquery_without_view
+
+FROM employees
+| WHERE languages NOT IN (
+    FROM employees
+    | ENRICH languages_policy ON languages WITH language_name
+    | WHERE language_name IN ("French", "German")
+    | KEEP languages
+  )
+| SORT emp_no
+| KEEP emp_no, first_name, languages
+| LIMIT 5
+;
+
+emp_no:integer | first_name:keyword | languages:integer
+10002          | Bezalel            | 5
+10004          | Chirstian          | 5
+10005          | Kyoichi            | 1
+10006          | Anneke             | 3
+10009          | Sumant             | 1
+;
+
+enrichAfterNotInSubquery
+skip_flattened_rewrite: enrich_output_type_mismatch
+required_capability: where_in_subquery_without_view
+
+FROM employees
+| WHERE emp_no NOT IN (FROM employees | WHERE salary > 70000 | KEEP emp_no)
+| ENRICH languages_policy ON languages WITH language_name
+| WHERE language_name IS NOT NULL
+| SORT emp_no
+| KEEP emp_no, first_name, language_name
+| LIMIT 5
+;
+
+emp_no:integer | first_name:keyword | language_name:keyword
+10001          | Georgi             | French
+10003          | Parto              | German
+10005          | Kyoichi            | English
+10006          | Anneke             | Spanish
+10008          | Saniya             | French
+;
+
+grokBeforeInSubquery
+required_capability: where_in_subquery_without_view
+
+FROM employees
+| GROK CONCAT(first_name, " ", last_name) "%{WORD:a} %{WORD:b}"
+| WHERE a IN (FROM employees | WHERE salary > 70000 | KEEP first_name)
+| SORT emp_no
+| KEEP emp_no, a, b
+| LIMIT 5
+;
+
+emp_no:integer | a:keyword | b:keyword
+10007          | Tzvetan   | Zielinski
+10019          | Lillian   | Haddadi
+10027          | Divier    | Reistad
+10029          | Otmar     | Herbst
+10045          | Moss      | Shanbhogue
+;
+
+grokInsideInSubquery
+required_capability: where_in_subquery_without_view
+
+FROM employees
+| WHERE first_name IN (
+    FROM employees
+    | GROK CONCAT(first_name, " ", last_name) "%{WORD:a} %{WORD:b}"
+    | WHERE b LIKE "S*"
+    | KEEP a
+  )
+| SORT emp_no
+| KEEP emp_no, first_name
+| LIMIT 5
+;
+
+emp_no:integer | first_name:keyword
+10002          | Bezalel
+10011          | Mary
+10042          | Magy
+10045          | Moss
+10048          | Florian
+;
+
+grokAfterNotInSubquery
+required_capability: where_in_subquery_without_view
+
+FROM employees
+| WHERE emp_no NOT IN (FROM employees | SORT emp_no | LIMIT 5 | KEEP emp_no)
+| GROK CONCAT(first_name, " ", last_name) "%{WORD:a} %{WORD:b}"
+| WHERE a IS NOT NULL
+| SORT emp_no
+| KEEP emp_no, a, b
+| LIMIT 5
+;
+
+emp_no:integer | a:keyword | b:keyword
+10006          | Anneke    | Preusig
+10007          | Tzvetan   | Zielinski
+10008          | Saniya    | Kalloufi
+10009          | Sumant    | Peac
+10010          | Duangkaew | Piveteau
+;
+
+dissectBeforeInSubquery
+required_capability: where_in_subquery_without_view
+
+FROM employees
+| EVAL name = CONCAT(first_name, " ", last_name)
+| DISSECT name "%{a} %{b}"
+| WHERE a IN (FROM employees | WHERE salary > 70000 | KEEP first_name)
+| SORT emp_no
+| KEEP emp_no, a, b
+| LIMIT 5
+;
+
+emp_no:integer | a:keyword | b:keyword
+10007          | Tzvetan   | Zielinski
+10019          | Lillian   | Haddadi
+10027          | Divier    | Reistad
+10029          | Otmar     | Herbst
+10045          | Moss      | Shanbhogue
+;
+
+dissectInsideInSubquery
+required_capability: where_in_subquery_without_view
+
+FROM employees
+| WHERE first_name IN (
+    FROM employees
+    | EVAL name = CONCAT(first_name, " ", last_name)
+    | DISSECT name "%{a} %{b}"
+    | WHERE b LIKE "S*"
+    | KEEP a
+  )
+| SORT emp_no
+| KEEP emp_no, first_name
+| LIMIT 5
+;
+
+emp_no:integer | first_name:keyword
+10002          | Bezalel
+10011          | Mary
+10042          | Magy
+10045          | Moss
+10048          | Florian
+;
+
+dissectAfterNotInSubquery
+required_capability: where_in_subquery_without_view
+
+FROM employees
+| WHERE emp_no NOT IN (FROM employees | SORT emp_no | LIMIT 5 | KEEP emp_no)
+| EVAL name = CONCAT(first_name, " ", last_name)
+| DISSECT name "%{a} %{b}"
+| WHERE a IS NOT NULL
+| SORT emp_no
+| KEEP emp_no, a, b
+| LIMIT 5
+;
+
+emp_no:integer | a:keyword | b:keyword
+10006          | Anneke    | Preusig
+10007          | Tzvetan   | Zielinski
+10008          | Saniya    | Kalloufi
+10009          | Sumant    | Peac
+10010          | Duangkaew | Piveteau
+;
+
+renameBeforeInSubquery
+required_capability: where_in_subquery_without_view
+
+FROM employees
+| RENAME emp_no AS id
+| WHERE id IN (FROM employees | WHERE salary > 70000 | KEEP emp_no)
+| SORT id
+| KEEP id, first_name
+| LIMIT 5
+;
+
+id:integer | first_name:keyword
+10007      | Tzvetan
+10019      | Lillian
+10027      | Divier
+10029      | Otmar
+10033      | null
+;
+
+renameInsideInSubquery
+required_capability: where_in_subquery_without_view
+
+FROM employees
+| WHERE emp_no IN (
+    FROM employees
+    | RENAME emp_no AS id
+    | WHERE id > 10095
+    | KEEP id
+  )
+| SORT emp_no
+| KEEP emp_no, first_name
+;
+
+emp_no:integer | first_name:keyword
+10096          | Jayson
+10097          | Remzi
+10098          | Sreekrishna
+10099          | Valter
+10100          | Hironobu
+;
+
+renameAfterNotInSubquery
+required_capability: where_in_subquery_without_view
+
+FROM employees
+| WHERE emp_no NOT IN (FROM employees | SORT emp_no | LIMIT 5 | KEEP emp_no)
+| RENAME first_name AS a, last_name AS b
+| SORT emp_no
+| KEEP emp_no, a, b
+| LIMIT 5
+;
+
+emp_no:integer | a:keyword     | b:keyword
+10006          | Anneke        | Preusig
+10007          | Tzvetan       | Zielinski
+10008          | Saniya        | Kalloufi
+10009          | Sumant        | Peac
+10010          | Duangkaew     | Piveteau
+;
+
+mvExpandBeforeInSubquery
+required_capability: where_in_subquery_without_view
+
+FROM employees
+| MV_EXPAND job_positions
+| WHERE job_positions IN (FROM employees | EVAL jp = "Accountant" | KEEP jp)
+| SORT emp_no
+| KEEP emp_no, first_name, job_positions
+| LIMIT 5
+;
+
+emp_no:integer | first_name:keyword | job_positions:keyword
+10001          | Georgi             | Accountant
+10012          | Patricio           | Accountant
+10016          | Kazuhito           | Accountant
+10023          | Bojan              | Accountant
+10025          | Prasadram          | Accountant
+;
+
+mvExpandInsideInSubquery
+required_capability: where_in_subquery_without_view
+
+FROM employees
+| WHERE emp_no IN (
+    FROM employees
+    | MV_EXPAND job_positions
+    | WHERE job_positions == "Accountant"
+    | KEEP emp_no
+  )
+| SORT emp_no
+| KEEP emp_no, first_name
+| LIMIT 5
+;
+
+emp_no:integer | first_name:keyword
+10001          | Georgi
+10012          | Patricio
+10016          | Kazuhito
+10023          | Bojan
+10025          | Prasadram
+;
+
+mvExpandAfterNotInSubquery
+required_capability: where_in_subquery_without_view
+
+FROM employees
+| WHERE emp_no NOT IN (FROM employees | WHERE salary > 70000 | KEEP emp_no)
+| MV_EXPAND job_positions
+| WHERE job_positions IS NOT NULL
+| SORT emp_no, job_positions
+| KEEP emp_no, first_name, job_positions
+| LIMIT 5
+;
+
+emp_no:integer | first_name:keyword | job_positions:keyword
+10001          | Georgi             | Accountant
+10001          | Georgi             | Senior Python Developer
+10002          | Bezalel            | Senior Team Lead
+10004          | Chirstian          | Head Human Resources
+10004          | Chirstian          | Reporting Analyst
+;
+
+sampleBeforeInSubquery
+required_capability: where_in_subquery_without_view
+required_capability: sample_v3
+
+FROM employees
+| SAMPLE .999999999
+| WHERE emp_no IN (FROM employees | WHERE salary > 70000 | KEEP emp_no)
+| SORT emp_no
+| KEEP emp_no, first_name
+| LIMIT 3
+;
+
+emp_no:integer | first_name:keyword
+10007          | Tzvetan
+10019          | Lillian
+10027          | Divier
+;
+
+sampleInsideInSubquery
+required_capability: where_in_subquery_without_view
+required_capability: sample_v3
+
+FROM employees
+| WHERE emp_no IN (
+    FROM employees
+    | SAMPLE .999999999
+    | WHERE salary > 70000
+    | KEEP emp_no
+  )
+| SORT emp_no
+| KEEP emp_no, first_name
+| LIMIT 3
+;
+
+emp_no:integer | first_name:keyword
+10007          | Tzvetan
+10019          | Lillian
+10027          | Divier
+;
+
+sampleAfterNotInSubquery
+required_capability: where_in_subquery_without_view
+required_capability: sample_v3
+
+FROM employees
+| WHERE emp_no NOT IN (FROM employees | SORT emp_no | LIMIT 5 | KEEP emp_no)
+| SAMPLE .999999999
+| SORT emp_no
+| KEEP emp_no, first_name
+| LIMIT 3
+;
+
+emp_no:integer | first_name:keyword
+10006          | Anneke
+10007          | Tzvetan
+10008          | Saniya
+;
+
+changePointBeforeInSubquery
+required_capability: where_in_subquery_without_view
+required_capability: change_point
+
+FROM employees
+| EVAL salary = CASE(emp_no == 10022, 100000, emp_no == 10023, 1000000, salary)
+| CHANGE_POINT salary ON emp_no AS type, pvalue
+| WHERE type IN (FROM employees | EVAL t = "spike" | KEEP t)
+| SORT emp_no
+| KEEP emp_no, salary, type, pvalue
+;
+
+emp_no:integer | salary:integer | type:keyword | pvalue:double
+10023          | 1000000        | spike        | 0.0
+;
+
+changePointInsideInSubquery
+required_capability: where_in_subquery_without_view
+required_capability: change_point
+
+FROM employees
+| WHERE emp_no IN (
+    FROM employees
+    | EVAL salary = CASE(emp_no == 10022, 100000, emp_no == 10023, 1000000, salary)
+    | CHANGE_POINT salary ON emp_no AS type, pvalue
+    | WHERE pvalue IS NOT NULL AND type IS NOT NULL
+    | KEEP emp_no
+  )
+| SORT emp_no
+| KEEP emp_no, first_name, salary
+;
+
+emp_no:integer | first_name:keyword | salary:integer
+10023          | Bojan              | 47896
+;
+
+changePointAfterNotInSubquery
+required_capability: where_in_subquery_without_view
+required_capability: change_point
+
+FROM employees
+| WHERE emp_no NOT IN (FROM employees | WHERE emp_no > 10050 | KEEP emp_no)
+| EVAL salary = CASE(emp_no == 10022, 100000, emp_no == 10023, 1000000, salary)
+| CHANGE_POINT salary ON emp_no AS type, pvalue
+| WHERE pvalue IS NOT NULL AND type IS NOT NULL
+| SORT emp_no
+| KEEP emp_no, salary, type, pvalue
+;
+
+emp_no:integer | salary:integer | type:keyword | pvalue:double
+10023          | 1000000        | spike        | 0.0
+;
+
+rerankBeforeInSubquery
+required_capability: where_in_subquery_without_view
+required_capability: rerank
+required_capability: match_operator_colon
+required_capability: routing_function_update
+
+FROM books METADATA _score
+| WHERE title:"war and peace" AND author:"Tolstoy"
+| SORT _score DESC, book_no ASC
+| LIMIT 5
+| RERANK "war and peace" ON title WITH { "inference_id" : "test_reranker" }
+| WHERE book_no IN (FROM books | EVAL bn = "5327" | KEEP bn)
+| EVAL _score = ROUND(_score, 2)
+| KEEP book_no, title, _score
+;
+
+book_no:keyword | title:text    | _score:double
+5327            | War and Peace | 0.08
+;
+
+rerankInsideInSubquery
+required_capability: where_in_subquery_without_view
+required_capability: rerank
+required_capability: match_operator_colon
+required_capability: routing_function_update
+
+FROM books
+| WHERE book_no IN (
+    FROM books METADATA _score
+    | WHERE title:"war and peace" AND author:"Tolstoy"
+    | SORT _score DESC, book_no ASC
+    | LIMIT 5
+    | RERANK "war and peace" ON title WITH { "inference_id" : "test_reranker" }
+    | EVAL _score = ROUND(_score, 2)
+    | WHERE _score > 0.05
+    | KEEP book_no
+  )
+| KEEP book_no, title
+;
+
+book_no:keyword | title:text
+5327            | War and Peace
+;
+
+rerankAfterNotInSubquery
+required_capability: where_in_subquery_without_view
+required_capability: rerank
+required_capability: match_operator_colon
+required_capability: routing_function_update
+
+FROM books METADATA _score
+| WHERE title:"war and peace" AND author:"Tolstoy"
+| WHERE book_no NOT IN (FROM books | WHERE book_no != "5327" | KEEP book_no)
+| SORT _score DESC, book_no ASC
+| LIMIT 5
+| RERANK "war and peace" ON title WITH { "inference_id" : "test_reranker" }
+| EVAL _score = ROUND(_score, 2)
+| KEEP book_no, title, _score
+;
+
+book_no:keyword | title:text    | _score:double
+5327            | War and Peace | 0.08
+;
+
+matchBeforeInSubquery
+required_capability: where_in_subquery_without_view
+required_capability: match_function
+
+FROM books
+| WHERE MATCH(author, "Faulkner")
+| WHERE book_no IN (FROM books | WHERE book_no >= "4000" | KEEP book_no)
+| SORT book_no
+| KEEP book_no, author
+| LIMIT 3
+;
+
+book_no:keyword | author:text
+4502            | Colleen Faulkner
+4724            | William Faulkner
+4977            | William Faulkner
+;
+
+matchInsideInSubquery
+required_capability: where_in_subquery_without_view
+required_capability: match_function
+
+FROM books
+| WHERE book_no IN (
+    FROM books
+    | WHERE MATCH(author, "Tolkien")
+    | SORT book_no
+    | LIMIT 3
+    | KEEP book_no
+  )
+| SORT book_no
+| KEEP book_no, title
+;
+
+book_no:keyword | title:text
+1463            | Realms of Tolkien: Images of Middle-earth
+2130            | The J. R. R. Tolkien Audio Collection
+2301            | Smith of Wootton Major & Farmer Giles of Ham
+;
+
+matchAfterNotInSubquery
+required_capability: where_in_subquery_without_view
+required_capability: match_function
+
+FROM books
+| WHERE book_no NOT IN (FROM books | WHERE book_no < "4000" | KEEP book_no)
+| WHERE MATCH(author, "Faulkner")
+| SORT book_no
+| KEEP book_no, author
+| LIMIT 3
+;
+
+book_no:keyword | author:text
+4502            | Colleen Faulkner
+4724            | William Faulkner
+4977            | William Faulkner
+;
+
+matchAndInSubquery
+required_capability: where_in_subquery_without_view
+required_capability: match_function
+
+FROM books
+| WHERE MATCH(author, "Faulkner")
+  AND book_no IN (FROM books | WHERE book_no >= "4000" | KEEP book_no)
+| SORT book_no
+| KEEP book_no, author
+| LIMIT 3
+;
+
+book_no:keyword | author:text
+4502            | Colleen Faulkner
+4724            | William Faulkner
+4977            | William Faulkner
+;
+
+matchOrNotInSubquery
+required_capability: where_in_subquery_without_view
+required_capability: match_function
+
+FROM books
+| WHERE book_no NOT IN (FROM books | WHERE book_no < "9000" | KEEP book_no)
+  OR MATCH(author, "William")
+| SORT book_no
+| KEEP book_no, author
+;
+
+book_no:keyword | author:text
+2713            | William Faulkner
+2883            | William Faulkner
+4724            | William Faulkner
+4977            | William Faulkner
+5119            | William Faulkner
+5404            | William Faulkner
+5578            | William Faulkner
+8077            | William Faulkner
+9032            | Tolstoy Leo
+9607            | John Ronald Reuel Tolkien
+9801            | Fyodor Dostoevsky
+9896            | William Faulkner
+;
+
+forkAfterInSubquery
+required_capability: where_in_subquery_without_view
+required_capability: fork_v9
+
+FROM employees
+| WHERE emp_no IN (FROM employees | WHERE salary > 70000 | KEEP emp_no)
+| FORK (WHERE salary > 74000 | KEEP emp_no, salary)
+       (WHERE salary < 72000 | KEEP emp_no, salary)
+| SORT emp_no, _fork
+| KEEP emp_no, salary, _fork
+;
+
+emp_no:integer | salary:integer | _fork:keyword
+10007          | 74572          | fork1
+10029          | 74999          | fork1
+10033          | 70011          | fork2
+10045          | 74970          | fork1
+10097          | 71165          | fork2
+;
+
+forkWithInSubqueryInsideBranch
+required_capability: where_in_subquery_without_view
+required_capability: fork_v9
+
+FROM employees
+| FORK (WHERE emp_no IN (FROM employees | WHERE salary > 74000 | KEEP emp_no) | KEEP emp_no, salary)
+       (WHERE emp_no IN (FROM employees | WHERE salary < 30000 | KEEP emp_no) | KEEP emp_no, salary)
+| SORT emp_no, _fork
+| KEEP emp_no, salary, _fork
+| LIMIT 5
+;
+
+emp_no:integer | salary:integer | _fork:keyword
+10007          | 74572          | fork1
+10015          | 25324          | fork2
+10026          | 28336          | fork2
+10029          | 74999          | fork1
+10035          | 25945          | fork2
+;
+
+forkAfterNotInSubquery
+required_capability: where_in_subquery_without_view
+required_capability: fork_v9
+
+FROM employees
+| WHERE emp_no NOT IN (FROM employees | SORT emp_no | LIMIT 5 | KEEP emp_no)
+| FORK (WHERE salary > 70000 | KEEP emp_no, salary)
+       (WHERE salary < 30000 | KEEP emp_no, salary)
+| SORT emp_no, _fork
+| KEEP emp_no, salary, _fork
+| LIMIT 5
+;
+
+emp_no:integer | salary:integer | _fork:keyword
+10007          | 74572          | fork1
+10015          | 25324          | fork2
+10019          | 73717          | fork1
+10026          | 28336          | fork2
+10027          | 73851          | fork1
+;
+
+statsDateTruncBeforeInSubquery
+required_capability: where_in_subquery_without_view
+
+FROM employees
+| STATS cnt = COUNT(*) BY yr = DATE_TRUNC(1 year, hire_date)
+| WHERE cnt IN (FROM employees | STATS c = COUNT(*) BY y = DATE_TRUNC(1 year, hire_date) | WHERE c > 12 | KEEP c)
+| SORT yr
+| KEEP cnt, yr
+;
+
+cnt:long | yr:datetime
+15       | 1987-01-01T00:00:00.000Z
+13       | 1989-01-01T00:00:00.000Z
+;
+
+statsDateTruncInsideInSubquery
+required_capability: where_in_subquery_without_view
+
+FROM employees
+| WHERE emp_no IN (FROM employees | WHERE salary > 70000 | KEEP emp_no)
+| STATS cnt = COUNT(*) BY yr = DATE_TRUNC(1 year, hire_date)
+| SORT yr
+| KEEP cnt, yr
+;
+
+cnt:long | yr:datetime
+1        | 1985-01-01T00:00:00.000Z
+1        | 1987-01-01T00:00:00.000Z
+1        | 1988-01-01T00:00:00.000Z
+3        | 1989-01-01T00:00:00.000Z
+1        | 1990-01-01T00:00:00.000Z
+1        | 1999-01-01T00:00:00.000Z
+;
+
+statsDateTruncAfterNotInSubquery
+required_capability: where_in_subquery_without_view
+
+FROM employees
+| WHERE emp_no NOT IN (FROM employees | SORT emp_no | LIMIT 50 | KEEP emp_no)
+| STATS cnt = COUNT(*) BY yr = DATE_TRUNC(1 year, hire_date)
+| SORT yr
+| KEEP cnt, yr
+;
+
+cnt:long | yr:datetime
+6        | 1985-01-01T00:00:00.000Z
+8        | 1986-01-01T00:00:00.000Z
+10       | 1987-01-01T00:00:00.000Z
+5        | 1988-01-01T00:00:00.000Z
+3        | 1989-01-01T00:00:00.000Z
+7        | 1990-01-01T00:00:00.000Z
+3        | 1991-01-01T00:00:00.000Z
+4        | 1992-01-01T00:00:00.000Z
+1        | 1994-01-01T00:00:00.000Z
+2        | 1995-01-01T00:00:00.000Z
+1        | 1996-01-01T00:00:00.000Z
+;
+
+longInLong
+required_capability: where_in_subquery_without_view
+
+FROM employees
+| WHERE avg_worked_seconds IN (FROM employees
+                               | STATS avg_worked_seconds = MAX(avg_worked_seconds) BY gender
+                               | KEEP avg_worked_seconds)
+| SORT emp_no
+| KEEP emp_no, gender, avg_worked_seconds
+;
+
+emp_no:integer | gender:keyword | avg_worked_seconds:long
+10007          | F              | 393084805
+10015          | null           | 390266432
+10030          | M              | 394597613
+;
+
+doubleInDouble
+required_capability: where_in_subquery_without_view
+
+FROM employees
+| WHERE height IN (FROM employees
+                   | STATS height = min(height) BY gender
+                   | KEEP height)
+| SORT emp_no
+| KEEP emp_no, gender, height
+;
+
+emp_no:integer | gender:keyword | height:double
+10011          | null           | 1.5
+10020          | M              | 1.41
+10042          | F              | 1.44
+10081          | M              | 1.44
+;
+
+ipNotInIp
+required_capability: where_in_subquery_without_view
+
+FROM sample_data
+| WHERE client_ip NOT IN (FROM sample_data
+                          | STATS count = count(*) BY client_ip
+                          | SORT count DESC
+                          | LIMIT 1
+                          | KEEP client_ip)
+| SORT @timestamp
+| KEEP @timestamp, client_ip, message
+;
+
+@timestamp:datetime      | client_ip:ip | message:keyword
+2023-10-23T12:15:03.360Z | 172.21.2.162 | Connected to 10.1.0.3
+2023-10-23T12:27:28.948Z | 172.21.2.113 | Connected to 10.1.0.2
+2023-10-23T13:33:34.937Z | 172.21.0.5   | Disconnected
+;
+
+keywordInKeyword
+required_capability: where_in_subquery_without_view
+
+FROM employees
+| MV_EXPAND job_positions
+| WHERE job_positions IN (FROM employees
+                          | MV_EXPAND job_positions
+                          | STATS count = count(*) BY job_positions
+                          | SORT count DESC
+                          | LIMIT 2
+                          | KEEP job_positions)
+| SORT emp_no
+| KEEP emp_no, job_positions
+| LIMIT 5
+;
+
+emp_no:integer | job_positions:keyword
+10001          | Senior Python Developer
+10006          | Principal Support Engineer
+10008          | Senior Python Developer
+10009          | Senior Python Developer
+10015          | Principal Support Engineer
+;
+
+versionInVersion
+required_capability: where_in_subquery_without_view
+
+FROM apps
+| WHERE version IN (FROM apps
+                    | STATS count = COUNT(*) BY version
+                    | SORT count DESC, version NULLS LAST
+                    | LIMIT 2
+                    | KEEP version)
+| SORT id
+| KEEP id, name, version
+;
+
+id:integer | name:keyword | version:version
+6          | fffff        | 5.2.9
+8          | hhhhh        | 1.2.3.4
+10         | jjjjj        | 5.2.9
+12         | aaaaa        | 1.2.3.4
+14         | mmmmm        | 5.2.9
+;
+
+keywordInText
+required_capability: where_in_subquery_without_view
+
+FROM employees
+| WHERE gender IN (FROM employees_incompatible | KEEP gender)
+| SORT emp_no
+| KEEP emp_no, gender
+| LIMIT 3
+;
+
+emp_no:integer | gender:keyword
+10001          | M
+10002          | F
+10003          | M
+;
+
+textInKeyword
+required_capability: where_in_subquery_without_view
+
+FROM employees_incompatible
+| WHERE gender IN (FROM employees | EVAL gender = "F" | KEEP gender)
+| SORT emp_no
+| KEEP emp_no, first_name, gender
+| LIMIT 3
+;
+
+emp_no:long | first_name:text | gender:text
+10002       | Bezalel         | F
+10006       | Anneke          | F
+10007       | Tzvetan         | F
+;
+
+textNotInKeyword
+required_capability: where_in_subquery_without_view
+
+FROM employees_incompatible
+| WHERE gender NOT IN (FROM employees | EVAL gender = "M" | KEEP gender)
+| SORT emp_no
+| KEEP emp_no, first_name, gender
+| LIMIT 3
+;
+
+emp_no:long | first_name:text | gender:text
+10002       | Bezalel         | F
+10006       | Anneke          | F
+10007       | Tzvetan         | F
+;
+
+keywordNotInText
+required_capability: where_in_subquery_without_view
+
+FROM employees
+| WHERE gender NOT IN (FROM employees | WHERE gender == "M" | KEEP gender)
+| SORT emp_no
+| KEEP emp_no, first_name, gender
+| LIMIT 3
+;
+
+emp_no:integer | first_name:keyword | gender:keyword
+10002          | Bezalel            | F
+10006          | Anneke             | F
+10007          | Tzvetan            | F
+;
+
+integerCastToLongInLong
+required_capability: where_in_subquery_without_view
+
+FROM employees
+| EVAL id = emp_no::long
+| WHERE id IN (FROM employees_incompatible | WHERE salary > 70000 | KEEP emp_no)
+| SORT emp_no
+| KEEP emp_no, first_name
+| LIMIT 3
+;
+
+emp_no:integer | first_name:keyword
+10007          | Tzvetan
+10019          | Lillian
+10027          | Divier
+;
+
+integerCastToLongNotLong
+required_capability: where_in_subquery_without_view
+
+FROM employees
+| EVAL id = emp_no::long
+| WHERE id NOT IN (FROM employees_incompatible | WHERE salary > 70000 | KEEP emp_no)
+| SORT emp_no
+| KEEP emp_no, first_name
+| LIMIT 3
+;
+
+emp_no:integer | first_name:keyword
+10001          | Georgi
+10002          | Bezalel
+10003          | Parto
+;
+
+longInIntegerCastToLong
+required_capability: where_in_subquery_without_view
+
+FROM employees_incompatible
+| WHERE emp_no IN (FROM employees | WHERE salary > 70000 | EVAL emp_no = emp_no::long | KEEP emp_no)
+| SORT emp_no
+| KEEP emp_no, first_name
+| LIMIT 3
+;
+
+emp_no:long | first_name:text
+10007       | Tzvetan
+10019       | Lillian
+10027       | Divier
+;
+
+dateInDate
+required_capability: where_in_subquery_without_view
+
+FROM sample_data
+| WHERE @timestamp IN (FROM sample_data | WHERE message == "Disconnected" | KEEP @timestamp)
+| KEEP @timestamp, client_ip, message
+;
+
+@timestamp:datetime             | client_ip:ip  | message:keyword
+2023-10-23T13:33:34.937Z        | 172.21.0.5    | Disconnected
+;
+
+dateNotInDate
+required_capability: where_in_subquery_without_view
+
+FROM sample_data
+| WHERE @timestamp NOT IN (FROM sample_data | WHERE message LIKE "Connection*" | KEEP @timestamp)
+| SORT @timestamp
+| KEEP @timestamp, client_ip, message
+;
+
+@timestamp:datetime             | client_ip:ip   | message:keyword
+2023-10-23T12:15:03.360Z        | 172.21.2.162   | Connected to 10.1.0.3
+2023-10-23T12:27:28.948Z        | 172.21.2.113   | Connected to 10.1.0.2
+2023-10-23T13:33:34.937Z        | 172.21.0.5     | Disconnected
+2023-10-23T13:55:01.543Z        | 172.21.3.15    | Connected to 10.1.0.1
+;
+
+dateNanosInDateNanos
+required_capability: where_in_subquery_without_view
+
+FROM sample_data_ts_nanos
+| WHERE @timestamp IN (FROM sample_data_ts_nanos | WHERE message == "Disconnected" | KEEP @timestamp)
+| KEEP @timestamp, client_ip, message
+;
+
+@timestamp:date_nanos                   | client_ip:ip  | message:keyword
+2023-10-23T13:33:34.937123456Z          | 172.21.0.5    | Disconnected
+;
+
+dateNanosNotInDateNanos
+required_capability: where_in_subquery_without_view
+
+FROM sample_data_ts_nanos
+| WHERE @timestamp NOT IN (FROM sample_data_ts_nanos | WHERE message LIKE "Connection*" | KEEP @timestamp)
+| SORT @timestamp
+| KEEP @timestamp, client_ip, message
+;
+
+@timestamp:date_nanos                   | client_ip:ip   | message:keyword
+2023-10-23T12:15:03.360123456Z          | 172.21.2.162   | Connected to 10.1.0.3
+2023-10-23T12:27:28.948123456Z          | 172.21.2.113   | Connected to 10.1.0.2
+2023-10-23T13:33:34.937123456Z          | 172.21.0.5     | Disconnected
+2023-10-23T13:55:01.543123456Z          | 172.21.3.15    | Connected to 10.1.0.1
+;
+
+unionTypeCastToLongOutsideInSubquery
+required_capability: where_in_subquery_without_view
+
+FROM employees, employees_incompatible
+| EVAL id = emp_no::long
+| WHERE id IN (FROM employees_incompatible | WHERE salary > 70000 | KEEP emp_no)
+| STATS cnt = COUNT(*) BY id
+| SORT id
+| KEEP id, cnt
+| LIMIT 3
+;
+
+id:long | cnt:long
+10007   | 2
+10019   | 2
+10027   | 2
+;
+
+unionTypeCastToLongOutsideNotInSubquery
+required_capability: where_in_subquery_without_view
+
+FROM employees, employees_incompatible
+| EVAL id = emp_no::long
+| WHERE id NOT IN (FROM employees_incompatible | WHERE salary > 70000 | KEEP emp_no)
+| STATS cnt = COUNT(*) BY id
+| SORT id
+| KEEP id, cnt
+| LIMIT 3
+;
+
+id:long | cnt:long
+10001   | 2
+10002   | 2
+10003   | 2
+;
+
+unionTypeCastToKeywordOutsideInSubquery
+required_capability: where_in_subquery_without_view
+
+FROM employees, employees_incompatible
+| EVAL fn = first_name::keyword
+| WHERE fn IN (FROM employees | WHERE salary > 70000 | KEEP first_name)
+| WHERE fn IS NOT NULL
+| STATS cnt = COUNT(*) BY fn
+| SORT fn
+| KEEP fn, cnt
+;
+
+fn:keyword  | cnt:long
+Divier      | 2
+Lillian     | 2
+Moss        | 2
+Otmar       | 2
+Remzi       | 2
+Tzvetan     | 2
+Valter      | 2
+;
+
+unionTypeFromSubqueryCastToLongOutsideInSubquery
+required_capability: where_in_subquery_without_view
+
+FROM
+  (FROM employees | KEEP emp_no, first_name, salary),
+  (FROM employees_incompatible | EVAL emp_no = emp_no::integer | KEEP emp_no, first_name, salary)
+| EVAL salary = salary::long
+| WHERE salary IN (FROM employees_incompatible | SORT salary DESC | LIMIT 3 | KEEP salary)
+| STATS cnt = COUNT(*) BY salary
+| SORT salary DESC
+| KEEP salary, cnt
+;
+
+salary:long | cnt:long
+74999       | 2
+74970       | 2
+74572       | 2
+;
+
+unionTypeFromSubqueryCastToLongOutsideNotInSubquery
+required_capability: where_in_subquery_without_view
+
+FROM
+  (FROM employees | KEEP emp_no, first_name, salary),
+  (FROM employees_incompatible | EVAL emp_no = emp_no::integer | KEEP emp_no, first_name, salary)
+| EVAL id = emp_no::long
+| WHERE id NOT IN (FROM employees_incompatible | WHERE salary > 70000 | KEEP emp_no)
+| STATS cnt = COUNT(*)
+;
+
+cnt:long
+184
+;
+
+unionTypeCastToLongInsideInSubquery
+required_capability: where_in_subquery_without_view
+
+FROM employees_incompatible
+| WHERE emp_no IN (
+    FROM employees, employees_incompatible
+    | EVAL id = emp_no::long
+    | WHERE salary::long > 70000
+    | KEEP id
+  )
+| SORT emp_no
+| KEEP emp_no, first_name
+| LIMIT 3
+;
+
+emp_no:long | first_name:text
+10007       | Tzvetan
+10019       | Lillian
+10027       | Divier
+;
+
+unionTypeCastToLongInsideNotInSubquery
+required_capability: where_in_subquery_without_view
+
+FROM employees_incompatible
+| WHERE emp_no NOT IN (
+    FROM employees, employees_incompatible
+    | EVAL id = emp_no::long
+    | WHERE salary::long > 70000
+    | KEEP id
+  )
+| SORT emp_no
+| KEEP emp_no, first_name
+| LIMIT 3
+;
+
+emp_no:long | first_name:text
+10001       | Georgi
+10002       | Bezalel
+10003       | Parto
+;
+
+unionTypeCastToKeywordInsideInSubquery
+required_capability: where_in_subquery_without_view
+
+FROM employees
+| WHERE first_name IN (
+    FROM employees, employees_incompatible
+    | EVAL fn = first_name::keyword
+    | WHERE salary::long > 70000 AND fn IS NOT NULL
+    | KEEP fn
+  )
+| SORT emp_no
+| KEEP emp_no, first_name
+| LIMIT 3
+;
+
+emp_no:integer | first_name:keyword
+10007          | Tzvetan
+10019          | Lillian
+10027          | Divier
+;
+
+unionTypeFromSubqueryCastToKeywordInsideInSubquery
+required_capability: where_in_subquery_without_view
+
+FROM employees_incompatible
+| WHERE salary IN (
+    FROM
+      (FROM employees | EVAL salary = salary::long | KEEP salary),
+      (FROM employees_incompatible | KEEP salary)
+    | STATS s = MAX(salary)
+    | KEEP s
+  )
+| SORT emp_no
+| KEEP emp_no, first_name, salary
+;
+
+emp_no:long | first_name:text | salary:long
+10029       | Otmar           | 74999
+;
+
+unionTypeFromSubqueryCastToLongInsideNotInSubquery
+required_capability: where_in_subquery_without_view
+
+FROM employees_incompatible
+| WHERE salary NOT IN (
+    FROM
+      (FROM employees | EVAL salary = salary::long | KEEP salary),
+      (FROM employees_incompatible | KEEP salary)
+    | STATS s = MAX(salary)
+    | KEEP s
+  )
+| SORT emp_no
+| KEEP emp_no, first_name, salary
+| LIMIT 3
+;
+
+emp_no:long | first_name:text | salary:long
+10001       | Georgi          | 57305
+10002       | Bezalel         | 56371
+10003       | Parto           | 61805
+;
+
+constantIntegerNotInSubqueryNotExists
+required_capability: where_in_subquery_without_view
+
+FROM employees
+| WHERE 99999 NOT IN (FROM employees | KEEP emp_no)
+| SORT emp_no
+| KEEP emp_no
+| LIMIT 3
+;
+
+emp_no:integer
+10001
+10002
+10003
+;
+
+constantStringInSubqueryStringExists
+required_capability: where_in_subquery_without_view
+
+FROM employees
+| WHERE "Georgi" IN (FROM employees | KEEP first_name)
+| SORT emp_no
+| KEEP emp_no, first_name
+| LIMIT 3
+;
+
+emp_no:integer | first_name:keyword
+10001          | Georgi
+10002          | Bezalel
+10003          | Parto
+;
+
+constantStringInSubqueryStringNotExists
+required_capability: where_in_subquery_without_view
+
+FROM employees
+| WHERE "nonexistent_name" IN (FROM employees | KEEP first_name)
+| SORT emp_no
+| KEEP emp_no
+;
+
+emp_no:integer
+;
+
+constantStringNotInSubqueryStringNotExistsWithoutNulls
+required_capability: where_in_subquery_without_view
+
+FROM employees
+| WHERE "nonexistent" NOT IN (FROM employees | WHERE first_name IS NOT NULL | KEEP first_name)
+| SORT emp_no
+| KEEP emp_no, first_name
+| LIMIT 3
+;
+
+emp_no:integer | first_name:keyword
+10001          | Georgi
+10002          | Bezalel
+10003          | Parto
+;
+
+constantStringNotInSubqueryStringNotExistsWithNulls
+required_capability: where_in_subquery_without_view
+
+FROM employees
+| WHERE "nonexistent" NOT IN (FROM employees | KEEP first_name)
+| SORT emp_no
+| KEEP emp_no, first_name
+| LIMIT 3
+;
+
+emp_no:integer | first_name:keyword
+;
+
+constantStringNotInSubqueryStringExistsWithNull
+required_capability: where_in_subquery_without_view
+
+FROM employees
+| WHERE "Georgi" NOT IN (FROM employees | KEEP first_name)
+| SORT emp_no
+| KEEP emp_no, first_name
+;
+
+emp_no:integer | first_name:keyword
+;
+
+constantIntegerInSubqueryIntegerExists
+required_capability: where_in_subquery_without_view
+
+FROM employees
+| WHERE 10001 IN (FROM employees | KEEP emp_no)
+| SORT emp_no
+| KEEP emp_no, first_name
+| LIMIT 3
+;
+
+emp_no:integer | first_name:keyword
+10001          | Georgi
+10002          | Bezalel
+10003          | Parto
+;
+
+constantIntegerNotInSubqueryStringExists
+required_capability: where_in_subquery_without_view
+
+FROM employees
+| WHERE 10001 NOT IN (FROM employees | KEEP emp_no)
+| SORT emp_no
+| KEEP emp_no, first_name
+;
+
+emp_no:integer | first_name:keyword
+;
+
+constantIntegerInSubqueryIntegerNotExists
+required_capability: where_in_subquery_without_view
+
+FROM employees
+| WHERE 99999 IN (FROM employees | KEEP emp_no)
+| SORT emp_no
+| KEEP emp_no
+;
+
+emp_no:integer
+;
+
+constantIntegerNotInSubqueryNoMatchIntegerNotExists
+required_capability: where_in_subquery_without_view
+
+FROM employees
+| WHERE 99999 NOT IN (FROM employees | KEEP emp_no)
+| SORT emp_no
+| KEEP emp_no, first_name
+| LIMIT 3
+;
+
+emp_no:integer | first_name:keyword
+10001          | Georgi
+10002          | Bezalel
+10003          | Parto
+;
+
+constantIntegerInSubqueryWithFilteredSubquery
+required_capability: where_in_subquery_without_view
+
+FROM employees
+| WHERE 10001 IN (FROM employees | WHERE emp_no < 10005 | KEEP emp_no)
+| SORT emp_no
+| KEEP emp_no, first_name
+| LIMIT 3
+;
+
+emp_no:integer | first_name:keyword
+10001          | Georgi
+10002          | Bezalel
+10003          | Parto
+;
+
+constantIntegerInSubqueryWithAndCondition
+required_capability: where_in_subquery_without_view
+
+FROM employees
+| WHERE 10001 IN (FROM employees | KEEP emp_no)
+  AND salary > 60000
+| SORT emp_no
+| KEEP emp_no, first_name, salary
+| LIMIT 3
+;
+
+emp_no:integer | first_name:keyword | salary:integer
+10003          | Parto              | 61805
+10005          | Kyoichi            | 63528
+10006          | Anneke             | 60335
+;
+
+constantNotInSubqueryWithAndCondition
+required_capability: where_in_subquery_without_view
+
+FROM employees
+| WHERE 99999 NOT IN (FROM employees | KEEP emp_no)
+  AND salary > 70000
+| SORT emp_no
+| KEEP emp_no, first_name, salary
+| LIMIT 3
+;
+
+emp_no:integer | first_name:keyword | salary:integer
+10007          | Tzvetan            | 74572
+10019          | Lillian            | 73717
+10027          | Divier             | 73851
+;
+
+knnBeforeInSubquery
+required_capability: where_in_subquery_without_view
+required_capability: knn_function_v5
+
+FROM colors
+| WHERE knn(rgb_vector, [0, 128, 0]) AND color IN (FROM colors | WHERE primary == true | KEEP color)
+| SORT color
+| KEEP color
+;
+
+color:text
+black
+blue
+cyan
+gray
+green
+magenta
+red
+white
+yellow
+;
+
+knnInsideInSubquery
+required_capability: where_in_subquery_without_view
+required_capability: knn_function_v5
+
+FROM colors
+| WHERE id IN (FROM colors
+               | WHERE knn(rgb_vector, [255, 0, 0]) AND primary == true
+               | KEEP id
+               | LIMIT 60)
+| SORT color
+| KEEP color
+;
+
+color:text
+black
+blue
+cyan
+gray
+green
+magenta
+red
+white
+yellow
+;
+
+knnAfterInSubquery
+required_capability: where_in_subquery_without_view
+required_capability: knn_function_v5
+
+FROM colors
+| WHERE color IN (FROM colors | WHERE primary == true | KEEP color)
+| WHERE knn(rgb_vector, [0, 0, 255])
+| SORT color
+| KEEP color
+;
+
+color:text
+black
+blue
+cyan
+gray
+green
+magenta
+red
+white
+yellow
+;
+
+knnBeforeNotInSubquery
+required_capability: where_in_subquery_without_view
+required_capability: knn_function_v5
+
+FROM colors METADATA _score
+| WHERE knn(rgb_vector, [0, 128, 0]) AND color NOT IN (FROM colors | WHERE primary == true | KEEP color)
+| SORT _score DESC, color ASC
+| KEEP color
+| LIMIT 3
+;
+
+color:text
+lime
+olive
+teal
+;
+
+nullOnBothSidesOfInSubqueryHashJoin
+required_capability: where_in_subquery_without_view
+
+FROM employees
+| WHERE gender IN (FROM employees | KEEP gender)
+| STATS c = COUNT(*) BY gender
+| SORT c
+;
+
+c:long | gender:keyword
+33     | F
+57     | M
+;
+
+nullOnBothSidesOfInSubqueryFilter
+required_capability: where_in_subquery_without_view
+
+FROM employees
+| WHERE gender IN (FROM employees | WHERE emp_no IN (10001, 10002, 10010) | KEEP gender)
+| STATS c = COUNT(*) BY gender
+| SORT c
+;
+
+c:long | gender:keyword
+33     | F
+57     | M
+;
+
+nullInInListPredicate
+required_capability: where_in_subquery_without_view
+
+FROM employees
+| WHERE gender IN ("F", "M", null)
+| STATS c = COUNT(*) BY gender
+| SORT c
+;
+
+c:long | gender:keyword
+33     | F
+57     | M
+;
+
+nullOnBothSidesOfNotInSubqueryHashJoin
+required_capability: where_in_subquery_without_view
+
+FROM employees
+| WHERE languages NOT IN (FROM employees | KEEP languages)
+| STATS c = COUNT(*) BY languages
+| SORT c
+;
+
+c:long | languages:integer
+;
+
+nullOnBothSidesOfNotInSubqueryFilter
+required_capability: where_in_subquery_without_view
+
+FROM employees
+| WHERE languages NOT IN (FROM employees | WHERE emp_no IN (10001, 10003, 10005, 10006, 10020) | KEEP languages)
+| STATS c = COUNT(*) BY languages
+| SORT c
+;
+
+c:long | languages:integer
+;
+
+nullInNotInListPredicate
+required_capability: where_in_subquery_without_view
+
+FROM employees
+| WHERE languages NOT IN (1, 2, 3 , 4, null)
+| STATS c = COUNT(*) BY languages
+| SORT c
+;
+
+c:long | languages:integer
+;
+
+disjunctiveInSubqueriesEachUnderAnd
+required_capability: where_in_subquery_without_view
+
+FROM employees
+| WHERE (emp_no IN (FROM employees | WHERE languages == 1 | KEEP emp_no) AND salary > 60000)
+     OR (emp_no NOT IN (FROM employees | WHERE salary > 50000 | KEEP emp_no) AND gender == "F")
+| SORT emp_no
+| KEEP emp_no, gender, languages, salary
+| LIMIT 15
+;
+
+emp_no:integer | gender:keyword | languages:integer | salary:integer
+10005          | M              | 1                 | 63528
+10009          | F              | 1                 | 66174
+10019          | null           | 1                 | 73717
+10023          | F              | null              | 47896
+10033          | M              | 1                 | 70011
+10040          | F              | 4                 | 37112
+10042          | F              | 3                 | 30404
+10044          | F              | 1                 | 39728
+10049          | F              | 5                 | 37853
+10056          | F              | 2                 | 33370
+10057          | F              | 4                 | 27215
+10059          | F              | 2                 | 44307
+10069          | F              | 5                 | 41933
+10074          | F              | 5                 | 38992
+10079          | F              | 2                 | 32263
+;
+
+conjunctionOfDisjunctiveInSubqueries
+required_capability: where_in_subquery_without_view
+
+FROM employees
+| WHERE (emp_no IN (FROM employees | WHERE salary > 70000 | KEEP emp_no) OR languages == 1)
+     AND (emp_no NOT IN (FROM employees | WHERE gender == "M" | KEEP emp_no) OR salary > 65000)
+| SORT emp_no
+| KEEP emp_no, gender, languages, salary
+| LIMIT 20
+;
+
+emp_no:integer | gender:keyword | languages:integer | salary:integer
+10007          | F              | 4                 | 74572
+10009          | F              | 1                 | 66174
+10013          | null           | 1                 | 48735
+10019          | null           | 1                 | 73717
+10027          | F              | null              | 73851
+10029          | M              | null              | 74999
+10033          | M              | 1                 | 70011
+10041          | F              | 1                 | 56415
+10044          | F              | 1                 | 39728
+10045          | M              | 3                 | 74970
+10086          | M              | 1                 | 68547
+10092          | F              | 1                 | 25976
+10097          | M              | 3                 | 71165
+10099          | F              | 2                 | 73578
+;
+
+negatedConjunctionWithInSubquery
+required_capability: where_in_subquery_without_view
+
+FROM employees
+| WHERE emp_no <= 10020
+     AND NOT (emp_no IN (FROM employees | WHERE languages > 3 | KEEP emp_no) AND salary > 60000)
+| SORT emp_no
+| KEEP emp_no, gender, languages, salary
+;
+
+emp_no:integer | gender:keyword | languages:integer | salary:integer
+10001          | M              | 2                 | 57305
+10002          | F              | 5                 | 56371
+10004          | M              | 5                 | 36174
+10005          | M              | 1                 | 63528
+10006          | F              | 3                 | 60335
+10008          | M              | 2                 | 43906
+10009          | F              | 1                 | 66174
+10010          | null           | 4                 | 45797
+10011          | null           | 5                 | 31120
+10012          | null           | 5                 | 48942
+10013          | null           | 1                 | 48735
+10014          | null           | 5                 | 37137
+10015          | null           | 5                 | 25324
+10016          | null           | 2                 | 61358
+10017          | null           | 2                 | 58715
+10018          | null           | 2                 | 56760
+10019          | null           | 1                 | 73717
+10020          | M              | null              | 40031
+;
+
+deeplyNestedDisjunctiveInSubqueries
+required_capability: where_in_subquery_without_view
+
+FROM employees
+| WHERE emp_no IN (FROM employees | WHERE salary > 73000 | KEEP emp_no)
+     OR (gender == "F" AND (salary > 70000 OR emp_no NOT IN (FROM employees | WHERE languages > 1 | KEEP emp_no)))
+| SORT emp_no
+| KEEP emp_no, gender, languages, salary
+| LIMIT 15
+;
+
+emp_no:integer | gender:keyword | languages:integer | salary:integer
+10007          | F              | 4                 | 74572
+10009          | F              | 1                 | 66174
+10019          | null           | 1                 | 73717
+10023          | F              | null              | 47896
+10024          | F              | null              | 64675
+10027          | F              | null              | 73851
+10029          | M              | null              | 74999
+10041          | F              | 1                 | 56415
+10044          | F              | 1                 | 39728
+10045          | M              | 3                 | 74970
+10092          | F              | 1                 | 25976
+10099          | F              | 2                 | 73578
+;
+
+threeWayDisjunctiveInSubqueriesWithPredicates
+required_capability: where_in_subquery_without_view
+
+FROM employees
+| WHERE (emp_no IN (FROM employees | WHERE languages == 1 | KEEP emp_no) AND gender == "M")
+     OR (emp_no IN (FROM employees | WHERE salary > 73000 | KEEP emp_no) AND salary > 70000)
+     OR (emp_no NOT IN (FROM employees | WHERE salary > 30000 | KEEP emp_no) AND gender == "F")
+| SORT emp_no
+| KEEP emp_no, gender, languages, salary
+| LIMIT 15
+;
+
+emp_no:integer | gender:keyword | languages:integer | salary:integer
+10005          | M              | 1                 | 63528
+10007          | F              | 4                 | 74572
+10019          | null           | 1                 | 73717
+10027          | F              | null              | 73851
+10029          | M              | null              | 74999
+10033          | M              | 1                 | 70011
+10034          | M              | 1                 | 39878
+10043          | M              | 1                 | 34341
+10045          | M              | 3                 | 74970
+10052          | M              | 1                 | 55360
+10057          | F              | 4                 | 27215
+10061          | M              | 1                 | 49095
+10083          | M              | 1                 | 39110
+10084          | M              | 1                 | 28035
+10086          | M              | 1                 | 68547
+;
+
+inSubqueryWithRowAsSource
+required_capability: where_in_subquery_without_view
+required_capability: subquery_with_row
+
+FROM employees
+| WHERE emp_no IN (ROW x = 10001)
+| SORT emp_no
+| KEEP emp_no, first_name
+;
+
+emp_no:integer | first_name:keyword
+10001          | Georgi
+;
+
+notInSubqueryWithRowAsSource
+required_capability: where_in_subquery_without_view
+required_capability: subquery_with_row
+
+FROM employees
+| WHERE emp_no NOT IN (ROW x = 10001)
+| SORT emp_no
+| KEEP emp_no, first_name
+| LIMIT 3
+;
+
+emp_no:integer | first_name:keyword
+10002          | Bezalel
+10003          | Parto
+10004          | Chirstian
+;
+
+inSubqueryWithRowAsSourceAndWhereInside
+required_capability: where_in_subquery_without_view
+required_capability: subquery_with_row
+
+FROM employees
+| WHERE emp_no IN (ROW x = 10001 | WHERE x > 0)
+| SORT emp_no
+| KEEP emp_no, first_name
+;
+
+emp_no:integer | first_name:keyword
+10001          | Georgi
+;
+
+inSubqueryWithRowAsSourceFilteredOutByInsideWhere
+required_capability: where_in_subquery_without_view
+required_capability: subquery_with_row
+
+FROM employees
+| WHERE emp_no IN (ROW x = 10001 | WHERE x > 99999)
+| SORT emp_no
+| KEEP emp_no
+;
+
+emp_no:integer
+;
+
+inSubqueryWithRowAsSourceAndEvalInside
+required_capability: where_in_subquery_without_view
+required_capability: subquery_with_row
+
+FROM employees
+| WHERE emp_no IN (ROW x = 1 | EVAL x = x + 10000)
+| SORT emp_no
+| KEEP emp_no, first_name
+;
+
+emp_no:integer | first_name:keyword
+10001          | Georgi
+;
+
+inSubqueryWithRowAsSourceAndMultipleProcessingCommands
+required_capability: where_in_subquery_without_view
+required_capability: subquery_with_row
+
+FROM employees
+| WHERE emp_no IN (ROW x = 1, y = 2
+                   | EVAL x = x + 10000
+                   | KEEP x
+                   | LIMIT 5)
+| SORT emp_no
+| KEEP emp_no, first_name
+;
+
+emp_no:integer | first_name:keyword
+10001          | Georgi
+;
+
+inSubqueryWithMultipleFieldRowAsSourceAndKeep
+required_capability: where_in_subquery_without_view
+required_capability: subquery_with_row
+
+FROM employees
+| WHERE emp_no IN (ROW x = 10001, y = 10002 | KEEP x)
+| SORT emp_no
+| KEEP emp_no, first_name
+;
+
+emp_no:integer | first_name:keyword
+10001          | Georgi
+;
+
+inSubqueryWithMultivalueRowAsSourceAndMvExpand
+required_capability: where_in_subquery_without_view
+required_capability: subquery_with_row
+
+FROM employees
+| WHERE emp_no IN (ROW x = [10001, 10002, 10003] | MV_EXPAND x)
+| SORT emp_no
+| KEEP emp_no, first_name
+;
+
+emp_no:integer | first_name:keyword
+10001          | Georgi
+10002          | Bezalel
+10003          | Parto
+;
+
+inSubqueryWithMultipleRowsAsSource
+required_capability: where_in_subquery_without_view
+required_capability: subquery_with_row
+
+FROM employees
+| WHERE emp_no IN (FROM (ROW emp_no = 10001),
+                        (ROW emp_no = 10002),
+                        (ROW emp_no = 10003))
+| SORT emp_no
+| KEEP emp_no, first_name
+;
+
+emp_no:integer | first_name:keyword
+10001          | Georgi
+10002          | Bezalel
+10003          | Parto
+;
+
+inSubqueryWithMultipleRowsAsSourceWithProcessingCommandsEach
+required_capability: where_in_subquery_without_view
+required_capability: subquery_with_row
+
+FROM employees
+| WHERE emp_no IN (FROM (ROW emp_no = 1 | EVAL emp_no = emp_no + 10000),
+                        (ROW emp_no = 10002 | WHERE emp_no > 0))
+| SORT emp_no
+| KEEP emp_no, first_name
+;
+
+emp_no:integer | first_name:keyword
+10001          | Georgi
+10002          | Bezalel
+;
+
+inSubqueryWithIndexPatternMixedWithRow
+required_capability: where_in_subquery_without_view
+required_capability: subquery_with_row
+
+FROM employees
+| WHERE emp_no IN (FROM employees, (ROW emp_no = 99999)
+                   | WHERE emp_no == 10001 OR emp_no == 99999
+                   | KEEP emp_no)
+| SORT emp_no
+| KEEP emp_no, first_name
+;
+
+emp_no:integer | first_name:keyword
+10001          | Georgi
+;
+
+inSubqueryWithFromSubqueryMixedWithRow
+required_capability: where_in_subquery_without_view
+required_capability: subquery_with_row
+
+FROM employees
+| WHERE emp_no IN (FROM (FROM employees | WHERE salary > 70000),
+                        (ROW emp_no = 99999)
+                   | KEEP emp_no)
+| SORT emp_no
+| KEEP emp_no, first_name
+;
+
+emp_no:integer | first_name:keyword
+10007          | Tzvetan
+10019          | Lillian
+10027          | Divier
+10029          | Otmar
+10033          | null
+10045          | Moss
+10097          | Remzi
+10099          | Valter
+;
+
+inSubqueryWithIndexPatternAndFromSubqueryAndRow
+required_capability: where_in_subquery_without_view
+required_capability: subquery_with_row
+
+FROM employees
+| WHERE emp_no IN (FROM employees,
+                        (FROM employees | WHERE salary > 70000),
+                        (ROW emp_no = 99999)
+                   | WHERE emp_no >= 10097 OR emp_no == 99999
+                   | KEEP emp_no)
+| SORT emp_no
+| KEEP emp_no, first_name, salary
+;
+
+emp_no:integer | first_name:keyword | salary:integer
+10097          | Remzi              | 71165
+10098          | Sreekrishna        | 44817
+10099          | Valter             | 73578
+10100          | Hironobu           | 68431
+;
+
+inSubqueryWithRowAsSourceAndStatsAfter
+required_capability: where_in_subquery_without_view
+required_capability: subquery_with_row
+
+FROM employees
+| WHERE emp_no IN (ROW x = 10001)
+| STATS cnt = COUNT(*)
+;
+
+cnt:long
+1
+;
+
+inSubqueryWithRowAsSourceAndEvalAfter
+required_capability: where_in_subquery_without_view
+required_capability: subquery_with_row
+
+FROM employees
+| WHERE emp_no IN (FROM (ROW emp_no = 10001),
+                        (ROW emp_no = 10002),
+                        (ROW emp_no = 10003))
+| EVAL decade = emp_no / 10
+| SORT emp_no
+| KEEP emp_no, first_name, decade
+;
+
+emp_no:integer | first_name:keyword | decade:integer
+10001          | Georgi             | 1000
+10002          | Bezalel            | 1000
+10003          | Parto              | 1000
+;
+
+inSubqueryWithRowAsSourceConjunctiveWithOtherPredicate
+required_capability: where_in_subquery_without_view
+required_capability: subquery_with_row
+
+FROM employees
+| WHERE emp_no IN (ROW x = [10001, 10002, 10003] | MV_EXPAND x)
+    AND gender == "M"
+| SORT emp_no
+| KEEP emp_no, first_name, gender
+;
+
+emp_no:integer | first_name:keyword | gender:keyword
+10001          | Georgi             | M
+10003          | Parto              | M
+;
+
+inSubqueryWithRowAsSourceDisjunctiveWithOtherPredicate
+required_capability: where_in_subquery_without_view
+required_capability: subquery_with_row
+
+FROM employees
+| WHERE emp_no IN (ROW x = 10001) OR salary > 74000
+| SORT emp_no
+| KEEP emp_no, first_name, salary
+;
+
+emp_no:integer | first_name:keyword | salary:integer
+10001          | Georgi             | 57305
+10007          | Tzvetan            | 74572
+10029          | Otmar              | 74999
+10045          | Moss               | 74970
+;
+
+nestedInSubqueryWithRowAsSourceInsideRowAsSourceSubquery
+required_capability: where_in_subquery_without_view
+required_capability: subquery_with_row
+
+FROM employees
+| WHERE emp_no IN (
+    FROM employees
+    | WHERE 1 IN (ROW x = 1)
+    | SORT emp_no
+    | LIMIT 3
+    | KEEP emp_no
+  )
+| SORT emp_no
+| KEEP emp_no, first_name
+;
+
+emp_no:integer | first_name:keyword
+10001          | Georgi
+10002          | Bezalel
+10003          | Parto
+;
+
+rowOuterWithRowInSubqueryMatch
+required_capability: where_in_subquery_without_view
+required_capability: subquery_with_row
+
+ROW x = 1
+| WHERE x IN (ROW y = 1)
+;
+
+x:integer
+1
+;
+
+rowOuterWithRowInSubqueryNoMatch
+required_capability: where_in_subquery_without_view
+required_capability: subquery_with_row
+
+ROW x = 1
+| WHERE x IN (ROW y = 2)
+;
+
+x:integer
+;
+
+rowOuterWithRowNotInSubquery
+required_capability: where_in_subquery_without_view
+required_capability: subquery_with_row
+
+ROW x = 1
+| WHERE x NOT IN (ROW y = 2)
+;
+
+x:integer
+1
+;
+
+rowOuterWithRowNotInSubqueryNoSurvivors
+required_capability: where_in_subquery_without_view
+required_capability: subquery_with_row
+
+ROW x = 1
+| WHERE x NOT IN (ROW y = 1)
+;
+
+x:integer
+;
+
+rowOuterWithFromInSubqueryMatch
+required_capability: where_in_subquery_without_view
+
+ROW emp_no = 10001
+| WHERE emp_no IN (FROM employees | KEEP emp_no)
+;
+
+emp_no:integer
+10001
+;
+
+rowOuterWithFromInSubqueryNoMatch
+required_capability: where_in_subquery_without_view
+
+ROW emp_no = 99999
+| WHERE emp_no IN (FROM employees | KEEP emp_no)
+;
+
+emp_no:integer
+;
+
+rowOuterWithFromNotInSubquery
+required_capability: where_in_subquery_without_view
+
+ROW emp_no = 99999
+| WHERE emp_no NOT IN (FROM employees | KEEP emp_no)
+;
+
+emp_no:integer
+99999
+;
+
+rowOuterWithFromInSubqueryFiltered
+required_capability: where_in_subquery_without_view
+
+ROW emp_no = 10007
+| WHERE emp_no IN (FROM employees | WHERE salary > 70000 | KEEP emp_no)
+;
+
+emp_no:integer
+10007
+;
+
+rowOuterMultiValueMvExpandWithFromInSubquery
+required_capability: where_in_subquery_without_view
+
+ROW emp_no = [10001, 10002, 99999]
+| MV_EXPAND emp_no
+| WHERE emp_no IN (FROM employees | KEEP emp_no)
+| SORT emp_no
+;
+
+emp_no:integer
+10001
+10002
+;
+
+rowOuterMultiValueMvExpandWithFromNotInSubquery
+required_capability: where_in_subquery_without_view
+
+ROW emp_no = [10001, 10002, 99999]
+| MV_EXPAND emp_no
+| WHERE emp_no NOT IN (FROM employees | KEEP emp_no)
+;
+
+emp_no:integer
+99999
+;
+
+inSubqueryMetadataIndexTautology
+required_capability: where_in_subquery_without_view
+
+FROM employees METADATA _index
+| WHERE _index IN (FROM employees METADATA _index | KEEP _index)
+| KEEP emp_no, _index
+| SORT emp_no
+| LIMIT 3
+;
+
+emp_no:integer | _index:keyword
+10001          | employees
+10002          | employees
+10003          | employees
+;
+
+inSubqueryMetadataIndexFiltersToMatchingIndex
+required_capability: where_in_subquery_without_view
+
+FROM employees, employees_incompatible METADATA _index
+| WHERE _index IN (FROM employees METADATA _index | KEEP _index)
+| STATS c = COUNT(*) BY _index
+;
+
+c:long | _index:keyword
+100    | employees
+;
+
+notInSubqueryMetadataIndexKeepsOtherIndex
+required_capability: where_in_subquery_without_view
+
+FROM employees, employees_incompatible METADATA _index
+| WHERE _index NOT IN (FROM employees METADATA _index | KEEP _index)
+| STATS c = COUNT(*) BY _index
+;
+
+c:long | _index:keyword
+100    | employees_incompatible
+;
+
+inSubqueryMetadataIndexAgainstSubqueryOnDifferentIndex
+required_capability: where_in_subquery_without_view
+
+FROM employees, employees_incompatible METADATA _index
+| WHERE _index IN (FROM employees_incompatible METADATA _index | KEEP _index)
+| STATS c = COUNT(*) BY _index
+;
+
+c:long | _index:keyword
+100    | employees_incompatible
+;
+
+inSubqueryMetadataIndexAgainstEvalLiteral
+required_capability: where_in_subquery_without_view
+
+FROM employees, employees_incompatible METADATA _index
+| WHERE _index IN (FROM languages | EVAL idx = "employees_incompatible" | KEEP idx)
+| STATS c = COUNT(*) BY _index
+;
+
+c:long | _index:keyword
+100    | employees_incompatible
+;

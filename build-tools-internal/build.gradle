@@ -15,7 +15,6 @@ plugins {
   id 'groovy-gradle-plugin'
   id 'groovy'
   id 'elasticsearch.build-tools'
-  id 'elasticsearch.eclipse'
   id 'elasticsearch.versions'
   id 'elasticsearch.formatting'
 }
@@ -114,7 +113,7 @@ gradlePlugin {
     }
     internalTestRerun {
       id = 'elasticsearch.internal-test-rerun'
-      implementationClass = 'org.elasticsearch.gradle.internal.test.rerun.TestRerunPlugin'
+      implementationClass = 'org.elasticsearch.gradle.internal.test.rerun.InternalTestRerunPlugin'
     }
     javaToolChainPlugin {
       id = 'elasticsearch.java-toolchain'
@@ -152,9 +151,17 @@ gradlePlugin {
       id = 'elasticsearch.mrjar'
       implementationClass = 'org.elasticsearch.gradle.internal.MrjarPlugin'
     }
+    foreignLibrary {
+      id = 'elasticsearch.foreign-library'
+      implementationClass = 'org.elasticsearch.gradle.internal.foreign.ForeignLibraryPlugin'
+    }
     embeddedProvider {
       id = 'elasticsearch.embedded-providers'
       implementationClass = 'org.elasticsearch.gradle.internal.EmbeddedProviderPlugin'
+    }
+    esqlFunction {
+      id = 'elasticsearch.esql-function'
+      implementationClass = 'org.elasticsearch.gradle.internal.esql.EsqlFunctionPlugin'
     }
     releaseTools {
       id = 'elasticsearch.release-tools'
@@ -179,10 +186,6 @@ gradlePlugin {
     stringTemplate {
        id = 'elasticsearch.string-templates'
        implementationClass = 'org.elasticsearch.gradle.internal.StringTemplatePlugin'
-    }
-    testFixtures {
-      id = 'elasticsearch.test.fixtures'
-      implementationClass = 'org.elasticsearch.gradle.internal.testfixtures.TestFixturesPlugin'
     }
     deployTestFixtures {
       id = 'elasticsearch.deploy-test-fixtures'

@@ -497,7 +497,7 @@ GET /cooking_blog/_search
       "should": [
         {
           "term": {
-            "category": "Main Course"
+            "category.keyword": "Main Course"
           }
         },
         {

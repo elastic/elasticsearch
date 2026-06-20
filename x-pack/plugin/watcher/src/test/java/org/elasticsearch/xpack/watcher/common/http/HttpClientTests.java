@@ -578,7 +578,7 @@ public class HttpClientTests extends ESTestCase {
     }
 
     public void testThatGetRedirectIsFollowed() throws Exception {
-        String redirectUrl = "http://" + webServer.getHostName() + ":" + webServer.getPort() + "/foo";
+        String redirectUrl = "http://" + webServer.getHttpAddress() + "/foo";
         webServer.enqueue(new MockResponse().setResponseCode(302).addHeader("Location", redirectUrl));
         HttpMethod method = randomFrom(HttpMethod.GET, HttpMethod.HEAD);
 
@@ -601,7 +601,7 @@ public class HttpClientTests extends ESTestCase {
 
     // not allowed by RFC, only allowed for GET or HEAD
     public void testThatPostRedirectIsNotFollowed() throws Exception {
-        String redirectUrl = "http://" + webServer.getHostName() + ":" + webServer.getPort() + "/foo";
+        String redirectUrl = "http://" + webServer.getHttpAddress() + "/foo";
         webServer.enqueue(new MockResponse().setResponseCode(302).addHeader("Location", redirectUrl));
         webServer.enqueue(new MockResponse().setResponseCode(200).setBody("shouldNeverBeRead"));
 
@@ -690,7 +690,7 @@ public class HttpClientTests extends ESTestCase {
     public void testThatWhiteListingWorksForRedirects() throws Exception {
         int numberOfRedirects = randomIntBetween(1, 10);
         for (int i = 0; i < numberOfRedirects; i++) {
-            String redirectUrl = "http://" + webServer.getHostName() + ":" + webServer.getPort() + "/redirect" + i;
+            String redirectUrl = "http://" + webServer.getHttpAddress() + "/redirect" + i;
             webServer.enqueue(new MockResponse().setResponseCode(302).addHeader("Location", redirectUrl));
         }
         webServer.enqueue(new MockResponse().setResponseCode(200).setBody("shouldBeRead"));
@@ -753,6 +753,72 @@ public class HttpClientTests extends ESTestCase {
     public void testWhitelistEverythingByDefault() {
         CharacterRunAutomaton automaton = HttpClient.createAutomaton(Collections.emptyList());
         assertThat(automaton.run(randomAlphaOfLength(10)), is(true));
+    }
+
+    public void testThatWhiteListBlocksPerRequestProxy() throws Exception {
+        Settings settings = Settings.builder().put(HttpSettings.HOSTS_WHITELIST.getKey(), getWebserverUri()).build();
+
+        try (HttpClient client = new HttpClient(settings, new SSLService(environment), null, mockClusterService())) {
+            HttpRequest request = HttpRequest.builder(webServer.getHostName(), webServer.getPort())
+                .path("/")
+                .proxy(new HttpProxy("not-whitelisted-proxy", randomIntBetween(1000, 5000), randomFrom(Scheme.HTTP, Scheme.HTTPS)))
+                .build();
+            ElasticsearchException e = expectThrows(ElasticsearchException.class, () -> client.execute(request));
+            assertThat(e.getMessage(), containsString("proxy host"));
+            assertThat(e.getMessage(), containsString("not whitelisted"));
+        }
+    }
+
+    public void testThatWhiteListAllowsWhitelistedProxy() throws Exception {
+        try (MockWebServer proxyServer = new MockWebServer()) {
+            proxyServer.enqueue(new MockResponse().setResponseCode(200).setBody("proxiedContent"));
+            proxyServer.start();
+
+            String proxyUri = "http://localhost:" + proxyServer.getPort();
+            Settings settings = Settings.builder().putList(HttpSettings.HOSTS_WHITELIST.getKey(), getWebserverUri(), proxyUri).build();
+
+            try (HttpClient client = new HttpClient(settings, new SSLService(environment), null, mockClusterService())) {
+                HttpRequest request = HttpRequest.builder(webServer.getHostName(), webServer.getPort())
+                    .path("/")
+                    .proxy(new HttpProxy("localhost", proxyServer.getPort()))
+                    .build();
+                HttpResponse response = client.execute(request);
+                assertThat(response.status(), equalTo(200));
+                assertThat(response.body().utf8ToString(), equalTo("proxiedContent"));
+            }
+
+            assertThat(webServer.requests(), hasSize(0));
+            assertThat(proxyServer.requests(), hasSize(1));
+        }
+    }
+
+    public void testThatSystemProxyIsExemptFromWhitelist() throws Exception {
+        try (MockWebServer proxyServer = new MockWebServer()) {
+            proxyServer.enqueue(new MockResponse().setResponseCode(200).setBody("proxiedContent"));
+            proxyServer.start();
+
+            // Whitelist only the target — the system-wide proxy is NOT whitelisted but should still work
+            Settings settings = Settings.builder()
+                .put(environment.settings())
+                .put(HttpSettings.HOSTS_WHITELIST.getKey(), getWebserverUri())
+                .put(HttpSettings.PROXY_HOST.getKey(), "localhost")
+                .put(HttpSettings.PROXY_PORT.getKey(), proxyServer.getPort())
+                .build();
+
+            final SSLService sslService = new SSLService(TestEnvironment.newEnvironment(settings));
+            try (HttpClient client = new HttpClient(settings, sslService, null, mockClusterService())) {
+                HttpRequest request = HttpRequest.builder(webServer.getHostName(), webServer.getPort())
+                    .path("/")
+                    .method(HttpMethod.GET)
+                    .build();
+                HttpResponse response = client.execute(request);
+                assertThat(response.status(), equalTo(200));
+                assertThat(response.body().utf8ToString(), equalTo("proxiedContent"));
+            }
+
+            assertThat(webServer.requests(), hasSize(0));
+            assertThat(proxyServer.requests(), hasSize(1));
+        }
     }
 
     public void testCreateUri() throws Exception {
@@ -846,6 +912,6 @@ public class HttpClientTests extends ESTestCase {
     }
 
     private String getWebserverUri() {
-        return Strings.format("http://%s:%s", webServer.getHostName(), webServer.getPort());
+        return Strings.format("http://%s", webServer.getHttpAddress());
     }
 }

@@ -13,6 +13,7 @@ import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
+import org.apache.lucene.search.DoubleValues;
 import org.apache.lucene.search.LongValues;
 import org.apache.lucene.util.BitSetIterator;
 import org.apache.lucene.util.BytesRef;
@@ -23,7 +24,6 @@ import org.elasticsearch.index.fielddata.AbstractBinaryDocValues;
 import org.elasticsearch.index.fielddata.AbstractSortedDocValues;
 import org.elasticsearch.index.fielddata.AbstractSortedSetDocValues;
 import org.elasticsearch.index.fielddata.FieldData;
-import org.elasticsearch.index.fielddata.NumericDoubleValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.fielddata.SortedNumericLongValues;
@@ -110,7 +110,7 @@ public class MultiValueModeTests extends ESTestCase {
             Arrays.sort(values);
             array[i] = values;
         }
-        final Supplier<SortedNumericLongValues> multiValues = () -> new SortedNumericLongValues() {
+        final Supplier<SortedNumericLongValues> multiValues = () -> new SortedNumericLongValues(null) {
             int doc;
             int i;
 
@@ -273,7 +273,7 @@ public class MultiValueModeTests extends ESTestCase {
                 docsWithValue.set(i);
             }
         }
-        final Supplier<SortedNumericDoubleValues> multiValues = () -> FieldData.singleton(new NumericDoubleValues() {
+        final Supplier<SortedNumericDoubleValues> multiValues = () -> FieldData.singleton(new DoubleValues() {
             int docID;
 
             @Override
@@ -305,7 +305,7 @@ public class MultiValueModeTests extends ESTestCase {
             Arrays.sort(values);
             array[i] = values;
         }
-        final Supplier<SortedNumericDoubleValues> multiValues = () -> new SortedNumericDoubleValues() {
+        final Supplier<SortedNumericDoubleValues> multiValues = () -> new SortedNumericDoubleValues(null) {
             int doc;
             int i;
 
@@ -336,7 +336,7 @@ public class MultiValueModeTests extends ESTestCase {
     private void verifySortedNumericDouble(Supplier<SortedNumericDoubleValues> supplier, int maxDoc) throws IOException {
         for (MultiValueMode mode : MultiValueMode.values()) {
             SortedNumericDoubleValues values = supplier.get();
-            final NumericDoubleValues selected = mode.select(values);
+            final DoubleValues selected = mode.select(values);
             for (int i = 0; i < maxDoc; ++i) {
                 Double actual = null;
                 if (selected.advanceExact(i)) {
@@ -386,7 +386,7 @@ public class MultiValueModeTests extends ESTestCase {
         }
     }
 
-    private void verifyDoubleValueCanCalledMoreThanOnce(NumericDoubleValues values, double expected) throws IOException {
+    private void verifyDoubleValueCanCalledMoreThanOnce(DoubleValues values, double expected) throws IOException {
         for (int j = 0, numCall = randomIntBetween(1, 10); j < numCall; j++) {
             assertTrue(Double.compare(values.doubleValue(), expected) == 0);
         }
@@ -406,13 +406,7 @@ public class MultiValueModeTests extends ESTestCase {
                 MultiValueMode.SUM,
                 MultiValueMode.AVG }) {
                 SortedNumericDoubleValues values = supplier.get();
-                final NumericDoubleValues selected = mode.select(
-                    values,
-                    missingValue,
-                    rootDocs,
-                    new BitSetIterator(innerDocs, 0L),
-                    maxChildren
-                );
+                final DoubleValues selected = mode.select(values, missingValue, rootDocs, new BitSetIterator(innerDocs, 0L), maxChildren);
                 int prevRoot = -1;
                 for (int root = rootDocs.nextSetBit(0); root != -1; root = root + 1 < maxDoc ? rootDocs.nextSetBit(root + 1) : -1) {
                     assertTrue(selected.advanceExact(root));
@@ -509,7 +503,7 @@ public class MultiValueModeTests extends ESTestCase {
             Arrays.sort(values);
             array[i] = values;
         }
-        final Supplier<SortedBinaryDocValues> multiValues = () -> new SortedBinaryDocValues() {
+        final Supplier<SortedBinaryDocValues> multiValues = () -> new SortedBinaryDocValues(null) {
             int doc;
             int i;
 

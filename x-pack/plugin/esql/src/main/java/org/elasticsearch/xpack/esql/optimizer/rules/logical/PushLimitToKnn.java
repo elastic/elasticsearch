@@ -14,8 +14,10 @@ import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
+import org.elasticsearch.xpack.esql.plan.logical.LimitBy;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
+import org.elasticsearch.xpack.esql.plan.logical.TopNBy;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
 
 /**
@@ -46,9 +48,13 @@ public class PushLimitToKnn extends OptimizerRules.ParameterizedOptimizerRule<Li
                 // Break if it's not the initial limit
                 breakerReached.set(firstLimit.get());
                 firstLimit.set(true);
-            } else if (plan instanceof TopN || plan instanceof Rerank || plan instanceof Aggregate) {
-                breakerReached.set(true);
-            }
+            } else if (plan instanceof TopN
+                || plan instanceof TopNBy
+                || plan instanceof LimitBy
+                || plan instanceof Rerank
+                || plan instanceof Aggregate) {
+                    breakerReached.set(true);
+                }
 
             return plan;
         });
@@ -61,7 +67,7 @@ public class PushLimitToKnn extends OptimizerRules.ParameterizedOptimizerRule<Li
     private Expression limitFilterExpressions(Expression condition, Limit limit, LogicalOptimizerContext ctx) {
         return condition.transformDown(exp -> {
             if (exp instanceof Knn knn) {
-                return knn.replaceK((Integer) limit.limit().fold(ctx.foldCtx()));
+                return knn.withImplicitK((Integer) limit.limit().fold(ctx.foldCtx()));
             }
             return exp;
         });

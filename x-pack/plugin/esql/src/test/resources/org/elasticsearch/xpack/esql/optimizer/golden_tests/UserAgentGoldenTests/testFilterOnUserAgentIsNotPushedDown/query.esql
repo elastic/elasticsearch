@@ -1,0 +1,3 @@
+FROM employees
+| user_agent ua = first_name WITH { "extract_device_type": true }
+| WHERE ua.name == "Chrome"

@@ -1,0 +1,2 @@
+FROM employees
+| STATS s1 = SUM(salary + 1)

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.generator.command.pipe;
 
 import org.elasticsearch.xpack.esql.generator.Column;
 import org.elasticsearch.xpack.esql.generator.EsqlQueryGenerator;
+import org.elasticsearch.xpack.esql.generator.GenerationContext;
 import org.elasticsearch.xpack.esql.generator.QueryExecutor;
 import org.elasticsearch.xpack.esql.generator.command.CommandGenerator;
 
@@ -33,7 +34,8 @@ public class RenameGenerator implements CommandGenerator {
         List<CommandDescription> previousCommands,
         List<Column> previousOutput,
         QuerySchema schema,
-        QueryExecutor executor
+        QueryExecutor executor,
+        GenerationContext context
     ) {
         int n = randomIntBetween(1, Math.min(3, previousOutput.size()));
         List<String> proj = new ArrayList<>();
@@ -67,11 +69,15 @@ public class RenameGenerator implements CommandGenerator {
                 newName = names.get(randomIntBetween(0, names.size() - 1));
             }
             nameToType.put(newName, nameToType.get(name));
-            if (randomBoolean() && name.startsWith("`") == false) {
-                name = "`" + name + "`";
+            if (EsqlQueryGenerator.needsQuoting(name)) {
+                name = EsqlQueryGenerator.quote(name);
+            } else if (randomBoolean()) {
+                name = EsqlQueryGenerator.quote(name);
             }
-            if (randomBoolean() && newName.startsWith("`") == false) {
-                newName = "`" + newName + "`";
+            if (EsqlQueryGenerator.needsQuoting(newName)) {
+                newName = EsqlQueryGenerator.quote(newName);
+            } else if (randomBoolean()) {
+                newName = EsqlQueryGenerator.quote(newName);
             }
             proj.add(name + " AS " + newName);
         }

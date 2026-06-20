@@ -9,7 +9,11 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Explicit;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
@@ -427,7 +431,33 @@ public class FieldTypeLookupTests extends ESTestCase {
     }
 
     private static FlattenedFieldMapper createFlattenedMapper(String fieldName) {
-        return new FlattenedFieldMapper.Builder(fieldName).build(MapperBuilderContext.root(false, false));
+        IndexSettings indexSettings = new IndexSettings(
+            IndexMetadata.builder("index")
+                .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()))
+                .numberOfShards(1)
+                .numberOfReplicas(0)
+                .creationDate(System.currentTimeMillis())
+                .build(),
+            Settings.EMPTY
+        );
+        return new FlattenedFieldMapper.Builder(fieldName, indexSettings).build(MapperBuilderContext.root(false, false));
+    }
+
+    private static FlattenedFieldMapper createFlattenedMapper(String fieldName, int priority, String... subFieldNames) {
+        IndexSettings indexSettings = new IndexSettings(
+            IndexMetadata.builder("index")
+                .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()))
+                .numberOfShards(1)
+                .numberOfReplicas(0)
+                .creationDate(System.currentTimeMillis())
+                .build(),
+            Settings.EMPTY
+        );
+        var builder = new FlattenedFieldMapper.Builder(fieldName, indexSettings).passthrough(priority);
+        for (String name : subFieldNames) {
+            builder.property(name, new MockFieldMapper.Builder(name));
+        }
+        return builder.build(MapperBuilderContext.root(false, false));
     }
 
     private PassThroughObjectMapper createPassThroughMapper(String name, Map<String, Mapper> mappers, int priority) {
@@ -546,6 +576,142 @@ public class FieldTypeLookupTests extends ESTestCase {
             int expected = s.chars().map(c -> c == '.' ? 1 : 0).sum();
             assertEquals(expected, FieldTypeLookup.dotCount(s));
         }
+    }
+
+    public void testFlattenedPassthroughSubFieldResolvedAtRoot() {
+        FlattenedFieldMapper labels = createFlattenedMapper("labels", 10, "status", "count");
+        Map<String, MappedFieldType> subFieldTypes = labels.passThroughSubFields()
+            .stream()
+            .collect(java.util.stream.Collectors.toMap(FieldMapper::leafName, FieldMapper::fieldType));
+
+        FieldTypeLookup lookup = new FieldTypeLookup(List.of(labels), List.of(), List.of(labels), List.of());
+        assertSame(subFieldTypes.get("status"), lookup.get("status"));
+        assertSame(subFieldTypes.get("count"), lookup.get("count"));
+    }
+
+    public void testFlattenedPassthroughVsObjectPassthroughHigherPriorityWins() {
+        FlattenedFieldMapper labels = createFlattenedMapper("labels", 5, "foo");
+
+        MockFieldMapper objectFoo = new MockFieldMapper("attributes.foo");
+        PassThroughObjectMapper objectSource = createPassThroughMapper("attributes", Map.of("foo", objectFoo), 10);
+
+        FieldTypeLookup lookup = new FieldTypeLookup(
+            randomizedList(labels, objectFoo),
+            List.of(),
+            randomizedList(labels, objectSource),
+            List.of()
+        );
+        // objectSource has priority 10 > 5, so objectFoo's type wins
+        assertSame(objectFoo.fieldType(), lookup.get("foo"));
+    }
+
+    public void testFlattenedPassthroughRootConcreteFieldWins() {
+        FlattenedFieldMapper labels = createFlattenedMapper("labels", 10, "status");
+        MockFieldMapper rootStatus = new MockFieldMapper("status");
+
+        FieldTypeLookup lookup = new FieldTypeLookup(randomizedList(labels, rootStatus), List.of(), List.of(labels), List.of());
+        assertSame(rootStatus.fieldType(), lookup.get("status"));
+    }
+
+    public void testNonPassthroughFlattenedRegistersNoRootAliases() {
+        FlattenedFieldMapper labels = createFlattenedMapper("labels");
+        MockFieldMapper statusField = new MockFieldMapper("labels.status");
+
+        FieldTypeLookup lookup = new FieldTypeLookup(List.of(labels, statusField), List.of(), List.of(), List.of());
+        assertNull(lookup.get("status"));
+    }
+
+    // --- prefix_properties-based alias resolution (strict columnar mode path) ---
+
+    /**
+     * When {@code prefixProperties} is populated (strict columnar mode), flat fields whose names
+     * start with a passthrough prefix get short-name root aliases so queries can omit the prefix.
+     */
+    public void testPrefixBasedAliasForPassthroughByPrefix() {
+        MockFieldMapper envField = new MockFieldMapper("attributes.env");
+        MockFieldMapper serviceField = new MockFieldMapper("attributes.service");
+
+        FieldTypeLookup lookup = new FieldTypeLookup(
+            List.of(envField, serviceField),
+            List.of(),
+            List.of(),
+            List.of(),
+            Map.of("attributes", new PrefixProperties(null, 1))
+        );
+
+        assertSame(envField.fieldType(), lookup.get("env"));
+        assertSame(serviceField.fieldType(), lookup.get("service"));
+        // full dotted paths still resolve
+        assertSame(envField.fieldType(), lookup.get("attributes.env"));
+        assertSame(serviceField.fieldType(), lookup.get("attributes.service"));
+    }
+
+    /**
+     * A passthrough prefix that is itself multi-segment (e.g. {@code "path.to"}) produces aliases that
+     * strip the full prefix — {@code "path.to.my.field"} → alias {@code "my.field"}, not {@code "field"}.
+     */
+    public void testPrefixBasedAliasMultiSegmentPrefix() {
+        MockFieldMapper deepField = new MockFieldMapper("path.to.my.field");
+
+        FieldTypeLookup lookup = new FieldTypeLookup(
+            List.of(deepField),
+            List.of(),
+            List.of(),
+            List.of(),
+            Map.of("path.to", new PrefixProperties(null, 0))
+        );
+
+        // alias is everything after "path.to." — "my.field", not just "field"
+        assertSame(deepField.fieldType(), lookup.get("my.field"));
+        assertNull("last-dot-only alias must not be created", lookup.get("field"));
+    }
+
+    /**
+     * When two passthrough prefixes compete for the same short-name alias, the higher priority wins.
+     */
+    public void testPrefixBasedAliasPriorityConflict() {
+        MockFieldMapper attrEnv = new MockFieldMapper("attributes.env");
+        MockFieldMapper resEnv = new MockFieldMapper("resource.env");
+
+        FieldTypeLookup lookup = new FieldTypeLookup(
+            randomizedList(attrEnv, resEnv),
+            List.of(),
+            List.of(),
+            List.of(),
+            Map.of("attributes", new PrefixProperties(null, 1), "resource", new PrefixProperties(null, 2))
+        );
+
+        // resource has priority 2 > 1, so resource.env wins for alias "env"
+        assertSame(resEnv.fieldType(), lookup.get("env"));
+    }
+
+    /**
+     * When no {@code prefixProperties} is provided (empty map), no prefix-based aliases are created.
+     */
+    public void testNoPrefixBasedAliasWhenPassthroughByPrefixEmpty() {
+        MockFieldMapper envField = new MockFieldMapper("attributes.env");
+
+        FieldTypeLookup lookup = new FieldTypeLookup(List.of(envField), List.of(), List.of(), List.of(), Map.of());
+
+        assertNull("empty prefixProperties must not create aliases", lookup.get("env"));
+    }
+
+    /**
+     * A concrete root-level field wins over a prefix-based alias with the same name.
+     */
+    public void testPrefixBasedAliasConcreteRootFieldWins() {
+        MockFieldMapper envField = new MockFieldMapper("attributes.env");
+        MockFieldMapper rootEnv = new MockFieldMapper("env");
+
+        FieldTypeLookup lookup = new FieldTypeLookup(
+            randomizedList(envField, rootEnv),
+            List.of(),
+            List.of(),
+            List.of(),
+            Map.of("attributes", new PrefixProperties(null, 1))
+        );
+
+        assertSame(rootEnv.fieldType(), lookup.get("env"));
     }
 
     @SafeVarargs

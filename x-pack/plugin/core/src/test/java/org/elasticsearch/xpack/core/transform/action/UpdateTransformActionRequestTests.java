@@ -7,13 +7,15 @@
 
 package org.elasticsearch.xpack.core.transform.action;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.persistent.AllocatedPersistentTask;
 import org.elasticsearch.xpack.core.transform.action.UpdateTransformAction.Request;
 import org.elasticsearch.xpack.core.transform.transforms.AuthorizationStateTests;
+import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfigTests;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfigUpdate;
+import org.elasticsearch.xpack.core.transform.transforms.TransformConfigUpdateTests;
 
 import static org.elasticsearch.xpack.core.transform.transforms.TransformConfigUpdateTests.randomTransformConfigUpdate;
 
@@ -71,11 +73,23 @@ public class UpdateTransformActionRequestTests extends AbstractWireSerializingTr
         return new Request(update, id, deferValidation, timeout);
     }
 
-    public void testMatch() {
-        Request request = new Request(randomTransformConfigUpdate(), "my-transform-7", false, null);
-        assertTrue(request.match(new AllocatedPersistentTask(123, "", "", "data_frame_my-transform-7", null, null)));
-        assertFalse(request.match(new AllocatedPersistentTask(123, "", "", "data_frame_my-transform-", null, null)));
-        assertFalse(request.match(new AllocatedPersistentTask(123, "", "", "data_frame_my-transform-77", null, null)));
-        assertFalse(request.match(new AllocatedPersistentTask(123, "", "", "my-transform-7", null, null)));
+    @Override
+    protected Request mutateInstanceForVersion(Request instance, TransportVersion version) {
+        // Both the inner TransformConfigUpdate and the optional TransformConfig carry a SourceConfig with
+        // version-gated fields; drop them for older versions so the BWC baseline matches the wire round-trip.
+        Request mutated = new Request(
+            TransformConfigUpdateTests.mutateForVersion(instance.getUpdate(), version),
+            instance.getId(),
+            instance.isDeferValidation(),
+            instance.getTimeout()
+        );
+        TransformConfig config = instance.getConfig();
+        if (config != null) {
+            mutated.setConfig(TransformConfigTests.mutateForVersion(config, version));
+        }
+        if (instance.getAuthState() != null) {
+            mutated.setAuthState(instance.getAuthState());
+        }
+        return mutated;
     }
 }

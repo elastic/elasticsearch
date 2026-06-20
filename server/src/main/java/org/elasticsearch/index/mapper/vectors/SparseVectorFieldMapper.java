@@ -16,13 +16,13 @@ import org.apache.lucene.index.PostingsEnum;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.features.NodeFeature;
@@ -127,6 +127,11 @@ public class SparseVectorFieldMapper extends FieldMapper {
         }
 
         @Override
+        public String contentType() {
+            return CONTENT_TYPE;
+        }
+
+        @Override
         public SparseVectorFieldMapper build(MapperBuilderContext context) {
             SparseVectorIndexOptions builderIndexOptions = indexOptions.getValue();
             if (builderIndexOptions == null) {
@@ -144,6 +149,7 @@ public class SparseVectorFieldMapper extends FieldMapper {
                     builderIndexOptions
                 ),
                 builderParams(this, context),
+                isExcludeSourceVectors,
                 isExcludeSourceVectorsFinal
             );
         }
@@ -268,7 +274,7 @@ public class SparseVectorFieldMapper extends FieldMapper {
         public Query existsQuery(SearchExecutionContext context) {
             if (context.getIndexSettings().getIndexVersionCreated().before(PREVIOUS_SPARSE_VECTOR_INDEX_VERSION)) {
                 deprecationLogger.warn(DeprecationCategory.MAPPINGS, "sparse_vector", ERROR_MESSAGE_7X);
-                return new MatchNoDocsQuery();
+                return Queries.NO_DOCS_INSTANCE;
             } else if (context.getIndexSettings().getIndexVersionCreated().before(SPARSE_VECTOR_IN_FIELD_NAMES_INDEX_VERSION)) {
                 // No support for exists queries prior to this version on 8.x
                 throw new IllegalArgumentException("[sparse_vector] fields do not support [exists] queries");
@@ -315,17 +321,20 @@ public class SparseVectorFieldMapper extends FieldMapper {
         }
     }
 
-    private final boolean isExcludeSourceVectors;
+    private final boolean excludeSourceVectorsSetting;
+    private final boolean excludeSourceVectors;
 
     private SparseVectorFieldMapper(
         String simpleName,
         MappedFieldType mappedFieldType,
         BuilderParams builderParams,
-        boolean isExcludeSourceVectors
+        boolean excludeSourceVectorsSetting,
+        boolean excludeSourceVectors
     ) {
         super(simpleName, mappedFieldType, builderParams);
-        assert isExcludeSourceVectors == false || fieldType().isStored();
-        this.isExcludeSourceVectors = isExcludeSourceVectors;
+        assert excludeSourceVectors == false || fieldType().isStored();
+        this.excludeSourceVectorsSetting = excludeSourceVectorsSetting;
+        this.excludeSourceVectors = excludeSourceVectors;
     }
 
     @Override
@@ -338,7 +347,7 @@ public class SparseVectorFieldMapper extends FieldMapper {
 
     @Override
     public SourceLoader.SyntheticVectorsLoader syntheticVectorsLoader() {
-        if (isExcludeSourceVectors) {
+        if (excludeSourceVectors) {
             return new SyntheticVectorsPatchFieldLoader<>(
                 // Recreate the object for each leaf so that different segments can be searched concurrently.
                 () -> new SparseVectorSyntheticFieldLoader(fullPath(), leafName()),
@@ -355,7 +364,7 @@ public class SparseVectorFieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(leafName(), this.fieldType().indexVersionCreated, this.isExcludeSourceVectors).init(this);
+        return new Builder(leafName(), this.fieldType().indexVersionCreated, this.excludeSourceVectorsSetting).init(this);
     }
 
     @Override
@@ -546,7 +555,7 @@ public class SparseVectorFieldMapper extends FieldMapper {
         }
     }
 
-    public static class SparseVectorIndexOptions implements IndexOptions {
+    public static class SparseVectorIndexOptions extends IndexOptions {
         public static final ParseField PRUNE_FIELD_NAME = new ParseField("prune");
         public static final ParseField PRUNING_CONFIG_FIELD_NAME = new ParseField("pruning_config");
         public static final SparseVectorIndexOptions DEFAULT_PRUNING_INDEX_OPTIONS = new SparseVectorIndexOptions(
@@ -614,18 +623,13 @@ public class SparseVectorFieldMapper extends FieldMapper {
         }
 
         @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
-
+        public void toXContentFragment(XContentBuilder builder, Params params) throws IOException {
             if (prune != null) {
                 builder.field(PRUNE_FIELD_NAME.getPreferredName(), prune);
             }
             if (pruningConfig != null) {
                 builder.field(PRUNING_CONFIG_FIELD_NAME.getPreferredName(), pruningConfig);
             }
-
-            builder.endObject();
-            return builder;
         }
 
         @Override

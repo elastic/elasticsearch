@@ -23,6 +23,7 @@ import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.LeafNumericFieldData;
 import org.elasticsearch.index.fielddata.SortedNumericLongValues;
 import org.elasticsearch.index.fielddata.fieldcomparator.LongValuesComparatorSource;
+import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.script.field.DocValuesScriptFieldFactory;
 import org.elasticsearch.script.field.ToScriptFieldFactory;
@@ -31,6 +32,7 @@ import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.Objects;
 
 /**
@@ -44,15 +46,15 @@ public class SortedNumericIndexFieldData extends IndexNumericFieldData {
         private final NumericType numericType;
         private final ValuesSourceType valuesSourceType;
         protected final ToScriptFieldFactory<SortedNumericLongValues> toScriptFieldFactory;
-        private final boolean indexed;
+        private final IndexType indexType;
 
         public Builder(
             String name,
             NumericType numericType,
             ToScriptFieldFactory<SortedNumericLongValues> toScriptFieldFactory,
-            boolean indexed
+            IndexType indexType
         ) {
-            this(name, numericType, numericType.getValuesSourceType(), toScriptFieldFactory, indexed);
+            this(name, numericType, numericType.getValuesSourceType(), toScriptFieldFactory, indexType);
         }
 
         public Builder(
@@ -60,18 +62,18 @@ public class SortedNumericIndexFieldData extends IndexNumericFieldData {
             NumericType numericType,
             ValuesSourceType valuesSourceType,
             ToScriptFieldFactory<SortedNumericLongValues> toScriptFieldFactory,
-            boolean indexed
+            IndexType indexType
         ) {
             this.name = name;
             this.numericType = numericType;
             this.valuesSourceType = valuesSourceType;
             this.toScriptFieldFactory = toScriptFieldFactory;
-            this.indexed = indexed;
+            this.indexType = indexType;
         }
 
         @Override
         public SortedNumericIndexFieldData build(IndexFieldDataCache cache, CircuitBreakerService breakerService) {
-            return new SortedNumericIndexFieldData(name, numericType, valuesSourceType, toScriptFieldFactory, indexed);
+            return new SortedNumericIndexFieldData(name, numericType, valuesSourceType, toScriptFieldFactory, indexType);
         }
     }
 
@@ -79,21 +81,21 @@ public class SortedNumericIndexFieldData extends IndexNumericFieldData {
     protected final String fieldName;
     protected final ValuesSourceType valuesSourceType;
     protected final ToScriptFieldFactory<SortedNumericLongValues> toScriptFieldFactory;
-    protected final boolean indexed;
+    protected final IndexType indexType;
 
     public SortedNumericIndexFieldData(
         String fieldName,
         NumericType numericType,
         ValuesSourceType valuesSourceType,
         ToScriptFieldFactory<SortedNumericLongValues> toScriptFieldFactory,
-        boolean indexed
+        IndexType indexType
     ) {
         this.fieldName = fieldName;
         this.numericType = Objects.requireNonNull(numericType);
         assert this.numericType.isFloatingPoint() == false;
         this.valuesSourceType = valuesSourceType;
         this.toScriptFieldFactory = toScriptFieldFactory;
-        this.indexed = indexed;
+        this.indexType = indexType;
     }
 
     @Override
@@ -112,8 +114,8 @@ public class SortedNumericIndexFieldData extends IndexNumericFieldData {
     }
 
     @Override
-    public boolean isIndexed() {
-        return indexed;
+    public IndexType indexType() {
+        return indexType;
     }
 
     @Override
@@ -194,9 +196,9 @@ public class SortedNumericIndexFieldData extends IndexNumericFieldData {
 
         public SortedNumericLongValues getLongValuesAsNanos() {
             try {
-                return SortedNumericLongValues.wrap(DocValues.getSortedNumeric(reader, fieldName));
+                return SortedNumericLongValues.getLongValues(fieldName, reader);
             } catch (IOException e) {
-                throw new IllegalStateException("Cannot load doc values", e);
+                throw new UncheckedIOException(e);
             }
         }
 
@@ -238,9 +240,9 @@ public class SortedNumericIndexFieldData extends IndexNumericFieldData {
         @Override
         public SortedNumericLongValues getLongValues() {
             try {
-                return SortedNumericLongValues.wrap(DocValues.getSortedNumeric(reader, field));
+                return SortedNumericLongValues.getLongValues(field, reader);
             } catch (IOException e) {
-                throw new IllegalStateException("Cannot load doc values", e);
+                throw new UncheckedIOException(e);
             }
         }
 

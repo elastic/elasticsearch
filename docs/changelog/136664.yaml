@@ -1,5 +1,0 @@
-pr: 136664
-summary: Drop project-id from threadcontext for CCS
-area: Authorization
-type: bug
-issues: []

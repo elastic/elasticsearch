@@ -20,6 +20,7 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.MetadataDataStreamsService;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
@@ -38,6 +39,7 @@ public class TransportGetDataStreamSettingsAction extends TransportLocalProjectM
     GetDataStreamSettingsAction.Response> {
     private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final SettingsFilter settingsFilter;
+    private final MetadataDataStreamsService metadataDataStreamsService;
 
     @Inject
     public TransportGetDataStreamSettingsAction(
@@ -47,7 +49,8 @@ public class TransportGetDataStreamSettingsAction extends TransportLocalProjectM
         SettingsFilter settingsFilter,
         ActionFilters actionFilters,
         ProjectResolver projectResolver,
-        IndexNameExpressionResolver indexNameExpressionResolver
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        MetadataDataStreamsService metadataDataStreamsService
     ) {
         super(
             GetSettingsAction.NAME,
@@ -59,6 +62,7 @@ public class TransportGetDataStreamSettingsAction extends TransportLocalProjectM
         );
         this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.settingsFilter = settingsFilter;
+        this.metadataDataStreamsService = metadataDataStreamsService;
     }
 
     @Override
@@ -83,7 +87,9 @@ public class TransportGetDataStreamSettingsAction extends TransportLocalProjectM
         for (String dataStreamName : dataStreamNames) {
             DataStream dataStream = dataStreamMap.get(dataStreamName);
             Settings settings = settingsFilter.filter(dataStream.getSettings());
-            Settings effectiveSettings = settingsFilter.filter(dataStream.getEffectiveSettings(project.metadata()));
+            Settings effectiveSettings = settingsFilter.filter(
+                metadataDataStreamsService.getEffectiveSettings(project.metadata(), dataStream)
+            );
             responseList.add(new GetDataStreamSettingsAction.DataStreamSettingsResponse(dataStreamName, settings, effectiveSettings));
         }
         listener.onResponse(new GetDataStreamSettingsAction.Response(responseList));

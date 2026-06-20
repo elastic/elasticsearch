@@ -19,18 +19,23 @@ public class MvFunctionWritables {
             MvConcat.ENTRY,
             MvContains.ENTRY,
             MvCount.ENTRY,
+            MvDifference.ENTRY,
             MvDedupe.ENTRY,
             MvFirst.ENTRY,
+            MvIntersection.ENTRY,
             MvLast.ENTRY,
             MvMax.ENTRY,
             MvMedian.ENTRY,
             MvMedianAbsoluteDeviation.ENTRY,
             MvMin.ENTRY,
+            MvIntersects.ENTRY,
             MvPercentile.ENTRY,
             MvPSeriesWeightedSum.ENTRY,
             MvSlice.ENTRY,
+            MvSingleValueOrNull.ENTRY,
             MvSort.ENTRY,
             MvSum.ENTRY,
+            MvUnion.ENTRY,
             MvZip.ENTRY
         );
     }

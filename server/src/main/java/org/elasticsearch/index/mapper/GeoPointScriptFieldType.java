@@ -13,13 +13,13 @@ import org.apache.lucene.geo.GeoEncodingUtils;
 import org.apache.lucene.geo.LatLonGeometry;
 import org.apache.lucene.geo.Point;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.geo.GeometryFormatterFactory;
 import org.elasticsearch.common.geo.ShapeRelation;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.index.fielddata.FieldDataContext;
@@ -135,7 +135,7 @@ public final class GeoPointScriptFieldType extends AbstractScriptFieldType<GeoPo
     @Override
     public Query geoShapeQuery(SearchExecutionContext context, String fieldName, ShapeRelation relation, LatLonGeometry... geometries) {
         if (relation == ShapeRelation.CONTAINS && Arrays.stream(geometries).anyMatch(g -> (g instanceof Point) == false)) {
-            return new MatchNoDocsQuery();
+            return Queries.NO_DOCS_INSTANCE;
         }
         return new GeoPointScriptFieldGeoShapeQuery(script, leafFactory(context), fieldName, relation, geometries);
     }

@@ -16,13 +16,17 @@ import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
-import org.elasticsearch.compute.operator.EvalOperator;
-import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
+import org.elasticsearch.compute.data.LongRangeBlock;
+import org.elasticsearch.compute.data.LongRangeBlockBuilder;
+import org.elasticsearch.compute.expression.ConstantEvaluators;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
@@ -31,13 +35,18 @@ import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
-import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isRepresentableExceptCountersDenseVectorAndAggregateMetricDouble;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
+import static org.elasticsearch.xpack.esql.core.type.DataType.isRepresentable;
 
 /**
  * Reduce a multivalued field to a single valued field containing the minimum value.
  */
 public class MvFirst extends AbstractMultivalueFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "MvFirst", MvFirst::new);
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(MvFirst.class)
+        .unary(MvFirst::new)
+        .capabilities("flattened")
+        .name("mv_first");
 
     @FunctionInfo(
         returnType = {
@@ -46,7 +55,9 @@ public class MvFirst extends AbstractMultivalueFunction {
             "cartesian_shape",
             "date",
             "date_nanos",
+            "date_range",
             "double",
+            "flattened",
             "geo_point",
             "geo_shape",
             "geohash",
@@ -58,6 +69,7 @@ public class MvFirst extends AbstractMultivalueFunction {
             "long",
             "unsigned_long",
             "version" },
+        briefSummary = "Returns the first value from a multi-value field.",
         description = """
             Converts a multivalued expression into a single valued column containing the
             first value. This is most useful when reading from a function that emits
@@ -80,7 +92,9 @@ public class MvFirst extends AbstractMultivalueFunction {
                 "cartesian_shape",
                 "date",
                 "date_nanos",
+                "date_range",
                 "double",
+                "flattened",
                 "geo_point",
                 "geo_shape",
                 "geohash",
@@ -93,7 +107,7 @@ public class MvFirst extends AbstractMultivalueFunction {
                 "text",
                 "unsigned_long",
                 "version" },
-            description = "Multivalue expression."
+            description = "Expression that can be null, a single value, or multiple values."
         ) Expression field
     ) {
         super(source, field);
@@ -110,7 +124,18 @@ public class MvFirst extends AbstractMultivalueFunction {
 
     @Override
     protected TypeResolution resolveFieldType() {
-        return isRepresentableExceptCountersDenseVectorAndAggregateMetricDouble(field(), sourceText(), DEFAULT);
+        return isType(
+            field(),
+            dt -> isRepresentable(dt)
+                && dt != DataType.DENSE_VECTOR
+                && dt != DataType.AGGREGATE_METRIC_DOUBLE
+                && dt != DataType.EXPONENTIAL_HISTOGRAM
+                && dt != DataType.HISTOGRAM
+                && dt != DataType.TDIGEST,
+            sourceText(),
+            DEFAULT,
+            "any type except counter types, dense_vector, aggregate_metric_double, tdigest, histogram, or exponential_histogram"
+        );
     }
 
     @Override
@@ -121,7 +146,8 @@ public class MvFirst extends AbstractMultivalueFunction {
             case DOUBLE -> new MvFirstDoubleEvaluator.Factory(fieldEval);
             case INT -> new MvFirstIntEvaluator.Factory(fieldEval);
             case LONG -> new MvFirstLongEvaluator.Factory(fieldEval);
-            case NULL -> EvalOperator.CONSTANT_NULL_FACTORY;
+            case LONG_RANGE -> new MvFirstLongRangeEvaluator.Factory(fieldEval);
+            case NULL -> ConstantEvaluators.CONSTANT_NULL_FACTORY;
             default -> throw EsqlIllegalArgumentException.illegalDataType(field.dataType());
         };
     }
@@ -159,5 +185,10 @@ public class MvFirst extends AbstractMultivalueFunction {
     @MvEvaluator(extraName = "BytesRef")
     static BytesRef process(BytesRefBlock block, int start, int end, BytesRef scratch) {
         return block.getBytesRef(start, scratch);
+    }
+
+    @MvEvaluator(extraName = "LongRange")
+    static LongRangeBlockBuilder.LongRange process(LongRangeBlock block, int start, int end, LongRangeBlockBuilder.LongRange scratch) {
+        return block.getLongRange(start, scratch);
     }
 }

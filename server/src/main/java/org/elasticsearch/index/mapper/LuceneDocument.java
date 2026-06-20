@@ -17,6 +17,7 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 
 /**
  * Fork of {@link org.apache.lucene.document.Document} with additional functionality.
@@ -96,13 +97,15 @@ public class LuceneDocument implements Iterable<IndexableField> {
     /**
      * only add the key to the keyedFields, it don't add the field to the field list
      */
-    public void onlyAddKey(Object key, IndexableField field) {
+    public void onlyAddKey(final Object key, final IndexableField field) {
+        assert field != null : "field must not be null";
         if (keyedFields == null) {
             keyedFields = new HashMap<>();
-        } else if (keyedFields.containsKey(key)) {
+        }
+        final var existing = keyedFields.put(key, field);
+        if (existing != null) {
             throw new IllegalStateException("Only one field can be stored per key");
         }
-        keyedFields.put(key, field);
     }
 
     /**
@@ -110,6 +113,22 @@ public class LuceneDocument implements Iterable<IndexableField> {
      */
     public IndexableField getByKey(Object key) {
         return keyedFields == null ? null : keyedFields.get(key);
+    }
+
+    /**
+     * Add fields so that they can later be fetched using {@link #getByKey(Object)}.
+     * If the keyed field does not exist, it will be computed using the supplied mappingFunction.
+     * The mappingFunction is responsible for adding any companion fields to this document; the keyed field itself may be
+     * added eagerly or lazily (e.g. a blob written only once it holds a value), so it is not required to be in the field list yet.
+     */
+    public IndexableField getOrAddWithKey(final Object key, Function<Object, IndexableField> mappingFunction) {
+        if (keyedFields == null) {
+            keyedFields = new HashMap<>();
+        }
+
+        var indexableField = keyedFields.computeIfAbsent(key, mappingFunction);
+        assert indexableField != null : "mappingFunction must return a non-null field";
+        return indexableField;
     }
 
     public List<IndexableField> getFields(String name) {

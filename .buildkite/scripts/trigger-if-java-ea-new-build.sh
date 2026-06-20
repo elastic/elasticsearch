@@ -13,7 +13,7 @@
 RECENT_TIME_WINDOW=${RECENT_TIME_WINDOW:-24}
 
 # Extract current JDK major version from bundled_jdk in version.properties
-CURRENT_JDK=$(grep "^bundled_jdk =" build-tools-internal/version.properties | cut -d'=' -f2 | tr -d ' ' | cut -d'+' -f1)
+CURRENT_JDK=$(grep "^bundled_jdk =" build-tools-internal/version.properties | cut -d'=' -f2 | tr -d ' ' | cut -d'+' -f1 | cut -d'.' -f1)
 TARGET_JDK=$((CURRENT_JDK + 1))
 
 echo "Current JDK major version: $CURRENT_JDK"
@@ -50,10 +50,6 @@ JDK_IDENTIFIER=$(echo "$LATEST_BUILD" | jq -r '.id')
 echo "Latest JDK ${TARGET_JDK} build from ES archive:"
 echo "  Timestamp: $TIMESTAMP"
 echo "  JDK Identifier: $JDK_IDENTIFIER"
-
-# Set variables for use in the pipeline trigger
-jdkbuild="$JDK_IDENTIFIER"
-jdk_timestamp="$TIMESTAMP"
 
 # Check if timestamp is within last 24 hours
 CURRENT_TIME=$(date +%s)

@@ -9,13 +9,11 @@
 
 package org.elasticsearch.search.vectors;
 
-import org.apache.lucene.index.FloatVectorValues;
+import org.apache.lucene.codecs.lucene95.HasIndexSlice;
 import org.apache.lucene.index.KnnVectorValues;
-import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.queries.function.FunctionScoreQuery;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.ConjunctionUtils;
-import org.apache.lucene.search.DocAndFloatFeatureBuffer;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.KnnByteVectorQuery;
@@ -27,8 +25,9 @@ import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.TopDocs;
-import org.elasticsearch.index.codec.vectors.BulkScorableFloatVectorValues;
-import org.elasticsearch.index.codec.vectors.BulkScorableVectorValues;
+import org.apache.lucene.search.VectorScorer;
+import org.apache.lucene.store.IndexInput;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.search.profile.query.QueryProfiler;
 
 import java.io.IOException;
@@ -54,21 +53,13 @@ import java.util.Objects;
 public abstract class RescoreKnnVectorQuery extends Query implements QueryProfilerProvider {
     protected final String fieldName;
     protected final float[] floatTarget;
-    protected final VectorSimilarityFunction vectorSimilarityFunction;
     protected final int k;
     protected final Query innerQuery;
     protected long vectorOperations = 0;
 
-    private RescoreKnnVectorQuery(
-        String fieldName,
-        float[] floatTarget,
-        VectorSimilarityFunction vectorSimilarityFunction,
-        int k,
-        Query innerQuery
-    ) {
+    private RescoreKnnVectorQuery(String fieldName, float[] floatTarget, int k, Query innerQuery) {
         this.fieldName = fieldName;
         this.floatTarget = floatTarget;
-        this.vectorSimilarityFunction = vectorSimilarityFunction;
         this.k = k;
         this.innerQuery = innerQuery;
     }
@@ -76,28 +67,19 @@ public abstract class RescoreKnnVectorQuery extends Query implements QueryProfil
     /**
      * Selects and returns the appropriate {@link RescoreKnnVectorQuery} strategy based on the nature of the {@code innerQuery}.
      *
-     * @param fieldName                 the name of the field containing the vector
+     * @param fieldName                the name of the field containing the vector
      * @param floatTarget              the target vector to compare against
-     * @param vectorSimilarityFunction the similarity function to apply
      * @param k                        the number of top documents to return after rescoring
      * @param rescoreK                 the number of top documents to consider for rescoring
      * @param innerQuery               the original Lucene query to rescore
      */
-    public static RescoreKnnVectorQuery fromInnerQuery(
-        String fieldName,
-        float[] floatTarget,
-        VectorSimilarityFunction vectorSimilarityFunction,
-        int k,
-        int rescoreK,
-        Query innerQuery
-    ) {
+    public static RescoreKnnVectorQuery fromInnerQuery(String fieldName, float[] floatTarget, int k, int rescoreK, Query innerQuery) {
         if ((innerQuery instanceof KnnFloatVectorQuery fQuery && fQuery.getK() == rescoreK)
-            || (innerQuery instanceof KnnByteVectorQuery bQuery && bQuery.getK() == rescoreK)
-            || (innerQuery instanceof AbstractIVFKnnVectorQuery ivfQuery && ivfQuery.k == rescoreK)) {
+            || (innerQuery instanceof KnnByteVectorQuery bQuery && bQuery.getK() == rescoreK)) {
             // Queries that return only the top `k` results and do not require reduction before re-scoring.
-            return new InlineRescoreQuery(fieldName, floatTarget, vectorSimilarityFunction, k, innerQuery);
+            return new InlineRescoreQuery(fieldName, floatTarget, k, innerQuery);
         }
-        return new LateRescoreQuery(fieldName, floatTarget, vectorSimilarityFunction, k, rescoreK, innerQuery);
+        return new LateRescoreQuery(fieldName, floatTarget, k, rescoreK, innerQuery);
     }
 
     public Query innerQuery() {
@@ -129,14 +111,13 @@ public abstract class RescoreKnnVectorQuery extends Query implements QueryProfil
         RescoreKnnVectorQuery that = (RescoreKnnVectorQuery) o;
         return Objects.equals(fieldName, that.fieldName)
             && Arrays.equals(floatTarget, that.floatTarget)
-            && vectorSimilarityFunction == that.vectorSimilarityFunction
             && Objects.equals(k, that.k)
             && Objects.equals(innerQuery, that.innerQuery);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(fieldName, Arrays.hashCode(floatTarget), vectorSimilarityFunction, k, innerQuery);
+        return Objects.hash(fieldName, Arrays.hashCode(floatTarget), k, innerQuery);
     }
 
     @Override
@@ -149,8 +130,6 @@ public abstract class RescoreKnnVectorQuery extends Query implements QueryProfil
             + ", floatTarget="
             + floatTarget[0]
             + "..."
-            + ", vectorSimilarityFunction="
-            + vectorSimilarityFunction
             + ", k="
             + k
             + ", vectorQuery="
@@ -159,14 +138,8 @@ public abstract class RescoreKnnVectorQuery extends Query implements QueryProfil
     }
 
     private static class InlineRescoreQuery extends RescoreKnnVectorQuery {
-        private InlineRescoreQuery(
-            String fieldName,
-            float[] floatTarget,
-            VectorSimilarityFunction vectorSimilarityFunction,
-            int k,
-            Query innerQuery
-        ) {
-            super(fieldName, floatTarget, vectorSimilarityFunction, k, innerQuery);
+        private InlineRescoreQuery(String fieldName, float[] floatTarget, int k, Query innerQuery) {
+            super(fieldName, floatTarget, k, innerQuery);
         }
 
         @Override
@@ -193,15 +166,8 @@ public abstract class RescoreKnnVectorQuery extends Query implements QueryProfil
     private static class LateRescoreQuery extends RescoreKnnVectorQuery {
         final int rescoreK;
 
-        private LateRescoreQuery(
-            String fieldName,
-            float[] floatTarget,
-            VectorSimilarityFunction vectorSimilarityFunction,
-            int k,
-            int rescoreK,
-            Query innerQuery
-        ) {
-            super(fieldName, floatTarget, vectorSimilarityFunction, k, innerQuery);
+        private LateRescoreQuery(String fieldName, float[] floatTarget, int k, int rescoreK, Query innerQuery) {
+            super(fieldName, floatTarget, k, innerQuery);
             this.rescoreK = rescoreK;
         }
 
@@ -234,6 +200,8 @@ public abstract class RescoreKnnVectorQuery extends Query implements QueryProfil
     }
 
     private static class DirectRescoreKnnVectorQuery extends Query {
+        private static final int PREFETCH_BUFFER_SIZE = 100;
+
         private final float[] floatTarget;
         private final String fieldName;
         private final Query innerQuery;
@@ -253,11 +221,17 @@ public abstract class RescoreKnnVectorQuery extends Query implements QueryProfil
         public Query rewrite(IndexSearcher indexSearcher) throws IOException {
             Query innerRewritten = innerQuery.rewrite(indexSearcher);
             if (innerRewritten.getClass() == MatchNoDocsQuery.class) {
-                return new MatchNoDocsQuery();
+                return Queries.NO_DOCS_INSTANCE;
             }
             assert innerRewritten.getClass() != MatchAllDocsQuery.class;
 
             List<ScoreDoc> results = new ArrayList<>(10);
+            int[] ringDocIDs = new int[PREFETCH_BUFFER_SIZE];
+            int[] ringDocBases = new int[PREFETCH_BUFFER_SIZE];
+            VectorScorer[] ringScorers = new VectorScorer[PREFETCH_BUFFER_SIZE];
+            int ringHead = 0;
+            int ringCount = 0;
+
             for (var leaf : indexSearcher.getIndexReader().leaves()) {
                 var knnVectorValues = leaf.reader().getFloatVectorValues(fieldName);
                 if (knnVectorValues == null) {
@@ -274,21 +248,55 @@ public abstract class RescoreKnnVectorQuery extends Query implements QueryProfil
                     continue;
                 }
                 var filterIterator = scorer.iterator();
-                if (knnVectorValues instanceof BulkScorableFloatVectorValues rescorableVectorValues) {
-                    rescoreBulk(leaf.docBase, rescorableVectorValues, results, filterIterator);
-                } else {
-                    rescoreIndividually(
-                        leaf.docBase,
-                        knnVectorValues,
-                        leaf.reader().getFieldInfos().fieldInfo(fieldName).getVectorSimilarityFunction(),
-                        results,
-                        filterIterator
-                    );
+
+                final int vectorByteSize = knnVectorValues.getVectorByteLength();
+                final IndexInput input = getIndexSliceOrNull(knnVectorValues);
+                KnnVectorValues.DocIndexIterator vectorIter = knnVectorValues.iterator();
+                DocIdSetIterator conjunction = ConjunctionUtils.intersectIterators(List.of(vectorIter, filterIterator));
+                VectorScorer vecScorer = knnVectorValues.rescorer(floatTarget);
+                int doc;
+                while ((doc = conjunction.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS) {
+                    assert doc == vectorIter.docID();
+                    final int ord = vectorIter.index();
+
+                    if (input != null) {
+                        input.prefetch((long) ord * vectorByteSize, vectorByteSize);
+                    }
+
+                    if (ringCount == PREFETCH_BUFFER_SIZE) {
+                        scoreEntry(ringDocIDs[ringHead], ringDocBases[ringHead], ringScorers[ringHead], results);
+                        ringHead = (ringHead + 1) % PREFETCH_BUFFER_SIZE;
+                        ringCount--;
+                    }
+
+                    int ringTail = (ringHead + ringCount) % PREFETCH_BUFFER_SIZE;
+                    ringDocIDs[ringTail] = doc;
+                    ringDocBases[ringTail] = leaf.docBase;
+                    ringScorers[ringTail] = vecScorer;
+                    ringCount++;
                 }
             }
-            // Remove any remaining sentinel values
+
+            for (int i = 0; i < ringCount; i++) {
+                int idx = (ringHead + i) % PREFETCH_BUFFER_SIZE;
+                scoreEntry(ringDocIDs[idx], ringDocBases[idx], ringScorers[idx], results);
+            }
+
             ScoreDoc[] arrayResults = results.toArray(new ScoreDoc[0]);
             return new KnnScoreDocQuery(arrayResults, indexSearcher.getIndexReader());
+        }
+
+        private static IndexInput getIndexSliceOrNull(KnnVectorValues vectorValues) {
+            return vectorValues instanceof HasIndexSlice h ? h.getSlice() : null;
+        }
+
+        private static void scoreEntry(int docID, int docBase, VectorScorer scorer, List<ScoreDoc> results) throws IOException {
+            int target = scorer.iterator().advance(docID);
+            assert target == docID;
+            float score = scorer.score();
+            if (Float.isNaN(score) == false) {
+                results.add(new ScoreDoc(docID + docBase, score));
+            }
         }
 
         @Override
@@ -309,48 +317,6 @@ public abstract class RescoreKnnVectorQuery extends Query implements QueryProfil
         @Override
         public int hashCode() {
             return Objects.hash(innerQuery, getClass());
-        }
-
-        private void rescoreBulk(
-            int docBase,
-            BulkScorableFloatVectorValues rescorableVectorValues,
-            List<ScoreDoc> queue,
-            DocIdSetIterator filterIterator
-        ) throws IOException {
-            BulkScorableVectorValues.BulkVectorScorer vectorReScorer = rescorableVectorValues.bulkRescorer(floatTarget);
-            var iterator = vectorReScorer.iterator();
-            BulkScorableVectorValues.BulkVectorScorer.BulkScorer bulkScorer = vectorReScorer.bulkScore(filterIterator);
-            DocAndFloatFeatureBuffer buffer = new DocAndFloatFeatureBuffer();
-            while (iterator.docID() != DocIdSetIterator.NO_MORE_DOCS) {
-                // iterator already takes live docs into account
-                bulkScorer.nextDocsAndScores(64, null, buffer);
-                for (int i = 0; i < buffer.size; i++) {
-                    float score = buffer.features[i];
-                    int doc = buffer.docs[i];
-                    queue.add(new ScoreDoc(doc + docBase, score));
-                }
-            }
-        }
-
-        private void rescoreIndividually(
-            int docBase,
-            FloatVectorValues knnVectorValues,
-            VectorSimilarityFunction function,
-            List<ScoreDoc> queue,
-            DocIdSetIterator filterIterator
-        ) throws IOException {
-            int doc;
-            KnnVectorValues.DocIndexIterator knnVectorIterator = knnVectorValues.iterator();
-            var conjunction = ConjunctionUtils.intersectIterators(List.of(knnVectorIterator, filterIterator));
-            while ((doc = conjunction.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS) {
-                assert doc == knnVectorIterator.docID();
-                float[] vector = knnVectorValues.vectorValue(knnVectorIterator.index());
-                float score = function.compare(floatTarget, vector);
-                if (Float.isNaN(score)) {
-                    continue;
-                }
-                queue.add(new ScoreDoc(doc + docBase, score));
-            }
         }
     }
 }

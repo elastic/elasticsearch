@@ -10,12 +10,11 @@ package org.elasticsearch.xpack.esql.expression.function.fulltext;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
-import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.FunctionName;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
-import org.junit.BeforeClass;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -26,12 +25,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
 import static org.hamcrest.Matchers.equalTo;
 
 @FunctionName("score")
-public class ScoreTests extends AbstractMatchFullTextFunctionTests {
-
-    @BeforeClass
-    public static void init() {
-        assumeTrue("can run this only when score() function is enabled", EsqlCapabilities.Cap.SCORE_FUNCTION.isEnabled());
-    }
+public class ScoreTests extends AbstractFunctionTestCase {
 
     public ScoreTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();

@@ -1,5 +1,0 @@
-pr: 135987
-summary: Avoid rewrite `round_to` with expensive queries
-area: ES|QL
-type: bug
-issues: []

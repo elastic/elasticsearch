@@ -30,7 +30,6 @@ import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.FeatureFlag;
 import org.elasticsearch.test.cluster.local.LocalClusterConfigProvider;
 import org.elasticsearch.test.cluster.util.resource.Resource;
-import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.test.rest.TestFeatureService;
 import org.elasticsearch.test.rest.yaml.CcsCommonYamlTestSuiteIT.TestCandidateAwareClient;
@@ -45,7 +44,6 @@ import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
@@ -64,8 +62,13 @@ import static org.elasticsearch.test.rest.yaml.CcsCommonYamlTestSuiteIT.rewrite;
  * defined in CCS_APIS against the "search" cluster, while all other operations like indexing are performed
  * using the client running against the "write" cluster.
  *
+ * Running all the YAML tests in a single test suite can lead to the suite timing out.
+ * To avoid timeouts subsets of the tests are executed in specific test suites according
+ * to the logic in {@link TestSuiteApiCheck}. To further split the tests add another suite
+ * by subclassing this class then add an entry to {@link TestSuiteApiCheck} mapping the API
+ * name(s) to the new class.
  */
-@TimeoutSuite(millis = 25 * TimeUnits.MINUTE) // to account for slow as hell VMs
+@TimeoutSuite(millis = 30 * TimeUnits.MINUTE) // to account for slow as hell VMs
 public class RcsCcsCommonYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
 
     private static final Logger logger = LogManager.getLogger(RcsCcsCommonYamlTestSuiteIT.class);
@@ -97,8 +100,9 @@ public class RcsCcsCommonYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
         .setting("xpack.security.remote_cluster_server.ssl.enabled", "false")
         .setting("xpack.security.remote_cluster_client.ssl.enabled", "false")
         .feature(FeatureFlag.TIME_SERIES_MODE)
-        .feature(FeatureFlag.SUB_OBJECTS_AUTO_ENABLED)
         .feature(FeatureFlag.SYNTHETIC_VECTORS)
+        .feature(FeatureFlag.EXTENDED_DOC_VALUES_PARAMS)
+        .feature(FeatureFlag.COLUMNAR_INDEX_MODE_FEATURE_FLAG)
         .user("test_admin", "x-pack-test-password");
 
     private static ElasticsearchCluster fulfillingCluster = ElasticsearchCluster.local()
@@ -281,6 +285,17 @@ public class RcsCcsCommonYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
     }
 
     @Override
+    public void test() throws IOException {
+        boolean shouldBeExecutedByThisSuite = TestSuiteApiCheck.shouldExecuteTest(this, getTestCandidate().getApi());
+        assumeTrue(
+            "Skipping test as the API [" + getTestCandidate().getApi() + "] is not covered by this suite",
+            shouldBeExecutedByThisSuite
+        );
+
+        super.test();
+    }
+
+    @Override
     protected ClientYamlTestExecutionContext createRestTestExecutionContext(
         ClientYamlTestCandidate clientYamlTestCandidate,
         ClientYamlTestClient clientYamlTestClient,
@@ -298,14 +313,9 @@ public class RcsCcsCommonYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
                 var searchOs = readOsFromNodesInfo(adminSearchClient);
                 var searchNodeVersions = readVersionsFromNodesInfo(adminSearchClient);
 
-                var semanticNodeVersions = searchNodeVersions.stream()
-                    .map(ESRestTestCase::parseLegacyVersion)
-                    .flatMap(Optional::stream)
-                    .collect(Collectors.toSet());
-
                 final TestFeatureService searchTestFeatureService = createTestFeatureService(
                     getClusterStateFeatures(adminSearchClient),
-                    semanticNodeVersions
+                    fromSemanticVersions(searchNodeVersions)
                 );
 
                 final TestFeatureService combinedTestFeatureService = (featureId, any) -> {
@@ -341,11 +351,24 @@ public class RcsCcsCommonYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
     }
 
     @AfterClass
-    public static void closeSearchClients() throws IOException {
+    public static void resetSearchClientState() throws IOException {
         try {
             IOUtils.close(searchClient, adminSearchClient);
         } finally {
+            // These clients and their connection state are static and shared by every suite that extends this base class.
+            // Reset them all so that a sibling suite running later in the same JVM re-initializes against its own freshly
+            // started cluster, rather than reusing these now-closed clients (or stale flags) via the searchClient == null
+            // guard in initSearchClient().
+            searchClient = null;
+            adminSearchClient = null;
+            searchYamlTestClient = null;
             clusterHosts = null;
+            isRemoteConfigured.set(false);
+            isCombinedComputed.set(false);
+            API_KEY_MAP_REF.set(null);
+            combinedTestFeatureServiceRef.set(null);
+            combinedOsSetRef.set(null);
+            combinedNodeVersionsRef.set(null);
         }
     }
 }

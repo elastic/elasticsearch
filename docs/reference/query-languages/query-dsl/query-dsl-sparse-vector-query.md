@@ -31,7 +31,7 @@ GET _search
    }
 }
 ```
-%  TEST[skip: Requires inference]
+% TEST[skip: Requires inference]
 
 
 ## Example request using precomputed vectors [_example_request_using_precomputed_vectors]
@@ -47,7 +47,7 @@ GET _search
    }
 }
 ```
-%  TEST[skip: TBD]
+% TEST[skip: TBD]
 
 
 ## Top level parameters for `sparse_vector` [sparse-vector-field-params]
@@ -64,10 +64,10 @@ GET _search
 `query_vector`
 :   (Optional, dictionary) A dictionary of token-weight pairs representing the precomputed query vector to search. Searching using this query vector will bypass additional inference. Only one of `inference_id` and `query_vector` is allowed.
 
-`prune` {applies_to}`stack: preview 9.0, ga 9.1`
+`prune` {applies_to}`stack: preview =9.0, ga 9.1+`
 :   (Optional, boolean) Whether to perform pruning, omitting the non-significant tokens from the query to improve query performance. If `prune` is true but the `pruning_config` is not specified, pruning will occur but default values will be used. Default: false.
 
-`pruning_config` {applies_to}`stack: preview 9.0, ga 9.1`
+`pruning_config` {applies_to}`stack: preview =9.0, ga 9.1+`
 :   (Optional, object) Optional pruning configuration. If enabled, this will omit non-significant tokens from the query in order to improve query performance. This is only used if `prune` is set to `true`. If `prune` is set to `true` but `pruning_config` is not specified, default values will be used.
 
     Parameters for `pruning_config` are:
@@ -111,7 +111,7 @@ GET my-index/_search
    }
 }
 ```
-%  TEST[skip: Requires inference]
+% TEST[skip: Requires inference]
 
 Multiple `sparse_vector` queries can be combined with each other or other query types. This can be achieved by wrapping them in [boolean query clauses](/reference/query-languages/query-dsl/query-dsl-bool-query.md) and using linear boosting:
 
@@ -152,7 +152,7 @@ GET my-index/_search
   }
 }
 ```
-%  TEST[skip: Requires inference]
+% TEST[skip: Requires inference]
 
 This can also be achieved using [reciprocal rank fusion (RRF)](/reference/elasticsearch/rest-apis/reciprocal-rank-fusion.md), through an [`rrf` retriever](/reference/elasticsearch/rest-apis/retrievers/rrf-retriever.md) with multiple [`standard` retrievers](/reference/elasticsearch/rest-apis/retrievers/standard-retriever.md).
 
@@ -206,7 +206,7 @@ GET my-index/_search
   }
 }
 ```
-%  TEST[skip: Requires inference]
+% TEST[skip: Requires inference]
 
 ## Example query on a `semantic_text` field
 
@@ -228,6 +228,7 @@ PUT /my-semantic-sparse-index
   }
 }
 ```
+% TEST[skip: Requires inference]
 
 Index some example documents:
 
@@ -240,6 +241,7 @@ POST /my-semantic-sparse-index/_bulk
 { "index": { "_index": "my-semantic-sparse-index", "_id": "3" } }
 { "title": "Learning to surf", "content_semantic": "Beginners often start on longboards at gentle beach breaks." }
 ```
+% TEST[skip: Requires inference]
 
 Then query with `sparse_vector` against the `semantic_text` field:
 
@@ -255,6 +257,7 @@ GET my-semantic-sparse-index/_search
   }
 }
 ```
+% TEST[skip: Requires inference]
 
 
 ## Example ELSER query with pruning configuration and rescore [sparse-vector-query-with-pruning-config-and-rescore-example]
@@ -302,7 +305,7 @@ GET my-index/_search
 % TEST[skip: Requires inference]
 
 ::::{note}
-When performing [cross-cluster search](docs-content://solutions/search/cross-cluster-search.md), inference is performed on the local cluster.
+When performing [cross-cluster search](docs-content://explore-analyze/cross-cluster-search.md), inference is performed on the local cluster.
 ::::
 
 

@@ -12,6 +12,7 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 
@@ -21,8 +22,13 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.TIME_DURATION;
 
 public class ToTimeDuration extends FoldablesConvertFunction {
 
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(ToTimeDuration.class)
+        .unary(ToTimeDuration::new)
+        .name("to_timeduration");
+
     @FunctionInfo(
         returnType = "time_duration",
+        briefSummary = "Converts a value to a time_duration.",
         description = "Converts an input value into a `time_duration` value.",
         examples = @Example(file = "convert", tag = "castToTimeDuration")
     )

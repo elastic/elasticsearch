@@ -21,16 +21,19 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.sort.SortOrder;
 
-import java.util.Arrays;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -106,29 +109,68 @@ public final class IndexSortConfig {
     );
 
     public static class IndexSortConfigDefaults {
-        public static final FieldSortSpec[] TIME_SERIES_SORT, TIMESTAMP_SORT, HOSTNAME_TIMESTAMP_SORT, HOSTNAME_TIMESTAMP_BWC_SORT;
-
-        static {
-            FieldSortSpec timeStampSpec = new FieldSortSpec(DataStreamTimestampFieldMapper.DEFAULT_PATH);
-            timeStampSpec.order = SortOrder.DESC;
-            TIME_SERIES_SORT = new FieldSortSpec[] { new FieldSortSpec(TimeSeriesIdFieldMapper.NAME), timeStampSpec };
-            TIMESTAMP_SORT = new FieldSortSpec[] { timeStampSpec };
-
-            FieldSortSpec hostnameSpec = new FieldSortSpec(IndexMode.HOST_NAME);
-            hostnameSpec.order = SortOrder.ASC;
-            hostnameSpec.missingValue = "_last";
-            hostnameSpec.mode = MultiValueMode.MIN;
-            HOSTNAME_TIMESTAMP_SORT = new FieldSortSpec[] { hostnameSpec, timeStampSpec };
-
-            // Older indexes use ascending ordering for host name and timestamp.
-            HOSTNAME_TIMESTAMP_BWC_SORT = new FieldSortSpec[] {
-                new FieldSortSpec(IndexMode.HOST_NAME),
-                new FieldSortSpec(DataStreamTimestampFieldMapper.DEFAULT_PATH) };
+        public record SortDefault(List<String> fields, List<String> order, List<String> mode, List<String> missing) {
+            public SortDefault {
+                assert fields.size() == order.size();
+                assert fields.size() == mode.size();
+                assert fields.size() == missing.size();
+            }
         }
 
-        public static FieldSortSpec[] getDefaultSortSpecs(Settings settings) {
+        public static final SortDefault NO_SORT, TIME_SERIES_SORT, TIMESTAMP_SORT, HOSTNAME_TIMESTAMP_SORT, HOSTNAME_TIMESTAMP_BWC_SORT,
+            MESSAGE_PATTERN_TIMESTAMP_SORT, HOSTNAME_MESSAGE_PATTERN_TIMESTAMP_SORT;
+
+        static {
+            NO_SORT = new SortDefault(Collections.emptyList(), Collections.emptyList(), Collections.emptyList(), Collections.emptyList());
+
+            TIME_SERIES_SORT = new SortDefault(
+                List.of(TimeSeriesIdFieldMapper.NAME, DataStreamTimestampFieldMapper.DEFAULT_PATH),
+                List.of("asc", "desc"),
+                List.of("min", "max"),
+                List.of("_last", "_last")
+            );
+
+            TIMESTAMP_SORT = new SortDefault(
+                List.of(DataStreamTimestampFieldMapper.DEFAULT_PATH),
+                List.of("desc"),
+                List.of("max"),
+                List.of("_last")
+            );
+
+            HOSTNAME_TIMESTAMP_SORT = new SortDefault(
+                List.of(IndexMode.HOST_NAME, DataStreamTimestampFieldMapper.DEFAULT_PATH),
+                List.of("asc", "desc"),
+                List.of("min", "max"),
+                List.of("_last", "_last")
+            );
+
+            MESSAGE_PATTERN_TIMESTAMP_SORT = new SortDefault(
+                List.of("message.template_id", DataStreamTimestampFieldMapper.DEFAULT_PATH),
+                List.of("asc", "desc"),
+                List.of("min", "max"),
+                List.of("_last", "_last")
+            );
+
+            HOSTNAME_MESSAGE_PATTERN_TIMESTAMP_SORT = new SortDefault(
+                List.of(IndexMode.HOST_NAME, "message.template_id", DataStreamTimestampFieldMapper.DEFAULT_PATH),
+                List.of("asc", "asc", "desc"),
+                List.of("min", "min", "max"),
+                List.of("_last", "_last", "_last")
+            );
+
+            // Older indexes use ascending ordering for host name and timestamp.
+            HOSTNAME_TIMESTAMP_BWC_SORT = new SortDefault(
+                List.of(IndexMode.HOST_NAME, DataStreamTimestampFieldMapper.DEFAULT_PATH),
+                List.of("asc", "asc"),
+                List.of("min", "min"),
+                List.of("_last", "_last")
+            );
+
+        }
+
+        static SortDefault getSortDefault(Settings settings) {
             if (settings.isEmpty()) {
-                return new FieldSortSpec[0];
+                return NO_SORT;
             }
 
             // Can't use IndexSettings.MODE.get(settings) here because the validation logic for IndexSettings.MODE uses the default value
@@ -141,69 +183,81 @@ public final class IndexSortConfig {
 
             if (IndexMode.TIME_SERIES.getName().equals(indexMode)) {
                 return TIME_SERIES_SORT;
-            } else if (IndexMode.LOGSDB.getName().equals(indexMode)) {
+            } else if (IndexMode.LOGSDB.getName().equals(indexMode) || IndexMode.LOGSDB_COLUMNAR.getName().equals(indexMode)) {
                 var version = IndexMetadata.SETTING_INDEX_VERSION_CREATED.get(settings);
                 if (version.onOrAfter(IndexVersions.LOGSB_OPTIONAL_SORTING_ON_HOST_NAME)
                     || version.between(
                         IndexVersions.LOGSB_OPTIONAL_SORTING_ON_HOST_NAME_BACKPORT,
                         IndexVersions.UPGRADE_TO_LUCENE_10_0_0
                     )) {
-                    return (IndexSettings.LOGSDB_SORT_ON_HOST_NAME.get(settings)) ? HOSTNAME_TIMESTAMP_SORT : TIMESTAMP_SORT;
+
+                    boolean sortOnHostName = settings.getAsBoolean(IndexSettings.LOGSDB_SORT_ON_HOST_NAME.getKey(), false);
+                    boolean sortOnMessageTemplate = settings.getAsBoolean(IndexSettings.LOGSDB_SORT_ON_MESSAGE_TEMPLATE.getKey(), false);
+                    if (sortOnHostName && sortOnMessageTemplate) {
+                        return HOSTNAME_MESSAGE_PATTERN_TIMESTAMP_SORT;
+                    } else if (sortOnHostName) {
+                        return HOSTNAME_TIMESTAMP_SORT;
+                    } else if (sortOnMessageTemplate) {
+                        return MESSAGE_PATTERN_TIMESTAMP_SORT;
+                    } else {
+                        return TIMESTAMP_SORT;
+                    }
                 } else {
                     return HOSTNAME_TIMESTAMP_BWC_SORT;
                 }
             }
 
-            return new FieldSortSpec[0];
-        }
-
-        public static FieldSortSpec[] getSortSpecs(Settings settings) {
-            if (INDEX_SORT_FIELD_SETTING.exists(settings) == false) {
-                return IndexSortConfigDefaults.getDefaultSortSpecs(settings);
-            }
-
-            List<String> fields = INDEX_SORT_FIELD_SETTING.get(settings);
-            FieldSortSpec[] sortSpecs = fields.stream().map(FieldSortSpec::new).toArray(FieldSortSpec[]::new);
-
-            // Need to populate `order` because the default value of `mode` depends on it
-            if (INDEX_SORT_ORDER_SETTING.exists(settings)) {
-                List<SortOrder> orders = INDEX_SORT_ORDER_SETTING.get(settings);
-                for (int i = 0; i < sortSpecs.length; i++) {
-                    sortSpecs[i].order = orders.get(i);
-                }
-            }
-
-            return sortSpecs;
+            return NO_SORT;
         }
 
         public static List<String> getDefaultSortFields(Settings settings) {
-            return Arrays.stream(getDefaultSortSpecs(settings)).map(sortSpec -> sortSpec.field).toList();
+            return getSortDefault(settings).fields();
         }
 
         public static List<String> getDefaultSortOrder(Settings settings) {
-            return Arrays.stream(getSortSpecs(settings))
-                .map(sortSpec -> sortSpec.order != null ? sortSpec.order : SortOrder.ASC)
-                .map(Enum::toString)
-                .toList();
+            if (settings.hasValue(INDEX_SORT_FIELD_SETTING.getKey()) == false) {
+                return getSortDefault(settings).order();
+            }
+
+            List<String> sortFields = settings.getAsList(INDEX_SORT_FIELD_SETTING.getKey());
+            List<String> order = new ArrayList<>(sortFields.size());
+            for (int i = 0; i < sortFields.size(); ++i) {
+                order.add("asc");
+            }
+            return order;
         }
 
         public static List<String> getDefaultSortMode(Settings settings) {
-            return Arrays.stream(getSortSpecs(settings)).map(sortSpec -> {
-                if (sortSpec.mode != null) {
-                    return sortSpec.mode;
-                } else if (sortSpec.order == SortOrder.DESC) {
-                    return MultiValueMode.MAX;
+            if (settings.hasValue(INDEX_SORT_FIELD_SETTING.getKey()) == false) {
+                return getSortDefault(settings).mode();
+            }
+
+            List<String> sortFields = settings.getAsList(INDEX_SORT_FIELD_SETTING.getKey());
+            List<String> sortOrder = settings.getAsList(INDEX_SORT_ORDER_SETTING.getKey(), null);
+
+            List<String> mode = new ArrayList<>(sortFields.size());
+            for (int i = 0; i < sortFields.size(); ++i) {
+                if (sortOrder != null && sortOrder.get(i).equals(SortOrder.DESC.toString())) {
+                    mode.add("max");
                 } else {
-                    return MultiValueMode.MIN;
+                    mode.add("min");
                 }
-            }).map(order -> order.toString().toLowerCase(Locale.ROOT)).toList();
+            }
+            return mode;
         }
 
         public static List<String> getDefaultSortMissing(Settings settings) {
-            // _last is the default per IndexFieldData.XFieldComparatorSource.Nested#sortMissingLast
-            return Arrays.stream(getSortSpecs(settings))
-                .map(sortSpec -> sortSpec.missingValue != null ? sortSpec.missingValue : "_last")
-                .toList();
+            if (settings.hasValue(INDEX_SORT_FIELD_SETTING.getKey()) == false) {
+                return getSortDefault(settings).missing();
+            }
+
+            List<String> sortFields = settings.getAsList(INDEX_SORT_FIELD_SETTING.getKey());
+            List<String> missing = new ArrayList<>(sortFields.size());
+            for (int i = 0; i < sortFields.size(); ++i) {
+                // _last is the default per IndexFieldData.XFieldComparatorSource.Nested#sortMissingLast
+                missing.add("_last");
+            }
+            return missing;
         }
     }
 
@@ -249,6 +303,25 @@ public final class IndexSortConfig {
             }
         }
 
+        if (IndexSettings.SLICE_ENABLED.get(settings) && INDEX_SORT_FIELD_SETTING.exists(settings)) {
+            List<String> fields = settings.getAsList(INDEX_SORT_FIELD_SETTING.getKey());
+            for (String field : fields) {
+                if (field.equals(RoutingFieldMapper.NAME) || field.equals(SliceIndexing.PARAM_NAME)) {
+                    throw new IllegalArgumentException(
+                        "setting ["
+                            + INDEX_SORT_FIELD_SETTING.getKey()
+                            + "] must not contain ["
+                            + RoutingFieldMapper.NAME
+                            + "] or ["
+                            + SliceIndexing.PARAM_NAME
+                            + "] when ["
+                            + IndexSettings.SLICE_ENABLED.getKey()
+                            + "] is true"
+                    );
+                }
+            }
+        }
+
         List<String> fields = INDEX_SORT_FIELD_SETTING.get(settings);
 
         var order = INDEX_SORT_ORDER_SETTING.get(settings);
@@ -266,32 +339,46 @@ public final class IndexSortConfig {
     private final IndexVersion indexCreatedVersion;
     private final String indexName;
     private final IndexMode indexMode;
+    private final boolean sliceEnabled;
 
     public IndexSortConfig(IndexSettings indexSettings) {
         final Settings settings = indexSettings.getSettings();
         this.indexCreatedVersion = indexSettings.getIndexVersionCreated();
         this.indexName = indexSettings.getIndex().getName();
         this.indexMode = indexSettings.getMode();
+        this.sliceEnabled = indexSettings.isSliceEnabled();
 
         validateSortSettings(settings);
 
-        List<String> fields = INDEX_SORT_FIELD_SETTING.get(settings);
+        List<String> fields = new ArrayList<>(INDEX_SORT_FIELD_SETTING.get(settings));
+        List<SortOrder> orders = new ArrayList<>(INDEX_SORT_ORDER_SETTING.get(settings));
+        List<MultiValueMode> modes = new ArrayList<>(INDEX_SORT_MODE_SETTING.get(settings));
+        List<String> missingValues = new ArrayList<>(INDEX_SORT_MISSING_SETTING.get(settings));
+        if (indexSettings.isSliceEnabled()) {
+            prependSliceRoutingSort(fields, orders, modes, missingValues);
+        }
         sortSpecs = fields.stream().map(FieldSortSpec::new).toArray(FieldSortSpec[]::new);
-
-        List<SortOrder> orders = INDEX_SORT_ORDER_SETTING.get(settings);
         for (int i = 0; i < sortSpecs.length; i++) {
             sortSpecs[i].order = orders.get(i);
         }
-
-        List<MultiValueMode> modes = INDEX_SORT_MODE_SETTING.get(settings);
         for (int i = 0; i < sortSpecs.length; i++) {
             sortSpecs[i].mode = modes.get(i);
         }
-
-        List<String> missingValues = INDEX_SORT_MISSING_SETTING.get(settings);
         for (int i = 0; i < sortSpecs.length; i++) {
             sortSpecs[i].missingValue = missingValues.get(i);
         }
+    }
+
+    private static void prependSliceRoutingSort(
+        List<String> fields,
+        List<SortOrder> orders,
+        List<MultiValueMode> modes,
+        List<String> missingValues
+    ) {
+        fields.addFirst(RoutingFieldMapper.NAME);
+        orders.addFirst(SortOrder.ASC);
+        modes.addFirst(MultiValueMode.MIN);
+        missingValues.addFirst("_last");
     }
 
     /**
@@ -303,6 +390,15 @@ public final class IndexSortConfig {
 
     public boolean hasPrimarySortOnField(String field) {
         return sortSpecs.length > 0 && sortSpecs[0].field.equals(field);
+    }
+
+    public boolean containsDescendingTimestampSort() {
+        for (FieldSortSpec sort : sortSpecs) {
+            if (sort.order == SortOrder.DESC && sort.field.equals("@timestamp")) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
@@ -320,7 +416,13 @@ public final class IndexSortConfig {
         final SortField[] sortFields = new SortField[sortSpecs.length];
         for (int i = 0; i < sortSpecs.length; i++) {
             FieldSortSpec sortSpec = sortSpecs[i];
-            final MappedFieldType ft = fieldTypeLookup.apply(sortSpec.field);
+            // This is only necessary because of the logic of "{}" empty mappings.
+            // metadata fields are not eagerly loaded as mapped fields, so if we have slice enabled, and no mapped fields, we get an empty
+            // lookup and must handle this weird edge case.
+            final MappedFieldType ft = Optional.ofNullable(fieldTypeLookup.apply(sortSpec.field))
+                .orElseGet(
+                    () -> sliceEnabled && RoutingFieldMapper.NAME.equals(sortSpec.field) ? RoutingFieldMapper.DOC_VALUES_FIELD_TYPE : null
+                );
             if (ft == null) {
                 String err = "unknown index sort field:[" + sortSpec.field + "]";
                 if (this.indexMode == IndexMode.TIME_SERIES) {
@@ -362,7 +464,7 @@ public final class IndexSortConfig {
             if (fieldData == null) {
                 throw new IllegalArgumentException("docvalues not found for index sort field:[" + sortSpec.field + "]");
             }
-            sortFields[i] = fieldData.sortField(this.indexCreatedVersion, sortSpec.missingValue, mode, null, reverse);
+            sortFields[i] = fieldData.indexSort(this.indexCreatedVersion, sortSpec.missingValue, mode, reverse);
             validateIndexSortField(sortFields[i]);
         }
         return new Sort(sortFields);
@@ -417,6 +519,8 @@ public final class IndexSortConfig {
             return SortField.Type.STRING;
         } else if (sortField instanceof SortedNumericSortField) {
             return ((SortedNumericSortField) sortField).getNumericType();
+        } else if (sortField.getComparatorSource() instanceof IndexFieldData.XFieldComparatorSource fcs) {
+            return fcs.sortType();
         } else {
             return sortField.getType();
         }

@@ -13,6 +13,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.inference.ModelConfigurations;
+import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -58,9 +59,7 @@ public class CustomElandInternalTextEmbeddingServiceSettings extends Elasticsear
         ValidationException validationException = new ValidationException();
         var commonFields = commonFieldsFromMap(map, validationException);
 
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
+        validationException.throwIfValidationErrorsExist();
 
         return new CustomElandInternalTextEmbeddingServiceSettings(commonFields);
     }
@@ -106,12 +105,12 @@ public class CustomElandInternalTextEmbeddingServiceSettings extends Elasticsear
     private final DenseVectorFieldMapper.ElementType elementType;
 
     CustomElandInternalTextEmbeddingServiceSettings(
-        Integer numAllocations,
+        @Nullable Integer numAllocations,
         int numThreads,
         String modelId,
-        AdaptiveAllocationsSettings adaptiveAllocationsSettings,
+        @Nullable AdaptiveAllocationsSettings adaptiveAllocationsSettings,
         @Nullable String deploymentId,
-        Integer dimensions,
+        @Nullable Integer dimensions,
         SimilarityMeasure similarityMeasure,
         DenseVectorFieldMapper.ElementType elementType
     ) {
@@ -126,6 +125,18 @@ public class CustomElandInternalTextEmbeddingServiceSettings extends Elasticsear
         dimensions = in.readOptionalVInt();
         similarityMeasure = in.readEnum(SimilarityMeasure.class);
         elementType = in.readEnum(DenseVectorFieldMapper.ElementType.class);
+    }
+
+    CustomElandInternalTextEmbeddingServiceSettings(
+        ElasticsearchInternalServiceSettings internalServiceSettings,
+        @Nullable Integer dimensions,
+        SimilarityMeasure similarityMeasure,
+        DenseVectorFieldMapper.ElementType elementType
+    ) {
+        super(internalServiceSettings);
+        this.dimensions = dimensions;
+        this.similarityMeasure = Objects.requireNonNull(similarityMeasure);
+        this.elementType = Objects.requireNonNull(elementType);
     }
 
     private CustomElandInternalTextEmbeddingServiceSettings(CommonFields commonFields) {
@@ -216,4 +227,13 @@ public class CustomElandInternalTextEmbeddingServiceSettings extends Elasticsear
         return Objects.hash(super.hashCode(), dimensions, similarityMeasure, elementType);
     }
 
+    @Override
+    public ServiceSettings updateServiceSettings(Map<String, Object> serviceSettings) {
+        ServiceSettings updated = super.updateServiceSettings(serviceSettings);
+        if (updated instanceof ElasticsearchInternalServiceSettings esSettings) {
+            return new CustomElandInternalTextEmbeddingServiceSettings(esSettings, dimensions, similarityMeasure, elementType);
+        } else {
+            throw new IllegalStateException("Unexpected service settings type [" + updated.getClass().getName() + "]");
+        }
+    }
 }

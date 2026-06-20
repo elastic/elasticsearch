@@ -18,7 +18,6 @@ import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
@@ -30,13 +29,14 @@ import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.aggregatemetric.AggregateMetricMapperPlugin;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
-import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
+import org.elasticsearch.xpack.esql.datasources.datasource.TestEncryptionServicePlugin;
 import org.junit.Before;
 
 import java.io.IOException;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -60,23 +60,22 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
     private static final Long TIME_RANGE_SECONDS = 3600L;
     private static final String DATASTREAM_NAME = "tsit_ds";
     private static final Integer SECONDS_IN_WINDOW = 60;
-    private static final List<Tuple<String, Integer>> WINDOW_OPTIONS = List.of(
-        Tuple.tuple("10 seconds", 10),
-        Tuple.tuple("30 seconds", 30),
-        Tuple.tuple("1 minute", 60),
-        Tuple.tuple("2 minutes", 120),
-        Tuple.tuple("3 minutes", 180),
-        Tuple.tuple("5 minutes", 300),
-        Tuple.tuple("10 minutes", 600),
-        Tuple.tuple("30 minutes", 1800),
-        Tuple.tuple("1 hour", 3600)
-    );
-    private static final List<Tuple<String, DeltaAgg>> DELTA_AGG_OPTIONS = List.of(
-        Tuple.tuple("rate", DeltaAgg.RATE),
-        Tuple.tuple("irate", DeltaAgg.IRATE),
-        Tuple.tuple("increase", DeltaAgg.INCREASE),
-        Tuple.tuple("idelta", DeltaAgg.IDELTA),
-        Tuple.tuple("delta", DeltaAgg.DELTA)
+
+    record WindowOption(String label, int seconds) {}
+
+    /** A timestamp-value pair used for boundary interpolation calculations. */
+    record TimestampedValue(Instant timestamp, double value) {}
+
+    private static final List<WindowOption> WINDOW_OPTIONS = List.of(
+        new WindowOption("10 seconds", 10),
+        new WindowOption("30 seconds", 30),
+        new WindowOption("1 minute", 60),
+        new WindowOption("2 minutes", 120),
+        new WindowOption("3 minutes", 180),
+        new WindowOption("5 minutes", 300),
+        new WindowOption("10 minutes", 600),
+        new WindowOption("30 minutes", 1800),
+        new WindowOption("1 hour", 3600)
     );
     private static final Map<DeltaAgg, String> DELTA_AGG_METRIC_MAP = Map.of(
         DeltaAgg.RATE,
@@ -94,6 +93,11 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
     private List<XContentBuilder> documents;
     private TSDataGenerationHelper dataGenerationHelper;
 
+    /**
+     * Materializes all rows from a query response.
+     *
+     * @return list of rows, where each row is a list of column values in query output order
+     */
     List<List<Object>> consumeRows(EsqlQueryResponse resp) {
         List<List<Object>> rows = new ArrayList<>();
         resp.rows().forEach(rowIter -> {
@@ -104,6 +108,15 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
         return rows;
     }
 
+    /**
+     * Groups documents by their dimension values and time bucket.
+     *
+     * @param docs the raw indexed documents
+     * @param groupingAttributes dimension attribute names to group by
+     * @param secondsInWindow time bucket width in seconds
+     * @return map keyed by a composite key (list of {@code "attr:value"} pairs followed by window-start
+     *         epoch-seconds) to the list of raw document maps in that group
+     */
     Map<List<String>, List<Map<String, Object>>> groupedRows(
         List<XContentBuilder> docs,
         List<String> groupingAttributes,
@@ -113,16 +126,11 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
         for (XContentBuilder doc : docs) {
             Map<String, Object> docMap = XContentHelper.convertToMap(BytesReference.bytes(doc), false, XContentType.JSON).v2();
             @SuppressWarnings("unchecked")
-            List<String> groupingPairs = groupingAttributes.stream()
-                .map(
-                    attr -> Tuple.tuple(
-                        attr,
-                        ((Map<String, Object>) docMap.getOrDefault("attributes", Map.of())).getOrDefault(attr, "").toString()
-                    )
-                )
-                .filter(val -> val.v2().isEmpty() == false) // Filter out empty values
-                .map(tup -> tup.v1() + ":" + tup.v2())
-                .toList();
+            Map<String, Object> attributes = (Map<String, Object>) docMap.getOrDefault("attributes", Map.of());
+            List<String> groupingPairs = groupingAttributes.stream().map(attr -> {
+                String value = attributes.getOrDefault(attr, "").toString();
+                return value.isEmpty() ? null : attr + ":" + value;
+            }).filter(Objects::nonNull).toList();
             long timeBucketStart = windowStart(docMap.get("@timestamp"), secondsInWindow);
             var keyList = new ArrayList<>(groupingPairs);
             keyList.add(Long.toString(timeBucketStart));
@@ -147,6 +155,13 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
         COUNT
     }
 
+    /**
+     * Extracts the integer metric values for {@code metricName} from all documents in the group,
+     * filtering out documents that don't have the metric.
+     *
+     * @param pointsInGroup raw document maps belonging to one time-window/dimension group
+     * @return list of metric values for the given metric name
+     */
     static List<Integer> valuesInWindow(List<Map<String, Object>> pointsInGroup, String metricName) {
         @SuppressWarnings("unchecked")
         var values = pointsInGroup.stream()
@@ -156,42 +171,50 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
         return values;
     }
 
-    static Map<String, List<Tuple<String, Tuple<Instant, Double>>>> groupByTimeseries(
-        List<Map<String, Object>> pointsInGroup,
-        String metricName
-    ) {
+    /**
+     * Groups documents from a single time window by their timeseries identity.
+     *
+     * @param pointsInGroup raw document maps belonging to one time-window/dimension group
+     * @param metricName the metric to extract values for
+     * @return map keyed by timeseries identifier (comma-separated {@code "attr:value"} pairs from document
+     *         attributes) to the list of timestamped metric values for that timeseries
+     */
+    static Map<String, List<TimestampedValue>> groupByTimeseries(List<Map<String, Object>> pointsInGroup, String metricName) {
         return pointsInGroup.stream()
             .filter(doc -> doc.containsKey("metrics") && ((Map<String, Object>) doc.get("metrics")).containsKey(metricName))
-            .map(doc -> {
-                String docKey = ((Map<String, Object>) doc.get("attributes")).entrySet()
+            .collect(Collectors.groupingBy(doc -> {
+                return ((Map<String, Object>) doc.get("attributes")).entrySet()
                     .stream()
                     .map(entry -> entry.getKey() + ":" + entry.getValue())
                     .collect(Collectors.joining(","));
+            }, Collectors.mapping(doc -> {
                 var docTs = Instant.parse((String) doc.get("@timestamp"));
-                var docValue = switch (((Map<String, Object>) doc.get("metrics")).get(metricName)) {
+                @SuppressWarnings("unchecked")
+                var metricValue = ((Map<String, Object>) doc.get("metrics")).get(metricName);
+                var docValue = switch (metricValue) {
                     case Integer i -> i.doubleValue();
                     case Long l -> l.doubleValue();
                     case Float f -> f.doubleValue();
                     case Double d -> d;
                     default -> throw new IllegalStateException(
-                        "Unexpected value type: "
-                            + ((Map<String, Object>) doc.get("metrics")).get(metricName)
-                            + " of class "
-                            + ((Map<String, Object>) doc.get("metrics")).get(metricName).getClass()
+                        "Unexpected value type: " + metricValue + " of class " + metricValue.getClass()
                     );
                 };
-                return new Tuple<>(docKey, new Tuple<>(docTs, docValue));
-            })
-            .collect(Collectors.groupingBy(Tuple::v1));
+                return new TimestampedValue(docTs, docValue);
+            }, Collectors.toList())));
     }
 
-    static Object aggregatePerTimeseries(
-        Map<String, List<Tuple<String, Tuple<Instant, Double>>>> timeseries,
-        Agg crossAgg,
-        Agg timeseriesAgg
-    ) {
+    /**
+     * Two-level aggregation: first applies {@code timeseriesAgg} within each timeseries, then applies
+     * {@code crossAgg} across all per-timeseries results.
+     *
+     * @param timeseries map keyed by timeseries identifier to data points in one time window
+     * @param crossAgg aggregation to apply across timeseries results
+     * @param timeseriesAgg aggregation to apply within each timeseries
+     */
+    static Object aggregatePerTimeseries(Map<String, List<TimestampedValue>> timeseries, Agg crossAgg, Agg timeseriesAgg) {
         var res = timeseries.values().stream().map(timeseriesList -> {
-            List<Double> values = timeseriesList.stream().map(t -> t.v2().v2()).collect(Collectors.toList());
+            List<Double> values = timeseriesList.stream().map(tv -> tv.value()).collect(Collectors.toList());
             return aggregateValuesInWindow(values, timeseriesAgg);
         }).filter(Objects::nonNull).toList();
 
@@ -218,6 +241,14 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
         };
     }
 
+    /**
+     * Builds a composite key from a result row that matches the key format used by {@link #groupedRows}.
+     *
+     * @param row a single result row (list of column values)
+     * @param groupingAttributes the dimension attribute names used in the GROUP BY clause
+     * @param timestampIndex column index of the time bucket in the row
+     * @return list of {@code "attr:value"} pairs followed by the window-start epoch-seconds
+     */
     static List<String> getRowKey(List<Object> row, List<String> groupingAttributes, int timestampIndex) {
         List<String> rowKey = new ArrayList<>();
         for (int i = 0; i < groupingAttributes.size(); i++) {
@@ -228,6 +259,20 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
         }
         rowKey.add(Long.toString(Instant.parse((String) row.get(timestampIndex)).toEpochMilli() / 1000));
         return rowKey;
+    }
+
+    /**
+     * Extracts the timeseries identity from a row key by concatenating all elements except the
+     * trailing timestamp.
+     *
+     * @param rowKey composite key as produced by {@link #getRowKey}
+     */
+    private static String getTimeseriesId(List<String> rowKey) {
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < rowKey.size() - 1; i++) {  // Skip the timestamp.
+            sb.append(rowKey.get(i));
+        }
+        return sb.toString();
     }
 
     static Integer getTimestampIndex(String esqlQuery) {
@@ -251,7 +296,13 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return List.of(DataStreamsPlugin.class, LocalStateCompositeXPackPlugin.class, AggregateMetricMapperPlugin.class, EsqlPlugin.class);
+        return List.of(
+            DataStreamsPlugin.class,
+            LocalStateCompositeXPackPlugin.class,
+            AggregateMetricMapperPlugin.class,
+            EsqlPluginWithEnterpriseOrTrialLicense.class,
+            TestEncryptionServicePlugin.class
+        );
     }
 
     record RateRange(Double lower, Double upper) implements Comparable<RateRange> {
@@ -276,42 +327,95 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
     }
 
     enum DeltaAgg {
-        RATE,
-        IRATE,
-        IDELTA,
-        INCREASE,
-        DELTA
+        RATE("rate"),
+        IRATE("irate"),
+        IDELTA("idelta"),
+        INCREASE("increase"),
+        DELTA("delta");
+
+        private final String functionName;
+
+        DeltaAgg(String functionName) {
+            this.functionName = functionName;
+        }
+
+        String functionName() {
+            return functionName;
+        }
     }
 
-    // A record that holds min, max, avg, count and sum of rates calculated from a timeseries.
+    /** Aggregated rate statistics (count, max, avg, min, sum) computed across timeseries in a window. */
     record RateStats(Long count, RateRange max, RateRange avg, RateRange min, RateRange sum) {}
 
+    /**
+     * Calculates a delta-based aggregation (rate, irate, increase, delta, idelta) for a single time window,
+     * using adjacent windows for boundary interpolation.
+     *
+     * @param allWindows ordered list of time windows; each window is a map keyed by timeseries identifier
+     *                   to the data points in that window
+     * @param offset index into {@code allWindows} for the window to compute
+     * @param secondsInWindow time bucket width in seconds
+     * @param deltaAgg the delta aggregation type to compute
+     */
     static RateStats calculateDeltaAggregation(
-        Collection<List<Tuple<String, Tuple<Instant, Double>>>> allTimeseries,
+        List<Map<String, List<TimestampedValue>>> allWindows,
+        int offset,
         Integer secondsInWindow,
         DeltaAgg deltaAgg
     ) {
-        List<RateRange> allRates = allTimeseries.stream().map(timeseries -> {
-            if (timeseries.size() < 2) {
-                return null;
+        List<RateRange> allRates = allWindows.get(offset).entrySet().stream().map(entry -> {
+            String timeseriesId = entry.getKey();
+            var timeseriesPointsInWindow = new ArrayList<>(entry.getValue());
+            timeseriesPointsInWindow.sort(Comparator.comparing(TimestampedValue::timestamp));
+
+            boolean addedLowerBoundary = false;
+            boolean addedUpperBoundary = false;
+            if (deltaAgg.equals(DeltaAgg.RATE) || deltaAgg.equals(DeltaAgg.INCREASE)) {
+                if (offset > 0) {
+                    var previousWindow = allWindows.get(offset - 1).get(timeseriesId);
+                    if (previousWindow != null && previousWindow.isEmpty() == false) {
+                        addedLowerBoundary = addBoundaryPoint(timeseriesPointsInWindow, previousWindow, secondsInWindow, true);
+                    }
+                }
+                if (offset < allWindows.size() - 1) {
+                    var nextWindow = allWindows.get(offset + 1).get(timeseriesId);
+                    if (nextWindow != null && nextWindow.isEmpty() == false) {
+                        addedUpperBoundary = addBoundaryPoint(timeseriesPointsInWindow, nextWindow, secondsInWindow, false);
+                    }
+                }
             }
-            // Sort the timeseries by timestamp
-            timeseries.sort((t1, t2) -> t1.v2().v1().compareTo(t2.v2().v1()));
-            var firstTs = timeseries.getFirst().v2().v1();
-            var lastTs = timeseries.getLast().v2().v1();
+            if (timeseriesPointsInWindow.size() < 2) {
+                if ((deltaAgg.equals(DeltaAgg.RATE) || deltaAgg.equals(DeltaAgg.INCREASE))
+                    && timeseriesPointsInWindow.size() == 1
+                    && timeseriesPointsInWindow.getFirst().timestamp().toEpochMilli() % (secondsInWindow * 1000L) == 0
+                    && offset > 0) {
+                    // Value at lower boundary is present, check if there's one in the previous window to use.
+                    addLastPointFromLowerWindow(timeseriesPointsInWindow, allWindows.get(offset - 1).get(timeseriesId), secondsInWindow);
+                    // For INCREASE, return 0 if there is a previous bucket because
+                    // the increase was already accounted for in the previous bucket.
+                    // For RATE, we still need to calculate the rate using interpolation from the previous bucket.
+                    if (timeseriesPointsInWindow.size() == 2 && deltaAgg.equals(DeltaAgg.INCREASE)) {
+                        return new RateRange(0.0, 0.0);
+                    }
+                }
+                if (timeseriesPointsInWindow.size() < 2) {
+                    return null;
+                }
+            }
+            var firstTs = timeseriesPointsInWindow.getFirst().timestamp();
+            var lastTs = timeseriesPointsInWindow.getLast().timestamp();
             var tsDurationSeconds = (lastTs.toEpochMilli() - firstTs.toEpochMilli()) / 1000.0;
             if (deltaAgg.equals(DeltaAgg.IRATE)) {
-                var lastVal = timeseries.getLast().v2().v2();
-                var secondLastVal = timeseries.get(timeseries.size() - 2).v2().v2();
-                var irate = (lastVal >= secondLastVal ? lastVal - secondLastVal : lastVal) / (lastTs.toEpochMilli() - timeseries.get(
-                    timeseries.size() - 2
-                ).v2().v1().toEpochMilli()) * 1000;
+                var lastVal = timeseriesPointsInWindow.getLast().value();
+                var secondLast = timeseriesPointsInWindow.get(timeseriesPointsInWindow.size() - 2);
+                var secondLastVal = secondLast.value();
+                var irate = (lastVal >= secondLastVal ? lastVal - secondLastVal : lastVal) / (lastTs.toEpochMilli() - secondLast.timestamp()
+                    .toEpochMilli()) * 1000;
                 return new RateRange(irate * 0.999, irate * 1.001); // Add 0.1% tolerance
             } else if (deltaAgg.equals(DeltaAgg.DELTA)) {
-                var firstVal = timeseries.getFirst().v2().v2();
-                var lastVal = timeseries.getLast().v2().v2();
+                var firstVal = timeseriesPointsInWindow.getFirst().value();
+                var lastVal = timeseriesPointsInWindow.getLast().value();
                 var delta = lastVal - firstVal;
-                // We must extrapolate the delta to the window size
                 var windowSizeFactor = secondsInWindow / tsDurationSeconds;
                 if (delta < 0) {
                     return new RateRange(delta * windowSizeFactor * 1.001, delta * 0.999); // Add 0.1% tolerance
@@ -319,8 +423,8 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
                     return new RateRange(delta * 0.999, delta * windowSizeFactor * 1.001); // Add 0.1% tolerance
                 }
             } else if (deltaAgg.equals(DeltaAgg.IDELTA)) {
-                var lastVal = timeseries.getLast().v2().v2();
-                var secondLastVal = timeseries.get(timeseries.size() - 2).v2().v2();
+                var lastVal = timeseriesPointsInWindow.getLast().value();
+                var secondLastVal = timeseriesPointsInWindow.get(timeseriesPointsInWindow.size() - 2).value();
                 var idelta = lastVal - secondLastVal;
                 if (idelta < 0) {
                     return new RateRange(idelta * 1.001, idelta * 0.999); // Add 0.1% tolerance
@@ -329,36 +433,41 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
                 }
             }
             assert deltaAgg == DeltaAgg.RATE || deltaAgg == DeltaAgg.INCREASE;
-            Double lastValue = null;
+            double lastValue = 0.0;
+            boolean first = true;
             double counterGrowth = 0.0;
-            for (Tuple<String, Tuple<Instant, Double>> point : timeseries) {
-                var currentValue = point.v2().v2();
-                if (currentValue == null) {
-                    throw new IllegalArgumentException("Null value in counter timeseries");
-                }
-                if (lastValue == null) {
-                    lastValue = point.v2().v2(); // Initialize with the first value
+            for (TimestampedValue point : timeseriesPointsInWindow) {
+                double currentValue = point.value();
+                if (first) {
+                    lastValue = currentValue;
+                    first = false;
                     continue;
                 }
                 if (currentValue > lastValue) {
-                    counterGrowth += currentValue - lastValue; // Incremental growth
+                    counterGrowth += currentValue - lastValue;
                 } else if (currentValue < lastValue) {
-                    // If the value decreased, we assume a reset and start counting from the current value
                     counterGrowth += currentValue;
                 }
-                lastValue = currentValue; // Update last value for next iteration
+                lastValue = currentValue;
             }
+
+            // Account for extrapolation in case there are no adjacent buckets.
+            if (timeseriesPointsInWindow.size() > 2) {
+                if (addedLowerBoundary && addedUpperBoundary == false) {
+                    firstTs = timeseriesPointsInWindow.get(1).timestamp();
+                } else if (addedLowerBoundary == false && addedUpperBoundary) {
+                    lastTs = timeseriesPointsInWindow.get(timeseriesPointsInWindow.size() - 2).timestamp();
+                }
+                tsDurationSeconds = (lastTs.toEpochMilli() - firstTs.toEpochMilli()) / 1000.0;
+            }
+
             if (deltaAgg.equals(DeltaAgg.INCREASE)) {
-                return new RateRange(
-                    counterGrowth * 0.99, // INCREASE is RATE multiplied by the window size
-                    // Upper bound is extrapolated to the window size
-                    counterGrowth * secondsInWindow / tsDurationSeconds * 1.01
-                );
+                // TODO: get tighter bounds by applying interpolation instead of median between adjacent buckets
+                return new RateRange(counterGrowth * 0.9, counterGrowth * secondsInWindow / tsDurationSeconds * 1.1);
             } else {
-                return new RateRange(
-                    counterGrowth / secondsInWindow * 0.99, // Add 1% tolerance to the lower bound
-                    counterGrowth / tsDurationSeconds * 1.01 // Add 1% tolerance to the upper bound
-                );
+                double lowBound = counterGrowth / secondsInWindow * 0.9;
+                double highBound = counterGrowth / tsDurationSeconds * 1.1;
+                return new RateRange(lowBound, highBound);
             }
         }).filter(Objects::nonNull).toList();
         if (allRates.isEmpty()) {
@@ -376,6 +485,128 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
         );
     }
 
+    /**
+     * Adds an interpolated boundary point to a timeseries using data from the same timeseries in an
+     * adjacent window.
+     *
+     * @param currentWindow mutable list of data points for one timeseries in the current window (modified in place)
+     * @param adjacentWindow data points for the same timeseries in the adjacent window
+     * @return {@code true} if a boundary point was added or the reference point is already on the boundary
+     */
+    private static boolean addBoundaryPoint(
+        List<TimestampedValue> currentWindow,
+        List<TimestampedValue> adjacentWindow,
+        int secondsInWindow,
+        boolean isLowerBoundary
+    ) {
+        var referencePoint = isLowerBoundary ? currentWindow.getFirst() : currentWindow.getLast();
+        if (isLowerBoundary && referencePoint.timestamp().toEpochMilli() % (secondsInWindow * 1000L) == 0) {
+            return true;
+        }
+        if (instantsInAdjacentWindows(adjacentWindow.getFirst().timestamp(), referencePoint.timestamp(), secondsInWindow) == false) {
+            return false;
+        }
+        TimestampedValue otherValue = null;
+        long otherTimestamp = 0;
+        for (var point : adjacentWindow) {
+            long timestamp = point.timestamp().toEpochMilli();
+            if (otherValue == null
+                || (timestamp > otherTimestamp && isLowerBoundary)
+                || (timestamp < otherTimestamp && isLowerBoundary == false)) {
+                otherTimestamp = timestamp;
+                otherValue = point;
+            }
+        }
+        if (isLowerBoundary) {
+            currentWindow.addFirst(interpolateAtLowerBoundary(otherValue, referencePoint, secondsInWindow));
+        } else {
+            currentWindow.addLast(interpolateAtUpperBoundary(referencePoint, otherValue, secondsInWindow));
+        }
+        return true;
+    }
+
+    /**
+     * Prepends the latest data point from the same currentWindow in the lower (previous) window,
+     * used when only a single boundary-aligned point exists in the current window.
+     *
+     * @param currentWindow mutable list of data points for one currentWindow in the current window (modified in place)
+     * @param previousWindow data points for the same currentWindow in the previous window, or {@code null} if absent
+     */
+    private static void addLastPointFromLowerWindow(
+        List<TimestampedValue> currentWindow,
+        @Nullable List<TimestampedValue> previousWindow,
+        int secondsInWindow
+    ) {
+        if (previousWindow == null || previousWindow.isEmpty()) {
+            return;
+        }
+        Instant referenceTimestamp = currentWindow.getFirst().timestamp();
+        if (instantsInAdjacentWindows(previousWindow.getFirst().timestamp(), referenceTimestamp, secondsInWindow) == false) {
+            return;
+        }
+        TimestampedValue lowerPoint = null;
+        long lowerTimestampMs = 0;
+        for (var point : previousWindow) {
+            long timestamp = point.timestamp().toEpochMilli();
+            if (lowerPoint == null || timestamp > lowerTimestampMs) {
+                lowerTimestampMs = timestamp;
+                lowerPoint = point;
+            }
+        }
+        if (lowerPoint != null) {
+            currentWindow.addFirst(lowerPoint);
+        }
+    }
+
+    private static boolean instantsInAdjacentWindows(Instant first, Instant second, int secondsInWindow) {
+        long firstRounded = first.getEpochSecond() / secondsInWindow * secondsInWindow;
+        long secondRounded = second.getEpochSecond() / secondsInWindow * secondsInWindow;
+        long delta = Math.abs(firstRounded - secondRounded);
+        return delta == secondsInWindow;
+    }
+
+    private static TimestampedValue interpolateAtLowerBoundary(
+        TimestampedValue lowerPoint,
+        TimestampedValue upperPoint,
+        int secondsInWindow
+    ) {
+        final double valueDelta;
+        final double baseValue;
+        if (upperPoint.value() >= lowerPoint.value()) {
+            valueDelta = upperPoint.value() - lowerPoint.value();
+            baseValue = lowerPoint.value();
+        } else {
+            // Counter reset.
+            valueDelta = upperPoint.value();
+            baseValue = 0;
+        }
+        final double timeDelta = (upperPoint.timestamp().toEpochMilli() - lowerPoint.timestamp().toEpochMilli()) / 1000.0;
+        final double slope = valueDelta / timeDelta;
+        final long lowerBoundaryTimeSeconds = upperPoint.timestamp().getEpochSecond() / secondsInWindow * secondsInWindow;
+        final double lowerBoundaryValue = baseValue + slope * (lowerBoundaryTimeSeconds - lowerPoint.timestamp().toEpochMilli() / 1000.0);
+        return new TimestampedValue(Instant.ofEpochSecond(lowerBoundaryTimeSeconds), lowerBoundaryValue);
+    }
+
+    private static TimestampedValue interpolateAtUpperBoundary(
+        TimestampedValue lowerPoint,
+        TimestampedValue upperPoint,
+        int secondsInWindow
+    ) {
+        final double valueDelta;
+        if (upperPoint.value() >= lowerPoint.value()) {
+            valueDelta = upperPoint.value() - lowerPoint.value();
+        } else {
+            // Counter reset.
+            valueDelta = upperPoint.value();
+        }
+        final double timeDelta = (upperPoint.timestamp().toEpochMilli() - lowerPoint.timestamp().toEpochMilli()) / 1000.0;
+        final double slope = valueDelta / timeDelta;
+        final long upperBoundaryTimeSeconds = upperPoint.timestamp().getEpochSecond() / secondsInWindow * secondsInWindow;
+        final double upperBoundaryValue = lowerPoint.value() + slope * (upperBoundaryTimeSeconds - lowerPoint.timestamp().toEpochMilli()
+            / 1000.0);
+        return new TimestampedValue(Instant.ofEpochSecond(upperBoundaryTimeSeconds), upperBoundaryValue);
+    }
+
     void putTSDBIndexTemplate(List<String> patterns, @Nullable String mappingString) throws IOException {
         Settings.Builder settingsBuilder = Settings.builder();
         // Ensure it will be a TSDB data stream
@@ -383,6 +614,7 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
         settingsBuilder.put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, ESTestCase.randomIntBetween(1, 5));
         settingsBuilder.put(IndexSettings.TIME_SERIES_START_TIME.getKey(), "2025-07-31T00:00:00Z");
         settingsBuilder.put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "2025-07-31T12:00:00Z");
+        settingsBuilder.put(IndexSettings.SYNTHETIC_ID.getKey(), randomBoolean());
         CompressedXContent mappings = mappingString == null ? null : CompressedXContent.fromJSON(mappingString);
         TransportPutComposableIndexTemplateAction.Request request = new TransportPutComposableIndexTemplateAction.Request(
             RandomizedTimeSeriesIT.DATASTREAM_NAME
@@ -447,16 +679,13 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
      * the same values from the documents in the group.
      */
     public void testRateGroupBySubset() {
-        // var deltaAgg = ESTestCase.randomFrom(DELTA_AGG_OPTIONS);
-        var deltaAgg = Tuple.tuple("delta", DeltaAgg.DELTA); // TODO: Enable random selection after fixing
-        var metricName = DELTA_AGG_METRIC_MAP.get(deltaAgg.v2());
+        var deltaAgg = ESTestCase.randomFrom(DeltaAgg.values());
+        var metricName = DELTA_AGG_METRIC_MAP.get(deltaAgg);
         var window = ESTestCase.randomFrom(WINDOW_OPTIONS);
-        var windowSize = window.v2();
-        var windowStr = window.v1();
         var dimensions = ESTestCase.randomSubsetOf(dataGenerationHelper.attributesForMetrics);
         var dimensionsStr = dimensions.isEmpty()
             ? ""
-            : ", " + dimensions.stream().map(d -> "attributes." + d).collect(Collectors.joining(", "));
+            : ", " + dimensions.stream().map(d -> "attributes.`" + d + "`").collect(Collectors.joining(", "));
         var query = String.format(Locale.ROOT, """
             TS %s
             | STATS count(<DELTAGG>(metrics.<METRIC>)),
@@ -467,41 +696,59 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
                     values(<DELTAGG>(metrics.<METRIC>))
                 BY tbucket=bucket(@timestamp, %s) %s
             | SORT tbucket
-            """, DATASTREAM_NAME, windowStr, dimensionsStr).replaceAll("<DELTAGG>", deltaAgg.v1()).replaceAll("<METRIC>", metricName);
+            """, DATASTREAM_NAME, window.label(), dimensionsStr)
+            .replaceAll("<DELTAGG>", deltaAgg.functionName())
+            .replaceAll("<METRIC>", metricName);
         try (var resp = run(query)) {
             List<List<Object>> rows = consumeRows(resp);
             List<String> failedWindows = new ArrayList<>();
-            var groups = groupedRows(documents, dimensions, windowSize);
+            var groups = groupedRows(documents, dimensions, window.seconds());
+            Map<String, List<Map<String, List<TimestampedValue>>>> windowsPerTimeseries = new HashMap<>();
+            Map<String, List<List<Object>>> rowsPerTimeseries = new HashMap<>();
             for (List<Object> row : rows) {
                 var rowKey = getRowKey(row, dimensions, getTimestampIndex(query));
+                String timeseriesId = getTimeseriesId(rowKey);
+                if (timeseriesId.isEmpty()) {
+                    continue;
+                }
                 var windowDataPoints = groups.get(rowKey);
                 var docsPerTimeseries = groupByTimeseries(windowDataPoints, metricName);
-                var rateAgg = calculateDeltaAggregation(docsPerTimeseries.values(), windowSize, deltaAgg.v2());
-                try {
-                    assertThat(row.getFirst(), equalTo(rateAgg.count));
-                    checkWithin((Double) row.get(1), rateAgg.max);
-                    checkWithin((Double) row.get(2), rateAgg.avg);
-                    checkWithin((Double) row.get(3), rateAgg.min);
-                    checkWithin((Double) row.get(4), rateAgg.sum);
-                } catch (AssertionError e) {
-                    failedWindows.add(
-                        "ROWS: "
-                            + rows.size()
-                            + "|Failed for row:\n"
-                            + row
-                            + "\nWanted: "
-                            + rateAgg
-                            + "\nRow times and values:\n\tTS:"
-                            + docsPerTimeseries.values()
-                                .stream()
-                                .map(ts -> ts.stream().map(t -> t.v2().v1() + "=" + t.v2().v2()).collect(Collectors.joining(", ")))
-                                .collect(Collectors.joining("\n\tTS:"))
-                            + "\nException: "
-                            + e.getMessage()
-                    );
-                }
+                windowsPerTimeseries.computeIfAbsent(timeseriesId, k -> new ArrayList<>()).add(docsPerTimeseries);
+                rowsPerTimeseries.computeIfAbsent(timeseriesId, k -> new ArrayList<>()).add(row);
             }
-            assertNoFailedWindows(failedWindows, rows, deltaAgg.v2().name());
+            for (var key : windowsPerTimeseries.keySet()) {
+                var rowList = rowsPerTimeseries.get(key);
+                var docsPerTimeseries = windowsPerTimeseries.get(key);
+                for (int i = 0; i < rowList.size(); i++) {
+                    var row = rowList.get(i);
+                    var rateAgg = calculateDeltaAggregation(docsPerTimeseries, i, window.seconds(), deltaAgg);
+                    try {
+                        assertThat(row.getFirst(), equalTo(rateAgg.count));
+                        checkWithin((Double) row.get(1), rateAgg.max);
+                        checkWithin((Double) row.get(2), rateAgg.avg);
+                        checkWithin((Double) row.get(3), rateAgg.min);
+                        checkWithin((Double) row.get(4), rateAgg.sum);
+                    } catch (AssertionError e) {
+                        failedWindows.add(
+                            "ROWS: "
+                                + rows.size()
+                                + "|Failed for row:\n"
+                                + row
+                                + "\nWanted: "
+                                + rateAgg
+                                + "\nException: "
+                                + e.getMessage()
+                                + "\nRow times and values:\n\tTS:"
+                                + docsPerTimeseries.get(i)
+                                    .values()
+                                    .stream()
+                                    .map(ts -> ts.stream().map(p -> p.timestamp() + "=" + p.value()).collect(Collectors.joining(", ")))
+                                    .collect(Collectors.joining("\n\tTS:"))
+                        );
+                    }
+                }
+                assertNoFailedWindows(failedWindows, rows, deltaAgg.name());
+            }
         }
     }
 
@@ -513,6 +760,7 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
      */
     public void testRateGroupByNothing() {
         var groups = groupedRows(documents, List.of(), 60);
+        List<Map<String, List<TimestampedValue>>> docsPerWindowPerTimeseries = new ArrayList<>();
         try (var resp = run(String.format(Locale.ROOT, """
             TS %s
             | STATS count(rate(metrics.counterl_hdd.bytes.read)),
@@ -528,7 +776,11 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
                 var windowStart = windowStart(row.get(4), SECONDS_IN_WINDOW);
                 var windowDataPoints = groups.get(List.of(Long.toString(windowStart)));
                 var docsPerTimeseries = groupByTimeseries(windowDataPoints, "counterl_hdd.bytes.read");
-                var rateAgg = calculateDeltaAggregation(docsPerTimeseries.values(), SECONDS_IN_WINDOW, DeltaAgg.RATE);
+                docsPerWindowPerTimeseries.add(docsPerTimeseries);
+            }
+            for (int i = 0; i < rows.size(); i++) {
+                var row = rows.get(i);
+                var rateAgg = calculateDeltaAggregation(docsPerWindowPerTimeseries, i, SECONDS_IN_WINDOW, DeltaAgg.RATE);
                 try {
                     assertThat(row.getFirst(), equalTo(rateAgg.count));
                     checkWithin((Double) row.get(1), rateAgg.max);
@@ -544,12 +796,10 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
 
     public void testGaugeGroupByRandomAndRandomAgg() {
         var randomWindow = ESTestCase.randomFrom(WINDOW_OPTIONS);
-        var windowSize = randomWindow.v2();
-        var windowStr = randomWindow.v1();
         var dimensions = ESTestCase.randomSubsetOf(dataGenerationHelper.attributesForMetrics);
         var dimensionsStr = dimensions.isEmpty()
             ? ""
-            : ", " + dimensions.stream().map(d -> "attributes." + d).collect(Collectors.joining(", "));
+            : ", " + dimensions.stream().map(d -> "attributes.`" + d + "`").collect(Collectors.joining(", "));
         var metricName = ESTestCase.randomFrom(List.of("gaugel_hdd.bytes.used", "gauged_cpu.percent"));
         var selectedAggs = ESTestCase.randomSubsetOf(2, Agg.values());
         var aggExpression = String.format(
@@ -567,9 +817,9 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
                 %s
                 BY tbucket=bucket(@timestamp, %s) %s
             | SORT tbucket
-            """, DATASTREAM_NAME, metricName, aggExpression, windowStr, dimensionsStr);
+            """, DATASTREAM_NAME, metricName, aggExpression, randomWindow.label(), dimensionsStr);
         try (EsqlQueryResponse resp = run(query)) {
-            var groups = groupedRows(documents, dimensions, windowSize);
+            var groups = groupedRows(documents, dimensions, randomWindow.seconds());
             List<List<Object>> rows = consumeRows(resp);
             for (List<Object> row : rows) {
                 var rowKey = getRowKey(row, dimensions, getTimestampIndex(query));
@@ -621,7 +871,7 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
      */
     public void testGroupBySubset() {
         var dimensions = ESTestCase.randomNonEmptySubsetOf(dataGenerationHelper.attributesForMetrics);
-        var dimensionsStr = dimensions.stream().map(d -> "attributes." + d).collect(Collectors.joining(", "));
+        var dimensionsStr = dimensions.stream().map(d -> "attributes.`" + d + "`").collect(Collectors.joining(", "));
         var query = String.format(Locale.ROOT, """
             TS %s
             | STATS

@@ -46,7 +46,7 @@ public class DenseEmbeddingByteResultsTests extends AbstractWireSerializingTestC
     public void testToXContent_CreatesTheRightFormatForASingleEmbedding() throws IOException {
         var entity = new DenseEmbeddingByteResults(List.of(new DenseEmbeddingByteResults.Embedding(new byte[] { (byte) 23 })));
 
-        String xContentResult = Strings.toString(entity, true, true);
+        String xContentResult = Strings.toTruncatedString(entity, true, true);
         assertThat(xContentResult, is("""
             {
               "text_embedding_bytes" : [
@@ -67,7 +67,7 @@ public class DenseEmbeddingByteResultsTests extends AbstractWireSerializingTestC
             )
         );
 
-        String xContentResult = Strings.toString(entity, true, true);
+        String xContentResult = Strings.toTruncatedString(entity, true, true);
         assertThat(xContentResult, is("""
             {
               "text_embedding_bytes" : [
@@ -152,7 +152,7 @@ public class DenseEmbeddingByteResultsTests extends AbstractWireSerializingTestC
     public static Map<String, Object> buildExpectationByte(List<List<Byte>> embeddings) {
         return Map.of(
             DenseEmbeddingByteResults.TEXT_EMBEDDING_BYTES,
-            embeddings.stream().map(embedding -> Map.of(DenseEmbeddingByteResults.Embedding.EMBEDDING, embedding)).toList()
+            embeddings.stream().map(embedding -> Map.of(EmbeddingResults.EMBEDDING, embedding)).toList()
         );
     }
 }

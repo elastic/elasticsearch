@@ -15,6 +15,11 @@ import org.elasticsearch.common.util.PageCacheRecycler;
 
 public class BytesRefRecycler implements Recycler<BytesRef> {
 
+    /**
+     * A non-recycling {@link BytesRefRecycler} which simply allocates a fresh 16kiB {@code byte[]} each time. This is only really
+     * appropriate for use in tests.
+     */
+    // TODO move to test framework?
     public static final BytesRefRecycler NON_RECYCLING_INSTANCE = new BytesRefRecycler(PageCacheRecycler.NON_RECYCLING_INSTANCE);
 
     private final PageCacheRecycler recycler;

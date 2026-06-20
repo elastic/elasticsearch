@@ -650,3 +650,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.datasources.CompressionDelegatingFormatReaderTests
   method: testDelegatesMetadataAndReadZstd
   issue: https://github.com/elastic/elasticsearch/issues/151784
+- class: org.elasticsearch.search.msearch.MultiSearchIT
+  method: testBreakerAccountingEndToEnd
+  issue: https://github.com/elastic/elasticsearch/issues/151786

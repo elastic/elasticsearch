@@ -452,7 +452,7 @@ class Elasticsearch {
         INSTANCE.start();
 
         if (ReadinessService.enabled(bootstrap.environment())) {
-            waitForNodeReady(INSTANCE.node);
+            waitForNodeReady(INSTANCE.node.injector().getInstance(ReadinessService.class));
         }
 
         if (bootstrap.args().daemonize()) {
@@ -544,16 +544,7 @@ class Elasticsearch {
         }
     }
 
-    /**
-     * Starts a thread that monitors stdin for a shutdown signal.
-     *
-     * If the shutdown signal is received, Elasticsearch exits with status code 0.
-     * If the pipe is broken, Elasticsearch exits with status code 1.
-     *
-     * @param stdin Standard input for this process
-     */
-    private static void waitForNodeReady(Node node) {
-        ReadinessService readinessService = node.injector().getInstance(ReadinessService.class);
+    static void waitForNodeReady(ReadinessService readinessService) {
         CountDownLatch ready = new CountDownLatch(1);
         readinessService.addBoundAddressListener(address -> ready.countDown());
         try {
@@ -564,6 +555,14 @@ class Elasticsearch {
         }
     }
 
+    /**
+     * Starts a thread that monitors stdin for a shutdown signal.
+     *
+     * If the shutdown signal is received, Elasticsearch exits with status code 0.
+     * If the pipe is broken, Elasticsearch exits with status code 1.
+     *
+     * @param stdin Standard input for this process
+     */
     private static void startCliMonitorThread(InputStream stdin) {
         new Thread(() -> {
             int msg = -1;

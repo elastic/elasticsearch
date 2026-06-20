@@ -94,7 +94,11 @@ public class DoubleBucketedSort implements Releasable {
     public void collect(double value, int bucket) {
         long rootIndex = (long) bucket * bucketSize;
         if (inHeapMode(bucket)) {
-            if (betterThan(value, values.get(rootIndex))) {
+            if (betterThan(
+                // comment to make spotless happy about line breaks
+                value,
+                values.get(rootIndex)
+            )) {
                 values.set(rootIndex, value);
                 downHeap(rootIndex, 0, bucketSize);
             }
@@ -155,7 +159,11 @@ public class DoubleBucketedSort implements Releasable {
 
         // TODO: This can be improved for heapified buckets by making use of the heap structures
         for (long i = otherBounds.v1(); i < otherBounds.v2(); i++) {
-            collect(other.values.get(i), groupId);
+            collect(
+                // comment to make spotless happy about line breaks
+                other.values.get(i),
+                groupId
+            );
         }
     }
 
@@ -168,10 +176,7 @@ public class DoubleBucketedSort implements Releasable {
             return blockFactory.newConstantNullBlock(selected.getPositionCount());
         }
 
-        try (
-            // comment to make spotless happy about line breaks
-            var builder = blockFactory.newDoubleBlockBuilder(selected.getPositionCount())
-        ) {
+        try (var builder = blockFactory.newDoubleBlockBuilder(selected.getPositionCount())) {
             for (int s = 0; s < selected.getPositionCount(); s++) {
                 int bucket = selected.getInt(s);
 
@@ -357,13 +362,22 @@ public class DoubleBucketedSort implements Releasable {
             int leftChild = parent * 2 + 1;
             long leftIndex = rootIndex + leftChild;
             if (leftChild < heapSize) {
-                if (betterThan(values.get(worstIndex), values.get(leftIndex))) {
+                if (betterThan(
+                    // comment to make spotless happy about line breaks
+                    values.get(worstIndex),
+                    values.get(leftIndex)
+                )) {
                     worst = leftChild;
                     worstIndex = leftIndex;
                 }
                 int rightChild = leftChild + 1;
                 long rightIndex = rootIndex + rightChild;
-                if (rightChild < heapSize && betterThan(values.get(worstIndex), values.get(rightIndex))) {
+                if (rightChild < heapSize
+                    && betterThan(
+                        // comment to make spotless happy about line breaks
+                        values.get(worstIndex),
+                        values.get(rightIndex)
+                    )) {
                     worst = rightChild;
                     worstIndex = rightIndex;
                 }

@@ -165,7 +165,12 @@ public class LongLongBucketedSort implements Releasable {
 
         // TODO: This can be improved for heapified buckets by making use of the heap structures
         for (long i = otherBounds.v1(); i < otherBounds.v2(); i++) {
-            collect(other.values.get(i), other.extraValues.get(i), groupId);
+            collect(
+                // comment to make spotless happy about line breaks
+                other.values.get(i),
+                other.extraValues.get(i),
+                groupId
+            );
         }
     }
 
@@ -183,7 +188,6 @@ public class LongLongBucketedSort implements Releasable {
         }
 
         try (
-            // comment to make spotless happy about line breaks
             var builder = blockFactory.newLongBlockBuilder(selected.getPositionCount());
             var extraBuilder = blockFactory.newLongBlockBuilder(selected.getPositionCount())
         ) {

@@ -171,8 +171,12 @@ public class LongBytesRefBucketedSort implements Releasable {
 
         // TODO: This can be improved for heapified buckets by making use of the heap structures
         for (long i = otherBounds.v1(); i < otherBounds.v2(); i++) {
-            BreakingBytesRefBuilder otherExtra = other.extraValues.get(i);
-            collect(other.values.get(i), otherExtra == null ? new BytesRef() : otherExtra.bytesRefView(), groupId);
+            collect(
+                // comment to make spotless happy about line breaks
+                other.values.get(i),
+                other.extraValues.get(i) == null ? new BytesRef() : other.extraValues.get(i).bytesRefView(),
+                groupId
+            );
         }
     }
 
@@ -190,7 +194,6 @@ public class LongBytesRefBucketedSort implements Releasable {
         }
 
         try (
-            // comment to make spotless happy about line breaks
             var builder = blockFactory.newLongBlockBuilder(selected.getPositionCount());
             var extraBuilder = blockFactory.newBytesRefBlockBuilder(selected.getPositionCount())
         ) {

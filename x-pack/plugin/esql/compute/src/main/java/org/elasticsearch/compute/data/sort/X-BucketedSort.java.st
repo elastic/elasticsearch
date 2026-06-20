@@ -143,30 +143,25 @@ $endif$
     public void collect($type$ value, $if(hasExtra)$$Extratype$ extraValue, $endif$int bucket) {
         long rootIndex = (long) bucket * bucketSize;
         if (inHeapMode(bucket)) {
-$if(hasExtra)$
             if (betterThan(
                 // comment to make spotless happy about line breaks
                 value,
-                $if(BytesRef)$bytesAt(rootIndex)$else$values.get(rootIndex)$endif$,
+                $if(BytesRef)$bytesAt(rootIndex)$else$values.get(rootIndex)$endif$$if(hasExtra)$,
                 extraValue,
                 $if(ExtraBytesRef)$extraBytesAt(rootIndex)$else$extraValues.get(rootIndex)$endif$
+$else$
+$endif$
             )) {
 $if(BytesRef)$
                 clearedBytesAt(rootIndex).append(value);
 $else$
                 values.set(rootIndex, value);
 $endif$
+$if(hasExtra)$
 $if(ExtraBytesRef)$
                 clearedExtraBytesAt(rootIndex).append(extraValue);
 $else$
                 extraValues.set(rootIndex, extraValue);
-$endif$
-$else$
-            if (betterThan(value, $if(BytesRef)$bytesAt(rootIndex)$else$values.get(rootIndex)$endif$)) {
-$if(BytesRef)$
-                clearedBytesAt(rootIndex).append(value);
-$else$
-                values.set(rootIndex, value);
 $endif$
 $endif$
                 downHeap(rootIndex, 0, bucketSize);
@@ -239,35 +234,12 @@ $endif$
 
         // TODO: This can be improved for heapified buckets by making use of the heap structures
         for (long i = otherBounds.v1(); i < otherBounds.v2(); i++) {
-$if(hasExtra)$
-$if(BytesRef)$
-            BreakingBytesRefBuilder otherValue = other.values.get(i);
             collect(
                 // comment to make spotless happy about line breaks
-                otherValue == null ? new BytesRef() : otherValue.bytesRefView(),
-$if(ExtraBytesRef)$
-                other.extraValues.get(i) == null ? new BytesRef() : other.extraValues.get(i).bytesRefView(),
-$else$
-                other.extraValues.get(i),
-$endif$
+                $if(BytesRef)$other.values.get(i) == null ? new BytesRef() : other.values.get(i).bytesRefView()$else$other.values.get(i)$endif$$if(hasExtra)$,
+                $if(ExtraBytesRef)$other.extraValues.get(i) == null ? new BytesRef() : other.extraValues.get(i).bytesRefView()$else$other.extraValues.get(i)$endif$$endif$,
                 groupId
             );
-$else$
-$if(ExtraBytesRef)$
-            BreakingBytesRefBuilder otherExtra = other.extraValues.get(i);
-            collect(other.values.get(i), otherExtra == null ? new BytesRef() : otherExtra.bytesRefView(), groupId);
-$else$
-            collect(other.values.get(i), other.extraValues.get(i), groupId);
-$endif$
-$endif$
-$else$
-$if(BytesRef)$
-            BreakingBytesRefBuilder otherValue = other.values.get(i);
-            collect(otherValue == null ? new BytesRef() : otherValue.bytesRefView(), groupId);
-$else$
-            collect(other.values.get(i), groupId);
-$endif$
-$endif$
         }
     }
 
@@ -286,17 +258,8 @@ $if(hasExtra)$
         }
 
         try (
-            // comment to make spotless happy about line breaks
-$if(BytesRef)$
-            var builder = blockFactory.newBytesRefBlockBuilder(selected.getPositionCount());
-$else$
             var builder = blockFactory.new$Type$BlockBuilder(selected.getPositionCount());
-$endif$
-$if(ExtraBytesRef)$
-            var extraBuilder = blockFactory.newBytesRefBlockBuilder(selected.getPositionCount())
-$else$
             var extraBuilder = blockFactory.new$ExtraType$BlockBuilder(selected.getPositionCount())
-$endif$
         ) {
             for (int s = 0; s < selected.getPositionCount(); s++) {
                 int bucket = selected.getInt(s);
@@ -370,14 +333,7 @@ $else$
             return blockFactory.newConstantNullBlock(selected.getPositionCount());
         }
 
-        try (
-            // comment to make spotless happy about line breaks
-$if(BytesRef)$
-            var builder = blockFactory.newBytesRefBlockBuilder(selected.getPositionCount())
-$else$
-            var builder = blockFactory.new$Type$BlockBuilder(selected.getPositionCount())
-$endif$
-        ) {
+        try (var builder = blockFactory.new$Type$BlockBuilder(selected.getPositionCount())) {
             for (int s = 0; s < selected.getPositionCount(); s++) {
                 int bucket = selected.getInt(s);
 
@@ -687,42 +643,30 @@ $endif$
             int leftChild = parent * 2 + 1;
             long leftIndex = rootIndex + leftChild;
             if (leftChild < heapSize) {
-$if(hasExtra)$
                 if (betterThan(
                     // comment to make spotless happy about line breaks
                     $if(BytesRef)$bytesAt(worstIndex)$else$values.get(worstIndex)$endif$,
-                    $if(BytesRef)$bytesAt(leftIndex)$else$values.get(leftIndex)$endif$,
+                    $if(BytesRef)$bytesAt(leftIndex)$else$values.get(leftIndex)$endif$$if(hasExtra)$,
                     $if(ExtraBytesRef)$extraBytesAt(worstIndex)$else$extraValues.get(worstIndex)$endif$,
                     $if(ExtraBytesRef)$extraBytesAt(leftIndex)$else$extraValues.get(leftIndex)$endif$
+$else$
+$endif$
                 )) {
-$else$
-$if(BytesRef)$
-                if (betterThan(bytesAt(worstIndex), bytesAt(leftIndex))) {
-$else$
-                if (betterThan(values.get(worstIndex), values.get(leftIndex))) {
-$endif$
-$endif$
                     worst = leftChild;
                     worstIndex = leftIndex;
                 }
                 int rightChild = leftChild + 1;
                 long rightIndex = rootIndex + rightChild;
-$if(hasExtra)$
                 if (rightChild < heapSize
                     && betterThan(
                         // comment to make spotless happy about line breaks
                         $if(BytesRef)$bytesAt(worstIndex)$else$values.get(worstIndex)$endif$,
-                        $if(BytesRef)$bytesAt(rightIndex)$else$values.get(rightIndex)$endif$,
+                        $if(BytesRef)$bytesAt(rightIndex)$else$values.get(rightIndex)$endif$$if(hasExtra)$,
                         $if(ExtraBytesRef)$extraBytesAt(worstIndex)$else$extraValues.get(worstIndex)$endif$,
                         $if(ExtraBytesRef)$extraBytesAt(rightIndex)$else$extraValues.get(rightIndex)$endif$
+$else$
+$endif$
                     )) {
-$else$
-$if(BytesRef)$
-                if (rightChild < heapSize && betterThan(bytesAt(worstIndex), bytesAt(rightIndex))) {
-$else$
-                if (rightChild < heapSize && betterThan(values.get(worstIndex), values.get(rightIndex))) {
-$endif$
-$endif$
                     worst = rightChild;
                     worstIndex = rightIndex;
                 }

@@ -171,10 +171,9 @@ public class BytesRefBytesRefBucketedSort implements Releasable {
 
         // TODO: This can be improved for heapified buckets by making use of the heap structures
         for (long i = otherBounds.v1(); i < otherBounds.v2(); i++) {
-            BreakingBytesRefBuilder otherValue = other.values.get(i);
             collect(
                 // comment to make spotless happy about line breaks
-                otherValue == null ? new BytesRef() : otherValue.bytesRefView(),
+                other.values.get(i) == null ? new BytesRef() : other.values.get(i).bytesRefView(),
                 other.extraValues.get(i) == null ? new BytesRef() : other.extraValues.get(i).bytesRefView(),
                 groupId
             );
@@ -195,7 +194,6 @@ public class BytesRefBytesRefBucketedSort implements Releasable {
         }
 
         try (
-            // comment to make spotless happy about line breaks
             var builder = blockFactory.newBytesRefBlockBuilder(selected.getPositionCount());
             var extraBuilder = blockFactory.newBytesRefBlockBuilder(selected.getPositionCount())
         ) {

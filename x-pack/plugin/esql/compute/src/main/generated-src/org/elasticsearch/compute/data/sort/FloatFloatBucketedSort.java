@@ -166,7 +166,12 @@ public class FloatFloatBucketedSort implements Releasable {
 
         // TODO: This can be improved for heapified buckets by making use of the heap structures
         for (long i = otherBounds.v1(); i < otherBounds.v2(); i++) {
-            collect(other.values.get(i), other.extraValues.get(i), groupId);
+            collect(
+                // comment to make spotless happy about line breaks
+                other.values.get(i),
+                other.extraValues.get(i),
+                groupId
+            );
         }
     }
 
@@ -184,7 +189,6 @@ public class FloatFloatBucketedSort implements Releasable {
         }
 
         try (
-            // comment to make spotless happy about line breaks
             var builder = blockFactory.newFloatBlockBuilder(selected.getPositionCount());
             var extraBuilder = blockFactory.newFloatBlockBuilder(selected.getPositionCount())
         ) {

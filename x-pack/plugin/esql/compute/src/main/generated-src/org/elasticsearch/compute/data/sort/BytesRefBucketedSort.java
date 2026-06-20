@@ -100,7 +100,11 @@ public class BytesRefBucketedSort implements Releasable {
     public void collect(BytesRef value, int bucket) {
         long rootIndex = (long) bucket * bucketSize;
         if (inHeapMode(bucket)) {
-            if (betterThan(value, bytesAt(rootIndex))) {
+            if (betterThan(
+                // comment to make spotless happy about line breaks
+                value,
+                bytesAt(rootIndex)
+            )) {
                 clearedBytesAt(rootIndex).append(value);
                 downHeap(rootIndex, 0, bucketSize);
             }
@@ -161,8 +165,11 @@ public class BytesRefBucketedSort implements Releasable {
 
         // TODO: This can be improved for heapified buckets by making use of the heap structures
         for (long i = otherBounds.v1(); i < otherBounds.v2(); i++) {
-            BreakingBytesRefBuilder otherValue = other.values.get(i);
-            collect(otherValue == null ? new BytesRef() : otherValue.bytesRefView(), groupId);
+            collect(
+                // comment to make spotless happy about line breaks
+                other.values.get(i) == null ? new BytesRef() : other.values.get(i).bytesRefView(),
+                groupId
+            );
         }
     }
 
@@ -175,10 +182,7 @@ public class BytesRefBucketedSort implements Releasable {
             return blockFactory.newConstantNullBlock(selected.getPositionCount());
         }
 
-        try (
-            // comment to make spotless happy about line breaks
-            var builder = blockFactory.newBytesRefBlockBuilder(selected.getPositionCount())
-        ) {
+        try (var builder = blockFactory.newBytesRefBlockBuilder(selected.getPositionCount())) {
             for (int s = 0; s < selected.getPositionCount(); s++) {
                 int bucket = selected.getInt(s);
 
@@ -405,13 +409,22 @@ public class BytesRefBucketedSort implements Releasable {
             int leftChild = parent * 2 + 1;
             long leftIndex = rootIndex + leftChild;
             if (leftChild < heapSize) {
-                if (betterThan(bytesAt(worstIndex), bytesAt(leftIndex))) {
+                if (betterThan(
+                    // comment to make spotless happy about line breaks
+                    bytesAt(worstIndex),
+                    bytesAt(leftIndex)
+                )) {
                     worst = leftChild;
                     worstIndex = leftIndex;
                 }
                 int rightChild = leftChild + 1;
                 long rightIndex = rootIndex + rightChild;
-                if (rightChild < heapSize && betterThan(bytesAt(worstIndex), bytesAt(rightIndex))) {
+                if (rightChild < heapSize
+                    && betterThan(
+                        // comment to make spotless happy about line breaks
+                        bytesAt(worstIndex),
+                        bytesAt(rightIndex)
+                    )) {
                     worst = rightChild;
                     worstIndex = rightIndex;
                 }

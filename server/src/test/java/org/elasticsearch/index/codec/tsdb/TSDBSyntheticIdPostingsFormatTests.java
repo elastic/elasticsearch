@@ -912,7 +912,7 @@ public class TSDBSyntheticIdPostingsFormatTests extends ESTestCase {
             modifiedTimestamp = timestamp;
         }
 
-        final var term = TsidExtractingIdFieldMapper.createSyntheticIdBytesRef(
+        final var term = createSyntheticIdBytesRef(
             modifiedTsId,
             modifiedTimestamp,
             TsidExtractingIdFieldMapper.extractRoutingHashFromSyntheticId(value)
@@ -934,19 +934,19 @@ public class TSDBSyntheticIdPostingsFormatTests extends ESTestCase {
             // tsids are not identical, find the first byte that differs
             int diffIndex = 0;
             final int minLen = Math.min(tsIdMin.length, tsIdMax.length);
-            while (diffIndex < minLen && min.bytes[min.offset + diffIndex] == max.bytes[max.offset + diffIndex]) {
+            while (diffIndex < minLen && tsIdMin.bytes[tsIdMin.offset + diffIndex] == tsIdMax.bytes[tsIdMax.offset + diffIndex]) {
                 diffIndex++;
             }
 
             // increment the first byte that differs (if there is room for doing so)
             if (diffIndex < minLen) {
-                int valueMin = min.bytes[min.offset + diffIndex] & 0xFF;
-                int valueMax = (diffIndex < max.length) ? (max.bytes[max.offset + diffIndex] & 0xFF) : 256;
+                int valueMin = tsIdMin.bytes[tsIdMin.offset + diffIndex] & 0xFF;
+                int valueMax = (diffIndex < tsIdMax.length) ? (tsIdMax.bytes[tsIdMax.offset + diffIndex] & 0xFF) : 256;
                 if (valueMax - valueMin > 1) {
                     byte[] tsid = new byte[tsIdMin.length];
                     System.arraycopy(tsIdMin.bytes, tsIdMin.offset, tsid, 0, tsIdMin.length);
                     tsid[diffIndex] = (byte) (valueMin + randomIntBetween(1, valueMax - valueMin - 1));
-                    return TsidExtractingIdFieldMapper.createSyntheticIdBytesRef(
+                    return createSyntheticIdBytesRef(
                         new BytesRef(tsid),
                         TsidExtractingIdFieldMapper.extractTimestampFromSyntheticId(min),
                         TsidExtractingIdFieldMapper.extractRoutingHashFromSyntheticId(min)
@@ -961,13 +961,13 @@ public class TSDBSyntheticIdPostingsFormatTests extends ESTestCase {
         long diffTimestamps = Math.abs(timestampMin - timestampMax);
         if (diffTimestamps > 1L) {
             if (timestampMin > timestampMax) {
-                return TsidExtractingIdFieldMapper.createSyntheticIdBytesRef(
+                return createSyntheticIdBytesRef(
                     tsIdMin,
                     timestampMin - randomLongBetween(1L, diffTimestamps - 1L),
                     TsidExtractingIdFieldMapper.extractRoutingHashFromSyntheticId(min)
                 );
             } else {
-                return TsidExtractingIdFieldMapper.createSyntheticIdBytesRef(
+                return createSyntheticIdBytesRef(
                     tsIdMax,
                     timestampMax + randomLongBetween(1L, diffTimestamps - 1L),
                     TsidExtractingIdFieldMapper.extractRoutingHashFromSyntheticId(max)
@@ -975,6 +975,17 @@ public class TSDBSyntheticIdPostingsFormatTests extends ESTestCase {
             }
         }
         return null; // Nothing we can do, min and max have identical _tsid and @timestamp
+    }
+
+    static BytesRef createSyntheticIdBytesRef(BytesRef tsid, long timestamp, int routingHash) {
+        BytesRef id = TsidExtractingIdFieldMapper.createSyntheticIdBytesRef(tsid, timestamp, routingHash);
+        if (Byte.toUnsignedInt(id.bytes[id.offset]) >= Uid.BASE64_ESCAPE) {
+            byte[] newBytes = new byte[id.length + 1];
+            System.arraycopy(id.bytes, id.offset, newBytes, 1, id.length);
+            newBytes[0] = (byte) Uid.BASE64_ESCAPE;
+            return new BytesRef(newBytes);
+        }
+        return id;
     }
 
 }

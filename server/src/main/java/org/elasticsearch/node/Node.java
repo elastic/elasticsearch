@@ -445,9 +445,6 @@ public class Node implements Closeable {
                 writePortsFile("remote_cluster", transport.boundRemoteAccessAddress());
             }
         }
-        if (ReadinessService.enabled(environment)) {
-            waitOnNodeReady(injector.getInstance(ReadinessService.class));
-        }
         logger.info("started {}", transportService.getLocalNode());
 
         pluginsService.filterPlugins(ClusterPlugin.class).forEach(ClusterPlugin::onNodeStarted);
@@ -731,16 +728,6 @@ public class Node implements Closeable {
             builder.put(settings);
         }
         return builder.put(originalSettings).build();
-    }
-
-    private void waitOnNodeReady(ReadinessService readinessService) {
-        CountDownLatch ready = new CountDownLatch(1);
-        readinessService.addBoundAddressListener(address -> ready.countDown());
-        try {
-            ready.await();
-        } catch (InterruptedException e) {
-            throw new ElasticsearchTimeoutException("Interrupted while waiting for node to be ready");
-        }
     }
 
     static class LocalNodeFactory implements Function<BoundTransportAddress, DiscoveryNode> {

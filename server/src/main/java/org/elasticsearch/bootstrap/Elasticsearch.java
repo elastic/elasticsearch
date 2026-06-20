@@ -52,6 +52,7 @@ import org.elasticsearch.node.Node;
 import org.elasticsearch.node.NodeValidationException;
 import org.elasticsearch.plugins.PluginBundle;
 import org.elasticsearch.plugins.PluginsLoader;
+import org.elasticsearch.readiness.ReadinessService;
 import org.elasticsearch.rest.MethodHandlers;
 import org.elasticsearch.transport.RequestHandlerRegistry;
 
@@ -450,6 +451,10 @@ class Elasticsearch {
 
         INSTANCE.start();
 
+        if (ReadinessService.enabled(bootstrap.environment())) {
+            waitForNodeReady(INSTANCE.node);
+        }
+
         if (bootstrap.args().daemonize()) {
             LogConfigurator.removeConsoleAppender();
         }
@@ -547,6 +552,18 @@ class Elasticsearch {
      *
      * @param stdin Standard input for this process
      */
+    private static void waitForNodeReady(Node node) {
+        ReadinessService readinessService = node.injector().getInstance(ReadinessService.class);
+        CountDownLatch ready = new CountDownLatch(1);
+        readinessService.addBoundAddressListener(address -> ready.countDown());
+        try {
+            ready.await();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new ElasticsearchException("Interrupted while waiting for node to be ready", e);
+        }
+    }
+
     private static void startCliMonitorThread(InputStream stdin) {
         new Thread(() -> {
             int msg = -1;

@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.core.termsenum.action;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.ResolvedIndexExpressions;
 import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -18,6 +19,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.search.crossproject.TargetProjects;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -42,6 +44,11 @@ public final class TermsEnumRequest extends BroadcastRequest<TermsEnumRequest> i
     private int size = DEFAULT_SIZE;
     private boolean caseInsensitive;
     private QueryBuilder indexFilter;
+    private String projectRouting;
+    @Nullable
+    private ResolvedIndexExpressions resolvedIndexExpressions = null;
+    @Nullable
+    private transient TargetProjects resolvedTargetProjects = null;
 
     public TermsEnumRequest() {
         this(Strings.EMPTY_ARRAY);
@@ -134,12 +141,62 @@ public final class TermsEnumRequest extends BroadcastRequest<TermsEnumRequest> i
                 validationException = ValidateActions.addValidationError("Timeout cannot be > 1 minute", validationException);
             }
         }
+        if (projectRouting != null && indicesOptions().resolveCrossProjectIndexExpression() == false) {
+            validationException = ValidateActions.addValidationError(
+                "Unknown key for a VALUE_STRING in [project_routing]",
+                validationException
+            );
+        }
         return validationException;
     }
 
     @Override
     public boolean allowsRemoteIndices() {
         return true;
+    }
+
+    @Override
+    public boolean allowsCrossProject() {
+        return true;
+    }
+
+    @Override
+    public void setResolvedIndexExpressions(ResolvedIndexExpressions expressions) {
+        this.resolvedIndexExpressions = expressions;
+    }
+
+    @Override
+    @Nullable
+    public ResolvedIndexExpressions getResolvedIndexExpressions() {
+        return resolvedIndexExpressions;
+    }
+
+    @Override
+    public void setResolvedTargetProjects(TargetProjects targetProjects) {
+        this.resolvedTargetProjects = targetProjects;
+    }
+
+    @Override
+    @Nullable
+    public TargetProjects getResolvedTargetProjects() {
+        return resolvedTargetProjects;
+    }
+
+    /**
+     * Scopes the terms enum request to the projects matching the provided cross-project routing expression.
+     */
+    public TermsEnumRequest projectRouting(@Nullable String projectRouting) {
+        if (this.projectRouting != null) {
+            throw new IllegalArgumentException("project_routing is already set to [" + this.projectRouting + "]");
+        }
+        this.projectRouting = projectRouting;
+        return this;
+    }
+
+    @Override
+    @Nullable
+    public String getProjectRouting() {
+        return projectRouting;
     }
 
     /**

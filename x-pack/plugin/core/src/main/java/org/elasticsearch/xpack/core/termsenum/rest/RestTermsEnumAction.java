@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.core.termsenum.rest;
 
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -13,6 +14,7 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
+import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.termsenum.action.TermsEnumAction;
 import org.elasticsearch.xpack.core.termsenum.action.TermsEnumRequest;
@@ -25,6 +27,12 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 @ServerlessScope(Scope.PUBLIC)
 public class RestTermsEnumAction extends BaseRestHandler {
+
+    private final CrossProjectModeDecider crossProjectModeDecider;
+
+    public RestTermsEnumAction(CrossProjectModeDecider crossProjectModeDecider) {
+        this.crossProjectModeDecider = crossProjectModeDecider;
+    }
 
     @Override
     public List<Route> routes() {
@@ -43,6 +51,13 @@ public class RestTermsEnumAction extends BaseRestHandler {
                 parser,
                 Strings.splitStringByCommaToArray(request.param("index"))
             );
+            if (crossProjectModeDecider.crossProjectEnabled() && termEnumRequest.allowsCrossProject()) {
+                termEnumRequest.indicesOptions(
+                    IndicesOptions.builder(termEnumRequest.indicesOptions())
+                        .crossProjectModeOptions(new IndicesOptions.CrossProjectModeOptions(true))
+                        .build()
+                );
+            }
             return channel -> client.execute(TermsEnumAction.INSTANCE, termEnumRequest, new RestToXContentListener<>(channel));
         }
     }

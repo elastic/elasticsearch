@@ -210,9 +210,12 @@ public class BytesRefsFromBinaryMultiSeparateCountBlockLoader extends BlockDocVa
 
     /**
      * Reader for {@link org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField.ArrayOrderInlineNull ArrayOrderInlineNull}.
-     * Decodes the per-doc deduplicating blob ({@code [D][len1][val1]...[lenD][valD][ord1]...}), drops null ordinals (0), and emits the
-     * non-null values in document order. Advances on the {@code .counts} field, since an all-null or empty array writes a count but no
-     * binary blob.
+     * Decodes the per-doc deduplicating blob, drops null ordinals (0), and emits the non-null values in document order. Advances on
+     * the {@code .counts} field, since an all-null or empty array writes a count but no binary blob.
+     * <p>
+     * When {@code slotCount == distinctCount} (no duplicates, no nulls) the blob is {@code [D][len1][val1]...[lenD][valD]} and no
+     * ordinal stream follows. When {@code slotCount > distinctCount} the ordinal stream {@code [ord1]...[ordSlotCount]} is appended
+     * and {@code ord == 0} marks a null slot.
      */
     static class ArrayOrderInlineNull extends AbstractBytesRefsFromBinaryReader {
 
@@ -255,10 +258,10 @@ public class BytesRefsFromBinaryMultiSeparateCountBlockLoader extends BlockDocVa
             scratch.bytes = bytes.bytes;
             in.reset(bytes.bytes, bytes.offset, bytes.length);
 
-            // Read D distinct values, capturing their offsets and lengths within the blob.
-            int D = in.readVInt();
-            ensureDistinctCapacity(D);
-            for (int d = 0; d < D; d++) {
+            // Read distinctCount distinct values, capturing their offsets and lengths within the blob.
+            int distinctCount = in.readVInt();
+            ensureDistinctCapacity(distinctCount);
+            for (int d = 0; d < distinctCount; d++) {
                 int length = in.readVInt();
                 int offset = in.getPosition();
                 in.setPosition(offset + length);
@@ -266,17 +269,25 @@ public class BytesRefsFromBinaryMultiSeparateCountBlockLoader extends BlockDocVa
                 distinctLengths[d] = length;
             }
 
-            // Resolve each slot ordinal to a value (dropping nulls) and collect non-null positions.
-            ensureOrdinalCapacity(slotCount);
-            int nonNull = 0;
-            for (int i = 0; i < slotCount; i++) {
-                int ord = in.readVInt();
-                if (ord == 0) {
-                    continue; // null slot dropped
+            // When slotCount == distinctCount there are no duplicates and no nulls: the distinct values in first-seen order ARE the slots.
+            // When slotCount > distinctCount the ordinal stream follows and ordinal 0 marks a null slot.
+            ensureOrdinalCapacity(slotCount); // slotCount >= distinctCount, so this covers both branches
+            int nonNull;
+            if (slotCount == distinctCount) {
+                System.arraycopy(distinctOffsets, 0, ordinalOffsets, 0, distinctCount);
+                System.arraycopy(distinctLengths, 0, ordinalLengths, 0, distinctCount);
+                nonNull = distinctCount;
+            } else {
+                nonNull = 0;
+                for (int i = 0; i < slotCount; i++) {
+                    int ord = in.readVInt();
+                    if (ord == 0) {
+                        continue; // null slot dropped
+                    }
+                    ordinalOffsets[nonNull] = distinctOffsets[ord - 1];
+                    ordinalLengths[nonNull] = distinctLengths[ord - 1];
+                    nonNull++;
                 }
-                ordinalOffsets[nonNull] = distinctOffsets[ord - 1];
-                ordinalLengths[nonNull] = distinctLengths[ord - 1];
-                nonNull++;
             }
 
             if (nonNull == 0) {

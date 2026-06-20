@@ -27,7 +27,10 @@ import java.io.IOException;
  *   <li>{@code .counts} absent &rarr; the field is absent for this document</li>
  *   <li>{@code .counts} present, binary absent &rarr; an all-null or empty array: zero non-null values to expose</li>
  *   <li>{@code .counts == 1}, binary present &rarr; a single non-null value stored raw</li>
- *   <li>{@code .counts >= 2}, binary present &rarr;
+ *   <li>{@code .counts >= 2}, binary present, {@code slotCount == distinctCount} &rarr;
+ *       {@code [D][len1][val1]...[lenD][valD]}: no duplicates, no nulls; the {@code distinctCount} distinct values in first-seen
+ *       order are the array (no ordinal stream is written)</li>
+ *   <li>{@code .counts >= 2}, binary present, {@code slotCount > distinctCount} &rarr;
  *       {@code [D][len1][val1]...[lenD][valD][ord1]...} where ordinal 0 = null (dropped), k&ge;1 = distinct value k-1</li>
  * </ul>
  * The reader advances on {@code .counts} so an all-null or empty array (counts present, binary absent) is handled correctly.
@@ -82,13 +85,14 @@ public final class SortingArrayOrderBinaryDocValues extends SortingBinaryDocValu
             return true;
         }
 
-        // two or more slots: [D][len/val x D][ordinal x slotCount], where ordinal 0 = null we drop.
+        // two or more slots: [D][len/val x distinctCount][opt: ordinal x slotCount], where ordinal 0 = null we drop.
+        // When slotCount == distinctCount (no duplicates, no nulls) no ordinal stream is present.
         in.reset(bytes.bytes, bytes.offset, bytes.length);
-        int D = in.readVInt();
+        int distinctCount = in.readVInt();
 
-        int[] distinctOffsets = new int[D];
-        int[] distinctLengths = new int[D];
-        for (int d = 0; d < D; d++) {
+        int[] distinctOffsets = new int[distinctCount];
+        int[] distinctLengths = new int[distinctCount];
+        for (int d = 0; d < distinctCount; d++) {
             int length = in.readVInt();
             int offset = in.getPosition();
             in.setPosition(offset + length);
@@ -96,20 +100,29 @@ public final class SortingArrayOrderBinaryDocValues extends SortingBinaryDocValu
             distinctLengths[d] = length;
         }
 
-        count = slotCount;
-        grow();
-        int nonNull = 0;
-        for (int i = 0; i < slotCount; i++) {
-            int ord = in.readVInt();
-            if (ord == 0) {
-                continue; // null slot
+        if (slotCount == distinctCount) {
+            // no duplicates, no nulls: distinct values in first-seen order are the slots
+            count = distinctCount;
+            grow();
+            for (int d = 0; d < distinctCount; d++) {
+                values[d].copyBytes(bytes.bytes, distinctOffsets[d], distinctLengths[d]);
             }
-            int d = ord - 1;
-            values[nonNull].copyBytes(bytes.bytes, distinctOffsets[d], distinctLengths[d]);
-            nonNull++;
+        } else {
+            count = slotCount;
+            grow();
+            int nonNull = 0;
+            for (int i = 0; i < slotCount; i++) {
+                int ord = in.readVInt();
+                if (ord == 0) {
+                    continue; // null slot
+                }
+                int d = ord - 1;
+                values[nonNull].copyBytes(bytes.bytes, distinctOffsets[d], distinctLengths[d]);
+                nonNull++;
+            }
+            count = nonNull;
         }
-        count = nonNull;
         sort();
-        return nonNull > 0;
+        return count > 0;
     }
 }

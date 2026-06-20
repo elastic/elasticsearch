@@ -277,11 +277,17 @@ public abstract class MultiValuedBinaryDocValuesField extends CustomDocValuesFie
      * slots, INCLUDING null slots. Encoding:
      * <ul>
      *   <li>single non-null value &rarr; {@code [val]} (raw bytes, no length prefix)</li>
-     *   <li>two or more slots &rarr; {@code [D][len1][val1]...[lenD][valD][ord1][ord2]...}: a vint {@code D} (number of distinct non-null
-     *       values), followed by {@code D} plain-length-prefixed values in first-seen order, followed by {@code slotCount} vint ordinals
-     *       (one per slot): {@code 0} means null, {@code k>=1} refers to distinct value {@code k-1}. Each distinct value is stored once;
-     *       repeated values within a document reference the same ordinal, keeping per-doc blobs small so binary doc-values blocks remain
-     *       count-bound and ZSTD can compress across many documents.</li>
+     *   <li>two or more slots with no duplicates and no nulls ({@code slotCount == distinctCount}) &rarr;
+     *       {@code [D][len1][val1]...[lenD][valD]}: a vint {@code distinctCount} followed by {@code distinctCount}
+     *       plain-length-prefixed values in first-seen (document) order. No ordinal stream is written because it would be the trivial
+     *       sequence {@code 1,2,...,distinctCount}.</li>
+     *   <li>two or more slots with at least one duplicate or null ({@code slotCount > distinctCount}) &rarr;
+     *       {@code [D][len1][val1]...[lenD][valD][ord1][ord2]...}: a vint {@code distinctCount} (number of distinct non-null values),
+     *       followed by {@code distinctCount} plain-length-prefixed values in first-seen order, followed by {@code slotCount} vint
+     *       ordinals (one per slot):
+     *       {@code 0} means null, {@code k>=1} refers to distinct value {@code k-1}. Each distinct value is stored once; repeated values
+     *       within a document reference the same ordinal, keeping per-doc blobs small so binary doc-values blocks remain count-bound and
+     *       ZSTD can compress across many documents.</li>
      *   <li>zero non-null values (all-null array, lone {@code null}, or empty array) &rarr; no binary field is written at all; the
      *       {@code .counts} field alone carries the shape ({@code k>=1} null slots, or {@code 0} for an empty array)</li>
      * </ul>
@@ -403,19 +409,28 @@ public abstract class MultiValuedBinaryDocValuesField extends CustomDocValuesFie
                     distinctByteCount += slot.length;
                 }
             }
-            int D = ordinals.size();
-            // Size estimate: vint for D + D*(VINT_MAX_BYTES + distinctBytes) + slotCount*VINT_MAX_BYTES
-            int streamSize = VINT_MAX_BYTES + D * VINT_MAX_BYTES + distinctByteCount + slotCount * VINT_MAX_BYTES;
+            int distinctCount = ordinals.size();
+            // Ordinals are only needed when there are duplicates or null slots (slotCount > distinctCount).
+            // When slotCount == distinctCount every slot is a distinct non-null value; the distinctCount distinct values in first-seen
+            // order ARE the array, so the trivial ordinal sequence 1,2,...,distinctCount is redundant and can be omitted.
+            boolean writeOrdinals = slotCount != distinctCount;
+            // Size estimate: vint for distinctCount + distinctCount*(VINT_MAX_BYTES + distinctBytes)
+            // [+ slotCount*VINT_MAX_BYTES when ordinals are written]
+            int streamSize = VINT_MAX_BYTES + distinctCount * VINT_MAX_BYTES + distinctByteCount + (writeOrdinals
+                ? slotCount * VINT_MAX_BYTES
+                : 0);
             try (BytesStreamOutput out = new BytesStreamOutput(streamSize)) {
-                out.writeVInt(D);
-                // Write distinct values in first-seen (insertion) order (ordinals 1..D).
+                out.writeVInt(distinctCount);
+                // Write distinct values in first-seen (insertion) order (ordinals 1..distinctCount).
                 for (BytesRef val : distinctInOrder) {
                     out.writeVInt(val.length);
                     out.writeBytes(val.bytes, val.offset, val.length);
                 }
-                // Write one ordinal per slot (0 = null, 1..D = distinct value).
-                for (BytesRef slot : slots) {
-                    out.writeVInt(slot == null ? 0 : ordinals.get(slot));
+                // Write one ordinal per slot (0 = null, 1..D = distinct value) only when there are duplicates or nulls.
+                if (writeOrdinals) {
+                    for (BytesRef slot : slots) {
+                        out.writeVInt(slot == null ? 0 : ordinals.get(slot));
+                    }
                 }
                 return out.bytes().toBytesRef();
             } catch (IOException e) {

@@ -327,6 +327,44 @@ public class MultiValuedSortedBinaryDocValuesTests extends ESTestCase {
     }
 
     /**
+     * When all slots are distinct and non-null ({@code slotCount == D}) the encoder omits the ordinal stream. Verify by checking that
+     * the blob length equals exactly {@code vint(D) + sum(vint(len_i) + len_i)} with no trailing ordinal bytes — and that the
+     * round-trip still reconstructs the correct (sorted) values.
+     */
+    public void testArrayOrderOmitsOrdinalsWhenAllDistinctNoNull() throws IOException {
+        // Three distinct, non-null values — no nulls, no duplicates: ordinals must be omitted.
+        List<BytesRef> slots = List.of(new BytesRef("banana"), new BytesRef("apple"), new BytesRef("cherry"));
+
+        // Verify blob size: vint(3) + (vint(6)+"banana") + (vint(5)+"apple") + (vint(6)+"cherry")
+        // = 1 + (1+6) + (1+5) + (1+6) = 21 bytes — no ordinal vints.
+        BytesRef blob = MultiValuedBinaryDocValuesField.ArrayOrderInlineNull.encode(slots);
+        int expectedBlobLength = 1 + (1 + 6) + (1 + 5) + (1 + 6); // vint(D=3) + 3*(vint(len)+len)
+        assertEquals("blob must not contain trailing ordinals", expectedBlobLength, blob.length);
+
+        // Round-trip: values come back sorted (fielddata contract), duplicates kept.
+        List<BytesRef> expectedSorted = List.of(new BytesRef("apple"), new BytesRef("banana"), new BytesRef("cherry"));
+        assertEquals(expectedSorted, roundTripArrayOrder(slots));
+    }
+
+    /**
+     * When there is at least one duplicate or null the ordinal stream IS written. Verify that the blob is strictly longer than the
+     * no-ordinals size in both cases.
+     */
+    public void testArrayOrderWritesOrdinalsWhenDuplicateOrNull() throws IOException {
+        // Case 1: duplicate value — slotCount(3) > D(2), so ordinals are required.
+        List<BytesRef> withDup = List.of(new BytesRef("a"), new BytesRef("b"), new BytesRef("a"));
+        int noOrdinalSize = 1 + (1 + 1) + (1 + 1); // vint(D=2) + 2*(vint(1)+1 byte)
+        BytesRef blobDup = MultiValuedBinaryDocValuesField.ArrayOrderInlineNull.encode(withDup);
+        assertTrue("blob with duplicate must include ordinal stream", blobDup.length > noOrdinalSize);
+
+        // Case 2: null slot — slotCount(2) > D(1), so ordinals are required.
+        List<BytesRef> withNull = Arrays.asList(new BytesRef("x"), null);
+        BytesRef blobNull = MultiValuedBinaryDocValuesField.ArrayOrderInlineNull.encode(withNull);
+        int noOrdinalSizeNull = 1 + (1 + 1); // vint(D=1) + vint(1)+1 byte
+        assertTrue("blob with null slot must include ordinal stream", blobNull.length > noOrdinalSizeNull);
+    }
+
+    /**
      * Randomized round-trip across mixed values (including empty strings and lengths that cross the 1-byte vint boundary) and nulls.
      */
     public void testArrayOrderRandomRoundTrip() throws IOException {

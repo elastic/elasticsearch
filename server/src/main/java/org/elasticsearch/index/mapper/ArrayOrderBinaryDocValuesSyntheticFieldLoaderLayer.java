@@ -27,6 +27,11 @@ import java.util.Objects;
  * {@link BinaryDocValuesSyntheticFieldLoaderLayer}, this layer preserves array order, duplicates, and inline {@code null} positions, and
  * it reconstructs all-null and empty arrays — so it advances on the {@code .counts} field (a document with no binary blob but a present
  * count is an all-null or empty array).
+ * <p>
+ * For two or more slots, the blob starts with vint {@code distinctCount} (distinct non-null values) followed by {@code distinctCount}
+ * length-prefixed values. When {@code slotCount == distinctCount} (no duplicates, no nulls) no ordinal stream follows. When
+ * {@code slotCount > distinctCount} a per-slot ordinal stream follows where {@code 0} marks a null slot and {@code k>=1} refers to
+ * distinct value {@code k-1}.
  */
 public class ArrayOrderBinaryDocValuesSyntheticFieldLoaderLayer implements CompositeSyntheticFieldLoader.DocValuesLayer {
 
@@ -90,25 +95,33 @@ public class ArrayOrderBinaryDocValuesSyntheticFieldLoaderLayer implements Compo
             offsets[0] = bytes.offset;
             lengths[0] = bytes.length;
         } else {
-            // decode [D][len1][val1]...[lenD][valD][ord1]... into per-slot offsets/lengths
+            // decode [D][len1][val1]...[lenD][valD][opt: ord1...ordSlotCount] into per-slot offsets/lengths
             scratchInput.reset(bytes.bytes, bytes.offset, bytes.length);
-            int D = scratchInput.readVInt();
-            int[] distinctOffsets = new int[D];
-            int[] distinctLengths = new int[D];
-            for (int d = 0; d < D; d++) {
+            int distinctCount = scratchInput.readVInt();
+            int[] distinctOffsets = new int[distinctCount];
+            int[] distinctLengths = new int[distinctCount];
+            for (int d = 0; d < distinctCount; d++) {
                 int length = scratchInput.readVInt();
                 int offset = scratchInput.getPosition();
                 scratchInput.setPosition(offset + length);
                 distinctOffsets[d] = offset;
                 distinctLengths[d] = length;
             }
-            for (int i = 0; i < slotCount; i++) {
-                int ord = scratchInput.readVInt();
-                if (ord == 0) {
-                    lengths[i] = -1; // null slot
-                } else {
-                    offsets[i] = distinctOffsets[ord - 1];
-                    lengths[i] = distinctLengths[ord - 1];
+            if (slotCount == distinctCount) {
+                // no duplicates, no nulls: distinct values in first-seen order are the slots
+                for (int i = 0; i < distinctCount; i++) {
+                    offsets[i] = distinctOffsets[i];
+                    lengths[i] = distinctLengths[i];
+                }
+            } else {
+                for (int i = 0; i < slotCount; i++) {
+                    int ord = scratchInput.readVInt();
+                    if (ord == 0) {
+                        lengths[i] = -1; // null slot
+                    } else {
+                        offsets[i] = distinctOffsets[ord - 1];
+                        lengths[i] = distinctLengths[ord - 1];
+                    }
                 }
             }
         }

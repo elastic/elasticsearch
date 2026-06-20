@@ -36,7 +36,8 @@ public class BytesRefsFromBinaryMultiSeparateCountBlockLoader extends BlockDocVa
     public enum ArrayOrderSource {
         NONE,  // no ordering
         FROM_OFFSETS,  // reconstructs order from a sidebar .offsets field
-        INLINE  // order is already preserved in the binary blob, so reads the blob directly
+        INLINE,  // order is already preserved in the binary blob, so reads the blob directly
+        INLINE_DEDUP  // order is preserved with per-doc deduplication: [D][distinct values][per-slot ordinals]
     }
 
     private final String fieldName;
@@ -88,7 +89,7 @@ public class BytesRefsFromBinaryMultiSeparateCountBlockLoader extends BlockDocVa
 
     @Override
     public ColumnAtATimeReader reader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
-        if (arrayOrderSource == ArrayOrderSource.INLINE) {
+        if (arrayOrderSource == ArrayOrderSource.INLINE || arrayOrderSource == ArrayOrderSource.INLINE_DEDUP) {
             // The ArrayOrderInlineNull format never collapses to "all counts == 1 means single value" (a lone null is count==1 with no
             // binary blob), so we must always load the counts column and advance on it.
             BinaryAndCounts bc = BinaryAndCounts.get(breaker, context, fieldName, false);
@@ -96,7 +97,9 @@ public class BytesRefsFromBinaryMultiSeparateCountBlockLoader extends BlockDocVa
                 // Binary field absent in this segment (only all-null / empty arrays): every value reads as null.
                 return ConstantNull.COLUMN_READER;
             }
-            return new ArrayOrderInlineNull(bc.binary(), bc.counts());
+            return arrayOrderSource == ArrayOrderSource.INLINE_DEDUP
+                ? new ArrayOrderInlineNullDedup(bc.binary(), bc.counts())
+                : new ArrayOrderInlineNull(bc.binary(), bc.counts());
         }
         BinaryAndCounts bc = BinaryAndCounts.get(breaker, context, fieldName, true);
         if (bc == null) {
@@ -292,6 +295,120 @@ public class BytesRefsFromBinaryMultiSeparateCountBlockLoader extends BlockDocVa
         @Override
         public String toString() {
             return "BytesRefsFromArrayOrderInlineNullBinarySeparateCount";
+        }
+
+        @Override
+        public void close() {
+            Releasables.close(super::close, counts);
+        }
+    }
+
+    /**
+     * Reader for the deduplicating layout of
+     * {@link org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField.ArrayOrderInlineNull ArrayOrderInlineNull}: blobs store each
+     * distinct non-null value once, followed by a per-slot ordinal list
+     * ({@code [D][len1][val1]...[lenD][valD][ord1]...}). Ordinal 0 = null (dropped), k >= 1 = distinct value k-1. Used by text and
+     * match_only_text fields to reduce per-doc blob size and keep binary DV blocks count-bound for better ZSTD compression.
+     */
+    static class ArrayOrderInlineNullDedup extends AbstractBytesRefsFromBinaryReader {
+
+        private final TrackingNumericDocValues counts;
+        private final ByteArrayStreamInput in = new ByteArrayStreamInput();
+        private final BytesRef scratch = new BytesRef();
+        private int[] distinctOffsets = new int[4];
+        private int[] distinctLengths = new int[4];
+        private int[] ordinalOffsets = new int[8];
+        private int[] ordinalLengths = new int[8];
+
+        ArrayOrderInlineNullDedup(TrackingBinaryDocValues docValues, TrackingNumericDocValues counts) {
+            super(docValues);
+            this.counts = counts;
+        }
+
+        @Override
+        public int docId() {
+            return counts.docValues().docID();
+        }
+
+        @Override
+        public void read(int doc, BlockLoader.BytesRefBuilder builder) throws IOException {
+            if (counts.docValues().advanceExact(doc) == false) {
+                builder.appendNull(); // field absent for this document
+                return;
+            }
+            int slotCount = Math.toIntExact(counts.docValues().longValue());
+            if (docValues.docValues().advanceExact(doc) == false) {
+                // all-null array or empty array: no non-null values
+                builder.appendNull();
+                return;
+            }
+            BytesRef bytes = docValues.docValues().binaryValue();
+            if (slotCount == 1) {
+                builder.appendBytesRef(bytes); // single non-null value stored raw
+                return;
+            }
+
+            scratch.bytes = bytes.bytes;
+            in.reset(bytes.bytes, bytes.offset, bytes.length);
+
+            // Read D distinct values, capturing their offsets and lengths within the blob.
+            int D = in.readVInt();
+            ensureDistinctCapacity(D);
+            for (int d = 0; d < D; d++) {
+                int length = in.readVInt();
+                int offset = in.getPosition();
+                in.setPosition(offset + length);
+                distinctOffsets[d] = offset;
+                distinctLengths[d] = length;
+            }
+
+            // Resolve each slot ordinal to a value (dropping nulls) and collect non-null positions.
+            ensureOrdinalCapacity(slotCount);
+            int nonNull = 0;
+            for (int i = 0; i < slotCount; i++) {
+                int ord = in.readVInt();
+                if (ord == 0) {
+                    continue; // null slot dropped
+                }
+                ordinalOffsets[nonNull] = distinctOffsets[ord - 1];
+                ordinalLengths[nonNull] = distinctLengths[ord - 1];
+                nonNull++;
+            }
+
+            if (nonNull == 0) {
+                builder.appendNull();
+            } else if (nonNull == 1) {
+                scratch.offset = ordinalOffsets[0];
+                scratch.length = ordinalLengths[0];
+                builder.appendBytesRef(scratch);
+            } else {
+                builder.beginPositionEntry();
+                for (int i = 0; i < nonNull; i++) {
+                    scratch.offset = ordinalOffsets[i];
+                    scratch.length = ordinalLengths[i];
+                    builder.appendBytesRef(scratch);
+                }
+                builder.endPositionEntry();
+            }
+        }
+
+        private void ensureDistinctCapacity(int minSize) {
+            if (distinctOffsets.length < minSize) {
+                distinctOffsets = ArrayUtil.grow(distinctOffsets, minSize);
+                distinctLengths = ArrayUtil.grow(distinctLengths, minSize);
+            }
+        }
+
+        private void ensureOrdinalCapacity(int minSize) {
+            if (ordinalOffsets.length < minSize) {
+                ordinalOffsets = ArrayUtil.grow(ordinalOffsets, minSize);
+                ordinalLengths = ArrayUtil.grow(ordinalLengths, minSize);
+            }
+        }
+
+        @Override
+        public String toString() {
+            return "BytesRefsFromArrayOrderInlineNullDedupBinarySeparateCount";
         }
 
         @Override

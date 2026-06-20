@@ -20,7 +20,9 @@ import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.TreeSet;
 
 /**
@@ -272,28 +274,55 @@ public abstract class MultiValuedBinaryDocValuesField extends CustomDocValuesFie
      * duplicates) so that array order can be reconstructed without a sidecar {@code .offsets} field. Nulls are encoded inline.
      * <p>
      * The companion {@code .counts} numeric doc values field (suffix {@link SeparateCount#COUNT_FIELD_SUFFIX}) stores the total number of
-     * slots, INCLUDING null slots. Encoding:
+     * slots, INCLUDING null slots. Two on-disk layouts exist:
      * <ul>
-     *   <li>a single non-null value &rarr; {@code [val]} (raw bytes, no length prefix), exactly like {@link SeparateCount}</li>
-     *   <li>two or more slots &rarr; {@code [len1+1][val1][len2+1][val2]...}. A real value of length {@code L} is stored with a
-     *       {@code L+1} length prefix, so a stored length of {@code 0} is never produced by a real value and is reserved to mean
-     *       {@code null} (zero following bytes). This is what distinguishes an inline {@code null} (prefix {@code 0}) from an empty
-     *       string {@code ""} (prefix {@code 1}, zero bytes).</li>
-     *   <li>zero non-null values (all-null array, lone {@code null}, or empty array) &rarr; no binary field is written at all; the
-     *       {@code .counts} field alone carries the shape ({@code k>=1} null slots, or {@code 0} for an empty array)</li>
+     *   <li><b>Standard layout</b> (used by keyword, ip and other fields):
+     *     <ul>
+     *       <li>single non-null value &rarr; {@code [val]} (raw bytes, no length prefix)</li>
+     *       <li>two or more slots &rarr; {@code [len1+1][val1][len2+1][val2]...}. A real value of length {@code L} is stored with a
+     *           {@code L+1} length prefix, so a stored length of {@code 0} is never produced by a real value and is reserved to mean
+     *           {@code null} (zero following bytes). This is what distinguishes an inline {@code null} (prefix {@code 0}) from an empty
+     *           string {@code ""} (prefix {@code 1}, zero bytes).</li>
+     *     </ul>
+     *   </li>
+     *   <li><b>Deduplicating layout</b> (used by text, match_only_text): stores each distinct value once, with a compact per-slot
+     *       ordinal list, to keep per-doc blobs small and improve ZSTD compression across documents in the binary doc-values block:
+     *     <ul>
+     *       <li>single non-null value &rarr; {@code [val]} (raw bytes, no length prefix — identical to the standard layout)</li>
+     *       <li>two or more slots &rarr;
+     *           {@code [D][len1][val1]...[lenD][valD][ord1][ord2]...}:
+     *           a vint {@code D} (number of distinct non-null values), followed by {@code D} plain-length-prefixed values in first-seen
+     *           order, followed by {@code slotCount} vint ordinals (one per slot): {@code 0} means null, {@code k>=1} refers to
+     *           distinct value {@code k-1}.</li>
+     *     </ul>
+     *   </li>
      * </ul>
-     * Because a document with no non-null values writes no binary blob, the matching reader must advance on the {@code .counts} field
-     * (binary-absent-while-counts-present denotes an all-null / empty-array document).
+     * In both layouts, zero non-null values (all-null array, lone {@code null}, or empty array) write no binary field at all; the
+     * {@code .counts} field alone carries the shape ({@code k>=1} null slots, or {@code 0} for an empty array). Because of this, the
+     * matching reader must advance on the {@code .counts} field (binary-absent-while-counts-present denotes an all-null or empty-array
+     * document).
      */
     public static class ArrayOrderInlineNull extends MultiValuedBinaryDocValuesField {
 
         private boolean hasNonNullValue;
 
+        /**
+         * When {@code true}, {@link #binaryValue()} uses the deduplicating layout:
+         * {@code [D][distinct values][per-slot ordinals]}.
+         * When {@code false} (the default), the standard layout {@code [len+1][val]...} is used.
+         */
+        private final boolean deduplicate;
+
         // Held so the record* helpers can update the count on each slot without re-deriving the companion field from the document.
         private NumericDocValuesField countField;
 
         public ArrayOrderInlineNull(String name) {
+            this(name, false);
+        }
+
+        public ArrayOrderInlineNull(String name, boolean deduplicate) {
             super(name, ValueOrdering.UNSORTED);
+            this.deduplicate = deduplicate;
         }
 
         public String countFieldName() {
@@ -306,7 +335,23 @@ public abstract class MultiValuedBinaryDocValuesField extends CustomDocValuesFie
          * field alone (see {@link ArrayOrderInlineNull}).
          */
         public static void recordValue(LuceneDocument doc, String fieldName, BytesRef value) {
-            var field = getOrCreate(doc, fieldName);
+            var field = getOrCreate(doc, fieldName, false);
+            boolean firstNonNullValue = field.hasNonNullValue == false;
+            field.add(value);
+            if (firstNonNullValue) {
+                doc.add(field);
+            }
+            field.countField.setLongValue(field.count());
+        }
+
+        /**
+         * Records a non-null value using the deduplicating layout. Equivalent to {@link #recordValue} but uses the deduplicating blob
+         * format: each distinct value is stored once, with a compact per-slot ordinal list referencing it. This reduces per-doc blob size
+         * for fields with repeated values (such as text fields in log lines) and keeps binary doc-values blocks count-bound so ZSTD can
+         * compress across many documents.
+         */
+        public static void recordDeduplicatedValue(LuceneDocument doc, String fieldName, BytesRef value) {
+            var field = getOrCreate(doc, fieldName, true);
             boolean firstNonNullValue = field.hasNonNullValue == false;
             field.add(value);
             if (firstNonNullValue) {
@@ -320,7 +365,17 @@ public abstract class MultiValuedBinaryDocValuesField extends CustomDocValuesFie
          * never adds the binary blob.
          */
         public static void recordNull(LuceneDocument doc, String fieldName) {
-            var field = getOrCreate(doc, fieldName);
+            var field = getOrCreate(doc, fieldName, false);
+            field.addNull();
+            field.countField.setLongValue(field.count());
+        }
+
+        /**
+         * Records a {@code null} slot for a field using the deduplicating layout; equivalent to {@link #recordNull} (nulls are not
+         * stored in the blob regardless of the layout, but the accumulator must be created with the correct flag).
+         */
+        public static void recordDeduplicatedNull(LuceneDocument doc, String fieldName) {
+            var field = getOrCreate(doc, fieldName, true);
             field.addNull();
             field.countField.setLongValue(field.count());
         }
@@ -329,16 +384,24 @@ public abstract class MultiValuedBinaryDocValuesField extends CustomDocValuesFie
          * Records an empty array: ensures the {@code .counts} field exists (value {@code 0}); no binary blob is written.
          */
         public static void recordEmptyArray(LuceneDocument doc, String fieldName) {
-            getOrCreate(doc, fieldName);
+            getOrCreate(doc, fieldName, false);
+        }
+
+        /**
+         * Whether at least one non-null value has been accumulated. When {@code false} the binary field must NOT be added to the
+         * document; the {@code .counts} field alone represents the all-null / empty-array shape.
+         */
+        public boolean hasNonNullValue() {
+            return hasNonNullValue;
         }
 
         /**
          * Looks up the per-field accumulator on the document, creating it on first use. The accumulator is registered by key (without
          * being added to the field list yet) and its always-present {@code .counts} companion is added to the document immediately.
          */
-        private static ArrayOrderInlineNull getOrCreate(LuceneDocument doc, String fieldName) {
+        private static ArrayOrderInlineNull getOrCreate(LuceneDocument doc, String fieldName, boolean deduplicate) {
             return (ArrayOrderInlineNull) doc.getOrAddWithKey(fieldName, key -> {
-                var field = new ArrayOrderInlineNull(fieldName);
+                var field = new ArrayOrderInlineNull(fieldName, deduplicate);
                 field.countField = NumericDocValuesField.indexedField(field.countFieldName(), 0);
                 // Only the always-present .counts companion is added here; the binary blob is added lazily on the first non-null value.
                 doc.add(field.countField);
@@ -361,22 +424,14 @@ public abstract class MultiValuedBinaryDocValuesField extends CustomDocValuesFie
             values.add(null);
         }
 
-        /**
-         * Whether at least one non-null value has been accumulated. When {@code false} the binary field must NOT be added to the
-         * document; the {@code .counts} field alone represents the all-null / empty-array shape.
-         */
-        public boolean hasNonNullValue() {
-            return hasNonNullValue;
-        }
-
         @Override
         public BytesRef binaryValue() {
-            return encode(values);
+            return deduplicate ? encodeDeduplicated(values) : encode(values);
         }
 
         /**
-         * Encodes the given document-order slots (a {@code null} element denotes a {@code null} slot) into the format described on
-         * {@link ArrayOrderInlineNull}. Must only be called when at least one non-null value is present; the all-null and empty-array
+         * Encodes the given document-order slots (a {@code null} element denotes a {@code null} slot) into the standard format described
+         * on {@link ArrayOrderInlineNull}. Must only be called when at least one non-null value is present; the all-null and empty-array
          * cases write no binary field.
          */
         public static BytesRef encode(Collection<BytesRef> slots) {
@@ -402,6 +457,59 @@ public abstract class MultiValuedBinaryDocValuesField extends CustomDocValuesFie
                         out.writeVInt(slot.length + 1);
                         out.writeBytes(slot.bytes, slot.offset, slot.length);
                     }
+                }
+                return out.bytes().toBytesRef();
+            } catch (IOException e) {
+                throw new UncheckedIOException("Failed to get binary value", e);
+            }
+        }
+
+        /**
+         * Encodes the given document-order slots (a {@code null} element denotes a {@code null} slot) into the deduplicating format:
+         * {@code [D][len1][val1]...[lenD][valD][ord1][ord2]...}. Each distinct non-null value appears once; each slot is stored as a
+         * one-based ordinal (0 = null, k = distinct value k-1 in first-seen order). Must only be called when at least one non-null value
+         * is present; the all-null and empty-array cases write no binary field.
+         * <p>
+         * The deduplicating layout is used for text fields to keep per-doc blobs small and allow binary doc-values blocks to remain
+         * count-bound (up to {@code BINARY_DV_BLOCK_COUNT_THRESHOLD_DEFAULT}) rather than hitting the byte threshold with only a few
+         * documents, which would collapse the ZSTD compression window.
+         */
+        public static BytesRef encodeDeduplicated(Collection<BytesRef> slots) {
+            int slotCount = slots.size();
+            assert slotCount >= 1 : "in-order binary doc values must not be written for an empty document";
+            if (slotCount == 1) {
+                BytesRef only = slots.iterator().next();
+                assert only != null : "a lone null slot must not write a binary value";
+                return only;
+            }
+
+            // Assign first-seen ordinals to distinct non-null values (BytesRef.equals / hashCode are value-based).
+            Map<BytesRef, Integer> ordinals = new HashMap<>();
+            int distinctByteCount = 0;
+            for (BytesRef slot : slots) {
+                if (slot != null && ordinals.containsKey(slot) == false) {
+                    ordinals.put(slot, ordinals.size() + 1); // 1-based; 0 is reserved for null
+                    distinctByteCount += slot.length;
+                }
+            }
+            int D = ordinals.size();
+            // Size estimate: vint for D + D*(VINT_MAX_BYTES + distinctBytes) + slotCount*VINT_MAX_BYTES
+            int streamSize = VINT_MAX_BYTES + D * VINT_MAX_BYTES + distinctByteCount + slotCount * VINT_MAX_BYTES;
+            try (BytesStreamOutput out = new BytesStreamOutput(streamSize)) {
+                out.writeVInt(D);
+                // Write distinct values in first-seen (insertion) order, which is the order they were assigned ordinals 1..D.
+                // Reconstruct that order by sorting the map entries by ordinal.
+                BytesRef[] distinctInOrder = new BytesRef[D];
+                for (Map.Entry<BytesRef, Integer> entry : ordinals.entrySet()) {
+                    distinctInOrder[entry.getValue() - 1] = entry.getKey();
+                }
+                for (BytesRef val : distinctInOrder) {
+                    out.writeVInt(val.length);
+                    out.writeBytes(val.bytes, val.offset, val.length);
+                }
+                // Write one ordinal per slot (0 = null, 1..D = distinct value).
+                for (BytesRef slot : slots) {
+                    out.writeVInt(slot == null ? 0 : ordinals.get(slot));
                 }
                 return out.bytes().toBytesRef();
             } catch (IOException e) {

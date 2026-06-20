@@ -1336,7 +1336,6 @@ public class TermsAggregatorTests extends AggregatorTestCase {
             false,
             false,
             false,
-            false,
             null
         );
         testCase(iw -> {

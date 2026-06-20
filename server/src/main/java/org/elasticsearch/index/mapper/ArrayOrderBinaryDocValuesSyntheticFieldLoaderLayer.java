@@ -33,7 +33,7 @@ import java.util.Objects;
  * {@code slotCount > distinctCount} a per-slot ordinal stream follows where {@code 0} marks a null slot and {@code k>=1} refers to
  * distinct value {@code k-1}.
  */
-public class ArrayOrderBinaryDocValuesSyntheticFieldLoaderLayer implements CompositeSyntheticFieldLoader.DocValuesLayer {
+public final class ArrayOrderBinaryDocValuesSyntheticFieldLoaderLayer implements CompositeSyntheticFieldLoader.DocValuesLayer {
 
     private final String name;
     private final String countFieldName;
@@ -158,7 +158,7 @@ public class ArrayOrderBinaryDocValuesSyntheticFieldLoaderLayer implements Compo
                 if (lengths[i] < 0) {
                     b.nullValue();
                 } else {
-                    writeValue(b, blobBytes, offsets[i], lengths[i]);
+                    b.utf8Value(blobBytes, offsets[i], lengths[i]);
                 }
             }
         } else {
@@ -167,14 +167,6 @@ public class ArrayOrderBinaryDocValuesSyntheticFieldLoaderLayer implements Compo
                 b.nullValue();
             }
         }
-    }
-
-    /**
-     * Writes a single non-null slot value to the output. Override to apply field-type-specific formatting
-     * (e.g. converting raw IP bytes to a human-readable string). The default writes the bytes as UTF-8 text.
-     */
-    protected void writeValue(XContentBuilder b, byte[] bytes, int offset, int length) throws IOException {
-        b.utf8Value(bytes, offset, length);
     }
 
     /**

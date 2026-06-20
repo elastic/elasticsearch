@@ -74,7 +74,6 @@ public class IpFieldTypeTests extends FieldTypeTestCase {
             false,
             true,
             false,
-            false,
             null
         );
 
@@ -125,7 +124,6 @@ public class IpFieldTypeTests extends FieldTypeTestCase {
             null,
             null,
             Collections.emptyMap(),
-            false,
             false,
             false,
             false,
@@ -363,7 +361,6 @@ public class IpFieldTypeTests extends FieldTypeTestCase {
             null,
             null,
             Collections.emptyMap(),
-            false,
             false,
             false,
             false,

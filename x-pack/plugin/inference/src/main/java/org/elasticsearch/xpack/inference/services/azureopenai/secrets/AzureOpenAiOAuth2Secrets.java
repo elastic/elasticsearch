@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.inference.services.azureopenai.secrets;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.SecureString;
@@ -23,9 +22,9 @@ import java.util.EnumSet;
 import java.util.Map;
 import java.util.Objects;
 
+import static org.elasticsearch.inference.ModelConfigurations.SERVICE_SETTINGS;
 import static org.elasticsearch.xpack.inference.common.oauth2.OAuth2Secrets.CLIENT_SECRET_FIELD;
 import static org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiOAuth2Settings.AZURE_OPENAI_OAUTH_SETTINGS;
-import static org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiOAuth2Settings.REQUIRED_FIELDS;
 
 /**
  * Represents the secrets required for Azure OpenAI OAuth2 client credentials flow authentication.
@@ -33,12 +32,6 @@ import static org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAi
 public class AzureOpenAiOAuth2Secrets extends AzureOpenAiSecretSettings {
 
     public static final String NAME = "azure_openai_oauth2_client_secret";
-
-    public static final String USE_CLIENT_SECRET_ERROR = Strings.format(
-        "To use OAuth2 the [%1$s] field must be set, either remove fields [%2$s], or provide the [%1$s] field.",
-        CLIENT_SECRET_FIELD,
-        REQUIRED_FIELDS
-    );
 
     private final OAuth2Secrets secrets;
 
@@ -105,6 +98,6 @@ public class AzureOpenAiOAuth2Secrets extends AzureOpenAiSecretSettings {
 
     @Override
     protected AzureOpenAiSecretSettings updated(Map<String, SecureString> provided) {
-        return updateOnlyField(CLIENT_SECRET_FIELD, getClientSecret(), provided, AzureOpenAiOAuth2Secrets::new);
+        return updateExactlyOneField(SERVICE_SETTINGS, CLIENT_SECRET_FIELD, getClientSecret(), provided, AzureOpenAiOAuth2Secrets::new);
     }
 }

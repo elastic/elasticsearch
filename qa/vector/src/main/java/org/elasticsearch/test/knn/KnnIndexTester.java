@@ -226,13 +226,20 @@ public class KnnIndexTester {
                     args.datasetConfig().isSliced() ? KnnIndexer.PARTITION_ID_FIELD : null
                 );
             }
-            case GPU_HNSW -> switch (quantizeBits) {
-                case null -> new ES92GpuHnswVectorsFormat();
-                case 7 -> new ES92GpuHnswSQVectorsFormat();
-                default -> throw new IllegalArgumentException(
-                    "GPU HNSW index type only supports 7 bits quantization, but got: " + quantizeBits
+            case GPU_HNSW -> {
+                int graphDegree = ES92GpuHnswVectorsFormat.cagraGraphDegree(args.hnswM());
+                int intermediateGraphDegree = ES92GpuHnswVectorsFormat.cagraIntermediateGraphDegree(
+                    args.hnswM(),
+                    args.hnswEfConstruction()
                 );
-            };
+                yield switch (quantizeBits) {
+                    case null -> new ES92GpuHnswVectorsFormat(graphDegree, intermediateGraphDegree);
+                    case 7 -> new ES92GpuHnswSQVectorsFormat(graphDegree, intermediateGraphDegree);
+                    default -> throw new IllegalArgumentException(
+                        "GPU HNSW index type only supports 7 bits quantization, but got: " + quantizeBits
+                    );
+                };
+            }
             case HNSW -> switch (quantizeBits) {
                 case null -> new ES93HnswVectorsFormat(
                     args.hnswM(),
@@ -269,7 +276,7 @@ public class KnnIndexTester {
             };
         };
 
-        logger.info("Using format {}", format.getName());
+        logger.info("Using format {} (via {})", format.getName(), format.getClass().getName());
 
         return new Lucene104Codec() {
             @Override
@@ -557,8 +564,29 @@ public class KnnIndexTester {
         }
     }
 
+    private static final String DISKSTATS_DEVICE = System.getProperty("bench.device", "nvme1n1");
+
     private static void logDiagnostics(DirectoryTypeConfig dirConfig, Directory dir, String label) {
         dirConfig.diagnosticLogger().accept(dir, label);
+        logDiskStats(label);
+    }
+
+    private static void logDiskStats(String label) {
+        Path diskstats = Path.of("/proc/diskstats");
+        if (Files.exists(diskstats) == false) {
+            return;
+        }
+        try {
+            for (String line : Files.readAllLines(diskstats)) {
+                String[] fields = line.trim().split("\\s+");
+                if (fields.length >= 6 && fields[2].equals(DISKSTATS_DEVICE)) {
+                    logger.info("DISKSTATS[{}] device={} reads={} sectors_read={}", label, DISKSTATS_DEVICE, fields[3], fields[5]);
+                    return;
+                }
+            }
+        } catch (IOException e) {
+            logger.warn("Failed to read /proc/diskstats: {}", e.getMessage());
+        }
     }
 
     static void numSegments(Path indexPath, Results indexResults, Directory sharedDir) throws IOException {
@@ -587,13 +615,13 @@ public class KnnIndexTester {
                 var ignoreResults = new Results(indexPathName, indexType, testConfiguration.numDocs());
                 KnnSearcher knnSearcher = new KnnSearcher(indexPath, testConfiguration);
                 var setup = dataGenerator.createSearchSetup(knnSearcher, testConfiguration.searchParams().get(i));
-                knnSearcher.search(ignoreResults, testConfiguration.searchParams().get(i), dir, setup);
+                knnSearcher.search(ignoreResults, testConfiguration.searchParams().get(i), dir, setup, testConfiguration);
             }
         }
         for (int i = 0; i < results.length; i++) {
             KnnSearcher knnSearcher = new KnnSearcher(indexPath, testConfiguration);
             var setup = dataGenerator.createSearchSetup(knnSearcher, testConfiguration.searchParams().get(i));
-            knnSearcher.search(results[i], testConfiguration.searchParams().get(i), dir, setup);
+            knnSearcher.search(results[i], testConfiguration.searchParams().get(i), dir, setup, testConfiguration);
         }
     }
 

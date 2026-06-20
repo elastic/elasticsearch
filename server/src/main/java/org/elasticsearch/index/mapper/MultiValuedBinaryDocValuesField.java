@@ -393,7 +393,7 @@ public abstract class MultiValuedBinaryDocValuesField extends CustomDocValuesFie
 
             // Assign first-seen ordinals to distinct non-null values (BytesRef.equals / hashCode are value-based).
             // Size the map to hold up to slotCount entries without rehashing (distinct values <= slotCount).
-            Map<BytesRef, Integer> ordinals = new HashMap<>(slotCount * 2);
+            Map<BytesRef, Integer> ordinals = new HashMap<>((int) (slotCount / 0.75f) + 1);
             List<BytesRef> distinctInOrder = new ArrayList<>();
             int distinctByteCount = 0;
             for (BytesRef slot : slots) {

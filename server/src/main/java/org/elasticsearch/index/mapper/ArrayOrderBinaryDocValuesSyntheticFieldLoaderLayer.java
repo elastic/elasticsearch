@@ -28,7 +28,7 @@ import java.util.Objects;
  * it reconstructs all-null and empty arrays — so it advances on the {@code .counts} field (a document with no binary blob but a present
  * count is an all-null or empty array).
  */
-public final class ArrayOrderBinaryDocValuesSyntheticFieldLoaderLayer implements CompositeSyntheticFieldLoader.DocValuesLayer {
+public class ArrayOrderBinaryDocValuesSyntheticFieldLoaderLayer implements CompositeSyntheticFieldLoader.DocValuesLayer {
 
     private final String name;
     private final String countFieldName;
@@ -145,7 +145,7 @@ public final class ArrayOrderBinaryDocValuesSyntheticFieldLoaderLayer implements
                 if (lengths[i] < 0) {
                     b.nullValue();
                 } else {
-                    b.utf8Value(blobBytes, offsets[i], lengths[i]);
+                    writeValue(b, blobBytes, offsets[i], lengths[i]);
                 }
             }
         } else {
@@ -154,6 +154,14 @@ public final class ArrayOrderBinaryDocValuesSyntheticFieldLoaderLayer implements
                 b.nullValue();
             }
         }
+    }
+
+    /**
+     * Writes a single non-null slot value to the output. Override to apply field-type-specific formatting
+     * (e.g. converting raw IP bytes to a human-readable string). The default writes the bytes as UTF-8 text.
+     */
+    protected void writeValue(XContentBuilder b, byte[] bytes, int offset, int length) throws IOException {
+        b.utf8Value(bytes, offset, length);
     }
 
     /**

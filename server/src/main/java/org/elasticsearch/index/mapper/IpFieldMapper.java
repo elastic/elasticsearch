@@ -37,6 +37,7 @@ import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
 import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromBinaryBlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromBinaryMultiSeparateCountBlockLoader;
+import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromBinaryMultiSeparateCountBlockLoader.ArrayOrderSource;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromOrdsBlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.fn.MvMaxBytesRefsFromBinaryBlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.fn.MvMaxBytesRefsFromOrdsBlockLoader;
@@ -255,6 +256,14 @@ public class IpFieldMapper extends FieldMapper {
                 indexSettings.getMode().isStrictColumnar(),
                 docValuesParameters.getValue().multiValue()
             );
+            // High-cardinality binary doc-values fields in strict columnar mode store values in document order via
+            // ArrayOrderInlineNull (no sidecar .offsets field). The inline path subsumes readInArrayOrder.
+            boolean useArrayOrderBinaryDocValues = offsetsFieldName != null
+                && usesBinaryDocValues()
+                && indexSettings.getMode().isStrictColumnar();
+            if (useArrayOrderBinaryDocValues) {
+                offsetsFieldName = null;
+            }
             boolean readInArrayOrder = offsetsFieldName != null
                 && docValuesParameters.getValue().multiValue()
                 && indexSettings.getMode().isStrictColumnar();
@@ -270,6 +279,7 @@ public class IpFieldMapper extends FieldMapper {
                     dimension.getValue(),
                     context.isSourceSynthetic(),
                     usesBinaryDocValues(),
+                    useArrayOrderBinaryDocValues,
                     readInArrayOrder,
                     docValuesParameters.getValue()
                 ),
@@ -294,6 +304,7 @@ public class IpFieldMapper extends FieldMapper {
         private final boolean isSyntheticSource;
         private final boolean hasPoints;
         private final boolean usesBinaryDocValues;
+        private final boolean useArrayOrderBinaryDocValues;
         private final boolean readInArrayOrder;
         private final DocValuesParameter.Values docValuesParams;
 
@@ -307,6 +318,7 @@ public class IpFieldMapper extends FieldMapper {
             boolean isDimension,
             boolean isSyntheticSource,
             boolean usesBinaryDocValues,
+            boolean useArrayOrderBinaryDocValues,
             boolean readInArrayOrder,
             DocValuesParameter.Values docValuesParams
         ) {
@@ -317,6 +329,7 @@ public class IpFieldMapper extends FieldMapper {
             this.isSyntheticSource = isSyntheticSource;
             this.hasPoints = indexType.hasPoints();
             this.usesBinaryDocValues = usesBinaryDocValues;
+            this.useArrayOrderBinaryDocValues = useArrayOrderBinaryDocValues;
             this.readInArrayOrder = readInArrayOrder;
             this.docValuesParams = docValuesParams;
         }
@@ -337,6 +350,7 @@ public class IpFieldMapper extends FieldMapper {
                 null,
                 null,
                 Collections.emptyMap(),
+                false,
                 false,
                 false,
                 false,
@@ -377,6 +391,14 @@ public class IpFieldMapper extends FieldMapper {
 
         public boolean usesBinaryDocValues() {
             return usesBinaryDocValues;
+        }
+
+        /**
+         * Whether this field stores its (high-cardinality) binary doc values in document order with inline nulls
+         * ({@link MultiValuedBinaryDocValuesField.ArrayOrderInlineNull}) rather than via a sidecar offsets field.
+         */
+        public boolean usesArrayOrderBinaryDocValues() {
+            return useArrayOrderBinaryDocValues;
         }
 
         private static InetAddress parse(Object value) {
@@ -562,7 +584,12 @@ public class IpFieldMapper extends FieldMapper {
                             // Single-valued binary doc values are written as plain (no separate counts column), so read them as plain.
                             return new BytesRefsFromBinaryBlockLoader(name());
                         }
-                        return new BytesRefsFromBinaryMultiSeparateCountBlockLoader(name(), readInArrayOrder);
+                        return new BytesRefsFromBinaryMultiSeparateCountBlockLoader(
+                            name(),
+                            useArrayOrderBinaryDocValues ? ArrayOrderSource.INLINE
+                                : readInArrayOrder ? ArrayOrderSource.FROM_OFFSETS
+                                : ArrayOrderSource.NONE
+                        );
                     } else {
                         return new BytesRefsFromOrdsBlockLoader(name(), blContext.ordinalsByteSize(), readInArrayOrder);
                     }
@@ -598,6 +625,10 @@ public class IpFieldMapper extends FieldMapper {
 
         @Override
         public boolean supportsBlockLoaderConfig(BlockLoaderFunctionConfig config, FieldExtractPreference preference) {
+            if (useArrayOrderBinaryDocValues) {
+                // The fused MV_MAX/MV_MIN readers only understand the SeparateCount encoding; disable for the inline format.
+                return false;
+            }
             if (hasDocValues() && (preference != FieldExtractPreference.STORED || isSyntheticSource)) {
                 return switch (config.function()) {
                     case MV_MAX, MV_MIN -> true;
@@ -786,7 +817,12 @@ public class IpFieldMapper extends FieldMapper {
         if (address != null) {
             indexValue(context, address);
         }
-        if (FieldArrayContext.shouldRecordOffsets(context, offsetsFieldName, docValuesParameters.multiValue())) {
+        if (fieldType().usesArrayOrderBinaryDocValues()) {
+            // In-order path: null slots are recorded explicitly so their positions are preserved in the inline blob.
+            if (address == null) {
+                MultiValuedBinaryDocValuesField.ArrayOrderInlineNull.recordNull(context.doc(), fieldType().name());
+            }
+        } else if (FieldArrayContext.shouldRecordOffsets(context, offsetsFieldName, docValuesParameters.multiValue())) {
             if (address != null) {
                 BytesRef sortableValue = address.binaryValue();
                 context.getOffSetContext().recordOffset(offsetsFieldName, sortableValue);
@@ -807,12 +843,17 @@ public class IpFieldMapper extends FieldMapper {
         if (fieldType().indexType.hasDocValues()) {
             if (fieldType().usesBinaryDocValues()) {
                 assert fieldType().indexType.hasDocValuesSkipper() == false : "skippers are not supported for binary doc values";
-                dvFactory.addBinaryField(
-                    doc,
-                    fieldType().name(),
-                    address.binaryValue(),
-                    MultiValuedBinaryDocValuesField.ValueOrdering.SORTED_UNIQUE
-                );
+                if (fieldType().usesArrayOrderBinaryDocValues()) {
+                    // In-order path: values are stored in document order with inline nulls via ArrayOrderInlineNull.
+                    MultiValuedBinaryDocValuesField.ArrayOrderInlineNull.recordValue(doc, fieldType().name(), address.binaryValue());
+                } else {
+                    dvFactory.addBinaryField(
+                        doc,
+                        fieldType().name(),
+                        address.binaryValue(),
+                        MultiValuedBinaryDocValuesField.ValueOrdering.SORTED_UNIQUE
+                    );
+                }
             } else {
                 dvFactory.addSortedField(doc, fieldType().name(), address.binaryValue());
             }
@@ -822,6 +863,11 @@ public class IpFieldMapper extends FieldMapper {
         if (stored) {
             doc.add(new StoredField(fieldType().name(), address.binaryValue()));
         }
+    }
+
+    @Override
+    public boolean storesArrayValuesInOrder() {
+        return fieldType().usesArrayOrderBinaryDocValues();
     }
 
     @Override
@@ -878,7 +924,16 @@ public class IpFieldMapper extends FieldMapper {
                         });
                     }
                 } else {
-                    if (offsetsFieldName != null) {
+                    if (fieldType().usesArrayOrderBinaryDocValues()) {
+                        // In-order path: values are stored in document order with inline nulls via ArrayOrderInlineNull.
+                        layers.add(new ArrayOrderBinaryDocValuesSyntheticFieldLoaderLayer(fullPath()) {
+                            @Override
+                            protected void writeValue(XContentBuilder b, byte[] bytes, int offset, int length) throws IOException {
+                                BytesRef converted = IpFieldMapper.convert(new BytesRef(bytes, offset, length));
+                                b.utf8Value(converted.bytes, converted.offset, converted.length);
+                            }
+                        });
+                    } else if (offsetsFieldName != null) {
                         layers.add(
                             new BinaryWithOffsetsDocValuesSyntheticFieldLoaderLayer(fullPath(), offsetsFieldName, IpFieldMapper::convert)
                         );

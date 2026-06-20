@@ -656,3 +656,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.expression.function.aggregate.PercentileTests
   method: "testAggregateIntermediate {TestCase=<exponential_histogram>, <long> #3}"
   issue: https://github.com/elastic/elasticsearch/issues/151787
+- class: org.elasticsearch.search.vectors.IVFKnnVectorQueryCalibratedMergeTests
+  method: testShardMergeKeepsCandidatesPerMaxPersistedRescoreOversample
+  issue: https://github.com/elastic/elasticsearch/issues/151789

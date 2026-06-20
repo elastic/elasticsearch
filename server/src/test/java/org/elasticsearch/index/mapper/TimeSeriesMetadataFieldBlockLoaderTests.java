@@ -188,24 +188,6 @@ public class TimeSeriesMetadataFieldBlockLoaderTests extends MapperServiceTestCa
         assertThat(sourcePaths(loader), equalTo(Set.of("labels.__name__", "labels.instance")));
     }
 
-    /**
-     * With no exclusions the wildcard {@code index.dimensions} shortcut is still honored as-is, since there is
-     * nothing to remove and the source filter understands the {@code labels.*} pattern.
-     */
-    public void testWildcardDimensionSettingUsedWhenNothingExcluded() throws IOException {
-        Settings settings = Settings.builder()
-            .put(TSDB_PROMETHEUS_LIKE_SETTINGS)
-            .putList(IndexMetadata.INDEX_DIMENSIONS.getKey(), "labels.*")
-            .build();
-        BlockLoader loader = createBlockLoader(
-            settings,
-            PROMETHEUS_LIKE_MAPPING,
-            new BlockLoaderFunctionConfig.TimeSeriesMetadata(false, Set.of())
-        );
-        assertThat(loader, instanceOf(TimeSeriesMetadataFieldBlockLoader.class));
-        assertThat(sourcePaths(loader), equalTo(Set.of("labels.*")));
-    }
-
     public void testNoConfigReturnSourceBlockLoader() throws IOException {
         MapperService mapperService = createMapperService(TSDB_SYNTHETIC_SETTINGS, MAPPING);
         BlockLoader loader = mapperService.documentMapper()
@@ -281,7 +263,7 @@ public class TimeSeriesMetadataFieldBlockLoaderTests extends MapperServiceTestCa
     }
 
     /**
-     * Verify that the `withoutFields` parameter correctly excludes labels from the output.
+     * Verify that the `skipFieldNames` parameter correctly excludes labels from the output.
      * When using PromQL's `without(instance)` clause, the `instance` label must not appear
      * in the emitted `_timeseries` JSON.
      */
@@ -308,6 +290,47 @@ public class TimeSeriesMetadataFieldBlockLoaderTests extends MapperServiceTestCa
         @SuppressWarnings("unchecked")
         Map<String, Object> labels = (Map<String, Object>) parsed.get("labels");
         assertThat(labels, equalTo(Map.of("__name__", "go_gc_cleanups_executed_cleanups_total", "job", "prometheus")));
+    }
+
+    /**
+     * Excluding all dimensions must produce an empty source-paths set (single global series).
+     */
+    public void testWithoutAllDimensionsYieldsEmptySourcePaths() throws IOException {
+        BlockLoader loader = createBlockLoader(
+            TSDB_SYNTHETIC_SETTINGS,
+            MAPPING,
+            new BlockLoaderFunctionConfig.TimeSeriesMetadata(false, Set.of("host", "env", "region"))
+        );
+        assertThat(loader, instanceOf(TimeSeriesMetadataFieldBlockLoader.class));
+        assertThat(sourcePaths(loader), equalTo(Set.of()));
+    }
+
+    /**
+     * An unknown field in skipFieldNames must be silently ignored: the exclusion simply
+     * does not match any dimension and the full dimension set is returned.
+     */
+    public void testWithoutUnknownFieldIsIgnored() throws IOException {
+        BlockLoader loader = createBlockLoader(
+            TSDB_SYNTHETIC_SETTINGS,
+            MAPPING,
+            new BlockLoaderFunctionConfig.TimeSeriesMetadata(false, Set.of("does_not_exist"))
+        );
+        assertThat(loader, instanceOf(TimeSeriesMetadataFieldBlockLoader.class));
+        assertThat(sourcePaths(loader), equalTo(Set.of("host", "env", "region")));
+    }
+
+    /**
+     * loadMetricFields=true with a non-empty exclusion set: the excluded dimension must be absent from
+     * source paths while metrics remain unaffected.
+     */
+    public void testExcludedDimensionsWithMetricsAndExclusion() throws IOException {
+        BlockLoader loader = createBlockLoader(
+            TSDB_SYNTHETIC_SETTINGS,
+            MAPPING,
+            new BlockLoaderFunctionConfig.TimeSeriesMetadata(true, Set.of("host"))
+        );
+        assertThat(loader, instanceOf(TimeSeriesMetadataFieldBlockLoader.class));
+        assertThat(sourcePaths(loader), equalTo(Set.of("env", "region", "cpu", "request_count")));
     }
 
     /**

@@ -1420,7 +1420,7 @@ public final class TextFieldMapper extends FieldMapper {
                     }
                     return new BytesRefsFromBinaryMultiSeparateCountBlockLoader(
                         name(),
-                        useArrayOrderBinaryDocValues ? ArrayOrderSource.INLINE_DEDUP
+                        useArrayOrderBinaryDocValues ? ArrayOrderSource.INLINE
                             : readInArrayOrder ? ArrayOrderSource.FROM_OFFSETS
                             : ArrayOrderSource.NONE
                     );
@@ -1894,7 +1894,7 @@ public final class TextFieldMapper extends FieldMapper {
         if (value == null) {
             // Record the null slot so synthetic source can rebuild the array with its nulls in the original positions (columnar mode).
             if (fieldType().usesArrayOrderBinaryDocValues()) {
-                MultiValuedBinaryDocValuesField.ArrayOrderInlineNull.recordDeduplicatedNull(context.doc(), fieldType().name());
+                MultiValuedBinaryDocValuesField.ArrayOrderInlineNull.recordNull(context.doc(), fieldType().name());
             } else if (recordOffsets) {
                 context.getOffSetContext().recordNull(offsetsFieldName);
             }
@@ -1906,12 +1906,7 @@ public final class TextFieldMapper extends FieldMapper {
             if (fieldType().usesArrayOrderBinaryDocValues()) {
                 // In-order path: write the value into the field's own binary doc-values column directly, in document order with nulls. The
                 // BytesRef built from the String above already owns a fresh byte[], so no defensive copy is needed.
-                // Deduplicating layout is used to keep per-doc blobs small and allow ZSTD to compress across many documents.
-                MultiValuedBinaryDocValuesField.ArrayOrderInlineNull.recordDeduplicatedValue(
-                    context.doc(),
-                    fieldType().name(),
-                    binaryValue
-                );
+                MultiValuedBinaryDocValuesField.ArrayOrderInlineNull.recordValue(context.doc(), fieldType().name(), binaryValue);
             } else if (fieldType().usesBinaryDocValues()) {
                 dvFactory.addBinaryField(
                     context.doc(),
@@ -2216,7 +2211,7 @@ public final class TextFieldMapper extends FieldMapper {
         if (fieldType().usesBinaryDocValues()) {
             if (fieldType().usesArrayOrderBinaryDocValues()) {
                 // Columnar mode (high cardinality): reconstruct array order, duplicates and null positions from the deduplicating blob.
-                layers.add(new ArrayOrderBinaryDocValuesSyntheticFieldLoaderLayer(fieldType().name(), true));
+                layers.add(new ArrayOrderBinaryDocValuesSyntheticFieldLoaderLayer(fieldType().name()));
             } else if (offsetsFieldName != null) {
                 // Columnar mode: reconstruct array order, duplicates and null positions from the offsets sidecar.
                 layers.add(new BinaryWithOffsetsDocValuesSyntheticFieldLoaderLayer(fullPath(), offsetsFieldName));

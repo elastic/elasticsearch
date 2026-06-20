@@ -27,16 +27,11 @@ import java.util.Objects;
  * {@link BinaryDocValuesSyntheticFieldLoaderLayer}, this layer preserves array order, duplicates, and inline {@code null} positions, and
  * it reconstructs all-null and empty arrays — so it advances on the {@code .counts} field (a document with no binary blob but a present
  * count is an all-null or empty array).
- * <p>
- * The {@code deduplicated} constructor flag selects the deduplicating blob layout used by text fields:
- * {@code [D][len1][val1]...[lenD][valD][ord1][ord2]...} where each slot ordinal is 0 for null and 1-based for a distinct value.
- * When {@code false}, the standard slot-by-slot layout {@code [len+1][val]...} is used.
  */
 public final class ArrayOrderBinaryDocValuesSyntheticFieldLoaderLayer implements CompositeSyntheticFieldLoader.DocValuesLayer {
 
     private final String name;
     private final String countFieldName;
-    private final boolean deduplicated;
 
     private NumericDocValues counts;
     private BinaryDocValues values;
@@ -51,13 +46,8 @@ public final class ArrayOrderBinaryDocValuesSyntheticFieldLoaderLayer implements
     private int[] lengths = new int[8];
 
     public ArrayOrderBinaryDocValuesSyntheticFieldLoaderLayer(String name) {
-        this(name, false);
-    }
-
-    public ArrayOrderBinaryDocValuesSyntheticFieldLoaderLayer(String name, boolean deduplicated) {
         this.name = Objects.requireNonNull(name);
         this.countFieldName = name + MultiValuedBinaryDocValuesField.SeparateCount.COUNT_FIELD_SUFFIX;
-        this.deduplicated = deduplicated;
     }
 
     @Override
@@ -99,27 +89,26 @@ public final class ArrayOrderBinaryDocValuesSyntheticFieldLoaderLayer implements
             // single non-null value stored raw (a lone null writes no binary blob)
             offsets[0] = bytes.offset;
             lengths[0] = bytes.length;
-        } else if (deduplicated) {
-            decodeDeduplicated(bytes, slotCount);
         } else {
-            // point the stream reader at the blob, then walk the slotCount [len+1][bytes] slots (len+1 == 0 marks a null)
+            // decode [D][len1][val1]...[lenD][valD][ord1]... into per-slot offsets/lengths
             scratchInput.reset(bytes.bytes, bytes.offset, bytes.length);
-
+            int D = scratchInput.readVInt();
+            int[] distinctOffsets = new int[D];
+            int[] distinctLengths = new int[D];
+            for (int d = 0; d < D; d++) {
+                int length = scratchInput.readVInt();
+                int offset = scratchInput.getPosition();
+                scratchInput.setPosition(offset + length);
+                distinctOffsets[d] = offset;
+                distinctLengths[d] = length;
+            }
             for (int i = 0; i < slotCount; i++) {
-                int encodedLength = scratchInput.readVInt();
-                if (encodedLength == 0) {
+                int ord = scratchInput.readVInt();
+                if (ord == 0) {
                     lengths[i] = -1; // null slot
                 } else {
-                    // lengths are always encoded as len+1 to distinguish between empty strings and nulls, so here we must subtract 1
-                    // to get back the actual length of the value
-                    int length = encodedLength - 1;
-                    int offset = scratchInput.getPosition();
-
-                    // skip over the value bytes so the next readVInt lands on the following slot's length prefix
-                    scratchInput.setPosition(offset + length);
-
-                    offsets[i] = offset;
-                    lengths[i] = length;
+                    offsets[i] = distinctOffsets[ord - 1];
+                    lengths[i] = distinctLengths[ord - 1];
                 }
             }
         }
@@ -163,40 +152,6 @@ public final class ArrayOrderBinaryDocValuesSyntheticFieldLoaderLayer implements
             // all-null array: emit one null per slot (empty array emits nothing, but valueCount() forces the surrounding array)
             for (int i = 0; i < slotCount; i++) {
                 b.nullValue();
-            }
-        }
-    }
-
-    /**
-     * Decodes a deduplicating blob ({@code [D][len1][val1]...[lenD][valD][ord1]...[ordSlotCount]}) into per-slot
-     * {@code offsets} / {@code lengths} so that {@link #write} can emit the original array order (including duplicates and nulls)
-     * without knowing the layout. Ordinal 0 encodes a null slot (stored as {@code lengths[i] = -1}); ordinal {@code k>=1} refers to
-     * distinct value {@code k-1} (0-based).
-     */
-    private void decodeDeduplicated(BytesRef bytes, int slotCount) throws IOException {
-        ensureCapacity(slotCount);
-        scratchInput.reset(bytes.bytes, bytes.offset, bytes.length);
-
-        int D = scratchInput.readVInt();
-        // Scratch arrays to hold the offset and length of each of the D distinct values within blobBytes.
-        int[] distinctOffsets = new int[D];
-        int[] distinctLengths = new int[D];
-        for (int d = 0; d < D; d++) {
-            int length = scratchInput.readVInt();
-            int offset = scratchInput.getPosition();
-            scratchInput.setPosition(offset + length);
-            distinctOffsets[d] = offset;
-            distinctLengths[d] = length;
-        }
-
-        // Resolve each slot ordinal to its offset/length in blobBytes (or -1 for null).
-        for (int i = 0; i < slotCount; i++) {
-            int ord = scratchInput.readVInt();
-            if (ord == 0) {
-                lengths[i] = -1; // null slot
-            } else {
-                offsets[i] = distinctOffsets[ord - 1];
-                lengths[i] = distinctLengths[ord - 1];
             }
         }
     }

@@ -404,6 +404,88 @@ public class ESUTF8StreamJsonParserTests extends ESTestCase {
     }
 
     /**
+     * Tests SWAR (SIMD-within-a-register) boundary conditions in {@code _finishAndReturnText}.
+     * The fast path processes 8 bytes at a time; these tests verify that values straddling or
+     * sitting exactly on chunk boundaries are handled identically to the scalar path.
+     */
+    public void testSwarBoundaries() throws IOException {
+        // Empty string: the fast loop does nothing; the scalar loop immediately sees '"'.
+        testParseJson("{\"k\":\"\"}", parser -> {
+            assertThat(parser.nextToken(), Matchers.equalTo(JsonToken.START_OBJECT));
+            assertThat(parser.nextFieldName(), Matchers.equalTo("k"));
+            assertThat(parser.nextValue(), Matchers.equalTo(JsonToken.VALUE_STRING));
+            var text = parser.getValueAsText();
+            assertThat(text, Matchers.notNullValue());
+            assertThat(text.bytes().length(), Matchers.equalTo(0));
+            assertThat(text.stringLength(), Matchers.equalTo(0));
+        });
+
+        // Values of length 7, 8, 9, 15, 16, 17 — straddle chunk boundaries in every way.
+        for (int len : new int[] { 7, 8, 9, 15, 16, 17 }) {
+            String value = "a".repeat(len);
+            String json = "{\"k\":\"" + value + "\"}";
+            testParseJson(json, parser -> {
+                assertThat(parser.nextToken(), Matchers.equalTo(JsonToken.START_OBJECT));
+                assertThat(parser.nextFieldName(), Matchers.equalTo("k"));
+                assertThat(parser.nextValue(), Matchers.equalTo(JsonToken.VALUE_STRING));
+                var text = parser.getValueAsText();
+                assertThat("len=" + len, text, Matchers.notNullValue());
+                assertTextRef(text.bytes(), value);
+                assertThat("stringLength len=" + len, text.stringLength(), Matchers.equalTo(len));
+            });
+        }
+
+        // 16 ASCII bytes followed immediately by a multibyte UTF-8 char (0xC3 0xA5 = 'å').
+        // The fast path consumes the first 16 bytes in two chunks, then the scalar loop handles the 2-byte sequence.
+        testParseJson("{\"k\":\"aaaaaaaaaaaaaaaaå\"}", parser -> {
+            assertThat(parser.nextToken(), Matchers.equalTo(JsonToken.START_OBJECT));
+            assertThat(parser.nextFieldName(), Matchers.equalTo("k"));
+            assertThat(parser.nextValue(), Matchers.equalTo(JsonToken.VALUE_STRING));
+            var text = parser.getValueAsText();
+            assertThat(text, Matchers.notNullValue());
+            assertTextRef(text.bytes(), "aaaaaaaaaaaaaaaaå");
+            // 16 ASCII chars (stringLength 16) + 1 BMP char 'å' (stringLength 1) = 17
+            assertThat(text.stringLength(), Matchers.equalTo(17));
+        });
+
+        // 16 ASCII bytes followed by a supported escape sequence (\"): fast path → scalar escape.
+        testParseJson("{\"k\":\"aaaaaaaaaaaaaabc\\\"de\"}", parser -> {
+            assertThat(parser.nextToken(), Matchers.equalTo(JsonToken.START_OBJECT));
+            assertThat(parser.nextFieldName(), Matchers.equalTo("k"));
+            assertThat(parser.nextValue(), Matchers.equalTo(JsonToken.VALUE_STRING));
+            var text = parser.getValueAsText();
+            assertThat(text, Matchers.notNullValue());
+            assertTextRef(text.bytes(), "aaaaaaaaaaaaaabc\"de");
+            assertThat(parser.getValueAsString(), Matchers.equalTo("aaaaaaaaaaaaaabc\"de"));
+        });
+
+        // Closing '"' lands on the last byte of a would-be 8-byte chunk (i.e. value length 7,
+        // then quote). Already covered by len=7 above, but verify bytes reference into buffer.
+        testParseJson("{\"k\":\"abcdefg\"}", parser -> {
+            assertThat(parser.nextToken(), Matchers.equalTo(JsonToken.START_OBJECT));
+            assertThat(parser.nextFieldName(), Matchers.equalTo("k"));
+            assertThat(parser.nextValue(), Matchers.equalTo(JsonToken.VALUE_STRING));
+            var text = parser.getValueAsText();
+            assertThat(text, Matchers.notNullValue());
+            assertTextRef(text.bytes(), "abcdefg");
+            assertThat(text.stringLength(), Matchers.equalTo(7));
+        });
+
+        // Alternating fast (ASCII) and slow (multibyte) runs within a single value.
+        // "aaaa" + "å" + "bbbb" + "ö" + "cccc" — triggers the inner SWAR-then-scalar cycle twice.
+        testParseJson("{\"k\":\"aaaaåbbbböcccc\"}", parser -> {
+            assertThat(parser.nextToken(), Matchers.equalTo(JsonToken.START_OBJECT));
+            assertThat(parser.nextFieldName(), Matchers.equalTo("k"));
+            assertThat(parser.nextValue(), Matchers.equalTo(JsonToken.VALUE_STRING));
+            var text = parser.getValueAsText();
+            assertThat(text, Matchers.notNullValue());
+            assertTextRef(text.bytes(), "aaaaåbbbböcccc");
+            // 4 + 1 + 4 + 1 + 4 = 14 UTF-16 chars
+            assertThat(text.stringLength(), Matchers.equalTo(14));
+        });
+    }
+
+    /**
      * This XContentParser introduces a random mix of getText() and getOptimisedText()
      * to simulate different access patterns for optimised fields.
      */

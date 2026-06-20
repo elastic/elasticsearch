@@ -247,7 +247,7 @@ public class WorkerBulkByPaginatedSearchTaskState implements SuccessfullyProcess
      * does not reduce the next throttle delay.
      */
     public TimeValue throttleWaitTime(long lastBatchStartTimeNS, long nowNS, int lastBatchSize) {
-        long targetBatchTime = (long) perfectlyThrottledBatchTime(lastBatchSize);
+        long targetBatchTime = round((double) perfectlyThrottledBatchTime(lastBatchSize));
         long elapsedBatchTime = max(0, nowNS - lastBatchStartTimeNS);
         long waitTime = min(MAX_THROTTLE_WAIT_TIME.nanos(), max(0, targetBatchTime - elapsedBatchTime));
         return timeValueNanos(waitTime);

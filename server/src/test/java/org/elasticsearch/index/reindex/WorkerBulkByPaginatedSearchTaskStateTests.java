@@ -302,6 +302,15 @@ public class WorkerBulkByPaginatedSearchTaskStateTests extends ESTestCase {
         assertThat(workerState.throttleWaitTime(lastBatchStartTimeNS, nowNS, 3).nanos(), equalTo(TimeUnit.SECONDS.toNanos(5)));
     }
 
+    public void testThrottleWaitTimeRoundsFractionalNanoseconds() {
+        workerState.rethrottle(2_000_000_000f);
+
+        long lastBatchStartTimeNS = System.nanoTime();
+        long nowNS = lastBatchStartTimeNS;
+
+        assertThat(workerState.throttleWaitTime(lastBatchStartTimeNS, nowNS, 1).nanos(), equalTo(1L));
+    }
+
     public void testThrottleWaitTimeUsesLatestRethrottleRate() {
         workerState.rethrottle(1f);
         workerState.rethrottle(2f);

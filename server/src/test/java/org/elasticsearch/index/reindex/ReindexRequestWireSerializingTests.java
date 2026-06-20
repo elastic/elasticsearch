@@ -27,18 +27,18 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Objects;
 
-import static org.elasticsearch.index.reindex.BulkByScrollWireSerializingTestUtils.fillRandomBulkFields;
-import static org.elasticsearch.index.reindex.BulkByScrollWireSerializingTestUtils.mutateAbstractBulkByScrollRequest;
-import static org.elasticsearch.index.reindex.BulkByScrollWireSerializingTestUtils.randomRemoteInfo;
-import static org.elasticsearch.index.reindex.BulkByScrollWireSerializingTestUtils.randomResumeInfo;
-import static org.elasticsearch.index.reindex.BulkByScrollWireSerializingTestUtils.reindexRequestsEqual;
-import static org.elasticsearch.index.reindex.BulkByScrollWireSerializingTestUtils.resumeInfoOptionalContentHashCode;
+import static org.elasticsearch.index.reindex.BulkByPaginatedSearchWireSerializingTestUtils.fillRandomBulkFields;
+import static org.elasticsearch.index.reindex.BulkByPaginatedSearchWireSerializingTestUtils.mutateAbstractBulkByPaginatedSearchRequest;
+import static org.elasticsearch.index.reindex.BulkByPaginatedSearchWireSerializingTestUtils.randomRemoteInfo;
+import static org.elasticsearch.index.reindex.BulkByPaginatedSearchWireSerializingTestUtils.randomResumeInfo;
+import static org.elasticsearch.index.reindex.BulkByPaginatedSearchWireSerializingTestUtils.reindexRequestsEqual;
+import static org.elasticsearch.index.reindex.BulkByPaginatedSearchWireSerializingTestUtils.resumeInfoOptionalContentHashCode;
 
 public class ReindexRequestWireSerializingTests extends AbstractWireSerializingTestCase<ReindexRequestWireSerializingTests.Wrapper> {
 
     @Override
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
-        return BulkByScrollWireSerializingTestUtils.bulkScrollRequestNamedWriteableRegistry();
+        return BulkByPaginatedSearchWireSerializingTestUtils.bulkPaginatedSearchRequestNamedWriteableRegistry();
     }
 
     @Override
@@ -107,12 +107,12 @@ public class ReindexRequestWireSerializingTests extends AbstractWireSerializingT
     }
 
     /**
-     * Mutates {@code mutatedRequest} (a copy of {@code originalRequest}) along exactly one logical field: bulk-by-scroll fields,
+     * Mutates {@code mutatedRequest} (a copy of {@code originalRequest}) along exactly one logical field: bulk-by-paginated-search fields,
      * destination index, destination version, remote info, or script.
      */
     public static void mutateReindexRequest(ReindexRequest originalRequest, ReindexRequest mutatedRequest) {
         switch (between(0, 4)) {
-            case 0 -> mutateAbstractBulkByScrollRequest(originalRequest, mutatedRequest);
+            case 0 -> mutateAbstractBulkByPaginatedSearchRequest(originalRequest, mutatedRequest);
             case 1 -> mutatedRequest.getDestination()
                 .index(ESTestCase.randomValueOtherThan(originalRequest.getDestination().index(), () -> ESTestCase.randomAlphaOfLength(14)));
             case 2 -> mutatedRequest.getDestination()

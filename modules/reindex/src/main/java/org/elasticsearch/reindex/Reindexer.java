@@ -144,7 +144,7 @@ public class Reindexer {
     @Nullable
     private final ReindexMetrics reindexMetrics;
     @Nullable
-    private final BulkByScrollSearchContextMetrics bulkByScrollSearchContextMetrics;
+    private final BulkByPaginatedSearchSearchContextMetrics bulkByPaginatedSearchSearchContextMetrics;
     private final TaskManager taskManager;
     private final TransportService transportService;
     private final ReindexRelocationNodePicker relocationNodePicker;
@@ -162,7 +162,7 @@ public class Reindexer {
         ScriptService scriptService,
         ReindexSslConfig reindexSslConfig,
         @Nullable ReindexMetrics reindexMetrics,
-        @Nullable BulkByScrollSearchContextMetrics bulkByScrollSearchContextMetrics,
+        @Nullable BulkByPaginatedSearchSearchContextMetrics bulkByPaginatedSearchSearchContextMetrics,
         TransportService transportService,
         ReindexRelocationNodePicker relocationNodePicker,
         FeatureService featureService,
@@ -177,7 +177,7 @@ public class Reindexer {
         this.scriptService = scriptService;
         this.reindexSslConfig = reindexSslConfig;
         this.reindexMetrics = reindexMetrics;
-        this.bulkByScrollSearchContextMetrics = bulkByScrollSearchContextMetrics;
+        this.bulkByPaginatedSearchSearchContextMetrics = bulkByPaginatedSearchSearchContextMetrics;
         this.taskManager = transportService.getTaskManager(); // implicit null check
         this.transportService = transportService;
         this.relocationNodePicker = Objects.requireNonNull(relocationNodePicker);
@@ -314,7 +314,7 @@ public class Reindexer {
                 listener,
                 remoteVersion,
                 reindexShutdownGracePeriod,
-                bulkByScrollSearchContextMetrics,
+                bulkByPaginatedSearchSearchContextMetrics,
                 reindexSettings,
                 requestBreaker
             );
@@ -1000,7 +1000,7 @@ public class Reindexer {
             ActionListener<BulkByPaginatedSearchResponse> listener,
             @Nullable Version remoteVersion,
             TimeValue maxTaskShutdownGracePeriod,
-            @Nullable BulkByScrollSearchContextMetrics bulkByScrollSearchContextMetrics,
+            @Nullable BulkByPaginatedSearchSearchContextMetrics bulkByPaginatedSearchSearchContextMetrics,
             ReindexSettings reindexSettings,
             CircuitBreaker requestBreaker
         ) {
@@ -1022,8 +1022,8 @@ public class Reindexer {
                 scriptService,
                 sslConfig,
                 remoteVersion,
-                bulkByScrollSearchContextMetrics,
-                BulkByScrollSearchContextMetrics.TaskKind.REINDEX,
+                bulkByPaginatedSearchSearchContextMetrics,
+                BulkByPaginatedSearchSearchContextMetrics.TaskKind.REINDEX,
                 request.getRemoteInfo() != null,
                 maxTaskShutdownGracePeriod,
                 reindexSettings,
@@ -1049,7 +1049,7 @@ public class Reindexer {
         }
 
         @Override
-        protected PaginatedHitSource buildScrollableResultSource(BackoffPolicy backoffPolicy, SearchRequest searchRequest) {
+        protected PaginatedHitSource buildPaginatedSearchResultSource(BackoffPolicy backoffPolicy, SearchRequest searchRequest) {
             if (mainRequest.getRemoteInfo() != null) {
                 RemoteInfo remoteInfo = mainRequest.getRemoteInfo();
                 createdThreads = synchronizedList(new ArrayList<>());
@@ -1062,7 +1062,7 @@ public class Reindexer {
                         backoffPolicy,
                         threadPool,
                         worker::countSearchRetry,
-                        this::onScrollResponse,
+                        this::onPaginatedSearchResponse,
                         this::finishHim,
                         restClient,
                         remoteInfo,
@@ -1078,7 +1078,7 @@ public class Reindexer {
                     backoffPolicy,
                     threadPool,
                     worker::countSearchRetry,
-                    this::onScrollResponse,
+                    this::onPaginatedSearchResponse,
                     this::finishHim,
                     restClient,
                     remoteInfo,
@@ -1089,7 +1089,7 @@ public class Reindexer {
                     reindexSettings.getMemoryAccountingThresholdInBytes()
                 );
             }
-            return super.buildScrollableResultSource(backoffPolicy, searchRequest);
+            return super.buildPaginatedSearchResultSource(backoffPolicy, searchRequest);
         }
 
         @Override

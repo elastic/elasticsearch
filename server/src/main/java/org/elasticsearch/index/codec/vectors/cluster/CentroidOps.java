@@ -653,36 +653,39 @@ public sealed interface CentroidOps<V> permits CentroidOps.FloatOps, CentroidOps
 
         @Override
         public MutationContext<byte[]> newMutationContext(byte[][] centroids, int dim) {
-            // Eager allocation is appropriate here: SGD updates all centroids every iteration
-            // (each vector updates its assigned centroid), so all shadows will be accessed.
-            // Lazy instantiation would add branch overhead without saving allocations.
-
-            // Allocate float shadow from current byte centroids
-            float[][] shadow = new float[centroids.length][];
-            for (int i = 0; i < centroids.length; i++) {
-                byte[] src = centroids[i];
-                float[] dst = new float[src.length];
-                for (int j = 0; j < src.length; j++) {
-                    dst[j] = src[j];
-                }
-                shadow[i] = dst;
-            }
+            // Single reusable float buffer — flushes back to byte[] when switching centroids.
+            // This trades ~2x indexing throughput for eliminating the k * dim * 4 byte shadow
+            // allocation that would otherwise be needed (e.g. ~40MB at 26K centroids, dim=384).
+            // TODO: a pool of N float[] buffers (e.g. N=256, direct-mapped by k % N) could
+            // significantly reduce flush/load overhead by keeping hot centroids resident;
+            // evaluate in a follow-up if the throughput regression is a concern.
+            float[] buffer = new float[dim];
             return new MutationContext<>() {
+                int currentK = -1;
+
                 @Override
                 public float[] floatCentroid(int k) {
-                    return shadow[k];
+                    if (k != currentK) {
+                        // Flush the previously loaded centroid back to byte[]
+                        if (currentK >= 0) {
+                            flushToNative(centroids[currentK], buffer, dim);
+                        }
+                        // Load the requested centroid into the float buffer
+                        byte[] src = centroids[k];
+                        for (int d = 0; d < dim; d++) {
+                            buffer[d] = src[d];
+                        }
+                        currentK = k;
+                    }
+                    return buffer;
                 }
 
                 @Override
                 public void syncToNative() {
-                    // Syncs all centroids unconditionally — this is correct because SGD touches
-                    // all centroids during each epoch, so all shadows are potentially dirty.
-                    for (int k = 0; k < centroids.length; k++) {
-                        byte[] byteCentroid = centroids[k];
-                        float[] floatShadow = shadow[k];
-                        for (int d = 0; d < dim; d++) {
-                            byteCentroid[d] = (byte) Math.clamp(Math.round(floatShadow[d]), -128, 127);
-                        }
+                    // Flush the currently loaded centroid and force a reload on next access
+                    if (currentK >= 0) {
+                        flushToNative(centroids[currentK], buffer, dim);
+                        currentK = -1;
                     }
                 }
 
@@ -691,6 +694,12 @@ public sealed interface CentroidOps<V> permits CentroidOps.FloatOps, CentroidOps
                     syncToNative();
                 }
             };
+        }
+
+        private static void flushToNative(byte[] byteCentroid, float[] floatBuffer, int dim) {
+            for (int d = 0; d < dim; d++) {
+                byteCentroid[d] = (byte) Math.clamp(Math.round(floatBuffer[d]), -128, 127);
+            }
         }
 
     }

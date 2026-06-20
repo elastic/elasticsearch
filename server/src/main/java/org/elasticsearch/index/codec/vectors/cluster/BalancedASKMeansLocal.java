@@ -142,8 +142,8 @@ abstract class BalancedASKMeansLocal<V> extends KMeansLocal<V> {
             ops.linearCombination(learningRate, vec, 1 - learningRate, centroid);
         }
 
-        // Sync float shadows to byte centroids so that distance computation sees updated values.
-        // The float shadow remains live for continued SGD updates in subsequent mini-batches.
+        // Flush the currently loaded centroid back to byte[] so that distance computation
+        // sees updated values. The next floatCentroid() call will reload from byte[].
         sgdContext.syncToNative();
     }
 
@@ -197,8 +197,8 @@ abstract class BalancedASKMeansLocal<V> extends KMeansLocal<V> {
         OnlineQuantileEstimator medianEstimator = null; // We cannot initialize the estimator now because we need to know its range.
 
         // Scoped float-precision mutation context for SGD updates.
-        // For float centroids this is zero-cost; for byte centroids it maintains a float shadow
-        // that is synced back to native on each call to syncToNative() and released on close().
+        // For float centroids this is zero-cost (direct array access); for byte centroids it
+        // maintains a single reusable float buffer that is loaded/flushed one centroid at a time.
         try (var sgdContext = ops.newMutationContext(centroids, vectors.dimension())) {
             int t = 0;
             for (int epoch = 0; epoch < maxIterations; epoch++) {

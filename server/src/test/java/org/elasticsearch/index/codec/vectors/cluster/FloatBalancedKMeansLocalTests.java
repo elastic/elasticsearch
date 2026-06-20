@@ -86,12 +86,7 @@ public class FloatBalancedKMeansLocalTests extends AbstractBalancedKMeansLocalTe
         int nTrials = 10;
 
         for (int trials = 0; trials < nTrials; trials++) {
-            KMeansFloatVectorValues vectors = KMeansTestData.generateFloatDataWithStdDev(
-                nVectors,
-                dims,
-                nClusters,
-                0.5f
-            );
+            KMeansFloatVectorValues vectors = KMeansTestData.generateFloatDataWithStdDev(nVectors, dims, nClusters, 0.5f);
 
             for (int j = 0; j < methods.size(); j++) {
                 float[][] centroids = KMeansLocal.pickInitialCentroids(vectors, nClusters, CentroidOps.FLOAT);

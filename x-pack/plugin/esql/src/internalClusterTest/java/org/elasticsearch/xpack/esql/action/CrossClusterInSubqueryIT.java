@@ -125,8 +125,7 @@ public class CrossClusterInSubqueryIT extends AbstractCrossClusterTestCase {
             assertThat(values, hasSize(2));
             assertEquals(List.of(3L, REMOTE_CLUSTER_1), values.get(0));
             assertEquals(List.of(3L, REMOTE_CLUSTER_2), values.get(1));
-            // subquery hits cluster-a (1 shard); main plan hits both remotes (cluster-a +1, remote-b 1)
-            assertCCSExecutionInfoDetailsWithShards(resp.getExecutionInfo(), Map.of(REMOTE_CLUSTER_1, 2, REMOTE_CLUSTER_2, 1));
+            assertCCSExecutionInfoDetailsWithShards(resp.getExecutionInfo(), Map.of(REMOTE_CLUSTER_1, 1, REMOTE_CLUSTER_2, 1));
         }
     }
 
@@ -188,8 +187,7 @@ public class CrossClusterInSubqueryIT extends AbstractCrossClusterTestCase {
             assertThat(values, hasSize(2));
             assertEquals(List.of(3L, REMOTE_CLUSTER_1), values.get(0));
             assertEquals(List.of(3L, REMOTE_CLUSTER_2), values.get(1));
-            // subquery hits cluster-a (1 shard); main plan hits both remotes (cluster-a +1, remote-b 1)
-            assertCCSExecutionInfoDetailsWithShards(resp.getExecutionInfo(), Map.of(REMOTE_CLUSTER_1, 2, REMOTE_CLUSTER_2, 1));
+            assertCCSExecutionInfoDetailsWithShards(resp.getExecutionInfo(), Map.of(REMOTE_CLUSTER_1, 1, REMOTE_CLUSTER_2, 1));
         }
     }
 
@@ -253,8 +251,7 @@ public class CrossClusterInSubqueryIT extends AbstractCrossClusterTestCase {
             assertThat(values, hasSize(2));
             assertEquals(List.of(4L, REMOTE_CLUSTER_1), values.get(0));
             assertEquals(List.of(4L, REMOTE_CLUSTER_2), values.get(1));
-            // subquery hits cluster-a (1 shard); main plan hits both remotes (cluster-a +1, remote-b 1)
-            assertCCSExecutionInfoDetailsWithShards(resp.getExecutionInfo(), Map.of(REMOTE_CLUSTER_1, 2, REMOTE_CLUSTER_2, 1));
+            assertCCSExecutionInfoDetailsWithShards(resp.getExecutionInfo(), Map.of(REMOTE_CLUSTER_1, 1, REMOTE_CLUSTER_2, 1));
         }
     }
 
@@ -319,9 +316,7 @@ public class CrossClusterInSubqueryIT extends AbstractCrossClusterTestCase {
             assertThat(values, hasSize(2));
             assertEquals(List.of(2L, REMOTE_CLUSTER_1), values.get(0));
             assertEquals(List.of(2L, REMOTE_CLUSTER_2), values.get(1));
-            // outer subquery hits cluster-a (1 shard); inner subquery is local-only;
-            // main plan hits both remotes (cluster-a +1, remote-b 1)
-            assertCCSExecutionInfoDetailsWithShards(resp.getExecutionInfo(), Map.of(REMOTE_CLUSTER_1, 2, REMOTE_CLUSTER_2, 1));
+            assertCCSExecutionInfoDetailsWithShards(resp.getExecutionInfo(), Map.of(REMOTE_CLUSTER_1, 1, REMOTE_CLUSTER_2, 1));
         }
     }
 
@@ -559,7 +554,7 @@ public class CrossClusterInSubqueryIT extends AbstractCrossClusterTestCase {
                 | WHERE v IN (
                     FROM remote-b:logs-*
                     | WHERE v > 1 AND v < 7
-                    //| LOOKUP JOIN values_lookup ON v == lookup_key
+                    | LOOKUP JOIN values_lookup ON v == lookup_key
                     | KEEP v
                   )
                 | KEEP v

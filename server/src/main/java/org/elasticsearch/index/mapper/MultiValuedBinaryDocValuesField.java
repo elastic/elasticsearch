@@ -392,11 +392,14 @@ public abstract class MultiValuedBinaryDocValuesField extends CustomDocValuesFie
             }
 
             // Assign first-seen ordinals to distinct non-null values (BytesRef.equals / hashCode are value-based).
-            Map<BytesRef, Integer> ordinals = new HashMap<>();
+            // Size the map to hold up to slotCount entries without rehashing (distinct values <= slotCount).
+            Map<BytesRef, Integer> ordinals = new HashMap<>(slotCount * 2);
+            List<BytesRef> distinctInOrder = new ArrayList<>();
             int distinctByteCount = 0;
             for (BytesRef slot : slots) {
-                if (slot != null && ordinals.containsKey(slot) == false) {
-                    ordinals.put(slot, ordinals.size() + 1); // 1-based; 0 is reserved for null
+                if (slot != null && ordinals.putIfAbsent(slot, ordinals.size() + 1) == null) {
+                    // putIfAbsent returns null iff the mapping was newly inserted (1-based; 0 reserved for null)
+                    distinctInOrder.add(slot);
                     distinctByteCount += slot.length;
                 }
             }
@@ -406,10 +409,6 @@ public abstract class MultiValuedBinaryDocValuesField extends CustomDocValuesFie
             try (BytesStreamOutput out = new BytesStreamOutput(streamSize)) {
                 out.writeVInt(D);
                 // Write distinct values in first-seen (insertion) order (ordinals 1..D).
-                BytesRef[] distinctInOrder = new BytesRef[D];
-                for (Map.Entry<BytesRef, Integer> entry : ordinals.entrySet()) {
-                    distinctInOrder[entry.getValue() - 1] = entry.getKey();
-                }
                 for (BytesRef val : distinctInOrder) {
                     out.writeVInt(val.length);
                     out.writeBytes(val.bytes, val.offset, val.length);

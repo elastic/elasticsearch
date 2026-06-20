@@ -1,5 +1,0 @@
-area: "Distributed, Infra/Core"
-issues: []
-pr: 151792
-summary: Use the updated cluster state in `ReservedProjectStateUpdateTask`
-type: bug

@@ -11,8 +11,9 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.blobcache.BlobCacheMetrics;
 import org.elasticsearch.blobcache.common.ByteRange;
-import org.elasticsearch.blobcache.shared.EvictionPolicy;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -45,12 +46,15 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
     /**
      * Selects the eviction policy used by the shared blob cache when {@link #STATELESS_CACHE_BOOST_PREFERENCE_ENABLED_SETTING} is enabled.
      * When cache boost preference is disabled, {@link StatelessCacheEvictionPolicyType#ALWAYS} is used regardless of this setting.
+     * Defaults to {@link StatelessCacheEvictionPolicyType#PINNED_WINDOW} on search nodes and
+     * {@link StatelessCacheEvictionPolicyType#ALWAYS} on all other nodes.
      */
     public static final Setting<StatelessCacheEvictionPolicyType> STATELESS_CACHE_BOOST_PREFERENCE_EVICTION_POLICY_SETTING = Setting
         .enumSetting(
             StatelessCacheEvictionPolicyType.class,
+            settings -> StatelessCacheEvictionPolicyType.resolveEvictionPolicyFromSettings(settings).name(),
             "stateless.cache_boost_preference.eviction_policy",
-            StatelessCacheEvictionPolicyType.PINNED_WINDOW,
+            s -> {},
             Setting.Property.NodeScope
         );
 
@@ -60,6 +64,7 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
 
     private final Executor shardReadThreadPoolExecutor;
     private final PluggableDirectoryMetricsHolder<BlobStoreCacheDirectoryMetrics> metricsHolder;
+    private final boolean hasSearchRole;
 
     // TODO Merge the two constructors
     public StatelessSharedBlobCacheService(
@@ -70,9 +75,17 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
         ClusterService clusterService,
         PluggableDirectoryMetricsHolder<BlobStoreCacheDirectoryMetrics> metricsHolder
     ) {
-        super(environment, settings, threadPool, IO_EXECUTOR, blobCacheMetrics, createEvictionPolicy(settings, clusterService));
+        super(
+            environment,
+            settings,
+            threadPool,
+            IO_EXECUTOR,
+            blobCacheMetrics,
+            StatelessCacheEvictionPolicyType.createEvictionPolicy(settings, clusterService)
+        );
         this.shardReadThreadPoolExecutor = threadPool.executor(StatelessPlugin.SHARD_READ_THREAD_POOL);
         this.metricsHolder = metricsHolder;
+        this.hasSearchRole = DiscoveryNode.hasRole(settings, DiscoveryNodeRole.SEARCH_ROLE);
     }
 
     // for tests
@@ -92,14 +105,11 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
             IO_EXECUTOR,
             blobCacheMetrics,
             relativeTimeInNanosSupplier,
-            createEvictionPolicy(settings, clusterService)
+            StatelessCacheEvictionPolicyType.createEvictionPolicy(settings, clusterService)
         );
         this.shardReadThreadPoolExecutor = IO_EXECUTOR;
         this.metricsHolder = metricsHolder;
-    }
-
-    static EvictionPolicy<FileCacheKey> createEvictionPolicy(Settings settings, ClusterService clusterService) {
-        return StatelessCacheEvictionPolicyType.fromSettings(settings).create(clusterService);
+        this.hasSearchRole = DiscoveryNode.hasRole(settings, DiscoveryNodeRole.SEARCH_ROLE);
     }
 
     /**
@@ -177,6 +187,10 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
             StatelessPlugin.PREWARM_THREAD_POOL,
             StatelessPlugin.FILL_VIRTUAL_BATCHED_COMPOUND_COMMIT_CACHE_THREAD_POOL
         );
+    }
+
+    public boolean hasSearchRole() {
+        return hasSearchRole;
     }
 
     public void assertInvariants() {

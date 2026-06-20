@@ -668,6 +668,11 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
         context.parser().skipChildren();
     }
 
+    @Override
+    protected boolean supportsParsingObject() {
+        return true;
+    }
+
     protected SemanticTextField.ParserContext getParserContext(DocumentParserContext context) {
         return new SemanticTextField.ParserContext(false, fullPath(), context.parser().contentType());
     }

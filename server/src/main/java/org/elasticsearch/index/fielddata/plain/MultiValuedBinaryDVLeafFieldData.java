@@ -29,6 +29,7 @@ public class MultiValuedBinaryDVLeafFieldData implements LeafFieldData {
     private final ToScriptFieldFactory<SortedBinaryDocValues> toScriptFieldFactory;
     private final IndexVersion indexVersion;
     private final boolean arrayOrder;
+    private final boolean deduplicatedArrayOrder;
 
     protected MultiValuedBinaryDVLeafFieldData(
         String fieldName,
@@ -36,7 +37,7 @@ public class MultiValuedBinaryDVLeafFieldData implements LeafFieldData {
         ToScriptFieldFactory<SortedBinaryDocValues> toScriptFieldFactory,
         IndexVersion indexVersion
     ) {
-        this(fieldName, leafReader, toScriptFieldFactory, indexVersion, false);
+        this(fieldName, leafReader, toScriptFieldFactory, indexVersion, false, false);
     }
 
     protected MultiValuedBinaryDVLeafFieldData(
@@ -46,12 +47,24 @@ public class MultiValuedBinaryDVLeafFieldData implements LeafFieldData {
         IndexVersion indexVersion,
         boolean arrayOrder
     ) {
+        this(fieldName, leafReader, toScriptFieldFactory, indexVersion, arrayOrder, false);
+    }
+
+    protected MultiValuedBinaryDVLeafFieldData(
+        String fieldName,
+        LeafReader leafReader,
+        ToScriptFieldFactory<SortedBinaryDocValues> toScriptFieldFactory,
+        IndexVersion indexVersion,
+        boolean arrayOrder,
+        boolean deduplicatedArrayOrder
+    ) {
         super();
         this.fieldName = fieldName;
         this.leafReader = leafReader;
         this.toScriptFieldFactory = toScriptFieldFactory;
         this.indexVersion = indexVersion;
         this.arrayOrder = arrayOrder;
+        this.deduplicatedArrayOrder = deduplicatedArrayOrder;
     }
 
     @Override
@@ -71,7 +84,7 @@ public class MultiValuedBinaryDVLeafFieldData implements LeafFieldData {
             // otherwise a positioned or exhausted instance can be returned:
             if (arrayOrder) {
                 // High-cardinality columnar fields store values in document order with inline nulls (ArrayOrderInlineNull).
-                return SortingArrayOrderBinaryDocValues.from(leafReader, fieldName);
+                return SortingArrayOrderBinaryDocValues.from(leafReader, fieldName, deduplicatedArrayOrder);
             }
             if (indexVersion.onOrAfter(IndexVersions.DEPRECATE_INTEGRATED_COUNTS_BINARY_DOC_VALUES)) {
                 return MultiValuedSortedBinaryDocValues.from(leafReader, fieldName);

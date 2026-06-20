@@ -34,6 +34,7 @@ public class BytesBinaryIndexFieldData implements IndexFieldData<MultiValuedBina
     protected final ToScriptFieldFactory<SortedBinaryDocValues> toScriptFieldFactory;
     protected final IndexVersion indexVersion;
     protected final boolean arrayOrder;
+    protected final boolean deduplicatedArrayOrder;
 
     public BytesBinaryIndexFieldData(
         String fieldName,
@@ -41,7 +42,7 @@ public class BytesBinaryIndexFieldData implements IndexFieldData<MultiValuedBina
         ToScriptFieldFactory<SortedBinaryDocValues> toScriptFieldFactory,
         IndexVersion indexVersion
     ) {
-        this(fieldName, valuesSourceType, toScriptFieldFactory, indexVersion, false);
+        this(fieldName, valuesSourceType, toScriptFieldFactory, indexVersion, false, false);
     }
 
     public BytesBinaryIndexFieldData(
@@ -51,11 +52,23 @@ public class BytesBinaryIndexFieldData implements IndexFieldData<MultiValuedBina
         IndexVersion indexVersion,
         boolean arrayOrder
     ) {
+        this(fieldName, valuesSourceType, toScriptFieldFactory, indexVersion, arrayOrder, false);
+    }
+
+    public BytesBinaryIndexFieldData(
+        String fieldName,
+        ValuesSourceType valuesSourceType,
+        ToScriptFieldFactory<SortedBinaryDocValues> toScriptFieldFactory,
+        IndexVersion indexVersion,
+        boolean arrayOrder,
+        boolean deduplicatedArrayOrder
+    ) {
         this.fieldName = fieldName;
         this.valuesSourceType = valuesSourceType;
         this.toScriptFieldFactory = toScriptFieldFactory;
         this.indexVersion = indexVersion;
         this.arrayOrder = arrayOrder;
+        this.deduplicatedArrayOrder = deduplicatedArrayOrder;
     }
 
     @Override
@@ -91,7 +104,14 @@ public class BytesBinaryIndexFieldData implements IndexFieldData<MultiValuedBina
 
     @Override
     public MultiValuedBinaryDVLeafFieldData load(LeafReaderContext context) {
-        return new MultiValuedBinaryDVLeafFieldData(fieldName, context.reader(), toScriptFieldFactory, indexVersion, arrayOrder);
+        return new MultiValuedBinaryDVLeafFieldData(
+            fieldName,
+            context.reader(),
+            toScriptFieldFactory,
+            indexVersion,
+            arrayOrder,
+            deduplicatedArrayOrder
+        );
     }
 
     @Override
@@ -105,6 +125,7 @@ public class BytesBinaryIndexFieldData implements IndexFieldData<MultiValuedBina
         private final ValuesSourceType valuesSourceType;
         private final IndexVersion indexVersion;
         private final boolean arrayOrder;
+        private final boolean deduplicatedArrayOrder;
 
         public Builder(
             String name,
@@ -112,7 +133,7 @@ public class BytesBinaryIndexFieldData implements IndexFieldData<MultiValuedBina
             ToScriptFieldFactory<SortedBinaryDocValues> toScriptFieldFactory,
             IndexVersion indexVersion
         ) {
-            this(name, valuesSourceType, toScriptFieldFactory, indexVersion, false);
+            this(name, valuesSourceType, toScriptFieldFactory, indexVersion, false, false);
         }
 
         public Builder(
@@ -122,17 +143,36 @@ public class BytesBinaryIndexFieldData implements IndexFieldData<MultiValuedBina
             IndexVersion indexVersion,
             boolean arrayOrder
         ) {
+            this(name, valuesSourceType, toScriptFieldFactory, indexVersion, arrayOrder, false);
+        }
+
+        public Builder(
+            String name,
+            ValuesSourceType valuesSourceType,
+            ToScriptFieldFactory<SortedBinaryDocValues> toScriptFieldFactory,
+            IndexVersion indexVersion,
+            boolean arrayOrder,
+            boolean deduplicatedArrayOrder
+        ) {
             this.name = name;
             this.valuesSourceType = valuesSourceType;
             this.toScriptFieldFactory = toScriptFieldFactory;
             this.indexVersion = indexVersion;
             this.arrayOrder = arrayOrder;
+            this.deduplicatedArrayOrder = deduplicatedArrayOrder;
         }
 
         @Override
         public IndexFieldData<?> build(IndexFieldDataCache cache, CircuitBreakerService breakerService) {
             // Ignore breaker
-            return new BytesBinaryIndexFieldData(name, valuesSourceType, toScriptFieldFactory, indexVersion, arrayOrder);
+            return new BytesBinaryIndexFieldData(
+                name,
+                valuesSourceType,
+                toScriptFieldFactory,
+                indexVersion,
+                arrayOrder,
+                deduplicatedArrayOrder
+            );
         }
     }
 }

@@ -986,7 +986,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                         } else {
                             return new BytesRefsFromBinaryMultiSeparateCountBlockLoader(
                                 name(),
-                                useArrayOrderBinaryDocValues ? ArrayOrderSource.INLINE
+                                useArrayOrderBinaryDocValues ? ArrayOrderSource.INLINE_DEDUP
                                     : readInArrayOrder ? ArrayOrderSource.FROM_OFFSETS
                                     : ArrayOrderSource.NONE
                             );
@@ -1152,6 +1152,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                     CoreValuesSourceType.KEYWORD,
                     KeywordDocValuesField::new,
                     indexVersion,
+                    useArrayOrderBinaryDocValues,
                     useArrayOrderBinaryDocValues
                 );
             } else {
@@ -1492,7 +1493,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             // In-order path: non-null values are recorded in indexValue (in document order); here we record null slots so their position
             // is preserved. Values that tripped ignore_above (indexed == false, value != null) record no slot, matching the offsets path.
             if (indexed == false && value == null) {
-                MultiValuedBinaryDocValuesField.ArrayOrderInlineNull.recordNull(context.doc(), fieldType().name());
+                MultiValuedBinaryDocValuesField.ArrayOrderInlineNull.recordDeduplicatedNull(context.doc(), fieldType().name());
             }
         } else if (FieldArrayContext.shouldRecordOffsets(context, offsetsFieldName, docValuesParameters.multiValue())) {
             if (indexed) {
@@ -1600,7 +1601,11 @@ public final class KeywordFieldMapper extends FieldMapper {
             assert fieldType.docValuesType() == DocValuesType.NONE;
             if (fieldType().usesArrayOrderBinaryDocValues()) {
                 // In-order path: write the value into the field's own binary doc-values column directly, in document order with nulls.
-                MultiValuedBinaryDocValuesField.ArrayOrderInlineNull.recordValue(context.doc(), fieldType().name(), binaryValue);
+                MultiValuedBinaryDocValuesField.ArrayOrderInlineNull.recordDeduplicatedValue(
+                    context.doc(),
+                    fieldType().name(),
+                    binaryValue
+                );
             } else {
                 dvFactory.addBinaryField(
                     context.doc(),
@@ -1755,7 +1760,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                 }
             } else {
                 if (fieldType().usesArrayOrderBinaryDocValues()) {
-                    layers.add(new ArrayOrderBinaryDocValuesSyntheticFieldLoaderLayer(fieldType().name()));
+                    layers.add(new ArrayOrderBinaryDocValuesSyntheticFieldLoaderLayer(fieldType().name(), true));
                 } else if (offsetsFieldName != null) {
                     layers.add(new BinaryWithOffsetsDocValuesSyntheticFieldLoaderLayer(fullPath(), offsetsFieldName));
                 } else {

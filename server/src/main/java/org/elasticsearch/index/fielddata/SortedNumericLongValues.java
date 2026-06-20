@@ -204,7 +204,7 @@ public abstract class SortedNumericLongValues {
                     }
                 };
             }
-            return singleton(longValues);
+            return singleton(longValues, singleton);
         } else {
             return wrap(values);
         }

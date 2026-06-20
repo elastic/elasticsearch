@@ -139,7 +139,7 @@ public abstract class SortedNumericDoubleValues {
         NumericDocValues singleton = DocValues.unwrapSingleton(values);
         if (singleton != null) {
             // It's more efficient to access singleton doc values via the unwrapped singleton
-            return new SortedNumericDoubleValues(singleton) {
+            return new SortedNumericDoubleValues(true, singleton) {
                 @Override
                 public boolean advanceExact(int target) throws IOException {
                     return singleton.advanceExact(target);

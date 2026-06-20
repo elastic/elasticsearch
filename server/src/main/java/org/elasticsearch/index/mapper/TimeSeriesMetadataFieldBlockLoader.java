@@ -58,7 +58,10 @@ public final class TimeSeriesMetadataFieldBlockLoader implements BlockLoader {
         }
 
         for (var skip : config.skipFieldNames()) {
-            result.remove(skip);
+            // Resolve each name to its concrete field name so that passthrough aliases
+            // like "cpu" -> "attributes.cpu" are matched correctly.
+            var fieldType = mappingLookup.getFieldType(skip);
+            result.remove((fieldType == null ? skip : fieldType.name()));
         }
 
         if (loadMetrics) {

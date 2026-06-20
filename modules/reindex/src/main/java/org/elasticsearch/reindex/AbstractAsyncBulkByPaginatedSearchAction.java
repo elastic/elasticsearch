@@ -763,7 +763,7 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
 
         if (asyncResponse.hasRemainingHits()) {
             // NB this means the next bulk task will be traced as a child of the current one, but it should really be a sibling
-            onPaginatedSearchResponse(asyncResponse);
+            onPaginatedSearchResponse(thisBatchStartTimeNS, batchSize, asyncResponse);
             return;
         }
         if (task.isRelocationRequested()) {

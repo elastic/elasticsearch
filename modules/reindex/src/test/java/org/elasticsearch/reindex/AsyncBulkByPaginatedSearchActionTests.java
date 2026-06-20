@@ -999,6 +999,64 @@ public class AsyncBulkByPaginatedSearchActionTests extends ESTestCase {
         }
     }
 
+    public void testRemainingHitsKeepBulkStartTimeAsThrottleBaseline() {
+        AtomicReference<TimeValue> capturedDelay = new AtomicReference<>();
+        setupClient(new TestThreadPool(getTestName()) {
+            @Override
+            public ScheduledCancellable schedule(Runnable command, TimeValue delay, Executor executor) {
+                capturedDelay.set(delay);
+                return new ScheduledCancellable() {
+                    @Override
+                    public long getDelay(TimeUnit unit) {
+                        return unit.convert(delay.nanos(), TimeUnit.NANOSECONDS);
+                    }
+
+                    @Override
+                    public int compareTo(Delayed o) {
+                        return 0;
+                    }
+
+                    @Override
+                    public boolean cancel() {
+                        return true;
+                    }
+
+                    @Override
+                    public boolean isCancelled() {
+                        return false;
+                    }
+                };
+            }
+        });
+
+        worker.rethrottle(1f);
+        DummyAsyncBulkByPaginatedSearchAction action = new DummyAsyncBulkByPaginatedSearchAction();
+        PaginatedHitSource.Response scrollResponse = createPaginatedResponse(
+            false,
+            false,
+            emptyList(),
+            1,
+            singletonList(new PaginatedHitSource.BasicHit("index", "id", -1)),
+            scrollId(),
+            null
+        );
+        AbstractAsyncBulkByPaginatedSearchAction.ScrollConsumableHitsResponse asyncResponse =
+            new AbstractAsyncBulkByPaginatedSearchAction.ScrollConsumableHitsResponse(new PaginatedHitSource.AsyncResponse() {
+                @Override
+                public PaginatedHitSource.Response response() {
+                    return scrollResponse;
+                }
+
+                @Override
+                public void done(TimeValue extraKeepAlive) {}
+            });
+
+        long thisBatchStartTimeNS = System.nanoTime() - TimeUnit.MINUTES.toNanos(2);
+        action.notifyDone(thisBatchStartTimeNS, asyncResponse, 60);
+
+        assertThat(capturedDelay.get().nanos(), equalTo(0L));
+    }
+
     /**
      * Verifies that the delay scheduled between PIT search batches is correctly calculated from the throttle rate.
      * The initial delay should be zero; subsequent delays should reflect the throttling (e.g. ~100s at 1f, ~10s at 10f).
@@ -2042,11 +2100,19 @@ public class AsyncBulkByPaginatedSearchActionTests extends ESTestCase {
         worker.setNodeToRelocateToSupplier(() -> Optional.of("target-node"));
 
         final String expectedScrollId = scrollId();
-        final AtomicBoolean onScrollResponseCalled = new AtomicBoolean();
+        final long expectedBatchStartTimeNS = System.nanoTime();
+        final int expectedBatchSize = 2;
+        final AtomicBoolean onPaginatedSearchResponseCalled = new AtomicBoolean();
         final DummyAsyncBulkByPaginatedSearchAction action = new DummyAsyncBulkByPaginatedSearchAction() {
             @Override
-            void onPaginatedSearchResponse(final AbstractAsyncBulkByPaginatedSearchAction.ScrollConsumableHitsResponse asyncResponse) {
-                onScrollResponseCalled.set(true);
+            void onPaginatedSearchResponse(
+                final long lastBatchStartTimeNS,
+                final int lastBatchSizeToUse,
+                final AbstractAsyncBulkByPaginatedSearchAction.ScrollConsumableHitsResponse asyncResponse
+            ) {
+                onPaginatedSearchResponseCalled.set(true);
+                assertThat("should preserve bulk start time for remaining hits", lastBatchStartTimeNS, equalTo(expectedBatchStartTimeNS));
+                assertThat("should preserve bulk batch size for remaining hits", lastBatchSizeToUse, equalTo(expectedBatchSize));
                 // don't call super - continues ingesting and listener might complete before assertions
             }
         };
@@ -2070,9 +2136,9 @@ public class AsyncBulkByPaginatedSearchActionTests extends ESTestCase {
             }
         );
 
-        action.notifyDone(System.nanoTime(), asyncResponse, 0);
+        action.notifyDone(expectedBatchStartTimeNS, asyncResponse, expectedBatchSize);
 
-        assertThat("should continue consuming remaining hits via onPaginatedSearchResponse", onScrollResponseCalled.get(), equalTo(true));
+        assertThat("should continue consuming remaining hits via onPaginatedSearchResponse", onPaginatedSearchResponseCalled.get(), equalTo(true));
         assertThat("listener should not be done - relocation should not happen while hits remain", listener.isDone(), equalTo(false));
     }
 
@@ -2086,11 +2152,19 @@ public class AsyncBulkByPaginatedSearchActionTests extends ESTestCase {
         worker.setNodeToRelocateToSupplier(() -> Optional.of("target-node"));
 
         final Object[] expectedSearchAfter = new Object[] { "search_after" };
-        final AtomicBoolean onScrollResponseCalled = new AtomicBoolean();
+        final long expectedBatchStartTimeNS = System.nanoTime();
+        final int expectedBatchSize = 2;
+        final AtomicBoolean onPaginatedSearchResponseCalled = new AtomicBoolean();
         final DummyAsyncBulkByPaginatedSearchAction action = new DummyAsyncBulkByPaginatedSearchAction() {
             @Override
-            void onPaginatedSearchResponse(final AbstractAsyncBulkByPaginatedSearchAction.ScrollConsumableHitsResponse asyncResponse) {
-                onScrollResponseCalled.set(true);
+            void onPaginatedSearchResponse(
+                final long lastBatchStartTimeNS,
+                final int lastBatchSizeToUse,
+                final AbstractAsyncBulkByPaginatedSearchAction.ScrollConsumableHitsResponse asyncResponse
+            ) {
+                onPaginatedSearchResponseCalled.set(true);
+                assertThat("should preserve bulk start time for remaining hits", lastBatchStartTimeNS, equalTo(expectedBatchStartTimeNS));
+                assertThat("should preserve bulk batch size for remaining hits", lastBatchSizeToUse, equalTo(expectedBatchSize));
                 // don't call super - continues ingesting and listener might complete before assertions
             }
         };
@@ -2114,9 +2188,9 @@ public class AsyncBulkByPaginatedSearchActionTests extends ESTestCase {
             }
         );
 
-        action.notifyDone(System.nanoTime(), asyncResponse, 0);
+        action.notifyDone(expectedBatchStartTimeNS, asyncResponse, expectedBatchSize);
 
-        assertThat("should continue consuming remaining hits via onPaginatedSearchResponse", onScrollResponseCalled.get(), equalTo(true));
+        assertThat("should continue consuming remaining hits via onPaginatedSearchResponse", onPaginatedSearchResponseCalled.get(), equalTo(true));
         assertThat("listener should not be done - relocation should not happen while hits remain", listener.isDone(), equalTo(false));
     }
 

@@ -790,6 +790,52 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
         assertOutputContainsType(plan, "message", DataType.TEXT);
     }
 
+    public void testSingleTypeTextMappedUnmappedAndNonExistentWithMatchFunction() {
+        assumeTrue("Requires UNMAPPED FIELDS", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
+        assumeTrue("Requires MATCH_FUNCTION", EsqlCapabilities.Cap.MATCH_FUNCTION.isEnabled());
+
+        FieldCapabilitiesResponse caps = new FieldCapabilitiesResponse(
+            List.of(
+                fieldCapabilitiesIndexResponse("foo", fieldResponseMap("message", "text")),
+                fieldCapabilitiesIndexResponse("bar", Map.of()),
+                fieldCapabilitiesIndexResponse("baz", Map.of())
+            ),
+            List.of()
+        );
+        var resolutions = indexResolutions(mergedResolution("foo,bar,baz", caps, true));
+        TestAnalyzer ta = analyzer();
+        for (var entry : resolutions.entrySet()) {
+            ta.addIndex(entry.getKey().indexPattern(), entry.getValue());
+        }
+        var plan = ta.statement(setUnmappedLoad("FROM foo, bar, baz | WHERE match(message, \"foo\") | KEEP message"));
+        assertSingleOutputType(plan, "message", DataType.TEXT);
+    }
+
+    public void testSingleTypeTextMappedUnmappedAndNonExistentWithMatchFunctionAndMetadataKeep() {
+        assumeTrue("Requires UNMAPPED FIELDS", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
+        assumeTrue("Requires MATCH_FUNCTION", EsqlCapabilities.Cap.MATCH_FUNCTION.isEnabled());
+
+        FieldCapabilitiesResponse caps = new FieldCapabilitiesResponse(
+            List.of(
+                fieldCapabilitiesIndexResponse("foo", fieldResponseMap(Map.of("message", "text", "doc_id", "keyword"))),
+                fieldCapabilitiesIndexResponse("bar", fieldResponseMap("doc_id", "keyword")),
+                fieldCapabilitiesIndexResponse("baz", fieldResponseMap("doc_id", "keyword"))
+            ),
+            List.of()
+        );
+        var resolutions = indexResolutions(mergedResolution("foo,bar,baz", caps, true));
+        TestAnalyzer ta = analyzer();
+        for (var entry : resolutions.entrySet()) {
+            ta.addIndex(entry.getKey().indexPattern(), entry.getValue());
+        }
+        String query =
+            "FROM foo, bar, baz METADATA _index | WHERE match(message, \"foo\") OR message IS NULL | KEEP _index, doc_id, message | SORT _index";
+        var plan = ta.statement(setUnmappedLoad(query));
+        assertOutputContainsType(plan, "_index", DataType.KEYWORD);
+        assertOutputContainsType(plan, "doc_id", DataType.KEYWORD);
+        assertOutputContainsType(plan, "message", DataType.TEXT);
+    }
+
     public void testSingleTypeTextUnmappedWithMatchPhraseFunction() {
         assumeTrue("Requires UNMAPPED FIELDS", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
         assumeTrue("Requires MATCH_PHRASE_FUNCTION", EsqlCapabilities.Cap.MATCH_PHRASE_FUNCTION.isEnabled());

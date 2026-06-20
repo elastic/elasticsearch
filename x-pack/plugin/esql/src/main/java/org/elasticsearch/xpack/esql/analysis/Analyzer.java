@@ -950,7 +950,18 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
     public static class ResolveRefs extends ParameterizedAnalyzerRule<LogicalPlan, AnalyzerContext> {
         @Override
         protected LogicalPlan rule(LogicalPlan plan, AnalyzerContext context) {
-            if (plan.childrenResolved() == false) {
+            boolean hasSingleChild = plan.children().size() == 1;
+            boolean childOutputResolved = hasSingleChild && Resolvables.resolved(plan.children().getFirst().output());
+            boolean canResolveAgainstConcreteChildOutput = context.unmappedResolution() != UnmappedResolution.DEFAULT
+                && hasSingleChild
+                && (plan instanceof Keep
+                    || plan instanceof Drop
+                    || plan instanceof Rename
+                    || (plan instanceof OrderBy && plan.children().getFirst() instanceof ResolvingProject))
+                // These plans only need concrete child output to resolve their own expressions/projections,
+                // even when the child still has unresolved expressions (for example full-text filters).
+                && childOutputResolved;
+            if (plan.childrenResolved() == false && canResolveAgainstConcreteChildOutput == false) {
                 return plan;
             }
             // TODO: assess if building this list is still required ahead of the switch, or if it can be done per command only where needed

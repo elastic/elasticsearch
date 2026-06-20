@@ -20,6 +20,8 @@ import java.util.List;
 import java.util.Set;
 import java.util.function.Predicate;
 
+import static org.elasticsearch.xpack.esql.plan.logical.promql.PromqlLabels.PROMETHEUS_LABELS_PREFIX;
+
 /**
  * The label-grouping fragment of the PromQL -> ESQL syntax-directed translation.
  * <p>
@@ -220,11 +222,17 @@ public final class PromqlAttributesTranslationContext {
 
     /**
      * Canonical name used by the label algebra: a {@link FieldAttribute} uses its field name, everything else falls
-     * back to {@link Attribute#name()}. Used for label-set algebra ({@code by}, {@code without}, intersection, and
-     * difference) so that comparisons use the field's backing name rather than an alias name.
+     * back to {@link Attribute#name()}. PromQL refers to labels by bare names ({@code le}, {@code job}), while TSDB
+     * dimensions that store Prometheus labels can be exposed as {@code labels.le} / {@code labels.job}. Strip that
+     * storage prefix so {@code by}, {@code without}, intersection, and difference compare PromQL label keys rather than
+     * backing field names (and so exclusion names match the dimensions the {@code _timeseries} block loader enumerates).
      */
     static String canonicalName(Attribute attr) {
-        return (attr instanceof FieldAttribute fa) ? fa.fieldName().string() : attr.name();
+        return stripIgnorePrefix((attr instanceof FieldAttribute fa) ? fa.fieldName().string() : attr.name());
+    }
+
+    private static String stripIgnorePrefix(String name) {
+        return name.startsWith(PROMETHEUS_LABELS_PREFIX) ? name.substring(PROMETHEUS_LABELS_PREFIX.length()) : name;
     }
 
     /** The concrete dimension fields among {@code attributes} (used to seed a child demand from a selector's output). */

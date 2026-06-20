@@ -374,7 +374,7 @@ public abstract class MultiValuedBinaryDocValuesField extends CustomDocValuesFie
 
         @Override
         public BytesRef binaryValue() {
-            return encode(values);
+            return encode((List<BytesRef>) values);
         }
 
         /**
@@ -382,11 +382,11 @@ public abstract class MultiValuedBinaryDocValuesField extends CustomDocValuesFie
          * {@link ArrayOrderInlineNull}. Must only be called when at least one non-null value is present; the all-null and empty-array
          * cases write no binary field.
          */
-        public static BytesRef encode(Collection<BytesRef> slots) {
+        public static BytesRef encode(List<BytesRef> slots) {
             int slotCount = slots.size();
             assert slotCount >= 1 : "in-order binary doc values must not be written for an empty document";
             if (slotCount == 1) {
-                BytesRef only = slots.iterator().next();
+                BytesRef only = slots.getFirst();
                 assert only != null : "a lone null slot must not write a binary value";
                 return only;
             }

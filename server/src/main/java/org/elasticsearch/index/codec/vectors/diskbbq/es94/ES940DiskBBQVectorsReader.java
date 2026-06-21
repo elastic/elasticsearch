@@ -73,10 +73,9 @@ public class ES940DiskBBQVectorsReader extends IVFVectorsReader<ES940DiskBBQVect
         );
     }
 
-    CentroidIterator getPostingListPrefetchIterator(CentroidIterator centroidIterator, IndexInput postingListSlice) throws IOException {
-        // TODO we may want to prefetch more than one postings list, however, we will likely want to place a limit
-        // so we don't bother prefetching many lists we won't end up scoring
-        return new PrefetchingCentroidIterator(centroidIterator, postingListSlice);
+    CentroidIterator getPostingListPrefetchIterator(CentroidIterator centroidIterator, IndexInput postingListSlice, long maxPrefetchBytes)
+        throws IOException {
+        return new PrefetchingCentroidIterator(centroidIterator, postingListSlice, maxPrefetchBytes);
     }
 
     private void ensureCompatibleEncoding(IndexInput metaInput, ES940DiskBBQVectorsFormat.QuantEncoding quantEncoding)
@@ -195,7 +194,8 @@ public class ES940DiskBBQVectorsReader extends IVFVectorsReader<ES940DiskBBQVect
                 bulkSize
             );
         }
-        return getPostingListPrefetchIterator(centroidIterator, postingListSlice);
+        final long maxPrefetchBytes = prefetchByteBudget(visitRatio, fieldEntry.postingListLength());
+        return getPostingListPrefetchIterator(centroidIterator, postingListSlice, maxPrefetchBytes);
     }
 
     @Override

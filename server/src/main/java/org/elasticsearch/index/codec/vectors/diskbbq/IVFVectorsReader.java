@@ -147,6 +147,21 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
         return values.size();
     }
 
+    /**
+     * Computes the number of posting list bytes to keep prefetched ahead of the consumer for a query,
+     * used to size {@link PrefetchingCentroidIterator}'s prefetch depth. This mirrors the vector visit
+     * budget ({@code maxVectorVisited = 2 * visitRatio * numVectors}) but expressed in posting list
+     * bytes, because the iterator only has posting list byte lengths available to decide how deeply to
+     * prefetch. The factor of two accounts for SOAR vectors, matching {@code maxVectorVisited}.
+     *
+     * @param visitRatio the fraction of vectors the query is expected to visit
+     * @param postingListLength the total byte length of the field's posting lists
+     * @return the target number of posting list bytes to prefetch ahead
+     */
+    protected static long prefetchByteBudget(float visitRatio, long postingListLength) {
+        return (long) (2.0 * visitRatio * postingListLength);
+    }
+
     protected static IndexInput openDataInput(
         SegmentReadState state,
         int versionMeta,
@@ -535,6 +550,10 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
 
         public int numCentroids() {
             return numCentroids;
+        }
+
+        public long postingListLength() {
+            return postingListLength;
         }
 
         public float[] globalCentroid() {

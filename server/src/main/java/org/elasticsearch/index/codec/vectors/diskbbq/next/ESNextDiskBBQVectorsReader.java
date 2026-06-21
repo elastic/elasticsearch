@@ -79,10 +79,9 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader<ESNextDiskBBQVe
         );
     }
 
-    CentroidIterator getPostingListPrefetchIterator(CentroidIterator centroidIterator, IndexInput postingListSlice) throws IOException {
-        // TODO we may want to prefetch more than one postings list, however, we will likely want to place a limit
-        // so we don't bother prefetching many lists we won't end up scoring
-        return new PrefetchingCentroidIterator(centroidIterator, postingListSlice);
+    CentroidIterator getPostingListPrefetchIterator(CentroidIterator centroidIterator, IndexInput postingListSlice, long maxPrefetchBytes)
+        throws IOException {
+        return new PrefetchingCentroidIterator(centroidIterator, postingListSlice, maxPrefetchBytes);
     }
 
     @Override
@@ -197,7 +196,8 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader<ESNextDiskBBQVe
                 bulkSize
             );
         }
-        return getPostingListPrefetchIterator(centroidIterator, postingListSlice);
+        final long maxPrefetchBytes = prefetchByteBudget(visitRatio, fieldEntry.postingListLength());
+        return getPostingListPrefetchIterator(centroidIterator, postingListSlice, maxPrefetchBytes);
     }
 
     private FixedBitSet getCentroidFilter(

@@ -12,67 +12,64 @@ package org.elasticsearch.index.codec.vectors.diskbbq;
 import org.apache.lucene.store.IndexInput;
 
 import java.io.IOException;
+import java.util.ArrayDeque;
 
 /**
- * A configurable iterator that prefetches posting lists ahead of consumption
- * to optimize disk I/O performance. This iterator wraps another CentroidIterator
- * and maintains a configurable buffer of prefetched posting list locations.
+ * A {@link CentroidIterator} that prefetches upcoming posting lists ahead of consumption so that
+ * disk / blob-cache I/O overlaps with scoring. This iterator wraps another {@link CentroidIterator}
+ * and keeps a buffer of prefetched posting list locations.
  *
- * The iterator is not thread-safe and is designed for single-threaded access.
+ * <p>Rather than prefetching a fixed number of posting lists, the depth is derived from the
+ * iterator's own state: the iterator keeps issuing prefetch hints until the cumulative byte length
+ * of the posting lists that have been prefetched but not yet returned reaches {@code maxPrefetchBytes}.
+ * This naturally adapts the prefetch depth to the size of the posting lists &mdash; many small lists
+ * or only a few large ones &mdash; while the byte budget bounds how far ahead we read so we do not
+ * eagerly fetch posting lists the query is unlikely to score. At least one posting list is always
+ * prefetched ahead, preserving the previous behaviour when the budget is too small to cover even a
+ * single list.
+ *
+ * <p>The iterator is not thread-safe and is designed for single-threaded access.
  */
 public final class PrefetchingCentroidIterator implements CentroidIterator {
 
     private final CentroidIterator delegate;
     private final IndexInput postingListSlice;
-    private final int prefetchAhead;
+    private final long maxPrefetchBytes;
 
-    // Ring buffer for prefetched offsets and lengths
-    private final PostingMetadata[] prefetchBuffer;
-    private int readIndex = 0;  // Where we read from buffer
-    private int writeIndex = 0; // Where we write to buffer
-    private int bufferCount = 0; // Number of elements in buffer
+    // Buffer of prefetched-but-not-yet-returned posting lists, kept in iteration order.
+    private final ArrayDeque<PostingMetadata> prefetchBuffer = new ArrayDeque<>();
+    // Cumulative byte length of the posting lists currently held in the buffer.
+    private long bytesInFlight = 0;
 
     /**
-     * Creates a prefetching iterator with default prefetch depth of 1.
+     * Creates a prefetching iterator.
      *
      * @param delegate the underlying centroid iterator
      * @param postingListSlice the index input for posting lists
+     * @param maxPrefetchBytes the target number of posting list bytes to keep prefetched ahead of the
+     *                         consumer; negative values are treated as zero, in which case a single
+     *                         posting list is prefetched ahead
      * @throws IOException if prefetching fails during initialization
      */
-    public PrefetchingCentroidIterator(CentroidIterator delegate, IndexInput postingListSlice) throws IOException {
-        this(delegate, postingListSlice, 1);
-    }
-
-    /**
-     * Creates a prefetching iterator with configurable prefetch depth.
-     *
-     * @param delegate the underlying centroid iterator
-     * @param postingListSlice the index input for posting lists
-     * @param prefetchAhead number of posting lists to prefetch ahead (must be &gt;= 1)
-     * @throws IOException if prefetching fails during initialization
-     * @throws IllegalArgumentException if {@code prefetchAhead < 1}
-     */
-    public PrefetchingCentroidIterator(CentroidIterator delegate, IndexInput postingListSlice, int prefetchAhead) throws IOException {
-        if (prefetchAhead < 1) {
-            throw new IllegalArgumentException("prefetchAhead must be at least 1, got: " + prefetchAhead);
-        }
+    public PrefetchingCentroidIterator(CentroidIterator delegate, IndexInput postingListSlice, long maxPrefetchBytes) throws IOException {
         this.delegate = delegate;
         this.postingListSlice = postingListSlice;
-        this.prefetchAhead = prefetchAhead;
-        this.prefetchBuffer = new PostingMetadata[prefetchAhead];
-        // Initialize buffer by prefetching up to prefetchAhead elements
+        this.maxPrefetchBytes = Math.max(maxPrefetchBytes, 0);
+        // Initialize the buffer by prefetching ahead up to the configured byte budget.
         fillBuffer();
     }
 
     /**
-     * Fills the prefetch buffer up to the configured capacity.
+     * Tops up the prefetch buffer, issuing a prefetch hint for each newly buffered posting list.
+     * Always buffers at least one posting list (so {@link #hasNext()} can make progress) and then
+     * continues until the in-flight byte window reaches the configured budget or the delegate is
+     * exhausted.
      */
     private void fillBuffer() throws IOException {
-        while (bufferCount < prefetchAhead && delegate.hasNext()) {
+        while (delegate.hasNext() && (prefetchBuffer.isEmpty() || bytesInFlight < maxPrefetchBytes)) {
             PostingMetadata offsetAndLength = delegate.nextPosting();
-            prefetchBuffer[writeIndex] = offsetAndLength;
-            writeIndex = (writeIndex + 1) % prefetchAhead;
-            bufferCount++;
+            prefetchBuffer.addLast(offsetAndLength);
+            bytesInFlight += offsetAndLength.length();
 
             // Trigger prefetch
             postingListSlice.prefetch(offsetAndLength.offset(), offsetAndLength.length());
@@ -81,30 +78,21 @@ public final class PrefetchingCentroidIterator implements CentroidIterator {
 
     @Override
     public boolean hasNext() {
-        return bufferCount > 0;
+        return prefetchBuffer.isEmpty() == false;
     }
 
     @Override
     public PostingMetadata nextPosting() throws IOException {
-        if (bufferCount == 0) {
+        if (prefetchBuffer.isEmpty()) {
             throw new IllegalStateException("No more elements available");
         }
 
         // Get the next element from buffer
-        PostingMetadata result = prefetchBuffer[readIndex];
-        readIndex = (readIndex + 1) % prefetchAhead;
-        bufferCount--;
+        PostingMetadata result = prefetchBuffer.pollFirst();
+        bytesInFlight -= result.length();
 
-        // Try to fill buffer with one more element
-        if (delegate.hasNext()) {
-            PostingMetadata offsetAndLength = delegate.nextPosting();
-            prefetchBuffer[writeIndex] = offsetAndLength;
-            writeIndex = (writeIndex + 1) % prefetchAhead;
-            bufferCount++;
-
-            // Trigger prefetch for the newly added element
-            postingListSlice.prefetch(offsetAndLength.offset(), offsetAndLength.length());
-        }
+        // Top up the buffer, prefetching any newly revealed posting lists.
+        fillBuffer();
 
         return result;
     }

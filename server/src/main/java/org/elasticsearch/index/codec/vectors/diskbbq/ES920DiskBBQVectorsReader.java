@@ -59,9 +59,12 @@ public class ES920DiskBBQVectorsReader extends IVFVectorsReader<IVFVectorsReader
         );
     }
 
-    public CentroidIterator getPostingListPrefetchIterator(CentroidIterator centroidIterator, IndexInput postingListSlice)
-        throws IOException {
-        return new PrefetchingCentroidIterator(centroidIterator, postingListSlice);
+    public CentroidIterator getPostingListPrefetchIterator(
+        CentroidIterator centroidIterator,
+        IndexInput postingListSlice,
+        long maxPrefetchBytes
+    ) throws IOException {
+        return new PrefetchingCentroidIterator(centroidIterator, postingListSlice, maxPrefetchBytes);
     }
 
     @Override
@@ -121,7 +124,8 @@ public class ES920DiskBBQVectorsReader extends IVFVectorsReader<IVFVectorsReader
                 globalCentroidDp
             );
         }
-        return getPostingListPrefetchIterator(centroidIterator, postingListSlice);
+        final long maxPrefetchBytes = prefetchByteBudget(visitRatio, fieldEntry.postingListLength());
+        return getPostingListPrefetchIterator(centroidIterator, postingListSlice, maxPrefetchBytes);
     }
 
     @Override

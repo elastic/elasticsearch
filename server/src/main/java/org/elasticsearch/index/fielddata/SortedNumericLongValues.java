@@ -221,7 +221,7 @@ public abstract class SortedNumericLongValues {
         final NumericDocValues singleton = DocValues.unwrapSingleton(values);
         if (singleton != null) {
             // It's more efficient to access singleton doc values via the unwrapped singleton
-            return new SortedNumericLongValues(singleton) {
+            return new SortedNumericLongValues(true, singleton) {
                 @Override
                 public boolean advanceExact(int target) throws IOException {
                     return singleton.advanceExact(target);

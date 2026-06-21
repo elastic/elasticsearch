@@ -30,6 +30,7 @@ import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.net.ConnectException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -346,6 +347,12 @@ public class ClientYamlTestExecutionContext {
                 return Optional.empty(); // we don't know, the capabilities API is unsupported
             }
             throw new UncheckedIOException(responseException);
+        } catch (ConnectException connectException) {
+            // The capabilities API is probed on each node individually, so a single transiently unreachable node (e.g. one that is
+            // restarting in a mixed-version cluster) would otherwise hard-fail the test with "Connection refused". Treat it as an
+            // unknown result instead: capability-gated tests degrade to being skipped rather than erroring on a flaky connection.
+            logger.warn(() -> "could not reach node while checking capability " + params, connectException);
+            return Optional.empty();
         } catch (IOException ioException) {
             throw new UncheckedIOException(ioException);
         }

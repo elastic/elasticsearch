@@ -15,6 +15,7 @@ import com.github.tomakehurst.wiremock.WireMockServer
 
 import org.apache.commons.io.FileUtils
 import org.apache.commons.io.IOUtils
+import org.elasticsearch.gradle.OS
 import org.elasticsearch.gradle.internal.test.BuildConfigurationAwareGradleRunner
 import org.elasticsearch.gradle.internal.test.InternalAwareGradleRunner
 import org.elasticsearch.gradle.internal.test.NormalizeOutputGradleRunner
@@ -114,6 +115,14 @@ abstract class AbstractGradleFuncTest extends Specification {
     }
 
     GradleRunner gradleRunner(File projectDir, Object... arguments) {
+        def args = arguments.collect { it.toString() } + "--full-stacktrace"
+        // On Windows, Gradle daemon startup can fail with "Connection reset by peer" when the
+        // TestKit-spawned daemon crashes before completing the handshake (e.g. due to Windows
+        // Defender scanning new JVM processes or 8.3 short-path issues). Running without a daemon
+        // eliminates the TCP socket communication between TestKit and the daemon entirely.
+        if (OS.current() == OS.WINDOWS) {
+            args += "--no-daemon"
+        }
         return new NormalizeOutputGradleRunner(
             new BuildConfigurationAwareGradleRunner(
                     new InternalAwareGradleRunner(
@@ -127,7 +136,7 @@ abstract class AbstractGradleFuncTest extends Specification {
                                 .forwardOutput()
             ), configurationCacheCompatible,
                 buildApiRestrictionsDisabled)
-        ).withArguments(arguments.collect { it.toString() } + "--full-stacktrace")
+        ).withArguments(args)
     }
 
     def assertOutputContains(String givenOutput, String expected) {

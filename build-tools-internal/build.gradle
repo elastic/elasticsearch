@@ -378,6 +378,13 @@ tasks.register("integTest", Test) {
   testClassesDirs = sourceSets.integTest.output.classesDirs
   classpath = sourceSets.integTest.runtimeClasspath
   useJUnitPlatform()
+  // On Windows the default tmpdir may resolve to an 8.3 short-form path (e.g. BUILDK~1) when
+  // the username is longer than 8 characters. Gradle TestKit passes this path to the nested
+  // Gradle daemon, which can cause daemon startup failures. Use a stable path without
+  // short-name aliases to avoid this.
+  if (org.gradle.internal.os.OperatingSystem.current().isWindows()) {
+    systemProperty 'java.io.tmpdir', 'C:/Temp'
+  }
 }
 
 tasks.named("check").configure { dependsOn("integTest") }

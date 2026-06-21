@@ -150,7 +150,7 @@ import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
 public class SemanticTextFieldMapperTests extends MapperTestCase {
-    private static class VariableLicenseDiskBBQPlugin extends DiskBBQPlugin {
+    static class VariableLicenseDiskBBQPlugin extends DiskBBQPlugin {
         private static final Settings STATELESS_SETTINGS = Settings.builder()
             .put(DiscoveryNode.STATELESS_ENABLED_SETTING_NAME, true)
             .build();

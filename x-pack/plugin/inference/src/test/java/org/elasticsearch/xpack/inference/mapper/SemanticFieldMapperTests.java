@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.inference.mapper;
 
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -24,12 +26,14 @@ import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.MinimalServiceSettings;
 import org.elasticsearch.inference.SimilarityMeasure;
+import org.elasticsearch.license.License;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.core.XPackClientPlugin;
 import org.elasticsearch.xpack.inference.InferencePlugin;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceService;
@@ -55,8 +59,13 @@ import static org.mockito.Mockito.spy;
 
 public class SemanticFieldMapperTests extends MapperTestCase {
     private static String INFERENCE_ID = "inference-id";
+    private final License.OperationMode operationMode;
     private ModelRegistry globalModelRegistry;
     private TestThreadPool threadPool;
+
+    public SemanticFieldMapperTests(License.OperationMode operationMode) {
+        this.operationMode = operationMode;
+    }
 
     @BeforeClass
     public static void checkFeatureFlag() {
@@ -83,6 +92,14 @@ public class SemanticFieldMapperTests extends MapperTestCase {
         threadPool.close();
     }
 
+    @ParametersFactory
+    public static Iterable<Object[]> parameters() throws Exception {
+        return List.of(
+            new Object[] { License.OperationMode.BASIC },
+            new Object[] { License.OperationMode.ENTERPRISE }
+        );
+    }
+
     private void registerMultiModalEisEndpoint() {
         globalModelRegistry.putDefaultIdIfAbsent(
             new InferenceService.DefaultConfigId(
@@ -106,6 +123,10 @@ public class SemanticFieldMapperTests extends MapperTestCase {
             protected Supplier<ModelRegistry> getModelRegistry() {
                 return () -> globalModelRegistry;
             }
+        }, new XPackClientPlugin(), switch (operationMode) {
+            case ENTERPRISE -> SemanticTextFieldMapperTests.VariableLicenseDiskBBQPlugin.ENTERPRISE;
+            case BASIC -> SemanticTextFieldMapperTests.VariableLicenseDiskBBQPlugin.BASIC;
+            default -> throw new AssertionError("unknown operation mode: " + operationMode);
         });
     }
 

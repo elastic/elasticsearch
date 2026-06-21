@@ -295,6 +295,16 @@ public final class DocumentParser {
     }
 
     static void parseObjectOrNested(DocumentParserContext context) throws IOException {
+        parseObjectOrNested(context, null);
+    }
+
+    /**
+     * Parse an object from the current token, prepending {@code flatPrefix} (e.g. {@code "host."}) to every
+     * immediate child field name.  Used in place of {@link DocumentParserContext#createFlattenContext} to avoid
+     * allocating a {@code FlatteningXContentParser} wrapper and an anonymous {@code Wrapper} context per
+     * intermediate object when {@code subobjects:false} is in effect.
+     */
+    private static void parseObjectOrNested(DocumentParserContext context, String flatPrefix) throws IOException {
         XContentParser parser = context.parser();
         String currentFieldName = parser.currentName();
         if (context.parent().isEnabled() == false) {
@@ -353,7 +363,7 @@ public final class DocumentParser {
             parser.nextToken();
         }
 
-        innerParseObject(context);
+        innerParseObject(context, flatPrefix);
         // restore the enable path flag
         if (context.parent().isNested()) {
             copyNestedFields(context, (NestedObjectMapper) context.parent());
@@ -371,7 +381,7 @@ public final class DocumentParser {
         );
     }
 
-    private static void innerParseObject(DocumentParserContext context) throws IOException {
+    private static void innerParseObject(DocumentParserContext context, String flatPrefix) throws IOException {
 
         final XContentParser parser = context.parser();
         XContentParser.Token token = parser.currentToken();
@@ -383,7 +393,7 @@ public final class DocumentParser {
             }
             switch (token) {
                 case FIELD_NAME:
-                    currentFieldName = parser.currentName();
+                    currentFieldName = flatPrefix != null ? flatPrefix.concat(parser.currentName()) : parser.currentName();
                     if (currentFieldName.isEmpty()) {
                         throw new IllegalArgumentException("Field name cannot be an empty string");
                     }
@@ -473,10 +483,9 @@ public final class DocumentParser {
             parseObjectOrNested(context.createChildContext(objectMapper));
         } else if (mapper instanceof FieldMapper fieldMapper) {
             if (shouldFlattenObject(context, fieldMapper)) {
-                // we pass the mapper's simpleName as parentName to the new DocumentParserContext
                 String currentFieldName = fieldMapper.leafName();
                 context.path().remove();
-                parseObjectOrNested(context.createFlattenContext(currentFieldName));
+                parseObjectOrNested(context, currentFieldName + ".");
                 context.path().add(currentFieldName);
             } else {
                 var sourceKeepMode = getSourceKeepMode(context, fieldMapper.sourceKeepMode());
@@ -552,7 +561,7 @@ public final class DocumentParser {
             final ObjectMapper parent = context.parent();
             boolean subobjectsDisabled = parent.subobjects() == ObjectMapper.Subobjects.DISABLED;
             if (subobjectsDisabled && parent.hasMappedFieldsWithPrefix(currentFieldName)) {
-                parseObjectOrNested(context.createFlattenContext(currentFieldName));
+                parseObjectOrNested(context, currentFieldName + ".");
             } else {
                 parseObjectDynamic(context, currentFieldName);
             }
@@ -622,10 +631,9 @@ public final class DocumentParser {
                     );
                 }
                 if (dynamicObjectBuilder == null || dynamicObjectBuilder instanceof ObjectMapper.Builder) {
-                    // We have an ObjectMapper builder (or a RUNTIME no-op) but subobjects are disallowed
-                    // therefore we create a new DocumentParserContext that
-                    // prepends currentFieldName to any immediate children.
-                    parseObjectOrNested(context.createFlattenContext(currentFieldName));
+                    // We have an ObjectMapper builder (or a RUNTIME no-op) but subobjects are disallowed;
+                    // parse children with currentFieldName prepended to their field names.
+                    parseObjectOrNested(context, currentFieldName + ".");
                     return;
                 }
 
@@ -996,7 +1004,7 @@ public final class DocumentParser {
             }
             assert targetDoc != null;
             final DocumentParserContext copyToContext = context.createCopyToContext(field, targetDoc);
-            innerParseObject(copyToContext);
+            innerParseObject(copyToContext, null);
             context.markFieldAsCopyTo(field);
         }
     }

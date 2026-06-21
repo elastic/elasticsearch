@@ -98,6 +98,9 @@ tests:
 - class: org.elasticsearch.action.RejectionActionIT
   method: testSimulatedSearchRejectionLoad
   issue: https://github.com/elastic/elasticsearch/issues/146022
+- class: org.elasticsearch.xpack.security.transport.filter.IpFilteringIntegrationTests
+  method: testThatIpFilteringIsIntegratedIntoNettyPipelineViaHttp
+  issue: https://github.com/elastic/elasticsearch/issues/146102
 - class: org.elasticsearch.cluster.remote.test.RemoteClustersIT
   method: testHAProxyModeConnectionWithSNIToCluster1Works
   issue: https://github.com/elastic/elasticsearch/issues/139170
@@ -131,9 +134,6 @@ tests:
 - class: org.elasticsearch.xpack.prometheus.PrometheusMetadataRestIT
   method: testMultipleEntriesForSameMetricAcrossStreams
   issue: https://github.com/elastic/elasticsearch/issues/147170
-- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
-  method: test {p0=search.vectors/41_knn_search_byte_quantized_bfloat16/KNN Vector similarity search only}
-  issue: https://github.com/elastic/elasticsearch/issues/147251
 - class: org.elasticsearch.xpack.transform.integration.TransformCrossProjectIT
   method: testUpdateTransformWithProjectRouting
   issue: https://github.com/elastic/elasticsearch/issues/147655
@@ -497,9 +497,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.snapshots.StatelessSnapshotStressTestsIT
   method: testRandomActivitiesStatelessSnapshotDisabled
   issue: https://github.com/elastic/elasticsearch/issues/150884
-- class: org.elasticsearch.index.codec.tsdb.TSDBSyntheticIdPostingsFormatTests
-  method: testSeek
-  issue: https://github.com/elastic/elasticsearch/issues/150912
 - class: org.elasticsearch.xpack.stateless.StatelessMergeIT
   method: testOnlyForceMergesAreAllowedDuringRelocation
   issue: https://github.com/elastic/elasticsearch/issues/150925
@@ -647,3 +644,33 @@ tests:
 - class: org.elasticsearch.xpack.stateless.CorruptionIT
   method: testConcurrentOperations
   issue: https://github.com/elastic/elasticsearch/issues/151779
+- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
+  method: test {p0=search.vectors/41_knn_search_byte_quantized_bfloat16/KNN Vector similarity search only}
+  issue: https://github.com/elastic/elasticsearch/issues/147251
+- class: org.elasticsearch.xpack.esql.datasources.CompressionDelegatingFormatReaderTests
+  method: testDelegatesMetadataAndReadZstd
+  issue: https://github.com/elastic/elasticsearch/issues/151784
+- class: org.elasticsearch.search.msearch.MultiSearchIT
+  method: testBreakerAccountingEndToEnd
+  issue: https://github.com/elastic/elasticsearch/issues/151786
+- class: org.elasticsearch.xpack.esql.expression.function.aggregate.PercentileTests
+  method: "testAggregateIntermediate {TestCase=<exponential_histogram>, <long> #3}"
+  issue: https://github.com/elastic/elasticsearch/issues/151787
+- class: org.elasticsearch.search.vectors.IVFKnnVectorQueryCalibratedMergeTests
+  method: testShardMergeKeepsCandidatesPerMaxPersistedRescoreOversample
+  issue: https://github.com/elastic/elasticsearch/issues/151789
+- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
+  method: test {csv-spec:stats.minOfKeyword}
+  issue: https://github.com/elastic/elasticsearch/issues/151790
+- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
+  method: test {p0=aggregations/terms/Double test}
+  issue: https://github.com/elastic/elasticsearch/issues/151793
+- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
+  method: test {csv-spec:views.wildcardExcludeNestedEmployeeViewsNoFalseCircularReference}
+  issue: https://github.com/elastic/elasticsearch/issues/151811
+- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
+  method: test {csv-spec:ip.simpleProject}
+  issue: https://github.com/elastic/elasticsearch/issues/151818
+- class: org.elasticsearch.xpack.searchablesnapshots.cache.blob.SearchableSnapshotsBlobStoreCacheMaintenanceIntegTests
+  method: testCleanUpAfterIndicesAreDeleted
+  issue: https://github.com/elastic/elasticsearch/issues/151819

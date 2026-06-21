@@ -101,6 +101,7 @@ Plugins can set `deploymentTarget` in `build.gradle`. That value tells the node 
 - REST handlers typically use the `Rest*Action` pattern; transport-layer handlers mirror them with `Transport*Action` classes.
 - REST classes expose routes via `RestHandler#routes`; when adding endpoints ensure naming matches existing REST/Transport patterns to aid discoverability.
 - Transport `ActionType` strings encode scope (`indices:data/read/...`, `cluster:admin/...`, etc.); align new names with these conventions to integrate with privilege resolution.
+- When registering a new metric via MeterRegistry, follow `modules/apm/NAMING.md` for naming guidelines; invalid names throw at node startup and break all integration tests.
 
 ## Logging & Error Handling
 - Elasticsearch should prefer its own logger `org.elasticsearch.logging.LogManager` & `org.elasticsearch.logging.Logger`; declare `private static final Logger logger = LogManager.getLogger(Class.class)`.
@@ -114,6 +115,10 @@ Plugins can set `deploymentTarget` in `build.gradle`. That value tells the node 
   - `ERROR`: reserve for unrecoverable states (e.g., storage health failures); prefer `WARN` otherwise.
 - Only log client-caused exceptions when the cluster admin can act on them; otherwise rely on API responses.
 - Tests can assert logging via `MockLog` for complex flows.
+
+## Metrics
+When adding instrumentation via `MeterRegistry`, read `modules/apm/METERING.md` first.
+It covers instrument selection, registration patterns, and how to run a local mock APM server to verify your metrics end-to-end with `./gradlew run --with-apm-server`.
 
 ## Javadoc & Comments
 - New packages/classes/public or abstract methods require Javadoc explaining the "why" rather than the implementation details.

@@ -989,12 +989,6 @@ public class IndexEngine extends InternalEngine {
                 cacheWarmingService.warmCacheForMerge(merge.getId(), shardId, store, merge.getMerge(), fileName -> {
                     BatchedCompoundCommit latestUploadedBcc = statelessCommitService.getLatestUploadedBcc(shardId);
                     BlobLocation blobLocation = statelessCommitService.getBlobLocation(shardId, fileName);
-                    logger.info("--> merge file name {} and latest uploaded bcc {}", fileName, latestUploadedBcc);
-                    try {
-                        Thread.sleep(100);
-                    } catch (InterruptedException e) {
-                        throw new AssertionError(e);
-                    }
                     if (blobLocation != null && latestUploadedBcc != null) {
                         // Only return the location if the file is uploaded as we don't want to try warming an un-uploaded file
                         if (blobLocation.getBatchedCompoundCommitTermAndGeneration()

@@ -73,7 +73,7 @@ class GoogleCloudStorageRepository extends MeteredBlobStoreRepository {
         "resumable_write_buffer_size",
         ByteSizeValue.ofBytes(GoogleCloudStorageBlobStore.SDK_DEFAULT_CHUNK_SIZE),
         ByteSizeValue.ofKb(128),
-        ByteSizeValue.ofBytes(GoogleCloudStorageBlobStore.SDK_DEFAULT_CHUNK_SIZE),
+        ByteSizeValue.ofMb(100),
         Property.NodeScope,
         Property.Dynamic
     );

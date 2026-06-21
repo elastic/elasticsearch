@@ -230,7 +230,7 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
     public void testResumableWriteBuffer() {
         // default: not configured
         RepositoryMetadata repositoryMetadata = new RepositoryMetadata("repo", GoogleCloudStorageRepository.TYPE, Settings.EMPTY);
-        assertFalse(GoogleCloudStorageRepository.RESUMABLE_WRITE_BUFFER.exists(repositoryMetadata.settings()));
+        assertFalse(GoogleCloudStorageRepository.RESUMABLE_WRITE_BUFFER_SIZE.exists(repositoryMetadata.settings()));
 
         // when set: value is read correctly
         final int sizeMb = randomIntBetween(1, 15);
@@ -241,7 +241,7 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
         );
         assertEquals(
             ByteSizeValue.ofMb(sizeMb),
-            GoogleCloudStorageRepository.getSetting(GoogleCloudStorageRepository.RESUMABLE_WRITE_BUFFER, repositoryMetadata)
+            GoogleCloudStorageRepository.getSetting(GoogleCloudStorageRepository.RESUMABLE_WRITE_BUFFER_SIZE, repositoryMetadata)
         );
 
         // below min (128 KB)
@@ -251,7 +251,7 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
                 GoogleCloudStorageRepository.TYPE,
                 Settings.builder().put("resumable_write_buffer", "1kb").build()
             );
-            GoogleCloudStorageRepository.getSetting(GoogleCloudStorageRepository.RESUMABLE_WRITE_BUFFER, repoMetadata);
+            GoogleCloudStorageRepository.getSetting(GoogleCloudStorageRepository.RESUMABLE_WRITE_BUFFER_SIZE, repoMetadata);
         });
         assertEquals("failed to parse value [1kb] for setting [resumable_write_buffer], must be >= [128kb]", e.getMessage());
 
@@ -262,7 +262,7 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
                 GoogleCloudStorageRepository.TYPE,
                 Settings.builder().put("resumable_write_buffer", "17mb").build()
             );
-            GoogleCloudStorageRepository.getSetting(GoogleCloudStorageRepository.RESUMABLE_WRITE_BUFFER, repoMetadata);
+            GoogleCloudStorageRepository.getSetting(GoogleCloudStorageRepository.RESUMABLE_WRITE_BUFFER_SIZE, repoMetadata);
         });
         assertThat(e.getMessage(), containsString("must be <= "));
     }
@@ -280,7 +280,7 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
             repoName,
             Settings.builder()
                 .put(repositorySettings(repoName))
-                .put(GoogleCloudStorageRepository.RESUMABLE_WRITE_BUFFER.getKey(), bufferSizeMb + "mb")
+                .put(GoogleCloudStorageRepository.RESUMABLE_WRITE_BUFFER_SIZE.getKey(), bufferSizeMb + "mb")
                 .build(),
             false
         );
@@ -435,13 +435,13 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
                 ) {
                     @Override
                     protected GoogleCloudStorageBlobStore createBlobStore() {
-                        if (GoogleCloudStorageRepository.RESUMABLE_WRITE_BUFFER.exists(metadata.settings())) {
+                        if (GoogleCloudStorageRepository.RESUMABLE_WRITE_BUFFER_SIZE.exists(metadata.settings())) {
                             assertThat(
-                                getResumableWriteBuffer().getAsInt(),
-                                equalTo((int) GoogleCloudStorageRepository.RESUMABLE_WRITE_BUFFER.get(metadata.settings()).getBytes())
+                                getResumableWriteBufferSize().getAsInt(),
+                                equalTo((int) GoogleCloudStorageRepository.RESUMABLE_WRITE_BUFFER_SIZE.get(metadata.settings()).getBytes())
                             );
                         } else {
-                            assertTrue(getResumableWriteBuffer().isEmpty());
+                            assertTrue(getResumableWriteBufferSize().isEmpty());
                         }
                         return new GoogleCloudStorageBlobStore(
                             getProjectId(),
@@ -451,7 +451,7 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
                             storageService.get(),
                             bigArrays,
                             randomIntBetween(1, 8) * 1024,
-                            getResumableWriteBuffer(),
+                            getResumableWriteBufferSize(),
                             BackoffPolicy.noBackoff(),
                             this.statsCollector(),
                             null,

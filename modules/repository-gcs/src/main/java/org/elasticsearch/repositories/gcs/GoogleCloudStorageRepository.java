@@ -69,8 +69,8 @@ class GoogleCloudStorageRepository extends MeteredBlobStoreRepository {
      * is used. GCS requires this value to be a multiple of 256 KiB; values that are not will be
      * rounded up automatically.
      */
-    static final Setting<ByteSizeValue> RESUMABLE_WRITE_BUFFER = byteSizeSetting(
-        "resumable_write_buffer",
+    static final Setting<ByteSizeValue> RESUMABLE_WRITE_BUFFER_SIZE = byteSizeSetting(
+        "resumable_write_buffer_size",
         ByteSizeValue.ofBytes(GoogleCloudStorageBlobStore.SDK_DEFAULT_CHUNK_SIZE),
         ByteSizeValue.ofKb(128),
         ByteSizeValue.ofBytes(GoogleCloudStorageBlobStore.SDK_DEFAULT_CHUNK_SIZE),
@@ -116,7 +116,7 @@ class GoogleCloudStorageRepository extends MeteredBlobStoreRepository {
     private final int retryThrottledCasMaxNumberOfRetries;
     private final TimeValue retryThrottledCasMaxDelay;
     private final GcsRepositoryStatsCollector statsCollector;
-    private final OptionalInt resumableWriteBuffer;
+    private final OptionalInt resumableWriteBufferSize;
     private final String dataStorageClass;
     private final String metadataStorageClass;
 
@@ -150,8 +150,8 @@ class GoogleCloudStorageRepository extends MeteredBlobStoreRepository {
         this.retryThrottledCasMaxNumberOfRetries = RETRY_THROTTLED_CAS_MAX_NUMBER_OF_RETRIES.get(metadata.settings());
         this.retryThrottledCasMaxDelay = RETRY_THROTTLED_CAS_MAXIMUM_DELAY.get(metadata.settings());
         this.statsCollector = statsCollector;
-        this.resumableWriteBuffer = RESUMABLE_WRITE_BUFFER.exists(metadata.settings())
-            ? OptionalInt.of(Math.toIntExact(getSetting(RESUMABLE_WRITE_BUFFER, metadata).getBytes()))
+        this.resumableWriteBufferSize = RESUMABLE_WRITE_BUFFER_SIZE.exists(metadata.settings())
+            ? OptionalInt.of(Math.toIntExact(getSetting(RESUMABLE_WRITE_BUFFER_SIZE, metadata).getBytes()))
             : OptionalInt.empty();
         this.dataStorageClass = DATA_STORAGE_CLASS.get(metadata.settings());
         this.metadataStorageClass = METADATA_STORAGE_CLASS.get(metadata.settings());
@@ -202,7 +202,7 @@ class GoogleCloudStorageRepository extends MeteredBlobStoreRepository {
             storageService,
             bigArrays,
             bufferSize,
-            resumableWriteBuffer,
+            resumableWriteBufferSize,
             BackoffPolicy.linearBackoff(retryThrottledCasDelayIncrement, retryThrottledCasMaxNumberOfRetries, retryThrottledCasMaxDelay),
             statsCollector,
             dataStorageClass,
@@ -220,8 +220,8 @@ class GoogleCloudStorageRepository extends MeteredBlobStoreRepository {
     }
 
     // package private for testing
-    OptionalInt getResumableWriteBuffer() {
-        return resumableWriteBuffer;
+    OptionalInt getResumableWriteBufferSize() {
+        return resumableWriteBufferSize;
     }
 
     /**

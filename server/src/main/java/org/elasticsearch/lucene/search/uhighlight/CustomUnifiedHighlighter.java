@@ -188,6 +188,9 @@ public final class CustomUnifiedHighlighter extends UnifiedHighlighter {
         PassageFormatter passageFormatter,
         Comparator<Passage> passageSortComparator
     ) {
+        // Integer.MAX_VALUE - 1 is used by DefaultHighlighter to represent number_of_fragments: 0
+        boolean isZeroFragmentsRequested = (maxPassages == Integer.MAX_VALUE - 1);
+
         return new CustomFieldHighlighter(
             field,
             fieldOffsetStrategy,
@@ -199,7 +202,8 @@ public final class CustomUnifiedHighlighter extends UnifiedHighlighter {
             getFormatter(field),
             passageSortComparator,
             noMatchSize,
-            queryMaxAnalyzedOffset
+            queryMaxAnalyzedOffset,
+            (noMatchSize > 0 && isZeroFragmentsRequested)
         );
     }
 

@@ -123,6 +123,27 @@ public class CustomUnifiedHighlighterTests extends ESTestCase {
         Integer queryMaxAnalyzedOffset,
         UnifiedHighlighter.OffsetSource offsetSource
     ) throws Exception {
+        assertHighlightOneDoc(
+            fieldName, inputs, analyzer, query, locale, breakIterator,
+            noMatchSize, expectedPassages, expectedPassages.length,
+            maxAnalyzedOffset, queryMaxAnalyzedOffset, offsetSource
+        );
+    }
+
+    private void assertHighlightOneDoc(
+        String fieldName,
+        String[] inputs,
+        Analyzer analyzer,
+        Query query,
+        Locale locale,
+        BreakIterator breakIterator,
+        int noMatchSize,
+        String[] expectedPassages,
+        int maxPassages,
+        int maxAnalyzedOffset,
+        Integer queryMaxAnalyzedOffset,
+        UnifiedHighlighter.OffsetSource offsetSource
+    ) throws Exception {
         try (Directory dir = newDirectory()) {
             IndexWriterConfig iwc = newIndexWriterConfig(analyzer);
             iwc.setMergePolicy(newTieredMergePolicy(random()));
@@ -155,7 +176,7 @@ public class CustomUnifiedHighlighterTests extends ESTestCase {
                     "text",
                     query,
                     noMatchSize,
-                    expectedPassages.length,
+                    maxPassages,
                     maxAnalyzedOffset,
                     QueryMaxAnalyzedOffset.create(queryMaxAnalyzedOffset, maxAnalyzedOffset),
                     true,
@@ -563,6 +584,38 @@ public class CustomUnifiedHighlighterTests extends ESTestCase {
             47,
             randomOffset,
             offsetSource
+        );
+    }
+
+    public void testReturnNonMatchingWhenMultivalued() throws Exception {
+        final String[] inputs = { "This is the first sentence.", "This is the second sentence.", "This is the third sentence." };
+        
+        // We only match "second" which is in the middle value
+        Query query = new TermQuery(new Term("text", "second"));
+        
+        // We set noMatchSize=20, so the non-matching values ("first" and "third") should be returned truncated
+        // and the matching value should be highlighted.
+        // 20 chars of "This is the first sentence." = "This is the first "
+        // The sentence break iterator should truncate to "This is the first"
+        String[] expectedPassages = {
+            "This is the first sentence",
+            "This is the <b>second</b> sentence.",
+            "This is the third sentence"
+        };
+        
+        assertHighlightOneDoc(
+            "text",
+            inputs,
+            new StandardAnalyzer(),
+            query,
+            Locale.ROOT,
+            BreakIterator.getSentenceInstance(Locale.ROOT),
+            20,
+            expectedPassages,
+            Integer.MAX_VALUE - 1, // maxPassages
+            Integer.MAX_VALUE, // maxAnalyzedOffset
+            null,              // queryMaxAnalyzedOffset
+            UnifiedHighlighter.OffsetSource.ANALYSIS
         );
     }
 }

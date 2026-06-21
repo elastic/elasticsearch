@@ -227,17 +227,17 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
         assertEquals("failed to parse value [6tb] for setting [chunk_size], must be <= [5tb]", e.getMessage());
     }
 
-    public void testResumableWriteBuffer() {
+    public void testResumableWriteBufferSize() {
         // default: not configured
         RepositoryMetadata repositoryMetadata = new RepositoryMetadata("repo", GoogleCloudStorageRepository.TYPE, Settings.EMPTY);
         assertFalse(GoogleCloudStorageRepository.RESUMABLE_WRITE_BUFFER_SIZE.exists(repositoryMetadata.settings()));
 
         // when set: value is read correctly
-        final int sizeMb = randomIntBetween(1, 15);
+        final int sizeMb = randomIntBetween(1, 100);
         repositoryMetadata = new RepositoryMetadata(
             "repo",
             GoogleCloudStorageRepository.TYPE,
-            Settings.builder().put("resumable_write_buffer", sizeMb + "mb").build()
+            Settings.builder().put("resumable_write_buffer_size", sizeMb + "mb").build()
         );
         assertEquals(
             ByteSizeValue.ofMb(sizeMb),
@@ -249,18 +249,18 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
             final RepositoryMetadata repoMetadata = new RepositoryMetadata(
                 "repo",
                 GoogleCloudStorageRepository.TYPE,
-                Settings.builder().put("resumable_write_buffer", "1kb").build()
+                Settings.builder().put("resumable_write_buffer_size", "1kb").build()
             );
             GoogleCloudStorageRepository.getSetting(GoogleCloudStorageRepository.RESUMABLE_WRITE_BUFFER_SIZE, repoMetadata);
         });
-        assertEquals("failed to parse value [1kb] for setting [resumable_write_buffer], must be >= [128kb]", e.getMessage());
+        assertEquals("failed to parse value [1kb] for setting [resumable_write_buffer_size], must be >= [128kb]", e.getMessage());
 
-        // above max (SDK default, 16 MB)
+        // above max 100 MB
         e = expectThrows(IllegalArgumentException.class, () -> {
             final RepositoryMetadata repoMetadata = new RepositoryMetadata(
                 "repo",
                 GoogleCloudStorageRepository.TYPE,
-                Settings.builder().put("resumable_write_buffer", "17mb").build()
+                Settings.builder().put("resumable_write_buffer_size", "101mb").build()
             );
             GoogleCloudStorageRepository.getSetting(GoogleCloudStorageRepository.RESUMABLE_WRITE_BUFFER_SIZE, repoMetadata);
         });

@@ -218,6 +218,9 @@ public abstract class LuceneOperator extends SourceOperator {
     protected void additionalClose() { /* Override this method to add any additional cleanup logic if needed */ }
 
     LuceneScorer getCurrentOrLoadNextScorer() {
+        if (doneCollecting) {
+            return null;
+        }
         for (;;) {
             SubscribableListener<Void> sliceBlocked = null;
             while (currentScorer == null || currentScorer.isDone()) {

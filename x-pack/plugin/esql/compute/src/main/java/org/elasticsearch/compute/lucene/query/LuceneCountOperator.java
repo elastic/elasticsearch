@@ -22,7 +22,6 @@ import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.IndexedByShardId;
 import org.elasticsearch.compute.lucene.ShardContext;
-import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.core.RefCounted;
@@ -106,7 +105,7 @@ public class LuceneCountOperator extends LuceneOperator {
 
     @Override
     public boolean isFinished() {
-        return doneCollecting || remainingDocs == 0;
+        return doneCollecting || remainingDocs <= 0;
     }
 
     @Override
@@ -116,36 +115,19 @@ public class LuceneCountOperator extends LuceneOperator {
 
     @Override
     protected Page getCheckedOutput() throws IOException {
-        if (isFinished()) {
-            assert remainingDocs <= 0 : remainingDocs;
-            return null;
-        }
         long start = System.nanoTime();
         try {
-            while (remainingDocs > 0) {
-                final LuceneScorer scorer = getCurrentOrLoadNextScorer();
-                if (scorer == null) {
-                    remainingDocs = 0;
-                } else {
-                    count(scorer);
-                }
-
-                // Check if the query has been cancelled.
-                driverContext.checkForEarlyTermination();
-                // Even if this should almost never happen, we want to update the driver status even when a query runs "forever".
-                if (System.nanoTime() - start > Driver.DEFAULT_STATUS_INTERVAL.getNanos()) {
-                    break;
-                }
+            final LuceneScorer scorer = getCurrentOrLoadNextScorer();
+            if (scorer != null && remainingDocs > 0) {
+                count(scorer);
             }
-
-            if (remainingDocs <= 0) {
+            if (isFinished()) {
                 return buildResult();
-            } else {
-                return null;
             }
         } finally {
             processingNanos += System.nanoTime() - start;
         }
+        return null;
     }
 
     private void count(LuceneScorer scorer) throws IOException {
@@ -168,19 +150,22 @@ public class LuceneCountOperator extends LuceneOperator {
             }
         }
         // could not apply shortcut, trigger the search
-        // TODO: avoid iterating all documents in multiple calls to make cancellation more responsive.
-        scorer.scoreNextRange(state, leafReaderContext.reader().getLiveDocs(), remainingDocs);
+        scorer.scoreNextRange(state, leafReaderContext.reader().getLiveDocs(), Math.min(remainingDocs, 4096));
     }
 
     private Page buildResult() {
-        return switch (tagsToState.size()) {
-            case 0 -> null;
-            case 1 -> {
-                Map.Entry<List<Object>, PerTagsState> e = tagsToState.entrySet().iterator().next();
-                yield buildConstantBlocksResult(e.getKey(), e.getValue());
-            }
-            default -> buildNonConstantBlocksResult();
-        };
+        try {
+            return switch (tagsToState.size()) {
+                case 0 -> null;
+                case 1 -> {
+                    Map.Entry<List<Object>, PerTagsState> e = tagsToState.entrySet().iterator().next();
+                    yield buildConstantBlocksResult(e.getKey(), e.getValue());
+                }
+                default -> buildNonConstantBlocksResult();
+            };
+        } finally {
+            tagsToState.clear();
+        }
     }
 
     private Page buildConstantBlocksResult(List<Object> tags, PerTagsState state) {

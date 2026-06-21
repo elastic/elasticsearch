@@ -45,6 +45,10 @@ public class VariableWidthHistogramAggregationBuilder extends ValuesSourceAggreg
 
     private static final ParseField SHARD_SIZE_FIELD = new ParseField("shard_size");
 
+    private static final TransportVersion VARIABLE_WIDTH_HISTOGRAM_SHARD_SIZE = TransportVersion.fromName(
+        "variable_width_histogram_shard_size"
+    );
+
     public static final ObjectParser<VariableWidthHistogramAggregationBuilder, String> PARSER = ObjectParser.fromBuilder(
         NAME,
         VariableWidthHistogramAggregationBuilder::new
@@ -73,6 +77,10 @@ public class VariableWidthHistogramAggregationBuilder extends ValuesSourceAggreg
     public VariableWidthHistogramAggregationBuilder(StreamInput in) throws IOException {
         super(in);
         numBuckets = in.readVInt();
+        if (in.getTransportVersion().supports(VARIABLE_WIDTH_HISTOGRAM_SHARD_SIZE)) {
+            shardSize = in.readInt();
+            initialBuffer = in.readInt();
+        }
     }
 
     protected VariableWidthHistogramAggregationBuilder(
@@ -82,6 +90,8 @@ public class VariableWidthHistogramAggregationBuilder extends ValuesSourceAggreg
     ) {
         super(clone, factoriesBuilder, metaData);
         this.numBuckets = clone.numBuckets;
+        this.shardSize = clone.shardSize;
+        this.initialBuffer = clone.initialBuffer;
     }
 
     @Override
@@ -141,6 +151,10 @@ public class VariableWidthHistogramAggregationBuilder extends ValuesSourceAggreg
     @Override
     protected void innerWriteTo(StreamOutput out) throws IOException {
         out.writeVInt(numBuckets);
+        if (out.getTransportVersion().supports(VARIABLE_WIDTH_HISTOGRAM_SHARD_SIZE)) {
+            out.writeInt(shardSize);
+            out.writeInt(initialBuffer);
+        }
     }
 
     @Override
@@ -208,6 +222,12 @@ public class VariableWidthHistogramAggregationBuilder extends ValuesSourceAggreg
     @Override
     protected XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
         builder.field(NUM_BUCKETS_FIELD.getPreferredName(), numBuckets);
+        if (shardSize != -1) {
+            builder.field(SHARD_SIZE_FIELD.getPreferredName(), shardSize);
+        }
+        if (initialBuffer != -1) {
+            builder.field(INITIAL_BUFFER_FIELD.getPreferredName(), initialBuffer);
+        }
         return builder;
     }
 

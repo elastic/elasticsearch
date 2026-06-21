@@ -1,0 +1,6 @@
+pr: 151796
+summary: Fix `variable_width_histogram` ignoring `shard_size` and `initial_buffer`
+area: Aggregations
+type: bug
+issues:
+ - 151795

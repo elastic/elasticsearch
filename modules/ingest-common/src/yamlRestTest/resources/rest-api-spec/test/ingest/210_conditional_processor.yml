@@ -223,6 +223,133 @@ teardown:
       catch: missing
 
 ---
+"Test conditional processor can access ingest metadata provided by foreach":
+  - requires:
+      cluster_features: [ "ingest.painless.ingest_metadata" ]
+      reason: "Accesses ingest metadata from Painless"
+
+  - do:
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        body:  >
+          {
+            "processors": [
+              {
+                "foreach": {
+                  "field": "values",
+                  "processor": {
+                    "set": {
+                      "if": "ctx._ingest._value == 'bar'",
+                      "field": "matched",
+                      "value": true
+                    }
+                  }
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      index:
+        index: test
+        id: "foreach_conditional"
+        pipeline: "my_pipeline"
+        body: { values: [ "foo", "bar", "baz" ] }
+
+  - do:
+      get:
+        index: test
+        id: "foreach_conditional"
+  - match: { _source.values: [ "foo", "bar", "baz" ] }
+  - match: { _source.matched: true }
+
+---
+"Test conditional processor ingest metadata is read-only":
+  - requires:
+      cluster_features: [ "ingest.painless.ingest_metadata" ]
+      reason: "Accesses ingest metadata from Painless"
+
+  - do:
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        body:  >
+          {
+            "processors": [
+              {
+                "foreach": {
+                  "field": "values",
+                  "processor": {
+                    "set": {
+                      "if": "ctx._ingest._value = 'changed'; return true",
+                      "field": "matched",
+                      "value": true
+                    }
+                  }
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      catch: bad_request
+      index:
+        index: test
+        id: "foreach_conditional_read_only"
+        pipeline: "my_pipeline"
+        body: { values: [ "foo" ] }
+  - match: { error.caused_by.type: "unsupported_operation_exception" }
+  - match: { error.caused_by.reason: "Mutating ingest documents in conditionals is not supported" }
+
+---
+"Test conditional field API can access ingest metadata":
+  # While the script processor uses only source fields for field() access, the conditional processor's Fields API
+  # implementation uses the full ctx map. So for the conditional processor, field() will return document metadata
+  # as well as actual source fields, and for the _ingest key it will return ingest metadata, rather than a value
+  # from the source.
+  - requires:
+      cluster_features: [ "ingest.painless.ingest_metadata" ]
+      reason: "Accesses ingest metadata from Painless"
+
+  - do:
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        body:  >
+          {
+            "processors": [
+              {
+                "foreach": {
+                  "field": "values",
+                  "processor": {
+                    "set": {
+                      "if": "field('_ingest._value').get(null) == 'foo'",
+                      "field": "matched",
+                      "value": true
+                    }
+                  }
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      index:
+        index: test
+        id: "foreach_conditional_field_api"
+        pipeline: "my_pipeline"
+        body: { _ingest: { _value: "source" }, values: [ "foo" ] }
+
+  - do:
+      get:
+        index: test
+        id: "foreach_conditional_field_api"
+  - match: { _source._ingest._value: "source" }
+  - match: { _source.values: [ "foo" ] }
+  - match: { _source.matched: true }
+
+---
 "Test conditionals support params and statements":
   - do:
       ingest.put_pipeline:

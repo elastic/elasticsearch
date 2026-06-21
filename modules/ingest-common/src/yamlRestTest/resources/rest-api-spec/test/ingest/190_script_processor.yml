@@ -558,3 +558,130 @@ teardown:
             usage: 456
           - name: id-789
             usage: 789
+
+---
+"Test script processor can access ingest metadata provided by foreach":
+  - requires:
+      cluster_features: [ "ingest.painless.ingest_metadata" ]
+      reason: "Accesses ingest metadata from Painless"
+
+  - do:
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        body:  >
+          {
+            "processors": [
+              {
+                "foreach": {
+                  "field": "values",
+                  "processor": {
+                    "script": {
+                      "source": "ctx._ingest._value = ctx._ingest._value.toUpperCase()"
+                    }
+                  }
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      index:
+        index: test
+        id: "foreach_script"
+        pipeline: "my_pipeline"
+        body: { values: [ "foo", "bar" ] }
+
+  - do:
+      get:
+        index: test
+        id: "foreach_script"
+  - match: { _source.values: [ "FOO", "BAR" ] }
+
+---
+"Test script processor can access ingest metadata in nested foreach processors":
+  # The processor for the inner list foreach sees the key from the outer map foreach,
+  # but each modified value is put back in the right place.
+  - requires:
+      cluster_features: [ "ingest.painless.ingest_metadata" ]
+      reason: "Accesses ingest metadata from Painless"
+
+  - do:
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        body:  >
+          {
+            "processors": [
+              {
+                "foreach": {
+                  "field": "values",
+                  "processor": {
+                    "foreach": {
+                      "field": "_ingest._value",
+                      "processor": {
+                        "script": {
+                          "source": "ctx._ingest._key = ctx._ingest?._key?.toUpperCase(); ctx._ingest._value = ctx._ingest._value.toUpperCase();"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      index:
+        index: test
+        id: "nested_foreach_script"
+        pipeline: "my_pipeline"
+        body: { values: { "key1": [ "foo", "bar" ], "key2": [ "baz" ] } }
+
+  - do:
+      get:
+        index: test
+        id: "nested_foreach_script"
+  - match: { _source.values: { "KEY1": [ "FOO", "BAR" ], "KEY2": [ "BAZ" ] } }
+
+---
+"Test script processor ingest metadata and source _ingest field access":
+  - requires:
+      cluster_features: [ "ingest.painless.ingest_metadata" ]
+      reason: "Accesses ingest metadata from Painless"
+
+  - do:
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        body:  >
+          {
+            "processors": [
+              {
+                "script": {
+                  "source": "ctx._ingest.foo = 'ingest-metadata'; ctx._ingest = 'source-value'; field('_ingest_seen_by_field_api').set(field('_ingest').get(null));"
+                }
+              },
+              {
+                "set": {
+                  "field": "ingest_metadata_foo",
+                  "value": "{{_ingest.foo}}"
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      index:
+        index: test
+        id: "script_ingest_metadata_and_source"
+        pipeline: "my_pipeline"
+        body: { field: "value" }
+
+  - do:
+      get:
+        index: test
+        id: "script_ingest_metadata_and_source"
+  - match: { _source._ingest: "source-value" }
+  - match: { _source._ingest_seen_by_field_api: "source-value" }
+  - match: { _source.ingest_metadata_foo: "ingest-metadata" }

@@ -145,12 +145,68 @@ public class ConditionalProcessorTests extends ESTestCase {
         assertMutatingCtxThrows(ctx -> ((List<Object>) ctx.get("listField")).remove("bar"));
         assertMutatingCtxThrows(ctx -> ((Map<String, Object>) ctx.get("mapField")).put("bar", "baz"));
         assertMutatingCtxThrows(ctx -> ((Map<?, ?>) ctx.get("mapField")).remove("bar"));
+        assertMutatingCtxThrows(ctx -> ((Map<String, Object>) ctx.get("_ingest")).put("_value", "changed"));
+        assertMutatingCtxThrows(ctx -> ((Map<?, ?>) ctx.get("_ingest")).remove("_value"));
         assertMutatingCtxThrows(ctx -> ((Set<Object>) ctx.get("setField")).add("bar"));
         assertMutatingCtxThrows(ctx -> ((Set<Object>) ctx.get("setField")).remove("bar"));
         assertMutatingCtxThrows(ctx -> ((List<Object>) ((Set<Object>) ctx.get("setField")).iterator().next()).add("bar"));
         assertMutatingCtxThrows(
             ctx -> ((List<Object>) ((List<Object>) ((Set<Object>) ctx.get("setField")).iterator().next()).iterator().next()).add("bar")
         );
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testCanReadIngestMetadata() throws Exception {
+        ScriptService scriptService = new ScriptService(
+            Settings.builder().build(),
+            Map.of(Script.DEFAULT_SCRIPT_LANG, new MockScriptEngine(Script.DEFAULT_SCRIPT_LANG, Map.of(scriptName, ctx -> {
+                Map<String, Object> ingest = (Map<String, Object>) ctx.get("_ingest");
+                return "value".equals(ingest.get("_value")) && "key".equals(ingest.get("_key"));
+            }), Map.of())),
+            new HashMap<>(ScriptModule.CORE_CONTEXTS),
+            () -> 1L,
+            TestProjectResolvers.singleProject(randomProjectIdOrDefault())
+        );
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
+        ingestDocument.getIngestMetadata().put("_value", "value");
+        ingestDocument.getIngestMetadata().put("_key", "key");
+        ConditionalProcessor processor = new ConditionalProcessor(
+            randomAlphaOfLength(10),
+            "description",
+            new Script(ScriptType.INLINE, Script.DEFAULT_SCRIPT_LANG, scriptName, Map.of()),
+            scriptService,
+            new TestProcessor(doc -> doc.setFieldValue("matched", true))
+        );
+
+        execProcessor(processor, ingestDocument, (result, e) -> {});
+
+        assertThat(ingestDocument.getFieldValue("matched", Boolean.class), equalTo(true));
+    }
+
+    public void testFieldApiCurrentlyReadsIngestMetadata() throws Exception {
+        ScriptService scriptService = MockScriptService.singleContext(
+            IngestConditionalScript.CONTEXT,
+            code -> (params, ctxMap) -> new IngestConditionalScript(params, ctxMap) {
+                @Override
+                public boolean execute() {
+                    return "value".equals(field("_ingest._value").get(null));
+                }
+            },
+            Map.of()
+        );
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
+        ingestDocument.getIngestMetadata().put("_value", "value");
+        ConditionalProcessor processor = new ConditionalProcessor(
+            randomAlphaOfLength(10),
+            "description",
+            new Script(ScriptType.INLINE, "lang", "foo", Map.of()),
+            scriptService,
+            new TestProcessor(doc -> doc.setFieldValue("matched", true))
+        );
+
+        execProcessor(processor, ingestDocument, (result, e) -> {});
+
+        assertThat(ingestDocument.getFieldValue("matched", Boolean.class), equalTo(true));
     }
 
     public void testPrecompiledError() {
@@ -234,6 +290,7 @@ public class ConditionalProcessorTests extends ESTestCase {
         ingestDocument.setFieldValue("listField", new ArrayList<>());
         ingestDocument.setFieldValue("mapField", new HashMap<>());
         ingestDocument.setFieldValue("setField", new HashSet<>());
+        ingestDocument.getIngestMetadata().put("_value", "value");
         List<Object> listWithinSet = new ArrayList<>();
         listWithinSet.add(new ArrayList<>());
         ingestDocument.getFieldValue("setField", Set.class).add(listWithinSet);

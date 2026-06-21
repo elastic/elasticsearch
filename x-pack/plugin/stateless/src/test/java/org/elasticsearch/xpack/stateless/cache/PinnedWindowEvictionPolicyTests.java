@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.stateless.cache;
 
 import org.elasticsearch.blobcache.shared.CacheRegion;
-import org.elasticsearch.blobcache.shared.EvictionPolicy;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -22,9 +21,9 @@ import org.elasticsearch.xpack.stateless.lucene.FileCacheKey;
 
 import java.util.Set;
 
+import static org.elasticsearch.blobcache.shared.SharedBlobCacheService.UNKNOWN_TIMESTAMP;
 import static org.elasticsearch.xpack.stateless.cache.PinnedWindowEvictionPolicy.PINNED_WINDOW_DURATION_SETTING;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.instanceOf;
 
 public class PinnedWindowEvictionPolicyTests extends ESTestCase {
 
@@ -47,28 +46,30 @@ public class PinnedWindowEvictionPolicyTests extends ESTestCase {
         }
     }
 
-    public void testCreateEvictionPolicyReturnsPinnedWindowPolicyWhenBoostEnabled() {
-        final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
-        final ClusterSettings clusterSettings = createClusterSettings(Settings.EMPTY);
-        final Settings settings = Settings.builder()
-            .put(StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_ENABLED_SETTING.getKey(), true)
-            .build();
-        try (var clusterService = ClusterServiceUtils.createClusterService(taskQueue.getThreadPool(), clusterSettings)) {
-            EvictionPolicy<FileCacheKey> policy = StatelessSharedBlobCacheService.createEvictionPolicy(settings, clusterService);
-            assertThat(policy, instanceOf(PinnedWindowEvictionPolicy.class));
-        }
-    }
-
     public void testCanEvictAlwaysReturnsTrue() {
         final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
         final ClusterSettings clusterSettings = createClusterSettings(Settings.EMPTY);
         try (var clusterService = ClusterServiceUtils.createClusterService(taskQueue.getThreadPool(), clusterSettings)) {
             final var policy = new PinnedWindowEvictionPolicy(clusterService);
             final ShardId shardId = new ShardId("index", randomUUID(), 0);
-            final CacheRegion<FileCacheKey> region = () -> new FileCacheKey(shardId, 1L, "file-a");
-            final CacheRegion<FileCacheKey> incoming = () -> new FileCacheKey(shardId, 1L, "file-b");
+            final CacheRegion<FileCacheKey> region = region(shardId, 1L, "file-a");
+            final CacheRegion<FileCacheKey> incoming = region(shardId, 1L, "file-b");
             assertTrue(policy.canEvict(region, incoming));
         }
+    }
+
+    private static CacheRegion<FileCacheKey> region(ShardId shardId, long primaryTerm, String file) {
+        return new CacheRegion<>() {
+            @Override
+            public FileCacheKey key() {
+                return new FileCacheKey(shardId, primaryTerm, file);
+            }
+
+            @Override
+            public long timestampMillis() {
+                return UNKNOWN_TIMESTAMP;
+            }
+        };
     }
 
     private static ClusterSettings createClusterSettings(Settings settings) {

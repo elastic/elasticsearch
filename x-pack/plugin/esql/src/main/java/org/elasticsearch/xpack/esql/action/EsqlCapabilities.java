@@ -301,6 +301,20 @@ public class EsqlCapabilities {
         OPTIONAL_FIELDS_FIX_LOAD_PARTIALLY_MAPPED,
 
         /**
+         * Implicit casting of PUNKs that have two types (or legs): KEYWORD by virtue of loading from _source, and exactly one other type
+         * where mapped.
+         *
+         * See https://github.com/elastic/elasticsearch/issues/141995
+         */
+        OPTIONAL_FIELDS_UNMAPPED_LOAD_AUTO_CAST_TWO_LEGGED_PUNKS,
+
+        /**
+         * Fix for a {@code ClassCastException} when an explicitly cast or implicitly widened partially unmapped small numeric field.
+         * See https://github.com/elastic/elasticsearch/issues/151525.
+         */
+        OPTIONAL_FIELDS_FIX_PARTIALLY_UNMAPPED_SMALL_NUMERIC,
+
+        /**
          * Support specifically for *just* the _index METADATA field. Used by CsvTests, since that is the only metadata field currently
          * supported.
          */
@@ -472,6 +486,18 @@ public class EsqlCapabilities {
          * mapped sub-keys and returns {@code null}.
          */
         FIELD_EXTRACT_MAPPED_SUBFIELD_RETURNS_VALUE(Build.current().isSnapshot()),
+
+        /**
+         * A {@code flattened} root that declares mapped sub-fields (e.g. {@code KEEP attributes}) is always loaded
+         * from {@code _source}, producing one canonical stringly-typed blob on every loading path: every leaf is a
+         * string (a mapped {@code long} sub-field reads back as {@code "200"}, not the native {@code 200}) and every
+         * key is present, including a bare {@code text} sub-field that has no doc values and so could never be rebuilt
+         * by the doc-values root loader. Direct access to the typed sub-field column (e.g. {@code attributes.status_code}
+         * or {@code attributes.message}) is unaffected and still returns the native value. Tests that pin this blob
+         * shape must require this capability so they skip on mixed clusters where an older data node still builds the
+         * root from doc values, rendering mapped sub-fields with their native type and dropping a bare text sub-field.
+         */
+        FLATTENED_ROOT_STRINGIFIES_MAPPED_SUBFIELDS(Build.current().isSnapshot()),
 
         /**
          * Optimization for ST_CENTROID changed some results in cartesian data. #108713
@@ -2363,6 +2389,12 @@ public class EsqlCapabilities {
         ENABLE_REDUCE_NODE_LATE_MATERIALIZATION,
 
         /**
+         * Fix stale row-stride reader state when a conditional block loader uses column-at-a-time loading after row-stride loading
+         * across segments.
+         */
+        FIX_VALUES_READER_STALE_ROW_STRIDE_READER,
+
+        /**
          * {@link ReplaceStatsFilteredOrNullAggWithEval} now replaces an
          * {@link org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction} with null value with an
          * {@link org.elasticsearch.xpack.esql.plan.logical.Eval}.
@@ -3125,6 +3157,11 @@ public class EsqlCapabilities {
          * Support for PromQL {@code histogram_quantile()} over classic histograms with {@code le} buckets.
          */
         PROMQL_HISTOGRAM_QUANTILE,
+
+        /**
+         * Support for the top-level PromQL {@code or} (UNION) set operator between two instant vectors.
+         */
+        PROMQL_SET_OPERATOR_UNION,
 
         /**
          * Support for PromQL {@code histogram_quantile()} over classic histograms where {@code le} is not an explicit

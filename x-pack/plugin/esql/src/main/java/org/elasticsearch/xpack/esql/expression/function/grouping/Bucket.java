@@ -493,15 +493,17 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
                 "date_period",
                 "time_duration"
             );
-            // from != null catches the explicit-range form with a temporal-amount span:
-            // BUCKET(@timestamp, 1 day, "2023-01-01", "2024-01-01"). Without this, such
-            // a call would fall through to the 2-arg path and fail to validate from/to.
+            // 4-arg: integer-bucket count (whole number) always needs a range; temporal-amount
+            // span also needs a range when from != null (e.g. BUCKET(@timestamp, 1 day,
+            // "2023-01-01", "2024-01-01")). Without the from != null guard, the temporal-amount
+            // +explicit-range form would fall through to the 2-arg path and skip validating from/to.
             if (bucketsType.isWholeNumber() || from != null) {
                 return resolution.and(checkArgsCount(4))
                     .and(() -> isStringOrDate(from, sourceText(), THIRD))
                     .and(() -> isStringOrDate(to, sourceText(), FOURTH));
             }
-            return resolution.and(checkArgsCount(2));  // temporal amount
+            // 2-arg: temporal-amount span with no explicit range, e.g. BUCKET(@timestamp, 1 day)
+            return resolution.and(checkArgsCount(2));
         }
         if (fieldType.isNumeric()) {
             return isNumeric(buckets, sourceText(), SECOND).and(() -> {

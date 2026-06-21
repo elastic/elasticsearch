@@ -179,12 +179,15 @@ public class StatelessMergePreWarmingIT extends AbstractStatelessPluginIntegTest
                 long position,
                 long length
             ) throws IOException {
+                logger.info("---> blob name {} and thread {}", blobName, Thread.currentThread().getName());
                 assert (blobName.equals(bccToUpload)
                     && Thread.currentThread().getName().contains(StatelessPlugin.PREWARM_THREAD_POOL)) == false
                     : "Unexpected read from the pre-warmed thread";
                 return super.blobContainerReadBlob(originalSupplier, purpose, blobName, position, length);
             }
         });
+
+        logger.info("---> bcc to upload {}", bccToUpload);
 
         var flushFuture = indicesAdmin().prepareFlush(indexName).execute();
 
@@ -205,6 +208,11 @@ public class StatelessMergePreWarmingIT extends AbstractStatelessPluginIntegTest
         // Let the upload continue and wait until it finishes
         blockUploadLatch.countDown();
         flushFuture.actionGet();
+        logger.info("---> upload done");
+
+        Thread.sleep(3000);
+
+        logger.info("---> Update request starts");
 
         // Send an update request that would require reading from the cache
         var updateBulkRequest = new BulkRequest();

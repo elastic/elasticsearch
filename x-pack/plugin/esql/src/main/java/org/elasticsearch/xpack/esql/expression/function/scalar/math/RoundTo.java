@@ -252,6 +252,11 @@ public class RoundTo extends EsqlScalarFunction implements BlockLoaderExpression
         if (ROUND_TO_BLOCK_LOADER.isEnabled() == false) {
             return null;
         }
+        if (convention != DOWN) {
+            // Block-loader pushdown does not pass the rounding convention, so UP rounds
+            // would silently use DOWN semantics. Disable pushdown for non-default conventions.
+            return null;
+        }
         if (field instanceof FieldAttribute f) {
             DataType dt = dataType();
             if (dt != LONG && dt != DATETIME && dt != DATE_NANOS) {

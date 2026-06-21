@@ -473,7 +473,16 @@ $endif$
     }
 
     @Evaluator(extraName = "7Up")
-    static $type$ processUp($type$ field, @Fixed $type$ p0, @Fixed $type$ p1, @Fixed $type$ p2, @Fixed $type$ p3, @Fixed $type$ p4, @Fixed $type$ p5, @Fixed $type$ p6) {
+    static $type$ processUp(
+        $type$ field,
+        @Fixed $type$ p0,
+        @Fixed $type$ p1,
+        @Fixed $type$ p2,
+        @Fixed $type$ p3,
+        @Fixed $type$ p4,
+        @Fixed $type$ p5,
+        @Fixed $type$ p6
+    ) {
         if (field <= p0) return p0;
         if (field <= p1) return p1;
         if (field <= p2) return p2;
@@ -484,7 +493,17 @@ $endif$
     }
 
     @Evaluator(extraName = "8Up")
-    static $type$ processUp($type$ field, @Fixed $type$ p0, @Fixed $type$ p1, @Fixed $type$ p2, @Fixed $type$ p3, @Fixed $type$ p4, @Fixed $type$ p5, @Fixed $type$ p6, @Fixed $type$ p7) {
+    static $type$ processUp(
+        $type$ field,
+        @Fixed $type$ p0,
+        @Fixed $type$ p1,
+        @Fixed $type$ p2,
+        @Fixed $type$ p3,
+        @Fixed $type$ p4,
+        @Fixed $type$ p5,
+        @Fixed $type$ p6,
+        @Fixed $type$ p7
+    ) {
         if (field <= p0) return p0;
         if (field <= p1) return p1;
         if (field <= p2) return p2;
@@ -496,7 +515,18 @@ $endif$
     }
 
     @Evaluator(extraName = "9Up")
-    static $type$ processUp($type$ field, @Fixed $type$ p0, @Fixed $type$ p1, @Fixed $type$ p2, @Fixed $type$ p3, @Fixed $type$ p4, @Fixed $type$ p5, @Fixed $type$ p6, @Fixed $type$ p7, @Fixed $type$ p8) {
+    static $type$ processUp(
+        $type$ field,
+        @Fixed $type$ p0,
+        @Fixed $type$ p1,
+        @Fixed $type$ p2,
+        @Fixed $type$ p3,
+        @Fixed $type$ p4,
+        @Fixed $type$ p5,
+        @Fixed $type$ p6,
+        @Fixed $type$ p7,
+        @Fixed $type$ p8
+    ) {
         if (field <= p0) return p0;
         if (field <= p1) return p1;
         if (field <= p2) return p2;
@@ -511,8 +541,16 @@ $endif$
     @Evaluator(extraName = "10Up")
     static $type$ processUp(
         $type$ field,
-        @Fixed $type$ p0, @Fixed $type$ p1, @Fixed $type$ p2, @Fixed $type$ p3, @Fixed $type$ p4,
-        @Fixed $type$ p5, @Fixed $type$ p6, @Fixed $type$ p7, @Fixed $type$ p8, @Fixed $type$ p9
+        @Fixed $type$ p0,
+        @Fixed $type$ p1,
+        @Fixed $type$ p2,
+        @Fixed $type$ p3,
+        @Fixed $type$ p4,
+        @Fixed $type$ p5,
+        @Fixed $type$ p6,
+        @Fixed $type$ p7,
+        @Fixed $type$ p8,
+        @Fixed $type$ p9
     ) {
         if (field <= p0) return p0;
         if (field <= p1) return p1;

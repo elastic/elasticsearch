@@ -73,7 +73,7 @@ public class APMMeterService extends AbstractLifecycleComponent {
      * Returns {@link MeterProvider#noop()} when the OTel SDK path is not active.
      */
     MeterProvider getHealthMeterProvider() {
-        return otelMeterSupplier.getHealthMeterProvider();
+        return otelMeterSupplier.getMeterProvider();
     }
 
     /**

@@ -15,7 +15,6 @@ plugins {
   id 'groovy-gradle-plugin'
   id 'groovy'
   id 'elasticsearch.build-tools'
-  id 'elasticsearch.eclipse'
   id 'elasticsearch.versions'
   id 'elasticsearch.formatting'
 }
@@ -39,10 +38,6 @@ gradlePlugin {
     buildComplete {
       id = 'elasticsearch.build-complete'
       implementationClass = 'org.elasticsearch.gradle.internal.ElasticsearchBuildCompletePlugin'
-    }
-    taskStatusTracker {
-      id = 'elasticsearch.task-status-tracker'
-      implementationClass = 'org.elasticsearch.gradle.internal.ci.TaskStatusTrackerPlugin'
     }
     componentMetadataRules {
       id = 'elasticsearch.component-metadata-rules'
@@ -156,6 +151,10 @@ gradlePlugin {
       id = 'elasticsearch.mrjar'
       implementationClass = 'org.elasticsearch.gradle.internal.MrjarPlugin'
     }
+    foreignLibrary {
+      id = 'elasticsearch.foreign-library'
+      implementationClass = 'org.elasticsearch.gradle.internal.foreign.ForeignLibraryPlugin'
+    }
     embeddedProvider {
       id = 'elasticsearch.embedded-providers'
       implementationClass = 'org.elasticsearch.gradle.internal.EmbeddedProviderPlugin'
@@ -187,10 +186,6 @@ gradlePlugin {
     stringTemplate {
        id = 'elasticsearch.string-templates'
        implementationClass = 'org.elasticsearch.gradle.internal.StringTemplatePlugin'
-    }
-    testFixtures {
-      id = 'elasticsearch.test.fixtures'
-      implementationClass = 'org.elasticsearch.gradle.internal.testfixtures.TestFixturesPlugin'
     }
     deployTestFixtures {
       id = 'elasticsearch.deploy-test-fixtures'

@@ -28,6 +28,10 @@ base {
 
 tasks.named("javadoc").configure { enabled = false }
 
+versions << [
+  'hadoop': '3.4.3',
+]
+
 configurations {
   expression
   painless
@@ -48,6 +52,34 @@ dependencies {
   api(project(':x-pack:plugin:esql'))
   api(project(':x-pack:plugin:esql:compute'))
   api(project(':x-pack:plugin:esql-datasource-csv'))
+  api(project(':x-pack:plugin:esql-datasource-parquet'))
+  api(project(':x-pack:plugin:esql-datasource-orc'))
+  api(project(':x-pack:plugin:esql-datasource-ndjson'))
+  // Writer-side dependencies for in-memory Parquet/ORC fixtures used by the format-reader
+  // JMH benchmarks. The plugin projects above expose the reader classes only; the writers
+  // (ExampleParquetWriter, OrcFile.createWriter) live in the underlying third-party jars
+  // which the plugins declare as `implementation` (not propagated to consumers). These are
+  // benchmark-only deps; they never end up in a shipped artifact.
+  implementation "org.apache.parquet:parquet-hadoop-bundle:${versions.parquet}"
+  implementation "org.apache.orc:orc-core:${versions.orc}"
+  implementation 'org.apache.hive:hive-storage-api:2.8.1'
+  implementation("org.apache.hadoop:hadoop-common:${versions.hadoop}") { transitive = false }
+
+  // parquet-hadoop-bundle transitively brings in hadoop-client-api and
+  // hadoop-client-runtime, which ship the same classes (e.g. org.apache.hadoop.ipc.RPC$RpcKind)
+  // as the hadoop-common jar we declare above for the ORC writer's RawLocalFileSystem path.
+  // The two layouts collide at *runtime* and trigger ESTestCase's JarHell check, but we
+  // still need hadoop-client-api at *compile* time because it provides
+  // org.apache.hadoop.classification.InterfaceAudience (referenced by Configuration's
+  // public-API annotations). Exclude only from runtime — let hadoop-common provide the
+  // hadoop API surface at runtime; parquet's PlainParquetConfiguration / PlainCompressionCodecFactory
+  // bypass the Hadoop-dependent paths so the bundle never needs the client jars at runtime.
+  ['runtimeClasspath', 'testRuntimeClasspath'].each { c ->
+    configurations.named(c).configure {
+      exclude group: 'org.apache.hadoop', module: 'hadoop-client-api'
+      exclude group: 'org.apache.hadoop', module: 'hadoop-client-runtime'
+    }
+  }
   api(project(':x-pack:plugin:analytics'))
   api(project(':x-pack:plugin:logsdb'))
   implementation project(path: ':libs:native')
@@ -104,10 +136,19 @@ tasks.register("copyPainless", Copy) {
 
 tasks.named("run").configure {
   executable = "${buildParams.runtimeJavaHome.get()}/bin/java" + (OS.current() == OS.WINDOWS ? '.exe' : '')
-  dependsOn "copyExpression", "copyPainless", configurations.nativeLib
+  dependsOn "copyExpression", "copyPainless", configurations.nativeLib, ":libs:native:native-libraries:extractLibs"
   systemProperty 'plugins.dir', "${buildDir}/plugins"
   systemProperty 'tests.index', "${buildDir}/index"
-  systemProperty 'es.nativelibs.path', TestUtil.getTestLibraryPath(file("../libs/native/libraries/build/platform/").toString())
+  def nativeLibsPath = TestUtil.getTestLibraryPath(file("../libs/native/libraries/build/platform/").toString())
+  systemProperty 'es.nativelibs.path', nativeLibsPath
+  // Arrow's MemoryUtil reflects into java.nio.Buffer.address during static init; the parquet
+  // format reader transitively triggers this via BlockFactory.arrowAllocator(). Mirrors the
+  // flag already set on the test task above and on :x-pack:plugin:esql-datasource-parquet:test.
+  jvmArgs '--add-opens=java.base/java.nio=ALL-UNNAMED'
+  jvmArgs '--enable-native-access=ALL-UNNAMED'
+  jvmArgs '-Dorg.apache.lucene.vectorization.upperJavaFeatureVersion=' + buildParams.getRuntimeJavaVersion().map { it.majorVersion }.get()
+  // Forward es.nativelibs.path to JMH forked VMs via default jvmArgsAppend
+  args '-jvmArgsAppend', "-Des.nativelibs.path=${nativeLibsPath}"
 }
 
 tasks.named('test').configure {

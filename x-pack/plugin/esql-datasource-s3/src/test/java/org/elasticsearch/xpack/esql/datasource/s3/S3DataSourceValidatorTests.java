@@ -7,13 +7,17 @@
 
 package org.elasticsearch.xpack.esql.datasource.s3;
 
+import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceSetting;
 import org.elasticsearch.xpack.esql.datasources.spi.AbstractDataSourceValidatorTests;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourceValidator;
 import org.elasticsearch.xpack.esql.datasources.spi.FileDataSourceValidator;
 
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
+
+import static org.hamcrest.Matchers.containsString;
 
 public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests {
 
@@ -31,12 +35,12 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
 
     @Override
     protected Map<String, Object> sampleConfigWithAllSecrets() {
-        return Map.of("access_key", "AKIA_sample", "secret_key", "wJal_sample", "region", "us-east-1");
+        return Map.of("access_key", "AKIA_sample", "secret_key", "wJal_sample", "session_token", "FwoG_sample", "region", "us-east-1");
     }
 
     @Override
     protected Set<String> expectedSecretFieldNames() {
-        return Set.of("access_key", "secret_key");
+        return Set.of("access_key", "secret_key", "session_token");
     }
 
     @Override
@@ -93,11 +97,11 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
     }
 
     public void testValidateDatasourceRejectsUnknown() {
-        expectThrows(org.elasticsearch.common.ValidationException.class, () -> validator.validateDatasource(Map.of("bucket", "x")));
+        expectThrows(ValidationException.class, () -> validator.validateDatasource(Map.of("bucket", "x")));
     }
 
     public void testValidateDatasourceRejectsInvalidAuth() {
-        expectThrows(org.elasticsearch.common.ValidationException.class, () -> validator.validateDatasource(Map.of("auth", "oauth2")));
+        expectThrows(ValidationException.class, () -> validator.validateDatasource(Map.of("auth", "oauth2")));
     }
 
     public void testValidateDatasourceAuthCaseInsensitive() {
@@ -108,21 +112,65 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
 
     public void testValidateDatasourceAnonymousConflict() {
         expectThrows(
-            org.elasticsearch.common.ValidationException.class,
+            ValidationException.class,
             () -> validator.validateDatasource(Map.of("auth", "none", "access_key", "AKIA123", "secret_key", "secret"))
+        );
+    }
+
+    public void testValidateDatasourceRejectsWorkloadIdentityWhenDisabled() {
+        // default validator has workload identity disabled
+        var e = expectThrows(
+            ValidationException.class,
+            () -> validator.validateDatasource(Map.of("auth", "workload_identity", "region", "us-east-1"))
+        );
+        assertThat(e.getMessage(), containsString("esql.datasource.workload_identity.enabled"));
+    }
+
+    public void testValidateDatasourceAcceptsWorkloadIdentityWhenEnabled() {
+        var workloadIdentityValidator = new FileDataSourceValidator("s3", S3Configuration::fromMap, Set.of("s3", "s3a", "s3n"))
+            .withWorkloadIdentityEnabled(() -> true);
+        var result = workloadIdentityValidator.validateDatasource(Map.of("auth", "workload_identity", "region", "us-east-1"));
+        assertEquals("workload_identity", result.get("auth").nonSecretValue());
+        assertFalse(result.get("auth").secret());
+    }
+
+    public void testValidateDatasourceWorkloadIdentityConflictWithCredentials() {
+        var workloadIdentityValidator = new FileDataSourceValidator("s3", S3Configuration::fromMap, Set.of("s3", "s3a", "s3n"))
+            .withWorkloadIdentityEnabled(() -> true);
+        expectThrows(
+            ValidationException.class,
+            () -> workloadIdentityValidator.validateDatasource(
+                Map.of("auth", "workload_identity", "access_key", "AKIA123", "secret_key", "secret")
+            )
+        );
+    }
+
+    public void testValidateDatasourceWithSessionToken() {
+        var result = validator.validateDatasource(
+            Map.of("access_key", "AKIA123", "secret_key", "secret", "session_token", "FwoGZXIvYXdz", "region", "us-east-1")
+        );
+        assertTrue(result.get("session_token").secret());
+        assertEquals("FwoGZXIvYXdz", result.get("session_token").rawValue());
+        assertTrue(result.get("access_key").secret());
+    }
+
+    public void testValidateDatasourceSessionTokenConflictsWithAuthNone() {
+        expectThrows(
+            ValidationException.class,
+            () -> validator.validateDatasource(Map.of("auth", "none", "session_token", "FwoGZXIvYXdz"))
         );
     }
 
     public void testValidateDatasourceAccumulatesMultipleErrors() {
         var e = expectThrows(
-            org.elasticsearch.common.ValidationException.class,
+            ValidationException.class,
             () -> validator.validateDatasource(Map.of("unknown_field", "x", "also_unknown", "y"))
         );
         assertEquals(2, e.validationErrors().size());
     }
 
     public void testValidateDatasourceSkipsNullValues() {
-        var settings = new java.util.HashMap<String, Object>();
+        var settings = new HashMap<String, Object>();
         settings.put("region", "us-east-1");
         settings.put("endpoint", null);
         var result = validator.validateDatasource(settings);
@@ -144,7 +192,7 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
 
     public void testValidateDatasetPartitionDetectionInvalid() {
         expectThrows(
-            org.elasticsearch.common.ValidationException.class,
+            ValidationException.class,
             () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("partition_detection", "banana"))
         );
     }
@@ -174,7 +222,7 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
         // so that resources whose names begin with a known scheme but are not actually that scheme
         // (e.g. "s3foo://...") are correctly rejected.
         for (String uri : new String[] { "s3foo://b/p", "s3abc://b/p", "s3n123://b/p" }) {
-            expectThrows(org.elasticsearch.common.ValidationException.class, () -> validator.validateDataset(Map.of(), uri, Map.of()));
+            expectThrows(ValidationException.class, () -> validator.validateDataset(Map.of(), uri, Map.of()));
         }
     }
 
@@ -185,10 +233,7 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
     }
 
     public void testValidateDatasetRejectsUnknown() {
-        expectThrows(
-            org.elasticsearch.common.ValidationException.class,
-            () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("format", "parquet"))
-        );
+        expectThrows(ValidationException.class, () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("format", "parquet")));
     }
 
     public void testValidateDatasetErrorModeAllValues() {
@@ -198,52 +243,104 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
     }
 
     public void testValidateDatasetErrorModeInvalid() {
-        expectThrows(
-            org.elasticsearch.common.ValidationException.class,
-            () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("error_mode", "banana"))
-        );
+        expectThrows(ValidationException.class, () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("error_mode", "banana")));
     }
 
     public void testValidateDatasetErrorModeEmpty() {
-        expectThrows(
-            org.elasticsearch.common.ValidationException.class,
-            () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("error_mode", ""))
-        );
+        expectThrows(ValidationException.class, () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("error_mode", "")));
     }
 
     public void testValidateDatasetPartitionDetectionEmpty() {
-        expectThrows(
-            org.elasticsearch.common.ValidationException.class,
-            () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("partition_detection", ""))
-        );
+        expectThrows(ValidationException.class, () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("partition_detection", "")));
     }
 
     public void testValidateDatasetSchemaSampleSize() {
         assertEquals(50, validator.validateDataset(Map.of(), "s3://b/p", Map.of("schema_sample_size", 50)).get("schema_sample_size"));
-        expectThrows(
-            org.elasticsearch.common.ValidationException.class,
-            () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("schema_sample_size", 0))
-        );
+        expectThrows(ValidationException.class, () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("schema_sample_size", 0)));
         // upper bound: SCHEMA_SAMPLE_SIZE_MAX = 1000
-        expectThrows(
-            org.elasticsearch.common.ValidationException.class,
-            () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("schema_sample_size", 1001))
-        );
+        expectThrows(ValidationException.class, () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("schema_sample_size", 1001)));
     }
 
     public void testValidateDatasetSchemaSampleSizeNonNumber() {
-        expectThrows(
-            org.elasticsearch.common.ValidationException.class,
-            () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("schema_sample_size", "abc"))
-        );
+        expectThrows(ValidationException.class, () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("schema_sample_size", "abc")));
     }
 
     public void testValidateDatasetAccumulatesResourceAndFieldErrors() {
         var e = expectThrows(
-            org.elasticsearch.common.ValidationException.class,
+            ValidationException.class,
             () -> validator.validateDataset(Map.of(), "gs://wrong-scheme", Map.of("error_mode", "banana"))
         );
         assertEquals(2, e.validationErrors().size());
+    }
+
+    // --- Coordinator data-shape key validation (strict, via the owning query-path parsers) ---
+
+    public void testValidateDatasetSchemaResolutionAllValues() {
+        for (String v : new String[] { "first_file_wins", "strict", "union_by_name", "FIRST_FILE_WINS", "Union_By_Name" }) {
+            assertEquals(v, validator.validateDataset(Map.of(), "s3://b/p", Map.of("schema_resolution", v)).get("schema_resolution"));
+        }
+    }
+
+    public void testValidateDatasetSchemaResolutionInvalid() {
+        expectThrows(
+            ValidationException.class,
+            () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("schema_resolution", "banana"))
+        );
+    }
+
+    public void testValidateDatasetMaxErrors() {
+        assertEquals("100", validator.validateDataset(Map.of(), "s3://b/p", Map.of("max_errors", "100")).get("max_errors"));
+    }
+
+    public void testValidateDatasetMaxErrorsNonNumber() {
+        expectThrows(ValidationException.class, () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("max_errors", "abc")));
+    }
+
+    public void testValidateDatasetMaxErrorRatio() {
+        assertEquals("0.1", validator.validateDataset(Map.of(), "s3://b/p", Map.of("max_error_ratio", "0.1")).get("max_error_ratio"));
+    }
+
+    public void testValidateDatasetMaxErrorRatioOutOfRange() {
+        expectThrows(ValidationException.class, () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("max_error_ratio", "2.0")));
+    }
+
+    public void testValidateDatasetErrorBudgetConflictsWithFailFast() {
+        // fail_fast always aborts on the first error, so a budget key is a contradiction the parser rejects.
+        expectThrows(
+            ValidationException.class,
+            () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("error_mode", "fail_fast", "max_errors", "10"))
+        );
+    }
+
+    public void testValidateDatasetPartitionPath() {
+        assertEquals(
+            "year=*/month=*",
+            validator.validateDataset(Map.of(), "s3://b/p", Map.of("partition_path", "year=*/month=*")).get("partition_path")
+        );
+    }
+
+    public void testValidateDatasetHivePartitioning() {
+        assertEquals(false, validator.validateDataset(Map.of(), "s3://b/p", Map.of("hive_partitioning", false)).get("hive_partitioning"));
+        assertEquals(true, validator.validateDataset(Map.of(), "s3://b/p", Map.of("hive_partitioning", true)).get("hive_partitioning"));
+    }
+
+    public void testValidateDatasetTargetSplitSize() {
+        assertEquals("64mb", validator.validateDataset(Map.of(), "s3://b/p", Map.of("target_split_size", "64mb")).get("target_split_size"));
+    }
+
+    public void testValidateDatasetTargetSplitSizeInvalid() {
+        expectThrows(ValidationException.class, () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("target_split_size", "abc")));
+    }
+
+    public void testValidateDatasetTargetSplitSizeUnitlessRejected() {
+        // ByteSizeValue requires a unit suffix; a bare number is rejected.
+        expectThrows(ValidationException.class, () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("target_split_size", "1024")));
+    }
+
+    public void testValidateDatasetFormatStaysExternalOnly() {
+        // format/reader remain EXTERNAL-only dev knobs: they are NOT accepted as dataset settings.
+        expectThrows(ValidationException.class, () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("format", "csv")));
+        expectThrows(ValidationException.class, () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("reader", "java")));
     }
 
     // --- Format-aware validation tests ---
@@ -276,14 +373,14 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
 
     public void testFormatAwareValidatorRejectsCsvFieldOnNonCsvResource() {
         expectThrows(
-            org.elasticsearch.common.ValidationException.class,
+            ValidationException.class,
             () -> formatAwareValidator.validateDataset(Map.of(), "s3://bucket/data.parquet", Map.of("delimiter", ";"))
         );
     }
 
     public void testFormatAwareValidatorRejectsUnknownFieldOnCsvResource() {
         expectThrows(
-            org.elasticsearch.common.ValidationException.class,
+            ValidationException.class,
             () -> formatAwareValidator.validateDataset(Map.of(), "s3://bucket/data.csv", Map.of("nonexistent_field", "value"))
         );
     }
@@ -306,7 +403,7 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
 
     public void testFormatAwareValidatorResourceWithoutExtension() {
         expectThrows(
-            org.elasticsearch.common.ValidationException.class,
+            ValidationException.class,
             () -> formatAwareValidator.validateDataset(Map.of(), "s3://bucket/data", Map.of("delimiter", ";"))
         );
     }
@@ -318,7 +415,7 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
 
     public void testWithoutResolverRejectsFormatFields() {
         expectThrows(
-            org.elasticsearch.common.ValidationException.class,
+            ValidationException.class,
             () -> validator.validateDataset(Map.of(), "s3://bucket/data.csv", Map.of("delimiter", ";"))
         );
     }

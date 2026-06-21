@@ -665,3 +665,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
   method: test {csv-spec:views.wildcardExcludeNestedEmployeeViewsNoFalseCircularReference}
   issue: https://github.com/elastic/elasticsearch/issues/151811
+- class: org.elasticsearch.gradle.internal.transport.TransportVersionGenerationFuncTest
+  method: name can be found from staged definition
+  issue: https://github.com/elastic/elasticsearch/issues/150299

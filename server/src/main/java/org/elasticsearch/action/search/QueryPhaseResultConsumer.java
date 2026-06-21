@@ -136,6 +136,18 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
         topDocsStats = new TopDocsStats(request.resolveTrackTotalHitsUpTo());
     }
 
+    /**
+     * Transfers query-phase aggregation breaker accounting to a multi-search coordinator.
+     * Bytes remain charged on the breaker until {@link TransportMultiSearchAction} releases them.
+     *
+     * @return bytes to attach to the {@link SearchResponse}; zero when there is nothing to transfer
+     */
+    synchronized long transferAggregationBreakerBytesForMultiSearch() {
+        long bytes = circuitBreakerBytes;
+        circuitBreakerBytes = 0;
+        return bytes;
+    }
+
     @Override
     protected synchronized void doClose() {
         assert assertFailureAndBreakerConsistent();

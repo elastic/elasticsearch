@@ -910,7 +910,7 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
 
         CsvFormatReader base = new CsvFormatReader(blockFactory());
         SourceMetadata meta = base.metadata(full);
-        CsvFormatReader withSchema = (CsvFormatReader) base.withSchema(meta.schema());
+        CsvFormatReader withSchema = base.withSchema(meta.schema());
 
         ExecutorService exec = Executors.newFixedThreadPool(4);
         try {
@@ -960,7 +960,7 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
 
         CsvFormatReader base = new CsvFormatReader(blockFactory());
         SourceMetadata meta = base.metadata(full);
-        CsvFormatReader withSchema = (CsvFormatReader) base.withSchema(meta.schema());
+        CsvFormatReader withSchema = base.withSchema(meta.schema());
 
         long rowsWithRecordAligned = countCsvRows(withSchema, nonLeadingRange, List.of("a", "b", "c"), false, true);
         long rowsWithoutRecordAligned = countCsvRows(withSchema, nonLeadingRange, List.of("a", "b", "c"), false, false);
@@ -991,7 +991,7 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
 
         CsvFormatReader base = new CsvFormatReader(blockFactory());
         SourceMetadata meta = base.metadata(full);
-        CsvFormatReader withSchema = (CsvFormatReader) base.withSchema(meta.schema());
+        CsvFormatReader withSchema = base.withSchema(meta.schema());
 
         long rowsAligned = countCsvRows(withSchema, nonLeadingRange, List.of("x", "y"), false, true);
         assertEquals("all data rows must be read with recordAligned=true", dataRows, rowsAligned);
@@ -1040,7 +1040,7 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
 
         CsvFormatReader base = new CsvFormatReader(blockFactory());
         SourceMetadata meta = base.metadata(full);
-        CsvFormatReader withSchema = (CsvFormatReader) base.withSchema(meta.schema());
+        CsvFormatReader withSchema = base.withSchema(meta.schema());
 
         FormatReadContext ctx = FormatReadContext.builder()
             .projectedColumns(List.of("b"))

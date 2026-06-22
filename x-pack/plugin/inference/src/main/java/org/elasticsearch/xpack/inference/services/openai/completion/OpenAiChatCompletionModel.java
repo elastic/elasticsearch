@@ -11,15 +11,19 @@ import org.apache.http.client.utils.URIBuilder;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
+import org.elasticsearch.inference.SecretSettings;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnifiedCompletionRequest;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.inference.common.oauth2.OAuth2ClusterSettings;
+import org.elasticsearch.xpack.inference.common.oauth2.TokenCache;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.openai.OpenAiModel;
 import org.elasticsearch.xpack.inference.services.openai.OpenAiService;
 import org.elasticsearch.xpack.inference.services.openai.OpenAiUtils;
 import org.elasticsearch.xpack.inference.services.openai.action.OpenAiActionVisitor;
-import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
+import org.elasticsearch.xpack.inference.services.openai.secrets.OpenAiSecretSettings;
 
 import java.net.URI;
 import java.net.URISyntaxException;
@@ -38,14 +42,21 @@ public class OpenAiChatCompletionModel extends OpenAiModel {
         return new OpenAiChatCompletionModel(model, model.getTaskSettings().updatedTaskSettings(taskSettings));
     }
 
-    public static OpenAiChatCompletionModel of(OpenAiChatCompletionModel model, UnifiedCompletionRequest request) {
+    public static OpenAiChatCompletionModel of(
+        OpenAiChatCompletionModel model,
+        UnifiedCompletionRequest request,
+        ThreadPool threadPool,
+        TokenCache tokenCache,
+        OAuth2ClusterSettings oauth2ClusterSettings
+    ) {
         var originalModelServiceSettings = model.getServiceSettings();
         var overriddenServiceSettings = new OpenAiChatCompletionServiceSettings(
             Objects.requireNonNullElse(request.model(), originalModelServiceSettings.modelId()),
             originalModelServiceSettings.uri(),
             originalModelServiceSettings.organizationId(),
             originalModelServiceSettings.maxInputTokens(),
-            originalModelServiceSettings.rateLimitSettings()
+            originalModelServiceSettings.rateLimitSettings(),
+            originalModelServiceSettings.oAuth2Settings()
         );
 
         return new OpenAiChatCompletionModel(
@@ -54,7 +65,10 @@ public class OpenAiChatCompletionModel extends OpenAiModel {
             model.getConfigurations().getService(),
             overriddenServiceSettings,
             model.getTaskSettings(),
-            model.getSecretSettings()
+            model.getSecretSettings(),
+            threadPool,
+            tokenCache,
+            oauth2ClusterSettings
         );
     }
 
@@ -65,6 +79,9 @@ public class OpenAiChatCompletionModel extends OpenAiModel {
         Map<String, Object> serviceSettings,
         Map<String, Object> taskSettings,
         @Nullable Map<String, Object> secrets,
+        ThreadPool threadPool,
+        TokenCache tokenCache,
+        OAuth2ClusterSettings oauth2ClusterSettings,
         ConfigurationParseContext context
     ) {
         this(
@@ -73,7 +90,10 @@ public class OpenAiChatCompletionModel extends OpenAiModel {
             service,
             OpenAiChatCompletionServiceSettings.fromMap(serviceSettings, context),
             new OpenAiChatCompletionTaskSettings(taskSettings),
-            DefaultSecretSettings.fromMap(secrets, context)
+            OpenAiSecretSettings.fromMap(secrets),
+            threadPool,
+            tokenCache,
+            oauth2ClusterSettings
         );
     }
 
@@ -83,17 +103,36 @@ public class OpenAiChatCompletionModel extends OpenAiModel {
         String service,
         OpenAiChatCompletionServiceSettings serviceSettings,
         OpenAiChatCompletionTaskSettings taskSettings,
-        @Nullable DefaultSecretSettings secrets
+        @Nullable SecretSettings secrets,
+        ThreadPool threadPool,
+        TokenCache tokenCache,
+        OAuth2ClusterSettings oauth2ClusterSettings
     ) {
-        this(new ModelConfigurations(modelId, taskType, service, serviceSettings, taskSettings), new ModelSecrets(secrets));
+        this(
+            new ModelConfigurations(modelId, taskType, service, serviceSettings, taskSettings),
+            new ModelSecrets(secrets),
+            threadPool,
+            tokenCache,
+            oauth2ClusterSettings
+        );
     }
 
-    public OpenAiChatCompletionModel(ModelConfigurations modelConfigurations, ModelSecrets modelSecrets) {
+    public OpenAiChatCompletionModel(
+        ModelConfigurations modelConfigurations,
+        ModelSecrets modelSecrets,
+        ThreadPool threadPool,
+        TokenCache tokenCache,
+        OAuth2ClusterSettings oauth2ClusterSettings
+    ) {
         super(
             modelConfigurations,
             modelSecrets,
             (OpenAiChatCompletionServiceSettings) modelConfigurations.getServiceSettings(),
-            (DefaultSecretSettings) modelSecrets.getSecretSettings(),
+            modelSecrets.getSecretSettings(),
+            (OpenAiChatCompletionServiceSettings) modelConfigurations.getServiceSettings(),
+            threadPool,
+            tokenCache,
+            oauth2ClusterSettings,
             buildUri(
                 ((OpenAiChatCompletionServiceSettings) modelConfigurations.getServiceSettings()).uri(),
                 OpenAiService.NAME,
@@ -124,8 +163,8 @@ public class OpenAiChatCompletionModel extends OpenAiModel {
     }
 
     @Override
-    public DefaultSecretSettings getSecretSettings() {
-        return (DefaultSecretSettings) super.getSecretSettings();
+    public SecretSettings getSecretSettings() {
+        return super.getSecretSettings();
     }
 
     @Override

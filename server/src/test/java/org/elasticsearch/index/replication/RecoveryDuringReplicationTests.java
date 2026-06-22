@@ -907,7 +907,7 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
                     assertThat(col, hasSize(1));
                     return addDocument(col.iterator().next());
                 }
-            }, null, null, config);
+            }, config);
         }
 
         @Override

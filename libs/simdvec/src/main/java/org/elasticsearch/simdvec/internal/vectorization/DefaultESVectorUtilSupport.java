@@ -61,6 +61,36 @@ public final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
     }
 
     @Override
+    public float dotProduct(float[] a, float[] b, int offset, int length) {
+        if (offset == 0 && length == a.length) {
+            return dotProduct(a, b);
+        }
+        float sum = 0f;
+        int end = offset + length;
+        for (int i = offset; i < end; i++) {
+            sum = fma(a[i], b[i], sum);
+        }
+        return sum;
+    }
+
+    @Override
+    public void l2Normalize(float[] v, int offset, int length) {
+        double normSq = 0;
+        int end = offset + length;
+        for (int j = offset; j < end; j++) {
+            double t = v[j];
+            normSq += t * t;
+        }
+        if (normSq == 0) {
+            return;
+        }
+        double invNorm = 1.0 / Math.sqrt(normSq);
+        for (int j = offset; j < end; j++) {
+            v[j] = (float) (v[j] * invNorm);
+        }
+    }
+
+    @Override
     public float squareDistance(float[] a, float[] b) {
         return VectorUtil.squareDistance(a, b);
     }
@@ -84,6 +114,36 @@ public final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
     @Override
     public float dotProduct(byte[] a, byte[] b) {
         return VectorUtil.dotProduct(a, b);
+    }
+
+    @Override
+    public float dotProduct(byte[] a, byte[] b, int offset, int length) {
+        if (offset == 0 && length == a.length) {
+            return dotProduct(a, b);
+        }
+        int sum = 0;
+        int end = offset + length;
+        for (int i = offset; i < end; i++) {
+            sum += a[i] * b[i];
+        }
+        return sum;
+    }
+
+    @Override
+    public void l2Normalize(byte[] v, int offset, int length) {
+        double normSq = 0;
+        int end = offset + length;
+        for (int j = offset; j < end; j++) {
+            double t = v[j];
+            normSq += t * t;
+        }
+        if (normSq == 0) {
+            return;
+        }
+        double invNorm = 1.0 / Math.sqrt(normSq);
+        for (int j = offset; j < end; j++) {
+            v[j] = (byte) (v[j] * invNorm);
+        }
     }
 
     @Override

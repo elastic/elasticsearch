@@ -307,7 +307,7 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
                 executionEWMA.addValue(taskExecutionNanos);
                 totalExecutionTime.add(taskExecutionNanos);
                 if (threadUtilizationRate != null) {
-                    threadUtilizationRate.addIncrement(taskExecutionNanos, System.nanoTime());
+                    threadUtilizationRate.addIncrement(taskExecutionNanos, timedRunnable.getFinishTimeNanos());
                 }
             }
         } finally {

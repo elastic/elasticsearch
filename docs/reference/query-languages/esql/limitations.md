@@ -74,7 +74,6 @@ By default, an {{esql}} query returns up to 1,000 rows. You can increase the num
     * `binary`
     * `completion`
     * `double_range`
-    * `flattened`
     * `float_range`
     * `histogram`
     * `integer_range`

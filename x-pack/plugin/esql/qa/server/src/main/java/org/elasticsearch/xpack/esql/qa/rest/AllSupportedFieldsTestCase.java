@@ -1172,7 +1172,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
                 yield nullValue();
             }
             case FLATTENED -> {
-                if (DataType.FLATTENED.supportedVersion().supportedOn(minimumVersion, true) && Build.current().isSnapshot()) {
+                if (DataType.FLATTENED.supportedVersion().supportedOn(minimumVersion, Build.current().isSnapshot())) {
                     MapMatcher values = matchesMap().entry("a.c", "bar")
                         .entry("b", "foo")
                         .entry("d", "baz")
@@ -1195,11 +1195,10 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
                     }
                     if (isSingleNodeSnapshot()) {
                         /*
-                         * Only assert that keys come back in sorted order because
-                         * this was added after the first release of flattened. We
-                         * *did* do this while it was under snapshot, so we should
-                         * be able to enable this if all versions have the flattened
-                         * field released. But we'll worry about that when we release it.
+                         * Only assert sorted key order on a single snapshot node. Sorted keys
+                         * were added after flattened first shipped, so a mixed cluster with an
+                         * older node may still return them unsorted; the FLATTENED_DATATYPE_SORTED_KEYS
+                         * capability (see flattenedSortedKeys) governs the cross-version case.
                          */
                         yield allOf(values, hasKeys("a.c", "b", "d", "e", "j"));
                     }
@@ -1387,10 +1386,11 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
                 yield equalTo("histogram");
             }
             case FLATTENED -> {
-                if (DataType.FLATTENED.supportedVersion().supportedOn(minimumVersion, true) && Build.current().isSnapshot()) {
-                    yield anyOf(equalTo("flattened"), equalTo("unsupported"));
+                // support for flattened was added later
+                if (DataType.FLATTENED.supportedVersion().supportedOn(minimumVersion, false) == false) {
+                    yield equalTo("unsupported");
                 }
-                yield equalTo("unsupported");
+                yield equalTo("flattened");
             }
             default -> equalTo(type.esType());
         };

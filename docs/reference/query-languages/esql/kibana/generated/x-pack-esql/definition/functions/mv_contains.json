@@ -116,6 +116,24 @@
       "params" : [
         {
           "name" : "superset",
+          "type" : "flattened",
+          "optional" : false,
+          "description" : "Expression that can be null, a single value, or multiple values."
+        },
+        {
+          "name" : "subset",
+          "type" : "flattened",
+          "optional" : false,
+          "description" : "Expression that can be null, a single value, or multiple values."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "boolean"
+    },
+    {
+      "params" : [
+        {
+          "name" : "superset",
           "type" : "geo_point",
           "optional" : false,
           "description" : "Expression that can be null, a single value, or multiple values."

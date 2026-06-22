@@ -16,6 +16,7 @@
 | dense_vector | boolean |
 | double | boolean |
 | exponential_histogram | boolean |
+| flattened | boolean |
 | geo_point | boolean |
 | geo_shape | boolean |
 | geohash | boolean |

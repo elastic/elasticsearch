@@ -15,6 +15,7 @@
 | double | double | boolean |
 | double | integer | boolean |
 | double | long | boolean |
+| flattened | flattened | boolean |
 | geo_point | geo_point | boolean |
 | geo_shape | geo_shape | boolean |
 | geohash | geohash | boolean |

@@ -10,6 +10,7 @@
 | date | date |
 | date_nanos | date_nanos |
 | double | double |
+| flattened | flattened |
 | geo_point | geo_point |
 | geo_shape | geo_shape |
 | geohash | geohash |

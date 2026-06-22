@@ -10,6 +10,7 @@
 | date | integer |
 | date_nanos | integer |
 | double | integer |
+| flattened | integer |
 | geo_point | integer |
 | geo_shape | integer |
 | geohash | integer |

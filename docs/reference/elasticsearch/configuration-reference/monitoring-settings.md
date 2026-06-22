@@ -105,7 +105,7 @@ xpack.monitoring.exporters.my_local:
 `type` {applies_to}`stack: deprecated 7.16, removed 10.0`
 :   The value for a Local exporter must always be `local` and it is required.
 
-`use_ingest`
+`use_ingest` {applies_to}`stack: deprecated 7.16, removed 10.0`
 :   Whether to supply a placeholder pipeline to the cluster and a pipeline processor with every bulk request. The default value is `true`. If disabled, then it means that it will not use pipelines, which means that a future release cannot automatically upgrade bulk requests to future-proof them.
 
 `cluster_alerts.management.enabled` {applies_to}`stack: deprecated 7.16, removed 10.0`
@@ -181,7 +181,7 @@ xpack.monitoring.exporters.my_remote:
 `index.name.time_format` {applies_to}`stack: deprecated 7.16, removed 10.0`
 :   A mechanism for changing the default date suffix for daily monitoring indices. The default format is `yyyy.MM.dd`. For example, `.monitoring-es-7-2021.08.26`.
 
-`use_ingest`
+`use_ingest` {applies_to}`stack: deprecated 7.16, removed 10.0`
 :   Whether to supply a placeholder pipeline to the monitoring cluster and a pipeline processor with every bulk request. The default value is `true`. If disabled, then it means that it will not use pipelines, which means that a future release cannot automatically upgrade bulk requests to future-proof them.
 
 `cluster_alerts.management.enabled` {applies_to}`stack: deprecated 7.16, removed 10.0`

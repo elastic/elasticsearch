@@ -7,10 +7,13 @@
 
 package org.elasticsearch.xpack.inference.services.amazonbedrock;
 
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ServiceSettings;
@@ -18,23 +21,18 @@ import org.elasticsearch.xcontent.AbstractObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
-import org.elasticsearch.xpack.inference.services.amazonbedrock.embeddings.AmazonBedrockEmbeddingsServiceSettings;
-import org.elasticsearch.xpack.inference.services.llama.LlamaServiceSettings;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 import org.elasticsearch.xpack.inference.services.settings.FilteredXContentObject;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
 import java.io.IOException;
-import java.net.URI;
 import java.util.EnumSet;
 import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.xpack.inference.common.parser.StringParser.validateStringIsNotNullOrEmpty;
-import static org.elasticsearch.xpack.inference.services.ServiceFields.MODEL_ID;
-import static org.elasticsearch.xpack.inference.services.ServiceFields.URL;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.createUri;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredEnum;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredString;
 import static org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockConstants.MODEL_FIELD;
@@ -46,7 +44,7 @@ public abstract class AmazonBedrockServiceSettings extends FilteredXContentObjec
     protected static final String AMAZON_BEDROCK_BASE_NAME = "amazon_bedrock";
 
     /**
-     * Registers the common Llama service-settings fields (model_id, url, rate_limit) onto the given parser.
+     * Registers the common Bedrock service-settings fields (model, region, provider, rate_limit) onto the given parser.
      */
     public static <B extends AmazonBedrockServiceSettings.Builder<? extends AmazonBedrockServiceSettings>> void declareCommonFields(
         AbstractObjectParser<B, ConfigurationParseContext> parser
@@ -113,6 +111,26 @@ public abstract class AmazonBedrockServiceSettings extends FilteredXContentObjec
             validateStringIsNotNullOrEmpty(region, REGION_FIELD);
             validateStringIsNotNullOrEmpty(provider, PROVIDER_FIELD);
             return build(model, region, provider, rateLimitSettings);
+        }
+    }
+
+    /**
+     * Creates a {@link AmazonBedrockServiceSettings} from a map of settings using the given parser.
+     *
+     * @param map     the map to parse
+     * @param context the context in which the parsing is done
+     * @param parser  the parser to use for parsing the settings
+     * @return the created {@link AmazonBedrockServiceSettings}
+     */
+    public static <T extends AmazonBedrockServiceSettings> T fromMap(
+        Map<String, Object> map,
+        ConfigurationParseContext context,
+        ObjectParser<? extends AmazonBedrockServiceSettings.Builder<T>, ConfigurationParseContext> parser
+    ) {
+        try (var xParser = XContentHelper.mapToXContentParser(XContentParserConfiguration.EMPTY, map)) {
+            return parser.apply(xParser, context).build();
+        } catch (IOException e) {
+            throw new ElasticsearchParseException("Failed to parse [{}]", e, ModelConfigurations.SERVICE_SETTINGS);
         }
     }
 
@@ -218,17 +236,58 @@ public abstract class AmazonBedrockServiceSettings extends FilteredXContentObjec
     }
 
     @Override
+    public String toString() {
+        return Strings.toString(this);
+    }
+
+    @Override
     public boolean equals(Object o) {
         if (o == null || getClass() != o.getClass()) return false;
         AmazonBedrockServiceSettings that = (AmazonBedrockServiceSettings) o;
         return Objects.equals(region, that.region)
             && Objects.equals(model, that.model)
-            && provider == that.provider
+            && Objects.equals(provider, that.provider)
             && Objects.equals(rateLimitSettings, that.rateLimitSettings);
     }
 
     @Override
     public int hashCode() {
         return Objects.hash(region, model, provider, rateLimitSettings);
+    }
+
+    /**
+     * Registers the common Bedrock fields that may be changed by an update request. Only {@code rate_limit} is mutable; the
+     * immutable fields (such as {@code model}, {@code region} and {@code provider}) are intentionally not declared so that a strict update
+     * parser rejects attempts to change them.
+     */
+    public static void declareCommonUpdatableFields(AbstractObjectParser<? extends CommonUpdate, Void> parser) {
+        parser.declareObject(
+            CommonUpdate::setRateLimitSettings,
+            // A null default preserves "no change" semantics for updates: an empty or value-less rate_limit object leaves the existing
+            // rate limit untouched in CommonUpdate#mergedRateLimitSettings.
+            (p, c) -> RateLimitSettings.createParser(false, null).apply(p, null),
+            new ParseField(RateLimitSettings.FIELD_NAME)
+        );
+    }
+
+    /**
+     * Common fields parsed from an update request. Because settings are immutable, each subclass builds the new instance itself,
+     * calling {@link #mergedRateLimitSettings(AmazonBedrockServiceSettings)} to resolve the shared fields.
+     */
+    public static class CommonUpdate {
+
+        protected RateLimitSettings rateLimitSettings;
+
+        private void setRateLimitSettings(@Nullable RateLimitSettings rateLimitSettings) {
+            this.rateLimitSettings = rateLimitSettings;
+        }
+
+        /**
+         * Resolves the rate limit settings to use after applying this update: the value supplied by the update if present, otherwise
+         * the value carried by the existing settings.
+         */
+        protected RateLimitSettings mergedRateLimitSettings(AmazonBedrockServiceSettings existing) {
+            return Objects.requireNonNullElse(this.rateLimitSettings, existing.rateLimitSettings());
+        }
     }
 }

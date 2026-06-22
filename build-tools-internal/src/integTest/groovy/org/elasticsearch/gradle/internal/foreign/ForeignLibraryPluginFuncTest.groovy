@@ -9,7 +9,7 @@
 
 package org.elasticsearch.gradle.internal.foreign
 
-import org.elasticsearch.gradle.fixtures.AbstractJavaGradleFuncTest
+import org.elasticsearch.gradle.fixtures.AbstractGradleInternalPluginFuncTest
 import org.gradle.testkit.runner.TaskOutcome
 
 /**
@@ -19,10 +19,12 @@ import org.gradle.testkit.runner.TaskOutcome
  * locations. A dummy processor is supplied via the {@code foreignLibraryProcessor} configuration
  * so the test does not need any real {@code :libs:foreign-library} artifacts.
  */
-class ForeignLibraryPluginFuncTest extends AbstractJavaGradleFuncTest {
+class ForeignLibraryPluginFuncTest extends AbstractGradleInternalPluginFuncTest {
+
+    Class<? extends org.gradle.api.Plugin> pluginClassUnderTest = org.elasticsearch.gradle.internal.foreign.ForeignLibraryPlugin
 
     def setup() {
-        internalBuild()
+        configureBwcVersions()
 
         settingsFile << """
             include ':fakeprocessor'

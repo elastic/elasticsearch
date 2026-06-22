@@ -171,6 +171,58 @@ public class MappedByteBufferTests extends ESTestCase {
         }
     }
 
+    // Verify that madvise does not fail or crash with various advice values.
+    public void testMadviseWithVariousAdvice() throws IOException {
+        int size = randomIntBetween(10, 4096);
+        var tmp = createTempDir();
+        Path file = tmp.resolve("testMadvise");
+        Files.write(file, newByteArray(size, 0), CREATE, WRITE);
+        file = Unwrappable.unwrapAll(file);
+        try (
+            FileChannel fileChannel = FileChannel.open(file, READ);
+            CloseableMappedByteBuffer mappedByteBuffer = nativeAccess.map(fileChannel, MapMode.READ_ONLY, 0, size)
+        ) {
+            mappedByteBuffer.madvise(0, size, MadviseAdvice.NORMAL);
+            mappedByteBuffer.madvise(0, size, MadviseAdvice.RANDOM);
+            mappedByteBuffer.madvise(0, size, MadviseAdvice.NORMAL);
+        }
+    }
+
+    // Verify that madvise works with sub-regions of the buffer.
+    public void testMadviseWithOffsets() throws IOException {
+        int size = randomIntBetween(100, 4096);
+        var tmp = createTempDir();
+        Path file = tmp.resolve("testMadviseOffsets");
+        Files.write(file, newByteArray(size, 0), CREATE, WRITE);
+        file = Unwrappable.unwrapAll(file);
+        try (
+            FileChannel fileChannel = FileChannel.open(file, READ);
+            CloseableMappedByteBuffer mappedByteBuffer = nativeAccess.map(fileChannel, MapMode.READ_ONLY, 0, size)
+        ) {
+            int mid = size / 2;
+            mappedByteBuffer.madvise(0, mid, MadviseAdvice.RANDOM);
+            mappedByteBuffer.madvise(mid, size - mid, MadviseAdvice.NORMAL);
+            mappedByteBuffer.madvise(0, 0, MadviseAdvice.RANDOM);
+        }
+    }
+
+    // Verify that madvise rejects out-of-bounds offset/length.
+    public void testMadviseOutOfBounds() throws IOException {
+        int size = randomIntBetween(10, 4096);
+        var tmp = createTempDir();
+        Path file = tmp.resolve("testMadviseOOB");
+        Files.write(file, newByteArray(size, 0), CREATE, WRITE);
+        file = Unwrappable.unwrapAll(file);
+        try (
+            FileChannel fileChannel = FileChannel.open(file, READ);
+            CloseableMappedByteBuffer mappedByteBuffer = nativeAccess.map(fileChannel, MapMode.READ_ONLY, 0, size)
+        ) {
+            expectThrows(IOOBE, () -> mappedByteBuffer.madvise(-1, size, MadviseAdvice.NORMAL));
+            expectThrows(IOOBE, () -> mappedByteBuffer.madvise(0, size + 1, MadviseAdvice.NORMAL));
+            expectThrows(IOOBE, () -> mappedByteBuffer.madvise(1, size, MadviseAdvice.NORMAL));
+        }
+    }
+
     // Creates a byte array containing monotonically incrementing values, starting
     // with a value of 0 at the given offset. Useful to assert positional values.
     private byte[] newByteArray(int size, int offset) {

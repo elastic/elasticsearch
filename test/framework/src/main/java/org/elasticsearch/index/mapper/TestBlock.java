@@ -135,7 +135,7 @@ public class TestBlock implements BlockLoader.Block {
                     @Override
                     public BlockLoader.SingletonBytesRefBuilder appendBytesRefs(byte[] bytes, int bytesRefLengths) {
                         for (int i = 0; i < count; i++) {
-                            BytesRef ref = new BytesRef(bytes, (int) (i * bytesRefLengths), bytesRefLengths);
+                            BytesRef ref = new BytesRef(bytes, i * bytesRefLengths, bytesRefLengths);
                             add(BytesRef.deepCopyOf(ref));
                         }
                         return this;

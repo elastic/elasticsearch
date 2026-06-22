@@ -2144,6 +2144,12 @@ public class EsqlCapabilities {
         ENABLE_REDUCE_NODE_LATE_MATERIALIZATION,
 
         /**
+         * Fix stale row-stride reader state when a conditional block loader uses column-at-a-time loading after row-stride loading
+         * across segments.
+         */
+        FIX_VALUES_READER_STALE_ROW_STRIDE_READER,
+
+        /**
          * {@link ReplaceStatsFilteredOrNullAggWithEval} now replaces an
          * {@link org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction} with null value with an
          * {@link org.elasticsearch.xpack.esql.plan.logical.Eval}.

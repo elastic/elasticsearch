@@ -766,10 +766,12 @@ public final class DocumentParser {
         final String lastFieldName,
         String arrayFieldName
     ) throws IOException {
-        boolean supportStoringArrayOffsets = mapper != null && mapper.supportStoringArrayOffsets();
+        // A field that stores its array natively (via a sidecar offsets field, or in-order in binary doc values) must not be diverted
+        // to _ignored_source: it reconstructs arrays from its own doc values.
+        boolean storesArraysNatively = mapper != null && (mapper.supportStoringArrayOffsets() || mapper.storesArrayValuesInOrder());
         String fullPath = context.path().pathAsText(arrayFieldName);
 
-        if (context.canAddIgnoredField() && supportStoringArrayOffsets == false) {
+        if (context.canAddIgnoredField() && storesArraysNatively == false) {
             Mapper.SourceKeepMode mode = Mapper.SourceKeepMode.NONE;
             boolean objectWithFallbackSyntheticSource = false;
             if (mapper instanceof ObjectMapper objectMapper) {
@@ -827,10 +829,14 @@ public final class DocumentParser {
         }
         if (mapper != null
             && context.canAddIgnoredField()
-            && mapper.supportStoringArrayOffsets()
             && previousToken == XContentParser.Token.START_ARRAY
             && context.isImmediateParentAnArray()) {
-            context.getOffSetContext().maybeRecordEmptyArray(mapper.getOffsetFieldName());
+            if (mapper.supportStoringArrayOffsets()) {
+                context.getOffSetContext().maybeRecordEmptyArray(mapper.getOffsetFieldName());
+            } else if (mapper.storesArrayValuesInOrder()) {
+                // In-order values live in the field's own binary doc-values column, so the field name is just its full path.
+                MultiValuedBinaryDocValuesField.ArrayOrderInlineNull.recordEmptyArray(context.doc(), mapper.fullPath());
+            }
         }
         postProcessDynamicArrayMapping(context, lastFieldName, valueElements);
     }

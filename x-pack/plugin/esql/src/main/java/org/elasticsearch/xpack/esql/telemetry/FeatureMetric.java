@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Grok;
 import org.elasticsearch.xpack.esql.plan.logical.Highlight;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.Insist;
+import org.elasticsearch.xpack.esql.plan.logical.IpLocation;
 import org.elasticsearch.xpack.esql.plan.logical.Keep;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LimitBy;
@@ -44,6 +45,7 @@ import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesCollapse;
 import org.elasticsearch.xpack.esql.plan.logical.TopNBy;
 import org.elasticsearch.xpack.esql.plan.logical.TsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
+import org.elasticsearch.xpack.esql.plan.logical.UnresolvedIpLocation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UriParts;
 import org.elasticsearch.xpack.esql.plan.logical.UserAgent;
@@ -122,6 +124,10 @@ public enum FeatureMetric {
     REGISTERED_DOMAIN(RegisteredDomain.class::isInstance),
     TS_INFO(TsInfo.class::isInstance),
     USER_AGENT(UserAgent.class::isInstance),
+    // FeatureMetric.set runs over two plans: gatherPreAnalysisMetrics walks the pre-analysis plan (still UnresolvedIpLocation),
+    // while Verifier.gatherMetrics walks the analyzed plan (resolved IpLocation). Both stages must be matched, otherwise the
+    // unmatched node would trip the "Command not mapped for telemetry" check. The shared bitset keeps the count at one per query.
+    IP_LOCATION(plan -> plan instanceof IpLocation || plan instanceof UnresolvedIpLocation),
     DEDUP(Dedup.class::isInstance),
     HIGHLIGHT(Highlight.class::isInstance),
     // IN_SUBQUERY is collected by InSubqueryResolver on the pre-resolution plan (when the

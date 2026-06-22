@@ -247,6 +247,8 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
     private final IndicesOptions indicesOptions;
     private final Map<String, Object> runtimeMappings;
 
+    private static final TransportVersion ML_DATAFEED_ESQL_QUERY = TransportVersion.fromName("ml_datafeed_esql_query");
+
     private DatafeedConfig(
         String id,
         String jobId,
@@ -294,8 +296,13 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
             this.indices = null;
         }
         // each of these writables are version aware
-        this.queryProvider = QueryProvider.fromStream(in);
-        this.esqlQuery = in.readOptionalString();
+        if (in.getTransportVersion().supports(ML_DATAFEED_ESQL_QUERY)) {
+            this.queryProvider = in.readOptionalWriteable(QueryProvider::fromStream);
+            this.esqlQuery = in.readOptionalString();
+        } else {
+            this.queryProvider = QueryProvider.fromStream(in);
+            this.esqlQuery = null;
+        }
         // This reads a boolean from the stream, if true, it sends the stream to the `fromStream` method
         this.aggProvider = in.readOptionalWriteable(AggProvider::fromStream);
 
@@ -352,6 +359,11 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
     }
 
     public Optional<Tuple<TransportVersion, String>> minRequiredTransportVersion() {
+        if (esqlQuery != null) {
+            return Optional.of(
+                new Tuple<>(ML_DATAFEED_ESQL_QUERY, "datafeed uses esql_query which requires transport version ml_datafeed_esql_query")
+            );
+        }
         return Optional.empty();
     }
 
@@ -536,8 +548,13 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
         }
 
         // Each of these writables are version aware
-        queryProvider.writeTo(out); // never null
-        out.writeString(esqlQuery);
+        if (out.getTransportVersion().supports(ML_DATAFEED_ESQL_QUERY)) {
+            out.writeOptionalWriteable(queryProvider);
+            out.writeOptionalString(esqlQuery);
+        } else {
+            // Pre-ESQL nodes assume a non-null query; substitute the historical match_all default.
+            (queryProvider == null ? QueryProvider.defaultQuery() : queryProvider).writeTo(out);
+        }
         // This writes a boolean to the stream, if true, it sends the stream to the `writeTo` method
         out.writeOptionalWriteable(aggProvider);
 
@@ -827,8 +844,13 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
                 this.indices = null;
             }
             // each of these writables are version aware
-            this.queryProvider = QueryProvider.fromStream(in);
-            this.esqlQuery = in.readOptionalString();
+            if (in.getTransportVersion().supports(ML_DATAFEED_ESQL_QUERY)) {
+                this.queryProvider = in.readOptionalWriteable(QueryProvider::fromStream);
+                this.esqlQuery = in.readOptionalString();
+            } else {
+                this.queryProvider = QueryProvider.fromStream(in);
+                this.esqlQuery = null;
+            }
             // This reads a boolean from the stream, if true, it sends the stream to the `fromStream` method
             this.aggProvider = in.readOptionalWriteable(AggProvider::fromStream);
 
@@ -862,8 +884,13 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
             }
 
             // Each of these writables are version aware
-            queryProvider.writeTo(out); // never null
-            out.writeOptionalString(esqlQuery);
+            if (out.getTransportVersion().supports(ML_DATAFEED_ESQL_QUERY)) {
+                out.writeOptionalWriteable(queryProvider);
+                out.writeOptionalString(esqlQuery);
+            } else {
+                // Pre-ESQL nodes assume a non-null query; substitute the historical match_all default.
+                (queryProvider == null ? QueryProvider.defaultQuery() : queryProvider).writeTo(out);
+            }
             // This writes a boolean to the stream, if true, it sends the stream to the `writeTo` method
             out.writeOptionalWriteable(aggProvider);
 
@@ -1087,6 +1114,12 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
             validateScriptFields();
             RuntimeMappingsValidator.validate(runtimeMappings);
             validateEsqlQueryConflicts();
+            // Non-ES|QL datafeeds always carry a query; restore the historical match_all default when
+            // the caller did not set an explicit query. Must come after validateEsqlQueryConflicts()
+            // which rejects esqlQuery + non-null queryProvider together.
+            if (esqlQuery == null && queryProvider == null) {
+                queryProvider = QueryProvider.defaultQuery();
+            }
             setDefaultChunkingConfig();
 
             setDefaultQueryDelay();

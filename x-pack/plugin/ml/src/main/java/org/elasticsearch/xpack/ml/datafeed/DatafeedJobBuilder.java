@@ -122,7 +122,8 @@ public class DatafeedJobBuilder {
                 job,
                 datafeedConfig,
                 parentTaskAssigningClient,
-                xContentRegistry
+                xContentRegistry,
+                dataExtractorFactory
             );
             CrossClusterSearchStats crossClusterSearchStats = new CrossClusterSearchStats(
                 () -> java.time.Instant.ofEpochMilli(currentTimeSupplier.get()),

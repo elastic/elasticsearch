@@ -42,6 +42,9 @@ public final class DatafeedJobValidator {
         TimeValue bucketSpan = analysisConfig.getBucketSpan();
         if (delayedDataCheckConfig.isEnabled()) {
             checkValidDelayedDataCheckConfig(bucketSpan, delayedDataCheckConfig);
+            if (datafeedConfig.getEsqlQuery() != null) {
+                checkSummaryCountFieldNameIsSetForEsqlDelayedDataCheck(analysisConfig);
+            }
         }
 
         checkTimeFieldIsNotASearchRuntimeField(datafeedConfig, job.getDataDescription().getTimeField());
@@ -71,6 +74,20 @@ public final class DatafeedJobValidator {
         if (Strings.isNullOrEmpty(analysisConfig.getSummaryCountFieldName())) {
             throw ExceptionsHelper.badRequestException(
                 Messages.getMessage(Messages.DATAFEED_AGGREGATIONS_REQUIRES_JOB_WITH_SUMMARY_COUNT_FIELD)
+            );
+        }
+    }
+
+    /**
+     * The delayed data check for an ES|QL datafeed re-runs the user's ES|QL query and sums the
+     * configured summary count field per bucket to compare against what the job already saw. That
+     * comparison is only meaningful when the job folds a summary count field into its bucket
+     * event counts, so the field is mandatory in this combination.
+     */
+    private static void checkSummaryCountFieldNameIsSetForEsqlDelayedDataCheck(AnalysisConfig analysisConfig) {
+        if (Strings.isNullOrEmpty(analysisConfig.getSummaryCountFieldName())) {
+            throw ExceptionsHelper.badRequestException(
+                Messages.getMessage(Messages.DATAFEED_ESQL_DELAYED_DATA_REQUIRES_SUMMARY_COUNT_FIELD)
             );
         }
     }

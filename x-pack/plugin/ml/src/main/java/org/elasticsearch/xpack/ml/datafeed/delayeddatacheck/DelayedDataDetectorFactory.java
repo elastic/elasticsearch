@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.core.ml.datafeed.DelayedDataCheckConfig;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.job.results.Bucket;
+import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
 
 import java.util.Objects;
 
@@ -36,13 +37,15 @@ public class DelayedDataDetectorFactory {
      * @param datafeedConfig The {@link DatafeedConfig} for which to create the {@link DelayedDataDetector}
      * @param client The {@link Client} capable of taking action against the ES Cluster.
      * @param xContentRegistry The current NamedXContentRegistry with which to parse the query
+     * @param dataExtractorFactory The datafeed's {@link DataExtractorFactory}, reused to re-run the ES|QL query for ES|QL datafeeds
      * @return A new {@link DelayedDataDetector}
      */
     public static DelayedDataDetector buildDetector(
         Job job,
         DatafeedConfig datafeedConfig,
         Client client,
-        NamedXContentRegistry xContentRegistry
+        NamedXContentRegistry xContentRegistry,
+        DataExtractorFactory dataExtractorFactory
     ) {
         if (datafeedConfig.getDelayedDataCheckConfig().isEnabled()) {
             long window = validateAndCalculateWindowLength(
@@ -50,6 +53,20 @@ public class DelayedDataDetectorFactory {
                 datafeedConfig.getDelayedDataCheckConfig().getCheckWindow()
             );
             long bucketSpan = job.getAnalysisConfig().getBucketSpan() == null ? 0 : job.getAnalysisConfig().getBucketSpan().millis();
+            if (datafeedConfig.getEsqlQuery() != null) {
+                // ES|QL datafeeds have no DSL query/aggregation to drive a date-histogram and their bucket event counts are measured in
+                // ES|QL output rows, so they need a dedicated detector that re-runs the ES|QL query. The required summary_count_field_name
+                // is enforced by DatafeedJobValidator.
+                return new EsqlDelayedDataDetector(
+                    bucketSpan,
+                    window,
+                    job.getId(),
+                    job.getDataDescription().getTimeField(),
+                    job.getAnalysisConfig().getSummaryCountFieldName(),
+                    dataExtractorFactory,
+                    client
+                );
+            }
             return new DatafeedDelayedDataDetector(
                 bucketSpan,
                 window,

@@ -295,4 +295,83 @@ public class DatafeedJobValidatorTests extends ESTestCase {
         builder.setIndices(Collections.singletonList("myIndex"));
         return builder;
     }
+
+    // -------------------------------------------------------------------------
+    // ES|QL datafeed + delayed data check validation
+    // -------------------------------------------------------------------------
+
+    public void testVerify_GivenEsqlQueryAndDelayedDataEnabledAndNoSummaryCountFieldThrows() {
+        Job.Builder jobBuilder = buildJobBuilder("esql-job");
+        AnalysisConfig.Builder ac = createAnalysisConfig();
+        ac.setBucketSpan(TimeValue.timeValueSeconds(60));
+        ac.setSummaryCountFieldName(null);
+        jobBuilder.setAnalysisConfig(ac);
+        Job job = jobBuilder.build(new Date());
+
+        DatafeedConfig datafeedConfig = createEsqlDatafeedWithDelayedData();
+
+        ElasticsearchStatusException e = ESTestCase.expectThrows(
+            ElasticsearchStatusException.class,
+            () -> DatafeedJobValidator.validate(datafeedConfig, job, xContentRegistry())
+        );
+        assertEquals(Messages.getMessage(Messages.DATAFEED_ESQL_DELAYED_DATA_REQUIRES_SUMMARY_COUNT_FIELD), e.getMessage());
+    }
+
+    public void testVerify_GivenEsqlQueryAndDelayedDataEnabledAndEmptySummaryCountFieldThrows() {
+        Job.Builder jobBuilder = buildJobBuilder("esql-job");
+        AnalysisConfig.Builder ac = createAnalysisConfig();
+        ac.setBucketSpan(TimeValue.timeValueSeconds(60));
+        ac.setSummaryCountFieldName("");
+        jobBuilder.setAnalysisConfig(ac);
+        Job job = jobBuilder.build(new Date());
+
+        DatafeedConfig datafeedConfig = createEsqlDatafeedWithDelayedData();
+
+        ElasticsearchStatusException e = ESTestCase.expectThrows(
+            ElasticsearchStatusException.class,
+            () -> DatafeedJobValidator.validate(datafeedConfig, job, xContentRegistry())
+        );
+        assertEquals(Messages.getMessage(Messages.DATAFEED_ESQL_DELAYED_DATA_REQUIRES_SUMMARY_COUNT_FIELD), e.getMessage());
+    }
+
+    public void testVerify_GivenEsqlQueryAndDelayedDataEnabledAndSummaryCountFieldSetSucceeds() {
+        Job.Builder jobBuilder = buildJobBuilder("esql-job");
+        AnalysisConfig.Builder ac = createAnalysisConfig();
+        ac.setBucketSpan(TimeValue.timeValueSeconds(60));
+        ac.setSummaryCountFieldName("event_count");
+        jobBuilder.setAnalysisConfig(ac);
+        Job job = jobBuilder.build(new Date());
+
+        DatafeedConfig datafeedConfig = createEsqlDatafeedWithDelayedData();
+
+        // Should not throw
+        DatafeedJobValidator.validate(datafeedConfig, job, xContentRegistry());
+    }
+
+    public void testVerify_GivenEsqlQueryAndDelayedDataDisabledNoSummaryCountFieldSucceeds() {
+        Job.Builder jobBuilder = buildJobBuilder("esql-job");
+        AnalysisConfig.Builder ac = createAnalysisConfig();
+        ac.setBucketSpan(TimeValue.timeValueSeconds(60));
+        ac.setSummaryCountFieldName(null);
+        jobBuilder.setAnalysisConfig(ac);
+        Job job = jobBuilder.build(new Date());
+
+        // Delayed data check is disabled → summary count field is not required
+        DatafeedConfig.Builder builder = new DatafeedConfig.Builder("esql-datafeed", "esql-job");
+        builder.setIndices(Collections.singletonList("logs"));
+        builder.setEsqlQuery("FROM logs");
+        builder.setDelayedDataCheckConfig(DelayedDataCheckConfig.disabledDelayedDataCheckConfig());
+        DatafeedConfig datafeedConfig = builder.build();
+
+        // Should not throw
+        DatafeedJobValidator.validate(datafeedConfig, job, xContentRegistry());
+    }
+
+    private static DatafeedConfig createEsqlDatafeedWithDelayedData() {
+        DatafeedConfig.Builder builder = new DatafeedConfig.Builder("esql-datafeed", "esql-job");
+        builder.setIndices(Collections.singletonList("logs"));
+        builder.setEsqlQuery("FROM logs");
+        builder.setDelayedDataCheckConfig(DelayedDataCheckConfig.enabledDelayedDataCheckConfig(TimeValue.timeValueMinutes(10)));
+        return builder.build();
+    }
 }

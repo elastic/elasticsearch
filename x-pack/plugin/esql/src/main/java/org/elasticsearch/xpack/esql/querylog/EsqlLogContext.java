@@ -17,7 +17,7 @@ import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlQueryProfile;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
-import org.elasticsearch.xpack.esql.action.PromqlQueryRequest;
+import org.elasticsearch.xpack.esql.action.PreparedEsqlQueryRequest;
 
 import java.util.Arrays;
 import java.util.List;
@@ -29,7 +29,6 @@ import java.util.stream.Collectors;
 
 public class EsqlLogContext extends QueryLoggerContext {
     public static final String TYPE = "esql";
-    public static final String PROMQL_TYPE = "promql";
     private final EsqlQueryRequest request;
     private final @Nullable EsqlQueryResponse response;
     // Cached index names
@@ -48,14 +47,14 @@ public class EsqlLogContext extends QueryLoggerContext {
     }
 
     private static String queryType(EsqlQueryRequest request) {
-        return request instanceof PromqlQueryRequest ? PROMQL_TYPE : TYPE;
+        if (request instanceof PreparedEsqlQueryRequest prepared) {
+            return prepared.getType() != null ? prepared.getType() : TYPE;
+        }
+        return TYPE;
     }
 
     @Override
     public String getQuery() {
-        if (request instanceof PromqlQueryRequest promqlQueryRequest) {
-            return promqlQueryRequest.originalQuery();
-        }
         return request.queryDescription();
     }
 
@@ -114,8 +113,12 @@ public class EsqlLogContext extends QueryLoggerContext {
 
     @Override
     public String[] getIndices() {
-        if (request instanceof PromqlQueryRequest promqlQueryRequest) {
-            return new String[] { promqlQueryRequest.getIndex() };
+        if (request instanceof PreparedEsqlQueryRequest prepared) {
+            String index = prepared.getIndex();
+            if (index != null) {
+                return new String[] { index };
+            }
+            return new String[] {};
         }
         if (response == null) {
             return null;

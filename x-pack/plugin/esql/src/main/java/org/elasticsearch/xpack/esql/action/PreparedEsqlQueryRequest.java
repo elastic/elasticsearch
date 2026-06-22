@@ -90,6 +90,14 @@ public class PreparedEsqlQueryRequest extends EsqlQueryRequest {
         return queryDescription;
     }
 
+    public String getIndex() {
+        return null;
+    }
+
+    public String getType() {
+        return null;
+    }
+
     @Override
     protected ActionRequestValidationException validateQuery() {
         return null; // no query text for prepared requests — skip the Strings.hasText(query) check

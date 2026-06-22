@@ -14,8 +14,10 @@ import org.elasticsearch.cluster.project.DefaultProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.health.HealthIndicatorResult;
 import org.elasticsearch.health.HealthStatus;
+import org.elasticsearch.health.SimpleHealthIndicatorDetails;
 import org.elasticsearch.health.node.HealthInfo;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.encryption.spi.EncryptionServiceState;
 
 import java.util.Map;
 
@@ -69,10 +71,15 @@ public class ProjectEncryptionKeyHealthIndicatorServiceTests extends ESTestCase 
         return cs;
     }
 
-    private static ProjectEncryptionKeyService mockPekService(AesGcmEncryptionService.ActiveKey activeKey, String activePasswordId) {
+    private static ProjectEncryptionKeyService mockPekService(EncryptionServiceState state, String activePasswordId) {
+        return mockPekService(state, activePasswordId, true);
+    }
+
+    private static ProjectEncryptionKeyService mockPekService(EncryptionServiceState state, String activePasswordId, boolean required) {
         ProjectEncryptionKeyService svc = mock(ProjectEncryptionKeyService.class);
-        when(svc.getActiveKey()).thenReturn(activeKey);
+        when(svc.state()).thenReturn(state);
         when(svc.getActivePasswordId()).thenReturn(activePasswordId);
+        when(svc.isEncryptionRequired()).thenReturn(required);
         return svc;
     }
 
@@ -82,7 +89,7 @@ public class ProjectEncryptionKeyHealthIndicatorServiceTests extends ESTestCase 
         ProjectEncryptionKeyHealthIndicatorService indicator = new ProjectEncryptionKeyHealthIndicatorService(
             mockClusterService(state),
             DefaultProjectResolver.INSTANCE,
-            mockPekService(null, null)
+            mockPekService(EncryptionServiceState.DISABLED, null)
         );
 
         HealthIndicatorResult result = indicator.calculate(false, 1, HealthInfo.EMPTY_HEALTH_INFO);
@@ -93,15 +100,11 @@ public class ProjectEncryptionKeyHealthIndicatorServiceTests extends ESTestCase 
     public void testGreenWhenMetadataAndPekUnlockable() {
         ProjectEncryptionKeyMetadata metadata = pekMetadata(PASSWORD_ID);
         ClusterState state = stateWith(metadata);
-        AesGcmEncryptionService.ActiveKey activeKey = new AesGcmEncryptionService.ActiveKey(
-            metadata.getActiveKeyId(),
-            new javax.crypto.spec.SecretKeySpec(new byte[PasswordBasedEncryption.PEK_LENGTH_BYTES], "AES")
-        );
 
         ProjectEncryptionKeyHealthIndicatorService indicator = new ProjectEncryptionKeyHealthIndicatorService(
             mockClusterService(state),
             DefaultProjectResolver.INSTANCE,
-            mockPekService(activeKey, PASSWORD_ID)
+            mockPekService(EncryptionServiceState.READY, PASSWORD_ID)
         );
 
         HealthIndicatorResult result = indicator.calculate(false, 1, HealthInfo.EMPTY_HEALTH_INFO);
@@ -116,7 +119,7 @@ public class ProjectEncryptionKeyHealthIndicatorServiceTests extends ESTestCase 
         ProjectEncryptionKeyHealthIndicatorService indicator = new ProjectEncryptionKeyHealthIndicatorService(
             mockClusterService(state),
             DefaultProjectResolver.INSTANCE,
-            mockPekService(null, null)  // no active_password_id snapshotted
+            mockPekService(EncryptionServiceState.UNAVAILABLE_MISSING_PASSWORD, null)
         );
 
         HealthIndicatorResult result = indicator.calculate(false, 1, HealthInfo.EMPTY_HEALTH_INFO);
@@ -133,9 +136,7 @@ public class ProjectEncryptionKeyHealthIndicatorServiceTests extends ESTestCase 
         ProjectEncryptionKeyHealthIndicatorService indicator = new ProjectEncryptionKeyHealthIndicatorService(
             mockClusterService(state),
             DefaultProjectResolver.INSTANCE,
-            // active_password_id matches metadata's passwordId but the configured password is wrong (pekService returns null for the
-            // active key); the diagnosis is then "undecryptable" rather than "missing".
-            mockPekService(null, PASSWORD_ID)
+            mockPekService(EncryptionServiceState.UNAVAILABLE_DECRYPTION_FAILED, PASSWORD_ID)
         );
 
         HealthIndicatorResult result = indicator.calculate(false, 1, HealthInfo.EMPTY_HEALTH_INFO);
@@ -149,12 +150,137 @@ public class ProjectEncryptionKeyHealthIndicatorServiceTests extends ESTestCase 
         ProjectEncryptionKeyHealthIndicatorService indicator = new ProjectEncryptionKeyHealthIndicatorService(
             mockClusterService(state),
             DefaultProjectResolver.INSTANCE,
-            mockPekService(null, PASSWORD_ID)
+            mockPekService(EncryptionServiceState.READY, PASSWORD_ID)
         );
 
         HealthIndicatorResult result = indicator.calculate(false, 1, HealthInfo.EMPTY_HEALTH_INFO);
         assertEquals(HealthStatus.GREEN, result.status());
-        // Settings are configured; we just haven't installed the PEK yet.
+        // Password is configured; we just haven't installed the PEK yet.
         assertTrue(result.symptom().contains("awaiting first key install"));
+    }
+
+    public void testYellowWhenDisabledAndEncryptionNotRequired() {
+        ClusterState state = stateWith(null);
+
+        ProjectEncryptionKeyHealthIndicatorService indicator = new ProjectEncryptionKeyHealthIndicatorService(
+            mockClusterService(state),
+            DefaultProjectResolver.INSTANCE,
+            mockPekService(EncryptionServiceState.DISABLED, null, false)
+        );
+
+        HealthIndicatorResult result = indicator.calculate(true, 1, HealthInfo.EMPTY_HEALTH_INFO);
+        assertEquals(HealthStatus.YELLOW, result.status());
+        assertEquals(ProjectEncryptionKeyHealthIndicatorService.YELLOW_OPT_OUT, result.symptom());
+        assertEquals(1, result.diagnosisList().size());
+        assertEquals(ProjectEncryptionKeyHealthIndicatorService.ENCRYPTION_OPT_OUT_DEFINITION, result.diagnosisList().get(0).definition());
+        assertEquals(false, detailsMap(result).get("encryption_required"));
+    }
+
+    public void testGreenWhenDisabledAndEncryptionRequired() {
+        ClusterState state = stateWith(null);
+
+        ProjectEncryptionKeyHealthIndicatorService indicator = new ProjectEncryptionKeyHealthIndicatorService(
+            mockClusterService(state),
+            DefaultProjectResolver.INSTANCE,
+            mockPekService(EncryptionServiceState.DISABLED, null, true)
+        );
+
+        HealthIndicatorResult result = indicator.calculate(false, 1, HealthInfo.EMPTY_HEALTH_INFO);
+        assertEquals(HealthStatus.GREEN, result.status());
+        assertEquals(ProjectEncryptionKeyHealthIndicatorService.GREEN_NOT_CONFIGURED, result.symptom());
+    }
+
+    public void testYellowOptOutWhenMissingPasswordAndEncryptionNotRequired() {
+        ProjectEncryptionKeyMetadata metadata = pekMetadata(PASSWORD_ID);
+        ClusterState state = stateWith(metadata);
+
+        ProjectEncryptionKeyHealthIndicatorService indicator = new ProjectEncryptionKeyHealthIndicatorService(
+            mockClusterService(state),
+            DefaultProjectResolver.INSTANCE,
+            mockPekService(EncryptionServiceState.UNAVAILABLE_MISSING_PASSWORD, null, false)
+        );
+
+        HealthIndicatorResult result = indicator.calculate(true, 1, HealthInfo.EMPTY_HEALTH_INFO);
+        assertEquals(HealthStatus.YELLOW, result.status());
+        assertEquals(ProjectEncryptionKeyHealthIndicatorService.YELLOW_OPT_OUT, result.symptom());
+        assertEquals(1, result.diagnosisList().size());
+        assertEquals(
+            ProjectEncryptionKeyHealthIndicatorService.ENCRYPTION_OPT_OUT_MISCONFIGURED_DEFINITION,
+            result.diagnosisList().get(0).definition()
+        );
+        assertEquals(false, detailsMap(result).get("encryption_required"));
+        assertEquals(EncryptionServiceState.UNAVAILABLE_MISSING_PASSWORD.displayValue(), detailsMap(result).get("state"));
+    }
+
+    public void testYellowOptOutWhenDecryptionFailedAndEncryptionNotRequired() {
+        ProjectEncryptionKeyMetadata metadata = pekMetadata(PASSWORD_ID);
+        ClusterState state = stateWith(metadata);
+
+        ProjectEncryptionKeyHealthIndicatorService indicator = new ProjectEncryptionKeyHealthIndicatorService(
+            mockClusterService(state),
+            DefaultProjectResolver.INSTANCE,
+            mockPekService(EncryptionServiceState.UNAVAILABLE_DECRYPTION_FAILED, PASSWORD_ID, false)
+        );
+
+        HealthIndicatorResult result = indicator.calculate(true, 1, HealthInfo.EMPTY_HEALTH_INFO);
+        assertEquals(HealthStatus.YELLOW, result.status());
+        assertEquals(ProjectEncryptionKeyHealthIndicatorService.YELLOW_OPT_OUT, result.symptom());
+        assertEquals(1, result.diagnosisList().size());
+        assertEquals(
+            ProjectEncryptionKeyHealthIndicatorService.ENCRYPTION_OPT_OUT_MISCONFIGURED_DEFINITION,
+            result.diagnosisList().get(0).definition()
+        );
+        assertEquals(false, detailsMap(result).get("encryption_required"));
+        assertEquals(EncryptionServiceState.UNAVAILABLE_DECRYPTION_FAILED.displayValue(), detailsMap(result).get("state"));
+    }
+
+    public void testYellowLockedWhenMissingPasswordAndEncryptionRequired() {
+        ProjectEncryptionKeyMetadata metadata = pekMetadata(PASSWORD_ID);
+        ClusterState state = stateWith(metadata);
+
+        ProjectEncryptionKeyHealthIndicatorService indicator = new ProjectEncryptionKeyHealthIndicatorService(
+            mockClusterService(state),
+            DefaultProjectResolver.INSTANCE,
+            mockPekService(EncryptionServiceState.UNAVAILABLE_MISSING_PASSWORD, null, true)
+        );
+
+        HealthIndicatorResult result = indicator.calculate(false, 1, HealthInfo.EMPTY_HEALTH_INFO);
+        assertEquals(HealthStatus.YELLOW, result.status());
+        assertEquals(ProjectEncryptionKeyHealthIndicatorService.YELLOW_LOCKED, result.symptom());
+        assertEquals(ProjectEncryptionKeyHealthIndicatorService.MISSING_PASSWORD_DEFINITION, result.diagnosisList().get(0).definition());
+    }
+
+    public void testYellowLockedWhenDecryptionFailedAndEncryptionRequired() {
+        ProjectEncryptionKeyMetadata metadata = pekMetadata(PASSWORD_ID);
+        ClusterState state = stateWith(metadata);
+
+        ProjectEncryptionKeyHealthIndicatorService indicator = new ProjectEncryptionKeyHealthIndicatorService(
+            mockClusterService(state),
+            DefaultProjectResolver.INSTANCE,
+            mockPekService(EncryptionServiceState.UNAVAILABLE_DECRYPTION_FAILED, PASSWORD_ID, true)
+        );
+
+        HealthIndicatorResult result = indicator.calculate(false, 1, HealthInfo.EMPTY_HEALTH_INFO);
+        assertEquals(HealthStatus.YELLOW, result.status());
+        assertEquals(ProjectEncryptionKeyHealthIndicatorService.YELLOW_LOCKED, result.symptom());
+        assertEquals(ProjectEncryptionKeyHealthIndicatorService.UNDECRYPTABLE_DEFINITION, result.diagnosisList().get(0).definition());
+    }
+
+    public void testStateDisplayValueAppearsInDetails() {
+        ProjectEncryptionKeyMetadata metadata = pekMetadata(PASSWORD_ID);
+        ClusterState state = stateWith(metadata);
+
+        ProjectEncryptionKeyHealthIndicatorService indicator = new ProjectEncryptionKeyHealthIndicatorService(
+            mockClusterService(state),
+            DefaultProjectResolver.INSTANCE,
+            mockPekService(EncryptionServiceState.UNAVAILABLE_MISSING_PASSWORD, null)
+        );
+
+        HealthIndicatorResult result = indicator.calculate(true, 1, HealthInfo.EMPTY_HEALTH_INFO);
+        assertEquals(EncryptionServiceState.UNAVAILABLE_MISSING_PASSWORD.displayValue(), detailsMap(result).get("state"));
+    }
+
+    private static Map<String, Object> detailsMap(HealthIndicatorResult result) {
+        return ((SimpleHealthIndicatorDetails) result.details()).details();
     }
 }

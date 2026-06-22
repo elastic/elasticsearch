@@ -18,15 +18,19 @@ import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.project.DefaultProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.encryption.spi.EncryptedData;
 import org.mockito.ArgumentCaptor;
 
 import java.util.Map;
+import java.util.Set;
 
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 public class ProjectEncryptionKeyServiceTests extends ESTestCase {
 
@@ -43,6 +47,16 @@ public class ProjectEncryptionKeyServiceTests extends ESTestCase {
             return wrappedPek;
         }
     };
+
+    private static ClusterService mockClusterService() {
+        ClusterService cs = mock(ClusterService.class);
+        ClusterSettings clusterSettings = new ClusterSettings(
+            Settings.EMPTY,
+            Set.of(ProjectEncryptionKeyPasswordSettings.ENCRYPTION_REQUIRED)
+        );
+        when(cs.getClusterSettings()).thenReturn(clusterSettings);
+        return cs;
+    }
 
     private static ClusterStateListener captureListener(ClusterService clusterService) {
         ArgumentCaptor<ClusterStateListener> captor = ArgumentCaptor.forClass(ClusterStateListener.class);
@@ -81,7 +95,7 @@ public class ProjectEncryptionKeyServiceTests extends ESTestCase {
     }
 
     public void testGetActiveKeyReturnsNullInitially() {
-        ClusterService clusterService = mock(ClusterService.class);
+        ClusterService clusterService = mockClusterService();
         ProjectEncryptionKeyService service = ProjectEncryptionKeyService.create(
             clusterService,
             DefaultProjectResolver.INSTANCE,
@@ -92,7 +106,7 @@ public class ProjectEncryptionKeyServiceTests extends ESTestCase {
     }
 
     public void testCacheUpdatedOnMetadataChangeAndKeyImmediatelyAvailable() {
-        ClusterService clusterService = mock(ClusterService.class);
+        ClusterService clusterService = mockClusterService();
         ProjectEncryptionKeyService service = ProjectEncryptionKeyService.create(
             clusterService,
             DefaultProjectResolver.INSTANCE,
@@ -112,7 +126,7 @@ public class ProjectEncryptionKeyServiceTests extends ESTestCase {
     }
 
     public void testGatewayBlockSkipsCacheUpdate() {
-        ClusterService clusterService = mock(ClusterService.class);
+        ClusterService clusterService = mockClusterService();
         ProjectEncryptionKeyService service = ProjectEncryptionKeyService.create(
             clusterService,
             DefaultProjectResolver.INSTANCE,
@@ -129,7 +143,7 @@ public class ProjectEncryptionKeyServiceTests extends ESTestCase {
     }
 
     public void testCacheClearedWhenMetadataRemoved() {
-        ClusterService clusterService = mock(ClusterService.class);
+        ClusterService clusterService = mockClusterService();
         ProjectEncryptionKeyService service = ProjectEncryptionKeyService.create(
             clusterService,
             DefaultProjectResolver.INSTANCE,

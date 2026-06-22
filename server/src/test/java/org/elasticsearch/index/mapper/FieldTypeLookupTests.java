@@ -621,6 +621,99 @@ public class FieldTypeLookupTests extends ESTestCase {
         assertNull(lookup.get("status"));
     }
 
+    // --- prefix_properties-based alias resolution (strict columnar mode path) ---
+
+    /**
+     * When {@code prefixProperties} is populated (strict columnar mode), flat fields whose names
+     * start with a passthrough prefix get short-name root aliases so queries can omit the prefix.
+     */
+    public void testPrefixBasedAliasForPassthroughByPrefix() {
+        MockFieldMapper envField = new MockFieldMapper("attributes.env");
+        MockFieldMapper serviceField = new MockFieldMapper("attributes.service");
+
+        FieldTypeLookup lookup = new FieldTypeLookup(
+            List.of(envField, serviceField),
+            List.of(),
+            List.of(),
+            List.of(),
+            Map.of("attributes", new PrefixProperties(null, 1))
+        );
+
+        assertSame(envField.fieldType(), lookup.get("env"));
+        assertSame(serviceField.fieldType(), lookup.get("service"));
+        // full dotted paths still resolve
+        assertSame(envField.fieldType(), lookup.get("attributes.env"));
+        assertSame(serviceField.fieldType(), lookup.get("attributes.service"));
+    }
+
+    /**
+     * A passthrough prefix that is itself multi-segment (e.g. {@code "path.to"}) produces aliases that
+     * strip the full prefix — {@code "path.to.my.field"} → alias {@code "my.field"}, not {@code "field"}.
+     */
+    public void testPrefixBasedAliasMultiSegmentPrefix() {
+        MockFieldMapper deepField = new MockFieldMapper("path.to.my.field");
+
+        FieldTypeLookup lookup = new FieldTypeLookup(
+            List.of(deepField),
+            List.of(),
+            List.of(),
+            List.of(),
+            Map.of("path.to", new PrefixProperties(null, 0))
+        );
+
+        // alias is everything after "path.to." — "my.field", not just "field"
+        assertSame(deepField.fieldType(), lookup.get("my.field"));
+        assertNull("last-dot-only alias must not be created", lookup.get("field"));
+    }
+
+    /**
+     * When two passthrough prefixes compete for the same short-name alias, the higher priority wins.
+     */
+    public void testPrefixBasedAliasPriorityConflict() {
+        MockFieldMapper attrEnv = new MockFieldMapper("attributes.env");
+        MockFieldMapper resEnv = new MockFieldMapper("resource.env");
+
+        FieldTypeLookup lookup = new FieldTypeLookup(
+            randomizedList(attrEnv, resEnv),
+            List.of(),
+            List.of(),
+            List.of(),
+            Map.of("attributes", new PrefixProperties(null, 1), "resource", new PrefixProperties(null, 2))
+        );
+
+        // resource has priority 2 > 1, so resource.env wins for alias "env"
+        assertSame(resEnv.fieldType(), lookup.get("env"));
+    }
+
+    /**
+     * When no {@code prefixProperties} is provided (empty map), no prefix-based aliases are created.
+     */
+    public void testNoPrefixBasedAliasWhenPassthroughByPrefixEmpty() {
+        MockFieldMapper envField = new MockFieldMapper("attributes.env");
+
+        FieldTypeLookup lookup = new FieldTypeLookup(List.of(envField), List.of(), List.of(), List.of(), Map.of());
+
+        assertNull("empty prefixProperties must not create aliases", lookup.get("env"));
+    }
+
+    /**
+     * A concrete root-level field wins over a prefix-based alias with the same name.
+     */
+    public void testPrefixBasedAliasConcreteRootFieldWins() {
+        MockFieldMapper envField = new MockFieldMapper("attributes.env");
+        MockFieldMapper rootEnv = new MockFieldMapper("env");
+
+        FieldTypeLookup lookup = new FieldTypeLookup(
+            randomizedList(envField, rootEnv),
+            List.of(),
+            List.of(),
+            List.of(),
+            Map.of("attributes", new PrefixProperties(null, 1))
+        );
+
+        assertSame(rootEnv.fieldType(), lookup.get("env"));
+    }
+
     @SafeVarargs
     @SuppressWarnings("varargs")
     static <T> List<T> randomizedList(T... values) {

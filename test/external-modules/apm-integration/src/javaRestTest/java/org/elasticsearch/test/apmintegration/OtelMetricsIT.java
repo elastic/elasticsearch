@@ -38,7 +38,9 @@ public class OtelMetricsIT extends AbstractMetricsIT {
     public static ElasticsearchCluster cluster = AbstractMetricsIT.baseClusterBuilder()
         .systemProperty("telemetry.otel.metrics.enabled", "true")
         .setting("telemetry.otel.metrics.endpoint", () -> "http://" + recordingApmServer.getHttpAddress() + "/v1/metrics")
-        .setting("telemetry.otel.metrics.interval", "10m") // one giant batch instead of multiple small ones with deltas we need to sum
+        .setting("telemetry.otel.metrics.interval", "100ms")
+        .setting("telemetry.otel.otlp.send_timeout", "80ms")
+        .setting("telemetry.otel.otlp.retry.initial_backoff", "20ms")
         .setting("telemetry.otel.metrics.disk_buffer_size", "0b")
         // Mirrors the three labels ServerlessServerCli writes via telemetry.agent.global_labels.* on the APM-agent path,
         // bridged here to the OTel resource via the telemetry.otel.resource.* affix.

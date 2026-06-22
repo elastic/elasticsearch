@@ -17,6 +17,7 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 
 /**
  * Fork of {@link org.apache.lucene.document.Document} with additional functionality.
@@ -28,6 +29,11 @@ public class LuceneDocument implements Iterable<IndexableField> {
     private final String prefix;
     private final List<IndexableField> fields;
     private Map<Object, IndexableField> keyedFields;
+    // One-slot reference-equality cache for getOrAddWithKey: consecutive array elements
+    // that share the same field name (identical reference via Mapper.internFieldName) skip
+    // the HashMap entirely. Falls through on a miss, so correctness is unaffected.
+    private Object lastKey;
+    private IndexableField lastKeyedField;
 
     LuceneDocument(String path, LuceneDocument parent) {
         fields = new ArrayList<>();
@@ -112,6 +118,27 @@ public class LuceneDocument implements Iterable<IndexableField> {
      */
     public IndexableField getByKey(Object key) {
         return keyedFields == null ? null : keyedFields.get(key);
+    }
+
+    /**
+     * Add fields so that they can later be fetched using {@link #getByKey(Object)}.
+     * If the keyed field does not exist, it will be computed using the supplied mappingFunction.
+     * The mappingFunction is responsible for adding any companion fields to this document; the keyed field itself may be
+     * added eagerly or lazily (e.g. a blob written only once it holds a value), so it is not required to be in the field list yet.
+     */
+    public IndexableField getOrAddWithKey(final Object key, Function<Object, IndexableField> mappingFunction) {
+        if (key == lastKey) {
+            return lastKeyedField;
+        }
+        if (keyedFields == null) {
+            keyedFields = new HashMap<>();
+        }
+
+        var indexableField = keyedFields.computeIfAbsent(key, mappingFunction);
+        assert indexableField != null : "mappingFunction must return a non-null field";
+        lastKey = key;
+        lastKeyedField = indexableField;
+        return indexableField;
     }
 
     public List<IndexableField> getFields(String name) {

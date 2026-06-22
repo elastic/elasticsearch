@@ -27,6 +27,5 @@
   "examples" : [
     "requests_total{method!=\"DELETE\"}"
   ],
-  "preview" : true,
   "snapshot_only" : false
 }

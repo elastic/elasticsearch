@@ -10,6 +10,7 @@
 package org.elasticsearch.iplocation.api;
 
 import java.util.Arrays;
+import java.util.EnumSet;
 import java.util.Locale;
 import java.util.Set;
 
@@ -83,6 +84,24 @@ public enum DatabaseProperty {
 
     public Class<?> fieldType() {
         return fieldType;
+    }
+
+    /**
+     * Builds the set of {@link DatabaseProperty} values whose {@link #fieldName()} is present in the given set of field names.
+     * Useful for bridging between the string-keyed field map from {@link IpDataLookupInfo#getFields()} and the enum-keyed
+     * validation required by {@link #parseProperty(Set, String)}.
+     *
+     * @param fieldNames the set of valid field name strings (e.g. from {@code info.getFields().keySet()})
+     * @return the subset of {@link DatabaseProperty} values matching the given field names
+     */
+    public static Set<DatabaseProperty> buildValidSet(Set<String> fieldNames) {
+        Set<DatabaseProperty> result = EnumSet.noneOf(DatabaseProperty.class);
+        for (DatabaseProperty dp : values()) {
+            if (fieldNames.contains(dp.fieldName())) {
+                result.add(dp);
+            }
+        }
+        return result;
     }
 
     /**

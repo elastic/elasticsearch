@@ -8,11 +8,11 @@
 package org.elasticsearch.xpack.esql.planner;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.Build;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.lucene.BytesRefs;
@@ -87,6 +87,9 @@ import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesParams;
 import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
+import org.elasticsearch.iplocation.api.IpDataLookup;
+import org.elasticsearch.iplocation.api.IpLocationConsumer;
+import org.elasticsearch.iplocation.api.IpLocationService;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.node.Node;
@@ -133,6 +136,7 @@ import org.elasticsearch.xpack.esql.enrich.MatchConfig;
 import org.elasticsearch.xpack.esql.evaluator.EvalMapper;
 import org.elasticsearch.xpack.esql.evaluator.command.CompoundOutputEvaluator;
 import org.elasticsearch.xpack.esql.evaluator.command.GrokEvaluatorExtracter;
+import org.elasticsearch.xpack.esql.evaluator.command.IpLocationFunctionBridge;
 import org.elasticsearch.xpack.esql.evaluator.command.UserAgentFunctionBridge;
 import org.elasticsearch.xpack.esql.expression.Foldables;
 import org.elasticsearch.xpack.esql.expression.Order;
@@ -161,6 +165,8 @@ import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.FuseScoreEvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.GrokExec;
 import org.elasticsearch.xpack.esql.plan.physical.HashJoinExec;
+import org.elasticsearch.xpack.esql.plan.physical.HighlightExec;
+import org.elasticsearch.xpack.esql.plan.physical.IpLocationExec;
 import org.elasticsearch.xpack.esql.plan.physical.LimitByExec;
 import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
 import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
@@ -186,6 +192,7 @@ import org.elasticsearch.xpack.esql.plan.physical.UserAgentExec;
 import org.elasticsearch.xpack.esql.plan.physical.inference.CompletionExec;
 import org.elasticsearch.xpack.esql.plan.physical.inference.RerankExec;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders.ShardContext;
+import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.score.ScoreMapper;
 import org.elasticsearch.xpack.esql.session.Configuration;
@@ -236,6 +243,8 @@ public class LocalExecutionPlanner {
     private final LookupFromIndexService lookupFromIndexService;
     private final InferenceService inferenceService;
     private final UserAgentParserRegistry userAgentParserRegistry;
+    private final IpLocationService ipLocationService;
+    private final ProjectResolver projectResolver;
     private final AbstractPhysicalOperationProviders physicalOperationProviders;
     private final OperatorFactoryRegistry operatorFactoryRegistry;
 
@@ -253,6 +262,8 @@ public class LocalExecutionPlanner {
         LookupFromIndexService lookupFromIndexService,
         InferenceService inferenceService,
         UserAgentParserRegistry userAgentParserRegistry,
+        IpLocationService ipLocationService,
+        ProjectResolver projectResolver,
         AbstractPhysicalOperationProviders physicalOperationProviders,
         OperatorFactoryRegistry operatorFactoryRegistry
     ) {
@@ -270,6 +281,8 @@ public class LocalExecutionPlanner {
         this.lookupFromIndexService = lookupFromIndexService;
         this.inferenceService = inferenceService;
         this.userAgentParserRegistry = userAgentParserRegistry;
+        this.ipLocationService = ipLocationService;
+        this.projectResolver = projectResolver;
         this.physicalOperationProviders = physicalOperationProviders;
         this.operatorFactoryRegistry = operatorFactoryRegistry;
     }
@@ -359,6 +372,8 @@ public class LocalExecutionPlanner {
             return planMvExpand(mvExpand, context);
         } else if (node instanceof TimeSeriesCollapseExec tsCollapse) {
             return planTimeSeriesCollapse(tsCollapse, context);
+        } else if (node instanceof HighlightExec) {
+            throw new UnsupportedOperationException("HIGHLIGHT is not implemented yet");
         } else if (node instanceof RerankExec rerank) {
             return planRerank(rerank, context);
         } else if (node instanceof ChangePointExec changePoint) {
@@ -367,6 +382,8 @@ public class LocalExecutionPlanner {
             return planCompletion(completion, context);
         } else if (node instanceof SampleExec Sample) {
             return planSample(Sample, context);
+        } else if (node instanceof IpLocationExec ipLoc) {
+            return planIpLocation(ipLoc, context);
         } else if (node instanceof UserAgentExec userAgent) {
             return planUserAgent(userAgent, context);
         } else if (node instanceof UriPartsExec uriParts) {
@@ -432,6 +449,28 @@ public class LocalExecutionPlanner {
         return source.with(new MMROperator.Factory(diversifyField, diversifyFieldChannel, limit, queryVector, lambdaValue), source.layout);
     }
 
+    private PhysicalOperation planIpLocation(IpLocationExec exec, LocalExecutionPlannerContext context) {
+        String projectId = projectResolver.getProjectId().id();
+        ipLocationService.requestDownloads(projectId, IpLocationConsumer.ESQL);
+
+        IpDataLookup lookup = ipLocationService.createIpDataLookup(projectId, exec.databaseFile(), exec.outputFieldNames());
+        CompoundOutputEvaluator.OutputFieldsCollectorProvider provider = new CompoundOutputEvaluator.OutputFieldsCollectorProvider() {
+            @Override
+            public CompoundOutputEvaluator.OutputFieldsCollector createOutputFieldsCollector() {
+                return new IpLocationFunctionBridge.IpLocationCollectorImpl(exec.outputFieldNames(), lookup, exec.databaseFile());
+            }
+
+            @Override
+            public String collectorSimpleName() {
+                return IpLocationFunctionBridge.IpLocationCollectorImpl.class.getSimpleName();
+            }
+        };
+        CompoundOutputEvaluator.MultiValueStrategy strategy = exec.firstOnly()
+            ? CompoundOutputEvaluator.MultiValueStrategy.TAKE_FIRST
+            : CompoundOutputEvaluator.MultiValueStrategy.REJECT;
+        return planCompoundOutputEval(exec, provider, strategy, context);
+    }
+
     private PhysicalOperation planUserAgent(UserAgentExec exec, LocalExecutionPlannerContext context) {
         UserAgentParser parser = userAgentParserRegistry.getParser(exec.regexFile());
         if (parser == null) {
@@ -448,20 +487,21 @@ public class LocalExecutionPlanner {
                 return UserAgentFunctionBridge.UserAgentCollectorImpl.class.getSimpleName();
             }
         };
-        return planCompoundOutputEval(exec, provider, context);
+        return planCompoundOutputEval(exec, provider, CompoundOutputEvaluator.MultiValueStrategy.REJECT, context);
     }
 
     private PhysicalOperation planUriParts(UriPartsExec uriParts, LocalExecutionPlannerContext context) {
-        return planCompoundOutputEval(uriParts, uriParts, context);
+        return planCompoundOutputEval(uriParts, uriParts, CompoundOutputEvaluator.MultiValueStrategy.REJECT, context);
     }
 
     private PhysicalOperation planRegisteredDomain(RegisteredDomainExec rd, LocalExecutionPlannerContext context) {
-        return planCompoundOutputEval(rd, rd, context);
+        return planCompoundOutputEval(rd, rd, CompoundOutputEvaluator.MultiValueStrategy.REJECT, context);
     }
 
     private PhysicalOperation planCompoundOutputEval(
         final CompoundOutputEvalExec coe,
         CompoundOutputEvaluator.OutputFieldsCollectorProvider provider,
+        CompoundOutputEvaluator.MultiValueStrategy multiValueStrategy,
         LocalExecutionPlannerContext context
     ) {
         PhysicalOperation source = plan(coe.child(), context);
@@ -479,7 +519,7 @@ public class LocalExecutionPlanner {
             new ColumnExtractOperator.Factory(
                 types,
                 EvalMapper.toEvaluator(context.foldCtx(), coe.input(), layout, context.analysisRegistry()),
-                new CompoundOutputEvaluator.Factory(coe.input().dataType(), coe.source(), provider)
+                new CompoundOutputEvaluator.Factory(coe.input().dataType(), coe.source(), provider, multiValueStrategy)
             ),
             layout
         );
@@ -1212,7 +1252,7 @@ public class LocalExecutionPlanner {
             var maybeEntry = esRelation.indexNameWithModes()
                 .entrySet()
                 .stream()
-                .filter(e -> RemoteClusterAware.parseClusterAlias(e.getKey()).equals(clusterAlias))
+                .filter(e -> RemoteClusterAware.splitIndexName(e.getKey()).getClusterGroupingKey().equals(clusterAlias))
                 .findFirst();
             entry = maybeEntry.orElseThrow(
                 () -> new IllegalStateException(
@@ -1224,14 +1264,14 @@ public class LocalExecutionPlanner {
         if (entry.getValue() != IndexMode.LOOKUP) {
             throw new IllegalStateException("can't plan [" + join + "], found index with mode [" + entry.getValue() + "]");
         }
-        String[] indexSplit = RemoteClusterAware.splitIndexName(entry.getKey());
+        var indexSplit = RemoteClusterAware.splitIndexName(entry.getKey());
         // No prefix is ok, prefix with this cluster is ok, something else is not
-        if (indexSplit[0] != null && clusterAlias.equals(indexSplit[0]) == false) {
+        if (indexSplit.clusterAlias() != null && clusterAlias.equals(indexSplit.clusterAlias()) == false) {
             throw new IllegalStateException(
                 "can't plan [" + join + "]: no matching index found " + EsqlCCSUtils.inClusterName(clusterAlias)
             );
         }
-        String indexName = indexSplit[1];
+        String indexName = indexSplit.indexExpression();
         if (join.leftFields().size() != join.rightFields().size()) {
             throw new IllegalArgumentException("can't plan [" + join + "]: mismatching left and right field count");
         }
@@ -1290,17 +1330,16 @@ public class LocalExecutionPlanner {
     private static final TransportVersion ESQL_LOOKUP_PLANNING = TransportVersion.fromName("esql_lookup_planning");
 
     /**
-     * Determines whether streaming lookup should be used based on the target node's transport version.
+     * Determines whether streaming lookup should be used based on the {@link EsqlPlugin#LOOKUP_JOIN_STREAMING}
+     * setting and the target nodes' transport versions.
      * Streaming lookup requires all target nodes to support the streaming protocol.
-     * Currently only enabled in snapshot builds.
      */
     private boolean shouldUseStreamingOperator(LookupFromIndexService service, String indexName) {
-        // Streaming lookup is only enabled in snapshot builds
-        if (Build.current().isSnapshot() == false) {
-            return false;
-        }
-
         try {
+            if (service.getClusterService().getClusterSettings().get(EsqlPlugin.LOOKUP_JOIN_STREAMING) == false) {
+                return false;
+            }
+
             ClusterState clusterState = service.getClusterService().state();
 
             // Resolve target nodes for the lookup index
@@ -1580,7 +1619,7 @@ public class LocalExecutionPlanner {
         }
 
         return (indexName, fieldName) -> {
-            String localIndexName = RemoteClusterAware.getLocalIndexName(RemoteClusterAware.splitIndexName(indexName));
+            String localIndexName = RemoteClusterAware.splitIndexName(indexName).indexExpression();
             MappingLookup mappingLookup = mappingsByIndex.get(localIndexName);
             if (mappingLookup == null) {
                 return null;

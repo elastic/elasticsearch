@@ -53,6 +53,8 @@ import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobStore;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -83,11 +85,13 @@ import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.store.DirectoryMetrics;
 import org.elasticsearch.index.store.PluggableDirectoryMetricsHolder;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.ThreadLocalDirectoryMetricHolder;
 import org.elasticsearch.index.translog.TranslogConfig;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.indices.breaker.BreakerSettings;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.indices.cluster.IndexRemovalReason;
 import org.elasticsearch.indices.recovery.RecoverySettings;
@@ -104,6 +108,7 @@ import org.elasticsearch.node.PluginComponentBinding;
 import org.elasticsearch.persistent.PersistentTaskParams;
 import org.elasticsearch.persistent.PersistentTasksExecutor;
 import org.elasticsearch.plugins.ActionPlugin;
+import org.elasticsearch.plugins.CircuitBreakerPlugin;
 import org.elasticsearch.plugins.ClusterCoordinationPlugin;
 import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.plugins.EnginePlugin;
@@ -140,6 +145,7 @@ import org.elasticsearch.xpack.stateless.allocation.StatelessShardRelocationOrde
 import org.elasticsearch.xpack.stateless.allocation.StatelessShardRoutingRoleStrategy;
 import org.elasticsearch.xpack.stateless.allocation.StatelessThrottlingConcurrentRecoveriesAllocationDecider;
 import org.elasticsearch.xpack.stateless.cache.DefaultWarmingRatioProviderFactory;
+import org.elasticsearch.xpack.stateless.cache.PinnedWindowEvictionPolicy;
 import org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcher;
 import org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcherDynamicSettings;
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
@@ -172,6 +178,8 @@ import org.elasticsearch.xpack.stateless.engine.IndexEngine;
 import org.elasticsearch.xpack.stateless.engine.RefreshManagerService;
 import org.elasticsearch.xpack.stateless.engine.RefreshManagerServiceFactory;
 import org.elasticsearch.xpack.stateless.engine.SearchEngine;
+import org.elasticsearch.xpack.stateless.engine.StatelessReaderHeapBreaker;
+import org.elasticsearch.xpack.stateless.engine.StatelessReaderHeapMetrics;
 import org.elasticsearch.xpack.stateless.engine.translog.TranslogRecoveryMetrics;
 import org.elasticsearch.xpack.stateless.engine.translog.TranslogReplicator;
 import org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectoryMetrics;
@@ -201,6 +209,8 @@ import org.elasticsearch.xpack.stateless.recovery.shardinfo.SearchShardInformati
 import org.elasticsearch.xpack.stateless.recovery.shardinfo.TransportFetchSearchShardInformationAction;
 import org.elasticsearch.xpack.stateless.reshard.ReshardIndexService;
 import org.elasticsearch.xpack.stateless.reshard.ReshardMetrics;
+import org.elasticsearch.xpack.stateless.reshard.ReshardSearchFilters;
+import org.elasticsearch.xpack.stateless.reshard.ReshardUnownedBitsetCache;
 import org.elasticsearch.xpack.stateless.reshard.SplitSourceService;
 import org.elasticsearch.xpack.stateless.reshard.SplitTargetService;
 import org.elasticsearch.xpack.stateless.reshard.TransportReshardAction;
@@ -237,6 +247,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.Function;
@@ -258,6 +269,7 @@ public class StatelessPlugin extends Plugin
         ActionPlugin,
         ClusterPlugin,
         ClusterCoordinationPlugin,
+        CircuitBreakerPlugin,
         ExtensiblePlugin,
         HealthPlugin,
         PersistentTaskPlugin {
@@ -492,6 +504,7 @@ public class StatelessPlugin extends Plugin
     private final SetOnce<TranslogReplicator> translogReplicator = new SetOnce<>();
     private final SetOnce<TranslogRecoveryMetrics> translogReplicatorMetrics = new SetOnce<>();
     private final SetOnce<HollowShardsMetrics> hollowShardMetrics = new SetOnce<>();
+    private final SetOnce<StatelessReaderHeapMetrics> readerHeapMetrics = new SetOnce<>();
     private final SetOnce<StatelessElectionStrategy> electionStrategy = new SetOnce<>();
     private final SetOnce<StoreHeartbeatService> storeHeartbeatService = new SetOnce<>();
     // protected for testing
@@ -511,6 +524,7 @@ public class StatelessPlugin extends Plugin
     private final SetOnce<SearchCommitPrefetcher.PrefetchExecutor> prefetchExecutor = new SetOnce<>();
     private final SetOnce<BCCHeaderReadExecutor> bccHeaderReadExecutor = new SetOnce<>();
     private final SetOnce<SearchCommitPrefetcherDynamicSettings> prefetchingDynamicSettings = new SetOnce<>();
+    private final SetOnce<ReshardSearchFilters> reshardSearchFilters = new SetOnce<>();
     private final SetOnce<SearchShardInformationIndexListener> searchShardInformationIndexListener = new SetOnce<>();
     private final SetOnce<PITRelocationService> pitRelocationService = new SetOnce<>();
     private final SetOnce<List<StatelessExtensionProvider>> statelessServicesConsumerProviders = new SetOnce<>();
@@ -527,6 +541,12 @@ public class StatelessPlugin extends Plugin
     private final boolean sharedCacheMmapExplicitlySet;
     private final boolean useRealMemoryCircuitBreakerExplicitlySet;
     private final boolean pageCacheReyclerLimitExplicitlySet;
+
+    // The reader-heap circuit breaker for search nodes. Resolved late by HierarchyCircuitBreakerService through
+    // CircuitBreakerPlugin#setCircuitBreaker before any shard engine is constructed; defaults to a noop for tests.
+    private final AtomicReference<CircuitBreaker> readerHeapBreaker = new AtomicReference<>(
+        new NoopCircuitBreaker(StatelessReaderHeapBreaker.NAME)
+    );
 
     private final boolean hasSearchRole;
     private final boolean hasIndexRole;
@@ -762,7 +782,7 @@ public class StatelessPlugin extends Plugin
         if (projectResolver.get().supportsMultipleProjects()) {
             clusterService.addStateApplier(objectStoreService);
         }
-        var cacheService = createSharedBlobCacheService(nodeEnvironment, settings, threadPool, blobCacheMetrics);
+        var cacheService = createSharedBlobCacheService(nodeEnvironment, settings, threadPool, blobCacheMetrics, clusterService);
         var sharedBlobCacheServiceSupplier = new SharedBlobCacheServiceSupplier(setAndGet(this.sharedBlobCacheService, cacheService));
         components.add(sharedBlobCacheServiceSupplier);
         var cacheBlobReaderService = setAndGet(
@@ -849,6 +869,10 @@ public class StatelessPlugin extends Plugin
         setAndGet(
             hollowShardMetrics,
             HollowShardsMetrics.from(services.telemetryProvider().getMeterRegistry(), this::amountOfHollowableShards)
+        );
+        setAndGet(
+            readerHeapMetrics,
+            StatelessReaderHeapMetrics.register(services.telemetryProvider().getMeterRegistry(), readerHeapBreaker.get())
         );
         components.add(hollowShardMetrics.get());
         components.add(new StatelessComponents(translogReplicator, objectStoreService));
@@ -989,6 +1013,7 @@ public class StatelessPlugin extends Plugin
             // created whenever we create the search engine and it might miss the settings that were updated before the node was started.
             // also note that we create one search engine per index so we could end up with many instances of settings listeners.
             setAndGet(this.prefetchingDynamicSettings, new SearchCommitPrefetcherDynamicSettings(clusterService.getClusterSettings()));
+            setAndGet(this.reshardSearchFilters, new ReshardSearchFilters(settings));
             SearchShardInformationMetricsCollector shardInformationMetricsCollector = new SearchShardInformationMetricsCollector(
                 services.telemetryProvider()
             );
@@ -1032,13 +1057,15 @@ public class StatelessPlugin extends Plugin
         NodeEnvironment nodeEnvironment,
         Settings settings,
         ThreadPool threadPool,
-        BlobCacheMetrics blobCacheMetrics
+        BlobCacheMetrics blobCacheMetrics,
+        ClusterService clusterService
     ) {
         StatelessSharedBlobCacheService statelessSharedBlobCacheService = new StatelessSharedBlobCacheService(
             nodeEnvironment,
             settings,
             threadPool,
             blobCacheMetrics,
+            clusterService,
             metricHolder
         );
         statelessSharedBlobCacheService.assertInvariants();
@@ -1173,6 +1200,7 @@ public class StatelessPlugin extends Plugin
             Thread.currentThread().interrupt();
         }
         Releasables.close(sharedBlobCacheService.get());
+        IOUtils.close(reshardSearchFilters.get());
         try {
             IOUtils.close(blobStoreHealthIndicator.get());
         } catch (IOException e) {
@@ -1241,6 +1269,8 @@ public class StatelessPlugin extends Plugin
             SplitTargetService.RESHARD_SPLIT_SEARCH_SHARDS_ONLINE_TIMEOUT,
             SplitTargetService.RESHARD_SPLIT_SPLIT_STATE_APPLIED_TIMEOUT,
             SplitSourceService.RESHARD_SPLIT_DELETE_UNOWNED_GRACE_PERIOD,
+            ReshardUnownedBitsetCache.CACHE_TTL_SETTING,
+            ReshardUnownedBitsetCache.CACHE_SIZE_SETTING,
             StatelessBalancingWeightsFactory.SEPARATE_WEIGHTS_PER_TIER_ENABLED_SETTING,
             StatelessBalancingWeightsFactory.INDEXING_TIER_SHARD_BALANCE_FACTOR_SETTING,
             StatelessBalancingWeightsFactory.SEARCH_TIER_SHARD_BALANCE_FACTOR_SETTING,
@@ -1307,8 +1337,22 @@ public class StatelessPlugin extends Plugin
             ShardsMappingSizeCollector.FIXED_HOLLOW_SHARD_MEMORY_OVERHEAD_SETTING,
             ShardsMappingSizeCollector.HOLLOW_SHARD_SEGMENT_MEMORY_OVERHEAD_SETTING,
             StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_ENABLED_SETTING,
+            StatelessReaderHeapBreaker.LIMIT_SETTING,
+            StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_EVICTION_POLICY_SETTING,
+            PinnedWindowEvictionPolicy.PINNED_WINDOW_DURATION_SETTING,
             DisableSimulationRebalancingDecider.SIMULATION_REBALANCING_ENABLED_SETTING
         );
+    }
+
+    @Override
+    public BreakerSettings getCircuitBreaker(Settings settings) {
+        return StatelessReaderHeapBreaker.breakerSettings(settings);
+    }
+
+    @Override
+    public void setCircuitBreaker(CircuitBreaker circuitBreaker) {
+        assert StatelessReaderHeapBreaker.NAME.equals(circuitBreaker.getName()) : "unexpected breaker [" + circuitBreaker.getName() + "]";
+        readerHeapBreaker.set(circuitBreaker);
     }
 
     @Override
@@ -1438,6 +1482,8 @@ public class StatelessPlugin extends Plugin
             });
             if (hollowShardsEnabled == false) {
                 indexModule.setIndexCommitListener(createIndexCommitListener());
+            } else {
+                indexModule.setMutableOperationGate(hollowShardsService.get());
             }
             final var idxVersion = indexModule.indexSettings().getIndexVersionCreated();
             final var readSiFromMemoryIfPossible = idxVersion.onOrAfter(IndexVersions.READ_SI_FILES_FROM_MEMORY_FOR_HOLLOW_COMMITS);
@@ -1632,13 +1678,17 @@ public class StatelessPlugin extends Plugin
             } else {
                 assert prefetchExecutor.get() != null : "Prefetch executor should be instantiated in search nodes";
                 assert prefetchingDynamicSettings.get() != null : "Prefetching dynamic settings should be instantiated in search nodes";
+                assert reshardSearchFilters.get() != null : "Reshard search filters should be instantiated in search nodes";
                 return new SearchEngine(
                     config,
                     getClosedShardService(),
                     sharedBlobCacheService.get(),
                     clusterService.get().getClusterSettings(),
                     prefetchExecutor.get(),
-                    prefetchingDynamicSettings.get()
+                    prefetchingDynamicSettings.get(),
+                    readerHeapBreaker.get(),
+                    readerHeapMetrics.get(),
+                    reshardSearchFilters.get()
                 );
             }
         });
@@ -1963,6 +2013,11 @@ public class StatelessPlugin extends Plugin
                 PersistentTaskParams.class,
                 ObjectStoreGCTask.TASK_NAME,
                 ObjectStoreGCTaskExecutor.ObjectStoreGCTaskParams::new
+            ),
+            new NamedWriteableRegistry.Entry(
+                DirectoryMetrics.PluggableMetrics.class,
+                BlobStoreCacheDirectoryMetrics.NAME,
+                BlobStoreCacheDirectoryMetrics::new
             )
         );
     }

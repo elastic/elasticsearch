@@ -45,6 +45,7 @@ public class Split extends BinaryScalarFunction implements EvaluatorMapper {
 
     @FunctionInfo(
         returnType = "keyword",
+        briefSummary = "Splits a single valued string into multiple strings.",
         description = "Split a single valued string into multiple strings.",
         examples = @Example(file = "string", tag = "split")
     )

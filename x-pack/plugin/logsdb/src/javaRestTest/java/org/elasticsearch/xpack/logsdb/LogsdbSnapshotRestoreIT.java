@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.logsdb;
 import org.apache.http.client.methods.HttpPut;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
@@ -18,14 +19,17 @@ import org.elasticsearch.common.time.FormatNames;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.cluster.FeatureFlag;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.xcontent.XContentType;
 import org.junit.After;
 import org.junit.ClassRule;
+import org.junit.rules.ExternalResource;
 import org.junit.rules.RuleChain;
 import org.junit.rules.TemporaryFolder;
 import org.junit.rules.TestRule;
@@ -51,17 +55,29 @@ public class LogsdbSnapshotRestoreIT extends ESRestTestCase {
     private static final String USER = "test_admin";
     private static final String PASS = "x-pack-test-password";
 
+    private static boolean columnarEnabled;
+
     private static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .distribution(DistributionType.DEFAULT)
         .setting("path.repo", () -> getRepoPath())
         .user(USER, PASS)
         .setting("xpack.security.autoconfiguration.enabled", "false")
         .setting("xpack.license.self_generated.type", "trial")
+        .feature(FeatureFlag.COLUMNAR_INDEX_MODE_FEATURE_FLAG)
         .build();
 
+    // columnarEnabled must be set before the cluster starts (ClassRule.before() runs before @BeforeClass),
+    // so we initialize it as an ExternalResource in the rule chain ahead of the cluster rule.
     @ClassRule
-    public static TestRule ruleChain = RuleChain.outerRule(repoDirectory).around(cluster);
+    public static TestRule ruleChain = RuleChain.outerRule(repoDirectory).around(new ExternalResource() {
+        @Override
+        protected void before() {
+            columnarEnabled = IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled() && randomBoolean();
+        }
+    }).around(cluster);
 
+    // Can't randomize index mode using cluster.logsdb_columnar.enabled setting.
+    // Need to specify index mode, because columnar source is also defined in template. Template creation fails otherwise.
     static final String LOGS_TEMPLATE = """
         {
           "index_patterns": [ "logs-*-*" ],
@@ -70,6 +86,7 @@ public class LogsdbSnapshotRestoreIT extends ESRestTestCase {
           "template": {
             "settings": {
               "index": {
+                "mode": "{{index_mode}}",
                 "mapping": {
                   "source":{
                     "mode": "{{source_mode}}"
@@ -142,7 +159,7 @@ public class LogsdbSnapshotRestoreIT extends ESRestTestCase {
     }
 
     public void testSnapshotRestore() throws Exception {
-        snapshotAndRestore("synthetic", "object", false);
+        snapshotAndRestore("synthetic", columnarEnabled ? "flattened" : "object", false);
     }
 
     public void testSnapshotRestoreWithSourceOnlyRepository() throws Exception {
@@ -150,34 +167,50 @@ public class LogsdbSnapshotRestoreIT extends ESRestTestCase {
     }
 
     public void testSnapshotRestoreNested() throws Exception {
-        snapshotAndRestore("synthetic", "nested", false);
+        snapshotAndRestore("synthetic", columnarEnabled ? "flattened" : "nested", false);
     }
 
     public void testSnapshotRestoreNestedWithSourceOnlyRepository() throws Exception {
-        snapshotAndFail("nested");
+        snapshotAndFail(columnarEnabled ? "flattened" : "nested");
     }
 
     public void testSnapshotRestoreStoredSource() throws Exception {
-        snapshotAndRestore("stored", "object", false);
+        snapshotAndRestore(columnarEnabled ? "columnar_stored" : "stored", "object", false);
     }
 
     public void testSnapshotRestoreStoredSourceWithSourceOnlyRepository() throws Exception {
+        assumeFalse("synthetic source and columnar source is not supported with source-only repositories", columnarEnabled);
         snapshotAndRestore("stored", "object", true);
     }
 
     public void testSnapshotRestoreStoredSourceNested() throws Exception {
-        snapshotAndRestore("stored", "nested", false);
+        snapshotAndRestore(columnarEnabled ? "columnar_stored" : "stored", columnarEnabled ? "flattened" : "nested", false);
     }
 
     public void testSnapshotRestoreStoredSourceNestedWithSourceOnlyRepository() throws Exception {
-        snapshotAndRestore("stored", "nested", true);
+        assumeFalse("synthetic source and columnar source is not supported with source-only repositories", columnarEnabled);
+        snapshotAndRestore("stored", columnarEnabled ? "flattened" : "nested", true);
     }
 
     @After
     public void cleanup() throws Exception {
         deleteSnapshot("my-repository", "my-snapshot", true);
-        deleteRepository("my-repository");
-        deleteDataStream("logs-my-test");
+        try {
+            deleteRepository("my-repository");
+        } catch (ResponseException e) {
+            // ignore if the repository doesn't exist
+            if (e.getResponse().getStatusLine().getStatusCode() != 404) {
+                throw e;
+            }
+        }
+        try {
+            deleteDataStream("logs-my-test");
+        } catch (ResponseException e) {
+            // ignore if the data stream doesn't exist
+            if (e.getResponse().getStatusLine().getStatusCode() != 404) {
+                throw e;
+            }
+        }
     }
 
     static void snapshotAndRestore(String sourceMode, String arrayType, boolean sourceOnly) throws IOException {
@@ -191,7 +224,11 @@ public class LogsdbSnapshotRestoreIT extends ESRestTestCase {
             registerRepository(repositoryName, FsRepository.TYPE, true, repositorySettings);
         }
 
-        putTemplate("my-template", LOGS_TEMPLATE.replace("{{source_mode}}", sourceMode).replace("{{array_type}}", arrayType));
+        String indexMode = columnarEnabled ? "logsdb_columnar" : "logsdb";
+        putTemplate(
+            "my-template",
+            LOGS_TEMPLATE.replace("{{index_mode}}", indexMode).replace("{{source_mode}}", sourceMode).replace("{{array_type}}", arrayType)
+        );
         String[] docs = new String[100];
         for (int i = 0; i < 100; i++) {
             docs[i] = document(
@@ -232,7 +269,11 @@ public class LogsdbSnapshotRestoreIT extends ESRestTestCase {
         var repositorySettings = Settings.builder().put("delegate_type", "fs").put("location", getRepoPath()).build();
         registerRepository(repositoryName, "source", true, repositorySettings);
 
-        putTemplate("my-template", LOGS_TEMPLATE.replace("{{source_mode}}", "synthetic").replace("{{array_type}}", arrayType));
+        String indexMode = columnarEnabled ? "logsdb_columnar" : "logsdb";
+        putTemplate(
+            "my-template",
+            LOGS_TEMPLATE.replace("{{index_mode}}", indexMode).replace("{{source_mode}}", "synthetic").replace("{{array_type}}", arrayType)
+        );
         for (int i = 0; i < 100; i++) {
             indexDocument(
                 dataStreamName,
@@ -323,7 +364,7 @@ public class LogsdbSnapshotRestoreIT extends ESRestTestCase {
     static void assertDataStream(String dataStreamName, final String sourceMode) throws IOException {
         String indexName = getWriteBackingIndex(dataStreamName, 0);
         var flatSettings = (Map<?, ?>) ((Map<?, ?>) getIndexSettings(indexName).get(indexName)).get("settings");
-        assertThat(flatSettings, hasEntry("index.mode", "logsdb"));
+        assertThat(flatSettings, hasEntry("index.mode", columnarEnabled ? "logsdb_columnar" : "logsdb"));
         assertThat(flatSettings, hasEntry("index.mapping.source.mode", sourceMode));
     }
 
@@ -356,18 +397,66 @@ public class LogsdbSnapshotRestoreIT extends ESRestTestCase {
         assertThat(hits, hasSize(docs.length));
         for (Object hit : hits) {
             Map<?, ?> actualSource = (Map<?, ?>) ((Map<?, ?>) hit).get("_source");
-            String actualHost = (String) ((Map<?, ?>) actualSource.get("host")).get("name");
+            String actualHost = extractHostName(actualSource);
             Map<?, ?> expectedSource = null;
             for (String doc : docs) {
-                expectedSource = XContentHelper.convertToMap(XContentType.JSON.xContent(), doc, false);
-                String expectedHost = (String) ((Map<?, ?>) expectedSource.get("host")).get("name");
+                Map<?, ?> parsed = XContentHelper.convertToMap(XContentType.JSON.xContent(), doc, false);
+                String expectedHost = (String) ((Map<?, ?>) parsed.get("host")).get("name");
                 if (expectedHost.equals(actualHost)) {
+                    expectedSource = parsed;
                     break;
                 }
             }
 
-            assertMap(actualSource, matchesMap(expectedSource));
+            assertMap(actualSource, matchesMap(normalizeExpectedSource(expectedSource, actualSource)));
         }
+    }
+
+    // In logsdb_columnar mode (subobjects disabled), host.name appears as a flat top-level
+    // key "host.name" rather than nested {"host": {"name": "..."}}.
+    private static String extractHostName(Map<?, ?> source) {
+        Object host = source.get("host");
+        if (host instanceof Map<?, ?> hostMap) {
+            return (String) hostMap.get("name");
+        }
+        return (String) source.get("host.name");
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Map<?, ?> normalizeExpectedSource(Map<?, ?> expected, Map<?, ?> actualSource) {
+        // Only normalize when columnar mode produces a flat synthetic _source. Stored-source
+        // indexes preserve the original nested structure even in logsdb_columnar mode, so
+        // we detect which case we're in by checking whether the actual source already has the
+        // nested "host" key.
+        if (columnarEnabled == false || actualSource.containsKey("host")) {
+            return expected;
+        }
+        var normalized = new java.util.LinkedHashMap<>((Map<Object, Object>) expected);
+        // In logsdb_columnar mode (subobjects disabled), {"host": {"name": "..."}} is stored
+        // as the flat key "host.name" in synthetic _source.
+        Object host = normalized.remove("host");
+        if (host instanceof Map<?, ?> hostMap) {
+            normalized.put("host.name", hostMap.get("name"));
+        }
+        // With subobjects:false in logsdb_columnar mode, arrays of objects are coalesced:
+        // - flattened type: my_object_array: {field_1:[a,c], field_2:[b,d]}
+        // - object type: my_object_array.field_1: [a,c], my_object_array.field_2: [b,d]
+        // Detect which form the actual source uses and normalize to match.
+        Object arr = normalized.remove("my_object_array");
+        if (arr instanceof List<?> list) {
+            var flatMap = new java.util.LinkedHashMap<String, List<Object>>();
+            for (Object item : list) {
+                if (item instanceof Map<?, ?> m) {
+                    m.forEach((k, v) -> flatMap.computeIfAbsent(k.toString(), key -> new java.util.ArrayList<>()).add(v));
+                }
+            }
+            if (actualSource.containsKey("my_object_array")) {
+                normalized.put("my_object_array", flatMap);
+            } else {
+                flatMap.forEach((k, v) -> normalized.put("my_object_array." + k, v));
+            }
+        }
+        return normalized;
     }
 
     @SuppressForbidden(reason = "TemporaryFolder only has io.File methods, not nio.File")

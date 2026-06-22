@@ -30,12 +30,12 @@ import static org.elasticsearch.index.mapper.TimeSeriesParams.MetricType.POSITIO
 abstract class AbstractFieldDownsampler<T> implements DownsampleFieldSerializer {
 
     private final String name;
-    protected boolean isEmpty;
+    protected State state;
     protected final IndexFieldData<?> fieldData;
 
     AbstractFieldDownsampler(String name, IndexFieldData<?> fieldData) {
         this.name = name;
-        this.isEmpty = true;
+        this.state = State.EMPTY;
         this.fieldData = fieldData;
     }
 
@@ -55,7 +55,14 @@ abstract class AbstractFieldDownsampler<T> implements DownsampleFieldSerializer 
      * @return true if the field has not collected any value.
      */
     public boolean isEmpty() {
-        return isEmpty;
+        return state == State.EMPTY;
+    }
+
+    /**
+     * @return true if the downsampler does not need to collect any more value.
+     */
+    public boolean isDone() {
+        return state == State.BUCKET_COMPLETED;
     }
 
     /**
@@ -65,11 +72,20 @@ abstract class AbstractFieldDownsampler<T> implements DownsampleFieldSerializer 
 
     /**
      * Collects the values for this field of the doc ids requested.
+     * IMPORTANT: This method needs to be implemented by subclasses that fix {@code T} to a concrete type to
+     * ensure that JIT will be able to take advantage of devirtualizing or inlining.
      * @param docValues the doc values for this field
      * @param docIdBuffer the doc ids for which we need to retrieve the field values
      * @throws IOException
      */
     public abstract void collect(T docValues, IntArrayList docIdBuffer) throws IOException;
+
+    /**
+     * Collects the values for this field at the current doc id.
+     * @param docValues the doc values for this field
+     * @throws IOException
+     */
+    public abstract void collectCurrentValues(T docValues) throws IOException;
 
     /**
      * Create field downsamplers for the provided list of fields.
@@ -134,6 +150,18 @@ abstract class AbstractFieldDownsampler<T> implements DownsampleFieldSerializer 
         }
         // If a field is not a metric, we downsample it as a label
         return LastValueFieldDownsampler.create(fieldName, fieldType, fieldData, fieldCounts);
+    }
+
+    /**
+     * The state of the downsampler:
+     * - {@link #EMPTY} means that the downsampled value is not initialised yet.
+     * - {@link #IN_PROGRESS} means that the downsampled value is initialised, but the rest of the values still need to be collected.
+     * - {@link #BUCKET_COMPLETED} means that the downsampled value is determined, and we do not need to collect more values.
+     */
+    enum State {
+        EMPTY,
+        IN_PROGRESS,
+        BUCKET_COMPLETED;
     }
 
     static class DownsamplerCountPerValueType {

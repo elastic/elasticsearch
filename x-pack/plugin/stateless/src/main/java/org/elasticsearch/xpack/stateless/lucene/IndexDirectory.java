@@ -271,8 +271,9 @@ public class IndexDirectory extends ByteSizeDirectory {
         }
         if (hasLocalRef) {
             // The caller (VirtualBatchedCompoundCommit) holds a local file ref keeping the file on disk.
-            var ctx = context == IOContext.READONCE ? IOContext.DEFAULT : context;
-            return super.openInput(name, ctx);
+            // Unlike openInput/ReopeningIndexInput, this returns a plain IndexInput that is read and closed
+            // in the same thread, so no READONCE→DEFAULT conversion is needed.
+            return super.openInput(name, context);
         }
         return cacheDirectory.openInput(name, context);
     }

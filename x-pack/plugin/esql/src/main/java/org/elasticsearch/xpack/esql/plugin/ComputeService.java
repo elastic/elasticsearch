@@ -259,7 +259,8 @@ public class ComputeService {
 
     /**
      * Adds the post-prune external scan accounting to the query profile. The counts are captured
-     * before split coalescing so {@code splits_scanned} reflects the number of discovered splits.
+     * before split coalescing, so {@code splits_scanned} reflects the pre-coalesce discovered split
+     * count rather than the smaller post-coalesce count.
      */
     private static void recordExternalScanStats(EsqlExecutionInfo execInfo, SplitDiscoveryPhase.Result result) {
         if (execInfo != null && result.splitsScanned() > 0) {
@@ -335,8 +336,12 @@ public class ComputeService {
 
     private List<ExternalSplit> collectExternalSplits(PhysicalPlan plan, Configuration configuration, EsqlExecutionInfo execInfo) {
         List<ExternalSplit> splits = new ArrayList<>();
-        // Splits attached to a top-level ExternalSourceExec were already accounted for by
-        // discoverSplits; only the fragment path below needs to record scan stats.
+        // A physical plan is produced by a single mapper, so top-level ExternalSourceExec nodes and
+        // fragment-wrapped ExternalRelation nodes never coexist: the distributed Mapper wraps every
+        // ExternalRelation in a FragmentExec (handled by discoverSplitsFromFragments below), while the
+        // LocalMapper lowers each one to a physical ExternalSourceExec. Splits already attached to a
+        // top-level ExternalSourceExec were accounted for by discoverSplits, so only the fragment path
+        // needs to record scan stats here.
         plan.forEachDown(ExternalSourceExec.class, exec -> splits.addAll(exec.splits()));
         if (splits.isEmpty()) {
             if (canSkipSplitDiscovery(plan, formatReaderRegistry) == false) {

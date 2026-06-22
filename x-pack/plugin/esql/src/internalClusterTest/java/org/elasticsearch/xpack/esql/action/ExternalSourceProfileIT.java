@@ -252,8 +252,12 @@ public class ExternalSourceProfileIT extends AbstractEsqlIntegTestCase {
                 assertCountValue(response, rowCount);
                 EsqlQueryProfile profile = response.getExecutionInfo().queryProfile();
                 assertEquals("cold COUNT(*) scans the one CSV file", 1, profile.filesScanned());
-                assertThat("cold COUNT(*) scans at least one split", profile.splitsScanned(), greaterThanOrEqualTo(1));
-                assertThat("cold COUNT(*) reads bytes", profile.bytesScanned(), greaterThan(0L));
+                // The CSV file is far below the 64MB target split size and CSV is not range-aware, so it
+                // produces exactly one whole-file split whose estimated size is the file length. Asserting
+                // the exact split count also proves the scan stats are recorded once: if the top-level and
+                // fragment discovery paths ever both counted this source, splitsScanned would read 2.
+                assertEquals("cold COUNT(*) scans exactly one split", 1, profile.splitsScanned());
+                assertEquals("cold COUNT(*) reads the whole CSV file", Files.size(csvFile), profile.bytesScanned());
             }
 
             // WARM: the row count was reconciled into the coordinator cache, so COUNT(*) is served

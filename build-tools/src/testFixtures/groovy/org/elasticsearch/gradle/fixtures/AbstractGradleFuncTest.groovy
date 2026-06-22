@@ -116,13 +116,6 @@ abstract class AbstractGradleFuncTest extends Specification {
 
     GradleRunner gradleRunner(File projectDir, Object... arguments) {
         def args = arguments.collect { it.toString() } + "--full-stacktrace"
-        // On Windows, Gradle daemon startup can fail with "Connection reset by peer" when the
-        // TestKit-spawned daemon crashes before completing the handshake (e.g. due to Windows
-        // Defender scanning new JVM processes or 8.3 short-path issues). Running without a daemon
-        // eliminates the TCP socket communication between TestKit and the daemon entirely.
-        if (OS.current() == OS.WINDOWS) {
-            args += "--no-daemon"
-        }
         return new NormalizeOutputGradleRunner(
             new BuildConfigurationAwareGradleRunner(
                     new InternalAwareGradleRunner(

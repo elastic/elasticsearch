@@ -18,6 +18,7 @@ import com.tngtech.archunit.lang.ConditionEvents
 import com.tngtech.archunit.lang.SimpleConditionEvent
 import org.gradle.api.DefaultTask
 import org.gradle.api.Project
+import org.gradle.api.Task
 import org.gradle.api.tasks.TaskContainer
 import spock.lang.Shared
 
@@ -64,38 +65,69 @@ class TaskModellingArchUnitSpec extends AbstractArchUnitSpec {
     ] as Set
 
     /**
-     * Classes that still create untyped (plain {@code DefaultTask}) tasks via the no-type
-     * {@code register(String)} / {@code create(String)} / {@code Project.task(...)} overloads. New
-     * entries must not be added — register tasks with a dedicated typed task class instead.
-     * Existing entries should be removed as they are migrated (the staleness test enforces this).
+     * Classes that still create tasks eagerly via {@code TaskContainer.create(...)} (any overload)
+     * or {@code Project.task(...)}. New entries must not be added — use the lazy
+     * {@code register(...)} API instead. Existing entries should be removed as they are migrated
+     * (the staleness test enforces this).
      */
-    private static final Set<String> KNOWN_UNTYPED_TASK_CREATORS = [
-        "org.elasticsearch.gradle.internal.EmbeddedProviderPlugin",
+    private static final Set<String> KNOWN_EAGER_TASK_CREATION = [
+    ] as Set
+
+    /**
+     * Classes that register an untyped task and define an inline {@code doLast}/{@code doFirst}
+     * action on it. An untyped {@code register(String)} used purely as a lifecycle/aggregation task
+     * is fine; once it carries action logic it should be a dedicated typed task class instead. New
+     * entries must not be added; existing entries should be removed as they are migrated.
+     *
+     * <p>Detection is class-level: ArchUnit cannot prove the action is attached to the untyped task
+     * specifically (no data-flow analysis), so a class that registers an untyped task and also uses
+     * {@code doLast}/{@code doFirst} anywhere (including register/configure lambdas, which compile
+     * to synthetic methods of the class) is flagged.
+     */
+    private static final Set<String> KNOWN_UNTYPED_REGISTER_WITH_ACTION = [
         "org.elasticsearch.gradle.internal.InternalDistributionBwcSetupPlugin",
         "org.elasticsearch.gradle.internal.precommit.CheckstylePrecommitPlugin",
-        "org.elasticsearch.gradle.internal.test.DistroTestPlugin",
     ] as Set
 
     @Shared
     JavaClasses productionClasses = importProductionClasses()
 
-    def "build logic does not create untyped (DefaultTask) tasks"() {
+    def "build logic does not create tasks eagerly"() {
         given:
         ArchRule rule = classes()
-            .that(notInBaseline(KNOWN_UNTYPED_TASK_CREATORS))
-            .should(notCreateUntypedTasks())
-            .because("untyped DefaultTask tasks have no managed inputs/outputs; register tasks with a dedicated typed task class")
+            .that(notInBaseline(KNOWN_EAGER_TASK_CREATION))
+            .should(notEagerlyCreateTasks())
+            .because("TaskContainer.create()/Project.task() create tasks eagerly; use the lazy register(...) API instead")
 
         expect:
         rule.check(productionClasses)
     }
 
-    def "the untyped-task-creators baseline contains no stale entries"() {
+    def "the eager-task-creation baseline contains no stale entries"() {
         expect:
-        List<String> stale = staleBaselineEntries(KNOWN_UNTYPED_TASK_CREATORS, productionClasses) { JavaClass c ->
-            createsUntypedTask(c)
+        List<String> stale = staleBaselineEntries(KNOWN_EAGER_TASK_CREATION, productionClasses) { JavaClass c ->
+            eagerlyCreatesTask(c)
         }
-        assert stale.isEmpty(), "Stale KNOWN_UNTYPED_TASK_CREATORS entries (migrated or removed) — delete them:\n  " + stale.join("\n  ")
+        assert stale.isEmpty(), "Stale KNOWN_EAGER_TASK_CREATION entries (migrated or removed) — delete them:\n  " + stale.join("\n  ")
+    }
+
+    def "untyped registered tasks do not define inline actions"() {
+        given:
+        ArchRule rule = classes()
+            .that(notInBaseline(KNOWN_UNTYPED_REGISTER_WITH_ACTION))
+            .should(notRegisterUntypedTaskWithInlineAction())
+            .because("an untyped register(String) task that defines doLast/doFirst should be a dedicated typed task class")
+
+        expect:
+        rule.check(productionClasses)
+    }
+
+    def "the untyped-register-with-action baseline contains no stale entries"() {
+        expect:
+        List<String> stale = staleBaselineEntries(KNOWN_UNTYPED_REGISTER_WITH_ACTION, productionClasses) { JavaClass c ->
+            registersUntypedTask(c) && definesInlineAction(c)
+        }
+        assert stale.isEmpty(), "Stale KNOWN_UNTYPED_REGISTER_WITH_ACTION entries (migrated or removed) — delete them:\n  " + stale.join("\n  ")
     }
 
     def "task types are abstract"() {
@@ -120,39 +152,58 @@ class TaskModellingArchUnitSpec extends AbstractArchUnitSpec {
         assert stale.isEmpty(), "Stale KNOWN_NON_ABSTRACT_TASKS entries (made abstract or removed) — delete them:\n  " + stale.join("\n  ")
     }
 
-    private static ArchCondition<JavaClass> notCreateUntypedTasks() {
-        return new ArchCondition<JavaClass>("not create untyped (DefaultTask) tasks") {
+    private static ArchCondition<JavaClass> notEagerlyCreateTasks() {
+        return new ArchCondition<JavaClass>("not create tasks eagerly") {
             @Override
             void check(JavaClass item, ConditionEvents events) {
-                if (createsUntypedTask(item)) {
-                    events.add(SimpleConditionEvent.violated(item, "${item.fullName} creates an untyped DefaultTask"))
+                if (eagerlyCreatesTask(item)) {
+                    events.add(SimpleConditionEvent.violated(item, "${item.fullName} creates a task eagerly via create()/task()"))
                 }
             }
         }
     }
 
-    /**
-     * True if the class registers/creates a task without a task type: the no-type
-     * {@code register(String)} / {@code create(String)} / {@code create(Map)} overloads on a task
-     * container, or any {@code Project.task(...)} overload. These all yield a plain
-     * {@code DefaultTask}.
-     */
-    private static boolean createsUntypedTask(JavaClass clazz) {
+    private static ArchCondition<JavaClass> notRegisterUntypedTaskWithInlineAction() {
+        return new ArchCondition<JavaClass>("not register an untyped task with an inline doLast/doFirst action") {
+            @Override
+            void check(JavaClass item, ConditionEvents events) {
+                if (registersUntypedTask(item) && definesInlineAction(item)) {
+                    events.add(SimpleConditionEvent.violated(item,
+                        "${item.fullName} registers an untyped task and defines an inline doLast/doFirst action"))
+                }
+            }
+        }
+    }
+
+    /** True if the class eagerly creates a task: {@code TaskContainer.create(...)} or {@code Project.task(...)}. */
+    private static boolean eagerlyCreatesTask(JavaClass clazz) {
         return clazz.methodCallsFromSelf.any { call ->
             def target = call.target
-            String name = target.name
-            List params = target.rawParameterTypes
-            boolean singleStringArg = params.size() == 1 && params[0].fullName == "java.lang.String"
-            if ((name == "register" || name == "create") && singleStringArg && isTaskContainer(target.owner)) {
+            if (target.name == "create" && isTaskContainer(target.owner)) {
                 return true
             }
-            if (name == "create" && params.size() == 1 && params[0].isAssignableTo(Map) && isTaskContainer(target.owner)) {
-                return true
-            }
-            if (name == "task" && target.owner.isAssignableTo(Project)) {
+            if (target.name == "task" && target.owner.isAssignableTo(Project)) {
                 return true
             }
             return false
+        }
+    }
+
+    /** True if the class registers an untyped task via the no-type {@code register(String)} overload. */
+    private static boolean registersUntypedTask(JavaClass clazz) {
+        return clazz.methodCallsFromSelf.any { call ->
+            def target = call.target
+            List params = target.rawParameterTypes
+            boolean singleStringArg = params.size() == 1 && params[0].fullName == "java.lang.String"
+            return target.name == "register" && singleStringArg && isTaskContainer(target.owner)
+        }
+    }
+
+    /** True if the class defines a task action via {@code Task.doLast}/{@code doFirst}. */
+    private static boolean definesInlineAction(JavaClass clazz) {
+        return clazz.methodCallsFromSelf.any { call ->
+            def target = call.target
+            return (target.name == "doLast" || target.name == "doFirst") && target.owner.isAssignableTo(Task)
         }
     }
 

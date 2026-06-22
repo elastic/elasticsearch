@@ -49,8 +49,8 @@ public abstract class AmazonBedrockServiceSettings extends FilteredXContentObjec
     public static <B extends AmazonBedrockServiceSettings.Builder<? extends AmazonBedrockServiceSettings>> void declareCommonFields(
         AbstractObjectParser<B, ConfigurationParseContext> parser
     ) {
-        parser.declareString(AmazonBedrockServiceSettings.Builder::setModel, new ParseField(MODEL_FIELD));
         parser.declareString(AmazonBedrockServiceSettings.Builder::setRegion, new ParseField(REGION_FIELD));
+        parser.declareString(AmazonBedrockServiceSettings.Builder::setModel, new ParseField(MODEL_FIELD));
         parser.declareString(AmazonBedrockServiceSettings.Builder::setProvider, new ParseField(PROVIDER_FIELD));
         parser.declareObject(
             AmazonBedrockServiceSettings.Builder::setRateLimitSettings,
@@ -83,17 +83,17 @@ public abstract class AmazonBedrockServiceSettings extends FilteredXContentObjec
      * @param <T> the task-specific settings type produced by {@link #build(String, String, String, RateLimitSettings)}
      */
     public abstract static class Builder<T extends AmazonBedrockServiceSettings> {
-        private String model;
         private String region;
+        private String model;
         private String provider;
         private RateLimitSettings rateLimitSettings;
 
-        public void setModel(String model) {
-            this.model = model;
-        }
-
         public void setRegion(String region) {
             this.region = region;
+        }
+
+        public void setModel(String model) {
+            this.model = model;
         }
 
         public void setProvider(String provider) {
@@ -104,13 +104,13 @@ public abstract class AmazonBedrockServiceSettings extends FilteredXContentObjec
             this.rateLimitSettings = rateLimitSettings;
         }
 
-        public abstract T build(String model, String region, String provider, RateLimitSettings rateLimitSettings);
+        protected abstract T build(String region, String model, String provider, RateLimitSettings rateLimitSettings);
 
         public final T build() {
-            validateStringIsNotNullOrEmpty(model, MODEL_FIELD);
             validateStringIsNotNullOrEmpty(region, REGION_FIELD);
+            validateStringIsNotNullOrEmpty(model, MODEL_FIELD);
             validateStringIsNotNullOrEmpty(provider, PROVIDER_FIELD);
-            return build(model, region, provider, rateLimitSettings);
+            return build(region, model, provider, rateLimitSettings);
         }
     }
 

@@ -15,6 +15,7 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Booleans;
+import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xcontent.DeprecationHandler;
@@ -35,7 +36,6 @@ import java.io.UncheckedIOException;
 import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -253,7 +253,7 @@ public class CsvFlattenedKeywordIT extends CsvIT {
         if (kibanaDirProp == null) {
             throw new IllegalStateException("System property esql.kibana.docs.dir is not set");
         }
-        Path kibanaDir = Paths.get(kibanaDirProp);
+        Path kibanaDir = PathUtils.get(kibanaDirProp);
         if (Files.isDirectory(kibanaDir) == false) {
             throw new IllegalStateException("Could not find docs/reference/query-languages/esql/kibana/generated at " + kibanaDir);
         }

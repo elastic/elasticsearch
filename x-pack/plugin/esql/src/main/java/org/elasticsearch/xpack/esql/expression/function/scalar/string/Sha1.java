@@ -29,6 +29,7 @@ public class Sha1 extends AbstractHashFunction {
 
     @FunctionInfo(
         returnType = "keyword",
+        briefSummary = "Computes the SHA1 hash of the input.",
         description = "Computes the SHA1 hash of the input.",
         examples = { @Example(file = "hash", tag = "sha1") }
     )

@@ -88,6 +88,25 @@ public class PrometheusInstantQueryRestIT extends AbstractPrometheusRestIT {
         assertThat(responsePath.evaluate("data.result.0.value"), equalTo(List.of(1767226080.0 /*=2026-01-01T00:08:00Z*/, "40.0")));
     }
 
+    /**
+     * A pure scalar constant requires no index data: the result is produced entirely from the literal value.
+     */
+    public void testInstantQueryScalarConstantRequiresNoIndexData() throws Exception {
+        Request request = prometheusReadRequest(
+            "/_prometheus/api/v1/query",
+            new BasicNameValuePair("query", "3.14"),
+            new BasicNameValuePair("time", "2026-01-01T00:05:00Z")
+        );
+        Response response = client().performRequest(request);
+        assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
+
+        ObjectPath path = ObjectPath.createFromResponse(response);
+        assertThat(path.evaluate("status"), equalTo("success"));
+        assertThat(path.evaluate("data.resultType"), equalTo("scalar"));
+        // scalar result is [timestamp_seconds, value_string]
+        assertThat(path.evaluate("data.result"), equalTo(List.of(1767225900.0, "3.14")));
+    }
+
     public void testInstantQueryDropsSeriesOutsideDefaultLookback() throws Exception {
         ingestTestData("test_gauge_iq");
 

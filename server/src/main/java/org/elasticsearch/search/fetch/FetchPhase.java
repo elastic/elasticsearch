@@ -691,10 +691,12 @@ public final class FetchPhase {
                 rootSource = innerHitsContext.getRootLookup();
             }
         } else {
+            IdLoader idLoader = context.newIdLoader();
             StoredFieldLoader rootLoader = profiler.storedFields(StoredFieldLoader.create(requiresSource, Collections.emptySet()));
             LeafStoredFieldLoader leafRootLoader = rootLoader.getLoader(subReaderContext, null);
             leafRootLoader.advanceTo(nestedInfo.rootDoc());
-            rootId = leafRootLoader.id();
+            IdLoader.Leaf leafIdLoader = idLoader.leaf(leafRootLoader, subReaderContext.reader(), null);
+            rootId = leafIdLoader.getId(nestedInfo.rootDoc());
 
             if (requiresSource) {
                 if (leafRootLoader.source() != null) {

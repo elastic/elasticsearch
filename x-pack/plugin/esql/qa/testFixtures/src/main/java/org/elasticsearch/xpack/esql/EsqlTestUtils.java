@@ -1551,12 +1551,11 @@ public final class EsqlTestUtils {
         String[] commandParts = afterSetStatements.trim().split("\\s+", 2);
         String command = commandParts[0].trim();
         if (SourceCommand.isSourceCommand(command) && commandParts.length > 1) {
-            String[] indices = TEST_PARSER.parseQuery(afterSetStatements)
-                .collect(UnresolvedRelation.class)
-                .getFirst()
-                .indexPattern()
-                .indexPattern()
-                .split(",");
+            List<UnresolvedRelation> relations = TEST_PARSER.parseQuery(afterSetStatements).collect(UnresolvedRelation.class);
+            if (relations.isEmpty()) {
+                return false;
+            }
+            String[] indices = relations.getFirst().indexPattern().indexPattern().split(",");
             for (String index : indices) {
                 String indexName = index.trim().toLowerCase(Locale.ROOT);
                 if (indicesToCheck.contains(indexName)) {
@@ -1588,12 +1587,11 @@ public final class EsqlTestUtils {
         assert command.equalsIgnoreCase("set") == false : "didn't correctly extract the SET statement from the query";
         if (SourceCommand.isSourceCommand(command)) {
             String commandArgs = commandParts[1].trim();
-            String[] indices = TEST_PARSER.parseQuery(afterSetStatements)
-                .collect(UnresolvedRelation.class)
-                .getFirst()
-                .indexPattern()
-                .indexPattern()
-                .split(",");
+            List<UnresolvedRelation> relations = TEST_PARSER.parseQuery(afterSetStatements).collect(UnresolvedRelation.class);
+            if (relations.isEmpty()) {
+                return query;
+            }
+            String[] indices = relations.getFirst().indexPattern().indexPattern().split(",");
             // This method may be called multiple times on the same testcase when using @Repeat
             boolean alreadyConverted = Arrays.stream(indices).anyMatch(i -> i.trim().startsWith("*:"));
             if (alreadyConverted == false) {
@@ -1668,6 +1666,15 @@ public final class EsqlTestUtils {
         // find the main source command, ignoring pipes inside subqueries
         List<String> mainFromCommandAndTheRest = splitIgnoringParentheses(query, "|");
         String mainFrom = mainFromCommandAndTheRest.get(0).strip();
+        // Strip any leading SET statements (e.g. "SET unmapped_fields=\"nullify\";") so that the
+        // source command (FROM/TS) is correctly detected. The original SET prefix is re-prepended
+        // to the rewritten source command to preserve the original query semantics.
+        var setMatcher = SET_SPLIT_PATTERN.matcher(mainFrom);
+        String setStatements = "";
+        if (setMatcher.find()) {
+            setStatements = mainFrom.substring(0, setMatcher.end());
+            mainFrom = mainFrom.substring(setMatcher.end()).strip();
+        }
         // Detect whether the outer source command is FROM or TS so that we preserve the
         // command keyword when rebuilding. TS cannot host nested subqueries, but it may
         // appear as the body of a subquery passed recursively to this method.
@@ -1709,8 +1716,8 @@ public final class EsqlTestUtils {
                 transformed.add(remoteIndex);
             }
         }
-        // rebuild source command from transformed index patterns and subqueries
-        String transformedFrom = sourceCommand + " " + String.join(", ", transformed) + metadata;
+        // rebuild source command from transformed index patterns and subqueries, prepending any SET statements
+        String transformedFrom = setStatements + sourceCommand + " " + String.join(", ", transformed) + metadata;
         // rebuild the whole query
         mainFromCommandAndTheRest.set(0, transformedFrom);
         testQuery = String.join(" | ", mainFromCommandAndTheRest);

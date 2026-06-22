@@ -29,8 +29,11 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.store.DirectoryMetrics;
+import org.elasticsearch.index.store.StoreMetrics;
 import org.elasticsearch.rest.action.search.SearchResponseMetrics;
 import org.elasticsearch.search.SearchContextMissingException;
 import org.elasticsearch.search.SearchPhaseResult;
@@ -56,6 +59,7 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
@@ -73,7 +77,10 @@ import static org.elasticsearch.core.Strings.format;
  * distributed frequencies
  */
 abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> extends SearchPhase {
+    public static final String RESPONSE_HEADER_SEARCH_METRICS = "X-Elasticsearch-Search-Metrics";
+
     protected static final float DEFAULT_INDEX_BOOST = 1.0f;
+
     private final Logger logger;
     private final NamedWriteableRegistry namedWriteableRegistry;
     protected final SearchTransportService searchTransportService;
@@ -109,6 +116,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     protected final Map<String, Object> searchRequestAttributes;
     private final boolean isPitRelocationEnabled;
     protected long phaseStartTimeInNanos;
+    private final AtomicReference<DirectoryMetrics> mergedDirectoryMetrics = new AtomicReference<>(DirectoryMetrics.EMPTY);
 
     // protected for tests
     protected final SubscribableListener<Void> doneFuture = new SubscribableListener<>();
@@ -518,10 +526,28 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         if (shardFailures != null) {
             shardFailures.set(result.getShardIndex(), null);
         }
+        // accumulate the per-shard metrics into the single merged reference before consuming the result
+        accumulateDirectoryMetrics(result.getDirectoryMetrics());
         results.consumeResult(result, () -> {
             successfulOps.incrementAndGet();
             finishOneShard();
         });
+    }
+
+    /**
+     * Merges the {@link DirectoryMetrics} carried by a single shard result into the search-wide total. This is the only
+     * place metrics are accumulated on the coordinating node.
+     */
+    void accumulateDirectoryMetrics(DirectoryMetrics metrics) {
+        if (metrics.isEmpty()) {
+            return;
+        }
+        mergedDirectoryMetrics.accumulateAndGet(metrics, (current, incoming) -> current.isEmpty() ? incoming : current.merge(incoming));
+    }
+
+    // package private for testing
+    DirectoryMetrics getMergedDirectoryMetrics() {
+        return mergedDirectoryMetrics.get();
     }
 
     /**
@@ -604,23 +630,50 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
       * @param queryResults           the results of the query phase
       */
     public void sendSearchResponse(SearchResponseSections internalSearchResponse, AtomicArray<SearchPhaseResult> queryResults) {
+        var threadContext = searchTransportService.transportService().getThreadPool().getThreadContext();
+        DirectoryMetrics directoryMetrics = mergedDirectoryMetrics.get();
+        createResponseHeaderFromDirectoryMetrics(threadContext, directoryMetrics);
+        recordStoreMetrics(directoryMetrics);
         ShardSearchFailure[] failures = buildShardFailures();
         Boolean allowPartialResults = request.allowPartialSearchResults();
         assert allowPartialResults != null : "SearchRequest missing setting for allowPartialSearchResults";
         if (allowPartialResults == false && failures.length > 0) {
             raisePhaseFailure(new SearchPhaseExecutionException("", "Shard failures", null, failures));
         } else {
-            ActionListener.respondAndRelease(
-                listener,
-                buildSearchResponse(
-                    internalSearchResponse,
-                    failures,
-                    request.scroll() != null
-                        ? TransportSearchHelper.buildScrollId(queryResults, bigArrays.bytesRefRecycler(), getNumShards() > 1)
-                        : null,
-                    buildSearchContextId(failures)
-                )
+            SearchResponse searchResponse = buildSearchResponse(
+                internalSearchResponse,
+                failures,
+                request.scroll() != null
+                    ? TransportSearchHelper.buildScrollId(queryResults, bigArrays.bytesRefRecycler(), getNumShards() > 1)
+                    : null,
+                buildSearchContextId(failures)
             );
+            if (request.bufferSubSearchResponseForMultiSearch() && results instanceof QueryPhaseResultConsumer queryPhaseResultConsumer) {
+                long handoffBytes = queryPhaseResultConsumer.transferAggregationBreakerBytesForMultiSearch();
+                if (handoffBytes > 0) {
+                    searchResponse.setQueryPhaseAggregationBreakerBytes(handoffBytes);
+                }
+            }
+            ActionListener.respondAndRelease(listener, searchResponse);
+        }
+    }
+
+    public static void createResponseHeaderFromDirectoryMetrics(ThreadContext threadContext, DirectoryMetrics directoryMetrics) {
+        if (directoryMetrics.isEmpty() == false) {
+            for (Map.Entry<String, String> entry : directoryMetrics.entries().entrySet()) {
+                String value = entry.getKey() + "=" + entry.getValue();
+                threadContext.addResponseHeader(AbstractSearchAsyncAction.RESPONSE_HEADER_SEARCH_METRICS, value);
+            }
+        }
+    }
+
+    void recordStoreMetrics(DirectoryMetrics directoryMetrics) {
+        if (directoryMetrics.isEmpty()) {
+            return;
+        }
+        var storeMetrics = directoryMetrics.metrics(StoreMetrics.NAME);
+        if (storeMetrics != null) {
+            searchResponseMetrics.recordStoreBytesRead(storeMetrics.cast(StoreMetrics.class).getBytesRead(), searchRequestAttributes);
         }
     }
 

@@ -17,7 +17,6 @@ import org.elasticsearch.nativeaccess.lib.NativeLibraryProvider;
 import org.elasticsearch.nativeaccess.lib.ParquetRsLibrary;
 import org.elasticsearch.nativeaccess.lib.PosixCLibrary;
 import org.elasticsearch.nativeaccess.lib.VectorLibrary;
-import org.elasticsearch.nativeaccess.lib.ZstdLibrary;
 
 import java.util.Map;
 
@@ -37,8 +36,6 @@ public class JdkNativeLibraryProvider extends NativeLibraryProvider {
                 JdkMacCLibrary::new,
                 Kernel32Library.class,
                 JdkKernel32Library::new,
-                ZstdLibrary.class,
-                JdkZstdLibrary::new,
                 VectorLibrary.class,
                 JdkVectorLibrary::new,
                 ParquetRsLibrary.class,

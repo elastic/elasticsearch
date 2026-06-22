@@ -299,10 +299,11 @@ public record UnifiedCompletionRequest(
         var messagesRamBytesUsed = messages().stream().mapToLong(Message::ramBytesUsed).sum();
         var modelRamBytesUsed = RamUsageEstimator.sizeOf(model());
         var toolChoicesRamBytesUsed = toolChoice() == null ? 0L : toolChoice().ramBytesUsed();
+        var stopRamBytesUsed = stop() == null ? 0L : stop().stream().mapToLong(RamUsageEstimator::sizeOf).sum();
         var toolsRamBytesUsed = tools() == null ? 0L : tools().stream().mapToLong(Tool::ramBytesUsed).sum();
         var reasoningRamBytesUsed = reasoning() == null ? 0L : reasoning().ramBytesUsed();
 
-        return SHALLOW_SIZE + messagesRamBytesUsed + modelRamBytesUsed + toolChoicesRamBytesUsed + toolsRamBytesUsed
+        return SHALLOW_SIZE + messagesRamBytesUsed + modelRamBytesUsed + toolChoicesRamBytesUsed + stopRamBytesUsed + toolsRamBytesUsed
             + reasoningRamBytesUsed;
     }
 

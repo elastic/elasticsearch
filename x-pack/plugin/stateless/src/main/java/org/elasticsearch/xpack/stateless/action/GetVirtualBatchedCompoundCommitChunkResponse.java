@@ -55,8 +55,9 @@ public class GetVirtualBatchedCompoundCommitChunkResponse extends ActionResponse
     }
 
     @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeBytesReference(data);
+    public final void writeTo(StreamOutput out) {
+        assert false : "should not be called";
+        throw new UnsupportedOperationException("writeTo() should not be used");
     }
 
     public ReleasableBytesReference getData() {

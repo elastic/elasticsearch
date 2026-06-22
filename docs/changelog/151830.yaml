@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 151830
+summary: Subquery scoped lookup index resolution
+type: bug

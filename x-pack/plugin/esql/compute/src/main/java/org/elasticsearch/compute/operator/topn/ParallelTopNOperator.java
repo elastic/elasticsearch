@@ -13,6 +13,7 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.FailureCollector;
@@ -150,6 +151,18 @@ public class ParallelTopNOperator implements Operator, Accountable {
                 failureCollector.unwrapAndCollect(e);
                 in.finish(true);
                 workerPermanentlyExited(worker, true);
+            }
+
+            @Override
+            public void onRejection(Exception e) {
+                if (e instanceof EsRejectedExecutionException) {
+                    // The thread pool queue is full, run on the driver thread. While there are pages available
+                    // on the input buffer, the driver thread will keep worker. If pages are exhausted,
+                    // scheduleWorker will be called again, given the chance to go back to the worker thread.
+                    runWorker(worker, workerOutput);
+                } else {
+                    onFailure(e);
+                }
             }
         });
     }

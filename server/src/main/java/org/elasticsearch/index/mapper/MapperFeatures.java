@@ -93,6 +93,7 @@ public class MapperFeatures implements FeatureSpecification {
     public static final NodeFeature DOC_VALUES_MULTI_VALUE_ENFORCEMENT = new NodeFeature("mapper.doc_values.multi_value_enforcement");
     public static final NodeFeature DOC_VALUES_MULTI_VALUE_RENAME = new NodeFeature("mapper.doc_values.multi_value_rename");
     public static final NodeFeature DOC_VALUES_MULTI_VALUE_INDEX_SETTING = new NodeFeature("mapper.doc_values.multi_value_index_setting");
+    public static final NodeFeature DOC_VALUES_MULTI_VALUE_FALSE_ALIAS = new NodeFeature("mapper.doc_values.multi_value_false_alias");
     static final NodeFeature DENSE_VECTOR_DYNAMIC_TEMPLATE_NESTED_OBJECT_FIX = new NodeFeature(
         "mapper.dense_vector.dynamic_template_nested_object_fix"
     );
@@ -120,6 +121,9 @@ public class MapperFeatures implements FeatureSpecification {
         "mapper.text_fields.enable_doc_values_by_default_in_columnar_mode"
     );
     static final NodeFeature COLUMNAR_MAINTAIN_ARRAY_ORDER_IP_TEXT = new NodeFeature("mapper.columnar.maintain_array_order_ip_text");
+    static final NodeFeature COLUMNAR_INLINE_ARRAY_ORDER_BINARY_DOC_VALUES = new NodeFeature(
+        "mapper.columnar.inline_array_order_binary_doc_values"
+    );
     public static final NodeFeature COLUMNAR_DROPS_DYNAMIC_FALSE_FIELDS = new NodeFeature("mapper.columnar.drops_dynamic_false_fields");
 
     @Override
@@ -202,8 +206,10 @@ public class MapperFeatures implements FeatureSpecification {
             KEYWORD_COLUMNAR_DEFAULT_HIGH_CARDINALITY,
             TEXT_FIELDS_ENABLE_DOC_VALUES_BY_DEFAULT_IN_COLUMNAR_MODE,
             COLUMNAR_MAINTAIN_ARRAY_ORDER_IP_TEXT,
+            COLUMNAR_INLINE_ARRAY_ORDER_BINARY_DOC_VALUES,
             COLUMNAR_DROPS_DYNAMIC_FALSE_FIELDS,
-            DOC_VALUES_MULTI_VALUE_INDEX_SETTING
+            DOC_VALUES_MULTI_VALUE_INDEX_SETTING,
+            DOC_VALUES_MULTI_VALUE_FALSE_ALIAS
         );
     }
 }

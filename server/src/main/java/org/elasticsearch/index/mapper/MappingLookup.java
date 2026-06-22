@@ -26,6 +26,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -56,6 +57,8 @@ public final class MappingLookup {
     private final Map<String, ObjectMapper> objectMappers;
     private final Map<String, InferenceFieldMetadata> inferenceFields;
     private final Set<String> syntheticVectorFields;
+    private final Set<FieldMapper> indexDimensionFieldMappers;
+    private final Set<FieldMapper> indexMetricFieldMappers;
     private final int runtimeFieldMappersCount;
     private final NestedLookup nestedLookup;
     private final FieldTypeLookup fieldTypeLookup;
@@ -186,6 +189,8 @@ public final class MappingLookup {
 
         final Map<String, NamedAnalyzer> indexAnalyzers = new HashMap<>();
         final List<FieldMapper> indexTimeScriptMappers = new ArrayList<>();
+        final Set<FieldMapper> dimensionMappers = new LinkedHashSet<>();
+        final Set<FieldMapper> metricMappers = new LinkedHashSet<>();
         for (FieldMapper mapper : mappers) {
             if (objects.containsKey(mapper.fullPath())) {
                 throw new MapperParsingException("Field [" + mapper.fullPath() + "] is defined both as an object and a field");
@@ -196,6 +201,13 @@ public final class MappingLookup {
             indexAnalyzers.putAll(mapper.indexAnalyzers());
             if (mapper.hasScript()) {
                 indexTimeScriptMappers.add(mapper);
+            }
+            MappedFieldType fieldType = mapper.fieldType();
+            if (fieldType.isDimension()) {
+                dimensionMappers.add(mapper);
+            }
+            if (fieldType.getMetricType() != null) {
+                metricMappers.add(mapper);
             }
         }
 
@@ -210,7 +222,8 @@ public final class MappingLookup {
 
         PassThroughObjectMapper.checkForDuplicatePriorities(passThroughSources);
         final Collection<RuntimeField> runtimeFields = mapping.getRoot().runtimeFields();
-        this.fieldTypeLookup = new FieldTypeLookup(mappers, aliasMappers, passThroughSources, runtimeFields);
+        final Map<String, PrefixProperties> prefixProperties = mapping.getRoot().getPrefixProperties();
+        this.fieldTypeLookup = new FieldTypeLookup(mappers, aliasMappers, passThroughSources, runtimeFields, prefixProperties);
 
         Map<String, InferenceFieldMetadata> inferenceFields = new HashMap<>();
         List<String> syntheticVectorFields = new ArrayList<>();
@@ -229,10 +242,18 @@ public final class MappingLookup {
             // without runtime fields this is the same as the field type lookup
             this.indexTimeLookup = fieldTypeLookup;
         } else {
-            this.indexTimeLookup = new FieldTypeLookup(mappers, aliasMappers, passThroughSources, Collections.emptyList());
+            this.indexTimeLookup = new FieldTypeLookup(
+                mappers,
+                aliasMappers,
+                passThroughSources,
+                Collections.emptyList(),
+                prefixProperties
+            );
         }
         // make all fields into compact+fast immutable maps
         this.fieldMappers = Map.copyOf(fieldMappers);
+        this.indexDimensionFieldMappers = Collections.unmodifiableSet(dimensionMappers);
+        this.indexMetricFieldMappers = Collections.unmodifiableSet(metricMappers);
         this.objectMappers = Map.copyOf(objects);
         this.runtimeFieldMappersCount = runtimeFields.size();
         this.indexAnalyzers = Map.copyOf(indexAnalyzers);
@@ -317,6 +338,20 @@ public final class MappingLookup {
      */
     public Iterable<Mapper> fieldMappers() {
         return fieldMappers.values();
+    }
+
+    /**
+     * Returns the set of field mappers marked as time-series dimensions, in insertion order.
+     */
+    public Set<FieldMapper> indexDimensionFieldMappers() {
+        return indexDimensionFieldMappers;
+    }
+
+    /**
+     * Returns the set of field mappers that carry a time-series metric type, in insertion order.
+     */
+    public Set<FieldMapper> indexMetricFieldMappers() {
+        return indexMetricFieldMappers;
     }
 
     void checkLimits(IndexSettings settings) {

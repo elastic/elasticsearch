@@ -30,7 +30,9 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.encryption.spi.EncryptedData;
+import org.elasticsearch.xpack.encryption.spi.EncryptionKeyNotYetAvailableException;
 import org.elasticsearch.xpack.encryption.spi.EncryptionService;
+import org.elasticsearch.xpack.encryption.spi.EncryptionServiceUnavailableException;
 import org.elasticsearch.xpack.esql.datasources.metadata.DataSource;
 import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceSetting;
@@ -127,9 +129,19 @@ public class DataSourceService {
     }
 
     /**
-     * Replace every non-null secret with an {@link EncryptedData} carrier. Rejects with {@code 503} when a
-     * secret is present but no {@code encryptionService} is bound — secrets are never stored as plaintext.
-     * Settings with no secrets pass through unchanged.
+     * Replace every non-null secret with an {@link EncryptedData} carrier.
+     *
+     * <p>When encryption is permanently unavailable ({@link EncryptionServiceUnavailableException}) and
+     * {@code isEncryptionRequired()} is {@code true} (the default), the call throws a {@code 503} with an actionable message.
+     * When {@code isEncryptionRequired()} is {@code false}, secrets are stored unencrypted with a {@code WARN} log — this is an
+     * explicit operator opt-out via {@code cluster.state.encryption.required: false}.
+     *
+     * <p>Transient unavailability ({@link EncryptionKeyNotYetAvailableException}, e.g. cluster still recovering) always throws
+     * regardless of {@code isEncryptionRequired()}, since the key will become available and the caller should retry.
+     *
+     * <p>A {@code null} service means the encryption feature is not bound on this node; secrets are always rejected.
+     *
+     * <p>Settings with no secrets, and already-encrypted carriers, pass through unchanged.
      */
     static DataSourceSettings applyEncryption(
         String dataSourceName,
@@ -148,6 +160,33 @@ public class DataSourceService {
             }
             return settings;
         }
+        try {
+            return encryptSettings(settings, encryptionService);
+        } catch (EncryptionKeyNotYetAvailableException e) {
+            throw new ElasticsearchStatusException(
+                "cannot store secrets for data source [" + dataSourceName + "]: " + e.getMessage() + " Retry once the cluster is ready.",
+                RestStatus.SERVICE_UNAVAILABLE,
+                e
+            );
+        } catch (EncryptionServiceUnavailableException e) {
+            if (encryptionService.isEncryptionRequired()) {
+                throw new ElasticsearchStatusException(
+                    "cannot store secrets for data source [" + dataSourceName + "]: " + e.getMessage(),
+                    RestStatus.SERVICE_UNAVAILABLE,
+                    e
+                );
+            }
+            logger.warn(
+                "storing secrets for data source [{}] without encryption: {}. "
+                    + "Set cluster.state.encryption.required: true (the default) to enforce encryption.",
+                dataSourceName,
+                e.getMessage()
+            );
+            return settings;
+        }
+    }
+
+    private static DataSourceSettings encryptSettings(DataSourceSettings settings, EncryptionService encryptionService) {
         Map<String, DataSourceSetting> result = new HashMap<>(settings.size());
         for (var entry : settings) {
             String key = entry.getKey();

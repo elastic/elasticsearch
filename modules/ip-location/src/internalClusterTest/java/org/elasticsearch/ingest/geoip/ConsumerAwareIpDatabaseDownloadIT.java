@@ -145,22 +145,7 @@ public class ConsumerAwareIpDatabaseDownloadIT extends AbstractGeoIpIT {
 
         // Phase 2: add ESQL consumer — databases should now also appear on data-only nodes
         IpLocationTestHelper.requestDownloads(internalCluster(), projectId, IpLocationConsumer.ESQL);
-        assertBusy(() -> {
-            List<GeoIpStatsAction.NodeResponse> responses = getNodeResponses();
-            for (GeoIpStatsAction.NodeResponse nodeResponse : responses) {
-                DiscoveryNode node = nodeResponse.getNode();
-                if (node.canContainData()) {
-                    assertThat(
-                        "phase 2: data node ["
-                            + node.getName()
-                            + "] should have databases after ESQL request. "
-                            + describeCluster(projectId, responses),
-                        nodeResponse.getDatabases(),
-                        not(empty())
-                    );
-                }
-            }
-        }, PHASE_TIMEOUT.seconds(), TimeUnit.SECONDS);
+        IpLocationTestHelper.awaitAllDatabasesAvailable(internalCluster(), IpLocationConsumer.ESQL);
 
         // Phase 3: cancel INGEST — ESQL still active, data-only nodes keep databases
         IpLocationTestHelper.cancelDownloadRequest(internalCluster(), projectId, IpLocationConsumer.INGEST);

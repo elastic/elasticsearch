@@ -10,15 +10,19 @@ package org.elasticsearch.repositories.s3;
 
 import software.amazon.awssdk.services.s3.model.CreateMultipartUploadRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
+import software.amazon.awssdk.services.s3.model.HeadObjectRequest;
 import software.amazon.awssdk.services.s3.model.ListMultipartUploadsRequest;
 import software.amazon.awssdk.services.s3.model.MultipartUpload;
 import software.amazon.awssdk.services.s3.model.S3Exception;
+import software.amazon.awssdk.services.s3.model.StorageClass;
 
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.blobstore.OptionalBytesReference;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -144,8 +148,11 @@ public class S3RepositoryThirdPartyTests extends AbstractThirdPartyRepositoryTes
         super.testFailIfAlreadyExists();
     }
 
-    public void testMPUCompareAndExchangeCleanup() throws IOException {
-        assumeFalse("S3 repository is configured condtional-writes and does not use MPU for CAS", supportsConditionalWrites());
+    public void testMultiPartUploadCompareAndExchangeCleanup() throws IOException {
+        assumeFalse(
+            "S3 repository is configured for conditional-writes and does not use multi-part upload for CAS",
+            supportsConditionalWrites()
+        );
 
         final var timeOffsetMillis = new AtomicLong();
         final var threadpool = new TestThreadPool(getTestName()) {
@@ -297,5 +304,107 @@ public class S3RepositoryThirdPartyTests extends AbstractThirdPartyRepositoryTes
     boolean supportsConditionalWrites() {
         final var repoMetadata = node().injector().getInstance(RepositoriesService.class).repository(TEST_REPO_NAME).getMetadata();
         return repoMetadata.settings().getAsBoolean("unsafely_incompatible_with_s3_conditional_writes", false) == false;
+    }
+
+    /**
+     * Verifies that {@code data_storage_class} / {@code metadata_storage_class} and the legacy {@code storage_class} fallback are applied to
+     * the correct uploads. We configure three distinct storage classes, write blobs with each {@link OperationPurpose} via the single-part,
+     * multi-part and server-side copy paths, and read the storage class back from the object metadata. The MinIO fixture does not honor
+     * storage classes, so this only runs against a real CSP endpoint with credentials supplied via system properties.
+     */
+    public void testStorageClassPerOperationPurpose() throws IOException {
+        assumeFalse("storage classes are not honored by the MinIO test fixture", USE_FIXTURE);
+
+        final var storageClasses = shuffledList(List.of("standard_ia", "onezone_ia", "intelligent_tiering"));
+        final var dataStorageClass = storageClasses.get(0);
+        final var metadataStorageClass = storageClasses.get(1);
+        final var fallbackStorageClass = storageClasses.get(2);
+        logger.info(
+            "--> data_storage_class [{}], metadata_storage_class [{}], storage_class [{}]",
+            dataStorageClass,
+            metadataStorageClass,
+            fallbackStorageClass
+        );
+
+        final var repoSettings = Settings.builder()
+            .put("bucket", System.getProperty("test.s3.bucket"))
+            .put("base_path", System.getProperty("test.s3.base", "testpath"))
+            .put(S3Repository.DATA_STORAGE_CLASS_SETTING.getKey(), dataStorageClass)
+            .put(S3Repository.METADATA_STORAGE_CLASS_SETTING.getKey(), metadataStorageClass)
+            .put(S3Repository.FALLBACK_STORAGE_CLASS_SETTING.getKey(), fallbackStorageClass);
+        final var endpoint = System.getProperty("test.s3.endpoint");
+        if (endpoint != null) {
+            repoSettings.put("endpoint", endpoint);
+        }
+
+        final var clusterService = node().injector().getInstance(ClusterService.class);
+        // construct our own repo instance so we can pin storage classes without affecting the shared test repository
+        try (
+            var repository = new S3Repository(
+                ProjectId.DEFAULT,
+                new RepositoryMetadata("test-storage-class-repo", S3Repository.TYPE, repoSettings.build()),
+                xContentRegistry(),
+                node().injector().getInstance(PluginsService.class).filterPlugins(S3RepositoryPlugin.class).findFirst().get().getService(),
+                clusterService,
+                BigArrays.NON_RECYCLING_INSTANCE,
+                new RecoverySettings(node().settings(), clusterService.getClusterSettings()),
+                S3RepositoriesMetrics.NOOP,
+                SnapshotMetrics.NOOP
+            )
+        ) {
+            repository.start();
+
+            final var blobStore = (S3BlobStore) repository.blobStore();
+            final var blobContainer = (S3BlobContainer) blobStore.blobContainer(repository.basePath().add(getTestName()));
+            try {
+                // a purpose that resolves to the legacy storage_class fallback (i.e. neither SNAPSHOT_DATA nor SNAPSHOT_METADATA)
+                final var fallbackPurpose = randomFrom(
+                    OperationPurpose.REPOSITORY_ANALYSIS,
+                    OperationPurpose.CLUSTER_STATE,
+                    OperationPurpose.INDICES,
+                    OperationPurpose.TRANSLOG
+                );
+                for (final var purpose : List.of(OperationPurpose.SNAPSHOT_DATA, OperationPurpose.SNAPSHOT_METADATA, fallbackPurpose)) {
+                    final var expectedStorageClass = blobStore.resolveStorageClass(purpose);
+
+                    // single-part upload (blob stays below the multipart threshold)
+                    final var singlePartName = randomIdentifier();
+                    final var singlePartBytes = randomBytesReference(between(1, 512));
+                    blobContainer.writeBlob(purpose, singlePartName, singlePartBytes, true);
+                    assertStorageClass(blobStore, blobContainer, singlePartName, expectedStorageClass, "single-part upload", purpose);
+
+                    // multi-part upload (exceeds the buffer-size threshold so the SDK uses createMultipartUpload)
+                    final var multiPartName = randomIdentifier();
+                    final var multiPartSize = Math.toIntExact(blobContainer.getLargeBlobThresholdInBytes()) + between(1, 1024);
+                    blobContainer.writeBlob(purpose, multiPartName, randomBytesReference(multiPartSize), true);
+                    assertStorageClass(blobStore, blobContainer, multiPartName, expectedStorageClass, "multi-part upload", purpose);
+
+                    // single-object server-side copy (source is small, so it stays below the multipart-copy threshold)
+                    final var copyName = randomIdentifier();
+                    blobContainer.copyBlob(purpose, blobContainer, singlePartName, copyName, singlePartBytes.length());
+                    assertStorageClass(blobStore, blobContainer, copyName, expectedStorageClass, "server-side copy", purpose);
+                }
+            } finally {
+                blobContainer.delete(randomPurpose());
+            }
+        }
+    }
+
+    private static void assertStorageClass(
+        S3BlobStore blobStore,
+        S3BlobContainer blobContainer,
+        String blobName,
+        StorageClass expectedStorageClass,
+        String uploadType,
+        OperationPurpose purpose
+    ) {
+        final StorageClass actualStorageClass;
+        try (var clientReference = blobStore.clientReference()) {
+            final var headObjectResponse = clientReference.client()
+                .headObject(HeadObjectRequest.builder().bucket(blobStore.bucket()).key(blobContainer.buildKey(blobName)).build());
+            // S3 omits the storage-class header for STANDARD objects, in which case the SDK reports a null storage class
+            actualStorageClass = headObjectResponse.storageClass() == null ? StorageClass.STANDARD : headObjectResponse.storageClass();
+        }
+        assertThat(uploadType + " with purpose [" + purpose + "]", actualStorageClass, equalTo(expectedStorageClass));
     }
 }

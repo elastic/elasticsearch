@@ -250,7 +250,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         BlockLoaderWarnings warnings = new BlockLoaderWarnings(warningsMode, attr.source());
         String fieldName = getFieldName(attr);
         if (attr instanceof TimeSeriesMetadataAttribute timeSeriesMetadataAttribute) {
-            functionConfig = new BlockLoaderFunctionConfig.TimeSeriesMetadata(false, timeSeriesMetadataAttribute.withoutFields());
+            functionConfig = new BlockLoaderFunctionConfig.TimeSeriesMetadata(false, timeSeriesMetadataAttribute.excludedFields());
             fieldName = SourceFieldMapper.NAME;
         } else if (attr instanceof TemporalityAttribute) {
             return resolveTemporalitySource(shardContext, warnings, fieldExtractPreference);
@@ -508,7 +508,8 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
                 context.pageSize(esQueryExec, rowEstimatedSize),
                 limit,
                 scoring,
-                directoryBytesRead
+                directoryBytesRead,
+                context.queryPragmas().minDocsPerSlice(LuceneSliceQueue.MIN_DOCS_PER_SLICE)
             );
         }
         Layout.Builder layout = new Layout.Builder();
@@ -519,6 +520,11 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
     }
 
     private static DataPartitioning.AutoStrategy topNAutoStrategy() {
+        // TopN keeps SEGMENT under AUTO. Routing it to DOC via the source-operator's high-speed
+        // heuristic helps scan-dominant TopN (e.g. WHERE URL LIKE … | SORT … | LIMIT 10) but
+        // regresses sort-dominant TopN (cheap or no WHERE) — sub-segment slicing breaks Lucene's
+        // sorted-segment short-circuit. Users who want DOC for a scan-dominant TopN can opt in
+        // via the data_partitioning pragma.
         return unusedLimit -> query -> LuceneSliceQueue.PartitioningStrategy.SEGMENT;
     }
 
@@ -591,7 +597,8 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             context.queryPragmas().taskConcurrency(),
             tagTypes,
             limit == null ? NO_LIMIT : (Integer) limit.fold(context.foldCtx()),
-            directoryBytesRead
+            directoryBytesRead,
+            context.queryPragmas().minDocsPerSlice(LuceneSliceQueue.MIN_DOCS_PER_SLICE)
         );
     }
 

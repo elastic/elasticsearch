@@ -66,6 +66,8 @@ import org.elasticsearch.xpack.esql.plan.logical.Explain;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
+import org.elasticsearch.xpack.esql.plan.logical.Highlight;
+import org.elasticsearch.xpack.esql.plan.logical.InfoCommandPlanUtils;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.Insist;
 import org.elasticsearch.xpack.esql.plan.logical.Keep;
@@ -88,6 +90,7 @@ import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesCollapse;
 import org.elasticsearch.xpack.esql.plan.logical.TsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
+import org.elasticsearch.xpack.esql.plan.logical.UnresolvedIpLocation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UriParts;
 import org.elasticsearch.xpack.esql.plan.logical.UserAgent;
@@ -550,18 +553,20 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
             Expression regexFileExpr = optionsMap.remove("regex_file");
             if (regexFileExpr != null) {
-                if ((regexFileExpr instanceof Literal && DataType.isString(regexFileExpr.dataType())) == false) {
+                if (regexFileExpr instanceof Literal lit && DataType.isString(lit.dataType())) {
+                    regexFile = BytesRefs.toString(lit.value());
+                } else {
                     throw new ParsingException(regexFileExpr.source(), "Option [regex_file] must be a string literal");
                 }
-                regexFile = BytesRefs.toString(((Literal) regexFileExpr).value());
             }
 
             Expression extractDeviceTypeExpr = optionsMap.remove("extract_device_type");
             if (extractDeviceTypeExpr != null) {
-                if ((extractDeviceTypeExpr instanceof Literal lit && lit.dataType() == DataType.BOOLEAN) == false) {
+                if (extractDeviceTypeExpr instanceof Literal lit && lit.dataType() == DataType.BOOLEAN) {
+                    extractDeviceType = (Boolean) lit.value();
+                } else {
                     throw new ParsingException(extractDeviceTypeExpr.source(), "Option [extract_device_type] must be a boolean literal");
                 }
-                extractDeviceType = (Boolean) ((Literal) extractDeviceTypeExpr).value();
             }
 
             Expression propertiesExpr = optionsMap.remove("properties");
@@ -631,6 +636,88 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             finalRegexFile,
             filteredFields
         );
+    }
+
+    @Override
+    public PlanFactory visitIpLocationCommand(EsqlBaseParser.IpLocationCommandContext ctx) {
+        Source source = source(ctx);
+
+        Attribute outputPrefix = visitQualifiedName(ctx.qualifiedName());
+        if (outputPrefix == null) {
+            throw new ParsingException(source, "IP_LOCATION command requires an output field prefix");
+        }
+
+        Expression input = expression(ctx.primaryExpression());
+        if (input == null) {
+            throw new ParsingException(source, "IP_LOCATION command requires an input expression");
+        }
+
+        return applyIpLocationOptions(source, input, outputPrefix, ctx.commandNamedParameters());
+    }
+
+    private PlanFactory applyIpLocationOptions(
+        Source source,
+        Expression input,
+        Attribute outputPrefix,
+        EsqlBaseParser.CommandNamedParametersContext ctx
+    ) {
+        MapExpression optionsExpression = ctx == null ? null : visitCommandNamedParameters(ctx);
+
+        String databaseFile = "GeoLite2-City.mmdb";
+        boolean firstOnly = true;
+        List<String> properties = null;
+
+        if (optionsExpression != null) {
+            Map<String, Expression> optionsMap = optionsExpression.keyFoldedMap();
+
+            Expression databaseFileExpr = optionsMap.remove("database_file");
+            if (databaseFileExpr != null) {
+                if (databaseFileExpr instanceof Literal lit && DataType.isString(lit.dataType())) {
+                    databaseFile = BytesRefs.toString(lit.value());
+                } else {
+                    throw new ParsingException(databaseFileExpr.source(), "Option [database_file] must be a string literal");
+                }
+            }
+
+            Expression firstOnlyExpr = optionsMap.remove("first_only");
+            if (firstOnlyExpr != null) {
+                if (firstOnlyExpr instanceof Literal lit && lit.dataType() == DataType.BOOLEAN) {
+                    firstOnly = (Boolean) lit.value();
+                } else {
+                    throw new ParsingException(firstOnlyExpr.source(), "Option [first_only] must be a boolean literal");
+                }
+            }
+
+            Expression propertiesExpr = optionsMap.remove("properties");
+            if (propertiesExpr != null) {
+                if (propertiesExpr instanceof Literal propLit && propLit.value() instanceof List<?> propList) {
+                    properties = new ArrayList<>();
+                    for (Object item : propList) {
+                        if (item instanceof BytesRef) {
+                            properties.add(BytesRefs.toString(item));
+                        } else {
+                            throw new ParsingException(propertiesExpr.source(), "Option [properties] must be a list of string literals");
+                        }
+                    }
+                } else {
+                    throw new ParsingException(propertiesExpr.source(), "Option [properties] must be a list of string literals");
+                }
+            }
+
+            if (optionsMap.isEmpty() == false) {
+                throw new ParsingException(
+                    source,
+                    "Invalid option{} {} in IP_LOCATION, expected one of [database_file, first_only, properties]",
+                    optionsMap.size() > 1 ? "s" : "",
+                    optionsMap.keySet()
+                );
+            }
+        }
+
+        final String finalDatabaseFile = databaseFile;
+        final boolean finalFirstOnly = firstOnly;
+        final List<String> finalProperties = properties;
+        return child -> new UnresolvedIpLocation(source, child, input, outputPrefix, finalDatabaseFile, finalFirstOnly, finalProperties);
     }
 
     @Override
@@ -1341,6 +1428,37 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         return rerank;
     }
 
+    @Override
+    public PlanFactory visitHighlightCommand(EsqlBaseParser.HighlightCommandContext ctx) {
+        Source source = source(ctx);
+        // The prefix isn't user-configurable in v1; the plan node carries it as a field so a future
+        // grammar extension can override it without changing serialization.
+        String prefix = Highlight.DEFAULT_PREFIX;
+        Expression query = ctx.queryText == null ? null : visitString(ctx.queryText);
+        List<Expression> fields = ctx.highlightFields.qualifiedName().stream().map(qn -> (Expression) visitQualifiedName(qn)).toList();
+        return p -> applyHighlightOptions(new Highlight(source, p, prefix, query, fields, null), ctx.commandNamedParameters());
+    }
+
+    private Highlight applyHighlightOptions(Highlight h, EsqlBaseParser.CommandNamedParametersContext ctx) {
+        MapExpression options = ctx == null ? null : visitCommandNamedParameters(ctx);
+        if (options == null) {
+            return h;
+        }
+
+        Map<String, Expression> optionsMap = options.keyFoldedMap();
+        Set<String> unknown = new HashSet<>(optionsMap.keySet());
+        unknown.removeAll(Highlight.validOptionNames());
+        if (unknown.isEmpty() == false) {
+            throw new ParsingException(
+                source(ctx),
+                "Invalid option [{}] in HIGHLIGHT, expected one of [{}]",
+                unknown.iterator().next(),
+                Highlight.validOptionNames()
+            );
+        }
+        return h.withOptions(options);
+    }
+
     public PlanFactory visitCompletionCommand(EsqlBaseParser.CompletionCommandContext ctx) {
         Source source = source(ctx);
 
@@ -1470,14 +1588,6 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         Source source = source(ctx);
 
         PromqlParams params = parsePromqlParams(ctx, source);
-        UnresolvedRelation unresolvedRelation = new UnresolvedRelation(
-            source,
-            params.indexPattern(),
-            false,
-            List.of(),
-            null,
-            SourceCommand.PROMQL
-        );
 
         // TODO: Perform type and value validation
         final String promqlQuery;
@@ -1540,6 +1650,15 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
         String valueColumnName = getValueColumnName(ctx.valueName(), promqlQuery);
 
+        UnresolvedRelation unresolvedRelation = new UnresolvedRelation(
+            source,
+            params.indexPattern(),
+            false,
+            List.of(),
+            null,
+            SourceCommand.PROMQL
+        );
+
         return new PromqlCommand(
             source,
             unresolvedRelation,
@@ -1554,26 +1673,11 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         );
     }
 
-    private static LogicalPlan injectDocAttribute(Source source, LogicalPlan input) {
-        return input.transformDown(r -> {
-            if (r instanceof UnresolvedRelation unresolved) {
-                List<NamedExpression> metadataFields = unresolved.metadataFields();
-                for (NamedExpression field : metadataFields) {
-                    if (field.name().equals(MetadataAttribute.DOC)) {
-                        return r;
-                    }
-                }
-                return unresolved.addMetadataField(new MetadataAttribute(source, MetadataAttribute.DOC, DataType.DOC_DATA_TYPE, false));
-            }
-            return r;
-        });
-    }
-
     @Override
     public PlanFactory visitMetricsInfoCommand(EsqlBaseParser.MetricsInfoCommandContext ctx) {
         return input -> {
             Source source = source(ctx);
-            return new MetricsInfo(source, injectDocAttribute(source, input));
+            return new MetricsInfo(source, InfoCommandPlanUtils.injectDocAttribute(source, input));
         };
     }
 
@@ -1581,7 +1685,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     public PlanFactory visitTsInfoCommand(EsqlBaseParser.TsInfoCommandContext ctx) {
         return input -> {
             var source = source(ctx);
-            return new TsInfo(source, injectDocAttribute(source, input));
+            return new TsInfo(source, InfoCommandPlanUtils.injectDocAttribute(source, input));
         };
     }
 

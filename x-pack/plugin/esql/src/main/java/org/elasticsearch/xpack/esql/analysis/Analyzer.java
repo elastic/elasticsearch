@@ -950,18 +950,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
     public static class ResolveRefs extends ParameterizedAnalyzerRule<LogicalPlan, AnalyzerContext> {
         @Override
         protected LogicalPlan rule(LogicalPlan plan, AnalyzerContext context) {
-            boolean hasSingleChild = plan.children().size() == 1;
-            boolean childOutputResolved = hasSingleChild && childOutputResolved(plan.children().getFirst());
-            boolean canResolveAgainstConcreteChildOutput = context.unmappedResolution() == UnmappedResolution.LOAD
-                && hasSingleChild
-                && (plan instanceof Keep
-                    || plan instanceof Drop
-                    || plan instanceof Rename
-                    || (plan instanceof OrderBy && plan.children().getFirst() instanceof ResolvingProject))
-                // These plans only need concrete child output to resolve their own expressions/projections,
-                // even when the child still has unresolved expressions (for example full-text filters).
-                && childOutputResolved;
-            if (plan.childrenResolved() == false && canResolveAgainstConcreteChildOutput == false) {
+            if (plan.childrenResolved() == false) {
                 return plan;
             }
             // TODO: assess if building this list is still required ahead of the switch, or if it can be done per command only where needed
@@ -996,15 +985,6 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             };
 
             return resolved;
-        }
-
-        private static boolean childOutputResolved(LogicalPlan child) {
-            // Project output can include unresolved wildcard projections (for example KEEP foo* in nullify mode).
-            // In that case child.output() is not yet safe to materialize.
-            if (child instanceof Project project && project.expressionsResolved() == false) {
-                return false;
-            }
-            return Resolvables.resolved(child.output());
         }
 
         private LogicalPlan resolveAggregate(Aggregate aggregate, List<Attribute> childrenOutput) {
@@ -3061,22 +3041,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         private static Attribute cleanTypeConflicts(FieldAttribute fa) {
             EsField field = fa.field();
             if (field instanceof TypeConflictedField tcf && tcf.isPotentiallyUnmapped() && tcf.types().size() == 1) {
-                // IndexResolver records the field's actual mapped type (e.g., SHORT); widen it here so the implicit path surfaces the
-                // ESQL type (e.g., INTEGER), matching what an explicit cast would produce.
-                DataType type = tcf.types().iterator().next().widenSmallNumeric();
-                var restoredField = new EsField(tcf.getName(), type, tcf.getProperties(), false, tcf.getTimeSeriesFieldType());
-                // TODO: add test where not passing on the parent name fails the test
-                // TODO: add TS tests and tests with different time series field types
-                return new FieldAttribute(
-                    fa.source(),
-                    fa.parentName(),
-                    fa.qualifier(),
-                    fa.name(),
-                    restoredField,
-                    fa.nullable(),
-                    fa.id(),
-                    fa.synthetic()
-                );
+                return fallbackToMappedType(fa, tcf);
             }
             return fa.flagTypeConflicts();
         }
@@ -3222,6 +3187,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             if (context.unmappedResolution() != UnmappedResolution.LOAD) {
                 return plan;
             }
+            Set<String> explicitlyCastedFieldNames = explicitlyCastedFieldNames(plan);
 
             return plan.transformUp(EsRelation.class, esRelation -> {
                 if (esRelation.indexMode() == IndexMode.LOOKUP) {
@@ -3234,17 +3200,18 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                         DataType mappedType = tcf.types().iterator().next();
                         if (mappedType == TEXT) {
                             // Keep TO_TEXT explicit only: do not auto-insert KEYWORD -> TEXT conversions for two-legged PUNKs.
-                            return fa;
+                            return maybeFallbackToMappedType(fa, tcf, explicitlyCastedFieldNames);
                         }
 
                         var convertFactory = EsqlDataTypeConverter.converterFunctionFactory(mappedType);
                         if (convertFactory == null) {
                             // Skip implicit casting: no such converter function exists
-                            return fa;
+                            return maybeFallbackToMappedType(fa, tcf, explicitlyCastedFieldNames);
                         }
                         ConvertFunction convert = convertFactory.apply(fa.source(), fa, context.configuration());
                         if (convert.supportedTypes().contains(KEYWORD) == false) {
-                            // Skip implicit casting: converter doesn't support KEYWORD input
+                            // Skip implicit casting: converter exists but does not accept KEYWORD input.
+                            // Keep the original field to preserve existing no-cast semantics for this type.
                             return fa;
                         }
 
@@ -3281,6 +3248,27 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 });
             });
         }
+
+        private static Set<String> explicitlyCastedFieldNames(LogicalPlan plan) {
+            Set<String> fieldNames = new HashSet<>();
+            plan.forEachExpressionDown(Expression.class, expression -> {
+                if (expression instanceof ConvertFunction convert) {
+                    convert.field().forEachDown(Attribute.class, attr -> fieldNames.add(attr.name()));
+                }
+            });
+            return fieldNames;
+        }
+
+        private static FieldAttribute maybeFallbackToMappedType(
+            FieldAttribute fieldAttribute,
+            TypeConflictedField tcf,
+            Set<String> explicitlyCastedFieldNames
+        ) {
+            if (explicitlyCastedFieldNames.contains(fieldAttribute.name())) {
+                return fieldAttribute;
+            }
+            return fallbackToMappedType(fieldAttribute, tcf);
+        }
     }
 
     private static void typeResolutions(
@@ -3293,6 +3281,21 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         ResolveUnionTypes.TypeResolutionKey key = new ResolveUnionTypes.TypeResolutionKey(fa.name(), type);
         var concreteConvert = ResolveUnionTypes.typeSpecificConvert(convert, fa.source(), type, tcf);
         typeResolutions.put(key, concreteConvert);
+    }
+
+    private static FieldAttribute fallbackToMappedType(FieldAttribute fieldAttribute, TypeConflictedField tcf) {
+        DataType type = tcf.types().iterator().next().widenSmallNumeric();
+        EsField restoredField = new EsField(tcf.getName(), type, tcf.getProperties(), false, tcf.getTimeSeriesFieldType());
+        return new FieldAttribute(
+            fieldAttribute.source(),
+            fieldAttribute.parentName(),
+            fieldAttribute.qualifier(),
+            fieldAttribute.name(),
+            restoredField,
+            fieldAttribute.nullable(),
+            fieldAttribute.id(),
+            fieldAttribute.synthetic()
+        );
     }
 
     /**

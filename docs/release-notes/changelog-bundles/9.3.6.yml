@@ -45,7 +45,7 @@ changelogs:
     issues:
       - 138031
   - pr: 145968
-    summary: Fixes wrong warning in expressions with unrolled multivalues
+    summary: Fix wrong warning in expressions with unrolled multivalues
     area: ES|QL
     type: bug
     issues: []
@@ -65,14 +65,8 @@ changelogs:
     area: Data streams
     type: enhancement
     issues: []
-  - pr: 149667
-    summary: Add IT covering search during rolling restart
-    area: Search
-    type: bug
-    issues:
-      - 86927
   - pr: 149797
-    summary: "[Axonius] Replace the axonius.alert_and_incident index with the axonius.alert_finding and axonius.incident indices to `manage`, `create_index`, `read`, `index`, `write`, `delete`, permission for third party agent indices `kibana_system`"
+    summary: "Update the built-in `kibana_system` role to grant `manage`, `create_index`, `read`, `index`, `write`, and `delete` privileges on the `axonius.alert_finding` and `axonius.incident` indices, replacing the previous `axonius.alert_and_incident` index"
     area: Authorization
     type: enhancement
     issues: []
@@ -87,7 +81,7 @@ changelogs:
     type: bug
     issues: []
   - pr: 150003
-    summary: "EQL/SQL: enforce max expression depth checks"
+    summary: "EQL/SQL: Enforce max expression depth checks"
     area: Query Languages
     type: bug
     issues: []
@@ -110,7 +104,7 @@ changelogs:
     issues:
       - 149838
   - pr: 150242
-    summary: Upgrading commons-lang3 version for inference plugin
+    summary: Upgrade commons-lang3 version for the inference plugin
     area: Inference
     type: upgrade
     issues: []

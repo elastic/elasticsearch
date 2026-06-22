@@ -199,7 +199,8 @@ public class TransportDeleteTrainedModelAction extends AcknowledgedTransportMast
             if (referencedModelAlias.isPresent()) {
                 listener.onFailure(
                     new ElasticsearchStatusException(
-                        "Cannot delete model [{}] as it has a model_alias [{}] that is still referenced by ingest processors; use force to delete the model",
+                        "Cannot delete model [{}] as it has a model_alias [{}] that is still referenced by ingest processors;"
+                            + "use force to delete the model",
                         RestStatus.CONFLICT,
                         requestId,
                         referencedModelAlias.get()

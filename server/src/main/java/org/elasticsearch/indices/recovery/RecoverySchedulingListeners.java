@@ -6,14 +6,9 @@
  * your election, the "Elastic License 2.0", the "GNU Affero General Public
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
-package org.elasticsearch.gradle.internal.testfixtures;
 
-import org.gradle.api.DefaultTask;
-import org.gradle.api.file.DirectoryProperty;
-import org.gradle.api.tasks.Internal;
+package org.elasticsearch.indices.recovery;
 
-public abstract class TestFixtureTask extends DefaultTask {
-
-    @Internal
-    abstract DirectoryProperty getFixturesDir();
-}
+/// @deprecated use [CompositeRecoverySchedulingListener] instead.
+@Deprecated
+public final class RecoverySchedulingListeners extends CompositeRecoverySchedulingListener {}

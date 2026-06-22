@@ -72,6 +72,7 @@ import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.ThreadLocalDirectoryMetricHolder;
 import org.elasticsearch.index.translog.TranslogConfig;
 import org.elasticsearch.indices.cluster.IndexRemovalReason;
+import org.elasticsearch.indices.recovery.CompositeRecoverySchedulingListener;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.indices.recovery.StatelessPrimaryRelocationAction;
 import org.elasticsearch.indices.recovery.StatelessUnpromotableRelocationAction;
@@ -496,6 +497,7 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
                         clusterService(),
                         actionFilters,
                         indicesService,
+                        new CompositeRecoverySchedulingListener(),
                         peerRecoveryTargetService,
                         testStatelessPlugin.statelessCommitService,
                         mock(IndexShardCacheWarmer.class),

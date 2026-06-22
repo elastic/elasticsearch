@@ -210,8 +210,8 @@ public final class MappingLookup {
 
         PassThroughObjectMapper.checkForDuplicatePriorities(passThroughSources);
         final Collection<RuntimeField> runtimeFields = mapping.getRoot().runtimeFields();
-        final Map<String, Integer> passthroughByPrefix = mapping.getRoot().getPassthroughByPrefix();
-        this.fieldTypeLookup = new FieldTypeLookup(mappers, aliasMappers, passThroughSources, runtimeFields, passthroughByPrefix);
+        final Map<String, PrefixProperties> prefixProperties = mapping.getRoot().getPrefixProperties();
+        this.fieldTypeLookup = new FieldTypeLookup(mappers, aliasMappers, passThroughSources, runtimeFields, prefixProperties);
 
         Map<String, InferenceFieldMetadata> inferenceFields = new HashMap<>();
         List<String> syntheticVectorFields = new ArrayList<>();
@@ -235,7 +235,7 @@ public final class MappingLookup {
                 aliasMappers,
                 passThroughSources,
                 Collections.emptyList(),
-                passthroughByPrefix
+                prefixProperties
             );
         }
         // make all fields into compact+fast immutable maps

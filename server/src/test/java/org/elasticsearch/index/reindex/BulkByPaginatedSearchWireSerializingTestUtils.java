@@ -51,7 +51,7 @@ public final class BulkByPaginatedSearchWireSerializingTestUtils {
      * Registry sufficient for {@link ReindexRequest}, {@link UpdateByQueryRequest}, {@link DeleteByQueryRequest},
      * and {@link ResumeBulkByPaginatedSearchRequest} when the delegate carries {@link ResumeInfo}.
      */
-    public static NamedWriteableRegistry bulkScrollRequestNamedWriteableRegistry() {
+    public static NamedWriteableRegistry bulkPaginatedSearchRequestNamedWriteableRegistry() {
         List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();
         SearchModule searchModule = new SearchModule(Settings.EMPTY, Collections.emptyList());
         entries.addAll(searchModule.getNamedWriteables());
@@ -80,7 +80,7 @@ public final class BulkByPaginatedSearchWireSerializingTestUtils {
         return new NamedWriteableRegistry(entries);
     }
 
-    public static boolean abstractBulkByScrollRequestsEqual(
+    public static boolean abstractBulkByPaginatedSearchRequestsEqual(
         AbstractBulkByPaginatedSearchRequest<?> firstRequest,
         AbstractBulkByPaginatedSearchRequest<?> secondRequest
     ) {
@@ -193,18 +193,18 @@ public final class BulkByPaginatedSearchWireSerializingTestUtils {
         return true;
     }
 
-    public static boolean abstractBulkIndexByScrollRequestsEqual(
+    public static boolean abstractBulkIndexByPaginatedSearchRequestsEqual(
         AbstractBulkIndexByPaginatedSearchRequest<?> firstRequest,
         AbstractBulkIndexByPaginatedSearchRequest<?> secondRequest
     ) {
-        if (abstractBulkByScrollRequestsEqual(firstRequest, secondRequest) == false) {
+        if (abstractBulkByPaginatedSearchRequestsEqual(firstRequest, secondRequest) == false) {
             return false;
         }
         return Objects.equals(firstRequest.getScript(), secondRequest.getScript());
     }
 
     public static boolean reindexRequestsEqual(ReindexRequest firstRequest, ReindexRequest secondRequest) {
-        if (abstractBulkIndexByScrollRequestsEqual(firstRequest, secondRequest) == false) {
+        if (abstractBulkIndexByPaginatedSearchRequestsEqual(firstRequest, secondRequest) == false) {
             return false;
         }
         if (Objects.equals(firstRequest.getDestination().index(), secondRequest.getDestination().index()) == false) {
@@ -220,14 +220,14 @@ public final class BulkByPaginatedSearchWireSerializingTestUtils {
     }
 
     public static boolean updateByQueryRequestsEqual(UpdateByQueryRequest firstRequest, UpdateByQueryRequest secondRequest) {
-        if (abstractBulkIndexByScrollRequestsEqual(firstRequest, secondRequest) == false) {
+        if (abstractBulkIndexByPaginatedSearchRequestsEqual(firstRequest, secondRequest) == false) {
             return false;
         }
         return Objects.equals(firstRequest.getPipeline(), secondRequest.getPipeline());
     }
 
     public static boolean deleteByQueryRequestsEqual(DeleteByQueryRequest firstRequest, DeleteByQueryRequest secondRequest) {
-        return abstractBulkByScrollRequestsEqual(firstRequest, secondRequest);
+        return abstractBulkByPaginatedSearchRequestsEqual(firstRequest, secondRequest);
     }
 
     public static BytesReference matchAllQueryBytes() {
@@ -294,7 +294,7 @@ public final class BulkByPaginatedSearchWireSerializingTestUtils {
      * Mutates {@code mutatedRequest} (a copy of {@code originalRequest}) by changing exactly one serialized field of
      * {@link AbstractBulkByPaginatedSearchRequest}.
      */
-    public static void mutateAbstractBulkByScrollRequest(
+    public static void mutateAbstractBulkByPaginatedSearchRequest(
         AbstractBulkByPaginatedSearchRequest<?> originalRequest,
         AbstractBulkByPaginatedSearchRequest<?> mutatedRequest
     ) {

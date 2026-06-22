@@ -19,6 +19,7 @@ import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
@@ -47,7 +48,6 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
@@ -83,10 +83,9 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
     private final ClusterService clusterService;
     private final RecoverySettings recoverySettings;
     private final RecoveryPlannerService recoveryPlannerService;
-    private final RecoveryMetricsCollector metrics;
 
     // visible for testing
-    final OngoingRecoveries ongoingRecoveries = new OngoingRecoveries();
+    final OngoingRecoveries ongoingRecoveries;
 
     public PeerRecoverySourceService(
         TransportService transportService,
@@ -94,19 +93,19 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
         ClusterService clusterService,
         RecoverySettings recoverySettings,
         RecoveryPlannerService recoveryPlannerService,
-        RecoveryMetricsCollector recoveryMetricsCollector
+        CompositeRecoverySchedulingListener schedulingListeners
     ) {
         this.transportService = transportService;
         this.indicesService = indicesService;
         this.clusterService = clusterService;
         this.recoverySettings = recoverySettings;
         this.recoveryPlannerService = recoveryPlannerService;
+        this.ongoingRecoveries = new OngoingRecoveries(schedulingListeners);
         clusterService.getClusterSettings()
             .initializeAndWatchIfRegistered(
                 INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING,
                 ongoingRecoveries::updateMaxConcurrentOutgoingRecoveries
             );
-        this.metrics = recoveryMetricsCollector;
         // When the target node wants to start a peer recovery it sends a START_RECOVERY request to the source
         // node. Upon receiving START_RECOVERY, the source node will initiate the peer recovery.
         transportService.registerRequestHandler(
@@ -234,6 +233,8 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
 
         private int maxConcurrentOutgoingRecoveries;
 
+        private final CompositeRecoverySchedulingListener schedulingListeners;
+
         private final Map<IndexShard, ShardRecoveryContext> activeRecoveries = new HashMap<>();
 
         private final Map<DiscoveryNode, Collection<RemoteRecoveryTargetHandler>> nodeToHandlers = new HashMap<>();
@@ -242,7 +243,9 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
 
         private int activeRecoveryHandlerCount = 0;
 
-        private final List<RecoverySchedulingListener> recoverySchedulingListeners = new CopyOnWriteArrayList<>();
+        OngoingRecoveries(CompositeRecoverySchedulingListener schedulingListeners) {
+            this.schedulingListeners = schedulingListeners;
+        }
 
         // visible for testing
         synchronized int activeRecoveryCount() {
@@ -254,29 +257,7 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
             return pendingRecoveries.size();
         }
 
-        /// Registers a recovery scheduling listener.
-        void addRecoverySchedulingListener(RecoverySchedulingListener listener) {
-            recoverySchedulingListeners.add(listener);
-        }
-
-        /// Unregisters a recovery scheduling listener.
-        void removeRecoverySchedulingListener(RecoverySchedulingListener listener) {
-            recoverySchedulingListeners.remove(listener);
-        }
-
-        private void notifyRecoverySchedulingListeners() {
-            assert Thread.holdsLock(this) == false;
-            for (RecoverySchedulingListener listener : recoverySchedulingListeners) {
-                try {
-                    listener.onRecoverySchedulingChange();
-                } catch (Exception e) {
-                    assert false : e;
-                    logger.warn("exception from recovery schedule listener", e);
-                }
-            }
-        }
-
-        /// Starts the recovery immediately if a slot is available and there are no pending items in queue, otherwise queues it for later.
+        /// Starts the recovery immediately if a slot is available, otherwise queues it for later.
         /// Returns the handler to start (non-null) if a slot was available, or null if the request was queued.
         RecoverySourceHandler addOrEnqueueNewRecovery(
             StartRecoveryRequest request,
@@ -290,17 +271,21 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
                 ensureNoDuplicateAllocationId(request.targetAllocationId());
                 if (activeRecoveryHandlerCount < maxConcurrentOutgoingRecoveries && pendingRecoveries.isEmpty()) {
                     handler = addNewRecovery(request, task, shard);
+                    shard.recoveryStats().sourceRecoveryStarted();
                 } else {
-                    shard.recoveryStats().incCurrentAsSourceQueued();
-                    metrics.outgoingPeerRecoveryEnqueued();
                     // TODO: consider capping the queue depth and rejecting with DelayRecoveryException once exceeded.
                     final var subscribableListener = new SubscribableListener<RecoveryResponse>();
                     subscribableListener.addListener(listener);
                     pendingRecoveries.add(new PendingRecovery(request, task, shard, subscribableListener));
                     handler = null;
+                    shard.recoveryStats().sourceRecoveryQueued();
                 }
             }
-            notifyRecoverySchedulingListeners();
+            if (handler == null) {
+                schedulingListeners.onRecoveryQueued(RecoverySource.Type.PEER, RecoveryRole.SOURCE);
+            } else {
+                schedulingListeners.onRecoveryStarted(RecoverySource.Type.PEER, RecoveryRole.SOURCE);
+            }
             return handler;
         }
 
@@ -313,8 +298,6 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
             final RemoteRecoveryTargetHandler recoveryTargetHandler = handlers.v2();
             nodeToHandlers.computeIfAbsent(recoveryTargetHandler.targetNode(), k -> new HashSet<>()).add(recoveryTargetHandler);
             activeRecoveryHandlerCount++;
-            shard.recoveryStats().incCurrentAsSource();
-            metrics.outgoingPeerRecoveryStarted();
             return handlers.v1();
         }
 
@@ -328,6 +311,9 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
                     }
                 }
                 cancelled = removePendingRecoveries(pendingRecovery -> pendingRecovery.request().targetNode().equals(node));
+                for (PendingRecovery cancelledRecovery : cancelled) {
+                    cancelledRecovery.shard().recoveryStats().sourceQueuedRecoveryDiscarded();
+                }
             }
             for (PendingRecovery cancelledRecovery : cancelled) {
                 cancelledRecovery.listener()
@@ -340,9 +326,7 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
                             )
                         )
                     );
-            }
-            if (cancelled.isEmpty() == false) {
-                notifyRecoverySchedulingListeners();
+                schedulingListeners.onQueuedRecoveryDiscarded(RecoverySource.Type.PEER, RecoveryRole.SOURCE);
             }
         }
 
@@ -377,10 +361,11 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
         /// Frees the throttling slot and starts any queued recoveries that now fit within the limit.
         void onRecoveryComplete(IndexShard shard, RecoverySourceHandler handler) {
             remove(shard, handler);
-            startRecoveriesUpToLimit(true);
+            shard.recoveryStats().sourceRecoveryCompleted();
+            schedulingListeners.onRecoveryCompleted(RecoverySource.Type.PEER, RecoveryRole.SOURCE);
+            startRecoveriesUpToLimit();
         }
 
-        /// Updates the concurrency limit and, if the new limit is higher, drains any newly eligible pending recoveries.
         void updateMaxConcurrentOutgoingRecoveries(int newMax) {
             final boolean limitIncreased;
             synchronized (this) {
@@ -391,18 +376,13 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
 
             // Release lock because `startRecoveriesUpToLimit` needs to trigger recoveries outside the synchronized block.
             if (limitIncreased) {
-                startRecoveriesUpToLimit(false);
+                startRecoveriesUpToLimit();
             }
         }
 
         /// Dequeues and starts pending recoveries up to the max concurrency limit.
         /// Acquires the lock once per dequeued recovery and triggers recovery in same loop, outside the lock.
-        ///
-        /// Notifies scheduling listeners if {@code onRecoveryCompleteContext} is true (a recovery just completed, freeing a slot)
-        /// or if at least one queued recovery was actually started. A limit increase when the queue is already
-        /// empty should pass {@code false} so that listeners are not notified spuriously.
-        void startRecoveriesUpToLimit(boolean onRecoveryCompleteContext) {
-            boolean recoveryDequeued = false;
+        void startRecoveriesUpToLimit() {
             while (true) {
                 final PendingRecovery nextRecovery;
                 final RecoverySourceHandler nextHandler;
@@ -411,11 +391,10 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
                         break;
                     }
                     nextRecovery = pendingRecoveries.poll();
-                    recoveryDequeued = true;
-                    nextRecovery.shard().recoveryStats().decCurrentAsSourceQueued();
-                    metrics.outgoingPeerRecoveryDequeued();
                     nextHandler = addNewRecovery(nextRecovery.request(), nextRecovery.task(), nextRecovery.shard());
+                    nextRecovery.shard().recoveryStats().sourceRecoveryDequeuedAndStarted();
                 }
+                schedulingListeners.onRecoveryDequeuedAndStarted(RecoverySource.Type.PEER, RecoveryRole.SOURCE);
                 logger.trace(
                     "[{}][{}] starting queued recovery to {}",
                     nextRecovery.request().shardId().getIndex().getName(),
@@ -426,15 +405,15 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
                     ActionListener.runAfter(nextRecovery.listener(), () -> onRecoveryComplete(nextRecovery.shard(), nextHandler))
                 );
             }
-            if (onRecoveryCompleteContext || recoveryDequeued) {
-                notifyRecoverySchedulingListeners();
-            }
         }
 
         void cancelAllPendingRecoveries() {
             final List<PendingRecovery> cancelled;
             synchronized (this) {
                 cancelled = removePendingRecoveries(ignored -> true);
+                for (PendingRecovery cancelledRecovery : cancelled) {
+                    cancelledRecovery.shard().recoveryStats().sourceQueuedRecoveryDiscarded();
+                }
             }
             for (PendingRecovery cancelledRecovery : cancelled) {
                 cancelledRecovery.listener()
@@ -447,9 +426,7 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
                             )
                         )
                     );
-            }
-            if (cancelled.isEmpty() == false) {
-                notifyRecoverySchedulingListeners();
+                schedulingListeners.onQueuedRecoveryDiscarded(RecoverySource.Type.PEER, RecoveryRole.SOURCE);
             }
         }
 
@@ -460,8 +437,6 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
             assert removed != null : "Handler was not registered [" + handler + "]";
             if (removed != null) {
                 activeRecoveryHandlerCount--;
-                shard.recoveryStats().decCurrentAsSource();
-                metrics.outgoingPeerRecoveryCompleted();
                 removed.cancel();
                 assert nodeToHandlers.getOrDefault(removed.targetNode(), Collections.emptySet()).contains(removed)
                     : "Remote recovery was not properly tracked [" + removed + "]";
@@ -494,6 +469,9 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
                     ExceptionsHelper.maybeThrowRuntimeAndSuppress(failures);
                 }
                 cancelled = removePendingRecoveries(pendingRecovery -> pendingRecovery.shard() == shard);
+                for (PendingRecovery cancelledRecovery : cancelled) {
+                    cancelledRecovery.shard().recoveryStats().sourceQueuedRecoveryDiscarded();
+                }
             }
             for (PendingRecovery cancelledRecovery : cancelled) {
                 cancelledRecovery.listener()
@@ -506,9 +484,7 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
                             )
                         )
                     );
-            }
-            if (cancelled.isEmpty() == false) {
-                notifyRecoverySchedulingListeners();
+                schedulingListeners.onQueuedRecoveryDiscarded(RecoverySource.Type.PEER, RecoveryRole.SOURCE);
             }
         }
 
@@ -518,21 +494,35 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
                 return;
             }
             final CountDownLatch emptyLatch = new CountDownLatch(1);
-            final RecoverySchedulingListener listener = () -> {
-                if (isEmpty()) {
-                    emptyLatch.countDown();
+            final RecoverySchedulingListener listener = new RecoverySchedulingListener() {
+                private void checkEmpty() {
+                    if (isEmpty()) {
+                        emptyLatch.countDown();
+                    }
+                }
+
+                @Override
+                public void onRecoveryCompleted(RecoverySource.Type type, RecoveryRole role) {
+                    checkEmpty();
+                }
+
+                @Override
+                public void onQueuedRecoveryDiscarded(RecoverySource.Type type, RecoveryRole role) {
+                    checkEmpty();
                 }
             };
-            addRecoverySchedulingListener(listener);
+            schedulingListeners.addListener(listener);
             try {
                 // Force a check in case we became empty while registering
-                listener.onRecoverySchedulingChange();
+                if (isEmpty()) {
+                    return;
+                }
                 emptyLatch.await();
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
                 throw new IllegalStateException("interrupted while waiting for recoveries to complete", e);
             } finally {
-                removeRecoverySchedulingListener(listener);
+                schedulingListeners.removeListener(listener);
             }
         }
 
@@ -567,8 +557,6 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
             final List<PendingRecovery> cancelled = new ArrayList<>();
             pendingRecoveries.removeIf(pendingRecovery -> {
                 if (predicate.test(pendingRecovery)) {
-                    pendingRecovery.shard().recoveryStats().decCurrentAsSourceQueued();
-                    metrics.outgoingPeerRecoveryDequeued();
                     cancelled.add(pendingRecovery);
                     return true;
                 }

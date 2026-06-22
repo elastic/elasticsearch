@@ -309,6 +309,12 @@ public class EsqlCapabilities {
         OPTIONAL_FIELDS_UNMAPPED_LOAD_AUTO_CAST_TWO_LEGGED_PUNKS,
 
         /**
+         * Fix for a {@code ClassCastException} when an explicitly cast or implicitly widened partially unmapped small numeric field.
+         * See https://github.com/elastic/elasticsearch/issues/151525.
+         */
+        OPTIONAL_FIELDS_FIX_PARTIALLY_UNMAPPED_SMALL_NUMERIC,
+
+        /**
          * Support specifically for *just* the _index METADATA field. Used by CsvTests, since that is the only metadata field currently
          * supported.
          */
@@ -3048,6 +3054,11 @@ public class EsqlCapabilities {
          * </p>
          */
         FIX_REORDER_LIMIT_PROJECT_AND_ORDER_BY_PRESERVES_REFS,
+
+        /**
+         * Supports the {@code IP_LOCATION} command.
+         */
+        IP_LOCATION_COMMAND,
 
         /**
          * Support query approximation with FORK and subqueries.

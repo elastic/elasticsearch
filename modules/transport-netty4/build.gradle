@@ -9,7 +9,6 @@
 
 
 import org.elasticsearch.gradle.internal.test.InternalClusterTestPlugin
-import org.elasticsearch.gradle.internal.test.RestIntegTestTask
 import org.elasticsearch.gradle.internal.test.rest.LegacyJavaRestTestPlugin
 
 apply plugin: 'elasticsearch.internal-yaml-rest-test'

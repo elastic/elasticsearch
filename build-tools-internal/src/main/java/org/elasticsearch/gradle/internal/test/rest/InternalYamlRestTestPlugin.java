@@ -9,7 +9,6 @@
 
 package org.elasticsearch.gradle.internal.test.rest;
 
-import org.elasticsearch.gradle.internal.test.RestIntegTestTask;
 import org.elasticsearch.gradle.util.GradleUtils;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
@@ -17,12 +16,19 @@ import org.gradle.api.plugins.JavaBasePlugin;
 import org.gradle.api.tasks.SourceSet;
 import org.gradle.api.tasks.SourceSetContainer;
 import org.gradle.api.tasks.TaskProvider;
+import org.gradle.api.tasks.testing.Test;
 
-import static org.elasticsearch.gradle.internal.test.rest.RestTestUtil.registerTestTask;
+import static org.elasticsearch.gradle.internal.test.rest.RestTestUtil.registerPlainRestTestTask;
 import static org.elasticsearch.gradle.internal.test.rest.RestTestUtil.setupYamlRestTestDependenciesDefaults;
 
 /**
  * Apply this plugin to run the YAML based REST tests.
+ * <p>
+ * The registered {@code yamlRestTest} task is a plain {@link Test} task (not backed by the Gradle
+ * test-cluster framework). Runtime cluster management is handled by the JUnit-rule based framework
+ * in {@code :test:test-clusters}. The task is enrolled in the {@code restTests} project extension
+ * so that standard REST integ-test configuration (distribution wiring, system properties, etc.) is
+ * applied automatically by {@link RestTestBasePlugin}.
  */
 public class InternalYamlRestTestPlugin implements Plugin<Project> {
 
@@ -37,7 +43,8 @@ public class InternalYamlRestTestPlugin implements Plugin<Project> {
         SourceSetContainer sourceSets = project.getExtensions().getByType(SourceSetContainer.class);
         SourceSet yamlTestSourceSet = sourceSets.create(SOURCE_SET_NAME);
 
-        TaskProvider<RestIntegTestTask> testTask = registerTestTask(project, yamlTestSourceSet, SOURCE_SET_NAME, RestIntegTestTask.class);
+        // setup the yamlRestTest task as a plain Test task enrolled in restTests
+        TaskProvider<Test> testTask = registerPlainRestTestTask(project, yamlTestSourceSet, SOURCE_SET_NAME);
 
         project.getTasks().named(JavaBasePlugin.CHECK_TASK_NAME).configure(check -> check.dependsOn(testTask));
 

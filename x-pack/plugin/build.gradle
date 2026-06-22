@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
+
 import org.elasticsearch.gradle.util.GradleUtils
 
 apply plugin: 'elasticsearch.internal-test-artifact'
@@ -64,7 +64,7 @@ if (buildParams.snapshotBuild == false) {
   restTestBlacklist.add('search.vectors/47_knn_search_bbq_disk_slice/*')
 }
 
-tasks.withType(StandaloneRestIntegTestTask).configureEach {
+restTests.tasks.configureEach {
   usesDefaultDistribution("to be triaged")
 }
 

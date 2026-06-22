@@ -10,7 +10,6 @@
 
 import org.elasticsearch.gradle.internal.ExportElasticsearchBuildResourcesTask
 import org.elasticsearch.gradle.internal.test.rest.RestTestBasePlugin
-import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
 import org.elasticsearch.gradle.testclusters.TestClustersAware
 
 //apply plugin: org.elasticsearch.gradle.internal.info.GlobalBuildInfoPlugin
@@ -118,7 +117,7 @@ if (buildParams.inFipsJvm) {
       }
 
       plugins.withType(RestTestBasePlugin) {
-        tasks.withType(StandaloneRestIntegTestTask).configureEach {
+        restTests.tasks.configureEach {
           inputs.files(extraFipsJarsConfiguration).withNormalizer(ClasspathNormalizer)
           nonInputProperties.systemProperty "tests.cluster.fips.jars.path", "${-> extraFipsJarsConfiguration.asPath}"
         }

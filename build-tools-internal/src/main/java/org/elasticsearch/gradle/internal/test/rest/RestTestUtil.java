@@ -26,6 +26,32 @@ public class RestTestUtil {
     private RestTestUtil() {}
 
     /**
+     * Registers a plain {@link Test} task with the given name, wired to the provided source set, and
+     * attaches the {@link RestIntegTestSpec} marker so that {@link RestTestBasePlugin} applies standard
+     * REST integ-test configuration (distribution wiring, system properties, caching, etc.).
+     * <p>
+     * Prefer this factory over the typed {@link #registerTestTask(Project, SourceSet, String, Class)}
+     * overload when no Gradle test-cluster functionality is required.
+     */
+    public static TaskProvider<Test> registerPlainRestTestTask(Project project, SourceSet sourceSet, String taskName) {
+        // Enroll BEFORE registering so that RestTestBasePlugin's configureEach (plain
+        // withType(Test).configureEach) fires before the register action and therefore
+        // before any build-script restTests.tasks.configureEach closures.
+        project.getExtensions().getByType(RestIntegTests.class).enroll(taskName);
+        return project.getTasks().register(taskName, Test.class, testTask -> {
+            testTask.setGroup(JavaBasePlugin.VERIFICATION_GROUP);
+            testTask.setDescription("Runs the REST tests against an external cluster");
+            project.getPlugins().withType(JavaPlugin.class, t -> testTask.mustRunAfter(project.getTasks().named("test")));
+            testTask.setTestClassesDirs(sourceSet.getOutput().getClassesDirs());
+            testTask.setClasspath(sourceSet.getRuntimeClasspath());
+            // Mark so the task is detectable via task.getExtensions().findByType(RestIntegTestSpec.class)
+            RestIntegTestSpec.mark(testTask);
+            // Preserve cacheability: plain Test tasks are not @CacheableTask, so opt in explicitly
+            testTask.getOutputs().cacheIf("REST integ test", t -> true);
+        });
+    }
+
+    /**
      * Creates a {@link RestIntegTestTask} task with the source set of the same name
      */
     public static Provider<RestIntegTestTask> registerTestTask(Project project, SourceSet sourceSet) {

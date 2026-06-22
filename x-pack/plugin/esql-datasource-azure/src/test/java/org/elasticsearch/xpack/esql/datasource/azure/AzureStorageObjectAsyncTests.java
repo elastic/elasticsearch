@@ -11,12 +11,17 @@ import com.azure.storage.blob.BlobAsyncClient;
 import com.azure.storage.blob.BlobClient;
 import com.azure.storage.blob.BlobServiceClientBuilder;
 
+import org.apache.arrow.memory.BufferAllocator;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
+import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
 import java.io.IOException;
-import java.nio.ByteBuffer;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
@@ -36,6 +41,15 @@ import static org.hamcrest.Matchers.instanceOf;
  * the async client use the provider which manages its own lifecycle.
  */
 public class AzureStorageObjectAsyncTests extends ESTestCase {
+
+    // Hold a strong reference to the BlockFactory so the JVM Cleaner does not close the
+    // arrow root allocator mid-test (BlockFactory.arrowAllocator() registers a cleaner action
+    // on its own BlockFactory instance, which is otherwise unreachable from ALLOCATOR alone).
+    private static final BlockFactory BLOCK_FACTORY = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE)
+        .breaker(new NoopCircuitBreaker("test"))
+        .build();
+    private static final BufferAllocator ALLOCATOR = BLOCK_FACTORY.arrowAllocator();
+    private static final DirectBufferFactory FACTORY = DirectBufferFactory.forAllocator(ALLOCATOR);
 
     private static final String CONNECTION_STRING = "DefaultEndpointsProtocol=http;"
         + "AccountName=devstoreaccount1;"
@@ -74,9 +88,9 @@ public class AzureStorageObjectAsyncTests extends ESTestCase {
         CountDownLatch latch = new CountDownLatch(1);
         AtomicReference<Exception> error = new AtomicReference<>();
 
-        obj.readBytesAsync(-1, 10, Runnable::run, new ActionListener<>() {
+        obj.readBytesAsync(-1, 10, FACTORY, Runnable::run, new ActionListener<>() {
             @Override
-            public void onResponse(ByteBuffer buffer) {
+            public void onResponse(DirectReadBuffer buffer) {
                 fail("expected failure");
             }
 
@@ -98,9 +112,9 @@ public class AzureStorageObjectAsyncTests extends ESTestCase {
         CountDownLatch latch = new CountDownLatch(1);
         AtomicReference<Exception> error = new AtomicReference<>();
 
-        obj.readBytesAsync(0, -1, Runnable::run, new ActionListener<>() {
+        obj.readBytesAsync(0, -1, FACTORY, Runnable::run, new ActionListener<>() {
             @Override
-            public void onResponse(ByteBuffer buffer) {
+            public void onResponse(DirectReadBuffer buffer) {
                 fail("expected failure");
             }
 
@@ -124,7 +138,7 @@ public class AzureStorageObjectAsyncTests extends ESTestCase {
             null,
             "http://127.0.0.1:10000/devstoreaccount1"
         );
-        AzureStorageProvider provider = new AzureStorageProvider(azureConfig);
+        AzureStorageProvider provider = new AzureStorageProvider(azureConfig, null, null);
         provider.close();
     }
 
@@ -136,7 +150,7 @@ public class AzureStorageObjectAsyncTests extends ESTestCase {
             null,
             "http://127.0.0.1:10000/devstoreaccount1"
         );
-        try (AzureStorageProvider provider = new AzureStorageProvider(azureConfig)) {
+        try (AzureStorageProvider provider = new AzureStorageProvider(azureConfig, null, null)) {
             var obj = provider.newObject(PATH);
             assertTrue("Provider-created objects should support native async", obj.supportsNativeAsync());
         }

@@ -11,6 +11,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.esql.action.EsqlPluginWithEnterpriseOrTrialLicense;
+import org.elasticsearch.xpack.esql.datasources.datasource.TestEncryptionServicePlugin;
 import org.elasticsearch.xpack.spatial.SpatialPlugin;
 
 import java.util.Collection;
@@ -26,7 +27,7 @@ import static org.hamcrest.Matchers.nullValue;
 public class SpatialCentroidAggregationIT extends SpatialCentroidAggregationTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return List.of(SpatialPlugin.class, EsqlPluginWithEnterpriseOrTrialLicense.class);
+        return List.of(SpatialPlugin.class, EsqlPluginWithEnterpriseOrTrialLicense.class, TestEncryptionServicePlugin.class);
     }
 
     @Override

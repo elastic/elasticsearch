@@ -13,7 +13,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.reindex.BulkByScrollResponse;
+import org.elasticsearch.index.reindex.BulkByPaginatedSearchResponse;
 import org.elasticsearch.index.reindex.UpdateByQueryRequest;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.script.ScriptService;
@@ -27,9 +27,9 @@ import static org.hamcrest.Matchers.containsString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class UpdateByQueryWithScriptTests extends AbstractAsyncBulkByScrollActionScriptTestCase<
+public class UpdateByQueryWithScriptTests extends AbstractAsyncBulkByPaginatedSearchActionScriptTestCase<
     UpdateByQueryRequest,
-    BulkByScrollResponse> {
+    BulkByPaginatedSearchResponse> {
 
     public void testModifyingCtxNotAllowed() {
         /*

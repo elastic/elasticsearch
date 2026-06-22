@@ -169,7 +169,17 @@ public class TransportInferTrainedModelDeploymentAction extends TransportTasksAc
             }
 
             private void sendResponse() {
-                finalListener.onResponse(new InferTrainedModelDeploymentAction.Response(results.asList()));
+                var orderedResults = new ArrayList<InferenceResults>(totalNumberOfResponses);
+                for (int i = 0; i < totalNumberOfResponses; i++) {
+                    InferenceResults result = results.get(i);
+                    if (result == null) {
+                        result = new ErrorInferenceResults(
+                            new IllegalStateException("Missing inference result for input index [" + i + "]")
+                        );
+                    }
+                    orderedResults.add(result);
+                }
+                finalListener.onResponse(new InferTrainedModelDeploymentAction.Response(orderedResults));
             }
         };
     }

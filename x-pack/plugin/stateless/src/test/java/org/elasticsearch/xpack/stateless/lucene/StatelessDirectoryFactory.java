@@ -18,6 +18,7 @@ import org.apache.lucene.store.Lock;
 import org.apache.lucene.store.NIOFSDirectory;
 import org.elasticsearch.blobcache.BlobCacheMetrics;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.blobstore.fs.FsBlobContainer;
@@ -59,6 +60,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static org.elasticsearch.blobcache.shared.SharedBlobCacheService.SHARED_CACHE_MMAP;
 import static org.elasticsearch.blobcache.shared.SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING;
 import static org.elasticsearch.blobcache.shared.SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING;
+import static org.mockito.Mockito.mock;
 
 /**
  * Factory for creating a stateless directory for use by the KnnIndexTester
@@ -110,7 +112,16 @@ public final class StatelessDirectoryFactory {
      * @return a read-write directory backed by the stateless blob cache
      */
     public static Directory create(Path indexPath, Path workPath) throws IOException {
-        return StatelessDirectory.create(indexPath, workPath);
+        return create(indexPath, workPath, Settings.EMPTY);
+    }
+
+    /**
+     * Same as {@link #create(Path, Path)} but lets the caller merge additional node
+     * settings (for example {@code node.roles}) on top of the defaults. Caller-provided
+     * keys overwrite the defaults set by this factory.
+     */
+    public static Directory create(Path indexPath, Path workPath, Settings extraNodeSettings) throws IOException {
+        return StatelessDirectory.create(indexPath, workPath, extraNodeSettings);
     }
 
     /**
@@ -123,7 +134,7 @@ public final class StatelessDirectoryFactory {
      */
     private static class StatelessDirectory extends FilterDirectory {
 
-        static StatelessDirectory create(Path dataPath, Path workPath) throws IOException {
+        static StatelessDirectory create(Path dataPath, Path workPath, Settings extraNodeSettings) throws IOException {
             long regionSize = SHARED_CACHE_REGION_SIZE_SETTING.getDefault(Settings.EMPTY).getBytes();
             Long cacheSizeOverride = Long.getLong(CACHE_SIZE_BYTES_PROP);
             long cacheSizeBytes = cacheSizeOverride != null
@@ -137,6 +148,7 @@ public final class StatelessDirectoryFactory {
                 .put(SHARED_CACHE_SIZE_SETTING.getKey(), cacheSize)
                 .put(SHARED_CACHE_MMAP.getKey(), true)
                 .put("node.id.seed", 0L)
+                .put(extraNodeSettings)
                 .build();
             var nodeEnvironment = new NodeEnvironment(nodeSettings, new Environment(nodeSettings, null));
             var threadPool = new ThreadPool(
@@ -150,6 +162,7 @@ public final class StatelessDirectoryFactory {
                 nodeSettings,
                 threadPool,
                 new BlobCacheMetrics(MeterRegistry.NOOP),
+                mock(ClusterService.class),
                 new ThreadLocalDirectoryMetricHolder<>(BlobStoreCacheDirectoryMetrics::new)
             );
 

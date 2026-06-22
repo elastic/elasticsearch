@@ -18,8 +18,10 @@ import org.elasticsearch.xpack.esql.expression.promql.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
+import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 
 /**
  * Represents a PromQL aggregate function call that operates across multiple time series.
@@ -105,16 +107,41 @@ public final class AcrossSeriesAggregate extends PromqlFunctionCall {
     }
 
     /**
-     * {@code WITHOUT} uses a dynamic {@code _timeseries} output because the
-     * concrete retained labels are not known until lowering time. {@code BY}
-     * and {@code NONE} export concrete labels or nothing.
+     * {@code WITHOUT} over a non-enumerable child (a selector / full series identity) uses a dynamic
+     * {@code _timeseries} output, because the concrete retained labels are not known until lowering time.
+     * {@code WITHOUT} over a concrete-output child (a {@code BY}/{@code NONE} aggregate) instead exposes that child's
+     * concrete labels minus the excluded ones - the {@code WITHOUT} is a plain re-grouping over known columns, so it
+     * must NOT claim a {@code _timeseries} the plan never produces. {@code BY} and {@code NONE} export concrete labels
+     * or nothing.
      */
     @Override
     public List<Attribute> output() {
         if (grouping == Grouping.WITHOUT) {
+            if (child() instanceof AcrossSeriesAggregate childAggregate && childAggregate.grouping() != Grouping.WITHOUT) {
+                Set<String> excluded = new HashSet<>();
+                for (Attribute label : groupings) {
+                    excluded.add(labelKey(label));
+                }
+                return childAggregate.output().stream().filter(a -> excluded.contains(labelKey(a)) == false).toList();
+            }
             return List.of(timeseriesAttribute);
         }
-        return groupings.stream().filter(a -> a.resolved() == false || a.dataType() != DataType.NULL).toList();
+        // A label that resolved to a metric field is not a real label, so translation drops it from the
+        // aggregate; exclude it from the output too, otherwise the command projection references a column the
+        // plan never produces. Absent labels are already excluded by the resolved() check.
+        return groupings.stream()
+            .filter(a -> a.resolved() && a.dataType() != DataType.NULL)
+            .filter(a -> a instanceof FieldAttribute fieldAttribute ? fieldAttribute.isMetric() == false : true)
+            .toList();
+    }
+
+    /**
+     * The PromQL label key of an attribute: a {@link FieldAttribute}'s backing field name with the Prometheus
+     * {@code labels.} passthrough prefix stripped (so {@code labels.pod} compares equal to a bare {@code pod}).
+     */
+    private static String labelKey(Attribute attr) {
+        String name = attr instanceof FieldAttribute fieldAttribute ? fieldAttribute.fieldName().string() : attr.name();
+        return name.startsWith("labels.") ? name.substring("labels.".length()) : name;
     }
 
     @Override

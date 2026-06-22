@@ -20,6 +20,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.ingest.geoip.DatabaseNodeService;
+import org.elasticsearch.ingest.geoip.EnterpriseGeoIpTaskState;
 import org.elasticsearch.ingest.geoip.GeoIpDownloaderTaskExecutor;
 import org.elasticsearch.ingest.geoip.GeoIpTaskState;
 import org.elasticsearch.ingest.geoip.IngestGeoIpMetadata;
@@ -140,7 +141,7 @@ public class TransportGetDatabaseConfigurationAction extends TransportNodesActio
 
     private static String getDatabaseNameForFileName(String databaseFileName) {
         return databaseFileName.endsWith(".mmdb")
-            ? databaseFileName.substring(0, databaseFileName.length() + 1 - ".mmmdb".length())
+            ? databaseFileName.substring(0, databaseFileName.length() - ".mmdb".length())
             : databaseFileName;
     }
 
@@ -150,19 +151,33 @@ public class TransportGetDatabaseConfigurationAction extends TransportNodesActio
     private static Collection<DatabaseConfigurationMetadata> getMaxmindDatabases(ProjectMetadata projectMetadata, String id) {
         List<DatabaseConfigurationMetadata> maxmindDatabases = new ArrayList<>();
         final IngestGeoIpMetadata geoIpMeta = projectMetadata.custom(IngestGeoIpMetadata.TYPE, IngestGeoIpMetadata.EMPTY);
+        EnterpriseGeoIpTaskState enterpriseTaskState = EnterpriseGeoIpTaskState.getEnterpriseGeoIpTaskState(projectMetadata);
         if (Regex.isSimpleMatchPattern(id)) {
             for (Map.Entry<String, DatabaseConfigurationMetadata> entry : geoIpMeta.getDatabases().entrySet()) {
                 if (Regex.simpleMatch(id, entry.getKey())) {
-                    maxmindDatabases.add(entry.getValue());
+                    maxmindDatabases.add(withLastUpdate(entry.getValue(), enterpriseTaskState));
                 }
             }
         } else {
             DatabaseConfigurationMetadata meta = geoIpMeta.getDatabases().get(id);
             if (meta != null) {
-                maxmindDatabases.add(meta);
+                maxmindDatabases.add(withLastUpdate(meta, enterpriseTaskState));
             }
         }
         return maxmindDatabases;
+    }
+
+    // non-private for unit testing
+    static DatabaseConfigurationMetadata withLastUpdate(DatabaseConfigurationMetadata meta, EnterpriseGeoIpTaskState enterpriseTaskState) {
+        if (enterpriseTaskState == null) {
+            return meta;
+        }
+        String databaseFileName = meta.database().name() + ".mmdb";
+        GeoIpTaskState.Metadata taskMetadata = enterpriseTaskState.getDatabases().get(databaseFileName);
+        if (taskMetadata == null) {
+            return meta;
+        }
+        return new DatabaseConfigurationMetadata(meta.database(), meta.version(), taskMetadata.lastUpdate());
     }
 
     @Override

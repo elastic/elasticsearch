@@ -460,6 +460,21 @@ public abstract class AbstractScopedSettings {
         addSettingsUpdateConsumer(setting, consumer);
     }
 
+    /**
+     * If setting exists (is registered in {@link org.elasticsearch.cluster.ClusterModule}) and is dynamic, this call
+     * is equivalent to {@link #initializeAndWatch(Setting, Consumer)}.
+     * Otherwise, evaluate the setting value against {@link #settings the Settings instance owned by this class} and
+     * pass it to the consumer. In this case, setting will not be dynamically updated.
+     * Useful for dynamic settings that are registered in some tests but not yet in production.
+     */
+    public synchronized <T> void initializeAndWatchIfRegistered(Setting<T> setting, Consumer<T> consumer) {
+        if (isDynamicSetting(setting.getKey())) {
+            initializeAndWatch(setting, consumer);
+        } else {
+            consumer.accept(setting.get(settings));
+        }
+    }
+
     protected void validateDeprecatedAndRemovedSettingV7(Settings settings, Setting<?> setting) {}
 
     /**

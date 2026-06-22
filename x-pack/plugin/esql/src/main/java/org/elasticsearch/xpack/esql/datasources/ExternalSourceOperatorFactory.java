@@ -17,6 +17,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
@@ -27,6 +28,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
 import java.io.IOException;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 
 /**
@@ -326,8 +328,40 @@ public class ExternalSourceOperatorFactory implements SourceOperator.SourceOpera
                     .build();
                 CloseableIterator<Page> pages = formatReader.read(obj, ctx);
 
-                if (columnMapping != null && columnMapping.isIdentity() == false) {
-                    pages = new SchemaAdaptingIterator(pages, queryDataSchema.attributes(), columnMapping, blockFactory);
+                // Empty queryDataSchema is COUNT(*) / _file.*-only: no data columns to reshape and the
+                // reader already emits zero-data-block row-count pages, so skip the adapter (a
+                // full-width mapping would otherwise trip its output-size-vs-mapping-width guard).
+                if (columnMapping != null && columnMapping.isIdentity() == false && queryDataSchema.isEmpty() == false) {
+                    // Per-file source types are only needed when the mapping has a KEYWORD cast
+                    // (the only path where LongBlock — DATETIME / DATE_NANOS / LONG — needs
+                    // disambiguating). Skip the schema-narrowing dance entirely otherwise.
+                    DataType[] perFileColumnTypes = null;
+                    if (columnMapping.hasKeywordCast()) {
+                        // The reader emits columns in the file's natural order, intersected with
+                        // the requested projection. Narrow `effectiveProjection` to columns
+                        // present in `fileSplit.readSchema()` in the file's order so the
+                        // per-position type lookup aligns with the reader's emitted page.
+                        List<Attribute> readSchema = fileSplit.readSchema();
+                        List<String> perFileCols = effectiveProjection;
+                        if (readSchema != null && readSchema.isEmpty() == false && effectiveProjection != null) {
+                            HashSet<String> wanted = new HashSet<>(effectiveProjection);
+                            perFileCols = new ArrayList<>(Math.min(effectiveProjection.size(), readSchema.size()));
+                            for (Attribute attr : readSchema) {
+                                if (wanted.contains(attr.name())) {
+                                    perFileCols.add(attr.name());
+                                }
+                            }
+                        }
+                        perFileColumnTypes = ColumnMapping.buildPerFileColumnTypes(readSchema, perFileCols);
+                    }
+                    pages = new SchemaAdaptingIterator(
+                        pages,
+                        queryDataSchema.attributes(),
+                        columnMapping,
+                        blockFactory,
+                        -1,
+                        perFileColumnTypes
+                    );
                 }
                 return pages;
             }

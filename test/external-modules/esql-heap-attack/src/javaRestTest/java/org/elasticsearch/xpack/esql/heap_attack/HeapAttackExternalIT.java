@@ -44,7 +44,7 @@ import static org.elasticsearch.xpack.esql.datasources.S3FixtureUtils.WAREHOUSE;
  * in-memory S3 fixture and submitting {@code EXTERNAL} queries that would crash the node if the
  * request breaker did not intervene.
  * <p>
- * The cluster keeps the standard 512&nbsp;MB heap and 60% request-breaker limit from
+ * The cluster keeps the standard 512&nbsp;MB heap with a reduced request-breaker limit from
  * {@link ExternalClusters#buildExternalCluster}. Payload sizes are auto-tuned per-run from the
  * cluster's actual {@code jvm.mem.heap_max_in_bytes} (see {@link #ensureHeapBudgetDiscovered()}),
  * so the suite stays meaningful if someone later changes the heap setting. Each scenario must
@@ -69,11 +69,10 @@ public class HeapAttackExternalIT extends HeapAttackRestHelpers {
      *  with {@code /{bucket}/{basePath}/}, where the fixture sets basePath = WAREHOUSE. */
     private static final String KEY_PREFIX = WAREHOUSE + "/heap-attack-external";
 
-    /** Hard cap on rows generated in the test JVM regardless of cluster heap. With the cluster's
-     *  request-breaker pinned to 50% of a 512&nbsp;MB heap (~256&nbsp;MB) and STATS hash entries
-     *  costing ~64&nbsp;bytes apiece, ~5&nbsp;M distinct keys is already past the budget; 30&nbsp;M
-     *  rows gives the {@link #assertCircuitBreaks} retry-with-scaling loop room to land in trip
-     *  territory on the first attempt for every scenario. */
+    /** Hard cap on rows generated in the test JVM regardless of cluster heap, to keep the
+     *  test-JVM payload byte[] tractable. The actual row count used per scenario is derived from
+     *  the cluster's breaker budget (see {@link #runStatsBlowup}); this constant only prevents
+     *  runaway scaling on unusually large heaps. */
     private static final int MAX_ROWS = 30_000_000;
 
     /** Detected at test start from {@code _nodes/stats}; the min across nodes. */
@@ -98,7 +97,7 @@ public class HeapAttackExternalIT extends HeapAttackRestHelpers {
      */
     @After
     public void clearTestBlobs() {
-        String prefix = "/" + BUCKET + "/" + KEY_PREFIX + "/" + getTestName() + "/";
+        String prefix = "/" + BUCKET + "/" + KEY_PREFIX + "/" + sanitizedTestName() + "/";
         Iterator<String> it = handler().blobs().keySet().iterator();
         while (it.hasNext()) {
             if (it.next().startsWith(prefix)) {
@@ -191,10 +190,14 @@ public class HeapAttackExternalIT extends HeapAttackRestHelpers {
     }
 
     private void runStatsBlowup(Format format, Compression compression) throws IOException {
-        // Sized so the hash table over distinct id values cannot fit in the breaker budget. STATS
-        // state per group is conservatively ~64 bytes (group key + accumulators). We clamp the
-        // upper bound at MAX_ROWS to keep the test-JVM byte[] payload tractable.
-        int baseDistinctKeys = (int) Math.min(MAX_ROWS / 4, clusterHeapMax / 64L * 2);
+        // Target ~1.5× the breaker budget in STATS hash-table groups so the breaker reliably trips
+        // without the total memory footprint (tracked + untracked S3/Netty/parsing overhead) pushing
+        // the node into an OOM. STATS state per group is conservatively ~64 bytes (group key +
+        // accumulators). Sizing against the breaker budget (not total heap) leaves headroom for the
+        // untracked allocations from the S3 client's Netty infrastructure and the format-specific
+        // parsing pipeline.
+        long breakerBudget = clusterHeapMax * ExternalClusters.BREAKER_LIMIT_PERCENT / 100;
+        int baseDistinctKeys = (int) Math.min(MAX_ROWS / 4, breakerBudget / 64L * 3 / 2);
         int baseRowCount = baseDistinctKeys * 4;
         // Same key across attempts so the fixture's blob map holds at most one payload per test
         // method — otherwise five attempts × ~200 MB pile up in the test JVM heap.
@@ -216,7 +219,7 @@ public class HeapAttackExternalIT extends HeapAttackRestHelpers {
     /*
      * Sort/TopN blowup is scoped out for now. The TopN operator's per-row footprint over a
      * single long column is small enough that a 30M-row CSV (which is already near the test-JVM
-     * payload limit) doesn't push the request breaker past its 60% threshold. Adding it back
+     * payload limit) doesn't push the request breaker past its threshold. Adding it back
      * will need either a wider per-row payload (e.g. a long keyword column) or a tighter cluster
      * breaker limit; both are mechanical follow-ups.
      */
@@ -232,11 +235,22 @@ public class HeapAttackExternalIT extends HeapAttackRestHelpers {
             Locale.ROOT,
             "%s/%s/%s-%s%s",
             KEY_PREFIX,
-            getTestName(),
+            sanitizedTestName(),
             scenario,
             format.extension,
             HeapAttackExternalFixtures.fileExtension(format, compression)
         );
+    }
+
+    /**
+     * Returns the bare method name without the {@code {seed=[...]}} suffix that the randomized
+     * runner appends when {@code -Dtests.iters} is in effect. S3 keys and the EXTERNAL command
+     * must not contain curly braces (glob syntax) or spaces.
+     */
+    private String sanitizedTestName() {
+        String name = getTestName();
+        int brace = name.indexOf(" {");
+        return brace >= 0 ? name.substring(0, brace) : name;
     }
 
     private String externalS3Query(String s3Key) {
@@ -254,8 +268,7 @@ public class HeapAttackExternalIT extends HeapAttackRestHelpers {
         // Wrap in JSON {"query":"..."} the same way HeapAttackRestHelpers#query expects.
         String body = "{\"query\":\"" + esql.replace("\"", "\\\"") + "\"}";
         Response response = query(body, null);
-        @SuppressWarnings("unchecked")
-        Map<String, Object> map = (Map<String, Object>) responseAsMap(response);
+        Map<String, Object> map = responseAsMap(response);
         return map;
     }
 }

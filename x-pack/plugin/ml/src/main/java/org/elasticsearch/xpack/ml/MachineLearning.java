@@ -929,7 +929,8 @@ public class MachineLearning extends Plugin
             SCALE_TO_ZERO_AFTER_NO_REQUESTS_TIME,
             ANOMALY_DETECTION_ENABLED,
             DATA_FRAME_ANALYTICS_ENABLED,
-            NLP_ENABLED
+            NLP_ENABLED,
+            MlAnomaliesIndexUpdate.HEAL_REINDEXED_V7_ENABLED
         );
     }
 
@@ -1126,7 +1127,9 @@ public class MachineLearning extends Plugin
             jobConfigProvider,
             xContentRegistry,
             settings,
-            client
+            client,
+            machineLearningExtension.get(),
+            anomalyDetectionAuditor
         );
 
         // special holder for @link(MachineLearningFeatureSetUsage) which needs access to job manager if ML is enabled
@@ -1228,7 +1231,8 @@ public class MachineLearning extends Plugin
             System::currentTimeMillis,
             jobResultsPersister,
             settings,
-            clusterService
+            clusterService,
+            () -> machineLearningExtension.get().getCloudCredentialManager()
         );
         DatafeedContextProvider datafeedContextProvider = new DatafeedContextProvider(
             jobConfigProvider,
@@ -1372,7 +1376,14 @@ public class MachineLearning extends Plugin
                     indexNameExpressionResolver,
                     client
                 ),
-                new MlAnomaliesIndexUpdate(indexNameExpressionResolver, client)
+                new MlAnomaliesIndexUpdate(
+                    clusterService,
+                    indexNameExpressionResolver,
+                    client,
+                    anomalyDetectionAuditor,
+                    systemAuditor,
+                    () -> clusterService.getClusterSettings().get(MlAnomaliesIndexUpdate.HEAL_REINDEXED_V7_ENABLED)
+                )
             )
         );
         clusterService.addListener(mlAutoUpdateService);
@@ -1447,7 +1458,6 @@ public class MachineLearning extends Plugin
             autodetectProcessManager,
             dataFrameAnalyticsManager
         );
-
         return List.of(
             mlLifeCycleService,
             new MlControllerHolder(mlController),

@@ -294,12 +294,16 @@ public abstract class BlobStoreCacheDirectory extends ByteSizeDirectory {
         BlobCacheMetrics blobCacheMetrics,
         @Nullable Releasable releasable
     ) {
+        var blobFile = blobFileRanges.blobLocation().blobFile();
         var reader = new CacheFileReader(
             getCacheFile(blobFileRanges),
-            getCacheBlobReader(name, blobFileRanges.blobLocation().blobFile()),
+            getCacheBlobReader(name, blobFile),
             blobFileRanges,
             blobCacheMetrics,
-            cacheService.getThreadPool().relativeTimeInMillisSupplier()
+            cacheService.getThreadPool().relativeTimeInMillisSupplier(),
+            cacheService.getRegionSize(),
+            context,
+            cacheService.hasSearchRole()
         );
         return new BlobCacheIndexInput(name, context, reader, releasable, blobFileRanges.fileLength(), blobFileRanges.fileOffset());
     }

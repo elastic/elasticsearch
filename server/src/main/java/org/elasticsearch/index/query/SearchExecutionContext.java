@@ -47,6 +47,7 @@ import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.MappingParserContext;
+import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.mapper.NestedLookup;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceLoader;
@@ -338,7 +339,23 @@ public class SearchExecutionContext extends QueryRewriteContext {
     }
 
     public List<String> defaultFields() {
-        return indexSettings.getDefaultFields();
+        List<String> fields = indexSettings.getDefaultFields();
+        if (indexSettings.getMode().isStrictColumnar() && fields.size() == 1 && "*".equals(fields.getFirst())) {
+            List<String> indexedFields = new ArrayList<>();
+            for (var mapper : mappingLookup.fieldMappers()) {
+                if (mapper instanceof FieldMapper fieldMapper) {
+                    if (mapper instanceof MetadataFieldMapper) {
+                        continue;
+                    }
+                    var fieldType = fieldMapper.fieldType();
+                    if (fieldType.indexType().hasDenseIndex()) {
+                        indexedFields.add(fieldType.name());
+                    }
+                }
+            }
+            return indexedFields;
+        }
+        return fields;
     }
 
     public boolean queryStringLenient() {
@@ -781,17 +798,17 @@ public class SearchExecutionContext extends QueryRewriteContext {
     }
 
     /**
-     * Adds memory usage to the circuit breaker for query construction.
-     * <p>
-     * This method tracks memory used during query construction and enforces circuit breaker limits
-     * to prevent excessive memory usage. The tracked memory can later be released using
-     * {@link #releaseQueryConstructionMemory()}.
+     * Adds memory usage to the request circuit breaker, accumulating against this SEC's pool drained by
+     * {@link #releaseQueryConstructionMemory()}; the rewrite-phase clone in {@code SearchService} must not charge here.
      *
-     * @param bytes the number of bytes to add to the circuit breaker
+     * @param bytes the number of bytes to add to the circuit breaker; must be {@code >= 0}
      * @param label a descriptive label for the memory allocation, used in circuit breaker error messages
      */
     public void addCircuitBreakerMemory(long bytes, String label) {
-        assert bytes >= 0 : "bytes must be non-negative, got " + bytes;
+        assert bytes >= 0 : "negative breaker charge: " + bytes + " for [" + label + "]";
+        if (circuitBreaker == null || bytes <= 0) {
+            return;
+        }
         addCircuitBreakerMemory(bytes, 0L, label);
     }
 
@@ -838,12 +855,27 @@ public class SearchExecutionContext extends QueryRewriteContext {
     }
 
     /**
-     * Release all accumulated query construction memory back to the circuit breaker.
+     * Release all accumulated query construction memory back to the circuit breaker. Safe to
+     * call multiple times; subsequent calls after the pool is drained are no-ops.
      */
     public void releaseQueryConstructionMemory() {
         long memoryToRelease = queryConstructionMemoryUsed.getAndSet(0);
         if (memoryToRelease > 0 && circuitBreaker != null) {
             circuitBreaker.addWithoutBreaking(-memoryToRelease);
         }
+    }
+
+    /**
+     * Release {@code bytes} of accumulated query construction memory back to the circuit breaker.
+     *
+     * @param bytes the number of bytes to refund; must be {@code >= 0}
+     */
+    public void releaseQueryConstructionMemory(long bytes) {
+        assert bytes >= 0 : "negative refund: " + bytes;
+        if (circuitBreaker == null || bytes <= 0) {
+            return;
+        }
+        circuitBreaker.addWithoutBreaking(-bytes);
+        queryConstructionMemoryUsed.addAndGet(-bytes);
     }
 }

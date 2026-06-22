@@ -7,36 +7,37 @@
 
 package org.elasticsearch.xpack.inference.services.cohere.embeddings;
 
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.inference.ModelConfigurations;
-import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.SimilarityMeasure;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xpack.inference.common.parser.EnumParser;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
-import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.cohere.CohereCommonServiceSettings;
+import org.elasticsearch.xpack.inference.services.cohere.CohereCommonServiceSettings.CommonUpdate;
+import org.elasticsearch.xpack.inference.services.cohere.CohereServiceSettings;
 import org.elasticsearch.xpack.inference.services.settings.FilteredXContentObject;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
 import java.io.IOException;
-import java.util.EnumSet;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
+import static org.elasticsearch.xpack.inference.common.parser.NumberParser.validatePositiveInteger;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.DIMENSIONS;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MAX_INPUT_TOKENS;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.SIMILARITY;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createOptionalUri;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalEnum;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalPositiveInteger;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractSimilarity;
 import static org.elasticsearch.xpack.inference.services.cohere.CohereCommonServiceSettings.ML_INFERENCE_COHERE_API_VERSION;
 import static org.elasticsearch.xpack.inference.services.cohere.CohereCommonServiceSettings.ML_INFERENCE_COHERE_SERVICE_SETTINGS_REFACTOR;
 
@@ -44,96 +45,110 @@ import static org.elasticsearch.xpack.inference.services.cohere.CohereCommonServ
  * Settings for the Cohere embeddings service. Wraps {@link CohereCommonServiceSettings} and adds
  * embeddings-specific fields: similarity measure, dimensions, max input tokens, and embedding type.
  */
-public class CohereEmbeddingsServiceSettings extends FilteredXContentObject implements ServiceSettings {
+public class CohereEmbeddingsServiceSettings extends FilteredXContentObject implements CohereServiceSettings {
 
     public static final String NAME = "cohere_embeddings_service_settings";
 
-    /**
-     * Creates {@link CohereEmbeddingsServiceSettings} from a map of settings.
-     * @param map the map to parse
-     * @param context the context in which the parsing is done
-     * @return the created {@link CohereEmbeddingsServiceSettings}
-     * @throws ValidationException If there are validation errors in the provided settings.
-     */
-    public static CohereEmbeddingsServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
-        var validationException = new ValidationException();
-        var commonSettings = CohereCommonServiceSettings.fromMap(map, context);
+    static class Builder extends CohereCommonServiceSettings.Builder<CohereEmbeddingsServiceSettings> {
 
-        var similarity = extractSimilarity(map, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        var dimensions = extractOptionalPositiveInteger(map, DIMENSIONS, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        var maxInputTokens = extractOptionalPositiveInteger(
-            map,
-            MAX_INPUT_TOKENS,
-            ModelConfigurations.SERVICE_SETTINGS,
-            validationException
-        );
-        var embeddingType = parseEmbeddingType(map, context, validationException);
+        private SimilarityMeasure similarity;
+        private Integer dimensions;
+        private Integer maxInputTokens;
+        private CohereEmbeddingType embeddingType;
 
-        validationException.throwIfValidationErrorsExist();
-
-        return new CohereEmbeddingsServiceSettings(commonSettings, similarity, dimensions, maxInputTokens, embeddingType);
-    }
-
-    private static CohereEmbeddingType parseEmbeddingType(
-        Map<String, Object> map,
-        ConfigurationParseContext context,
-        ValidationException validationException
-    ) {
-        return switch (context) {
-            case REQUEST -> Objects.requireNonNullElse(
-                extractOptionalEnum(
-                    map,
-                    ServiceFields.EMBEDDING_TYPE,
-                    ModelConfigurations.SERVICE_SETTINGS,
-                    CohereEmbeddingType::fromString,
-                    EnumSet.allOf(CohereEmbeddingType.class),
-                    validationException
-                ),
-                CohereEmbeddingType.FLOAT
-            );
-            case PERSISTENT -> {
-                var embeddingType = ServiceUtils.extractOptionalString(
-                    map,
-                    ServiceFields.EMBEDDING_TYPE,
-                    ModelConfigurations.SERVICE_SETTINGS,
-                    validationException
-                );
-                yield fromCohereOrDenseVectorEnumValues(embeddingType, validationException);
-            }
-        };
-    }
-
-    /**
-     * Before TransportVersions::ML_INFERENCE_COHERE_EMBEDDINGS_ADDED element
-     * type was persisted as a CohereEmbeddingType enum. After
-     * DenseVectorFieldMapper.ElementType was used.
-     * <p>
-     * Parse either and convert to a CohereEmbeddingType
-     */
-    static CohereEmbeddingType fromCohereOrDenseVectorEnumValues(String enumString, ValidationException validationException) {
-        if (enumString == null) {
-            return CohereEmbeddingType.FLOAT;
+        Builder(ConfigurationParseContext context) {
+            super(context);
         }
 
-        try {
-            return CohereEmbeddingType.fromString(enumString);
-        } catch (IllegalArgumentException ae) {
-            try {
-                return CohereEmbeddingType.fromElementType(DenseVectorFieldMapper.ElementType.fromString(enumString));
-            } catch (IllegalArgumentException iae) {
-                var validValuesAsStrings = CohereEmbeddingType.SUPPORTED_ELEMENT_TYPES.stream()
-                    .map(value -> value.toString().toLowerCase(Locale.ROOT))
-                    .toArray(String[]::new);
-                validationException.addValidationError(
-                    ServiceUtils.invalidValue(
-                        ServiceFields.EMBEDDING_TYPE,
-                        ModelConfigurations.SERVICE_SETTINGS,
-                        enumString,
-                        validValuesAsStrings
-                    )
-                );
-                return null;
-            }
+        void setSimilarity(SimilarityMeasure similarity) {
+            this.similarity = similarity;
+        }
+
+        void setDimensions(Integer dimensions) {
+            validatePositiveInteger(dimensions, DIMENSIONS);
+            this.dimensions = dimensions;
+        }
+
+        void setMaxInputTokens(Integer maxInputTokens) {
+            validatePositiveInteger(maxInputTokens, MAX_INPUT_TOKENS);
+            this.maxInputTokens = maxInputTokens;
+        }
+
+        void setEmbeddingType(CohereEmbeddingType embeddingType) {
+            this.embeddingType = embeddingType;
+        }
+
+        @Override
+        protected CohereEmbeddingsServiceSettings build(CohereCommonServiceSettings commonSettings) {
+            var resolvedEmbeddingType = Objects.requireNonNullElse(embeddingType, CohereEmbeddingType.FLOAT);
+            return new CohereEmbeddingsServiceSettings(commonSettings, similarity, dimensions, maxInputTokens, resolvedEmbeddingType);
+        }
+    }
+
+    private static final ObjectParser<Builder, ConfigurationParseContext> REQUEST_PARSER = createParser(
+        false,
+        ConfigurationParseContext.REQUEST
+    );
+    private static final ObjectParser<Builder, ConfigurationParseContext> PERSISTENT_PARSER = createParser(
+        true,
+        ConfigurationParseContext.PERSISTENT
+    );
+
+    static ObjectParser<Builder, ConfigurationParseContext> createParser(boolean ignoreUnknownFields, ConfigurationParseContext context) {
+        ObjectParser<Builder, ConfigurationParseContext> parser = new ObjectParser<>(
+            ModelConfigurations.SERVICE_SETTINGS,
+            ignoreUnknownFields,
+            () -> new Builder(context)
+        );
+        CohereCommonServiceSettings.declareCommonFields(parser, context);
+        parser.declareString(Builder::setSimilarity, EnumParser::parseSimilarity, new ParseField(SIMILARITY));
+        parser.declareInt(Builder::setDimensions, new ParseField(DIMENSIONS));
+        parser.declareInt(Builder::setMaxInputTokens, new ParseField(MAX_INPUT_TOKENS));
+        parser.declareString(
+            Builder::setEmbeddingType,
+            CohereEmbeddingType::fromCohereOrElementType,
+            new ParseField(ServiceFields.EMBEDDING_TYPE)
+        );
+        return parser;
+    }
+
+    /**
+     * Creates {@link CohereEmbeddingsServiceSettings} from a map of settings.
+     *
+     * @param map     the map to parse
+     * @param context the context in which the parsing is done
+     * @return the created {@link CohereEmbeddingsServiceSettings}
+     */
+    public static CohereEmbeddingsServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
+        var parser = context == ConfigurationParseContext.REQUEST ? REQUEST_PARSER : PERSISTENT_PARSER;
+        return CohereCommonServiceSettings.fromMap(map, context, parser);
+    }
+
+    private static class Update extends CommonUpdate {
+
+        private static final ObjectParser<Update, Void> PARSER = new ObjectParser<>(ModelConfigurations.SERVICE_SETTINGS, Update::new);
+
+        static {
+            CohereCommonServiceSettings.declareCommonUpdatableFields(PARSER);
+            PARSER.declareInt(Update::setMaxInputTokens, new ParseField(MAX_INPUT_TOKENS));
+        }
+
+        private Integer maxInputTokens;
+
+        private void setMaxInputTokens(Integer maxInputTokens) {
+            validatePositiveInteger(maxInputTokens, MAX_INPUT_TOKENS);
+            this.maxInputTokens = maxInputTokens;
+        }
+
+        public CohereEmbeddingsServiceSettings mergeInto(CohereEmbeddingsServiceSettings existing) {
+            Integer updatedMaxInputTokens = maxInputTokens != null ? maxInputTokens : existing.maxInputTokens();
+            return new CohereEmbeddingsServiceSettings(
+                existing.commonSettings().update(this),
+                existing.similarity(),
+                existing.dimensions(),
+                updatedMaxInputTokens,
+                existing.embeddingType()
+            );
         }
     }
 
@@ -154,7 +169,7 @@ public class CohereEmbeddingsServiceSettings extends FilteredXContentObject impl
         this.similarity = similarity;
         this.dimensions = dimensions;
         this.maxInputTokens = maxInputTokens;
-        this.embeddingType = Objects.requireNonNull(embeddingType);
+        this.embeddingType = Objects.requireNonNull(embeddingType).normalize();
     }
 
     public CohereEmbeddingsServiceSettings(StreamInput in) throws IOException {
@@ -177,10 +192,12 @@ public class CohereEmbeddingsServiceSettings extends FilteredXContentObject impl
             this.dimensions = in.readOptionalVInt();
             this.maxInputTokens = in.readOptionalVInt();
         }
-        this.embeddingType = Objects.requireNonNullElse(in.readOptionalEnum(CohereEmbeddingType.class), CohereEmbeddingType.FLOAT);
+        this.embeddingType = Objects.requireNonNullElse(in.readOptionalEnum(CohereEmbeddingType.class), CohereEmbeddingType.FLOAT)
+            .normalize();
     }
 
-    public CohereCommonServiceSettings getCommonSettings() {
+    @Override
+    public CohereCommonServiceSettings commonSettings() {
         return commonSettings;
     }
 
@@ -213,31 +230,17 @@ public class CohereEmbeddingsServiceSettings extends FilteredXContentObject impl
 
     @Override
     public CohereEmbeddingsServiceSettings updateServiceSettings(Map<String, Object> serviceSettings) {
-        var validationException = new ValidationException();
-
-        var updatedCommonSettings = commonSettings.update(serviceSettings, validationException);
-
-        var extractedMaxInputTokens = extractOptionalPositiveInteger(
-            serviceSettings,
-            MAX_INPUT_TOKENS,
-            ModelConfigurations.SERVICE_SETTINGS,
-            validationException
-        );
-
-        validationException.throwIfValidationErrorsExist();
-
-        return new CohereEmbeddingsServiceSettings(
-            updatedCommonSettings,
-            this.similarity,
-            this.dimensions,
-            extractedMaxInputTokens != null ? extractedMaxInputTokens : this.maxInputTokens,
-            this.embeddingType
-        );
+        try (var xParser = XContentHelper.mapToXContentParser(XContentParserConfiguration.EMPTY, serviceSettings)) {
+            Update update = Update.PARSER.apply(xParser, null);
+            return update.mergeInto(this);
+        } catch (IOException e) {
+            throw new ElasticsearchParseException("Failed to parse Cohere embeddings service settings update", e);
+        }
     }
 
     @Override
     public DenseVectorFieldMapper.ElementType elementType() {
-        return embeddingType == null ? DenseVectorFieldMapper.ElementType.FLOAT : embeddingType.toElementType();
+        return embeddingType.toElementType();
     }
 
     @Override

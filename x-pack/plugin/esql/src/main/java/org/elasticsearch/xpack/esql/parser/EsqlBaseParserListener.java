@@ -192,6 +192,16 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    */
   void exitSubquery(EsqlBaseParser.SubqueryContext ctx);
   /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#subquerySourceCommand}.
+   * @param ctx the parse tree
+   */
+  void enterSubquerySourceCommand(EsqlBaseParser.SubquerySourceCommandContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#subquerySourceCommand}.
+   * @param ctx the parse tree
+   */
+  void exitSubquerySourceCommand(EsqlBaseParser.SubquerySourceCommandContext ctx);
+  /**
    * Enter a parse tree produced by {@link EsqlBaseParser#indexPattern}.
    * @param ctx the parse tree
    */
@@ -825,6 +835,36 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    * @param ctx the parse tree
    */
   void exitInsistCommand(EsqlBaseParser.InsistCommandContext ctx);
+  /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#dedupCommand}.
+   * @param ctx the parse tree
+   */
+  void enterDedupCommand(EsqlBaseParser.DedupCommandContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#dedupCommand}.
+   * @param ctx the parse tree
+   */
+  void exitDedupCommand(EsqlBaseParser.DedupCommandContext ctx);
+  /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#highlightCommand}.
+   * @param ctx the parse tree
+   */
+  void enterHighlightCommand(EsqlBaseParser.HighlightCommandContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#highlightCommand}.
+   * @param ctx the parse tree
+   */
+  void exitHighlightCommand(EsqlBaseParser.HighlightCommandContext ctx);
+  /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#qualifiedNames}.
+   * @param ctx the parse tree
+   */
+  void enterQualifiedNames(EsqlBaseParser.QualifiedNamesContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#qualifiedNames}.
+   * @param ctx the parse tree
+   */
+  void exitQualifiedNames(EsqlBaseParser.QualifiedNamesContext ctx);
   /**
    * Enter a parse tree produced by {@link EsqlBaseParser#uriPartsCommand}.
    * @param ctx the parse tree

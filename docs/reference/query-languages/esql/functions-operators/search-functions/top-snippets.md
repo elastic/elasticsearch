@@ -6,5 +6,5 @@ mapped_pages:
 
 # ES|QL `TOP_SNIPPETS` function [esql-top_snippets]
 
-:::{include} ../../_snippets/functions/layout/top_snippets.md
+:::{include} ../../_snippets/generated/x-pack-esql/functions/layout/top_snippets.md
 :::

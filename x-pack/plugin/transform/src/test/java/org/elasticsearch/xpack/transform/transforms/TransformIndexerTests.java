@@ -24,8 +24,8 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.reindex.BulkByPaginatedSearchResponse;
 import org.elasticsearch.index.reindex.BulkByPaginatedSearchTask;
-import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
@@ -53,6 +53,7 @@ import org.elasticsearch.xpack.core.transform.transforms.TransformTaskState;
 import org.elasticsearch.xpack.transform.Transform;
 import org.elasticsearch.xpack.transform.TransformNode;
 import org.elasticsearch.xpack.transform.TransformServices;
+import org.elasticsearch.xpack.transform.action.TransformCloudCredentialManager;
 import org.elasticsearch.xpack.transform.checkpoint.CheckpointProvider;
 import org.elasticsearch.xpack.transform.checkpoint.MockTimebasedCheckpointProvider;
 import org.elasticsearch.xpack.transform.checkpoint.TransformCheckpointService;
@@ -172,7 +173,7 @@ public class TransformIndexerTests extends ESTestCase {
         }
 
         @Override
-        void doDeleteByQuery(DeleteByQueryRequest deleteByQueryRequest, ActionListener<BulkByScrollResponse> responseListener) {
+        void doDeleteByQuery(DeleteByQueryRequest deleteByQueryRequest, ActionListener<BulkByPaginatedSearchResponse> responseListener) {
             deleteByQueryCallCount++;
             try {
                 // yes, I know, a sleep, how dare you, this is to test stats collection and this requires a resolution of a millisecond
@@ -181,7 +182,7 @@ public class TransformIndexerTests extends ESTestCase {
                 fail("unexpected exception during sleep: " + e);
             }
             responseListener.onResponse(
-                new BulkByScrollResponse(
+                new BulkByPaginatedSearchResponse(
                     TimeValue.ZERO,
                     new BulkByPaginatedSearchTask.Status(
                         0,
@@ -277,6 +278,11 @@ public class TransformIndexerTests extends ESTestCase {
 
         @Override
         void doMaybeCreateDestIndex(Map<String, String> deducedDestIndexMappings, ActionListener<Boolean> listener) {
+            listener.onResponse(null);
+        }
+
+        @Override
+        protected void doMaybeRefreshCloudToken(TransformConfig priorConfig, TransformConfig newConfig, ActionListener<Void> listener) {
             listener.onResponse(null);
         }
 
@@ -860,7 +866,8 @@ public class TransformIndexerTests extends ESTestCase {
             mock(TransformNode.class),
             mock(CrossProjectModeDecider.class),
             projectId -> false,
-            multiProjectResolver
+            multiProjectResolver,
+            mock(TransformCloudCredentialManager.class)
         );
 
         MockedTransformIndexer indexer = new MockedTransformIndexer(
@@ -899,7 +906,8 @@ public class TransformIndexerTests extends ESTestCase {
             mock(TransformNode.class),
             mock(CrossProjectModeDecider.class),
             projectId -> false,
-            mock(ProjectResolver.class)
+            mock(ProjectResolver.class),
+            mock(TransformCloudCredentialManager.class)
         );
 
         MockedTransformIndexer indexer = new MockedTransformIndexer(

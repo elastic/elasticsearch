@@ -59,8 +59,17 @@ public record SourceOperatorContext(
     Set<String> partitionColumnNames,
     @Nullable ExternalSliceQueue sliceQueue,
     int parsingParallelism,
+    int maxConcurrentOpenSegments,
+    int maxRecordBytes,
     int parallelism
 ) {
+    /**
+     * Single source of truth for the {@code max_concurrent_open_segments} default. Lives in this SPI (leaf)
+     * layer so both the {@code QueryPragmas} setting and the datasources-side fallback defaults reference it
+     * without {@code datasources} having to depend on {@code plugin}. Change here and it propagates.
+     */
+    public static final int DEFAULT_MAX_CONCURRENT_OPEN_SEGMENTS = 4;
+
     public SourceOperatorContext {
         Check.notNull(path, "path cannot be null");
         Check.notNull(executor, "executor cannot be null");
@@ -82,6 +91,9 @@ public record SourceOperatorContext(
         }
         if (parsingParallelism < 1) {
             throw new IllegalArgumentException("parsingParallelism must be >= 1, got: " + parsingParallelism);
+        }
+        if (maxConcurrentOpenSegments < 1) {
+            throw new IllegalArgumentException("maxConcurrentOpenSegments must be >= 1, got: " + maxConcurrentOpenSegments);
         }
         if (parallelism < 1) {
             throw new IllegalArgumentException("parallelism must be >= 1, got: " + parallelism);
@@ -122,6 +134,8 @@ public record SourceOperatorContext(
             null,
             null,
             1,
+            DEFAULT_MAX_CONCURRENT_OPEN_SEGMENTS,
+            SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
             1
         );
     }
@@ -159,6 +173,8 @@ public record SourceOperatorContext(
             null,
             null,
             1,
+            DEFAULT_MAX_CONCURRENT_OPEN_SEGMENTS,
+            SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
             1
         );
     }
@@ -195,6 +211,8 @@ public record SourceOperatorContext(
             null,
             null,
             1,
+            DEFAULT_MAX_CONCURRENT_OPEN_SEGMENTS,
+            SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
             1
         );
     }
@@ -229,6 +247,8 @@ public record SourceOperatorContext(
             null,
             null,
             1,
+            DEFAULT_MAX_CONCURRENT_OPEN_SEGMENTS,
+            SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
             1
         );
     }
@@ -258,6 +278,10 @@ public record SourceOperatorContext(
         private Set<String> partitionColumnNames;
         private ExternalSliceQueue sliceQueue;
         private int parsingParallelism = 1;
+        private int maxConcurrentOpenSegments = DEFAULT_MAX_CONCURRENT_OPEN_SEGMENTS;
+        // Default matches StreamingParallelParsingCoordinator's record-growth cap (64 MiB); the planner
+        // overrides it from the max_record_size query pragma.
+        private int maxRecordBytes = SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES;
         private int parallelism = 1;
 
         public Builder sourceType(String sourceType) {
@@ -366,6 +390,16 @@ public record SourceOperatorContext(
             return this;
         }
 
+        public Builder maxConcurrentOpenSegments(int maxConcurrentOpenSegments) {
+            this.maxConcurrentOpenSegments = maxConcurrentOpenSegments;
+            return this;
+        }
+
+        public Builder maxRecordBytes(int maxRecordBytes) {
+            this.maxRecordBytes = maxRecordBytes;
+            return this;
+        }
+
         public Builder parallelism(int parallelism) {
             this.parallelism = parallelism;
             return this;
@@ -392,6 +426,8 @@ public record SourceOperatorContext(
                 partitionColumnNames,
                 sliceQueue,
                 parsingParallelism,
+                maxConcurrentOpenSegments,
+                maxRecordBytes,
                 parallelism
             );
         }

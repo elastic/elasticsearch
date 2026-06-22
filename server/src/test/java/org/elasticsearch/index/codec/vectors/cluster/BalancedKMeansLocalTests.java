@@ -25,8 +25,8 @@ import static org.hamcrest.Matchers.containsString;
 public class BalancedKMeansLocalTests extends ESTestCase {
 
     public void testIllegalClustersPerNeighborhood() {
-        KMeansLocal kMeansLocal = new BalancedOTKMeansLocalSerial(randomInt(), randomInt());
-        KMeansIntermediate kMeansIntermediate = new KMeansIntermediate(new float[0][], new int[0], i -> i);
+        KMeansLocal<float[]> kMeansLocal = new BalancedOTKMeansLocalSerial<>(CentroidOps.FLOAT, randomInt(), randomInt());
+        KMeansIntermediate<float[]> kMeansIntermediate = new KMeansIntermediate<>(new float[0][], new int[0], i -> i);
         IllegalArgumentException ex = expectThrows(
             IllegalArgumentException.class,
             () -> kMeansLocal.cluster(
@@ -50,8 +50,8 @@ public class BalancedKMeansLocalTests extends ESTestCase {
         float soarLambda = -1;
 
         var methods = List.of(
-            new LloydKMeansLocalSerial(sampleSize, maxIterations), // reference method
-            new BalancedOTKMeansLocalSerial(sampleSize, maxIterations)
+            new LloydKMeansLocalSerial<>(CentroidOps.FLOAT, sampleSize, maxIterations), // reference method
+            new BalancedOTKMeansLocalSerial<>(CentroidOps.FLOAT, sampleSize, maxIterations)
         );
 
         float[] inertias = new float[methods.size()];
@@ -66,9 +66,9 @@ public class BalancedKMeansLocalTests extends ESTestCase {
             KMeansFloatVectorValues vectors = generateData(nVectors, dims, nClusters, 0.5f);
 
             for (int j = 0; j < methods.size(); j++) {
-                float[][] centroids = KMeansLocal.pickInitialCentroids(vectors, nClusters);
+                float[][] centroids = KMeansLocal.pickInitialCentroids(vectors, nClusters, CentroidOps.FLOAT);
                 int[] assignments = new int[vectors.size()];
-                KMeansIntermediate kMeansIntermediate = new KMeansIntermediate(centroids, assignments);
+                KMeansIntermediate<float[]> kMeansIntermediate = new KMeansIntermediate<>(centroids, assignments);
                 methods.get(j).cluster(vectors, kMeansIntermediate, nClusters, soarLambda);
 
                 inertias[j] = kMeansMeanInertia(vectors, kMeansIntermediate);
@@ -90,7 +90,7 @@ public class BalancedKMeansLocalTests extends ESTestCase {
         assertTrue(geoMeanStdClusterSizes < 0.33);
     }
 
-    static float kMeansMeanInertia(KMeansFloatVectorValues vectors, KMeansIntermediate kMeansIntermediate) throws IOException {
+    static float kMeansMeanInertia(KMeansFloatVectorValues vectors, KMeansIntermediate<float[]> kMeansIntermediate) throws IOException {
         int[] assignments = kMeansIntermediate.assignments();
         float[][] centroids = kMeansIntermediate.centroids();
 
@@ -104,7 +104,7 @@ public class BalancedKMeansLocalTests extends ESTestCase {
         return mse;
     }
 
-    static int[] clusterSizes(KMeansIntermediate kMeansIntermediate) {
+    static int[] clusterSizes(KMeansIntermediate<float[]> kMeansIntermediate) {
         int[] assignments = kMeansIntermediate.assignments();
         float[][] centroids = kMeansIntermediate.centroids();
 
@@ -135,8 +135,8 @@ public class BalancedKMeansLocalTests extends ESTestCase {
         int sampleSize = vectors.size();
         KMeansFloatVectorValues fvv = KMeansFloatVectorValues.build(vectors, null, 5);
 
-        float[][] centroids = KMeansLocal.pickInitialCentroids(fvv, nClusters);
-        BalancedOTKMeansLocal.cluster(fvv, centroids, sampleSize, maxIterations);
+        float[][] centroids = KMeansLocal.pickInitialCentroids(fvv, nClusters, CentroidOps.FLOAT);
+        BalancedOTKMeansLocal.cluster(fvv, CentroidOps.FLOAT, centroids, sampleSize, maxIterations);
 
         int[] assignments = new int[vectors.size()];
         int[] assignmentOrdinals = new int[vectors.size()];
@@ -154,8 +154,8 @@ public class BalancedKMeansLocalTests extends ESTestCase {
             assignmentOrdinals[i] = i;
         }
 
-        KMeansIntermediate kMeansIntermediate = new KMeansIntermediate(centroids, assignments, i -> assignmentOrdinals[i]);
-        KMeansLocal kMeansLocal = new BalancedOTKMeansLocalSerial(sampleSize, maxIterations);
+        KMeansIntermediate<float[]> kMeansIntermediate = new KMeansIntermediate<>(centroids, assignments, i -> assignmentOrdinals[i]);
+        KMeansLocal<float[]> kMeansLocal = new BalancedOTKMeansLocalSerial<>(CentroidOps.FLOAT, sampleSize, maxIterations);
         kMeansLocal.cluster(fvv, kMeansIntermediate, clustersPerNeighborhood, soarLambda);
 
         assertEquals(nClusters, centroids.length);
@@ -181,8 +181,8 @@ public class BalancedKMeansLocalTests extends ESTestCase {
         float soarLambda = random().nextFloat(0.5f, 1.5f);
         KMeansFloatVectorValues vectors = generateData(nVectors, dims, nClusters, 0.5f);
 
-        float[][] centroids = KMeansLocal.pickInitialCentroids(vectors, nClusters);
-        LloydKMeansLocal.cluster(vectors, centroids, sampleSize, maxIterations);
+        float[][] centroids = KMeansLocal.pickInitialCentroids(vectors, nClusters, CentroidOps.FLOAT);
+        LloydKMeansLocal.cluster(vectors, CentroidOps.FLOAT, centroids, sampleSize, maxIterations);
 
         int[] assignments = new int[vectors.size()];
         int[] assignmentOrdinals = new int[vectors.size()];
@@ -200,8 +200,8 @@ public class BalancedKMeansLocalTests extends ESTestCase {
             assignmentOrdinals[i] = i;
         }
 
-        KMeansIntermediate kMeansIntermediate = new KMeansIntermediate(centroids, assignments, i -> assignmentOrdinals[i]);
-        KMeansLocal kMeansLocal = new BalancedOTKMeansLocalSerial(sampleSize, maxIterations);
+        KMeansIntermediate<float[]> kMeansIntermediate = new KMeansIntermediate<>(centroids, assignments, i -> assignmentOrdinals[i]);
+        KMeansLocal<float[]> kMeansLocal = new BalancedOTKMeansLocalSerial<>(CentroidOps.FLOAT, sampleSize, maxIterations);
         kMeansLocal.cluster(vectors, kMeansIntermediate, clustersPerNeighborhood, soarLambda);
 
         assertEquals(nClusters, centroids.length);
@@ -246,8 +246,8 @@ public class BalancedKMeansLocalTests extends ESTestCase {
             TaskExecutor taskExecutor = new TaskExecutor(executorService);
 
             var methods = List.of(
-                new BalancedOTKMeansLocalSerial(nSamples / 2, maxIterations),
-                new BalancedOTKMeansLocalConcurrent(taskExecutor, numThreads, nSamples / 2, maxIterations)
+                new BalancedOTKMeansLocalSerial<>(CentroidOps.FLOAT, nSamples / 2, maxIterations),
+                new BalancedOTKMeansLocalConcurrent<>(CentroidOps.FLOAT, taskExecutor, numThreads, nSamples / 2, maxIterations)
             );
 
             double[] inertias = new double[methods.size()];
@@ -255,9 +255,9 @@ public class BalancedKMeansLocalTests extends ESTestCase {
             int[] minClusterSizes = new int[methods.size()];
 
             for (int j = 0; j < methods.size(); j++) {
-                float[][] centroids = KMeansLocal.pickInitialCentroids(vectors, nClusters);
+                float[][] centroids = KMeansLocal.pickInitialCentroids(vectors, nClusters, CentroidOps.FLOAT);
                 int[] assignments = new int[vectors.size()];
-                KMeansIntermediate kMeansIntermediate = new KMeansIntermediate(centroids, assignments);
+                KMeansIntermediate<float[]> kMeansIntermediate = new KMeansIntermediate<>(centroids, assignments);
                 methods.get(j).cluster(vectors, kMeansIntermediate, nClusters, soarLambda);
 
                 inertias[j] = kMeansMeanInertia(vectors, kMeansIntermediate);

@@ -65,6 +65,7 @@ public class RoundTo extends EsqlScalarFunction implements BlockLoaderExpression
 
     @FunctionInfo(
         returnType = { "double", "integer", "long", "date", "date_nanos" },
+        briefSummary = "Rounds down to one of a list of fixed points.",
         description = """
             Rounds down to one of a list of fixed points.""",
         examples = @Example(file = "math", tag = "round_to"),

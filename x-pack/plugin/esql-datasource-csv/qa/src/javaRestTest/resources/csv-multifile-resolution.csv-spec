@@ -1,0 +1,174 @@
+// CSV schema_resolution × multifile coverage on the employees_multifile_split fixture (3 files,
+// same schema). Relocated from external-multifile-resolution.csv-spec, which CsvFormatSpecIT no
+// longer loads under the new multi_value_syntax: none default (the bracket-MV columns misalign
+// on comma delimiter). Each query declares multi_value_syntax: brackets in the EXTERNAL WITH
+// clause so this spec carries its own contract.
+
+// ===== FIRST_FILE_WINS =====
+
+ffwCount
+required_capability: external_command
+required_capability: external_source_read_schema
+
+EXTERNAL "{{employees_multifile_split}}" WITH {"schema_resolution": "first_file_wins", "multi_value_syntax": "brackets"}
+| STATS count = COUNT(*);
+
+count:long
+100
+;
+
+ffwFilterAndSort
+required_capability: external_command
+required_capability: external_source_read_schema
+
+EXTERNAL "{{employees_multifile_split}}" WITH {"schema_resolution": "first_file_wins", "multi_value_syntax": "brackets"}
+| WHERE salary > 70000
+| KEEP emp_no, first_name, salary
+| SORT salary DESC
+| LIMIT 3;
+
+emp_no:integer | first_name:keyword | salary:integer
+10029          | "Otmar"            | 74999
+10045          | "Moss"             | 74970
+10007          | "Tzvetan"          | 74572
+;
+
+ffwAggregateByGender
+required_capability: external_command
+required_capability: external_source_read_schema
+
+EXTERNAL "{{employees_multifile_split}}" WITH {"schema_resolution": "first_file_wins", "multi_value_syntax": "brackets"}
+| STATS count = COUNT(*) BY gender
+| SORT gender;
+
+count:long | gender:keyword
+33         | "F"
+57         | "M"
+10         | null
+;
+
+ffwSalaryStats
+required_capability: external_command
+required_capability: external_source_read_schema
+
+EXTERNAL "{{employees_multifile_split}}" WITH {"schema_resolution": "first_file_wins", "multi_value_syntax": "brackets"}
+| STATS avg_salary = AVG(salary), total = SUM(salary);
+
+avg_salary:double | total:long
+48248.55          | 4824855
+;
+
+// ===== STRICT =====
+
+strictCount
+required_capability: external_command
+required_capability: external_source_read_schema
+
+EXTERNAL "{{employees_multifile_split}}" WITH {"schema_resolution": "strict", "multi_value_syntax": "brackets"}
+| STATS count = COUNT(*);
+
+count:long
+100
+;
+
+strictFilterAndSort
+required_capability: external_command
+required_capability: external_source_read_schema
+
+EXTERNAL "{{employees_multifile_split}}" WITH {"schema_resolution": "strict", "multi_value_syntax": "brackets"}
+| WHERE salary > 70000
+| KEEP emp_no, first_name, salary
+| SORT salary DESC
+| LIMIT 3;
+
+emp_no:integer | first_name:keyword | salary:integer
+10029          | "Otmar"            | 74999
+10045          | "Moss"             | 74970
+10007          | "Tzvetan"          | 74572
+;
+
+strictAggregateByGender
+required_capability: external_command
+required_capability: external_source_read_schema
+
+EXTERNAL "{{employees_multifile_split}}" WITH {"schema_resolution": "strict", "multi_value_syntax": "brackets"}
+| STATS count = COUNT(*) BY gender
+| SORT gender;
+
+count:long | gender:keyword
+33         | "F"
+57         | "M"
+10         | null
+;
+
+strictSalaryStats
+required_capability: external_command
+required_capability: external_source_read_schema
+
+EXTERNAL "{{employees_multifile_split}}" WITH {"schema_resolution": "strict", "multi_value_syntax": "brackets"}
+| STATS avg_salary = AVG(salary), total = SUM(salary);
+
+avg_salary:double | total:long
+48248.55          | 4824855
+;
+
+// ===== UNION_BY_NAME =====
+
+ubnCount
+required_capability: external_command
+
+EXTERNAL "{{employees_multifile_split}}" WITH {"multi_value_syntax": "brackets"}
+| STATS count = COUNT(*);
+
+count:long
+100
+;
+
+ubnExplicitCount
+required_capability: external_command
+required_capability: external_source_read_schema
+
+EXTERNAL "{{employees_multifile_split}}" WITH {"schema_resolution": "union_by_name", "multi_value_syntax": "brackets"}
+| STATS count = COUNT(*);
+
+count:long
+100
+;
+
+ubnFilterAndSort
+required_capability: external_command
+
+EXTERNAL "{{employees_multifile_split}}" WITH {"multi_value_syntax": "brackets"}
+| WHERE salary > 70000
+| KEEP emp_no, first_name, salary
+| SORT salary DESC
+| LIMIT 3;
+
+emp_no:integer | first_name:keyword | salary:integer
+10029          | "Otmar"            | 74999
+10045          | "Moss"             | 74970
+10007          | "Tzvetan"          | 74572
+;
+
+ubnAggregateByGender
+required_capability: external_command
+
+EXTERNAL "{{employees_multifile_split}}" WITH {"multi_value_syntax": "brackets"}
+| STATS count = COUNT(*) BY gender
+| SORT gender;
+
+count:long | gender:keyword
+33         | "F"
+57         | "M"
+10         | null
+;
+
+ubnSalaryStats
+required_capability: external_command
+
+EXTERNAL "{{employees_multifile_split}}" WITH {"multi_value_syntax": "brackets"}
+| STATS avg_salary = AVG(salary), total = SUM(salary);
+
+avg_salary:double | total:long
+48248.55          | 4824855
+;

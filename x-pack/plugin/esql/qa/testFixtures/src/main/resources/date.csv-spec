@@ -94,7 +94,7 @@ birth_date:date         |bd:date
 1964-06-02T00:00:00.000Z|1964-06-02T00:00:00.000Z
 ;
 
-convert with zones#[skip:-8.13.99, reason: default date formatter is changed in 8.14]
+convert with zones
 ROW str = "2025-04-11T05:00:00+0400"
 | EVAL dt = TO_DATETIME(str);
 
@@ -110,7 +110,7 @@ dt:datetime              | bool:boolean
 2025-04-11T01:00:00.000Z | true
 ;
 
-convert no zone#[skip:-8.13.99, reason: default date formatter is changed in 8.14]
+convert no zone
 ROW str = "2025-04-11T05:00:00.000"
 | EVAL dt = TO_DATETIME(str);
 
@@ -118,7 +118,7 @@ str:String                 | dt:datetime
 "2025-04-11T05:00:00.000" | 2025-04-11T05:00:00.000Z
 ;
 
-convertFromString#[skip:-8.13.99, reason: default date formatter is changed in 8.14]
+convertFromString
 // tag::to_datetime-str[]
 ROW string = ["1953-09-02T00:00:00.000Z", "1964-06-02T00:00:00.000Z", "1964-06-02 00:00:00"]
 | EVAL datetime = TO_DATETIME(string)
@@ -199,7 +199,7 @@ from employees | where birth_date > now() | sort emp_no asc | keep emp_no, birth
 emp_no:integer  | birth_date:date
 ;
 
-evalDateDiffInNanoAndMicroAndMilliSeconds#[skip:-8.12.99, reason:date_diff added in 8.13]
+evalDateDiffInNanoAndMicroAndMilliSeconds
 ROW date1=to_datetime("2023-12-02T11:00:00.000Z"), date2=to_datetime("2023-12-02T11:00:00.001Z") 
 | EVAL dd_ns1=date_diff("nanoseconds", date1, date2), dd_ns2=date_diff("ns", date1, date2)
 | EVAL dd_mcs1=date_diff("microseconds", date1, date2), dd_mcs2=date_diff("mcs", date1, date2)
@@ -211,7 +211,7 @@ dd_ns1:integer  | dd_ns2:integer    | dd_mcs1:integer   | dd_mcs2:integer   | dd
 1000000         | 1000000           | 1000              | 1000              | 1                 | 1                         
 ;
 
-evalDateDiffInSecondsAndMinutesAndHours#[skip:-8.12.99, reason:date_diff added in 8.13]
+evalDateDiffInSecondsAndMinutesAndHours
 ROW date1=to_datetime("2023-12-02T11:00:00.000Z"), date2=to_datetime("2023-12-02T12:00:00.000Z") 
 | EVAL dd_s1=date_diff("seconds", date1, date2), dd_s2=date_diff("ss", date1, date2), dd_s3=date_diff("s", date1, date2)
 | EVAL dd_m1=date_diff("minutes", date1, date2), dd_m2=date_diff("mi", date1, date2), dd_m3=date_diff("n", date1, date2)
@@ -223,7 +223,7 @@ dd_s1:integer   | dd_s2:integer | dd_s3:integer | dd_m1:integer | dd_m2:integer 
 3600            | 3600          | 3600          | 60            | 60            | 60            | 1             | 1                         
 ;
 
-evalDateDiffInDaysAndWeeks#[skip:-8.12.99, reason:date_diff added in 8.13]
+evalDateDiffInDaysAndWeeks
 ROW date1=to_datetime("2023-12-02T11:00:00.000Z"), date2=to_datetime("2023-12-24T11:00:00.000Z") 
 | EVAL dd_wd1=date_diff("weekdays", date1, date2), dd_wd2=date_diff("dw", date1, date2)
 | EVAL dd_w1=date_diff("weeks", date1, date2), dd_w2=date_diff("wk", date1, date2), dd_w3=date_diff("ww", date1, date2)
@@ -236,7 +236,7 @@ dd_wd1:integer  | dd_wd2:integer    | dd_w1:integer | dd_w2:integer | dd_w3:inte
 22              | 22                | 3             | 3             | 3             | 22            | 22            | 22                | 22                | 22                     
 ;
 
-evalDateDiffInMonthsAndQuartersAndYears#[skip:-8.12.99, reason:date_diff added in 8.13]
+evalDateDiffInMonthsAndQuartersAndYears
 ROW date1=to_datetime("2023-12-02T11:00:00.000Z"), date2=to_datetime("2024-12-24T11:00:00.000Z") 
 | EVAL dd_m1=date_diff("months", date1, date2), dd_m2=date_diff("mm", date1, date2), dd_m3=date_diff("m", date1, date2)
 | EVAL dd_q1=date_diff("quarters", date1, date2), dd_q2=date_diff("qq", date1, date2), dd_q3=date_diff("q", date1, date2)
@@ -248,7 +248,7 @@ dd_m1:integer   | dd_m2:integer | dd_m3:integer | dd_q1:integer | dd_q2:integer 
 12              | 12            | 12            | 4             | 4             | 4             | 1             | 1             | 1                                     
 ;
 
-evalDateDiffErrorOutOfIntegerRange#[skip:-8.12.99, reason:date_diff added in 8.13]
+evalDateDiffErrorOutOfIntegerRange
 ROW date1=to_datetime("2023-12-02T11:00:00.000Z"), date2=to_datetime("2023-12-23T11:00:00.000Z") 
 | EVAL dd_oo=date_diff("nanoseconds", date1, date2)
 | keep dd_oo
@@ -260,7 +260,7 @@ dd_oo:integer
 null
 ;
 
-docsDateDiff#[skip:-8.12.99, reason:date_diff added in 8.13]
+docsDateDiff
 // tag::docsDateDiff[]
 ROW date1 = TO_DATETIME("2023-12-02T11:00:00.000Z"),
     date2 = TO_DATETIME("2023-12-02T11:00:00.001Z")
@@ -286,6 +286,7 @@ date1:date               | dd_ms:integer
 ;
 
 dateDiffTestWarnings
+skip_flattened_rewrite: field_extract_multivalue_null
 required_capability: functions_source_serialization_warnings
 
 FROM employees
@@ -306,7 +307,7 @@ date:date                | dd_ms:integer
 2023-12-02T11:00:00.000Z | null
 ;
 
-evalDateDiffMonthAsWhole0Months#[skip:-8.14.1, reason:omitting millis/timezone not allowed before 8.14]
+evalDateDiffMonthAsWhole0Months
 
 ROW from=TO_DATETIME("2023-12-31T23:59:59.999Z"), to=TO_DATETIME("2024-01-01T00:00:00")
 | EVAL msecs=DATE_DIFF("milliseconds", from, to), months=DATE_DIFF("month", from, to)
@@ -317,7 +318,7 @@ ROW from=TO_DATETIME("2023-12-31T23:59:59.999Z"), to=TO_DATETIME("2024-01-01T00:
 
 ;
 
-evalDateDiffMonthAsWhole1Month#[skip:-8.14.1, reason:omitting millis/timezone not allowed before 8.14]
+evalDateDiffMonthAsWhole1Month
 
 ROW from=TO_DATETIME("2023-12-31T23:59:59.999Z"), to=TO_DATETIME("2024-02-01T00:00:00")
 | EVAL secs=DATE_DIFF("seconds", from, to), months=DATE_DIFF("month", from, to)
@@ -798,7 +799,7 @@ dt:datetime              |plus:datetime
 2100-01-01T01:01:01.001Z |2100-01-01T00:00:00.000Z
 ;
 
-datePlusNull#[skip:-8.12.99, reason:date math with null enabled in 8.13]
+datePlusNull
 row dt = to_dt("2100-01-01T01:01:01.001Z")
 | eval plus_post = dt + null, plus_pre = null + dt;
 
@@ -806,7 +807,7 @@ dt:datetime              |plus_post:datetime |plus_pre:datetime
 2100-01-01T01:01:01.001Z |null               |null
 ;
 
-datePlusNullAndDuration#[skip:-8.12.99, reason:date math with null enabled in 8.13]
+datePlusNullAndDuration
 row dt = to_dt("2100-01-01T01:01:01.001Z")
 | eval plus_post = dt + null + 1 hour, plus_pre = 1 second + null + dt;
 
@@ -814,7 +815,7 @@ dt:datetime              |plus_post:datetime |plus_pre:datetime
 2100-01-01T01:01:01.001Z |null               |null
 ;
 
-datePlusNullAndPeriod#[skip:-8.12.99, reason:date math with null enabled in 8.13]
+datePlusNullAndPeriod
 row dt = to_dt("2100-01-01T01:01:01.001Z")
 | eval plus_post = dt + null + 2 years, plus_pre = 3 weeks + null + dt;
 
@@ -889,7 +890,7 @@ then:datetime
 1953-04-04T00:00:00.000Z
 ;
 
-dateMinusNull#[skip:-8.12.99, reason:date math with null enabled in 8.13]
+dateMinusNull
 row dt = to_dt("1953-04-04T04:03:02.001Z")
 | eval minus = dt - null
 ;
@@ -898,7 +899,7 @@ dt:datetime              |minus:datetime
 1953-04-04T04:03:02.001Z |null
 ;
 
-dateMinusNullAndPeriod#[skip:-8.12.99, reason:date math with null enabled in 8.13]
+dateMinusNullAndPeriod
 row dt = to_dt("1953-04-04T04:03:02.001Z")
 | eval minus = dt - null - 4 minutes
 ;
@@ -907,7 +908,7 @@ dt:datetime              |minus:datetime
 1953-04-04T04:03:02.001Z |null
 ;
 
-dateMinusNullAndDuration#[skip:-8.12.99, reason:date math with null enabled in 8.13]
+dateMinusNullAndDuration
 row dt = to_dt("1953-04-04T04:03:02.001Z")
 | eval minus = dt - 6 days - null
 ;
@@ -1104,6 +1105,36 @@ FROM sample_data
 // tag::docsDateExtractBusinessHours-result[]
 @timestamp:date       |   client_ip:ip   |event_duration:long |       message:keyword
 // end::docsDateExtractBusinessHours-result[]
+;
+
+dateExtractFromFields
+required_capability: fn_date_extract
+
+FROM date_extract_fields
+| EVAL result = DATE_EXTRACT(date_part, date_val)
+| KEEP date_part, date_val, result
+| SORT date_part;
+
+date_part:keyword | date_val:date            | result:long
+day_of_month      | 2022-05-06T14:30:00.000Z | 6
+hour_of_day       | 2022-05-06T14:30:00.000Z | 14
+month_of_year     | 2022-05-06T14:30:00.000Z | 5
+year              | 2022-05-06T14:30:00.000Z | 2022
+;
+
+dateExtractFieldDatePart
+required_capability: fn_date_extract
+
+FROM date_extract_fields
+| EVAL result = DATE_EXTRACT(date_part, "2022-05-06T14:30:00.000Z"::date)
+| KEEP date_part, result
+| SORT date_part;
+
+date_part:keyword | result:long
+day_of_month      | 6
+hour_of_day       | 14
+month_of_year     | 5
+year              | 2022
 ;
 
 docsDateFormat

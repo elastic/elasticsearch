@@ -46,6 +46,7 @@ import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.function.Function;
+import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -87,6 +88,11 @@ public abstract class LuceneOperator extends SourceOperator {
     long rowsEmitted;
 
     /**
+     * Bytes read from Lucene directory I/O while this operator was active on the driver thread.
+     */
+    long totalBytesRead;
+
+    /**
      * Time spent per shard since the last {@link #shardLoadDelta(long)} call.
      * Indexed by {@link ShardContext#index()}.
      */
@@ -106,12 +112,16 @@ public abstract class LuceneOperator extends SourceOperator {
 
     private IsBlockedResult blocked = Operator.NOT_BLOCKED;
 
+    private final LongSupplier directoryBytesRead;
+
     protected LuceneOperator(
         IndexedByShardId<? extends RefCounted> refCounteds,
         BlockFactory blockFactory,
         int maxPageSize,
-        LuceneSliceQueue sliceQueue
+        LuceneSliceQueue sliceQueue,
+        LongSupplier directoryBytesRead
     ) {
+        this.directoryBytesRead = directoryBytesRead;
         this.refCounteds = refCounteds;
         refCounteds.iterable().forEach(RefCounted::mustIncRef);
         this.blockFactory = blockFactory;
@@ -128,6 +138,7 @@ public abstract class LuceneOperator extends SourceOperator {
         protected final int limit;
         protected final boolean needsScore;
         protected final LuceneSliceQueue sliceQueue;
+        protected final LongSupplier directoryBytesRead;
 
         /**
          * Build the factory.
@@ -143,8 +154,41 @@ public abstract class LuceneOperator extends SourceOperator {
             int taskConcurrency,
             int limit,
             boolean needsScore,
-            Function<ShardContext, ScoreMode> scoreModeFunction
+            Function<ShardContext, ScoreMode> scoreModeFunction,
+            LongSupplier directoryBytesRead,
+            int minDocsPerSlice
         ) {
+            this(
+                contextsByShardId,
+                queryFunction,
+                dataPartitioning,
+                autoStrategy,
+                docThresholdForAutoStrategy,
+                taskConcurrency,
+                limit,
+                needsScore,
+                scoreModeFunction,
+                directoryBytesRead,
+                minDocsPerSlice,
+                LuceneSliceQueue.LeafSplitGuard.NEVER
+            );
+        }
+
+        protected Factory(
+            IndexedByShardId<? extends ShardContext> contextsByShardId,
+            Function<ShardContext, List<LuceneSliceQueue.QueryAndTags>> queryFunction,
+            DataPartitioning dataPartitioning,
+            Function<Query, LuceneSliceQueue.PartitioningStrategy> autoStrategy,
+            int docThresholdForAutoStrategy,
+            int taskConcurrency,
+            int limit,
+            boolean needsScore,
+            Function<ShardContext, ScoreMode> scoreModeFunction,
+            LongSupplier directoryBytesRead,
+            int minDocsPerSlice,
+            LuceneSliceQueue.LeafSplitGuard leafSplitGuard
+        ) {
+            this.directoryBytesRead = directoryBytesRead;
             this.limit = limit;
             this.dataPartitioning = dataPartitioning;
             this.sliceQueue = LuceneSliceQueue.create(
@@ -154,7 +198,9 @@ public abstract class LuceneOperator extends SourceOperator {
                 autoStrategy,
                 docThresholdForAutoStrategy,
                 taskConcurrency,
-                scoreModeFunction
+                scoreModeFunction,
+                leafSplitGuard,
+                minDocsPerSlice
             );
             this.taskConcurrency = Math.min(sliceQueue.totalSlices(), taskConcurrency);
             this.needsScore = needsScore;
@@ -171,6 +217,7 @@ public abstract class LuceneOperator extends SourceOperator {
 
     @Override
     public final Page getOutput() {
+        long bytesSnapshot = directoryBytesRead.getAsLong();
         try {
             Page page = getCheckedOutput();
             if (page != null) {
@@ -181,6 +228,15 @@ public abstract class LuceneOperator extends SourceOperator {
             return page;
         } catch (IOException ioe) {
             throw new UncheckedIOException(ioe);
+        } finally {
+            recordBytesRead(bytesSnapshot);
+        }
+    }
+
+    private void recordBytesRead(long bytesSnapshot) {
+        long current = directoryBytesRead.getAsLong();
+        if (current >= bytesSnapshot) {
+            totalBytesRead += current - bytesSnapshot;
         }
     }
 
@@ -440,6 +496,9 @@ public abstract class LuceneOperator extends SourceOperator {
         );
 
         private static final TransportVersion ESQL_REPORT_SHARD_PARTITIONING = TransportVersion.fromName("esql_report_shard_partitioning");
+        private static final TransportVersion ESQL_LUCENE_OPERATOR_BYTES_READ = TransportVersion.fromName(
+            "esql_lucene_operator_bytes_read"
+        );
 
         private final int processedSlices;
         private final Set<String> processedQueries;
@@ -452,6 +511,7 @@ public abstract class LuceneOperator extends SourceOperator {
         private final int sliceMax;
         private final int current;
         private final long rowsEmitted;
+        private final long bytesRead;
         private final Map<String, LuceneSliceQueue.PartitioningStrategy> partitioningStrategies;
 
         public static final int QUERY_STRING_TRUNCATION = 500;
@@ -493,6 +553,7 @@ public abstract class LuceneOperator extends SourceOperator {
             }
             pagesEmitted = operator.pagesEmitted;
             rowsEmitted = operator.rowsEmitted;
+            bytesRead = operator.totalBytesRead;
             partitioningStrategies = operator.sliceQueue.partitioningStrategies();
         }
 
@@ -508,6 +569,7 @@ public abstract class LuceneOperator extends SourceOperator {
             int sliceMax,
             int current,
             long rowsEmitted,
+            long bytesRead,
             Map<String, LuceneSliceQueue.PartitioningStrategy> partitioningStrategies
         ) {
             this.processedSlices = processedSlices;
@@ -521,6 +583,7 @@ public abstract class LuceneOperator extends SourceOperator {
             this.sliceMax = sliceMax;
             this.current = current;
             this.rowsEmitted = rowsEmitted;
+            this.bytesRead = bytesRead;
             this.partitioningStrategies = partitioningStrategies;
         }
 
@@ -536,6 +599,7 @@ public abstract class LuceneOperator extends SourceOperator {
             sliceMax = in.readVInt();
             current = in.readVInt();
             rowsEmitted = in.readVLong();
+            bytesRead = serializeBytesRead(in.getTransportVersion()) ? in.readVLong() : 0;
             partitioningStrategies = serializeShardPartitioning(in.getTransportVersion())
                 ? in.readMap(LuceneSliceQueue.PartitioningStrategy::readFrom)
                 : Map.of();
@@ -554,6 +618,9 @@ public abstract class LuceneOperator extends SourceOperator {
             out.writeVInt(sliceMax);
             out.writeVInt(current);
             out.writeVLong(rowsEmitted);
+            if (serializeBytesRead(out.getTransportVersion())) {
+                out.writeVLong(bytesRead);
+            }
             if (serializeShardPartitioning(out.getTransportVersion())) {
                 out.writeMap(partitioningStrategies, StreamOutput::writeString, StreamOutput::writeWriteable);
             }
@@ -561,6 +628,10 @@ public abstract class LuceneOperator extends SourceOperator {
 
         private static boolean serializeShardPartitioning(TransportVersion version) {
             return version.supports(ESQL_REPORT_SHARD_PARTITIONING);
+        }
+
+        private static boolean serializeBytesRead(TransportVersion version) {
+            return version.supports(ESQL_LUCENE_OPERATOR_BYTES_READ);
         }
 
         @Override
@@ -613,6 +684,11 @@ public abstract class LuceneOperator extends SourceOperator {
             return rowsEmitted;
         }
 
+        @Override
+        public long bytesRead() {
+            return bytesRead;
+        }
+
         public Map<String, LuceneSliceQueue.PartitioningStrategy> partitioningStrategies() {
             return partitioningStrategies;
         }
@@ -644,6 +720,7 @@ public abstract class LuceneOperator extends SourceOperator {
             builder.field("slice_max", sliceMax);
             builder.field("current", current);
             builder.field("rows_emitted", rowsEmitted);
+            builder.field("bytes_read", bytesRead);
             builder.field("partitioning_strategies", new TreeMap<>(this.partitioningStrategies));
         }
 
@@ -663,6 +740,7 @@ public abstract class LuceneOperator extends SourceOperator {
                 && sliceMax == status.sliceMax
                 && current == status.current
                 && rowsEmitted == status.rowsEmitted
+                && bytesRead == status.bytesRead
                 && partitioningStrategies.equals(status.partitioningStrategies);
         }
 
@@ -677,6 +755,7 @@ public abstract class LuceneOperator extends SourceOperator {
                 sliceMax,
                 current,
                 rowsEmitted,
+                bytesRead,
                 partitioningStrategies
             );
         }

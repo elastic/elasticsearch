@@ -16,6 +16,7 @@ import com.fasterxml.jackson.dataformat.csv.CsvSchema;
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateFormatters;
@@ -168,8 +169,21 @@ import java.util.regex.Pattern;
  * </table>
  * Examples of overrides: {@code mode: plain, quote: "\""} turns quoting on for an otherwise-plain
  * file; {@code mode: escaped, quote: "\""} adds quoting to ClickHouse data (which then parses as
- * {@code (true, true)} — the C-style decode no longer runs). When a {@code plain}-mode sample looks
- * backslash-escaped, the reader logs a one-time hint at DEBUG suggesting {@code mode: escaped}.
+ * {@code (true, true)} — the C-style decode no longer runs).
+ * <p>
+ * The two knobs are independent: an override touches only its own knob and leaves the other at the
+ * mode's preset. So {@code quote: none} on a {@code .csv} yields {@code (false, true)} — no quoting,
+ * but escaping stays on (harmless on data without backslash sequences; for fully-literal reading use
+ * {@code mode: plain}, or also pass {@code escape: none}).
+ * <p>
+ * Two response {@code Warning} headers (the channel the query author actually sees, not a DEBUG log)
+ * guard the escape-decode foot-guns. (1) When decoding is off and a sampled value is the whole-field
+ * {@code \N} null marker — {@code plain}, or {@code quoted} with {@code escape: none}, where the
+ * marker reaches the sample literally — a data-driven warning nudges toward {@code mode: escaped}.
+ * (2) When {@code mode: escaped} is combined with a {@code quote} override (resolving to
+ * {@code (true, true)}, which hands the escape char to Jackson so {@code \N} is rewritten before the
+ * sample exists and the data scan can't see it), a deterministic config-time warning states that the
+ * decode was disabled.
  *
  * <h2>Bracket multi-value syntax</h2>
  * When {@code multi_value_syntax} is {@code brackets}, array-like values support:
@@ -509,6 +523,17 @@ public class CsvFormatReader implements SegmentableFormatReader {
                     + "the bracket scanner honors quoted fields"
             );
         }
+        if (parsedMode == CsvFormatOptions.Mode.ESCAPED && quoting) {
+            // The user named the C-style decode (mode: escaped) but a quote override turned quoting on,
+            // which resolves to (true, true) and hands the escape char to Jackson — so \N/\t are no
+            // longer C-style-decoded. The data-driven null-marker warning can't catch this (Jackson
+            // rewrites \N to N before the sample is built), so warn deterministically here, at config
+            // time, on the response header the query author actually reads.
+            HeaderWarning.addWarning(
+                "EXTERNAL [mode: escaped] with a quote override turns on quoting and disables the escaped-mode "
+                    + "decode (\\N to null, \\t to tab); drop the quote to keep decoding, or keep it to parse as quoted."
+            );
+        }
 
         char delimiter = parseChar(config.get(CONFIG_DELIMITER), baseline.delimiter());
         String commentPrefix = parseString(config.get(CONFIG_COMMENT), baseline.commentPrefix());
@@ -800,7 +825,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
         CircuitBreaker breaker = blockFactory.breaker();
         SchemaSample sample = collectSampleRows(csvIterator, options.commentPrefix(), schemaSampleSize, breaker, effectivePolicy);
         try {
-            maybeHintEscapedUnderPlain(sample.rows());
+            maybeHintUndecodedNullMarker(sample.rows());
             return CsvSchemaInferrer.inferSchema(columnNames, sample.rows());
         } finally {
             breaker.addWithoutBreaking(-sample.reservedBytes());
@@ -815,7 +840,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             if (sample.rows().isEmpty()) {
                 throw new IOException("CSV file has no data rows");
             }
-            maybeHintEscapedUnderPlain(sample.rows());
+            maybeHintUndecodedNullMarker(sample.rows());
             return inferSyntheticSchema(sample.rows(), options.columnPrefix());
         } finally {
             breaker.addWithoutBreaking(-sample.reservedBytes());
@@ -823,15 +848,25 @@ public class CsvFormatReader implements SegmentableFormatReader {
     }
 
     /**
-     * Visibility for the safe {@code plain} default: when sampling a {@code plain}-mode file (no
-     * quoting, no escaping) whose values carry backslash-escape sequences, the data is almost
-     * certainly a ClickHouse/MySQL/Postgres export read under the wrong mode — {@code \N} stays the
-     * literal two bytes instead of null, {@code \t} is not a tab. Emit one hint per schema inference,
-     * DEBUG-gated and scanned only over the already-materialized sample (bounded by
-     * {@code schema_sample_size}), so there is no per-row hot-path cost. Returns on the first match.
+     * Visibility for the escape-decode foot-guns of the independent-knobs model: whenever C-style
+     * decoding is OFF ({@link CsvFormatOptions#decodesEscapes()} is false — i.e. any mode except
+     * {@code escaped}: {@code plain}, {@code quoted}, or {@code quoted} with {@code escape: none}) but
+     * the sample carries the whole-field {@code \N} null marker, the data is almost certainly a
+     * ClickHouse/MySQL/Postgres export read under a mode that won't decode it — {@code \N} stays the
+     * literal two characters instead of null. This catches both the safe {@code plain} default and the
+     * {@code mode: escaped, quote: …} case (which resolves to quoted, dropping the decode).
+     * <p>
+     * Surfaced as a response {@code Warning} header (via {@link HeaderWarning}) rather than a log line,
+     * because the audience is the query author — who reads the response, not the node's DEBUG log; this
+     * is the same channel the skipped-row warnings use. {@link HeaderWarning} dedupes identical
+     * messages, so a query sees at most one such line regardless of how many inference paths fire.
+     * Scanned only over the already-materialized sample (bounded by {@code schema_sample_size}), so
+     * there is no per-row hot-path cost, and the trigger is the whole-field {@code \N} marker rather
+     * than any backslash sequence, so a literal Windows path like {@code C:\temp} never produces a
+     * false nudge. Returns on the first match.
      */
-    private void maybeHintEscapedUnderPlain(List<String[]> sampleRows) {
-        if (logger.isDebugEnabled() == false || options.quoting() || options.escaping()) {
+    private void maybeHintUndecodedNullMarker(List<String[]> sampleRows) {
+        if (options.decodesEscapes()) {
             return;
         }
         for (String[] row : sampleRows) {
@@ -839,12 +874,13 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 continue;
             }
             for (String cell : row) {
-                if (cell != null && looksBackslashEscaped(cell)) {
-                    logger.debug(
-                        "[{}] sampled values under mode [plain] contain backslash-escape sequences "
-                            + "(e.g. \\N, \\t); if this is a ClickHouse/MySQL/Postgres export, set "
-                            + "\"mode\": \"escaped\" for full decoding",
-                        format
+                if (isBackslashNullMarker(cell)) {
+                    HeaderWarning.addWarning(
+                        "EXTERNAL ["
+                            + format
+                            + "] values include the \\N null marker but the current mode does not decode it; "
+                            + "\\N stays the literal two characters. If this is a ClickHouse, MySQL, or PostgreSQL "
+                            + "export, set \"mode\": \"escaped\" (without a quote override) to decode \\N to null."
                     );
                     return;
                 }
@@ -852,14 +888,9 @@ public class CsvFormatReader implements SegmentableFormatReader {
         }
     }
 
-    /** Whether a sampled cell contains a backslash followed by a ClickHouse {@code TabSeparated} escape letter. */
-    private static boolean looksBackslashEscaped(String cell) {
-        for (int i = cell.indexOf('\\'); i >= 0 && i + 1 < cell.length(); i = cell.indexOf('\\', i + 2)) {
-            if ("tnrNbf0\\".indexOf(cell.charAt(i + 1)) >= 0) {
-                return true;
-            }
-        }
-        return false;
+    /** Whether a sampled cell is exactly the two-character {@code \N} — the universal DB-export null marker. */
+    private static boolean isBackslashNullMarker(String cell) {
+        return cell != null && cell.length() == 2 && cell.charAt(0) == '\\' && cell.charAt(1) == 'N';
     }
 
     /**
@@ -2174,7 +2205,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             }
             prefetchedRows = sample.rows();
             prefetchedRowsBytes = sample.reservedBytes();
-            maybeHintEscapedUnderPlain(sample.rows());
+            maybeHintUndecodedNullMarker(sample.rows());
             return CsvSchemaInferrer.inferSchema(columnNames, sample.rows());
         }
 
@@ -2194,7 +2225,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             }
             prefetchedRows = sample.rows();
             prefetchedRowsBytes = sample.reservedBytes();
-            maybeHintEscapedUnderPlain(sample.rows());
+            maybeHintUndecodedNullMarker(sample.rows());
             return inferSyntheticSchema(sample.rows(), options.columnPrefix());
         }
 

@@ -7,9 +7,9 @@
 
 package org.elasticsearch.xpack.esql.datasource.csv;
 
-import org.apache.logging.log4j.Level;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
@@ -17,8 +17,6 @@ import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.MockLog;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.RecordSplitter;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
@@ -200,6 +198,7 @@ public class CsvModeReadTests extends ESTestCase {
         assertEquals(1, values.size());
         assertEquals("x\ty", values.get(0).get(0)); // tab inside quotes is data — quoting is on
         assertEquals("z", values.get(0).get(1));
+        drainWarnings(); // escaped+quote emits the expected decode-disabled config warning; clear it
     }
 
     /**
@@ -309,41 +308,60 @@ public class CsvModeReadTests extends ESTestCase {
     }
 
     /**
-     * Tripwire for the costin hint: a {@code plain}-mode sample whose values carry backslash-escape
-     * sequences logs a one-time DEBUG nudge toward {@code mode: escaped}. If the hint scan is dropped
-     * the expectation goes unmatched and the test fails.
+     * Tripwire for the hint: a non-decoding mode ({@code plain} here) whose sample carries the
+     * whole-field {@code \N} null marker emits a one-time response {@code Warning} header nudging
+     * toward {@code mode: escaped}. The query author reads the response, so the channel is a Warning
+     * header, not a DEBUG log they would never see. If the hint scan is dropped, no header is emitted
+     * and this fails.
      */
-    @TestLogging(
-        value = "org.elasticsearch.xpack.esql.datasource.csv.CsvFormatReader:DEBUG",
-        reason = "the plain-looks-escaped hint logs at DEBUG"
-    )
-    public void testPlainEscapedDataLogsHint() throws Exception {
-        String tsv = "id0\t\\N\nid1\tplain note\n";
-        try (var mockLog = MockLog.capture(CsvFormatReader.class)) {
-            mockLog.addExpectation(
-                new MockLog.SeenEventExpectation(
-                    "escaped-hint",
-                    CsvFormatReader.class.getCanonicalName(),
-                    Level.DEBUG,
-                    "*backslash-escape sequences*mode*escaped*"
-                )
-            );
-            readAll(tsvReader(Map.of("mode", "plain", "header_row", false)), tsv);
-            mockLog.assertAllExpectationsMatched();
-        }
+    public void testPlainNullMarkerEmitsWarning() throws IOException {
+        readAll(tsvReader(Map.of("mode", "plain", "header_row", false)), "id0\t\\N\nid1\tplain note\n");
+        assertNullMarkerWarning(drainWarnings());
     }
 
-    /** The hint stays quiet for clean plain data (no false nudge) and for the escaped mode (already decoding). */
-    @TestLogging(value = "org.elasticsearch.xpack.esql.datasource.csv.CsvFormatReader:DEBUG", reason = "assert the hint does NOT fire")
-    public void testNoHintForCleanPlainOrEscapedMode() throws Exception {
-        try (var mockLog = MockLog.capture(CsvFormatReader.class)) {
-            mockLog.addExpectation(
-                new MockLog.UnseenEventExpectation("no-hint", CsvFormatReader.class.getCanonicalName(), Level.DEBUG, "*backslash-escape*")
-            );
-            readAll(tsvReader(Map.of("mode", "plain", "header_row", false)), "id0\tclean\nid1\talso clean\n");
-            readAll(tsvReader(Map.of("mode", "escaped", "header_row", false)), "id0\t\\N\nid1\tvalue\n");
-            mockLog.assertAllExpectationsMatched();
-        }
+    /**
+     * Sharp-edge mitigation, config-time arm: {@code mode: escaped, quote: …} resolves to quoted,
+     * which hands the escape char to Jackson and drops the C-style decode. The data scan can't catch
+     * this (Jackson rewrites {@code \N} to {@code N} before the sample exists), so the resolver emits a
+     * deterministic config-time response warning. Building the reader is enough to trigger it.
+     */
+    public void testEscapedPlusQuoteWarnsDecodeDisabled() {
+        tsvReader(Map.of("mode", "escaped", "quote", "\""));
+        List<String> warnings = drainWarnings();
+        assertTrue(
+            "expected a config-time decode-disabled warning, got: " + warnings,
+            warnings.stream().anyMatch(w -> w.contains("turns on quoting and disables the escaped-mode decode"))
+        );
+    }
+
+    /**
+     * The warning stays quiet when there is no whole-field {@code \N} and no contradictory override:
+     * clean data (no false nudge), a literal Windows path {@code C:\temp} under plain (the path is NOT
+     * a null marker — the key precision win over a broad backslash scan), and the {@code escaped} mode
+     * with no quote (already decoding). No response warning of any kind should accumulate.
+     */
+    public void testNoWarningForCleanWindowsPathOrEscapedMode() throws IOException {
+        readAll(tsvReader(Map.of("mode", "plain", "header_row", false)), "id0\tclean\nid1\talso clean\n");
+        readAll(tsvReader(Map.of("mode", "plain", "header_row", false)), "id0\tC:\\temp\nid1\tC:\\Users\n");
+        readAll(tsvReader(Map.of("mode", "escaped", "header_row", false)), "id0\t\\N\nid1\tvalue\n");
+        assertTrue("no response warning expected", drainWarnings().isEmpty());
+    }
+
+    private static void assertNullMarkerWarning(List<String> warnings) {
+        // Match on an escape-free slice of the message: HeaderWarning escapes backslashes and quotes in
+        // the header value, so a literal "\N" / "\"mode\"" substring would not match the drained value.
+        assertTrue(
+            "expected an undecoded null-marker response warning, got: " + warnings,
+            warnings.stream().anyMatch(w -> w.contains("null marker but the current mode does not decode it"))
+        );
+    }
+
+    /** Drain and clear the response {@code Warning} headers accumulated on the test thread context. */
+    private List<String> drainWarnings() {
+        List<String> raw = threadContext.getResponseHeaders().getOrDefault("Warning", List.of());
+        List<String> messages = raw.stream().map(s -> HeaderWarning.extractWarningValueFromWarningHeader(s, false)).toList();
+        threadContext.stashContext();
+        return messages;
     }
 
     /** The no-quote splitter never reports a too-large record for well-formed newline-terminated data. */

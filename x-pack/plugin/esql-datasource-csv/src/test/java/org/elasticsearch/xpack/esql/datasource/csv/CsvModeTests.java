@@ -114,6 +114,9 @@ public class CsvModeTests extends ESTestCase {
 
     public void testEscapedAcceptsExplicitQuoteOverride() {
         assertNotNull(tsvReader().withConfigTrackingConsumedKeys(Map.of("mode", "escaped", "quote", "'")));
+        // escaped+quote is accepted, and emits the deterministic decode-disabled config warning; clear
+        // it so it doesn't trip ESTestCase's unexpected-response-header check at teardown.
+        threadContext.stashContext();
     }
 
     public void testPlainAcceptsExplicitEscapeOverride() {

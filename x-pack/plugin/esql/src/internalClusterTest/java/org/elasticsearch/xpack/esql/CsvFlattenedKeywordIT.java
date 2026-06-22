@@ -270,7 +270,6 @@ public class CsvFlattenedKeywordIT extends CsvIT {
                         if (name == null) return;
                         name = name.toUpperCase(Locale.ROOT);
 
-
                         List<Map<String, Object>> signatures = (List<Map<String, Object>>) map.get("signatures");
                         if (signatures == null) return;
                         for (Map<String, Object> sig : signatures) {

@@ -11,6 +11,7 @@ import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
+import org.elasticsearch.xpack.esql.core.expression.function.Function;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.MatchOperator;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.InSubquery;
@@ -433,7 +434,7 @@ public final class AstKeywordFieldRewriter {
         private Set<String> processNode(LogicalPlan node, Set<String> scope) {
             if (node instanceof Eval eval) {
                 for (Alias field : eval.fields()) {
-                    wrapExpression(field, scope);
+                    wrapExpression(field, scope, null, -1);
                 }
                 return removeAll(scope, aliasNames(eval.fields()));
             }
@@ -442,7 +443,7 @@ public final class AstKeywordFieldRewriter {
             }
             if (node instanceof OrderBy orderBy) {
                 for (Expression order : orderBy.order()) {
-                    wrapExpression(order, scope);
+                    wrapExpression(order, scope, null, -1);
                 }
                 return scope;
             }
@@ -469,7 +470,7 @@ public final class AstKeywordFieldRewriter {
                 return processAggregate(aggregate, scope, false);
             }
             if (node instanceof RegexExtract regexExtract) {
-                wrapExpression(regexExtract.input(), scope);
+                wrapExpression(regexExtract.input(), scope, null, -1);
                 return removeAll(scope, attributeNames(regexExtract.extractedFields()));
             }
             if (node instanceof Join join) {
@@ -492,7 +493,7 @@ public final class AstKeywordFieldRewriter {
             // Source commands (FROM/TS/ROW), subquery sources and any other command: wrap whatever
             // own expressions the node exposes (a no-op for leaf sources) and preserve scope.
             for (Expression expression : node.expressions()) {
-                wrapExpression(expression, scope);
+                wrapExpression(expression, scope, null, -1);
             }
             return scope;
         }
@@ -510,7 +511,7 @@ public final class AstKeywordFieldRewriter {
         private Set<String> processFilter(Filter filter, Set<String> scope) {
             Set<String> hoist = collectInSubqueryLhsHoist(filter.condition(), scope);
             Set<String> wrapScope = removeAll(scope, hoist);
-            wrapExpression(filter.condition(), wrapScope);
+            wrapExpression(filter.condition(), wrapScope, null, -1);
             hoistBeforeCommand(filter.source(), hoist);
             return wrapScope;
         }
@@ -629,7 +630,7 @@ public final class AstKeywordFieldRewriter {
                     // backtick alias before wrapping.
                     int start = startOffset(alias.source());
                     addEdit(start, start, "`" + alias.source().text() + "` = ");
-                    wrapExpression(alias.child(), scope);
+                    wrapExpression(alias.child(), scope, null, -1);
                     return;
                 }
                 if (scope.contains(alias.name())) {
@@ -640,13 +641,13 @@ public final class AstKeywordFieldRewriter {
                     }
                     shadowed.add(alias.name());
                 }
-                wrapExpression(alias.child(), scope);
+                wrapExpression(alias.child(), scope, null, -1);
                 return;
             }
             if (mentionsInScope(piece, scope) && spanMatches(piece.source())) {
                 int start = startOffset(piece.source());
                 addEdit(start, start, "`" + piece.source().text() + "` = ");
-                wrapExpression(piece, scope);
+                wrapExpression(piece, scope, null, -1);
             }
         }
 
@@ -787,11 +788,14 @@ public final class AstKeywordFieldRewriter {
          * Recursively wraps in-scope references inside {@code expression}. Stops at attribute leaves
          * (wrapping in-scope ones), protects the LHS of the match operator {@code :}, and recurses
          * into {@code IN (subquery)} by wrapping the left-hand side and rewriting the subquery.
+         *
+         * @param parentFunction the uppercased name of the enclosing {@link Function}, or {@code null}
+         *                       when the expression is not directly inside a function call
+         * @param argIndex       the zero-based position of {@code expression} within its parent
+         *                       function's argument list, or {@code -1} when {@code parentFunction}
+         *                       is {@code null}; used to record which {@code FUNCTION:argIndex} pairs
+         *                       were covered by an in-scope attribute during rewriting
          */
-        private void wrapExpression(Expression expression, Set<String> scope) {
-            wrapExpression(expression, scope, null, -1);
-        }
-
         private void wrapExpression(Expression expression, Set<String> scope, String parentFunction, int argIndex) {
             if (expression instanceof UnresolvedAttribute attr) {
                 if (parentFunction != null && scope.contains(attr.name()) && spanMatches(attr.source())) {
@@ -817,12 +821,11 @@ public final class AstKeywordFieldRewriter {
                 return;
             }
 
-            boolean isFunction = expression instanceof org.elasticsearch.xpack.esql.core.expression.function.Function;
+            boolean isFunction = expression instanceof Function;
             String nextParentFunction = parentFunction;
             if (isFunction) {
-                nextParentFunction = ((org.elasticsearch.xpack.esql.core.expression.function.Function) expression).functionName().toUpperCase(Locale.ROOT);
+                nextParentFunction = ((Function) expression).functionName().toUpperCase(Locale.ROOT);
             }
-
 
             int i = 0;
             for (Expression child : expression.children()) {

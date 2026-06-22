@@ -26,11 +26,28 @@ import java.util.List;
  * Test-only plugin that provides the {@link IndexSettings#SLICE_VALIDATED} setting for clusters
  * that use {@link IndexSettings#SLICE_ENABLED} without the DiskBBQ x-pack plugin.
  * Mirrors the logic in {@code ESIntegTestCase.AlwaysValidateSlicePlugin}.
+ * <p>
+ * When DiskBBQ is present it registers its own {@code SliceIndexingValidationProvider}, so this
+ * plugin skips registration to avoid a duplicate-setting conflict.
  */
 public class SliceIndexingValidationPlugin extends Plugin {
 
+    private static final boolean DISK_BBQ_PRESENT = diskBbqPresent();
+
+    private static boolean diskBbqPresent() {
+        try {
+            Class.forName("org.elasticsearch.xpack.diskbbq.DiskBBQPlugin");
+            return true;
+        } catch (ClassNotFoundException e) {
+            return false;
+        }
+    }
+
     @Override
     public Collection<IndexSettingProvider> getAdditionalIndexSettingProviders(IndexSettingProvider.Parameters parameters) {
+        if (DISK_BBQ_PRESENT) {
+            return List.of();
+        }
         return List.of(new SliceIndexingValidationProvider());
     }
 

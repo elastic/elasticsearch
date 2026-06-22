@@ -1040,4 +1040,23 @@ public class RootObjectMapperTests extends MapperServiceTestCase {
             assertThat(e.getMessage(), containsString("prefix_properties.attributes.enabled"));
         }
     }
+
+    public void testColumnarRejectsRootEnabledFalse() {
+        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        for (IndexMode indexMode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
+            Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), indexMode.getName()).build();
+            MapperParsingException e = expectThrows(
+                MapperParsingException.class,
+                () -> createMapperService(settings, topMapping(b -> b.field("enabled", false)))
+            );
+            assertThat(e.getMessage(), containsString("[enabled] cannot be set to [false] on the root object"));
+            assertThat(e.getMessage(), containsString("strict columnar index modes"));
+        }
+    }
+
+    public void testNonColumnarAllowsRootEnabledFalse() throws Exception {
+        // Ensure the new guard does not affect non-columnar indices.
+        MapperService mapperService = createMapperService(topMapping(b -> b.field("enabled", false)));
+        assertFalse(mapperService.documentMapper().mapping().getRoot().isEnabled());
+    }
 }

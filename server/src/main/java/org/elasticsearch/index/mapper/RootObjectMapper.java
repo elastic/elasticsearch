@@ -140,6 +140,14 @@ public class RootObjectMapper extends ObjectMapper {
 
         @Override
         void merge(ObjectMapper.Builder mergeWith, MapperMergeContext objectMergeContext, String fullPath) {
+            if (objectMergeContext.getMapperBuilderContext().isStrictColumnar()
+                && mergeWith.enabled.explicit()
+                && mergeWith.enabled.value() == false) {
+                throw new MapperParsingException(
+                    "[enabled] cannot be set to [false] on the root object in strict columnar index modes;"
+                        + " this would prevent all fields from being indexed"
+                );
+            }
             super.merge(mergeWith, objectMergeContext, fullPath);
             if (mergeWith instanceof RootObjectMapper.Builder rootMergeWith) {
                 if (rootMergeWith.numericDetection.explicit()) {
@@ -187,6 +195,12 @@ public class RootObjectMapper extends ObjectMapper {
 
         @Override
         public RootObjectMapper build(MapperBuilderContext context) {
+            if (context.isStrictColumnar() && enabled.explicit() && enabled.value() == false) {
+                throw new MapperParsingException(
+                    "[enabled] cannot be set to [false] on the root object in strict columnar index modes;"
+                        + " this would prevent all fields from being indexed"
+                );
+            }
             // Build child mappers first so that flattenBuildersIfNeeded has a chance to populate
             // prefixProperties before we pass them to the RootObjectMapper constructor.
             Map<String, Mapper> mappers = buildMappers(context.createChildContext(null, dynamic));

@@ -848,3 +848,31 @@ setup:
         index: test_logsdb_columnar_enabled_merge
   - match: { test_logsdb_columnar_enabled_merge.mappings.prefix_properties.attributes.enabled: false }
   - match: { test_logsdb_columnar_enabled_merge.mappings.prefix_properties.resource.enabled: false }
+
+---
+"columnar: root enabled:false is rejected":
+  - do:
+      catch: bad_request
+      indices.create:
+        index: test_columnar_root_enabled_false
+        body:
+          settings:
+            index.mode: columnar
+          mappings:
+            enabled: false
+  - match: { error.type: "mapper_parsing_exception" }
+  - match: { error.reason: "/\\[enabled\\].cannot.be.set.to.\\[false\\].on.the.root.object/" }
+
+---
+"logsdb_columnar: root enabled:false is rejected":
+  - do:
+      catch: bad_request
+      indices.create:
+        index: test_logsdb_columnar_root_enabled_false
+        body:
+          settings:
+            index.mode: logsdb_columnar
+          mappings:
+            enabled: false
+  - match: { error.type: "mapper_parsing_exception" }
+  - match: { error.reason: "/\\[enabled\\].cannot.be.set.to.\\[false\\].on.the.root.object/" }

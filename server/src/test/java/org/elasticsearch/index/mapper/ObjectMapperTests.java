@@ -650,7 +650,8 @@ public class ObjectMapperTests extends MapperServiceTestCase {
         MapperParsingException exception = expectThrows(MapperParsingException.class, () -> parentBuilder.build(rootContext));
         assertEquals(
             "Object mapper [parent.child] was found in a context where subobjects is set to false. "
-                + "Auto-flattening [parent.child] failed because the value of [enabled] is [false]",
+                + "Auto-flattening [parent.child] failed because the value of [enabled] is [false];"
+                + " no fields with the prefix [parent.child] are allowed",
             exception.getMessage()
         );
     }

@@ -438,7 +438,10 @@ public class ObjectMapper extends Mapper {
             // In strict columnar mode, enabled:false objects are allowed; the prefix is captured in
             // enabledByPrefix and the subtree is dropped at index time (same as dynamic:false).
             if (enabled.value() == false && context.isStrictColumnar() == false) {
-                throwAutoFlatteningException(fullName, "the value of [enabled] is [false]");
+                throwAutoFlatteningException(
+                    fullName,
+                    "the value of [enabled] is [false]; no fields with the prefix [" + fullName + "] are allowed"
+                );
             }
             if (subobjects.explicit() && subobjects.value() == Subobjects.ENABLED) {
                 throwAutoFlatteningException(fullName, "the value of [subobjects] is [true]");

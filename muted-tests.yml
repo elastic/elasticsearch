@@ -140,9 +140,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StSimplifyPreserveTopologyTests
   method: testEvaluateBlockWithNulls
   issue: https://github.com/elastic/elasticsearch/issues/147773
-- class: org.elasticsearch.ingest.geoip.ConsumerAwareIpDatabaseDownloadIT
-  method: testConsumerScopedDownloads
-  issue: https://github.com/elastic/elasticsearch/issues/150231
 - class: org.elasticsearch.xpack.esql.spatial.SpatialPushDownGeoShapeIT
   method: testQuantizedXY
   issue: https://github.com/elastic/elasticsearch/issues/150782
@@ -587,15 +584,9 @@ tests:
 - class: org.elasticsearch.index.store.BytesReadHeaderIT
   method: testMultiSearchSetsBytesReadHeader
   issue: https://github.com/elastic/elasticsearch/issues/151595
-- class: org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingServiceIT
-  method: testCacheIsWarmedOnUnhollowing
-  issue: https://github.com/elastic/elasticsearch/issues/151600
 - class: org.elasticsearch.datastreams.lifecycle.ExplainDataStreamLifecycleIT
   method: testExplainFailuresLifecycle
   issue: https://github.com/elastic/elasticsearch/issues/151602
-- class: org.elasticsearch.xpack.stateless.StatelessMergePreWarmingIT
-  method: testMergePreWarmingFailureDoesNotFailTheEngine
-  issue: https://github.com/elastic/elasticsearch/issues/151618
 - class: org.elasticsearch.gradle.internal.precommit.PomValidationPrecommitPluginFuncTest
   method: detects missing POM elements and reports structured problems
   issue: https://github.com/elastic/elasticsearch/issues/151636

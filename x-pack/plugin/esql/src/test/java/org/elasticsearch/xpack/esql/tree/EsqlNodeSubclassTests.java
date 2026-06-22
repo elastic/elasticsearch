@@ -68,10 +68,11 @@ import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinConfig;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinType;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
-import org.elasticsearch.xpack.esql.plan.logical.join.LeftSemiJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.MarkJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.SemiJoin;
 import org.elasticsearch.xpack.esql.plan.logical.local.ResolvingProject;
+import org.elasticsearch.xpack.esql.plan.logical.promql.HistogramQuantile;
 import org.elasticsearch.xpack.esql.plan.logical.promql.UnresolvedPromqlFunction;
 import org.elasticsearch.xpack.esql.plan.physical.CompoundOutputEvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
@@ -385,7 +386,7 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
     }
 
     /**
-     * The {@link JoinType} a join plan node expects in its {@link JoinConfig}. SemiJoin/AntiJoin/LeftSemiJoin
+     * The {@link JoinType} a join plan node expects in its {@link JoinConfig}. SemiJoin/AntiJoin/MarkJoin
      * assert that their config carries the matching type, so the generic LEFT default we use elsewhere would
      * trip those assertions when the node is rebuilt (e.g. via {@code replaceChildren}).
      */
@@ -394,8 +395,8 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
             return JoinTypes.SEMI;
         } else if (toBuildClass == AntiJoin.class) {
             return JoinTypes.ANTI;
-        } else if (toBuildClass == LeftSemiJoin.class) {
-            return JoinTypes.LEFT_SEMI;
+        } else if (toBuildClass == MarkJoin.class) {
+            return JoinTypes.MARK;
         } else if (toBuildClass == Join.class || toBuildClass == LookupJoin.class || toBuildClass == InlineJoin.class) {
             return JoinTypes.LEFT;
         }
@@ -522,7 +523,7 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
         } else if (argClass == Integer.class) {
             return randomInt();
         } else if (argClass == JoinType.class) {
-            // SemiJoin/AntiJoin/LeftSemiJoin assert on their config type, so feed the matching one.
+            // SemiJoin/AntiJoin/MarkJoin assert on their config type, so feed the matching one.
             return joinTypeFor(toBuildClass);
         } else if (List.of(Fork.class, MergeExec.class, UnionAll.class, ViewUnionAll.class).contains(toBuildClass)
             && argType == LogicalPlan.class) {
@@ -591,7 +592,7 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
         }
         if (argClass == JoinConfig.class) {
             return new JoinConfig(
-                // SemiJoin/AntiJoin/LeftSemiJoin assert on their config type, so feed the matching one.
+                // SemiJoin/AntiJoin/MarkJoin assert on their config type, so feed the matching one.
                 joinTypeFor(toBuildClass),
                 List.of(UnresolvedAttributeTests.randomUnresolvedAttribute()),
                 List.of(UnresolvedAttributeTests.randomUnresolvedAttribute()),
@@ -708,6 +709,8 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
              * It's like an unresolved expression. Building it from makeNode will make invalid trees.
              */
             subclasses.remove(UnresolvedPromqlFunction.class);
+            // HistogramQuantile requires a quantile parameter and delegates output() to its child; see HistogramQuantileTests.
+            subclasses.remove(HistogramQuantile.class);
             // It *is* safe to build an UnresoledRelation here because it is a leaf node.
             nodeClass = randomFrom(subclasses);
         }

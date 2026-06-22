@@ -1334,7 +1334,9 @@ public class TermsAggregatorTests extends AggregatorTestCase {
             Collections.emptyMap(),
             false,
             false,
-            false
+            false,
+            false,
+            null
         );
         testCase(iw -> {
             Document document = new Document();

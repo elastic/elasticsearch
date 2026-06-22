@@ -15,6 +15,8 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.Vector;
 
+import java.lang.foreign.MemorySegment;
+
 public abstract class AbstractArrowBufVector<V extends Vector, B extends Block> extends AbstractNonThreadSafeRefCounted implements Vector {
 
     protected final ArrowBuf valueBuffer;
@@ -74,6 +76,18 @@ public abstract class AbstractArrowBufVector<V extends Vector, B extends Block> 
         return this.positionCount;
     }
 
+    /**
+     * A {@link MemorySegment} view over this vector's off-heap Arrow buffer, sized to
+     * {@code positionCount * byteSize()} bytes, for bulk / auto-vectorized aggregation kernels: a
+     * {@code MemorySegment} reduction loop auto-vectorizes, whereas the per-element {@code ArrowBuf.getX}
+     * accessors do not (~3.5x slower in microbenchmarks). Valid only while this vector (hence the
+     * underlying {@link ArrowBuf}) is alive; treat as read-only. Uses the restricted
+     * {@link MemorySegment#reinterpret(long)}, so the calling module must be granted native access.
+     */
+    public MemorySegment valuesSegment() {
+        return MemorySegment.ofAddress(valueBuffer.memoryAddress()).reinterpret((long) positionCount * byteSize());
+    }
+
     @Override
     public boolean isConstant() {
         return false;
@@ -122,15 +136,15 @@ public abstract class AbstractArrowBufVector<V extends Vector, B extends Block> 
     }
 
     @Override
-    public V filter(boolean mayContainDuplicates, int... positions) {
+    public V filter(boolean mayContainDuplicates, int[] positions, int offset, int length) {
         final var allocator = blockFactory.arrowAllocator();
         final int size = byteSize();
-        final var buffer = allocator.buffer((long) positions.length * size);
-        for (int i = 0; i < positions.length; i++) {
-            int pos = positions[i];
+        final var buffer = allocator.buffer((long) length * size);
+        for (int i = 0; i < length; i++) {
+            int pos = positions[offset + i];
             buffer.setBytes((long) i * size, valueBuffer, (long) pos * size, size);
         }
-        return vectorConstructor().create(buffer, positions.length, blockFactory);
+        return vectorConstructor().create(buffer, length, blockFactory);
     }
 
     // TODO

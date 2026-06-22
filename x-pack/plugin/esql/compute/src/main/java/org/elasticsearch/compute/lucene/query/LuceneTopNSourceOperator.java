@@ -45,6 +45,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
+import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
 
 /**
@@ -73,20 +74,21 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
             int limit,
             List<SortBuilder<?>> sorts,
             long estimatedPerRowSortSize,
-            boolean needsScore
+            boolean needsScore,
+            LongSupplier directoryBytesRead
         ) {
             super(
                 contexts,
                 queryFunction,
                 dataPartitioning,
-                dataPartitioning == DataPartitioning.AUTO ? autoStrategy.pickStrategy(limit) : query -> {
-                    throw new UnsupportedOperationException("locked in " + dataPartitioning);
-                },
+                autoStrategy.pickStrategy(limit),
                 LuceneOperator.SMALL_INDEX_BOUNDARY,
                 taskConcurrency,
                 limit,
                 needsScore,
-                scoreModeFunction(sorts, needsScore)
+                scoreModeFunction(sorts, needsScore),
+                directoryBytesRead,
+                LuceneSliceQueue.MIN_DOCS_PER_SLICE
             );
             this.contexts = contexts;
             this.maxPageSize = maxPageSize;
@@ -108,7 +110,8 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
                 limit,
                 sliceQueue,
                 needsScore,
-                perShardCollectorProvider
+                perShardCollectorProvider,
+                directoryBytesRead
             );
         }
 
@@ -164,9 +167,10 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
         int limit,
         LuceneSliceQueue sliceQueue,
         boolean needsScore,
-        PerShardCollectorProvider perShardCollectorProvider
+        PerShardCollectorProvider perShardCollectorProvider,
+        LongSupplier directoryBytesRead
     ) {
-        super(contexts, driverContext.blockFactory(), maxPageSize, sliceQueue);
+        super(contexts, driverContext.blockFactory(), maxPageSize, sliceQueue, directoryBytesRead);
         this.driverContext = driverContext;
         this.sorts = sorts;
         this.estimatedPerRowSortSize = estimatedPerRowSortSize;

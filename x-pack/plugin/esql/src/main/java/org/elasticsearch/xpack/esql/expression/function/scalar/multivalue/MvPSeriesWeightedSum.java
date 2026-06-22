@@ -60,7 +60,7 @@ public class MvPSeriesWeightedSum extends EsqlScalarFunction implements Evaluato
 
     @FunctionInfo(
         returnType = { "double" },
-
+        briefSummary = "Calculates the P-series weighted sum of a multi-value field.",
         description = "Converts a multivalued expression into a single-valued column by multiplying every "
             + "element on the input list by its corresponding term in P-Series and computing the sum.",
         examples = @Example(file = "mv_pseries_weighted_sum", tag = "example")

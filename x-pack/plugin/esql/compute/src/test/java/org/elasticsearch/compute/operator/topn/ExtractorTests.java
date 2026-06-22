@@ -28,6 +28,7 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -53,7 +54,7 @@ public class ExtractorTests extends ESTestCase {
                 }
                 case AGGREGATE_METRIC_DOUBLE -> {
                     cases.add(
-                        valueTestCase(
+                        singleValueTestCase(
                             "regular aggregate_metric_double",
                             e,
                             TopNEncoder.DEFAULT_UNSORTABLE,
@@ -62,7 +63,7 @@ public class ExtractorTests extends ESTestCase {
                         )
                     );
                     cases.add(
-                        valueTestCase(
+                        singleValueTestCase(
                             "aggregate_metric_double with nulls",
                             e,
                             TopNEncoder.DEFAULT_UNSORTABLE,
@@ -72,19 +73,28 @@ public class ExtractorTests extends ESTestCase {
                     );
                 }
                 case LONG_RANGE -> {
-                    cases.add(valueTestCase("date_range", e, TopNEncoder.DEFAULT_UNSORTABLE, false, ExtractorTests::randomDateRange));
+                    cases.add(singleValueTestCase("date_range", e, TopNEncoder.DEFAULT_UNSORTABLE, false, ExtractorTests::randomDateRange));
+                    cases.add(
+                        blockTestCase(
+                            "many date_range followed by null",
+                            e,
+                            TopNEncoder.DEFAULT_UNSORTABLE,
+                            false,
+                            () -> Arrays.asList(List.of(randomDateRange(), randomDateRange()), null)
+                        )
+                    );
                 }
                 case FLOAT -> {
                     supportsNull = false;
                 }
                 case BYTES_REF -> {
-                    cases.add(valueTestCase("single alpha", e, TopNEncoder.UTF8, true, () -> randomAlphaOfLength(5)));
+                    cases.add(singleValueTestCase("single alpha", e, TopNEncoder.UTF8, true, () -> randomAlphaOfLength(5)));
                     cases.add(
-                        valueTestCase("many alpha", e, TopNEncoder.UTF8, true, () -> randomList(2, 10, () -> randomAlphaOfLength(5)))
+                        multiValueTestCase("many alpha", e, TopNEncoder.UTF8, true, () -> randomList(2, 10, () -> randomAlphaOfLength(5)))
                     );
-                    cases.add(valueTestCase("single utf8", e, TopNEncoder.UTF8, true, () -> randomRealisticUnicodeOfLength(10)));
+                    cases.add(singleValueTestCase("single utf8", e, TopNEncoder.UTF8, true, () -> randomRealisticUnicodeOfLength(10)));
                     cases.add(
-                        valueTestCase(
+                        multiValueTestCase(
                             "many utf8",
                             e,
                             TopNEncoder.UTF8,
@@ -93,10 +103,16 @@ public class ExtractorTests extends ESTestCase {
                         )
                     );
                     cases.add(
-                        valueTestCase("single version", e, TopNEncoder.VERSION, true, () -> TopNEncoderTests.randomVersion().toBytesRef())
+                        singleValueTestCase(
+                            "single version",
+                            e,
+                            TopNEncoder.VERSION,
+                            true,
+                            () -> TopNEncoderTests.randomVersion().toBytesRef()
+                        )
                     );
                     cases.add(
-                        valueTestCase(
+                        multiValueTestCase(
                             "many version",
                             e,
                             TopNEncoder.VERSION,
@@ -105,7 +121,7 @@ public class ExtractorTests extends ESTestCase {
                         )
                     );
                     cases.add(
-                        valueTestCase(
+                        singleValueTestCase(
                             "single IP",
                             e,
                             TopNEncoder.IP,
@@ -114,7 +130,7 @@ public class ExtractorTests extends ESTestCase {
                         )
                     );
                     cases.add(
-                        valueTestCase(
+                        multiValueTestCase(
                             "many IP",
                             e,
                             TopNEncoder.IP,
@@ -122,9 +138,11 @@ public class ExtractorTests extends ESTestCase {
                             () -> randomList(2, 10, () -> new BytesRef(InetAddressPoint.encode(randomIp(randomBoolean()))))
                         )
                     );
-                    cases.add(valueTestCase("single point", e, TopNEncoder.DEFAULT_UNSORTABLE, false, TopNEncoderTests::randomPointAsWKB));
                     cases.add(
-                        valueTestCase(
+                        singleValueTestCase("single point", e, TopNEncoder.DEFAULT_UNSORTABLE, false, TopNEncoderTests::randomPointAsWKB)
+                    );
+                    cases.add(
+                        multiValueTestCase(
                             "many points",
                             e,
                             TopNEncoder.DEFAULT_UNSORTABLE,
@@ -165,13 +183,17 @@ public class ExtractorTests extends ESTestCase {
                 }
                 case TDIGEST, EXPONENTIAL_HISTOGRAM ->
                     // multi values are not supported
-                    cases.add(valueTestCase("single " + e, e, TopNEncoder.DEFAULT_UNSORTABLE, false, () -> BlockTestUtils.randomValue(e)));
+                    cases.add(
+                        singleValueTestCase("single " + e, e, TopNEncoder.DEFAULT_UNSORTABLE, false, () -> BlockTestUtils.randomValue(e))
+                    );
                 case NULL -> {
                 }
                 default -> {
-                    cases.add(valueTestCase("single " + e, e, TopNEncoder.DEFAULT_UNSORTABLE, false, () -> BlockTestUtils.randomValue(e)));
                     cases.add(
-                        valueTestCase(
+                        singleValueTestCase("single " + e, e, TopNEncoder.DEFAULT_UNSORTABLE, false, () -> BlockTestUtils.randomValue(e))
+                    );
+                    cases.add(
+                        multiValueTestCase(
                             "many " + e,
                             e,
                             TopNEncoder.DEFAULT_UNSORTABLE,
@@ -182,22 +204,39 @@ public class ExtractorTests extends ESTestCase {
                 }
             }
             if (supportsNull) {
-                cases.add(valueTestCase("null " + e, e, TopNEncoder.DEFAULT_UNSORTABLE, false, () -> null));
+                cases.add(singleValueTestCase("null " + e, e, TopNEncoder.DEFAULT_UNSORTABLE, false, () -> null));
             }
         }
         return cases;
     }
 
-    static Object[] valueTestCase(String name, ElementType type, TopNEncoder encoder, boolean sortable, Supplier<Object> value) {
-        return new Object[] {
-            new TestCase(
-                name,
-                type,
-                encoder,
-                sortable,
-                () -> BlockUtils.fromListRow(TestBlockFactory.getNonBreakingInstance(), Arrays.asList(value.get()))[0],
-                Function.identity()
-            ) };
+    static Object[] singleValueTestCase(String name, ElementType type, TopNEncoder encoder, boolean sortable, Supplier<?> value) {
+        return blockTestCase(name, type, encoder, sortable, () -> Collections.singletonList(value.get()));
+    }
+
+    static Object[] multiValueTestCase(
+        String name,
+        ElementType type,
+        TopNEncoder encoder,
+        boolean sortable,
+        Supplier<? extends List<?>> values
+    ) {
+        return blockTestCase(name, type, encoder, sortable, () -> Collections.singletonList(values.get()));
+    }
+
+    static Object[] blockTestCase(
+        String name,
+        ElementType type,
+        TopNEncoder encoder,
+        boolean sortable,
+        Supplier<? extends List<?>> values
+    ) {
+        return new Object[] { new TestCase(name, type, encoder, sortable, () -> blockFromValues(values.get()), b -> b.filter(false, 0)) };
+    }
+
+    private static Block blockFromValues(List<?> values) {
+        List<List<Object>> rows = values.stream().map(v -> Collections.singletonList((Object) v)).toList();
+        return BlockUtils.fromList(TestBlockFactory.getNonBreakingInstance(), rows)[0];
     }
 
     static class TestCase {

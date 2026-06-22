@@ -2138,7 +2138,10 @@ public class TopNOperatorTests extends OperatorTestCase {
 
     public void testSplitOnSize() {
         int topCount = 50;
-        long jumboPageBytes = randomJumboPageBytes();
+        // When building blocks, we over-allocate to minimize resizing and copying. With
+        // paged structures like BytesRefBlock, this can result in multiple pages. To avoid
+        // over-emitting in this test, require the jumbo page to be at least two pages.
+        long jumboPageBytes = Math.max(randomJumboPageBytes(), PageCacheRecycler.PAGE_SIZE_IN_BYTES * 2);
         int byteLength = Math.max(10, Math.toIntExact(jumboPageBytes / 10));
         logger.info("byteLength {}", byteLength);
         int inputPageRows = 10;
@@ -2200,10 +2203,13 @@ public class TopNOperatorTests extends OperatorTestCase {
                 try (Page out = op.getOutput()) {
                     totalPositions += out.getPositionCount();
                     if (totalPositions < expectedTotal) {
-                        assertThat(out.ramBytesUsedByBlocks(), both(greaterThanOrEqualTo(minPageSize)).and(lessThanOrEqualTo(maxPageSize)));
-                    } else {
-                        assertThat(out.ramBytesUsedByBlocks(), lessThanOrEqualTo(maxPageSize));
+                        // We can over-allocate to one page for BytesRefArray that requires less than one page.
+                        // So don't check the min page size if jumboPageBytes is less than a page.
+                        if (minPageSize >= PageCacheRecycler.PAGE_SIZE_IN_BYTES) {
+                            assertThat(out.ramBytesUsedByBlocks(), greaterThanOrEqualTo(minPageSize));
+                        }
                     }
+                    assertThat(out.ramBytesUsedByBlocks(), lessThanOrEqualTo(maxPageSize));
                 }
             }
             assertThat(totalPositions, equalTo(expectedTotal));

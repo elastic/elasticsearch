@@ -43,6 +43,8 @@ describe("toBuildkitePipeline end-to-end", () => {
     expect(step.timeout_in_minutes).toBe(60);
     expect(step.agents.provider).toBe("gcp");
     expect(step.agents.machineType).toBe("n4-custom-32-98304");
+    // Smart retry must stay off for flakiness steps even if wrapNeverFail is removed.
+    expect(step.retry).toEqual({ automatic: false });
   });
 
   test("multiple batches use parallelism with env dispatch", () => {
@@ -90,6 +92,9 @@ describe("toBuildkitePipeline end-to-end", () => {
     const analyze = group.steps[1];
     expect(analyze.key).toBe("flakiness-detection:analyze");
     expect(analyze.depends_on).toEqual([{ step: "flakiness-detection:java-rest", allow_failure: true }]);
+    // Both batch and analyze steps opt out of automatic (smart) retries.
+    expect(step.retry).toEqual({ automatic: false });
+    expect(analyze.retry).toEqual({ automatic: false });
   });
 
   test("dispatches default unit-test batches in parallel", () => {

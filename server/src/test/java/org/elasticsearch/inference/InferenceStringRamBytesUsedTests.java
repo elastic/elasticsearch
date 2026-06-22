@@ -11,7 +11,7 @@ package org.elasticsearch.inference;
 
 import java.util.List;
 
-public class InferenceStringRamBytesUsedTests extends InferenceObjectRamBytesUsedTest<InferenceString>{
+public class InferenceStringRamBytesUsedTests extends InferenceObjectRamBytesUsedTest<InferenceString> {
 
     private static final String VALUE = "value";
 

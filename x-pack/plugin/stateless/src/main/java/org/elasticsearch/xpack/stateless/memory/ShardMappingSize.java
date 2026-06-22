@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.stateless.memory;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -28,6 +29,8 @@ public record ShardMappingSize(
 
     public static final long UNDEFINED_SHARD_MEMORY_OVERHEAD_BYTES = 0L;
 
+    private static final TransportVersion POINTS_IN_SHARD_MAPPING_SIZE = TransportVersion.fromName("points_in_shard_mapping_size");
+
     public static ShardMappingSize from(StreamInput in) throws IOException {
         return new ShardMappingSize(
             in.readVLong(),
@@ -35,7 +38,7 @@ public record ShardMappingSize(
             in.readVInt(),
             in.readVLong(),
             in.readVLong(),
-            in.readVLong(),
+            in.getTransportVersion().supports(POINTS_IN_SHARD_MAPPING_SIZE) ? in.readVLong() : 0,
             in.readVLong(),
             in.readString()
         );
@@ -48,7 +51,9 @@ public record ShardMappingSize(
         out.writeVInt(totalFields);
         out.writeVLong(postingsInMemoryBytes);
         out.writeVLong(liveDocsBytes);
-        out.writeVLong(pointsInMemoryBytes);
+        if (out.getTransportVersion().supports(POINTS_IN_SHARD_MAPPING_SIZE)) {
+            out.writeVLong(pointsInMemoryBytes);
+        }
         out.writeVLong(shardMemoryOverheadBytes);
         out.writeString(nodeId);
     }

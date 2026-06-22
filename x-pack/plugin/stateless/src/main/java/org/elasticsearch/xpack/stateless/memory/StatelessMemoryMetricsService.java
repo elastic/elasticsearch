@@ -892,8 +892,6 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
     /**
      * Computes the shard-level heap usage.
      * Ignores index-level heap usage, {@link #computeIndexHeapUsage} should be called for that.
-     * Includes search-tier shard memory, such as points memory, that is not part of {@link EstimatedHeapUsageBuilder}'s indexing-tier
-     * node estimate.
      */
     // Visible for testing.
     public long computeShardHeapUsage(ShardMemoryMetrics shardMemoryMetrics) {

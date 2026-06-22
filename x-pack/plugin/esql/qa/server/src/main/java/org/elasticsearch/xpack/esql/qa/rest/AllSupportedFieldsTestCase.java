@@ -1386,8 +1386,11 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
                 yield equalTo("histogram");
             }
             case FLATTENED -> {
-                // support for flattened was added later
-                if (DataType.FLATTENED.supportedVersion().supportedOn(minimumVersion, false) == false) {
+                // Support for flattened was added later. Mirror IndexResolver's gating, which treats the type as supported
+                // once the minimum version reaches the under-construction created version on snapshot builds, but requires the
+                // release version on release builds. Hardcoding release semantics here would wrongly expect "unsupported" in a
+                // snapshot mixed cluster whose oldest node predates the release transport version.
+                if (DataType.FLATTENED.supportedVersion().supportedOn(minimumVersion, Build.current().isSnapshot()) == false) {
                     yield equalTo("unsupported");
                 }
                 yield equalTo("flattened");

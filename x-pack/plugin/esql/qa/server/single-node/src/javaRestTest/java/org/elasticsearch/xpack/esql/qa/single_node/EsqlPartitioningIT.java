@@ -207,10 +207,12 @@ public class EsqlPartitioningIT extends ESRestTestCase {
             {
               "settings": {
                 "index": {
-                  "number_of_shards": 1
+                  "number_of_shards": 1,
+                  "translog.flush_threshold_size": "1mb"
                 }
               }
-            }""");  // Use a single shard to get consistent results.
+            }""");  // Use a single shard to get consistent results. Low flush threshold to keep
+        // seenSequenceNumbers bounded in TranslogWriter when assertions are enabled.
         client().performRequest(create);
         StringBuilder bulk = new StringBuilder();
         for (int d = 0; d < docs; d++) {

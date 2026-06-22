@@ -24,13 +24,17 @@ public class OTelMetricsBufferSurvivesRestartIT extends AbstractTelemetryIT {
     public static ElasticsearchCluster cluster = AbstractMetricsIT.baseClusterBuilder()
         .systemProperty("telemetry.otel.metrics.enabled", "true")
         .setting("telemetry.otel.metrics.endpoint", () -> "http://" + recordingApmServer.getHttpAddress() + "/v1/metrics")
-        .setting("telemetry.otel.metrics.interval", "1s")
         .setting("telemetry.otel.metrics.disk_buffer_size", "10mb")
         .setting("telemetry.otel.metrics.buffer_ttl", "5m")
-        .setting("telemetry.otel.otlp.send_timeout", "1s")
         // Tight write/read windows so pre-existing buffered files become drainable within the test budget.
         .setting("telemetry.otel.metrics.disk_buffer_write_window", "100ms")
         .setting("telemetry.otel.metrics.disk_buffer_read_min_age", "200ms")
+        // metrics.interval must be > otlp.send_timeout so that the OTLP exporter can fully fail, and so that PeriodicMetricReader does not
+        // skip an export cycle
+        .setting("telemetry.otel.metrics.interval", "500ms")
+        .setting("telemetry.otel.otlp.send_timeout", "300ms")
+        // initial_backoff that is way smaller than otlp.send_timeout allows the exporter to fully exhaust the retries
+        .setting("telemetry.otel.otlp.retry.initial_backoff", "100ms")
         .build();
 
     @ClassRule
@@ -49,7 +53,7 @@ public class OTelMetricsBufferSurvivesRestartIT extends AbstractTelemetryIT {
     public void testPreExistingBufferFilesDrainAfterRestart() throws Exception {
         recordingApmServer.setResponseCode(503);
         client().performRequest(new Request("GET", "/_use_apm_metrics"));
-        Thread.sleep(3000);
+        Thread.sleep(1000);
 
         cluster.restart(false);
         closeClients();

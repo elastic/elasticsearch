@@ -330,6 +330,23 @@ public final class PromqlFunctionDefinition {
             return this;
         }
 
+        public PromqlFunctionDefinition.Builder withinSeries(
+            PromqlParamInfo paramInfo,
+            FunctionDefinition.QuaternaryBuilder<? extends Expression> ctorRef
+        ) {
+            this.functionType = FunctionType.WITHIN_SERIES_AGGREGATION;
+            this.arity = PromqlFunctionArity.TWO;
+            this.builder = (source, target, ctx, extraParams) -> ctorRef.build(
+                source,
+                target,
+                extraParams.getFirst(),
+                ctx.window(),
+                ctx.timestamp()
+            );
+            this.params = List.of(paramInfo, RANGE_VECTOR);
+            return this;
+        }
+
         public PromqlFunctionDefinition.Builder withinSeriesOverTime(FunctionDefinition.TernaryBuilder<? extends Expression> ctorRef) {
             this.functionType = FunctionType.WITHIN_SERIES_AGGREGATION;
             this.arity = PromqlFunctionArity.ONE;

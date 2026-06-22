@@ -19,6 +19,7 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.test.ListMatcher;
 import org.elasticsearch.test.MapMatcher;
 import org.elasticsearch.test.TestClustersThreadFilter;
@@ -66,11 +67,13 @@ import static org.elasticsearch.xpack.esql.planner.PlannerSettings.LUCENE_TOPN_L
 import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.Mode.SYNC;
 import static org.elasticsearch.xpack.esql.tools.ProfileParser.parseProfile;
 import static org.elasticsearch.xpack.esql.tools.ProfileParser.readProfileFromResponse;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.any;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -1325,6 +1328,66 @@ public class RestEsqlIT extends RestEsqlTestCase {
             greaterThanOrEqualTo(1)
         );
         assertMap(reader, matchesMap().extraOk().entry("status", matchesMap().extraOk().entry("readers_built", readersBuiltMatcher)));
+    }
+
+    public void testConditionalBlockLoaderSwitchesStrategyAcrossSegments() throws IOException {
+        assumeTrue(
+            "requires fixed ValuesReader state after conditional block loaders switch strategies across segments",
+            hasCapabilities(adminClient(), List.of(EsqlCapabilities.Cap.FIX_VALUES_READER_STALE_ROW_STRIDE_READER.capabilityName()))
+        );
+        createIndex(testIndexName(), Settings.builder().put("index.number_of_shards", "1").build(), """
+            {
+              "properties": {
+                "sort": {
+                  "type": "integer"
+                },
+                "message": {
+                  "type": "text",
+                  "fields": {
+                    "keyword": {
+                      "type": "keyword",
+                      "ignore_above": 256
+                    }
+                  }
+                }
+              }
+            }
+            """);
+
+        CheckedConsumer<Map.Entry<Integer, String>, IOException> indexMessageDoc = doc -> {
+            Request request = new Request("POST", testIndexName() + "/_doc");
+            request.addParameter("refresh", "true");
+            request.setJsonEntity(String.format(Locale.ROOT, "{\"sort\": %d, \"message\": \"%s\"}", doc.getKey(), doc.getValue()));
+            Response response = client().performRequest(request);
+            assertThat(response.getStatusLine().getStatusCode(), oneOf(200, 201));
+        };
+
+        String longMessage = "words ".repeat(256);
+        String shortMessage = "words words words";
+        indexMessageDoc.accept(Map.entry(0, longMessage));
+        indexMessageDoc.accept(Map.entry(1, shortMessage));
+
+        Map<String, Object> result = runEsql(
+            requestObjectBuilder().query(fromIndex() + " | SORT sort ASC | KEEP message")
+                .profile(true)
+                .pragmas(
+                    Settings.builder()
+                        .put(QueryPragmas.DATA_PARTITIONING.getKey(), "shard")
+                        .put(QueryPragmas.PAGE_SIZE.getKey(), 1000)
+                        .build()
+                )
+                .pragmasOk()
+        );
+
+        ListMatcher schemaMatcher = matchesList().item(Map.of("name", "message", "type", "text"));
+        ListMatcher rowsMatcher = matchesList().item(List.of(longMessage)).item(List.of(shortMessage));
+        assertResultMap(result, getResultMatcher(result).entry("profile", getProfileMatcher()), schemaMatcher, rowsMatcher);
+
+        Map<String, Object> reader = findSingleReaderProfile("node_reduce", result);
+        @SuppressWarnings("unchecked")
+        Map<String, Integer> readersBuilt = (Map<String, Integer>) ((Map<String, Object>) reader.get("status")).get("readers_built");
+        assertThat(readersBuilt, hasKey("message:column_at_a_time:Delegating[to=message.keyword, impl=BytesRefsFromOrds.Singleton]"));
+        assertThat(readersBuilt, hasKey(allOf(startsWith("message:row_stride:["), endsWith("/BlockSourceReader.Bytes]"))));
     }
 
     public void testAutoPartitioning() throws IOException {

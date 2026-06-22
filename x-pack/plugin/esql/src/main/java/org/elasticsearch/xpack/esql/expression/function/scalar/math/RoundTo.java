@@ -189,7 +189,7 @@ public class RoundTo extends EsqlScalarFunction implements BlockLoaderExpression
             for (int i = 0; i < points.size(); i++) {
                 var p = (Number) Foldables.valueOf(toEvaluator.foldCtx(), points.get(i));
                 if (p == null) {
-                    return null;
+                    throw new IllegalStateException("unexpected null for rounding point");
                 }
                 cc[i] = DataTypeConverter.safeToLong(p);
             }
@@ -200,7 +200,7 @@ public class RoundTo extends EsqlScalarFunction implements BlockLoaderExpression
             for (int i = 0; i < points.size(); i++) {
                 var p = (Number) Foldables.valueOf(toEvaluator.foldCtx(), points.get(i));
                 if (p == null) {
-                    return null;
+                    throw new IllegalStateException("unexpected null for rounding point");
                 }
                 cc[i] = p.intValue();
             }
@@ -211,7 +211,7 @@ public class RoundTo extends EsqlScalarFunction implements BlockLoaderExpression
             for (int i = 0; i < points.size(); i++) {
                 var p = (Number) Foldables.valueOf(toEvaluator.foldCtx(), points.get(i));
                 if (p == null) {
-                    return null;
+                    throw new IllegalStateException("unexpected null for rounding point");
                 }
                 cc[i] = p.doubleValue();
             }

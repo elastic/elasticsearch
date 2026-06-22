@@ -126,10 +126,7 @@ public class ProviderClassWriterTests extends ProcessorTestCase {
         java.lang.reflect.Method loadMethod = providerClass.getMethod("load");
         Object providerInstance = providerClass.getConstructor().newInstance();
         Object loadResult = loadMethod.invoke(providerInstance);
-        assertNull(
-            "load() must return null when current platform (" + currentPlatform + ") is in unavailableOn",
-            loadResult
-        );
+        assertNull("load() must return null when current platform (" + currentPlatform + ") is in unavailableOn", loadResult);
     }
 
     /**

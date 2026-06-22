@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.ml.datafeed;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.TransportSearchAction;
@@ -22,6 +23,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
+import org.elasticsearch.search.crossproject.NoMatchingProjectException;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.ml.action.PutDatafeedAction;
@@ -390,6 +392,23 @@ public final class CredentialTransitions {
         final ThreadContext threadContext = client.threadPool().getThreadContext();
         final CloudCredential callerCredential = resolveCallerCredential(carriedCredential, threadContext);
         final Client searchClient = credentialManager.wrapClient(client, callerCredential);
+        ActionListener<Void> probeListener = listener.delegateResponse((l, e) -> {
+            if (ExceptionsHelper.unwrapCause(e) instanceof NoMatchingProjectException) {
+                // Routing matches no project right now; a project may be linked later. Defer to runtime,
+                // matching DatafeedNodeSelector's IndexNotFoundException tolerance and transforms' validateQuery.
+                logger.debug(
+                    () -> "["
+                        + effectiveConfig.getId()
+                        + "] validate-before-mint probe: project routing ["
+                        + effectiveConfig.getProjectRouting()
+                        + "] matched no project; deferring to runtime",
+                    e
+                );
+                l.onResponse(null);
+            } else {
+                l.onFailure(e);
+            }
+        });
         executeWithHeadersAsync(
             headers,
             ML_ORIGIN,
@@ -397,7 +416,7 @@ public final class CredentialTransitions {
             TransportSearchAction.TYPE,
             true,
             searchRequest,
-            listener.delegateFailureAndWrap((l, response) -> {
+            probeListener.delegateFailureAndWrap((l, response) -> {
                 if (response == null) {
                     l.onFailure(
                         new ElasticsearchStatusException(

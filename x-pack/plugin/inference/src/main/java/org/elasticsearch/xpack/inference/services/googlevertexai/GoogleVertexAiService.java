@@ -212,11 +212,6 @@ public class GoogleVertexAiService extends SenderService<GoogleVertexAiModel> im
     }
 
     @Override
-    public boolean supportsNewRerankCodePath() {
-        return true;
-    }
-
-    @Override
     protected void doChunkedInfer(
         Model model,
         List<ChunkInferenceInput> inputs,
@@ -304,12 +299,12 @@ public class GoogleVertexAiService extends SenderService<GoogleVertexAiModel> im
                 configurationMap.put(
                     LOCATION,
                     new SettingsConfiguration.Builder(EnumSet.of(TaskType.TEXT_EMBEDDING, TaskType.CHAT_COMPLETION, TaskType.COMPLETION))
-                        .setDescription(
-                            "Please provide the GCP region where the Vertex AI API(s) is enabled. "
-                                + "For more information, refer to the {geminiVertexAIDocs}."
-                        )
+                        .setDescription("""
+                            Please provide the GCP region where the Vertex AI API(s) is enabled. \
+                            Omit this field to target the Vertex AI global endpoint. \
+                            For more information, refer to the {geminiVertexAIDocs}.""")
                         .setLabel("GCP Region")
-                        .setRequired(true)
+                        .setRequired(false)
                         .setSensitive(false)
                         .setUpdatable(false)
                         .setType(SettingsConfigurationFieldType.STRING)
@@ -318,10 +313,9 @@ public class GoogleVertexAiService extends SenderService<GoogleVertexAiModel> im
 
                 configurationMap.put(
                     PROJECT_ID,
-                    new SettingsConfiguration.Builder(SUPPORTED_TASK_TYPES).setDescription(
-                        "The GCP Project ID which has Vertex AI API(s) enabled. For more information "
-                            + "on the URL, refer to the {geminiVertexAIDocs}."
-                    )
+                    new SettingsConfiguration.Builder(SUPPORTED_TASK_TYPES).setDescription("""
+                        The GCP Project ID which has Vertex AI API(s) enabled. For more information on the URL, \
+                        refer to the {geminiVertexAIDocs}.""")
                         .setLabel("GCP Project")
                         .setRequired(true)
                         .setSensitive(false)

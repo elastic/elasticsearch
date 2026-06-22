@@ -27,7 +27,11 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlResolveViewAction;
+import org.elasticsearch.xpack.esql.analysis.InSubqueryResolver;
+import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
+import org.elasticsearch.xpack.esql.plan.LinkedIndexPattern;
+import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.NamedSubquery;
@@ -35,6 +39,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Subquery;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.ViewShadowRelation;
 import org.elasticsearch.xpack.esql.plan.logical.ViewUnionAll;
+import org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -54,6 +59,32 @@ import java.util.function.Predicate;
 
 import static org.elasticsearch.rest.RestUtils.REST_MASTER_TIMEOUT_DEFAULT;
 
+/**
+ * Resolves view references in a logical plan by expanding each view into the plan parsed from its definition. As part of the same
+ * traversal it also rewrites {@code InSubquery} expressions (in {@link Filter} conditions) into {@code SemiJoin}/{@code AntiJoin}/
+ * {@code MarkJoin} nodes, so a single pass fully expands the plan — including views referenced from inside IN subqueries and IN
+ * subqueries nested in view bodies.
+ * <p>
+ * Resolution (see {@link #replaceViews}) is a depth-first, top-down (pre-order) traversal of the plan tree. During traversal it
+ * intercepts specific node types:
+ * <ul>
+ *   <li>{@link UnresolvedRelation}: Resolves views and replaces them with their query plans, then recursively processes those
+ *       plans</li>
+ *   <li>{@link Fork}: Recursively processes each child branch</li>
+ *   <li>{@code UnionAll}: Skipped (assumes rewriting is already complete)</li>
+ *   <li>{@link AbstractSubqueryJoin}: Recursively processes the left and right sides</li>
+ *   <li>{@link Filter}: Calls {@link InSubqueryResolver} to expand any {@code InSubquery} into a {@code SemiJoin}/{@code AntiJoin}/
+ *       {@code MarkJoin}, then recurses into the newly created subquery plans to resolve view references nested there</li>
+ *   <li>{@link ViewUnionAll}: Skipped (already the result of view resolution)</li>
+ * </ul>
+ * <p>
+ * View resolution may introduce new nodes that need further processing, so explicit recursive calls are made on newly resolved view
+ * plans. The traversal tracks circular references and enforces the maximum view depth ({@link #MAX_VIEW_DEPTH_SETTING}).
+ * <p>
+ * TODO: {@code ViewResolver} needs rename or refactor, as it does two tasks - view resolution and IN subquery resolution. Keep the core
+ *  of view resolution in {@code ViewResolver}, and have a {@code ViewAndSubqueryResolver} drive the plan tree traversal, call
+ *  {@code ViewResolver} and {@code InSubqueryResolver} to do the view and IN subquery resolution respectively.
+ */
 public class ViewResolver {
 
     protected Logger log = LogManager.getLogger(getClass());
@@ -113,29 +144,22 @@ public class ViewResolver {
     }
 
     /**
-     * Result of view resolution containing both the rewritten plan and the view queries.
+     * Result of view resolution containing the rewritten plan, the view queries, and whether any {@code InSubquery} expression was
+     * rewritten into a {@code SemiJoin}/{@code AntiJoin}/{@code MarkJoin} during resolution.
+     * <p>
+     * {@code hasInSubquery} drives the {@code IN_SUBQUERY} telemetry counter (see {@code EsqlSession#gatherInSubqueryMetrics}).
      */
-    public record ViewResolutionResult(LogicalPlan plan, Map<String, String> viewQueries) {}
+    public record ViewResolutionResult(LogicalPlan plan, Map<String, String> viewQueries, boolean hasInSubquery) {}
 
     /**
-     * Replaces views in the logical plan with their subqueries recursively.
-     * <p>
-     * This method performs a depth-first, top-down (pre-order) traversal of the plan tree.
-     * During traversal, it intercepts specific node types:
-     * <ul>
-     *   <li>{@code UnresolvedRelation}: Resolves views and replaces them with their query plans,
-     *       then recursively processes those plans</li>
-     *   <li>{@code Fork}: Recursively processes each child branch</li>
-     *   <li>{@code UnionAll}: Skipped (assumes rewriting is already complete)</li>
-     * </ul>
-     * <p>
-     * View resolution may introduce new nodes that need further processing, so explicit
-     * recursive calls are made on newly resolved view plans. The method tracks circular
-     * references and enforces maximum view depth limits.
+     * Entry point for view + IN subquery resolution; see the {@link ViewResolver} class documentation for the traversal model and the
+     * node types it intercepts. Produces a {@link ViewResolutionResult} containing the rewritten (uncompacted) plan, the map of
+     * resolved view names to their queries, and — via {@link ViewResolutionResult#hasInSubquery()} — whether any IN subquery was
+     * rewritten during resolution.
      *
      * @param plan the logical plan to process
      * @param parser function to parse view query strings into logical plans
-     * @param listener callback that receives the rewritten plan and a map of view names to their queries
+     * @param listener callback that receives the {@link ViewResolutionResult}
      */
     public void replaceViews(
         LogicalPlan plan,
@@ -144,8 +168,14 @@ public class ViewResolver {
         ActionListener<ViewResolutionResult> listener
     ) {
         Map<String, String> viewQueries = new HashMap<>();
-        if (viewsFeatureEnabled() == false || getMetadata().views().isEmpty()) {
-            listener.onResponse(new ViewResolutionResult(plan, viewQueries));
+        // Set when the traversal below rewrites an InSubquery (in the query or in a view body) into a Semi/Anti/MarkJoin; reported in
+        // the result so the session can count IN_SUBQUERY telemetry even for IN subqueries that only exist inside a view definition.
+        // A Holder (not a plain boolean) because it is written from inside the async resolution callbacks; cross-thread visibility is
+        // provided by the ActionListener plumbing, the same way the viewQueries map threaded through these callbacks is.
+        Holder<Boolean> hasInSubquery = new Holder<>(false);
+        boolean noViews = viewsFeatureEnabled() == false || getMetadata().views().isEmpty();
+        if (noViews && InSubqueryResolver.hasInSubqueryInFilter(plan) == false) {
+            listener.onResponse(new ViewResolutionResult(plan, viewQueries, false));
             return;
         }
         // Note: this returns the uncompacted nested plan. Compaction (UnionAll/ViewUnionAll
@@ -161,8 +191,11 @@ public class ViewResolver {
             parser,
             new LinkedHashSet<>(),
             viewQueries,
+            hasInSubquery,
             0,
-            listener.delegateFailureAndWrap((l, rewritten) -> l.onResponse(new ViewResolutionResult(rewritten, viewQueries)))
+            listener.delegateFailureAndWrap(
+                (l, rewritten) -> l.onResponse(new ViewResolutionResult(rewritten, viewQueries, hasInSubquery.get()))
+            )
         );
     }
 
@@ -172,6 +205,7 @@ public class ViewResolver {
         BiFunction<String, String, LogicalPlan> parser,
         LinkedHashSet<String> seenViews,
         Map<String, String> viewQueries,
+        Holder<Boolean> hasInSubquery,
         int depth,
         ActionListener<LogicalPlan> listener
     ) {
@@ -202,9 +236,47 @@ public class ViewResolver {
                     parser,
                     seenInner,
                     viewQueries,
+                    hasInSubquery,
                     depth,
                     planListener.delegateFailureAndWrap((l, result) -> {
                         plan.forEachDown(resolvedPlans::add);
+                        result.forEachDown(resolvedPlans::add);
+                        l.onResponse(result);
+                    })
+                );
+                case Filter filter -> {
+                    LogicalPlan resolved = InSubqueryResolver.resolveInSubqueryInFilter(filter);
+                    if (resolved == filter) {
+                        // No InSubquery in this filter — let transformDown process its children normally.
+                        planListener.onResponse(filter);
+                    } else {
+                        // InSubquery rewritten to SemiJoin/AntiJoin/MarkJoin — record it for telemetry, then resolve any view
+                        // references introduced in the subquery plans.
+                        hasInSubquery.set(true);
+                        replaceViews(
+                            resolved,
+                            projectRouting,
+                            parser,
+                            seenInner,
+                            viewQueries,
+                            hasInSubquery,
+                            depth,
+                            planListener.delegateFailureAndWrap((l, result) -> {
+                                result.forEachDown(resolvedPlans::add);
+                                l.onResponse(result);
+                            })
+                        );
+                    }
+                }
+                case AbstractSubqueryJoin subqueryJoin -> replaceViewsSubqueryJoin(
+                    subqueryJoin,
+                    projectRouting,
+                    parser,
+                    seenInner,
+                    viewQueries,
+                    hasInSubquery,
+                    depth,
+                    planListener.delegateFailureAndWrap((l, result) -> {
                         result.forEachDown(resolvedPlans::add);
                         l.onResponse(result);
                     })
@@ -216,6 +288,7 @@ public class ViewResolver {
                     seenInner,
                     seenWildcards,
                     viewQueries,
+                    hasInSubquery,
                     depth,
                     planListener.delegateFailureAndWrap((l, result) -> {
                         plan.forEachDown(resolvedPlans::add);
@@ -236,6 +309,7 @@ public class ViewResolver {
         BiFunction<String, String, LogicalPlan> parser,
         LinkedHashSet<String> seenViews,
         Map<String, String> viewQueries,
+        Holder<Boolean> hasInSubquery,
         int depth,
         ActionListener<LogicalPlan> listener
     ) {
@@ -251,6 +325,7 @@ public class ViewResolver {
                     parser,
                     seenViews,
                     viewQueries,
+                    hasInSubquery,
                     depth + 1,
                     l.delegateFailureAndWrap((subListener, newPlan) -> {
                         if (newPlan instanceof Subquery sq && sq.child() instanceof NamedSubquery named) {
@@ -278,6 +353,58 @@ public class ViewResolver {
         }).addListener(listener);
     }
 
+    private void replaceViewsSubqueryJoin(
+        AbstractSubqueryJoin subqueryJoin,
+        String projectRouting,
+        BiFunction<String, String, LogicalPlan> parser,
+        LinkedHashSet<String> seenViews,
+        Map<String, String> viewQueries,
+        Holder<Boolean> hasInSubquery,
+        int depth,
+        ActionListener<LogicalPlan> listener
+    ) {
+        LogicalPlan origLeft = subqueryJoin.left();
+        LogicalPlan origRight = subqueryJoin.right();
+        SubscribableListener<LogicalPlan> leftChain = SubscribableListener.newForked(
+            l -> replaceViews(
+                origLeft,
+                projectRouting,
+                parser,
+                seenViews,
+                viewQueries,
+                hasInSubquery,
+                depth + 1,
+                l.delegateFailureAndWrap((sl, newLeft) -> {
+                    if (newLeft instanceof Subquery sq && sq.child() instanceof NamedSubquery named) {
+                        newLeft = named;
+                    }
+                    sl.onResponse(newLeft);
+                })
+            )
+        );
+        leftChain.<LogicalPlan>andThen(
+            (l, newLeft) -> replaceViews(
+                origRight,
+                projectRouting,
+                parser,
+                seenViews,
+                viewQueries,
+                hasInSubquery,
+                depth + 1,
+                l.delegateFailureAndWrap((sl, newRight) -> {
+                    if (newRight instanceof Subquery sq && sq.child() instanceof NamedSubquery named) {
+                        newRight = named;
+                    }
+                    if (newLeft.equals(origLeft) == false || newRight.equals(origRight) == false) {
+                        sl.onResponse(subqueryJoin.replaceChildren(newLeft, newRight));
+                    } else {
+                        sl.onResponse(subqueryJoin);
+                    }
+                })
+            )
+        ).addListener(listener);
+    }
+
     private void replaceViewsUnresolvedRelation(
         UnresolvedRelation unresolvedRelation,
         String projectRouting,
@@ -285,6 +412,7 @@ public class ViewResolver {
         LinkedHashSet<String> seenViews,
         HashSet<String> seenWildcards,
         Map<String, String> viewQueries,
+        Holder<Boolean> hasInSubquery,
         int depth,
         ActionListener<LogicalPlan> listener
     ) {
@@ -319,7 +447,11 @@ public class ViewResolver {
 
         doEsqlResolveViewsRequest(req, listener.delegateFailureAndWrap((l1, response) -> {
             if (response.views().length == 0) {
-                listener.onResponse(stripValidConcreteViewExclusions(unresolvedRelation, patterns));
+                listener.onResponse(
+                    crossProjectModeDecider.crossProjectEnabled()
+                        ? unresolvedRelation
+                        : stripValidConcreteViewExclusions(unresolvedRelation, patterns)
+                );
                 return;
             }
 
@@ -338,19 +470,39 @@ public class ViewResolver {
                         assert patternPosition >= 0 : "Pattern must be found";
                         // cluster alias : index pattern
                         var clusterAndPattern = RemoteClusterAware.splitIndexName(urPatterns[patternPosition]);
-                        // marks if the expression targets current project (either by using flat or by matching using *:something)
-                        // this condition will change once we properly support `*:foo` resources
-                        var isCurrentProject = clusterAndPattern[0] == null || clusterAndPattern[0].contains("*");
-                        var isConcreteExpression = clusterAndPattern[1].contains("*") == false;
-                        if (isCurrentProject && isConcreteExpression) {
-                            viewShadows.putIfAbsent(
-                                view.name(),
-                                new ViewShadowRelation(
-                                    unresolvedRelation.source(),
+                        var isConcreteExpression = clusterAndPattern.indexExpression().contains("*") == false;
+                        if (isConcreteExpression) {
+                            var isFlat = clusterAndPattern.clusterAlias() == null;
+                            var isRequiredOnEveryProject = clusterAndPattern.clusterAlias() != null
+                                && clusterAndPattern.clusterAlias().contains("*");
+                            if (isFlat) {
+                                var pattern = new ArrayList<String>();
+                                pattern.add(view.name());
+                                pattern.addAll(collectExclusionsAfterPosition(patternPosition, urPatterns));
+                                viewShadows.putIfAbsent(
                                     view.name(),
-                                    collectExclusionsAfterPosition(patternPosition, urPatterns)
-                                )
-                            );
+                                    new ViewShadowRelation(
+                                        unresolvedRelation.source(),
+                                        view.name(),
+                                        LinkedIndexPattern.Kind.OPTIONAL,
+                                        String.join(",", pattern)
+                                    )
+                                );
+                            } else if (isRequiredOnEveryProject) {
+                                var pattern = new ArrayList<String>();
+                                pattern.add(urPatterns[patternPosition]);
+                                pattern.add("-_origin:*");
+                                pattern.addAll(collectExclusionsAfterPosition(patternPosition, urPatterns));
+                                viewShadows.putIfAbsent(
+                                    view.name(),
+                                    new ViewShadowRelation(
+                                        unresolvedRelation.source(),
+                                        view.name(),
+                                        LinkedIndexPattern.Kind.REQUIRED,
+                                        String.join(",", pattern)
+                                    )
+                                );
+                            }
                         }
                     }
                     replaceViews(
@@ -359,6 +511,7 @@ public class ViewResolver {
                         parser,
                         branchSeenViews,
                         viewQueries,
+                        hasInSubquery,
                         depth + 1,
                         l2.delegateFailureAndWrap((l3, fullyResolved) -> {
                             ViewPlan viewPlan = new ViewPlan(view.name(), fullyResolved);
@@ -476,8 +629,9 @@ public class ViewResolver {
             });
             result.addAll(exprViews);
 
-            // Non-view indices or CPS wildcards pass through as unresolved
-            if (hasNonView || (crossProjectModeDecider.crossProjectEnabled() && Regex.isSimpleMatchPattern(expr.original()))) {
+            // Non-view indices or CPS index expression wildcards pass through as unresolved
+            var localIndexExpression = RemoteClusterAware.splitIndexName(expr.original()).indexExpression();
+            if (hasNonView || (crossProjectModeDecider.crossProjectEnabled() && Regex.isSimpleMatchPattern(localIndexExpression))) {
                 if (unresolvedInsertPos < 0) {
                     unresolvedInsertPos = result.size();
                 }
@@ -555,8 +709,8 @@ public class ViewResolver {
         if (pattern.startsWith("-")) {
             return true;
         }
-        String[] split = RemoteClusterAware.splitIndexName(pattern);
-        return split[0] != null && split[1].startsWith("-");
+        var split = RemoteClusterAware.splitIndexName(pattern);
+        return split.clusterAlias() != null && split.indexExpression().startsWith("-");
     }
 
     /**

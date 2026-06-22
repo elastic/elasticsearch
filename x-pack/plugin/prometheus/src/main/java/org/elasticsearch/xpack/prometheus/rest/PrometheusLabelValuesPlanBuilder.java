@@ -91,7 +91,7 @@ final class PrometheusLabelValuesPlanBuilder {
     private static LogicalPlan buildNamePlan(String index, List<String> matchSelectors, Instant start, Instant end, int limit) {
         LogicalPlan plan = PrometheusPlanBuilderUtils.tsSource(index);
         plan = new Filter(Source.EMPTY, plan, PrometheusPlanBuilderUtils.filterExpression(matchSelectors, start, end));
-        plan = new MetricsInfo(Source.EMPTY, plan);
+        plan = PrometheusPlanBuilderUtils.metricsInfo(Source.EMPTY, plan);
 
         UnresolvedAttribute metricNameField = new UnresolvedAttribute(Source.EMPTY, METRIC_NAME_FIELD);
         plan = new Aggregate(Source.EMPTY, plan, List.of(metricNameField), List.of(metricNameField));

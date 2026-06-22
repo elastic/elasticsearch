@@ -17,6 +17,7 @@ dependencies {
   javaRestTestImplementation project(xpackModule('esql'))
   javaRestTestImplementation(project(path: xpackModule('esql'), configuration: 'testRuntimeElements'))
   yamlRestTestImplementation project(xpackModule('esql:qa:server'))
+  javaRestTestImplementation(testArtifact(project(":modules:ip-location")))
 
   // S3 fixture infrastructure for external source distributed tests
   javaRestTestImplementation project(':test:fixtures:s3-fixture')
@@ -53,7 +54,7 @@ def parquetFixtureDir = file("${ext.parquetFixtureOutputDir}/standalone")
 ext.testFixturesProject = project(xpackModule('esql:qa:testFixtures'))
 ext.testFixturesDataDir = ext.testFixturesProject.file('src/main/resources/data')
 // CSV base names for sync + Parquet generation; source: esql:qa:testFixtures/src/main/resources/data/{name}.csv
-ext.csvToParquetFixtures = ['employees', 'web_logs', 'books']
+ext.csvToParquetFixtures = ['employees', 'web_logs', 'books', 'employees_no_mv']
 
 tasks.register('syncIcebergFixtures', Sync) {
   dependsOn testFixturesProject.tasks.named('processResources')

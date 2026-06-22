@@ -35,6 +35,7 @@ import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.index.mapper.ProvidedIdFieldMapper;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesRoutingHashFieldMapper;
 import org.elasticsearch.index.mapper.Uid;
@@ -126,7 +127,7 @@ public class IndexCommitTimestampFieldRangeTests extends MapperServiceTestCase {
                 long timestamp2 = randomLongBetween(10_000L, 1_000_000L);
                 indexWriter.addDocument(mapper.parse(source(docId2, b -> { b.field("@timestamp", timestamp2); }, null)).rootDoc());
                 boolean doc1Deleted = randomBoolean();
-                deleteDoc(doc1Deleted ? docId1 : docId2, indexWriter, indexMode);
+                deleteDoc(doc1Deleted ? docId1 : docId2, indexWriter, indexMode, mapper);
                 indexWriter.commit();
                 try (DirectoryReader indexReader = DirectoryReader.open(indexWriter)) {
                     assertThat(totalDocCount(indexReader), equalTo(1));
@@ -150,9 +151,9 @@ public class IndexCommitTimestampFieldRangeTests extends MapperServiceTestCase {
                 String docId4 = indexMode == IndexMode.TIME_SERIES ? TimeSeriesRoutingHashFieldMapper.encode(4) : "docId4";
                 long timestamp4 = randomLongBetween(10_000L, 1_000_000L);
                 indexWriter.addDocument(mapper.parse(source(docId4, b -> { b.field("@timestamp", timestamp4); }, null)).rootDoc());
-                deleteDoc(doc1Deleted ? docId2 : docId1, indexWriter, indexMode);
+                deleteDoc(doc1Deleted ? docId2 : docId1, indexWriter, indexMode, mapper);
                 // delete doc from the previous 1-doc segment
-                deleteDoc(docId3, indexWriter, indexMode);
+                deleteDoc(docId3, indexWriter, indexMode, mapper);
                 indexWriter.commit();
                 try (DirectoryReader indexReader = DirectoryReader.open(indexWriter)) {
                     assertThat(totalDocCount(indexReader), equalTo(1));
@@ -347,12 +348,18 @@ public class IndexCommitTimestampFieldRangeTests extends MapperServiceTestCase {
         }
     }
 
-    private void deleteDoc(String docIdToDelete, IndexWriter indexWriter, IndexMode indexMode) throws IOException {
+    private void deleteDoc(String docIdToDelete, IndexWriter indexWriter, IndexMode indexMode, DocumentMapper mapper) throws IOException {
+        var providedIdMapper = mapper.mappers().getMapping().getMetadataMapperByClass(ProvidedIdFieldMapper.class);
+        boolean useColumnarId = providedIdMapper != null && providedIdMapper.isColumnarMode();
         var deletedDoc = ParsedDocument.deleteTombstone(
             indexMode.isColumnar()
                 ? SeqNoFieldMapper.SeqNoIndexOptions.DOC_VALUES_ONLY
                 : SeqNoFieldMapper.SeqNoIndexOptions.POINTS_AND_DOC_VALUES,
-            docIdToDelete
+            false,
+            false,
+            useColumnarId,
+            docIdToDelete,
+            null
         ).docs().get(0);
         var softDeletesField = Lucene.newSoftDeletesField();
         deletedDoc.add(softDeletesField);
@@ -373,13 +380,14 @@ public class IndexCommitTimestampFieldRangeTests extends MapperServiceTestCase {
             boolean nanosTimestampResolution = randomBoolean();
             // Strict columnar modes disable indexing by default; override explicitly so this test can read timestamp ranges via points.
             boolean strictColumnar = indexMode.isStrictColumnar();
+            boolean allowStore = strictColumnar == false && randomBoolean();
             if (nanosTimestampResolution) {
                 return createDocumentMapper(mapping(b -> {
                     b.startObject("@timestamp").field("type", "date_nanos").field("format", "epoch_millis");
                     if (strictColumnar) {
                         b.field("index", true);
                     }
-                    b.field("doc_values", randomBoolean()).field("store", randomBoolean()).endObject();
+                    b.field("doc_values", randomBoolean()).field("store", allowStore).endObject();
                 }), indexMode);
             } else {
                 return createDocumentMapper(mapping(b -> {
@@ -387,7 +395,7 @@ public class IndexCommitTimestampFieldRangeTests extends MapperServiceTestCase {
                     if (strictColumnar) {
                         b.field("index", true);
                     }
-                    b.field("doc_values", randomBoolean()).field("store", randomBoolean()).endObject();
+                    b.field("doc_values", randomBoolean()).field("store", allowStore).endObject();
                 }), indexMode);
             }
         } else if (indexMode == IndexMode.TIME_SERIES) {

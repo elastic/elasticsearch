@@ -8,9 +8,13 @@
 package org.elasticsearch.xpack.esql.datasource.ndjson;
 
 import org.apache.commons.io.IOUtils;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.MockBigArrays;
+import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
@@ -331,6 +335,45 @@ public class NdJsonPageIteratorTests extends ESTestCase {
         }
     }
 
+    public void testTrimLastPartialLineCrLfAcrossSmallChunks() throws IOException {
+        byte[] payload = "aa\r\nbb\r\nPART".getBytes(StandardCharsets.UTF_8);
+        try (
+            InputStream trimmed = new TrimLastPartialLineInputStream(
+                new ByteArrayInputStream(payload),
+                3,
+                ErrorPolicy.STRICT,
+                "test://input"
+            )
+        ) {
+            assertEquals("aa\r\nbb\r\n", new String(trimmed.readAllBytes(), StandardCharsets.UTF_8));
+        }
+    }
+
+    public void testTrimLastPartialLineLoneCrAcrossSmallChunks() throws IOException {
+        byte[] payload = "aa\rbb\rPART".getBytes(StandardCharsets.UTF_8);
+        try (
+            InputStream trimmed = new TrimLastPartialLineInputStream(
+                new ByteArrayInputStream(payload),
+                3,
+                ErrorPolicy.STRICT,
+                "test://input"
+            )
+        ) {
+            assertEquals("aa\rbb\r", new String(trimmed.readAllBytes(), StandardCharsets.UTF_8));
+        }
+    }
+
+    public void testSkipFirstLineHonorsMaxRecordBytes() {
+        IOException ex = expectThrows(
+            IOException.class,
+            () -> NdJsonPageIterator.skipToNextLine(
+                new ByteArrayInputStream("partial-without-boundary".getBytes(StandardCharsets.UTF_8)),
+                new NdJsonRecordSplitter(8)
+            )
+        );
+        assertThat(ex.getMessage(), Matchers.containsString("max_record_size [8]"));
+    }
+
     /**
      * Regression: after the consumer has advanced {@code readIdx}, growing the emit buffer must use
      * {@code writeIdx + emitLen}, not {@code unread + emitLen}, or a large carry + line can write past
@@ -418,23 +461,22 @@ public class NdJsonPageIteratorTests extends ESTestCase {
         }
     }
 
-    /**
-     * Without a record delimiter, {@link TrimLastPartialLineInputStream} must not grow {@code carry}
-     * past {@link TrimLastPartialLineInputStream#MAX_CARRY_BYTES} (defends against pathological lines).
-     */
+    /** Without a record delimiter, trimming must not grow {@code carry} past the configured record-size budget. */
     public void testTrimLastPartialLineCarryExceedsMaxThrows() throws IOException {
         int chunk = 8192;
-        long streamLen = TrimLastPartialLineInputStream.MAX_CARRY_BYTES + chunk;
+        int maxRecordBytes = 16 * 1024;
+        long streamLen = maxRecordBytes + chunk;
         try (
             InputStream trimmed = new TrimLastPartialLineInputStream(
                 new FiniteBytesWithoutNewline(streamLen),
                 chunk,
                 ErrorPolicy.STRICT,
-                "test://input"
+                "test://input",
+                new NdJsonRecordSplitter(maxRecordBytes)
             )
         ) {
             IOException ex = expectThrows(IOException.class, trimmed::readAllBytes);
-            assertThat(ex.getMessage(), Matchers.containsString(TrimLastPartialLineInputStream.MAX_CARRY.toString()));
+            assertThat(ex.getMessage(), Matchers.containsString("max_record_size [" + maxRecordBytes + "]"));
         }
     }
 
@@ -444,16 +486,63 @@ public class NdJsonPageIteratorTests extends ESTestCase {
      */
     public void testTrimLastPartialLineCarryOverLimitLenientSkipsBogusLine() throws IOException {
         int chunk = 8192;
-        long streamLen = TrimLastPartialLineInputStream.MAX_CARRY_BYTES + chunk;
+        int maxRecordBytes = 16 * 1024;
+        long streamLen = maxRecordBytes + chunk;
         try (
             InputStream trimmed = new TrimLastPartialLineInputStream(
                 new FiniteBytesWithoutNewline(streamLen),
                 chunk,
                 ErrorPolicy.LENIENT,
-                "test://input"
+                "test://input",
+                new NdJsonRecordSplitter(maxRecordBytes)
             )
         ) {
             assertEquals(0, trimmed.readAllBytes().length);
+        }
+    }
+
+    public void testTrimLastPartialLineLenientDiscardsThroughDelimiterAfterOversizedLine() throws IOException {
+        byte[] payload = "aaaaaaaaa\nok\npartial".getBytes(StandardCharsets.UTF_8);
+        try (
+            InputStream trimmed = new TrimLastPartialLineInputStream(
+                new ByteArrayInputStream(payload),
+                4,
+                ErrorPolicy.LENIENT,
+                "test://input",
+                new NdJsonRecordSplitter(8)
+            )
+        ) {
+            assertEquals("ok\n", new String(trimmed.readAllBytes(), StandardCharsets.UTF_8));
+        }
+    }
+
+    public void testTrimLastPartialLineLenientDiscardsCrLfRemainderAfterOversizedLine() throws IOException {
+        byte[] payload = "aaaaaaaaa\r\nok\r\npartial".getBytes(StandardCharsets.UTF_8);
+        try (
+            InputStream trimmed = new TrimLastPartialLineInputStream(
+                new ByteArrayInputStream(payload),
+                5,
+                ErrorPolicy.LENIENT,
+                "test://input",
+                new NdJsonRecordSplitter(8)
+            )
+        ) {
+            assertEquals("ok\r\n", new String(trimmed.readAllBytes(), StandardCharsets.UTF_8));
+        }
+    }
+
+    public void testTrimLastPartialLineLenientDiscardsOversizedTailThroughDelimiter() throws IOException {
+        byte[] payload = "ok\naaaaaaaaa\nnext\npartial".getBytes(StandardCharsets.UTF_8);
+        try (
+            InputStream trimmed = new TrimLastPartialLineInputStream(
+                new ByteArrayInputStream(payload),
+                12,
+                ErrorPolicy.LENIENT,
+                "test://input",
+                new NdJsonRecordSplitter(8)
+            )
+        ) {
+            assertEquals("ok\nnext\n", new String(trimmed.readAllBytes(), StandardCharsets.UTF_8));
         }
     }
 
@@ -776,6 +865,95 @@ public class NdJsonPageIteratorTests extends ESTestCase {
             }
         }
         assertEquals(2, totalRows);
+    }
+
+    /**
+     * Early-close leak regression. {@link NdJsonPageIterator} buffers one look-ahead page in
+     * {@code hasNext()}; before it extended {@link org.elasticsearch.xpack.esql.datasources.spi.BufferingPageIterator}
+     * a consumer that closed after {@code hasNext()} but before {@code next()} (a pushed-down {@code LIMIT},
+     * a cancellation, a downstream error) left that page's blocks unreleased against the breaker. Each test
+     * below drives a real read on a tracking breaker and asserts usage returns to zero. {@code multiRowFile}
+     * gives several rows so a small batch produces more than one page and the look-ahead is genuinely held.
+     */
+    private static String multiRowNdjson(int rows) {
+        StringBuilder sb = new StringBuilder(rows * 12);
+        for (int i = 1; i <= rows; i++) {
+            sb.append("{\"id\":").append(i).append("}\n");
+        }
+        return sb.toString();
+    }
+
+    public void testCloseAfterHasNextWithoutNextDoesNotLeak() throws IOException {
+        BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofMb(64)).withCircuitBreaking();
+        CircuitBreaker breaker = bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
+        BlockFactory trackingFactory = BlockFactory.builder(bigArrays).breaker(breaker).build();
+
+        var object = new BytesStorageObject("memory://leak.ndjson", multiRowNdjson(50).getBytes(StandardCharsets.UTF_8));
+        var reader = new NdJsonFormatReader(null, trackingFactory);
+        var ctx = FormatReadContext.builder().projectedColumns(List.of("id")).batchSize(8).build();
+        try (var iterator = reader.read(object, ctx)) {
+            assertTrue(iterator.hasNext()); // materializes (and allocates) the first look-ahead page
+            assertThat("hasNext must have buffered a page", breaker.getUsed(), Matchers.greaterThan(0L));
+            // Abandon without next(): try-with-resources close() must release the buffered page.
+        }
+        assertEquals("the buffered look-ahead page must be released on early close", 0L, breaker.getUsed());
+    }
+
+    public void testCloseMidStreamDoesNotLeak() throws IOException {
+        BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofMb(64)).withCircuitBreaking();
+        CircuitBreaker breaker = bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
+        BlockFactory trackingFactory = BlockFactory.builder(bigArrays).breaker(breaker).build();
+
+        var object = new BytesStorageObject("memory://leak-mid.ndjson", multiRowNdjson(50).getBytes(StandardCharsets.UTF_8));
+        var reader = new NdJsonFormatReader(null, trackingFactory);
+        var ctx = FormatReadContext.builder().projectedColumns(List.of("id")).batchSize(8).build();
+        try (var iterator = reader.read(object, ctx)) {
+            // Consume two pages fully (caller releases those), then materialize a third and abandon it.
+            assertTrue(iterator.hasNext());
+            iterator.next().releaseBlocks();
+            assertTrue(iterator.hasNext());
+            iterator.next().releaseBlocks();
+            assertTrue(iterator.hasNext()); // buffers a third page that we never consume
+            assertThat(breaker.getUsed(), Matchers.greaterThan(0L));
+        }
+        assertEquals("no page may leak when the consumer aborts mid-stream", 0L, breaker.getUsed());
+    }
+
+    public void testCloseAfterFullConsumptionDoesNotLeak() throws IOException {
+        BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofMb(64)).withCircuitBreaking();
+        CircuitBreaker breaker = bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
+        BlockFactory trackingFactory = BlockFactory.builder(bigArrays).breaker(breaker).build();
+
+        var object = new BytesStorageObject("memory://full.ndjson", multiRowNdjson(20).getBytes(StandardCharsets.UTF_8));
+        var reader = new NdJsonFormatReader(null, trackingFactory);
+        var ctx = FormatReadContext.builder().projectedColumns(List.of("id")).batchSize(8).build();
+        int totalRows = 0;
+        try (var iterator = reader.read(object, ctx)) {
+            while (iterator.hasNext()) {
+                Page page = iterator.next();
+                totalRows += page.getPositionCount();
+                page.releaseBlocks();
+            }
+        }
+        assertEquals(20, totalRows);
+        assertEquals("draining to exhaustion then closing must leave the breaker at zero", 0L, breaker.getUsed());
+    }
+
+    public void testRowLimitEarlyCloseDoesNotLeak() throws IOException {
+        BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofMb(64)).withCircuitBreaking();
+        CircuitBreaker breaker = bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
+        BlockFactory trackingFactory = BlockFactory.builder(bigArrays).breaker(breaker).build();
+
+        // rowLimit below the file size mimics a pushed-down LIMIT: the iterator stops early and a
+        // partially-built / buffered page can be left in hand at close.
+        var object = new BytesStorageObject("memory://limit.ndjson", multiRowNdjson(100).getBytes(StandardCharsets.UTF_8));
+        var reader = new NdJsonFormatReader(null, trackingFactory);
+        var ctx = FormatReadContext.builder().projectedColumns(List.of("id")).batchSize(8).rowLimit(5).build();
+        try (var iterator = reader.read(object, ctx)) {
+            assertTrue(iterator.hasNext()); // buffers the (row-limited) page but we never consume it
+            assertThat(breaker.getUsed(), Matchers.greaterThan(0L));
+        }
+        assertEquals("a row-limited buffered page must be released on early close", 0L, breaker.getUsed());
     }
 
     /**
@@ -1500,20 +1678,20 @@ public class NdJsonPageIteratorTests extends ESTestCase {
     public void testFindNextRecordBoundaryNewline() throws IOException {
         var reader = new NdJsonFormatReader(null, blockFactory);
         byte[] data = "{\"key\":\"value\"}\n".getBytes(StandardCharsets.UTF_8);
-        assertEquals(data.length, reader.findNextRecordBoundary(new ByteArrayInputStream(data)));
+        assertEquals(data.length, reader.recordSplitter().findNextRecordBoundary(new ByteArrayInputStream(data)));
     }
 
     public void testFindNextRecordBoundaryCRLF() throws IOException {
         var reader = new NdJsonFormatReader(null, blockFactory);
         byte[] data = "{\"key\":\"value\"}\r\n".getBytes(StandardCharsets.UTF_8);
-        assertEquals(data.length, reader.findNextRecordBoundary(new ByteArrayInputStream(data)));
+        assertEquals(data.length, reader.recordSplitter().findNextRecordBoundary(new ByteArrayInputStream(data)));
     }
 
     public void testFindNextRecordBoundaryCROnly() throws IOException {
         var reader = new NdJsonFormatReader(null, blockFactory);
         byte[] data = "{\"key\":\"value\"}\rmore".getBytes(StandardCharsets.UTF_8);
         int expected = "{\"key\":\"value\"}\r".length();
-        assertEquals(expected, reader.findNextRecordBoundary(new ByteArrayInputStream(data)));
+        assertEquals(expected, reader.recordSplitter().findNextRecordBoundary(new ByteArrayInputStream(data)));
     }
 
     public void testFindNextRecordBoundaryCRLFAtBufferEdge() throws IOException {
@@ -1524,95 +1702,95 @@ public class NdJsonPageIteratorTests extends ESTestCase {
         byte[] data = new byte[padding.length + suffix.length];
         System.arraycopy(padding, 0, data, 0, padding.length);
         System.arraycopy(suffix, 0, data, padding.length, suffix.length);
-        long boundary = reader.findNextRecordBoundary(new ByteArrayInputStream(data));
+        long boundary = reader.recordSplitter().findNextRecordBoundary(new ByteArrayInputStream(data));
         assertEquals(8193, boundary);
     }
 
     public void testFindNextRecordBoundaryEofNoNewline() throws IOException {
         var reader = new NdJsonFormatReader(null, blockFactory);
         byte[] data = "{\"key\":\"value\"}".getBytes(StandardCharsets.UTF_8);
-        assertEquals(-1, reader.findNextRecordBoundary(new ByteArrayInputStream(data)));
+        assertEquals(-1, reader.recordSplitter().findNextRecordBoundary(new ByteArrayInputStream(data)));
     }
 
     public void testFindNextRecordBoundaryEmptyStream() throws IOException {
         var reader = new NdJsonFormatReader(null, blockFactory);
-        assertEquals(-1, reader.findNextRecordBoundary(new ByteArrayInputStream(new byte[0])));
+        assertEquals(-1, reader.recordSplitter().findNextRecordBoundary(new ByteArrayInputStream(new byte[0])));
     }
 
     // --- findLastRecordBoundary tests ---
 
-    public void testFindLastRecordBoundaryLfTerminated() {
+    public void testFindLastRecordBoundaryLfTerminated() throws IOException {
         var reader = new NdJsonFormatReader(null, blockFactory);
         byte[] data = "{\"a\":1}\n{\"b\":2}\n".getBytes(StandardCharsets.UTF_8);
-        assertEquals(data.length - 1, reader.findLastRecordBoundary(data, data.length));
+        assertEquals(data.length - 1, reader.recordSplitter().findLastRecordBoundary(data, data.length));
     }
 
-    public void testFindLastRecordBoundaryCrLfTerminated() {
+    public void testFindLastRecordBoundaryCrLfTerminated() throws IOException {
         var reader = new NdJsonFormatReader(null, blockFactory);
         byte[] data = "{\"a\":1}\r\n{\"b\":2}\r\n".getBytes(StandardCharsets.UTF_8);
-        int boundary = reader.findLastRecordBoundary(data, data.length);
+        int boundary = reader.recordSplitter().findLastRecordBoundary(data, data.length);
         assertEquals(data.length - 1, boundary);
         assertEquals('\n', data[boundary]);
     }
 
-    public void testFindLastRecordBoundaryLoneCrTerminated() {
+    public void testFindLastRecordBoundaryLoneCrTerminated() throws IOException {
         var reader = new NdJsonFormatReader(null, blockFactory);
         byte[] data = "{\"a\":1}\r{\"b\":2}\r".getBytes(StandardCharsets.UTF_8);
-        int boundary = reader.findLastRecordBoundary(data, data.length);
+        int boundary = reader.recordSplitter().findLastRecordBoundary(data, data.length);
         assertEquals(data.length - 1, boundary);
         assertEquals('\r', data[boundary]);
     }
 
-    public void testFindLastRecordBoundaryMixedTerminators() {
+    public void testFindLastRecordBoundaryMixedTerminators() throws IOException {
         var reader = new NdJsonFormatReader(null, blockFactory);
         byte[] data = "{\"a\":1}\n{\"b\":2}\r\n{\"c\":3}\r".getBytes(StandardCharsets.UTF_8);
-        int boundary = reader.findLastRecordBoundary(data, data.length);
+        int boundary = reader.recordSplitter().findLastRecordBoundary(data, data.length);
         assertEquals(data.length - 1, boundary);
         assertEquals('\r', data[boundary]);
     }
 
-    public void testFindLastRecordBoundaryEmpty() {
+    public void testFindLastRecordBoundaryEmpty() throws IOException {
         var reader = new NdJsonFormatReader(null, blockFactory);
-        assertEquals(-1, reader.findLastRecordBoundary(new byte[0], 0));
+        assertEquals(-1, reader.recordSplitter().findLastRecordBoundary(new byte[0], 0));
     }
 
-    public void testFindLastRecordBoundaryNoTerminator() {
+    public void testFindLastRecordBoundaryNoTerminator() throws IOException {
         var reader = new NdJsonFormatReader(null, blockFactory);
         byte[] data = "{\"a\":1}".getBytes(StandardCharsets.UTF_8);
-        assertEquals(-1, reader.findLastRecordBoundary(data, data.length));
+        assertEquals(-1, reader.recordSplitter().findLastRecordBoundary(data, data.length));
     }
 
-    public void testFindLastRecordBoundarySingleRecordWithTrailingLf() {
+    public void testFindLastRecordBoundarySingleRecordWithTrailingLf() throws IOException {
         var reader = new NdJsonFormatReader(null, blockFactory);
         byte[] data = "{\"a\":1}\n".getBytes(StandardCharsets.UTF_8);
-        assertEquals(data.length - 1, reader.findLastRecordBoundary(data, data.length));
+        assertEquals(data.length - 1, reader.recordSplitter().findLastRecordBoundary(data, data.length));
     }
 
-    public void testFindLastRecordBoundaryTrailingUnterminatedRecord() {
+    public void testFindLastRecordBoundaryTrailingUnterminatedRecord() throws IOException {
         var reader = new NdJsonFormatReader(null, blockFactory);
         byte[] data = "{\"a\":1}\n{\"b\":2}".getBytes(StandardCharsets.UTF_8);
-        int boundary = reader.findLastRecordBoundary(data, data.length);
+        int boundary = reader.recordSplitter().findLastRecordBoundary(data, data.length);
         assertEquals("{\"a\":1}\n".length() - 1, boundary);
         assertEquals('\n', data[boundary]);
     }
 
-    public void testFindLastRecordBoundaryLengthSubsetOfBuffer() {
+    public void testFindLastRecordBoundaryLengthSubsetOfBuffer() throws IOException {
         var reader = new NdJsonFormatReader(null, blockFactory);
         byte[] body = "{\"a\":1}\n{\"b\":2}\n".getBytes(StandardCharsets.UTF_8);
         byte[] padded = new byte[body.length + 64];
         System.arraycopy(body, 0, padded, 0, body.length);
         Arrays.fill(padded, body.length, padded.length, (byte) 0xff);
-        assertEquals(body.length - 1, reader.findLastRecordBoundary(padded, body.length));
+        assertEquals(body.length - 1, reader.recordSplitter().findLastRecordBoundary(padded, body.length));
     }
 
-    public void testFindLastRecordBoundarySingleLf() {
+    public void testFindLastRecordBoundarySingleLf() throws IOException {
         var reader = new NdJsonFormatReader(null, blockFactory);
-        assertEquals(0, reader.findLastRecordBoundary(new byte[] { '\n' }, 1));
+        assertEquals(0, reader.recordSplitter().findLastRecordBoundary(new byte[] { '\n' }, 1));
     }
 
-    public void testFindLastRecordBoundarySingleCr() {
+    public void testFindLastRecordBoundarySingleCr() throws IOException {
         var reader = new NdJsonFormatReader(null, blockFactory);
-        assertEquals(0, reader.findLastRecordBoundary(new byte[] { '\r' }, 1));
+        assertEquals(0, reader.recordSplitter().findLastRecordBoundary(new byte[] { '\r' }, 1));
     }
 
     private int blockIdx(SourceMetadata meta, String name) {
@@ -1703,7 +1881,7 @@ public class NdJsonPageIteratorTests extends ESTestCase {
     }
 
     /**
-     * Per-query override via {@code WITH (segment_size = ...)}; mirrors the existing
+     * Per-query override via {@code WITH {"segment_size": ...}}; mirrors the existing
      * {@code schema_sample_size} pattern. Withconfig returns a new reader; the original is left
      * unchanged so other concurrent queries keep their own values.
      */
@@ -1984,5 +2162,68 @@ public class NdJsonPageIteratorTests extends ESTestCase {
             count,
             Matchers.equalTo((long) rows)
         );
+    }
+
+    /**
+     * Regression for https://github.com/elastic/esql-planning/issues/894: on the byte-array fast path the
+     * cap is now enforced by {@link NdJsonRecordCappingInputStream} during the single {@code readAllBytes}
+     * pull instead of by a separate pre-scan. Under {@link ErrorPolicy#STRICT} an oversized record must
+     * still surface a {@code max_record_size [N]} error rather than parse silently.
+     */
+    public void testByteArrayFastPathStrictModeEnforcesMaxRecordBytes() {
+        int maxRecordBytes = 16;
+        StringBuilder ndjson = new StringBuilder().append("{\"id\":1}\n");
+        ndjson.append("{\"id\":2,\"text\":\"").append("x".repeat(maxRecordBytes)).append("\"}\n");
+        byte[] data = ndjson.toString().getBytes(StandardCharsets.UTF_8);
+
+        var reader = new NdJsonFormatReader(null, blockFactory);
+        var object = new BytesStorageObject("file:///cap.ndjson", data);
+        FormatReadContext context = FormatReadContext.builder()
+            .batchSize(10)
+            .errorPolicy(ErrorPolicy.STRICT)
+            .maxRecordBytes(maxRecordBytes)
+            .build();
+
+        IOException ex = expectThrows(IOException.class, () -> {
+            try (var iterator = reader.read(object, context)) {
+                while (iterator.hasNext()) {
+                    iterator.next().releaseBlocks();
+                }
+            }
+        });
+        Throwable rootCause = ex;
+        while (rootCause.getCause() != null && rootCause.getCause() != rootCause) {
+            rootCause = rootCause.getCause();
+        }
+        assertThat(rootCause.getMessage(), Matchers.containsString("max_record_size [" + maxRecordBytes + "]"));
+    }
+
+    /**
+     * Companion lenient-mode contract: oversized records on the byte-array fast path must be dropped (not
+     * surfaced) so the user-visible {@code max_record_size} contract from PR #150240 is preserved. The pre-read
+     * filter pass (replacing the legacy {@code enforceMaxRecordBytes}) walks the buffered segment once and
+     * skips lines whose terminator-inclusive byte count exceeds the cap, leaving the surrounding rows intact.
+     */
+    public void testByteArrayFastPathLenientModeDropsOversizedRecord() throws IOException {
+        int maxRecordBytes = 16;
+        StringBuilder ndjson = new StringBuilder().append("{\"id\":1}\n");
+        ndjson.append("{\"id\":2,\"text\":\"").append("x".repeat(maxRecordBytes)).append("\"}\n");
+        ndjson.append("{\"id\":3}\n");
+        byte[] data = ndjson.toString().getBytes(StandardCharsets.UTF_8);
+
+        var reader = new NdJsonFormatReader(null, blockFactory);
+        var object = new BytesStorageObject("file:///cap-lenient.ndjson", data);
+        ErrorPolicy lenient = new ErrorPolicy(ErrorPolicy.Mode.SKIP_ROW, Long.MAX_VALUE, 1.0, false);
+        FormatReadContext context = FormatReadContext.builder().batchSize(10).errorPolicy(lenient).maxRecordBytes(maxRecordBytes).build();
+
+        long total = 0;
+        try (var iterator = reader.read(object, context)) {
+            while (iterator.hasNext()) {
+                var page = iterator.next();
+                total += page.getPositionCount();
+                page.releaseBlocks();
+            }
+        }
+        assertThat("lenient must drop the oversized record and keep the surrounding rows", total, Matchers.equalTo(2L));
     }
 }

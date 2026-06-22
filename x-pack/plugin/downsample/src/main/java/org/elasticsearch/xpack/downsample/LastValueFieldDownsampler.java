@@ -57,8 +57,22 @@ class LastValueFieldDownsampler extends AbstractFieldDownsampler<FormattedDocVal
 
     @Override
     public void reset() {
-        isEmpty = true;
+        state = State.EMPTY;
         lastValue = null;
+    }
+
+    @Override
+    public void collect(FormattedDocValues docValues, IntArrayList docIdBuffer) throws IOException {
+        if (isDone()) {
+            return;
+        }
+        for (int i = 0; i < docIdBuffer.size() && isDone() == false; i++) {
+            int docId = docIdBuffer.get(i);
+            if (docValues.advanceExact(docId) == false) {
+                continue;
+            }
+            collectCurrentValues(docValues);
+        }
     }
 
     @Override
@@ -70,36 +84,23 @@ class LastValueFieldDownsampler extends AbstractFieldDownsampler<FormattedDocVal
     /**
      * Collects the last value observed in these field values. This implementation assumes that field values are collected
      * and sorted by descending order by time. In this case, it assumes that the last value of the time is the first value
-     * collected. Eventually, the implementation of this class ends up storing the first value it is empty and then
-     * ignoring everything else.
+     * collected.  By setting state to {@link org.elasticsearch.xpack.downsample.AbstractFieldDownsampler.State#BUCKET_COMPLETED},
+     * we ensure that the next values will be skipped for this bucket.
      */
     @Override
-    public void collect(FormattedDocValues docValues, IntArrayList docIdBuffer) throws IOException {
-        if (isEmpty() == false) {
-            return;
-        }
-
-        for (int i = 0; i < docIdBuffer.size(); i++) {
-            int docId = docIdBuffer.get(i);
-            if (docValues.advanceExact(docId) == false) {
-                continue;
+    public void collectCurrentValues(FormattedDocValues docValues) throws IOException {
+        int docValuesCount = docValues.docValueCount();
+        assert docValuesCount > 0;
+        if (docValuesCount == 1) {
+            lastValue = docValues.nextValue();
+        } else {
+            var values = new Object[docValuesCount];
+            for (int j = 0; j < docValuesCount; j++) {
+                values[j] = docValues.nextValue();
             }
-            int docValuesCount = docValues.docValueCount();
-            assert docValuesCount > 0;
-            isEmpty = false;
-            if (docValuesCount == 1) {
-                lastValue = docValues.nextValue();
-            } else {
-                var values = new Object[docValuesCount];
-                for (int j = 0; j < docValuesCount; j++) {
-                    values[j] = docValues.nextValue();
-                }
-                lastValue = values;
-            }
-            // Only need to record one label value from one document, within in the same tsid-and-time-interval we only keep the first
-            // with downsampling.
-            return;
+            lastValue = values;
         }
+        state = State.BUCKET_COMPLETED;
     }
 
     @Override

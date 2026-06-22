@@ -41,13 +41,33 @@ public interface StorageObject {
 
     // === SYNC API (required) ===
 
-    /** Opens an input stream for sequential reading from the beginning. */
-    InputStream newStream() throws IOException;
+    /**
+     * Sentinel {@code length} for {@link #newStream(long, long)} meaning "read from {@code position} to the end
+     * of the object" — the open-ended form. It exists because the total length is not always knowable up front
+     * (e.g. a compressed object has no addressable length), so the open-ended read must signal "to the end" with
+     * this marker rather than by computing {@code length() - position}.
+     */
+    long READ_TO_END = -1L;
 
     /**
-     * Opens an input stream for reading a specific byte range.
-     * Critical for columnar formats like Parquet that read specific column chunks.
-     * For reading object footers (e.g., Parquet), use: {@code newStream(length() - footerSize, footerSize)}
+     * Opens an input stream for sequential reading of the whole object, from the beginning to the end.
+     * <p>
+     * The default is {@code newStream(0, READ_TO_END)}, so the whole-object read shares the open-ended code path
+     * (and, through the decorator chain, its resilience). A provider may override this for a plain whole-object GET.
+     */
+    default InputStream newStream() throws IOException {
+        return newStream(0, READ_TO_END);
+    }
+
+    /**
+     * Opens an input stream for reading a byte range. A {@code length} of {@link #READ_TO_END} reads from
+     * {@code position} to the end of the object (the open-ended form) — essential for streams whose total length
+     * is not available. Providers MUST translate {@code READ_TO_END} into a native open-ended read (e.g. HTTP
+     * {@code Range: bytes=position-}) and MUST NOT require {@link #length()} to serve it; an empty object (or
+     * {@code position} at/after the end) yields an empty stream.
+     * <p>
+     * Critical for columnar formats like Parquet that read specific column chunks. For reading object footers,
+     * use a bounded length: {@code newStream(length() - footerSize, footerSize)}.
      */
     InputStream newStream(long position, long length) throws IOException;
 
@@ -95,20 +115,41 @@ public interface StorageObject {
      * Columnar formats (Parquet) can use this for parallel chunk reads when
      * {@link #supportsNativeAsync()} returns true.
      * <p>
-     * <b>Returned buffer contract:</b> the buffer delivered to the listener has
-     * {@code capacity() == length} (the requested length) and {@code remaining()} equal to the
-     * number of bytes actually read. On a short read these differ — consumers must use
-     * {@code remaining()} (or {@code limit() - position()}) to size their work, never
+     * <b>Returned buffer contract:</b> the {@link DirectReadBuffer#buffer()} delivered to the
+     * listener has {@code capacity() == length} (the requested length) and {@code remaining()}
+     * equal to the number of bytes actually read. On a short read these differ — consumers must
+     * use {@code remaining()} (or {@code limit() - position()}) to size their work, never
      * {@code capacity()}. The buffer is direct.
      * <p>
      * On end-of-content at {@code position} the buffer is delivered with {@code remaining() == 0}.
      *
+     * <p>
+     * <b>Buffer ownership:</b> the storage object obtains exactly one {@link DirectReadBuffer} of
+     * {@code length} bytes from {@code factory}. The caller must invoke {@link DirectReadBuffer#close()}
+     * once the bytes have been consumed; closing releases the buffer back to its underlying
+     * allocator. See {@link DirectReadBuffer} for the contract.
+     *
+     * <p>
+     * <b>Implementation contract:</b> if the read fails, implementations must close the
+     * {@link DirectReadBuffer} before calling {@code listener.onFailure()}. Callers that fan out
+     * reads across multiple merged ranges rely on this invariant to avoid double-releasing buffers
+     * from the successfully-completed sibling ranges on the failure path.
+     *
      * @param position the starting byte position
      * @param length the number of bytes to read
+     * @param factory produces the {@link DirectReadBuffer} the bytes are read into; the storage
+     *            object calls {@link DirectBufferFactory#allocate(int)} exactly once with
+     *            {@code length}
      * @param executor executor for running the async operation
      * @param listener callback for the result or failure
      */
-    default void readBytesAsync(long position, long length, Executor executor, ActionListener<ByteBuffer> listener) {
+    default void readBytesAsync(
+        long position,
+        long length,
+        DirectBufferFactory factory,
+        Executor executor,
+        ActionListener<DirectReadBuffer> listener
+    ) {
         if (length < 0) {
             listener.onFailure(new IllegalArgumentException("length must be non-negative, got: " + length));
             return;
@@ -117,31 +158,47 @@ public interface StorageObject {
             listener.onFailure(new IllegalArgumentException("length must fit in an int for async reads, got: " + length));
             return;
         }
-        // Allocate on the calling thread so a direct-memory OOM surfaces synchronously via the
-        // listener instead of escaping the executor's Runnable as an Error and leaving the
-        // listener permanently uncompleted.
-        final ByteBuffer direct;
+        // Allocate on the calling thread so a direct-memory OOM (or breaker trip) surfaces
+        // synchronously via the listener instead of escaping the executor's Runnable as an Error
+        // and leaving the listener permanently uncompleted.
+        final DirectReadBuffer drb;
+        boolean submitted = false;
         try {
-            direct = ByteBuffer.allocateDirect((int) length);
-        } catch (OutOfMemoryError e) {
-            listener.onFailure(new IOException("failed to allocate " + length + " bytes of direct memory", e));
+            drb = factory.allocate((int) length);
+        } catch (Exception e) {
+            listener.onFailure(e);
             return;
         }
         try {
             executor.execute(() -> {
                 try {
-                    int read = Math.max(0, readBytes(position, direct));
-                    direct.position(0).limit(read);
-                    listener.onResponse(direct);
+                    int read = Math.max(0, readBytes(position, drb.buffer()));
+                    drb.buffer().position(0).limit(read);
                 } catch (Exception e) {
+                    drb.close();
                     listener.onFailure(e);
+                    return;
+                }
+                // Deliver outside the I/O catch so a throw from onResponse does not
+                // double-close drb or invoke listener.onFailure after listener.onResponse.
+                try {
+                    listener.onResponse(drb);
+                } catch (Exception e) {
+                    try {
+                        drb.close();
+                    } catch (Exception closeEx) {
+                        e.addSuppressed(closeEx);
+                    }
+                    throw e;
                 }
             });
-        } catch (RejectedExecutionException e) {
-            // Route executor rejection (saturated queue, shutdown) through the listener so the
-            // caller's ActionListener chain doesn't hang. The pre-allocated direct buffer becomes
-            // garbage and is reclaimed by the platform Cleaner.
-            listener.onFailure(e);
+            submitted = true;
+        } finally {
+            if (submitted == false) {
+                // Executor rejected (saturated queue, shutdown) — release the buffer eagerly so it
+                // does not stay charged against the breaker for the lifetime of the JVM.
+                drb.close();
+            }
         }
     }
 

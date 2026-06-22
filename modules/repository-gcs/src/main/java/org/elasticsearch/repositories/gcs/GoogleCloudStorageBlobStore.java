@@ -17,6 +17,7 @@ import com.google.cloud.storage.BlobInfo;
 import com.google.cloud.storage.Storage;
 import com.google.cloud.storage.Storage.BlobListOption;
 import com.google.cloud.storage.StorageBatchResult;
+import com.google.cloud.storage.StorageClass;
 import com.google.cloud.storage.StorageException;
 
 import org.apache.logging.log4j.LogManager;
@@ -25,10 +26,12 @@ import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.BackoffPolicy;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.blobstore.BlobStoreActionStats;
+import org.elasticsearch.common.blobstore.BlobStoreException;
 import org.elasticsearch.common.blobstore.DeleteResult;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.blobstore.OptionalBytesReference;
@@ -61,9 +64,12 @@ import java.util.ArrayList;
 import java.util.Base64;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static java.net.HttpURLConnection.HTTP_GONE;
 import static java.net.HttpURLConnection.HTTP_PRECON_FAILED;
@@ -87,6 +93,17 @@ class GoogleCloudStorageBlobStore implements BlobStore {
 
     // MAX deletes per batch is 100 https://docs.cloud.google.com/storage/docs/batch#overview
     public static final int MAX_DELETES_PER_BATCH = 100;
+
+    /**
+     * Storage classes that may be configured for snapshot blob uploads.
+     *
+     * @see <a href="https://cloud.google.com/storage/docs/storage-classes">GCS storage classes</a>
+     */
+    public static final Map<String, StorageClass> ALLOWED_STORAGE_CLASSES_BY_LOWER_NAME = Stream.of(
+        StorageClass.STANDARD,
+        StorageClass.NEARLINE,
+        StorageClass.COLDLINE
+    ).collect(Collectors.toUnmodifiableMap(sc -> sc.toString().toLowerCase(Locale.ENGLISH), sc -> sc));
 
     static {
         final String key = "es.repository_gcs.large_blob_threshold_byte_size";
@@ -120,6 +137,11 @@ class GoogleCloudStorageBlobStore implements BlobStore {
     private volatile boolean closed = false;
     private final boolean tenaciousRetriesEnabled;
 
+    @Nullable
+    private final StorageClass dataStorageClass;
+    @Nullable
+    private final StorageClass metadataStorageClass;
+
     GoogleCloudStorageBlobStore(
         ProjectId projectId,
         String bucketName,
@@ -129,7 +151,9 @@ class GoogleCloudStorageBlobStore implements BlobStore {
         BigArrays bigArrays,
         int bufferSize,
         BackoffPolicy casBackoffPolicy,
-        GcsRepositoryStatsCollector statsCollector
+        GcsRepositoryStatsCollector statsCollector,
+        @Nullable String dataStorageClass,
+        @Nullable String metadataStorageClass
     ) {
         this.projectId = projectId;
         this.bucketName = bucketName;
@@ -141,6 +165,51 @@ class GoogleCloudStorageBlobStore implements BlobStore {
         this.bufferSize = bufferSize;
         this.casBackoffPolicy = casBackoffPolicy;
         this.tenaciousRetriesEnabled = storageService.clientSettings(projectId, clientName).getTenaciousRetriesEnabled();
+        this.dataStorageClass = initStorageClass(dataStorageClass);
+        this.metadataStorageClass = initStorageClass(metadataStorageClass);
+    }
+
+    /**
+     * Parses and validates a configured storage class name.
+     *
+     * @return the matching {@link StorageClass}, or {@code null} if no value was configured
+     * @throws BlobStoreException if a non-empty value does not match an {@link #ALLOWED_STORAGE_CLASSES_BY_LOWER_NAME allowed} class
+     */
+    @Nullable
+    public static StorageClass initStorageClass(@Nullable String storageClassName) {
+        if (Strings.hasText(storageClassName) == false) {
+            return null;
+        }
+        final String stripped = storageClassName.strip();
+        final StorageClass storageClass = ALLOWED_STORAGE_CLASSES_BY_LOWER_NAME.get(stripped.toLowerCase(Locale.ENGLISH));
+        if (storageClass == null) {
+            throw new BlobStoreException("`" + stripped + "` is not an allowed GCS Storage Class.");
+        }
+        return storageClass;
+    }
+
+    /**
+     * Resolves the configured storage class for the given operation purpose. Only snapshot uploads are assigned a storage class;
+     * everything else relies on the GCS bucket default.
+     */
+    @Nullable
+    StorageClass resolveStorageClass(OperationPurpose purpose) {
+        return switch (purpose) {
+            case SNAPSHOT_DATA -> dataStorageClass;
+            case SNAPSHOT_METADATA -> metadataStorageClass;
+            case REPOSITORY_ANALYSIS, CLUSTER_STATE, INDICES, TRANSLOG, RESHARDING -> null;
+        };
+    }
+
+    /**
+     * Applies the {@link #resolveStorageClass resolved} storage class for the given purpose to the supplied builder, if any.
+     */
+    BlobInfo.Builder applyStorageClass(BlobInfo.Builder builder, OperationPurpose purpose) {
+        final StorageClass storageClass = resolveStorageClass(purpose);
+        if (storageClass != null) {
+            builder.setStorageClass(storageClass);
+        }
+        return builder;
     }
 
     /**
@@ -232,7 +301,7 @@ class GoogleCloudStorageBlobStore implements BlobStore {
                     // Strip path prefix and trailing slash
                     final String suffixName = blob.getName().substring(pathStr.length(), blob.getName().length() - 1);
                     if (suffixName.isEmpty() == false) {
-                        mapBuilder.put(suffixName, new GoogleCloudStorageBlobContainer(path.add(suffixName), this));
+                        mapBuilder.put(suffixName, blobContainer(path.add(suffixName)));
                     }
                 }
             });
@@ -306,13 +375,13 @@ class GoogleCloudStorageBlobStore implements BlobStore {
             final String md5 = Base64.getEncoder().encodeToString(MessageDigests.digest(bytes, MessageDigests.md5()));
             writeBlobResumable(
                 purpose,
-                BlobInfo.newBuilder(bucketName, blobName).setMd5(md5).build(),
+                applyStorageClass(BlobInfo.newBuilder(bucketName, blobName).setMd5(md5), purpose).build(),
                 bytes.streamInput(),
                 bytes.length(),
                 failIfAlreadyExists
             );
         } else {
-            final BlobInfo blobInfo = BlobInfo.newBuilder(bucketName, blobName).build();
+            final BlobInfo blobInfo = applyStorageClass(BlobInfo.newBuilder(bucketName, blobName), purpose).build();
             if (bytes.hasArray()) {
                 writeBlobMultipart(purpose, blobInfo, bytes.array(), bytes.arrayOffset(), bytes.length(), failIfAlreadyExists);
             } else {
@@ -330,7 +399,13 @@ class GoogleCloudStorageBlobStore implements BlobStore {
      */
     void writeBlob(OperationPurpose purpose, String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists)
         throws IOException {
-        writeBlob(purpose, inputStream, blobSize, failIfAlreadyExists, BlobInfo.newBuilder(bucketName, blobName).build());
+        writeBlob(
+            purpose,
+            inputStream,
+            blobSize,
+            failIfAlreadyExists,
+            applyStorageClass(BlobInfo.newBuilder(bucketName, blobName), purpose).build()
+        );
     }
 
     private void writeBlob(OperationPurpose purpose, InputStream inputStream, long blobSize, boolean failIfAlreadyExists, BlobInfo blobInfo)
@@ -363,7 +438,7 @@ class GoogleCloudStorageBlobStore implements BlobStore {
         boolean failIfAlreadyExists,
         CheckedConsumer<OutputStream, IOException> writer
     ) throws IOException {
-        final BlobInfo blobInfo = BlobInfo.newBuilder(bucketName, blobName).build();
+        final BlobInfo blobInfo = applyStorageClass(BlobInfo.newBuilder(bucketName, blobName), purpose).build();
         final Storage.BlobWriteOption[] writeOptions = failIfAlreadyExists ? NO_OVERWRITE_NO_MD5 : OVERWRITE_NO_MD5;
 
         StorageException storageException = null;
@@ -683,9 +758,11 @@ class GoogleCloudStorageBlobStore implements BlobStore {
             }
         }
 
-        final var blobInfo = BlobInfo.newBuilder(BlobId.of(bucketName, blobName, generation))
-            .setMd5(Base64.getEncoder().encodeToString(MessageDigests.digest(updated, MessageDigests.md5())))
-            .build();
+        final var blobInfo = applyStorageClass(
+            BlobInfo.newBuilder(BlobId.of(bucketName, blobName, generation))
+                .setMd5(Base64.getEncoder().encodeToString(MessageDigests.digest(updated, MessageDigests.md5()))),
+            purpose
+        ).build();
         final var bytesRef = updated.toBytesRef();
 
         final Iterator<TimeValue> retries = casBackoffPolicy.iterator();

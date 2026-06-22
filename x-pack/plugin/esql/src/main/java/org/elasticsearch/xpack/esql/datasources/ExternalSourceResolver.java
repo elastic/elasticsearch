@@ -71,7 +71,7 @@ public class ExternalSourceResolver {
 
     private static final Logger LOGGER = LogManager.getLogger(ExternalSourceResolver.class);
 
-    static final String CONFIG_SCHEMA_RESOLUTION = "schema_resolution";
+    public static final String CONFIG_SCHEMA_RESOLUTION = "schema_resolution";
 
     /**
      * Config key under which {@link DatasetRewriter} stores data-source-level settings
@@ -115,12 +115,12 @@ public class ExternalSourceResolver {
     }
 
     /**
-     * Returns a config suitable for embedding in plan nodes: removes the {@link #DATASOURCE_CONFIG_KEY}
-     * sub-map so that credential values (e.g. {@link org.elasticsearch.common.settings.SecureString})
-     * are not serialized with the plan sent to data nodes. The credentials are only needed
-     * at resolution time (handled by {@link #storageConfig}), not at execution time for local sources.
+     * Returns a config with the {@link #DATASOURCE_CONFIG_KEY} sub-map removed. Used as the fallback
+     * when serializing a plan to a data node whose transport version predates the encrypted-secret
+     * carrier (see {@code ExternalSourceExec.writeTo}): such a node cannot deserialize the carrier, so
+     * the credentials are stripped and it reverts to pre-credential-forwarding behavior.
      */
-    static Map<String, Object> planConfig(Map<String, Object> config) {
+    public static Map<String, Object> planConfig(Map<String, Object> config) {
         if (config == null || config.isEmpty() || config.containsKey(DATASOURCE_CONFIG_KEY) == false) {
             return config;
         }
@@ -133,6 +133,11 @@ public class ExternalSourceResolver {
     private final DataSourceModule dataSourceModule;
     private final Settings settings;
     private final ExternalSourceCacheService cacheService;
+
+    /** Coordinator-side accessor used by EsqlSession to reconcile data-node-captured source stats post-query. */
+    public ExternalSourceCacheService cacheService() {
+        return cacheService;
+    }
 
     public ExternalSourceResolver(Executor executor, DataSourceModule dataSourceModule) {
         this(executor, dataSourceModule, Settings.EMPTY, null);
@@ -489,10 +494,14 @@ public class ExternalSourceResolver {
             if (queryConfig != null) {
                 mergedConfig.putAll(queryConfig);
             }
-            mergedConfig.remove(DATASOURCE_CONFIG_KEY);
         } else {
-            mergedConfig = queryConfig != null ? planConfig(queryConfig) : Map.of();
+            mergedConfig = queryConfig != null ? queryConfig : Map.of();
         }
+
+        // Warm stats live in the entry's safeMetadata, reconciled there from the data-node capture
+        // (DriverCompletionInfo → ExternalSourceCacheService.reconcileSourceStats). The optimizer
+        // reads the _stats.* keys straight off this map; no separate cache lookup.
+        final Map<String, Object> finalMetadata = entry.safeMetadata();
 
         return new ExternalSourceMetadata() {
             @Override
@@ -512,7 +521,7 @@ public class ExternalSourceResolver {
 
             @Override
             public Map<String, Object> sourceMetadata() {
-                return entry.safeMetadata();
+                return finalMetadata;
             }
 
             @Override
@@ -746,14 +755,7 @@ public class ExternalSourceResolver {
         if (value == null) {
             return FormatReader.DEFAULT_SCHEMA_RESOLUTION;
         }
-        return switch (value.toString().toLowerCase(Locale.ROOT)) {
-            case "first_file_wins" -> FormatReader.SchemaResolution.FIRST_FILE_WINS;
-            case "strict" -> FormatReader.SchemaResolution.STRICT;
-            case "union_by_name" -> FormatReader.SchemaResolution.UNION_BY_NAME;
-            default -> throw new IllegalArgumentException(
-                "Unknown schema_resolution value [" + value + "]. Valid values are: first_file_wins, strict, union_by_name"
-            );
-        };
+        return FormatReader.SchemaResolution.parse(value.toString());
     }
 
     private static Map<String, Object> mergeConfigs(
@@ -761,14 +763,13 @@ public class ExternalSourceResolver {
         @Nullable Map<String, Object> queryConfig
     ) {
         if (metadataConfig == null || metadataConfig.isEmpty()) {
-            return queryConfig != null ? planConfig(queryConfig) : Map.of();
+            return queryConfig != null ? queryConfig : Map.of();
         }
         if (queryConfig == null || queryConfig.isEmpty()) {
             return metadataConfig;
         }
         Map<String, Object> merged = new HashMap<>(metadataConfig);
         merged.putAll(queryConfig);
-        merged.remove(DATASOURCE_CONFIG_KEY);
         return merged;
     }
 
@@ -991,8 +992,9 @@ public class ExternalSourceResolver {
         }
 
         // Merge the config from resolveMetadata (e.g. endpoint for Flight) with query-level params (WITH clause).
-        // Query-level params take precedence so users can override connector-resolved values.
-        // Strip _datasource from the stored config so credentials are not serialized with the plan.
+        // Query-level params take precedence so users can override connector-resolved values. _datasource is
+        // retained (carrying encrypted secrets) so it can travel to data nodes; ExternalSourceExec.writeTo
+        // gates it on the transport version and strips it for older targets.
         Map<String, Object> mergedConfig;
         Map<String, Object> metadataConfig = metadata.config();
         if (metadataConfig != null && metadataConfig.isEmpty() == false) {
@@ -1000,9 +1002,8 @@ public class ExternalSourceResolver {
             if (queryConfig != null) {
                 mergedConfig.putAll(queryConfig);
             }
-            mergedConfig.remove(DATASOURCE_CONFIG_KEY);
         } else {
-            mergedConfig = planConfig(queryConfig);
+            mergedConfig = queryConfig != null ? queryConfig : Map.of();
         }
 
         Map<String, Object> enrichedSourceMetadata = metadata.statistics()

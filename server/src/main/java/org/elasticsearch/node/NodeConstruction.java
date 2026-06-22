@@ -143,17 +143,20 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.IndicesServiceBuilder;
 import org.elasticsearch.indices.ShardLimitValidator;
 import org.elasticsearch.indices.SystemIndexMappingUpdateService;
+import org.elasticsearch.indices.SystemIndexSettingsUpdateService;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.indices.breaker.CircuitBreakerMetrics;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
+import org.elasticsearch.indices.recovery.CompositeRecoverySchedulingListener;
 import org.elasticsearch.indices.recovery.PeerRecoverySourceService;
 import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
 import org.elasticsearch.indices.recovery.RecoveryMetricsCollector;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.indices.recovery.SnapshotFilesProvider;
+import org.elasticsearch.indices.recovery.ThrottlingRecoveryService;
 import org.elasticsearch.indices.recovery.plan.PeerOnlyRecoveryPlannerService;
 import org.elasticsearch.indices.recovery.plan.RecoveryPlannerService;
 import org.elasticsearch.indices.recovery.plan.ShardSnapshotsService;
@@ -924,6 +927,13 @@ class NodeConstruction {
             }
         };
 
+        final CompositeRecoverySchedulingListener recoverySchedulingListeners = new CompositeRecoverySchedulingListener();
+        final ThrottlingRecoveryService throttlingRecoveryService = new ThrottlingRecoveryService(
+            threadPool.generic(),
+            clusterService,
+            recoverySchedulingListeners
+        );
+
         IndicesService indicesService = new IndicesServiceBuilder().settings(settings)
             .pluginsService(pluginsService)
             .nodeEnvironment(nodeEnvironment)
@@ -947,6 +957,7 @@ class NodeConstruction {
             .mergeMetrics(mergeMetrics)
             .searchOperationListeners(searchOperationListeners)
             .loggingFieldsProvider(loggingFieldsProvider)
+            .throttlingRecoveryService(throttlingRecoveryService)
             .build();
 
         final var parameters = new IndexSettingProvider.Parameters(clusterService, indicesService::createIndexMapperServiceForValidation);
@@ -1069,7 +1080,8 @@ class NodeConstruction {
             remoteTransportClient,
             crossProjectModeDecider,
             taskLifecycleManager,
-            dlmErrorStore
+            dlmErrorStore,
+            ipLocationService
         );
 
         Collection<?> pluginComponents = pluginsService.flatMap(plugin -> {
@@ -1105,7 +1117,9 @@ class NodeConstruction {
         final IncrementalBulkService incrementalBulkService = new IncrementalBulkService(
             client,
             indexingLimits,
-            telemetryProvider.getMeterRegistry()
+            telemetryProvider.getMeterRegistry(),
+            taskManager,
+            threadPool
         );
 
         final ResponseCollectorService responseCollectorService = new ResponseCollectorService(clusterService);
@@ -1177,6 +1191,7 @@ class NodeConstruction {
         if (DiscoveryNode.isMasterNode(settings)) {
             clusterService.addListener(new SystemIndexMetadataUpgradeService(systemIndices, clusterService));
             clusterService.addListener(new TemplateUpgradeService(client, clusterService, threadPool, indexTemplateMetadataUpgraders));
+            clusterService.addListener(new SystemIndexSettingsUpdateService(metadataUpdateSettingsService, systemIndices, settings));
         }
         final Transport transport = networkModule.getTransportSupplier().get();
         final TransportService transportService = serviceProvider.newTransportService(
@@ -1359,18 +1374,23 @@ class NodeConstruction {
             serviceProvider.processRecoverySettings(pluginsService, settingsModule.getClusterSettings(), recoverySettings);
             final SnapshotFilesProvider snapshotFilesProvider = new SnapshotFilesProvider(repositoriesService);
             final RecoveryMetricsCollector recoveryMetricsCollector = new RecoveryMetricsCollector(telemetryProvider);
+            recoverySchedulingListeners.addListener(recoveryMetricsCollector);
             final PeerRecoverySourceService peerRecovery = new PeerRecoverySourceService(
                 transportService,
                 indicesService,
                 clusterService,
                 recoverySettings,
                 recoveryPlannerService,
-                recoveryMetricsCollector
+                recoverySchedulingListeners
             );
+
+            resourcesToClose.add(throttlingRecoveryService);
             resourcesToClose.add(peerRecovery);
 
-            b.bind(PeerRecoverySourceService.class).toInstance(peerRecovery);
             b.bind(RecoveryMetricsCollector.class).toInstance(recoveryMetricsCollector);
+            b.bind(CompositeRecoverySchedulingListener.class).toInstance(recoverySchedulingListeners);
+            b.bind(ThrottlingRecoveryService.class).toInstance(throttlingRecoveryService);
+            b.bind(PeerRecoverySourceService.class).toInstance(peerRecovery);
             b.bind(PeerRecoveryTargetService.class)
                 .toInstance(
                     new PeerRecoveryTargetService(

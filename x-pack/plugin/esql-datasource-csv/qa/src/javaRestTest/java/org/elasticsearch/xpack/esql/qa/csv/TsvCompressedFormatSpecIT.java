@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.esql.qa.rest.AbstractExternalSourceSpecTestCase;
 import org.junit.ClassRule;
 
 import java.util.List;
+import java.util.Set;
 
 /**
  * Parameterized integration tests for compressed TSV files (.tsv.gz, .tsv.zst, .tsv.zstd, .tsv.bz2, .tsv.bz).
@@ -49,13 +50,25 @@ public class TsvCompressedFormatSpecIT extends AbstractExternalSourceSpecTestCas
         return cluster.getHttpAddresses();
     }
 
+    // Migrated specs run via FROM <dataset> on S3 (the anonymous-capable fixture backs a dataset without
+    // a cluster encryption key) and via the rebuilt EXTERNAL query on the other backends, so none are skipped.
+    @Override
+    protected Set<StorageBackend> datasetModeBackends() {
+        return Set.of(StorageBackend.S3);
+    }
+
     @ParametersFactory(argumentFormatting = "csv-spec:%2$s.%3$s [%7$s/%8$s]")
     public static List<Object[]> readScriptSpec() throws Exception {
+        // external-basic's multi-value queries assume brackets parsing, no longer the default. Use the
+        // scalar twin (csv-basic); the multifile specs project only scalar columns, so they parse under
+        // the default for TSV (tab delimiter — no misalignment). tsv-multivalue covers the explicit
+        // brackets opt-in on bracket data plus the literal-string read under the new default.
         return readExternalSpecTestsWithFormats(
             COMPRESSED_FORMATS,
-            "/external-basic.csv-spec",
+            "/csv-basic.csv-spec",
             "/external-multifile.csv-spec",
-            "/external-multifile-resolution.csv-spec"
+            "/external-multifile-resolution.csv-spec",
+            "/tsv-multivalue.csv-spec"
         );
     }
 }

@@ -12,11 +12,12 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.TestPlainActionFuture;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.Strings;
@@ -54,6 +55,7 @@ import org.elasticsearch.xpack.inference.services.googlevertexai.embeddings.Goog
 import org.elasticsearch.xpack.inference.services.googlevertexai.embeddings.GoogleVertexAiEmbeddingsServiceSettings;
 import org.elasticsearch.xpack.inference.services.googlevertexai.embeddings.GoogleVertexAiEmbeddingsTaskSettings;
 import org.junit.Before;
+import org.mockito.ArgumentCaptor;
 import org.mockito.stubbing.Answer;
 
 import java.util.HashMap;
@@ -70,7 +72,6 @@ import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.ArgumentMatchers.same;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
@@ -82,12 +83,14 @@ import static org.mockito.Mockito.when;
 public class TransportUpdateInferenceModelActionTests extends ESTestCase {
 
     private static final String INFERENCE_ENTITY_ID_VALUE = "some_inference_entity_id";
+    private static final String DEFAULT_INFERENCE_ENTITY_ID_VALUE = ".some_default_inference_entity_id";
     private static final String LOCATION_INITIAL_VALUE = "some_location";
     private static final String PROJECT_ID_INITIAL_VALUE = "some_project";
     private static final String MODEL_ID_INITIAL_VALUE = "some_model";
     private static final String SERVICE_ACCOUNT_JSON_INITIAL_VALUE = "some_service_account";
     private static final String SERVICE_NAME_VALUE = "some_service_name";
     private static final int MAX_BATCH_SIZE_INITIAL_VALUE = 2;
+    private static final int MAX_BATCH_SIZE_UPDATED_VALUE = 16;
     private static final InputType INPUT_TYPE_INITIAL_VALUE = InputType.SEARCH;
     private static final Boolean AUTO_TRUNCATE_INITIAL_VALUE = Boolean.FALSE;
     private static final String SERVICE_SETTINGS_KEY = "some_service_key";
@@ -98,6 +101,26 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
     private static final String SECRET_SETTINGS_VALUE = "some_secret_value";
     private static final int NEW_CHUNK_SIZE_VALUE = 100;
     private static final int NEW_OVERLAP_VALUE = 25;
+    private static final String UNKNOWN_SETTING_KEY = "unknown_setting";
+    private static final String UNKNOWN_SETTING_VALUE = "unknown_value";
+    private static final String ENDPOINT_DOES_NOT_EXIST_ERROR_PATTERN = "The inference endpoint [%s] does not exist and cannot be updated";
+    private static final String DEFAULT_UPDATE_REQUEST_BODY = buildDefaultUpdateRequestBody();
+
+    private static String buildDefaultUpdateRequestBody() {
+        return Strings.format("""
+            {
+                "task_type": "text_embedding",
+                "service_settings": {
+                    "service_account_json": "some_new_service_account",
+                    "max_batch_size": %d
+                },
+                "task_settings": {
+                    "input_type": "ingest",
+                    "auto_truncate": true
+                }
+            }
+            """, MAX_BATCH_SIZE_UPDATED_VALUE);
+    }
 
     private MockLicenseState licenseState;
     private TransportUpdateInferenceModelAction action;
@@ -113,6 +136,13 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
         licenseState = MockLicenseState.createMock();
         service = mock(InferenceService.class);
         when(service.name()).thenReturn(SERVICE_NAME_VALUE);
+        // Mockito doesn't invoke interface default methods; stub onModelUpdated to call the listener
+        // so the post-persist hook in TransportUpdateInferenceModelAction completes the chain.
+        doAnswer(invocation -> {
+            ActionListener<Void> listener = invocation.getArgument(2);
+            listener.onResponse(null);
+            return null;
+        }).when(service).onModelUpdated(any(), any(), any());
         action = new TransportUpdateInferenceModelAction(
             mock(TransportService.class),
             mock(ClusterService.class),
@@ -129,13 +159,10 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
     public void testMasterOperation_ResourceNotFoundExceptionThrown_ThrowsElasticsearchStatusException() {
         mockGetModelWithSecretsToFailWithException(new ResourceNotFoundException("Model not found"));
 
-        var listener = callMasterOperationWithActionFuture();
+        var listener = callMasterOperation(INFERENCE_ENTITY_ID_VALUE, DEFAULT_UPDATE_REQUEST_BODY);
 
         var exception = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT));
-        assertThat(
-            exception.getMessage(),
-            is(Strings.format("The inference endpoint [%s] does not exist and cannot be updated", INFERENCE_ENTITY_ID_VALUE))
-        );
+        assertThat(exception.getMessage(), is(Strings.format(ENDPOINT_DOES_NOT_EXIST_ERROR_PATTERN, INFERENCE_ENTITY_ID_VALUE)));
         verifyNoModelRegistryMutations();
     }
 
@@ -143,7 +170,7 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
         var simulatedException = new RuntimeException("Model not found");
         mockGetModelWithSecretsToFailWithException(simulatedException);
 
-        var listener = callMasterOperationWithActionFuture();
+        var listener = callMasterOperation(INFERENCE_ENTITY_ID_VALUE, DEFAULT_UPDATE_REQUEST_BODY);
 
         var actualException = expectThrows(RuntimeException.class, () -> listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT));
         assertThat(actualException, sameInstance(simulatedException));
@@ -151,41 +178,57 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
     }
 
     public void testMasterOperation_NullReturned_ThrowsElasticsearchStatusException() {
-        mockGetModelWithSecretsToReturnUnparsedModel(null);
+        mockGetModelWithSecretsToReturnUnparsedModel(null, INFERENCE_ENTITY_ID_VALUE);
 
-        var listener = callMasterOperationWithActionFuture();
+        var listener = callMasterOperation(INFERENCE_ENTITY_ID_VALUE, DEFAULT_UPDATE_REQUEST_BODY);
 
         var exception = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT));
-        assertThat(
-            exception.getMessage(),
-            is(Strings.format("The inference endpoint [%s] does not exist and cannot be updated", INFERENCE_ENTITY_ID_VALUE))
-        );
+        assertThat(exception.getMessage(), is(Strings.format(ENDPOINT_DOES_NOT_EXIST_ERROR_PATTERN, INFERENCE_ENTITY_ID_VALUE)));
         verifyNoModelRegistryMutations();
     }
 
     public void testMasterOperation_ServiceNotFoundInRegistry_ThrowsElasticsearchStatusException() {
         mockGetModelWithSecretsToReturnUnparsedModel(
-            new UnparsedModel(INFERENCE_ENTITY_ID_VALUE, TaskType.TEXT_EMBEDDING, SERVICE_NAME_VALUE, Map.of(), Map.of())
+            new UnparsedModel(INFERENCE_ENTITY_ID_VALUE, TaskType.TEXT_EMBEDDING, SERVICE_NAME_VALUE, Map.of(), Map.of()),
+            INFERENCE_ENTITY_ID_VALUE
         );
 
         mockServiceRegistryToReturnService(null);
-        var listener = callMasterOperationWithActionFuture();
+        var listener = callMasterOperation(INFERENCE_ENTITY_ID_VALUE, DEFAULT_UPDATE_REQUEST_BODY);
 
         var exception = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT));
         assertThat(exception.getMessage(), is(Strings.format("Service [%s] not found", SERVICE_NAME_VALUE)));
         verifyNoModelRegistryMutations();
     }
 
+    public void testMasterOperation_DefaultEndpointCheckFailed_ThrowsElasticsearchStatusException() {
+        mockGetModelWithSecretsToReturnUnparsedModel(
+            new UnparsedModel(DEFAULT_INFERENCE_ENTITY_ID_VALUE, TaskType.TEXT_EMBEDDING, SERVICE_NAME_VALUE, Map.of(), Map.of()),
+            DEFAULT_INFERENCE_ENTITY_ID_VALUE
+        );
+        mockServiceRegistryToReturnService(service);
+
+        var listener = callMasterOperation(DEFAULT_INFERENCE_ENTITY_ID_VALUE, DEFAULT_UPDATE_REQUEST_BODY);
+
+        var exception = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT));
+        assertThat(
+            exception.getMessage(),
+            is(Strings.format("Default endpoint [%s] cannot be updated", DEFAULT_INFERENCE_ENTITY_ID_VALUE))
+        );
+        verifyNoModelRegistryMutations();
+    }
+
     public void testMasterOperation_LicenseCheckFailed_ThrowsSecurityException() {
         mockGetModelWithSecretsToReturnUnparsedModel(
-            new UnparsedModel(INFERENCE_ENTITY_ID_VALUE, TaskType.TEXT_EMBEDDING, SERVICE_NAME_VALUE, Map.of(), Map.of())
+            new UnparsedModel(INFERENCE_ENTITY_ID_VALUE, TaskType.TEXT_EMBEDDING, SERVICE_NAME_VALUE, Map.of(), Map.of()),
+            INFERENCE_ENTITY_ID_VALUE
         );
         mockServiceRegistryToReturnService(service);
 
         // return false for license check, so the action fails before any other processing
         mockLicenseStateIsAllowed(false);
 
-        var listener = callMasterOperationWithActionFuture();
+        var listener = callMasterOperation(INFERENCE_ENTITY_ID_VALUE, DEFAULT_UPDATE_REQUEST_BODY);
 
         var exception = expectThrows(ElasticsearchSecurityException.class, () -> listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT));
         assertThat(exception.getMessage(), is("current license is non-compliant for [inference]"));
@@ -194,7 +237,8 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
 
     public void testMasterOperation_ValidationFailed_ThrowsElasticsearchStatusException() {
         mockGetModelWithSecretsToReturnUnparsedModel(
-            new UnparsedModel(INFERENCE_ENTITY_ID_VALUE, TaskType.TEXT_EMBEDDING, SERVICE_NAME_VALUE, Map.of(), Map.of())
+            new UnparsedModel(INFERENCE_ENTITY_ID_VALUE, TaskType.TEXT_EMBEDDING, SERVICE_NAME_VALUE, Map.of(), Map.of()),
+            INFERENCE_ENTITY_ID_VALUE
         );
         mockServiceRegistryToReturnService(service);
         mockLicenseStateIsAllowed(true);
@@ -202,15 +246,12 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
         mockBuildModelFromConfigAndSecretsToReturnNewModel();
 
         doAnswer(invocationOnMock -> {
-            ActionListener<InferenceServiceResults> listener = invocationOnMock.getArgument(9);
+            ActionListener<InferenceServiceResults> listener = invocationOnMock.getArgument(6);
             listener.onFailure(new RuntimeException("validation failed"));
             return Void.TYPE;
         }).when(service)
             .infer(
                 any(GoogleVertexAiEmbeddingsModel.class),
-                isNull(),
-                isNull(),
-                isNull(),
                 anyList(),
                 anyBoolean(),
                 anyMap(),
@@ -219,7 +260,7 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
                 any()
             );
 
-        var listener = callMasterOperationWithActionFuture();
+        var listener = callMasterOperation(INFERENCE_ENTITY_ID_VALUE, DEFAULT_UPDATE_REQUEST_BODY);
 
         var exception = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT));
         assertThat(
@@ -231,7 +272,7 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
 
     public void testMasterOperation_UpdatedModelIsEqualToExistingModel_ValidationAndUpdateIsSkipped() {
         var unparsedModel = new UnparsedModel(INFERENCE_ENTITY_ID_VALUE, TaskType.TEXT_EMBEDDING, SERVICE_NAME_VALUE, Map.of(), Map.of());
-        mockGetModelWithSecretsToReturnUnparsedModel(unparsedModel);
+        mockGetModelWithSecretsToReturnUnparsedModel(unparsedModel, INFERENCE_ENTITY_ID_VALUE);
         mockServiceRegistryToReturnService(service);
         mockLicenseStateIsAllowed(true);
         GoogleVertexAiEmbeddingsModel model = createModel();
@@ -240,16 +281,19 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
         mockModelRegistryGetModelToReturnUnparsedModel(unparsedModel);
         when(service.parsePersistedConfig(unparsedModel)).thenReturn(model);
 
-        var listener = callMasterOperationWithActionFuture();
+        var listener = callMasterOperation(INFERENCE_ENTITY_ID_VALUE, DEFAULT_UPDATE_REQUEST_BODY);
 
         var response = listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT);
         assertThat(response.getModel(), is(model.getConfigurations()));
         verifyNoModelRegistryMutations();
+        // The refs are only set on a real update; on a no-op the hook must never be invoked.
+        verify(service, never()).onModelUpdated(any(), any(), any());
     }
 
     public void testMasterOperation_UpdateModelTransactionFailedDueToRuntimeException_ThrowsSameException() {
         mockGetModelWithSecretsToReturnUnparsedModel(
-            new UnparsedModel(INFERENCE_ENTITY_ID_VALUE, TaskType.TEXT_EMBEDDING, SERVICE_NAME_VALUE, Map.of(), Map.of())
+            new UnparsedModel(INFERENCE_ENTITY_ID_VALUE, TaskType.TEXT_EMBEDDING, SERVICE_NAME_VALUE, Map.of(), Map.of()),
+            INFERENCE_ENTITY_ID_VALUE
         );
         mockServiceRegistryToReturnService(service);
         mockLicenseStateIsAllowed(true);
@@ -266,7 +310,7 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
             return Void.TYPE;
         }).when(mockModelRegistry).updateModelTransaction(any(GoogleVertexAiEmbeddingsModel.class), eq(model), any());
 
-        var listener = callMasterOperationWithActionFuture();
+        var listener = callMasterOperation(INFERENCE_ENTITY_ID_VALUE, DEFAULT_UPDATE_REQUEST_BODY);
 
         var actualException = expectThrows(RuntimeException.class, () -> listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT));
         assertThat(actualException, sameInstance(simulatedException));
@@ -275,7 +319,8 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
 
     public void testMasterOperation_UpdateModelTransactionReturnedFalse_ThrowsElasticsearchStatusException() {
         mockGetModelWithSecretsToReturnUnparsedModel(
-            new UnparsedModel(INFERENCE_ENTITY_ID_VALUE, TaskType.TEXT_EMBEDDING, SERVICE_NAME_VALUE, Map.of(), Map.of())
+            new UnparsedModel(INFERENCE_ENTITY_ID_VALUE, TaskType.TEXT_EMBEDDING, SERVICE_NAME_VALUE, Map.of(), Map.of()),
+            INFERENCE_ENTITY_ID_VALUE
         );
         mockServiceRegistryToReturnService(service);
         mockLicenseStateIsAllowed(true);
@@ -287,7 +332,7 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
 
         mockUpdateModelTransactionToReturnBoolean(false, model);
 
-        var listener = callMasterOperationWithActionFuture();
+        var listener = callMasterOperation(INFERENCE_ENTITY_ID_VALUE, DEFAULT_UPDATE_REQUEST_BODY);
 
         var exception = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT));
         assertThat(exception.getMessage(), is("Failed to update model"));
@@ -296,7 +341,8 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
 
     public void testMasterOperation_GetModelReturnedNull_ThrowsElasticsearchStatusException() {
         mockGetModelWithSecretsToReturnUnparsedModel(
-            new UnparsedModel(INFERENCE_ENTITY_ID_VALUE, TaskType.TEXT_EMBEDDING, SERVICE_NAME_VALUE, Map.of(), Map.of())
+            new UnparsedModel(INFERENCE_ENTITY_ID_VALUE, TaskType.TEXT_EMBEDDING, SERVICE_NAME_VALUE, Map.of(), Map.of()),
+            INFERENCE_ENTITY_ID_VALUE
         );
         mockServiceRegistryToReturnService(service);
         mockLicenseStateIsAllowed(true);
@@ -309,7 +355,7 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
 
         mockModelRegistryGetModelToReturnUnparsedModel(null);
 
-        var listener = callMasterOperationWithActionFuture();
+        var listener = callMasterOperation(INFERENCE_ENTITY_ID_VALUE, DEFAULT_UPDATE_REQUEST_BODY);
 
         var exception = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT));
         assertThat(exception.getMessage(), is("Failed to update model, updated model not found"));
@@ -318,7 +364,8 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
 
     public void testMasterOperation_GetModelThrownException_ThrowsSameException() {
         mockGetModelWithSecretsToReturnUnparsedModel(
-            new UnparsedModel(INFERENCE_ENTITY_ID_VALUE, TaskType.TEXT_EMBEDDING, SERVICE_NAME_VALUE, Map.of(), Map.of())
+            new UnparsedModel(INFERENCE_ENTITY_ID_VALUE, TaskType.TEXT_EMBEDDING, SERVICE_NAME_VALUE, Map.of(), Map.of()),
+            INFERENCE_ENTITY_ID_VALUE
         );
         mockServiceRegistryToReturnService(service);
         mockLicenseStateIsAllowed(true);
@@ -336,16 +383,154 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
             return Void.TYPE;
         }).when(mockModelRegistry).getModel(eq(INFERENCE_ENTITY_ID_VALUE), any());
 
-        var listener = callMasterOperationWithActionFuture();
+        var listener = callMasterOperation(INFERENCE_ENTITY_ID_VALUE, DEFAULT_UPDATE_REQUEST_BODY);
 
         var actualException = expectThrows(RuntimeException.class, () -> listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT));
         assertThat(actualException, sameInstance(simulatedException));
         verifyModelRegistryUpdateInvoked();
     }
 
+    public void testMasterOperation_UnknownServiceSetting_ThrowsBadRequest() {
+        assertMasterOperation_UnknownSetting_ThrowsBadRequest("""
+            {
+                "service_settings": {
+                    "unknown_setting": "unknown_value"
+                }
+            }
+            """);
+    }
+
+    public void testMasterOperation_UnknownServiceSetting_ThrowsWhenParserUsedForServiceSettings() {
+        when(service.usesParserForServiceSettings()).thenReturn(true);
+        var serviceSettings = mock(ServiceSettings.class);
+        var parserException = new ElasticsearchStatusException(
+            Strings.format("unknown field [%s]", UNKNOWN_SETTING_KEY),
+            RestStatus.BAD_REQUEST
+        );
+        when(serviceSettings.updateServiceSettings(anyMap())).thenThrow(parserException);
+        var model = createMockedModel(serviceSettings, mock(TaskSettings.class), null, null);
+
+        mockGetModelWithSecretsToReturnUnparsedModel(
+            new UnparsedModel(INFERENCE_ENTITY_ID_VALUE, TaskType.TEXT_EMBEDDING, SERVICE_NAME_VALUE, Map.of(), Map.of()),
+            INFERENCE_ENTITY_ID_VALUE
+        );
+        mockServiceRegistryToReturnService(service);
+        mockLicenseStateIsAllowed(true);
+        when(service.parsePersistedConfig(any(UnparsedModel.class))).thenReturn(model);
+
+        var listener = callMasterOperation(INFERENCE_ENTITY_ID_VALUE, """
+            {
+                "service_settings": {
+                    "unknown_setting": "unknown_value"
+                }
+            }
+            """);
+
+        var exception = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT));
+        assertThat(exception, sameInstance(parserException));
+        verifyNoModelRegistryMutations();
+    }
+
+    public void testMasterOperation_UnknownTaskSetting_ThrowsBadRequest() {
+        assertMasterOperation_UnknownSetting_ThrowsBadRequest("""
+            {
+                "task_settings": {
+                    "unknown_setting": "unknown_value"
+                }
+            }
+            """);
+    }
+
+    private void assertMasterOperation_UnknownSetting_ThrowsBadRequest(String requestBody) {
+        mockGetModelWithSecretsToReturnUnparsedModel(
+            new UnparsedModel(INFERENCE_ENTITY_ID_VALUE, TaskType.TEXT_EMBEDDING, SERVICE_NAME_VALUE, Map.of(), Map.of()),
+            INFERENCE_ENTITY_ID_VALUE
+        );
+        mockServiceRegistryToReturnService(service);
+        mockLicenseStateIsAllowed(true);
+        mockParsePersistedConfigWithSecretsToReturnModel(createModel());
+
+        var listener = callMasterOperation(INFERENCE_ENTITY_ID_VALUE, requestBody);
+
+        var exception = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT));
+        assertThat(exception.status(), is(RestStatus.BAD_REQUEST));
+        assertThat(
+            exception.getMessage(),
+            is(
+                Strings.format(
+                    "Configuration contains settings [{%s=%s}] unknown to the [%s] service",
+                    UNKNOWN_SETTING_KEY,
+                    UNKNOWN_SETTING_VALUE,
+                    SERVICE_NAME_VALUE
+                )
+            )
+        );
+        verifyNoModelRegistryMutations();
+    }
+
+    public void testMasterOperation_UnknownTaskSetting_ThrowsWhenParserUsedForTaskSettings() {
+        when(service.usesParserForTaskSettings()).thenReturn(true);
+        var taskSettings = mock(TaskSettings.class);
+        var parserException = new ElasticsearchStatusException(
+            Strings.format("unknown field [%s]", UNKNOWN_SETTING_KEY),
+            RestStatus.BAD_REQUEST
+        );
+        when(taskSettings.updatedTaskSettings(anyMap())).thenThrow(parserException);
+        var model = createMockedModel(mock(ServiceSettings.class), taskSettings, null, null);
+
+        mockGetModelWithSecretsToReturnUnparsedModel(
+            new UnparsedModel(INFERENCE_ENTITY_ID_VALUE, TaskType.TEXT_EMBEDDING, SERVICE_NAME_VALUE, Map.of(), Map.of()),
+            INFERENCE_ENTITY_ID_VALUE
+        );
+        mockServiceRegistryToReturnService(service);
+        mockLicenseStateIsAllowed(true);
+        when(service.parsePersistedConfig(any(UnparsedModel.class))).thenReturn(model);
+
+        var listener = callMasterOperation(INFERENCE_ENTITY_ID_VALUE, """
+            {
+                "task_settings": {
+                    "unknown_setting": "unknown_value"
+                }
+            }
+            """);
+
+        var exception = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT));
+        assertThat(exception, sameInstance(parserException));
+        verifyNoModelRegistryMutations();
+    }
+
+    public void testMasterOperation_UnknownChunkingSetting_ThrowsBadRequest() {
+        mockGetModelWithSecretsToReturnUnparsedModel(
+            new UnparsedModel(INFERENCE_ENTITY_ID_VALUE, TaskType.TEXT_EMBEDDING, SERVICE_NAME_VALUE, Map.of(), Map.of()),
+            INFERENCE_ENTITY_ID_VALUE
+        );
+        mockServiceRegistryToReturnService(service);
+        mockLicenseStateIsAllowed(true);
+        mockParsePersistedConfigWithSecretsToReturnModel(createModel());
+
+        var listener = callMasterOperation(INFERENCE_ENTITY_ID_VALUE, """
+            {
+                "chunking_settings": {
+                    "strategy": "sentence",
+                    "max_chunk_size": 20,
+                    "sentence_overlap": 0,
+                    "unknown_setting": "unknown_value"
+                }
+            }
+            """);
+
+        var exception = expectThrows(ValidationException.class, () -> listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT));
+        assertThat(exception.validationErrors().size(), is(1));
+        assertThat(
+            exception.validationErrors().getFirst(),
+            is("Sentence based chunking settings can not have the following settings: [unknown_setting]")
+        );
+        verifyNoModelRegistryMutations();
+    }
+
     public void testMasterOperation_UpdatesModelSettingsSuccessfully() {
         var unparsedModel = new UnparsedModel(INFERENCE_ENTITY_ID_VALUE, TaskType.TEXT_EMBEDDING, SERVICE_NAME_VALUE, Map.of(), Map.of());
-        mockGetModelWithSecretsToReturnUnparsedModel(unparsedModel);
+        mockGetModelWithSecretsToReturnUnparsedModel(unparsedModel, INFERENCE_ENTITY_ID_VALUE);
         mockServiceRegistryToReturnService(service);
         mockLicenseStateIsAllowed(true);
         var model = createModel();
@@ -357,13 +542,81 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
         mockModelRegistryGetModelToReturnUnparsedModel(unparsedModel);
         when(service.parsePersistedConfig(unparsedModel)).thenReturn(model);
 
-        var listener = callMasterOperationWithActionFuture();
+        var listener = callMasterOperation(INFERENCE_ENTITY_ID_VALUE, DEFAULT_UPDATE_REQUEST_BODY);
         var response = listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT);
         assertThat(response.getModel(), is(model.getConfigurations()));
         verifyModelRegistryUpdateInvoked();
     }
 
+    public void testMasterOperation_SuccessfulUpdate_InvokesOnModelUpdatedWithExistingAndMergedModels() {
+        var unparsedModel = new UnparsedModel(INFERENCE_ENTITY_ID_VALUE, TaskType.TEXT_EMBEDDING, SERVICE_NAME_VALUE, Map.of(), Map.of());
+        mockGetModelWithSecretsToReturnUnparsedModel(unparsedModel, INFERENCE_ENTITY_ID_VALUE);
+        mockServiceRegistryToReturnService(service);
+        mockLicenseStateIsAllowed(true);
+
+        // existingModel and mergedModel must be distinct instances so that the update path is taken
+        // (equals() returning false prevents the no-op early-return at lines 164-168).
+        var existingModel = createModel(MAX_BATCH_SIZE_INITIAL_VALUE);
+        var mergedModel = createModel(MAX_BATCH_SIZE_UPDATED_VALUE);
+        mockParsePersistedConfigWithSecretsToReturnModel(existingModel);
+        when(service.buildModelFromConfigAndSecrets(any(ModelConfigurations.class), any(ModelSecrets.class))).thenReturn(mergedModel);
+        mockServiceInferCallToReturnDenseEmbeddingFloatResults();
+        // Embedding-details update returns its argument unchanged, so the persisted model stays mergedModel.
+        when(service.updateModelWithEmbeddingDetails(any(GoogleVertexAiEmbeddingsModel.class), eq(3))).thenAnswer(
+            invocationOnMock -> invocationOnMock.getArgument(0)
+        );
+        mockUpdateModelTransactionToReturnBoolean(true, existingModel);
+        mockModelRegistryGetModelToReturnUnparsedModel(unparsedModel);
+        when(service.parsePersistedConfig(unparsedModel)).thenReturn(existingModel);
+
+        var listener = callMasterOperation(INFERENCE_ENTITY_ID_VALUE, DEFAULT_UPDATE_REQUEST_BODY);
+        var response = listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT);
+        assertThat(response.getModel(), is(existingModel.getConfigurations()));
+        verifyModelRegistryUpdateInvoked();
+
+        // The hook must be invoked with exactly (existingModel, mergedModel).
+        var oldCaptor = ArgumentCaptor.forClass(Model.class);
+        var newCaptor = ArgumentCaptor.forClass(Model.class);
+        verify(service).onModelUpdated(oldCaptor.capture(), newCaptor.capture(), any());
+        assertThat(oldCaptor.getValue(), sameInstance(existingModel));
+        assertThat(newCaptor.getValue(), sameInstance(mergedModel));
+    }
+
+    public void testMasterOperation_OnModelUpdatedFails_PropagatesExceptionAndSkipsGetModel() {
+        var unparsedModel = new UnparsedModel(INFERENCE_ENTITY_ID_VALUE, TaskType.TEXT_EMBEDDING, SERVICE_NAME_VALUE, Map.of(), Map.of());
+        mockGetModelWithSecretsToReturnUnparsedModel(unparsedModel, INFERENCE_ENTITY_ID_VALUE);
+        mockServiceRegistryToReturnService(service);
+        mockLicenseStateIsAllowed(true);
+        var model = createModel();
+        mockParsePersistedConfigWithSecretsToReturnModel(model);
+        mockBuildModelFromConfigAndSecretsToReturnNewModel();
+        mockServiceInferCallToReturnDenseEmbeddingFloatResults();
+        mockUpdateModelWithEmbeddingDetailsToReturnSameModel();
+        mockUpdateModelTransactionToReturnBoolean(true, model);
+
+        // Override the @Before no-op stub to simulate a cache-invalidation failure.
+        var simulatedException = new RuntimeException("cache invalidation failed");
+        doAnswer(invocation -> {
+            ActionListener<Void> hookListener = invocation.getArgument(2);
+            hookListener.onFailure(simulatedException);
+            return null;
+        }).when(service).onModelUpdated(any(), any(), any());
+
+        var listener = callMasterOperation(INFERENCE_ENTITY_ID_VALUE, DEFAULT_UPDATE_REQUEST_BODY);
+
+        var actualException = expectThrows(RuntimeException.class, () -> listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT));
+        assertThat(actualException, sameInstance(simulatedException));
+        // The persist step ran before the hook, so the registry update must have been invoked.
+        verifyModelRegistryUpdateInvoked();
+        // The failure must short-circuit the chain: the re-fetch stage must never run.
+        verify(mockModelRegistry, never()).getModel(eq(INFERENCE_ENTITY_ID_VALUE), any());
+    }
+
     private static GoogleVertexAiEmbeddingsModel createModel() {
+        return createModel(MAX_BATCH_SIZE_INITIAL_VALUE);
+    }
+
+    private static GoogleVertexAiEmbeddingsModel createModel(int maxBatchSize) {
         return new GoogleVertexAiEmbeddingsModel(
             INFERENCE_ENTITY_ID_VALUE,
             TaskType.TEXT_EMBEDDING,
@@ -375,7 +628,7 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
                 Boolean.FALSE,
                 null,
                 null,
-                MAX_BATCH_SIZE_INITIAL_VALUE,
+                maxBatchSize,
                 null,
                 null
             ),
@@ -393,12 +646,12 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
         }).when(mockModelRegistry).getModelWithSecrets(eq(INFERENCE_ENTITY_ID_VALUE), any());
     }
 
-    private void mockGetModelWithSecretsToReturnUnparsedModel(UnparsedModel result) {
+    private void mockGetModelWithSecretsToReturnUnparsedModel(UnparsedModel result, String inferenceEntityId) {
         doAnswer(invocationOnMock -> {
             ActionListener<UnparsedModel> listener = invocationOnMock.getArgument(1);
             listener.onResponse(result);
             return Void.TYPE;
-        }).when(mockModelRegistry).getModelWithSecrets(eq(INFERENCE_ENTITY_ID_VALUE), any());
+        }).when(mockModelRegistry).getModelWithSecrets(eq(inferenceEntityId), any());
     }
 
     private void mockLicenseStateIsAllowed(boolean value) {
@@ -429,7 +682,7 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
 
     private void mockServiceInferCallToReturnDenseEmbeddingFloatResults() {
         doAnswer(invocationOnMock -> {
-            ActionListener<InferenceServiceResults> listener = invocationOnMock.getArgument(9);
+            ActionListener<InferenceServiceResults> listener = invocationOnMock.getArgument(6);
             listener.onResponse(
                 new DenseEmbeddingFloatResults(List.of(new EmbeddingFloatResults.Embedding(new float[] { 1.0f, 2.0f, 3.0f })))
             );
@@ -437,9 +690,6 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
         }).when(service)
             .infer(
                 any(GoogleVertexAiEmbeddingsModel.class),
-                isNull(),
-                isNull(),
-                isNull(),
                 anyList(),
                 anyBoolean(),
                 anyMap(),
@@ -481,26 +731,13 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
         }).when(mockModelRegistry).getModel(eq(INFERENCE_ENTITY_ID_VALUE), any());
     }
 
-    private PlainActionFuture<UpdateInferenceModelAction.Response> callMasterOperationWithActionFuture() {
-        var listener = new PlainActionFuture<UpdateInferenceModelAction.Response>();
-
-        var requestBody = """
-            {
-                "task_type": "text_embedding",
-                "service_settings": {
-                    "service_account_json": "some_new_service_account",
-                    "max_batch_size": 16
-                },
-                "task_settings": {
-                    "input_type": "ingest",
-                    "auto_truncate": true
-                }
-            }""";
+    private TestPlainActionFuture<UpdateInferenceModelAction.Response> callMasterOperation(String inferenceEntityId, String requestBody) {
+        var listener = new TestPlainActionFuture<UpdateInferenceModelAction.Response>();
 
         action.masterOperation(
             mock(Task.class),
             new UpdateInferenceModelAction.Request(
-                INFERENCE_ENTITY_ID_VALUE,
+                inferenceEntityId,
                 new BytesArray(requestBody),
                 XContentType.JSON,
                 TaskType.TEXT_EMBEDDING,
@@ -510,6 +747,85 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
             listener
         );
         return listener;
+    }
+
+    public void testValidateConsumedUpdateSettings_NullMaps_DoesNotThrow() {
+        TransportUpdateInferenceModelAction.validateConsumedUpdateSettings(service, SERVICE_NAME_VALUE, null, null);
+    }
+
+    public void testValidateConsumedUpdateSettings_EmptyMaps_DoesNotThrow() {
+        TransportUpdateInferenceModelAction.validateConsumedUpdateSettings(service, SERVICE_NAME_VALUE, new HashMap<>(), new HashMap<>());
+    }
+
+    public void testValidateConsumedUpdateSettings_UnknownServiceSetting_ThrowsWhenParserNotUsed() {
+        var serviceSettings = new HashMap<String, Object>();
+        serviceSettings.put(UNKNOWN_SETTING_KEY, UNKNOWN_SETTING_VALUE);
+
+        var exception = expectThrows(
+            ElasticsearchStatusException.class,
+            () -> TransportUpdateInferenceModelAction.validateConsumedUpdateSettings(service, SERVICE_NAME_VALUE, serviceSettings, null)
+        );
+
+        assertThat(exception.status(), is(RestStatus.BAD_REQUEST));
+        assertThat(
+            exception.getMessage(),
+            is(
+                Strings.format(
+                    "Configuration contains settings [{%s=%s}] unknown to the [%s] service",
+                    UNKNOWN_SETTING_KEY,
+                    UNKNOWN_SETTING_VALUE,
+                    SERVICE_NAME_VALUE
+                )
+            )
+        );
+    }
+
+    /**
+     * Parser-based services do not remove service settings keys from the request map, so this method must not require an
+     * empty map. Unknown fields are rejected later by the service settings parser in {@link ServiceSettings#updateServiceSettings}.
+     */
+    public void testValidateConsumedUpdateSettings_DoesNotEnforceServiceSettingsMapEmptyWhenParserUsed() {
+        when(service.usesParserForServiceSettings()).thenReturn(true);
+        var serviceSettings = new HashMap<String, Object>();
+        serviceSettings.put(UNKNOWN_SETTING_KEY, UNKNOWN_SETTING_VALUE);
+
+        TransportUpdateInferenceModelAction.validateConsumedUpdateSettings(service, SERVICE_NAME_VALUE, serviceSettings, null);
+    }
+
+    public void testValidateConsumedUpdateSettings_UnknownTaskSetting_ThrowsWhenParserNotUsed() {
+        when(service.usesParserForTaskSettings()).thenReturn(false);
+        var taskSettings = new HashMap<String, Object>();
+        taskSettings.put(UNKNOWN_SETTING_KEY, UNKNOWN_SETTING_VALUE);
+
+        var exception = expectThrows(
+            ElasticsearchStatusException.class,
+            () -> TransportUpdateInferenceModelAction.validateConsumedUpdateSettings(service, SERVICE_NAME_VALUE, null, taskSettings)
+        );
+
+        assertThat(exception.status(), is(RestStatus.BAD_REQUEST));
+        assertThat(
+            exception.getMessage(),
+            is(
+                Strings.format(
+                    "Configuration contains settings [{%s=%s}] unknown to the [%s] service",
+                    UNKNOWN_SETTING_KEY,
+                    UNKNOWN_SETTING_VALUE,
+                    SERVICE_NAME_VALUE
+                )
+            )
+        );
+    }
+
+    /**
+     * Parser-based services do not remove task settings keys from the request map, so this method must not require an
+     * empty map. Unknown fields are rejected later by the task settings parser in {@link TaskSettings#updatedTaskSettings}.
+     */
+    public void testValidateConsumedUpdateSettings_DoesNotEnforceTaskSettingsMapEmptyWhenParserUsed() {
+        when(service.usesParserForTaskSettings()).thenReturn(true);
+        var taskSettings = new HashMap<String, Object>();
+        taskSettings.put(UNKNOWN_SETTING_KEY, UNKNOWN_SETTING_VALUE);
+
+        TransportUpdateInferenceModelAction.validateConsumedUpdateSettings(service, SERVICE_NAME_VALUE, null, taskSettings);
     }
 
     public void testCombineExistingModelConfigurationsWithNewSettings_NewConfigMapsAreNull_ReturnsExistingConfigs() {

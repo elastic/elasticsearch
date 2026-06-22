@@ -437,7 +437,6 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
             inferenceProvider.service()
                 .chunkedInfer(
                     inferenceProvider.model(),
-                    null,
                     inputs,
                     Map.of(),
                     InputType.INTERNAL_INGEST,
@@ -955,7 +954,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
             int originalSourceSize = indexSource.byteLength();
             BytesReference originalSource = indexSource.bytes();
             if (useLegacyFormat) {
-                var newDocMap = indexSource.sourceAsMap();
+                var newDocMap = indexSource.sourceAsMap(indexRequest.getIncludeSourceOnError());
                 for (var entry : inferenceFieldsMap.entrySet()) {
                     XContentMapValues.insertValue(entry.getKey(), newDocMap, entry.getValue());
                 }

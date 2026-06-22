@@ -65,6 +65,13 @@ public class NdJsonCompressedFormatSpecIT extends AbstractExternalSourceSpecTest
         return cluster.getHttpAddresses();
     }
 
+    // Migrated specs run via FROM <dataset> on S3 (the anonymous-capable fixture backs a dataset without
+    // a cluster encryption key) and via the rebuilt EXTERNAL query on the other backends, so none are skipped.
+    @Override
+    protected Set<StorageBackend> datasetModeBackends() {
+        return Set.of(StorageBackend.S3);
+    }
+
     @Override
     protected void shouldSkipTest(String testName) throws IOException {
         if (SKIPPED_TESTS.contains(testName)) {
@@ -79,7 +86,8 @@ public class NdJsonCompressedFormatSpecIT extends AbstractExternalSourceSpecTest
             COMPRESSED_FORMATS,
             "/external-basic.csv-spec",
             "/external-multifile.csv-spec",
-            "/external-multifile-resolution.csv-spec"
+            "/external-multifile-resolution.csv-spec",
+            "/external-multivalue.csv-spec"
         );
     }
 }

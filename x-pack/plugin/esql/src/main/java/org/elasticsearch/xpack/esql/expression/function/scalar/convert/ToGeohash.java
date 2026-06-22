@@ -51,6 +51,7 @@ public class ToGeohash extends AbstractConvertFunction {
         returnType = "geohash",
         preview = true,
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW) },
+        briefSummary = "Converts a value to a geohash.",
         description = """
             Converts an input value to a `geohash` value.
             A string will only be successfully converted if it respects the

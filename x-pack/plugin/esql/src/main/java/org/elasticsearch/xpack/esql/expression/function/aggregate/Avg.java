@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvAvg;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Div;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition;
@@ -46,6 +47,7 @@ public class Avg extends AggregateFunction implements SurrogateExpression, Aggre
 
     @FunctionInfo(
         returnType = "double",
+        briefSummary = "Returns the average of a numeric field.",
         description = "The average of a numeric field.",
         type = FunctionType.AGGREGATE,
         examples = {
@@ -161,6 +163,10 @@ public class Avg extends AggregateFunction implements SurrogateExpression, Aggre
         if (field.foldable()) {
             return new MvAvg(s, field);
         }
-        return new Div(s, new Sum(s, field, filter(), window(), summationMode), new Count(s, field, filter(), window()), dataType());
+        // Cast long inputs to double up-front so the intermediate Sum cannot overflow.
+        // Avg always returns double, and Sum(int) already accumulates as long (Which would require many big values to overflow),
+        // so the cast is only necessary for long.
+        Expression sumField = field.dataType() == DataType.LONG ? new ToDouble(s, field) : field;
+        return new Div(s, new Sum(s, sumField, filter(), window(), summationMode), new Count(s, field, filter(), window()), dataType());
     }
 }

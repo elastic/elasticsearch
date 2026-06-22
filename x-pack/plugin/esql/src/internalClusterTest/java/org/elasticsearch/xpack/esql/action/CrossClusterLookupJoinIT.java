@@ -610,10 +610,12 @@ public class CrossClusterLookupJoinIT extends AbstractCrossClusterTestCase {
         setSkipUnavailable(REMOTE_CLUSTER_2, false);
 
         var defaultSettings = Settings.builder();
+        createIndexWithDocument(LOCAL_CLUSTER, "data", defaultSettings, Map.of("key", 0, "cluster", "local"));
         createIndexWithDocument(REMOTE_CLUSTER_1, "data", defaultSettings, Map.of("key", 1, "cluster", "remote-1"));
         createIndexWithDocument(REMOTE_CLUSTER_2, "data", defaultSettings, Map.of("key", 2, "cluster", "remote-2"));
 
         var lookupSettings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.LOOKUP);
+        createIndexWithDocument(LOCAL_CLUSTER, "lookup_local", lookupSettings, Map.of("key", 0, "location", "lookup-local"));
         createIndexWithDocument(REMOTE_CLUSTER_1, "lookup_remote_1", lookupSettings, Map.of("key", 1, "location", "lookup-remote-1"));
         createIndexWithDocument(REMOTE_CLUSTER_2, "lookup_remote_2", lookupSettings, Map.of("key", 2, "location", "lookup-remote-2"));
         createIndexWithDocument(REMOTE_CLUSTER_1, "lookup_remote_both", lookupSettings, Map.of("key", 1, "location", "lookup-remote-b1"));
@@ -638,7 +640,7 @@ public class CrossClusterLookupJoinIT extends AbstractCrossClusterTestCase {
 
         try (EsqlQueryResponse resp = runQuery("""
             FROM (FROM cluster-a:data),
-                 (FROM remote-b:data | LOOKUP JOIN lookup_remote_2 ON key)
+                 (FROM data | LOOKUP JOIN lookup_local ON key)
             | KEEP key, cluster, location
             | SORT key
             """, randomBoolean())) {
@@ -646,15 +648,16 @@ public class CrossClusterLookupJoinIT extends AbstractCrossClusterTestCase {
                 getValuesList(resp),
                 equalTo(
                     List.of(
-                        Arrays.asList(1L, "remote-1", null),// List.of does not permit nulls
-                        List.of(2L, "remote-2", "lookup-remote-2")
+                        List.of(0L, "local", "lookup-local"),
+                        Arrays.asList(1L, "remote-1", null)// List.of does not permit nulls
                     )
                 )
             );
         }
 
         try (EsqlQueryResponse resp = runQuery("""
-            FROM (FROM cluster-a:data | LOOKUP JOIN lookup_remote_1 ON key),
+            FROM (FROM data | LOOKUP JOIN lookup_local ON key),
+                 (FROM cluster-a:data | LOOKUP JOIN lookup_remote_1 ON key),
                  (FROM remote-b:data | LOOKUP JOIN lookup_remote_2 ON key)
             | KEEP key, cluster, location
             | SORT key
@@ -664,6 +667,7 @@ public class CrossClusterLookupJoinIT extends AbstractCrossClusterTestCase {
                 equalTo(
                     List.of(
                         //
+                        List.of(0L, "local", "lookup-local"),
                         List.of(1L, "remote-1", "lookup-remote-1"),
                         List.of(2L, "remote-2", "lookup-remote-2")
                     )

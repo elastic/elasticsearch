@@ -11,7 +11,6 @@ import org.elasticsearch.Build;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
-import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -34,8 +33,9 @@ import static org.hamcrest.Matchers.equalTo;
  * <ul>
  *   <li>The {@link #requireSnapshotBuild()} {@code @BeforeClass} gate matching
  *       {@code DataSourceCrudRestIT} (datasets are snapshot-only today).</li>
- *   <li>Static REST helpers for {@code PUT /_query/data_source/...}, {@code PUT /_query/dataset/...},
- *       {@code POST /_query}, and idempotent dataset/data-source cleanup.</li>
+ *   <li>Static REST helpers for {@code PUT /_query/data_source/...}, {@code PUT /_query/dataset/...}
+ *       (delegating to {@link DatasetRegistry}), {@code POST /_query}, and tolerant dataset/data-source
+ *       cleanup.</li>
  *   <li>A canonical row asserter for the {@code {emp_no, first_name}} projection every concrete
  *       suite uses.</li>
  * </ul>
@@ -60,39 +60,21 @@ public abstract class AbstractFromDatasetSubqueryRestTestCase extends ESRestTest
     /**
      * {@code PUT /_query/data_source/<name>} with {@code type} and (optional) {@code settings}.
      * Used by every backend wrapper to register an {@code s3}/{@code gcs}/{@code azure} data source
-     * pointing at the in-process fixture.
+     * pointing at the in-process fixture. Delegates to {@link DatasetRegistry} so the request-building
+     * lives in one place; this base manages its own lifecycle, so the uncached verb is used.
      */
     protected static void putDataSource(String name, String type, Map<String, Object> settings) throws IOException {
-        Request req = new Request("PUT", "/_query/data_source/" + name);
-        try (XContentBuilder b = jsonBuilder()) {
-            b.startObject().field("type", type);
-            if (settings.isEmpty() == false) {
-                b.field("settings", settings);
-            }
-            b.endObject();
-            req.setJsonEntity(Strings.toString(b));
-        }
-        Response r = client().performRequest(req);
-        assertThat(r.getStatusLine().getStatusCode(), equalTo(200));
+        DatasetRegistry.putDataSource(client(), name, type, settings);
     }
 
     /**
      * {@code PUT /_query/dataset/<name>} bound to the supplied {@code data_source} + {@code resource}
      * URI. {@code settings} may carry {@code format} or any format-specific keys the validator
-     * accepts (e.g. {@code optimized_reader} for parquet, {@code delimiter} for csv).
+     * accepts (e.g. {@code optimized_reader} for parquet, {@code delimiter} for csv). Delegates to
+     * {@link DatasetRegistry}.
      */
     protected static void putDataset(String name, String dataSource, String resource, Map<String, Object> settings) throws IOException {
-        Request req = new Request("PUT", "/_query/dataset/" + name);
-        try (XContentBuilder b = jsonBuilder()) {
-            b.startObject().field("data_source", dataSource).field("resource", resource);
-            if (settings.isEmpty() == false) {
-                b.field("settings", settings);
-            }
-            b.endObject();
-            req.setJsonEntity(Strings.toString(b));
-        }
-        Response r = client().performRequest(req);
-        assertThat(r.getStatusLine().getStatusCode(), equalTo(200));
+        DatasetRegistry.putDataset(client(), name, dataSource, resource, settings);
     }
 
     /** The benign warning ES|QL emits when a query omits an explicit {@code LIMIT}. */
@@ -124,16 +106,10 @@ public abstract class AbstractFromDatasetSubqueryRestTestCase extends ESRestTest
     /**
      * {@code DELETE <path>} that swallows 404s so {@code @AfterClass} sweeps don't fail when a
      * registration step was skipped (e.g. the test method short-circuited before the dataset was
-     * created).
+     * created). Delegates to {@link DatasetRegistry#deleteIgnoringMissing}.
      */
     protected static void deleteIgnoringMissing(String path) throws IOException {
-        try {
-            client().performRequest(new Request("DELETE", path));
-        } catch (ResponseException e) {
-            if (e.getResponse().getStatusLine().getStatusCode() != 404) {
-                throw e;
-            }
-        }
+        DatasetRegistry.deleteIgnoringMissing(client(), path);
     }
 
     /**

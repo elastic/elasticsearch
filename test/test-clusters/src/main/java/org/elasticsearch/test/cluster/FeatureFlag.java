@@ -33,7 +33,6 @@ public enum FeatureFlag {
     PROMETHEUS_FEATURE_FLAG("es.prometheus_feature_flag_enabled=true", Version.fromString("9.4.0"), null),
     COLUMNAR_INDEX_MODE_FEATURE_FLAG("es.columnar_index_mode_feature_flag_enabled=true", Version.fromString("9.5.0"), null),
     ES95_CODEC_FEATURE_FLAG("es.es95_codec_feature_flag_enabled=true", Version.fromString("9.5.0"), null),
-    INDEX_DISABLED_BY_DEFAULT("es.index_disabled_by_default_feature_flag_enabled=true", Version.fromString("9.5.0"), null),
     SLICE_INDEXING("es.slice_indexing_feature_flag_enabled=true", Version.fromString("9.5.0"), null);
 
     public final String systemProperty;

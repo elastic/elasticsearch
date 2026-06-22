@@ -8,17 +8,16 @@
 package org.elasticsearch.xpack.esql.generator.function;
 
 import org.elasticsearch.xpack.esql.generator.Column;
-import org.elasticsearch.xpack.esql.generator.FunctionDefinition;
-import org.elasticsearch.xpack.esql.generator.FunctionParam;
-import org.elasticsearch.xpack.esql.generator.FunctionRegistry;
-import org.elasticsearch.xpack.esql.generator.FunctionSignature;
+import org.elasticsearch.xpack.esql.generator.GenerativeFunctionCatalog;
+import org.elasticsearch.xpack.esql.generator.GenerativeFunctionDefinition;
+import org.elasticsearch.xpack.esql.generator.GenerativeFunctionParam;
+import org.elasticsearch.xpack.esql.generator.GenerativeFunctionSignature;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.test.ESTestCase.randomBoolean;
 import static org.elasticsearch.test.ESTestCase.randomFrom;
 import static org.elasticsearch.test.ESTestCase.randomIntBetween;
 import static org.elasticsearch.xpack.esql.generator.EsqlQueryGenerator.randomName;
@@ -27,7 +26,7 @@ import static org.elasticsearch.xpack.esql.generator.EsqlQueryGenerator.randomNa
  * Generates composite ES|QL function expressions with nested function calls, e.g.
  * {@code to_string(sin(cos(a)))} or {@code length(to_string(round(x, 2)))}.
  * <p>
- * Uses {@link FunctionRegistry} to select type-compatible functions at each level of nesting,
+ * Uses {@link GenerativeFunctionCatalog} to select type-compatible functions at each level of nesting,
  * so every generated expression is well-typed.
  */
 public final class CompositeFunctionGenerator {
@@ -50,31 +49,36 @@ public final class CompositeFunctionGenerator {
     private static String generate(String targetType, List<Column> columns, boolean allowUnmapped, int depthLeft) {
         Set<String> columnTypes = columns.stream().map(Column::type).collect(Collectors.toSet());
 
-        // At depth 0, or randomly, produce a leaf (plain field reference)
-        if (depthLeft == 0 || randomBoolean()) {
+        // At depth 0, always produce a leaf. Otherwise stop early with 30% probability so that
+        // the generator still produces composite expressions most of the time.
+        if (depthLeft == 0) {
+            return leaf(targetType, columns, allowUnmapped);
+        }
+        if (randomIntBetween(0, 9) < 3) {
             return leaf(targetType, columns, allowUnmapped);
         }
 
-        FunctionRegistry registry = FunctionRegistry.getInstance();
-        List<FunctionDefinition> candidates = registry.scalarsReturning(targetType);
+        GenerativeFunctionCatalog catalog = GenerativeFunctionCatalog.getInstance();
+        List<GenerativeFunctionDefinition> candidates = catalog.scalarsReturning(targetType);
         if (candidates.isEmpty()) {
             return leaf(targetType, columns, allowUnmapped);
         }
 
         // Try a few random candidates before giving up and falling back to a leaf
         for (int attempt = 0; attempt < 5; attempt++) {
-            FunctionDefinition fn = randomFrom(candidates);
-            // Keep only signatures that both return targetType and can be satisfied from available types.
-            // Without the returnType filter, mv_sort-style functions (one signature per input type, each
-            // returning that same type) would be randomly picked in a wrong-return-type overload.
-            List<FunctionSignature> sigs = registry.satisfiableSignatures(fn, columnTypes)
+            GenerativeFunctionDefinition fn = randomFrom(candidates);
+            // Keep only signatures that both return targetType (or an equivalent) and can be
+            // satisfied from available types. Without the returnType filter, mv_sort-style functions
+            // (one signature per input type, each returning that same type) would be randomly
+            // picked in a wrong-return-type overload.
+            List<GenerativeFunctionSignature> sigs = catalog.satisfiableSignatures(fn, columnTypes)
                 .stream()
-                .filter(s -> targetType.equals(s.returnType()))
+                .filter(s -> GenerativeFunctionCatalog.equivalentTypes(targetType).contains(s.returnType()))
                 .toList();
             if (sigs.isEmpty()) {
                 continue;
             }
-            FunctionSignature sig = randomFrom(sigs);
+            GenerativeFunctionSignature sig = randomFrom(sigs);
             String expr = tryBuild(fn.name(), sig, columns, allowUnmapped, depthLeft);
             if (expr != null) {
                 return expr;
@@ -91,14 +95,20 @@ public final class CompositeFunctionGenerator {
      * (e.g. to pass a literal delimiter, a constant index, or a value from a fixed vocabulary).
      * Returns {@code null} if any required argument cannot be generated.
      */
-    private static String tryBuild(String name, FunctionSignature sig, List<Column> columns, boolean allowUnmapped, int depthLeft) {
+    private static String tryBuild(
+        String name,
+        GenerativeFunctionSignature sig,
+        List<Column> columns,
+        boolean allowUnmapped,
+        int depthLeft
+    ) {
         SpecialFunctionGenerator special = SpecialFunctionGeneratorRegistry.forFunction(name);
         if (special != null) {
             return special.generate(name, sig, columns, allowUnmapped, depthLeft, CompositeFunctionGenerator::generate);
         }
 
         List<String> args = new ArrayList<>();
-        for (FunctionParam param : sig.params()) {
+        for (GenerativeFunctionParam param : sig.params()) {
             if (param.optional()) {
                 // Always stop at the first optional param. Optional keyword params are typically
                 // literal mode/order/format selectors ("ASC", "DESC", date format strings, etc.)
@@ -126,7 +136,7 @@ public final class CompositeFunctionGenerator {
      * column of the right type exists.
      */
     private static String leaf(String targetType, List<Column> columns, boolean allowUnmapped) {
-        String field = randomName(columns, Set.of(targetType));
+        String field = randomName(columns, GenerativeFunctionCatalog.equivalentTypes(targetType));
         if (field != null) {
             return field;
         }

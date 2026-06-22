@@ -19,7 +19,7 @@ import static org.elasticsearch.test.ESTestCase.randomIntBetween;
  * Registry of {@link SpecialFunctionGenerator} instances, keyed by ES|QL function name.
  * <p>
  * Functions listed here are <em>not</em> added to
- * {@link org.elasticsearch.xpack.esql.generator.FunctionRegistry#EXCLUDED_FUNCTIONS}:
+ * {@link org.elasticsearch.xpack.esql.generator.GenerativeFunctionCatalog#EXCLUDED_FUNCTIONS}:
  * the composite generator calls their custom generator instead of the generic recursive builder.
  *
  * <p><b>Adding a new entry</b>
@@ -199,6 +199,17 @@ public final class SpecialFunctionGeneratorRegistry {
             String valueExpr = recurse.recurse(sig.params().get(0).type(), cols, unmapped, depth - 1);
             if (valueExpr == null) return null;
             return name + "(" + valueExpr + ", " + valueLiteral + ", " + scaleLiteral + ")";
+        });
+
+        // ---- IP functions ---------------------------------------------------
+
+        // ip_prefix(ip, ipv4_prefix_length, ipv6_prefix_length): both prefix lengths must be
+        // integer literals in valid ranges. IpPrefix validates them eagerly instead of returning
+        // null, so arbitrary expressions would produce runtime errors.
+        r.put("ip_prefix", (name, sig, cols, unmapped, depth, recurse) -> {
+            String ipField = recurse.recurse("ip", cols, unmapped, depth - 1);
+            if (ipField == null) return null;
+            return name + "(" + ipField + ", " + randomIntBetween(8, 32) + ", " + randomIntBetween(48, 128) + ")";
         });
 
         // ---- Math functions -------------------------------------------------

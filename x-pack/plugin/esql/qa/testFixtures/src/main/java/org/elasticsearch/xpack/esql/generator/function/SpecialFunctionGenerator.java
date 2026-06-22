@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.esql.generator.function;
 
 import org.elasticsearch.xpack.esql.generator.Column;
-import org.elasticsearch.xpack.esql.generator.FunctionSignature;
+import org.elasticsearch.xpack.esql.generator.GenerativeFunctionSignature;
 
 import java.util.List;
 
@@ -60,7 +60,14 @@ public interface SpecialFunctionGenerator {
      * @return the expression string (e.g. {@code "split(region, \".\")"}), or {@code null} to
      *         fall back to a leaf expression
      */
-    String generate(String name, FunctionSignature sig, List<Column> columns, boolean allowUnmapped, int depthLeft, Recurser recurse);
+    String generate(
+        String name,
+        GenerativeFunctionSignature sig,
+        List<Column> columns,
+        boolean allowUnmapped,
+        int depthLeft,
+        Recurser recurse
+    );
 
     /**
      * Callback into the main composite generator.

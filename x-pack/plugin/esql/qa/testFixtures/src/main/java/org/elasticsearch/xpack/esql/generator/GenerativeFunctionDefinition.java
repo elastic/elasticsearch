@@ -13,10 +13,10 @@ import java.util.List;
  * An ES|QL function definition loaded from the generated JSON docs under
  * {@code docs/reference/query-languages/esql/kibana/generated/x-pack-esql/definition/functions/}.
  */
-public record FunctionDefinition(
+public record GenerativeFunctionDefinition(
     String name,
     String functionType,
-    List<FunctionSignature> signatures,
+    List<GenerativeFunctionSignature> signatures,
     boolean snapshotOnly,
     boolean preview
 ) {}

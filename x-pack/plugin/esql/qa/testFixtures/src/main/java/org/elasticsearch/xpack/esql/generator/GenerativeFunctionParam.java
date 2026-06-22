@@ -10,4 +10,4 @@ package org.elasticsearch.xpack.esql.generator;
 /**
  * A single parameter in an ES|QL function signature, as described by the generated function definition JSON.
  */
-public record FunctionParam(String name, String type, boolean optional) {}
+public record GenerativeFunctionParam(String name, String type, boolean optional) {}

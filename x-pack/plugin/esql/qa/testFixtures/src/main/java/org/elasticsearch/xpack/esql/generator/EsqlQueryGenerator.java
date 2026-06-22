@@ -674,7 +674,7 @@ public class EsqlQueryGenerator {
     }
 
     /**
-     * Picks a random ES|QL type from the available columns that the {@link FunctionRegistry}
+     * Picks a random ES|QL type from the available columns that the {@link GenerativeFunctionCatalog}
      * knows how to produce via at least one function. Falling back to any column type if the
      * registry has no functions for any available type.
      */
@@ -682,7 +682,7 @@ public class EsqlQueryGenerator {
         if (columns.isEmpty()) {
             return null;
         }
-        FunctionRegistry registry = FunctionRegistry.getInstance();
+        GenerativeFunctionCatalog registry = GenerativeFunctionCatalog.getInstance();
         List<String> producible = columns.stream()
             .map(Column::type)
             .filter(t -> t.startsWith("counter_") == false)

@@ -12,4 +12,4 @@ import java.util.List;
 /**
  * One overload of an ES|QL function — its parameter list, return type, and whether it is variadic.
  */
-public record FunctionSignature(List<FunctionParam> params, String returnType, boolean variadic) {}
+public record GenerativeFunctionSignature(List<GenerativeFunctionParam> params, String returnType, boolean variadic) {}

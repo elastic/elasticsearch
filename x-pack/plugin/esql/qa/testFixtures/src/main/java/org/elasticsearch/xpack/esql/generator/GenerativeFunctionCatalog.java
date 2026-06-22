@@ -32,7 +32,7 @@ import java.util.jar.JarFile;
  * Used by {@link org.elasticsearch.xpack.esql.generator.function.CompositeFunctionGenerator}
  * to select type-compatible functions when building nested expressions.
  */
-public final class FunctionRegistry {
+public final class GenerativeFunctionCatalog {
 
     /**
      * Parameter types we cannot synthesize expressions for in the generator,
@@ -65,7 +65,7 @@ public final class FunctionRegistry {
      * org.elasticsearch.xpack.esql.generator.function.SpecialFunctionGeneratorRegistry}
      * entry would let it participate in composite expressions instead.
      */
-    private static final Set<String> EXCLUDED_FUNCTIONS = Set.of(
+    static final Set<String> EXCLUDED_FUNCTIONS = Set.of(
         // Full-text search functions (FullTextFunction subclasses) are only supported in WHERE and
         // STATS commands, or in EVAL within score(.) — not as general EVAL expressions.
         "match",
@@ -102,48 +102,71 @@ public final class FunctionRegistry {
 
     private static final String RESOURCE_DIR = "esql-functions";
 
-    private static final FunctionRegistry INSTANCE = new FunctionRegistry();
+    private static final GenerativeFunctionCatalog INSTANCE = new GenerativeFunctionCatalog();
 
     /** All usable scalar functions indexed by the return type they can produce. */
-    private final Map<String, List<FunctionDefinition>> byReturnType;
+    private final Map<String, List<GenerativeFunctionDefinition>> byReturnType;
 
-    private FunctionRegistry() {
-        List<FunctionDefinition> all = loadAll();
-        Map<String, List<FunctionDefinition>> index = new HashMap<>();
-        for (FunctionDefinition fn : all) {
-            for (FunctionSignature sig : fn.signatures()) {
+    private GenerativeFunctionCatalog() {
+        List<GenerativeFunctionDefinition> all = loadAll();
+        Map<String, List<GenerativeFunctionDefinition>> index = new HashMap<>();
+        for (GenerativeFunctionDefinition fn : all) {
+            for (GenerativeFunctionSignature sig : fn.signatures()) {
                 index.computeIfAbsent(sig.returnType(), t -> new ArrayList<>()).add(fn);
             }
         }
         // Deduplicate: a function with multiple signatures returning the same type would appear more than once
-        Map<String, List<FunctionDefinition>> deduped = new HashMap<>();
-        for (Map.Entry<String, List<FunctionDefinition>> e : index.entrySet()) {
+        Map<String, List<GenerativeFunctionDefinition>> deduped = new HashMap<>();
+        for (Map.Entry<String, List<GenerativeFunctionDefinition>> e : index.entrySet()) {
             deduped.put(e.getKey(), e.getValue().stream().distinct().toList());
         }
         this.byReturnType = Collections.unmodifiableMap(deduped);
     }
 
-    public static FunctionRegistry getInstance() {
+    public static GenerativeFunctionCatalog getInstance() {
         return INSTANCE;
     }
 
     /**
-     * Returns all usable scalar functions that have at least one signature returning {@code type}.
+     * Returns the set of ES|QL types that are interchangeable with {@code type} in the generator.
+     * <p>
+     * Two equivalences are recognised:
+     * <ul>
+     *   <li>{@code date} ↔ {@code datetime}: the Kibana function JSON definitions use {@code date}
+     *       while the generator's column schema uses {@code datetime}.</li>
+     *   <li>{@code text} ↔ {@code keyword}: ES|QL implicitly coerces between these in most
+     *       expression contexts.</li>
+     * </ul>
      */
-    public List<FunctionDefinition> scalarsReturning(String type) {
-        return byReturnType.getOrDefault(type, List.of());
+    public static Set<String> equivalentTypes(String type) {
+        return switch (type) {
+            case "date", "datetime" -> Set.of("date", "datetime");
+            // text columns are acceptable wherever keyword is expected, but not the reverse:
+            // some functions specifically accept text and reject keyword.
+            case "keyword" -> Set.of("keyword", "text");
+            default -> Set.of(type);
+        };
+    }
+
+    /**
+     * Returns all usable scalar functions that have at least one signature returning {@code type}
+     * or any equivalent type (see {@link #equivalentTypes}).
+     */
+    public List<GenerativeFunctionDefinition> scalarsReturning(String type) {
+        return equivalentTypes(type).stream().flatMap(t -> byReturnType.getOrDefault(t, List.of()).stream()).distinct().toList();
     }
 
     /**
      * Returns the signatures of {@code fn} that can be satisfied given {@code columnTypes}.
      * A signature is considered satisfiable if, for every required parameter, its type is
-     * either present in {@code columnTypes} or producible by some function in this registry.
+     * either present in {@code columnTypes} (or an equivalent type) or producible by some
+     * function in this catalog.
      */
-    public List<FunctionSignature> satisfiableSignatures(FunctionDefinition fn, Set<String> columnTypes) {
-        List<FunctionSignature> result = new ArrayList<>();
-        for (FunctionSignature sig : fn.signatures()) {
+    public List<GenerativeFunctionSignature> satisfiableSignatures(GenerativeFunctionDefinition fn, Set<String> columnTypes) {
+        List<GenerativeFunctionSignature> result = new ArrayList<>();
+        for (GenerativeFunctionSignature sig : fn.signatures()) {
             boolean satisfiable = true;
-            for (FunctionParam param : sig.params()) {
+            for (GenerativeFunctionParam param : sig.params()) {
                 if (param.optional()) {
                     continue;
                 }
@@ -161,20 +184,20 @@ public final class FunctionRegistry {
 
     /**
      * Returns {@code true} if an expression of {@code type} can be produced — either directly
-     * from a column or by calling a function in this registry.
+     * from a column (including equivalent types) or by calling a function in this catalog.
      */
     private boolean isProducible(String type, Set<String> columnTypes) {
-        return columnTypes.contains(type) || byReturnType.containsKey(type);
+        return equivalentTypes(type).stream().anyMatch(t -> columnTypes.contains(t) || byReturnType.containsKey(t));
     }
 
     // ---- loading ----
 
-    private static List<FunctionDefinition> loadAll() {
+    private static List<GenerativeFunctionDefinition> loadAll() {
         boolean isSnapshot = Build.current().isSnapshot();
         ObjectMapper mapper = new ObjectMapper();
-        List<FunctionDefinition> result = new ArrayList<>();
+        List<GenerativeFunctionDefinition> result = new ArrayList<>();
 
-        URL dirUrl = FunctionRegistry.class.getClassLoader().getResource(RESOURCE_DIR);
+        URL dirUrl = GenerativeFunctionCatalog.class.getClassLoader().getResource(RESOURCE_DIR);
         if (dirUrl == null) {
             throw new IllegalStateException(
                 "Resource directory '"
@@ -199,27 +222,27 @@ public final class FunctionRegistry {
         return result;
     }
 
-    private static void loadFromDirectory(File dir, ObjectMapper mapper, boolean isSnapshot, List<FunctionDefinition> result)
+    private static void loadFromDirectory(File dir, ObjectMapper mapper, boolean isSnapshot, List<GenerativeFunctionDefinition> result)
         throws IOException {
         File[] files = dir.listFiles(f -> f.getName().endsWith(".json"));
         if (files == null) {
             return;
         }
         for (File f : files) {
-            FunctionDefinition def = parse(mapper, mapper.readTree(f));
+            GenerativeFunctionDefinition def = parse(mapper, mapper.readTree(f));
             if (shouldInclude(def, isSnapshot)) {
                 result.add(def);
             }
         }
     }
 
-    private static void loadFromJar(URL dirUrl, ObjectMapper mapper, boolean isSnapshot, List<FunctionDefinition> result)
+    private static void loadFromJar(URL dirUrl, ObjectMapper mapper, boolean isSnapshot, List<GenerativeFunctionDefinition> result)
         throws IOException {
         JarURLConnection conn = (JarURLConnection) dirUrl.openConnection();
         try (JarFile jar = conn.getJarFile()) {
             jar.stream().filter(e -> e.getName().startsWith(RESOURCE_DIR + "/") && e.getName().endsWith(".json")).forEach(e -> {
                 try (InputStream is = jar.getInputStream(e)) {
-                    FunctionDefinition def = parse(mapper, mapper.readTree(is));
+                    GenerativeFunctionDefinition def = parse(mapper, mapper.readTree(is));
                     if (shouldInclude(def, isSnapshot)) {
                         result.add(def);
                     }
@@ -230,7 +253,7 @@ public final class FunctionRegistry {
         }
     }
 
-    private static boolean shouldInclude(FunctionDefinition def, boolean isSnapshot) {
+    private static boolean shouldInclude(GenerativeFunctionDefinition def, boolean isSnapshot) {
         if ("scalar".equals(def.functionType()) == false) {
             return false;
         }
@@ -246,28 +269,28 @@ public final class FunctionRegistry {
             .anyMatch(sig -> sig.params().stream().noneMatch(p -> p.optional() == false && UNSUPPORTED_PARAM_TYPES.contains(p.type())));
     }
 
-    private static FunctionDefinition parse(ObjectMapper mapper, JsonNode root) {
+    private static GenerativeFunctionDefinition parse(ObjectMapper mapper, JsonNode root) {
         String name = root.get("name").asText();
         String functionType = root.get("type").asText();
         boolean snapshotOnly = root.path("snapshot_only").asBoolean(false);
         boolean preview = root.path("preview").asBoolean(false);
 
-        List<FunctionSignature> signatures = new ArrayList<>();
+        List<GenerativeFunctionSignature> signatures = new ArrayList<>();
         for (JsonNode sigNode : root.get("signatures")) {
             String returnType = sigNode.get("returnType").asText();
             boolean variadic = sigNode.path("variadic").asBoolean(false);
-            List<FunctionParam> params = new ArrayList<>();
+            List<GenerativeFunctionParam> params = new ArrayList<>();
             for (JsonNode paramNode : sigNode.get("params")) {
                 params.add(
-                    new FunctionParam(
+                    new GenerativeFunctionParam(
                         paramNode.get("name").asText(),
                         paramNode.get("type").asText(),
                         paramNode.path("optional").asBoolean(false)
                     )
                 );
             }
-            signatures.add(new FunctionSignature(List.copyOf(params), returnType, variadic));
+            signatures.add(new GenerativeFunctionSignature(List.copyOf(params), returnType, variadic));
         }
-        return new FunctionDefinition(name, functionType, List.copyOf(signatures), snapshotOnly, preview);
+        return new GenerativeFunctionDefinition(name, functionType, List.copyOf(signatures), snapshotOnly, preview);
     }
 }

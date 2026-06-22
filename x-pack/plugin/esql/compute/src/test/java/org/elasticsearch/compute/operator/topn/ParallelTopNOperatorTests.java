@@ -11,7 +11,9 @@ import org.apache.lucene.tests.util.RamUsageTester;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.LongBlock;
@@ -25,6 +27,7 @@ import org.elasticsearch.threadpool.TestThreadPool;
 import org.junit.After;
 import org.junit.Before;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -482,6 +485,40 @@ public class ParallelTopNOperatorTests extends TopNOperatorTests {
         }
     }
 
+    public void testPartialWorkerRejectionProducesCorrectOutput() throws Exception {
+        Executor randomlyRejectingExecutor = task -> {
+            if (randomBoolean() && task instanceof AbstractRunnable runnable) {
+                runnable.onRejection(new EsRejectedExecutionException("Rejected!", false));
+            } else {
+                workerExecutor().execute(task);
+            }
+        };
+
+        DriverContext driverContext = driverContext();
+        TopNOperator.TopNOperatorFactory workerFactory = workerOnlyFactory();
+        TopNOperator initialWorker = workerFactory.get(driverContext);
+        TopNOperator.ParallelWorkerConfig config = new TopNOperator.ParallelWorkerConfig(randomlyRejectingExecutor, 2, 10, 0);
+
+        ParallelTopNOperator op = new ParallelTopNOperator(config, driverContext, workerFactory, initialWorker);
+
+        List<Long> input = new ArrayList<>(LongStream.range(1, 1001).boxed().toList());
+        Collections.shuffle(input, random());
+
+        try {
+            // Split data into 100 pages
+            for (int i = 0; i < 100; i++) {
+                List<Long> slice = input.subList(i * 10, (i + 1) * 10);
+                op.addInput(buildLongPage(driverContext().blockFactory(), slice.stream().mapToLong(Long::longValue)));
+            }
+            op.finish();
+
+            assertBusy(() -> assertThat(op.isBlocked(), sameInstance(Operator.NOT_BLOCKED)));
+            assertThat(getLongResults(op), equalTo(LongStream.range(1, 101).boxed().toList()));
+        } finally {
+            op.close();
+        }
+    }
+
     // -------------------------------------------------------------------------
     // Helpers
     // -------------------------------------------------------------------------
@@ -528,4 +565,18 @@ public class ParallelTopNOperatorTests extends TopNOperatorTests {
             op.close();
         }
     }
+
+    private static List<Long> getLongResults(ParallelTopNOperator op) {
+        List<Long> results = new ArrayList<>();
+        Page out;
+        while ((out = op.getOutput()) != null) {
+            LongBlock block = out.getBlock(0);
+            for (int i = 0; i < block.getPositionCount(); i++) {
+                results.add(block.getLong(i));
+            }
+            out.releaseBlocks();
+        }
+        return results;
+    }
+
 }

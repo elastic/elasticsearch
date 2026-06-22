@@ -3458,12 +3458,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         @Nullable
         private static BytesRef[] extractSliceRouting(@Nullable String sliceRouting, boolean sliceEnabled) {
             if (sliceRouting == null) {
-                if (sliceEnabled) {
-                    throw new IllegalArgumentException(
-                        "[" + SliceIndexing.PARAM_NAME + "] is required for KNN queries when [index.slice.enabled] is true"
-                    );
-                }
-                return null;
+                return sliceEnabled ? new BytesRef[0] : null;
             }
             String[] sliceValues = Strings.splitStringByCommaToArray(sliceRouting.trim());
             if (sliceValues.length == 0) {

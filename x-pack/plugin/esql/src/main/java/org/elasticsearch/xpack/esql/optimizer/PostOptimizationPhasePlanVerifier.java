@@ -98,7 +98,7 @@ public abstract class PostOptimizationPhasePlanVerifier<P extends QueryPlan<P>> 
                 || hasTimeSeriesReplacingTsId
                 || hasQueryApproximationAddingColumns;
             if (ignoreError == false) {
-                failures.add(fail(optimizedPlan, buildOutputDiffMessage(expectedOutputAttributes, optimizedPlan.output())));
+                failures.add(fail(optimizedPlan, "{}", buildOutputDiffMessage(expectedOutputAttributes, optimizedPlan.output())));
             }
         }
     }

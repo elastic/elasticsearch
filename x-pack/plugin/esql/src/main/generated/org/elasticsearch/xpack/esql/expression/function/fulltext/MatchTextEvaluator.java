@@ -8,6 +8,7 @@ import java.io.IOException;
 import java.lang.Override;
 import java.lang.String;
 import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.search.Query;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
@@ -30,20 +31,20 @@ public final class MatchTextEvaluator implements ExpressionEvaluator {
 
   private final ExpressionEvaluator fieldBlock;
 
-  private final String queryString;
-
   private final Analyzer analyzer;
+
+  private final Query query;
 
   private final DriverContext driverContext;
 
   private Warnings warnings;
 
-  public MatchTextEvaluator(Source source, ExpressionEvaluator fieldBlock, String queryString,
-      Analyzer analyzer, DriverContext driverContext) {
+  public MatchTextEvaluator(Source source, ExpressionEvaluator fieldBlock, Analyzer analyzer,
+      Query query, DriverContext driverContext) {
     this.source = source;
     this.fieldBlock = fieldBlock;
-    this.queryString = queryString;
     this.analyzer = analyzer;
+    this.query = query;
     this.driverContext = driverContext;
   }
 
@@ -65,7 +66,7 @@ public final class MatchTextEvaluator implements ExpressionEvaluator {
     try(BooleanBlock.Builder result = driverContext.blockFactory().newBooleanBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
         try {
-          result.appendBoolean(Match.processText(p, fieldBlockBlock, this.queryString, this.analyzer));
+          result.appendBoolean(Match.processText(p, fieldBlockBlock, this.analyzer, this.query));
         } catch (IOException e) {
           warnings().registerException(e);
           result.appendNull();
@@ -77,7 +78,7 @@ public final class MatchTextEvaluator implements ExpressionEvaluator {
 
   @Override
   public String toString() {
-    return "MatchTextEvaluator[" + "fieldBlock=" + fieldBlock + ", queryString=" + queryString + ", analyzer=" + analyzer + "]";
+    return "MatchTextEvaluator[" + "fieldBlock=" + fieldBlock + ", analyzer=" + analyzer + ", query=" + query + "]";
   }
 
   @Override
@@ -97,26 +98,26 @@ public final class MatchTextEvaluator implements ExpressionEvaluator {
 
     private final ExpressionEvaluator.Factory fieldBlock;
 
-    private final String queryString;
-
     private final Analyzer analyzer;
 
-    public Factory(Source source, ExpressionEvaluator.Factory fieldBlock, String queryString,
-        Analyzer analyzer) {
+    private final Query query;
+
+    public Factory(Source source, ExpressionEvaluator.Factory fieldBlock, Analyzer analyzer,
+        Query query) {
       this.source = source;
       this.fieldBlock = fieldBlock;
-      this.queryString = queryString;
       this.analyzer = analyzer;
+      this.query = query;
     }
 
     @Override
     public MatchTextEvaluator get(DriverContext context) {
-      return new MatchTextEvaluator(source, fieldBlock.get(context), queryString, analyzer, context);
+      return new MatchTextEvaluator(source, fieldBlock.get(context), analyzer, query, context);
     }
 
     @Override
     public String toString() {
-      return "MatchTextEvaluator[" + "fieldBlock=" + fieldBlock + ", queryString=" + queryString + ", analyzer=" + analyzer + "]";
+      return "MatchTextEvaluator[" + "fieldBlock=" + fieldBlock + ", analyzer=" + analyzer + ", query=" + query + "]";
     }
   }
 }

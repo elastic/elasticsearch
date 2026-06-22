@@ -129,7 +129,7 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
             // that is valid from an operational perspective. ie. it will have all metadata fields like version/
             // seqID etc. and an indexed ID field such that we can potentially perform updates on them or delete documents.
             MappingMetadata mmd = index.mapping();
-            if (mmd != null) {
+            if (mmd != null && isStrictColumnar(index) == false) {
                 // we don't need to obey any routing here stuff is read-only anyway and get is disabled
                 final String mapping = "{ \"_doc\" : { \"enabled\": false, \"_meta\": " + mmd.source().string() + " } }";
                 indexMetadataBuilder.putMapping(mapping);
@@ -143,11 +143,24 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
         return builder.build();
     }
 
+    private static boolean isStrictColumnar(IndexMetadata index) {
+        final String mode = index.getSettings().get("index.mode");
+        return "columnar".equals(mode) || "logsdb_columnar".equals(mode);
+    }
+
     @Override
     public void snapshotShard(SnapshotShardContext snapshotShardContext) {
         assert snapshotShardContext instanceof LocalPrimarySnapshotShardContext : snapshotShardContext;
         final var context = (LocalPrimarySnapshotShardContext) snapshotShardContext;
         final MapperService mapperService = context.mapperService();
+        if (mapperService.getIndexSettings().getMode().isStrictColumnar()) {
+            context.onFailure(
+                new IllegalStateException(
+                    "Can't snapshot _source only on a columnar index; source-only snapshots are not supported for columnar index modes"
+                )
+            );
+            return;
+        }
         if ((mapperService.documentMapper() != null // if there is no mapping this is null
             && mapperService.documentMapper().sourceMapper().isComplete() == false)
             || (mapperService.documentMapper() == null && SourceFieldMapper.isStored(mapperService.getIndexSettings()) == false)) {

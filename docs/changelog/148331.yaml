@@ -1,5 +1,6 @@
-pr: 148331
-summary: Add `x-pack-kibana` plugin contributing implicit index privileges for Kibana Alerting V2
 area: Security
-type: enhancement
 issues: []
+pr: 148331
+summary: Add `x-pack-kibana` plugin contributing implicit index privileges for Kibana
+  Alerting V2
+type: feature

@@ -35,7 +35,6 @@ import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
 import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.capabilities.Resolvables;
-import org.elasticsearch.xpack.esql.core.capabilities.UnresolvedException;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
@@ -952,17 +951,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         @Override
         protected LogicalPlan rule(LogicalPlan plan, AnalyzerContext context) {
             boolean hasSingleChild = plan.children().size() == 1;
-            boolean childOutputResolved = false;
-            if (hasSingleChild) {
-                try {
-                    childOutputResolved = Resolvables.resolved(plan.children().getFirst().output());
-                } catch (UnresolvedException e) {
-                    // Keep/Drop/Rename may still contain unresolved wildcard projections (for example `KEEP foo*` under nullify).
-                    // Treat this as unresolved child output and let analysis continue to resolve the wildcard later.
-                    childOutputResolved = false;
-                }
-            }
-            boolean canResolveAgainstConcreteChildOutput = context.unmappedResolution() != UnmappedResolution.DEFAULT
+            boolean childOutputResolved = hasSingleChild && childOutputResolved(plan.children().getFirst());
+            boolean canResolveAgainstConcreteChildOutput = context.unmappedResolution() == UnmappedResolution.LOAD
                 && hasSingleChild
                 && (plan instanceof Keep
                     || plan instanceof Drop
@@ -1006,6 +996,15 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             };
 
             return resolved;
+        }
+
+        private static boolean childOutputResolved(LogicalPlan child) {
+            // Project output can include unresolved wildcard projections (for example KEEP foo* in nullify mode).
+            // In that case child.output() is not yet safe to materialize.
+            if (child instanceof Project project && project.expressionsResolved() == false) {
+                return false;
+            }
+            return Resolvables.resolved(child.output());
         }
 
         private LogicalPlan resolveAggregate(Aggregate aggregate, List<Attribute> childrenOutput) {

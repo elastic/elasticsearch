@@ -46,7 +46,7 @@ public class ESVectorUtilByteOperationBenchmark {
         Utils.configureBenchmarkLogging();
     }
 
-    @Param({ "SCALAR", "PANAMA" })
+    @Param({ "SCALAR", "PANAMA", "NATIVE" })
     public VectorImplementation implementation;
 
     @Param({ "1", "128", "207", "256", "300", "512", "702", "1024", "1536", "2048" })
@@ -80,6 +80,7 @@ public class ESVectorUtilByteOperationBenchmark {
         impl = switch (implementation) {
             case SCALAR -> ESVectorizationProvider.lookup(false, false).getVectorUtilSupport();
             case PANAMA -> ESVectorizationProvider.lookup(true, false).getVectorUtilSupport();
+            case NATIVE -> ESVectorizationProvider.lookup(true, true).getVectorUtilSupport();
             default -> throw new IllegalArgumentException(implementation.toString());
         };
     }
@@ -87,6 +88,11 @@ public class ESVectorUtilByteOperationBenchmark {
     @Benchmark
     public float dotProduct() {
         return impl.dotProduct(a, b, offset, size);
+    }
+
+    @Benchmark
+    public float squareDistance() {
+        return impl.squareDistance(a, b, offset, size);
     }
 
     @Benchmark

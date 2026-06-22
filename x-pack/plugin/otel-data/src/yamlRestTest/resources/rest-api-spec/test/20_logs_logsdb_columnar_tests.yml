@@ -387,13 +387,11 @@ host.name pass-through:
         body:
           query:
             term:
-              # TODO: change to host.name when passthrough is fixed for columnar mode:
-              resource.attributes.host.name: localhost
+              host.name: localhost
           fields: [ "*" ]
   - length: { hits.hits: 1 }
   - match: { hits.hits.0.fields.resource\.attributes\.host\.name: [ "localhost" ] }
-#    TODO: enable assertion when passthrough is fixed for columnar mode:
-#  - match: { hits.hits.0.fields.host\.name: [ "localhost" ] }
+  - match: { hits.hits.0.fields.host\.name: [ "localhost" ] }
 ---
 "kubernetes.* -> resource.attributes.k8s.* aliases":
   - do:

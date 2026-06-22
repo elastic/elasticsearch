@@ -31,7 +31,7 @@ class JdkMacCLibrary implements MacCLibrary {
     );
     private static final MethodHandle sandbox_free_error$mh = downcallHandle("sandbox_free_error", FunctionDescriptor.ofVoid(ADDRESS));
 
-    private static class JdkErrorReference implements ErrorReference {
+    static class JdkErrorReference implements ErrorReference {
         final Arena arena = Arena.ofConfined();
         final MemorySegment segment = arena.allocate(ValueLayout.ADDRESS);
 
@@ -41,7 +41,7 @@ class JdkMacCLibrary implements MacCLibrary {
 
         @Override
         public String toString() {
-            return deref().reinterpret(Long.MAX_VALUE).getUtf8String(0);
+            return MemorySegmentUtil.getString(deref().reinterpret(Long.MAX_VALUE), 0);
         }
     }
 

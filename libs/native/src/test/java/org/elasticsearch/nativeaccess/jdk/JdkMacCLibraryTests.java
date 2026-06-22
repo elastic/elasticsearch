@@ -10,7 +10,7 @@
 package org.elasticsearch.nativeaccess.jdk;
 
 import org.apache.lucene.util.Constants;
-import org.elasticsearch.foreign.MemorySegmentUtil;
+import org.elasticsearch.foreign.adapter.MemorySegmentAdapter;
 import org.elasticsearch.nativeaccess.NativeAccess;
 import org.elasticsearch.nativeaccess.jdk.JdkMacCLibrary.JdkErrorReference;
 import org.elasticsearch.nativeaccess.lib.MacCLibrary;
@@ -43,7 +43,7 @@ public class JdkMacCLibraryTests extends ESTestCase {
     public void testErrorReferenceToString() {
         try (Arena arena = Arena.ofConfined()) {
             String expected = "sandbox error: syntax error";
-            MemorySegment nativeString = MemorySegmentUtil.allocateString(arena, expected);
+            MemorySegment nativeString = MemorySegmentAdapter.allocateString(arena, expected);
 
             JdkErrorReference errorRef = (JdkErrorReference) macCLibrary.newErrorReference();
             // Simulate what sandbox_init does on failure: write a char* pointer

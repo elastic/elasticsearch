@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.cluster.metadata.DatasetMetadata;
+import org.elasticsearch.cluster.metadata.View;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.plugins.Plugin;
@@ -25,6 +26,8 @@ import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceSetting;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourceValidator;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
+import org.elasticsearch.xpack.esql.view.DeleteViewAction;
+import org.elasticsearch.xpack.esql.view.PutViewAction;
 import org.junit.After;
 import org.junit.Before;
 
@@ -130,10 +133,31 @@ public class FromDatasetIT extends AbstractEsqlIntegTestCase {
      * Names every {@code testXxx} body PUTs. New tests must register their dataset name here so the
      * SUITE-scoped cluster doesn't carry state across methods.
      */
-    private static final Set<String> CREATED_DATASETS = Set.of("employees", "employees_alt", "logs_dataset", "events_hive");
+    private static final Set<String> CREATED_DATASETS = Set.of(
+        "employees",
+        "employees_alt",
+        "logs_dataset",
+        "events_hive",
+        "employees_external"
+    );
+
+    /**
+     * Names every {@code testXxx} body creates via {@link PutViewAction}. As with datasets, the SUITE-scoped
+     * cluster requires explicit teardown so views don't leak across methods.
+     */
+    private static final Set<String> CREATED_VIEWS = Set.of("employees_view", "employees_filtered_view");
 
     @After
     public void cleanupRegistry() throws Exception {
+        for (String view : CREATED_VIEWS) {
+            try {
+                client().execute(DeleteViewAction.INSTANCE, deleteViewRequest(view)).get(30, java.util.concurrent.TimeUnit.SECONDS);
+            } catch (ResourceNotFoundException ignored) {
+                // already deleted by the test itself
+            } catch (Exception e) {
+                logger.warn("view cleanup [{}] failed", view, e);
+            }
+        }
         for (String ds : CREATED_DATASETS) {
             try {
                 client().execute(DeleteDatasetAction.INSTANCE, deleteDatasetRequest(ds)).get(30, java.util.concurrent.TimeUnit.SECONDS);
@@ -176,6 +200,65 @@ public class FromDatasetIT extends AbstractEsqlIntegTestCase {
             assertThat(rows.get(1).get(1).toString(), equalTo("Bob"));
             assertThat(rows.get(2).get(0), equalTo(3));
             assertThat(rows.get(2).get(1).toString(), equalTo("Carol"));
+        }
+    }
+
+    public void testViewOverExternalDatasetIsQueryable() throws Exception {
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                putDatasetRequest("employees_external", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"))
+            )
+        );
+        // The view body targets the dataset. View resolution runs before the dataset rewrite, so it inlines the body
+        // while it is still a plain index-shaped relation; the rewriter then turns the inlined leaf into an external
+        // relation over the CSV fixture. This is the end-to-end realisation of a view "containing" an external source.
+        // There is no index named "employees_external", so the query can only succeed via the external dataset pipeline —
+        // if the inlined leaf were treated as an index it would fail with "unknown index" (see testFromUnknownName...).
+        assertAcked(client().execute(PutViewAction.INSTANCE, putViewRequest("employees_view", "FROM employees_external")));
+
+        try (var response = run(syncEsqlQueryRequest("FROM employees_view | SORT emp_no | LIMIT 10"), TIMEOUT)) {
+            List<? extends ColumnInfo> columns = response.columns();
+            assertThat(columns, hasSize(2));
+            assertThat(columns.get(0).name(), equalTo("emp_no"));
+            assertThat(columns.get(1).name(), equalTo("first_name"));
+
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(3));
+            assertThat(rows.get(0).get(0), equalTo(1));
+            assertThat(rows.get(0).get(1).toString(), equalTo("Alice"));
+            assertThat(rows.get(1).get(0), equalTo(2));
+            assertThat(rows.get(1).get(1).toString(), equalTo("Bob"));
+            assertThat(rows.get(2).get(0), equalTo(3));
+            assertThat(rows.get(2).get(1).toString(), equalTo("Carol"));
+        }
+    }
+
+    public void testViewOverExternalDatasetWithTransformInBody() throws Exception {
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                putDatasetRequest("employees_external", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"))
+            )
+        );
+        // A non-trivial view body (a WHERE on top of the dataset) proves the external leaf resolves and executes when
+        // it is nested below other commands inside a resolved view, not just as a bare top-level relation.
+        assertAcked(
+            client().execute(
+                PutViewAction.INSTANCE,
+                putViewRequest("employees_filtered_view", "FROM employees_external | WHERE emp_no > 1")
+            )
+        );
+
+        try (var response = run(syncEsqlQueryRequest("FROM employees_filtered_view | SORT emp_no"), TIMEOUT)) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(2));
+            assertThat(rows.get(0).get(0), equalTo(2));
+            assertThat(rows.get(0).get(1).toString(), equalTo("Bob"));
+            assertThat(rows.get(1).get(0), equalTo(3));
+            assertThat(rows.get(1).get(1).toString(), equalTo("Carol"));
         }
     }
 
@@ -622,5 +705,13 @@ public class FromDatasetIT extends AbstractEsqlIntegTestCase {
 
     private static DeleteDatasetAction.Request deleteDatasetRequest(String name) {
         return new DeleteDatasetAction.Request(TIMEOUT, TIMEOUT, new String[] { name });
+    }
+
+    private static PutViewAction.Request putViewRequest(String name, String query) {
+        return new PutViewAction.Request(TIMEOUT, TIMEOUT, new View(name, query));
+    }
+
+    private static DeleteViewAction.Request deleteViewRequest(String name) {
+        return new DeleteViewAction.Request(TIMEOUT, TIMEOUT, new String[] { name });
     }
 }

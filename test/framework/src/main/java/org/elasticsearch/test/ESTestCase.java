@@ -2402,6 +2402,14 @@ public abstract class ESTestCase extends LuceneTestCase {
         }
     }
 
+    public static void assertEqualsPercent(float expectedValue, float actualValue, float deltaPercent) {
+        var error = Math.max(expectedValue * deltaPercent, DEFAULT_DELTA);
+        var actualDelta = Math.abs(expectedValue - actualValue) - error;
+        if (actualDelta > 0) {
+            fail(Strings.format("expected:<%f> but was:<%f>", expectedValue, actualValue));
+        }
+    }
+
     protected static long spinForAtLeastOneMillisecond() {
         return spinForAtLeastNMilliseconds(1);
     }

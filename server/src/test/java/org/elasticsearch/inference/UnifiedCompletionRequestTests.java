@@ -33,7 +33,16 @@ public class UnifiedCompletionRequestTests extends InferenceObjectRamBytesUsedTe
     public List<UnifiedCompletionRequest> objectsToEstimateWithLargerInput() {
         return List.of(
             // More messages
-            new UnifiedCompletionRequest(List.of(MESSAGES.getFirst(), MESSAGES.getFirst()), MODEL, null, STOP, null, TOOL_CHOICE, TOOLS, null),
+            new UnifiedCompletionRequest(
+                List.of(MESSAGES.getFirst(), MESSAGES.getFirst()),
+                MODEL,
+                null,
+                STOP,
+                null,
+                TOOL_CHOICE,
+                TOOLS,
+                null
+            ),
             // Longer model
             new UnifiedCompletionRequest(MESSAGES, MODEL.repeat(5), null, STOP, null, TOOL_CHOICE, TOOLS, null),
             // More stop

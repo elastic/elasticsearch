@@ -275,6 +275,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
 
     public GetResult getFromTranslog(
         String id,
+        String routing,
         String[] gFields,
         boolean realtime,
         long version,
@@ -286,7 +287,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
     ) throws IOException {
         return doGet(
             id,
-            null,
+            routing,
             gFields,
             realtime,
             version,

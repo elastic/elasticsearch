@@ -12,7 +12,10 @@ package org.elasticsearch.index.engine;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.document.NumericDocValuesField;
+import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.DocValues;
+import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
@@ -24,6 +27,8 @@ import org.apache.lucene.index.MergeScheduler;
 import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.SoftDeletesRetentionMergePolicy;
+import org.apache.lucene.index.SortedDocValues;
+import org.apache.lucene.index.StoredFieldVisitor;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
@@ -92,8 +97,10 @@ import org.elasticsearch.index.mapper.IdLoader;
 import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
+import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.merge.MergeStats;
 import org.elasticsearch.index.merge.OnGoingMerge;
 import org.elasticsearch.index.seqno.LocalCheckpointTracker;
@@ -4071,6 +4078,11 @@ public class InternalEngine extends Engine {
             .build();
         final Weight weight = searcher.createWeight(searcher.rewrite(query), ScoreMode.COMPLETE_NO_SCORES, 1.0f);
         final StoredFieldLoader storedFieldLoader = StoredFieldLoader.fromSpecSequential(new StoredFieldsSpec(false, true, Set.of("_id")));
+        // A slice index keys the version map by the compound (slice, id) identity term, which differs from the stored
+        // _id: a live doc stores the plain encodeId(id) (reconstruct the compound with the doc's _routing), while a
+        // delete tombstone stores the compound directly (use it as-is — it has no _routing, and decoding it as a plain
+        // id would corrupt it). The raw _id is in binary doc values for a columnar index, otherwise in stored fields.
+        final boolean columnar = engineConfig.getMapperService().mappingLookup().isColumnarId();
         for (LeafReaderContext leaf : directoryReader.leaves()) {
             final Scorer scorer = weight.scorer(leaf);
             if (scorer == null) {
@@ -4080,6 +4092,10 @@ public class InternalEngine extends Engine {
             final DocIdSetIterator iterator = scorer.iterator();
             var leafStoredFieldLoader = storedFieldLoader.getLoader(leaf, null);
             var leafIdLoader = idLoader.leaf(leafStoredFieldLoader, leaf.reader(), null);
+            final SortedDocValues routingDocValues = sliceEnabled ? leaf.reader().getSortedDocValues(RoutingFieldMapper.NAME) : null;
+            final BinaryDocValues sliceIdDocValues = (sliceEnabled && columnar)
+                ? DocValues.getBinary(leaf.reader(), IdFieldMapper.NAME)
+                : null;
 
             for (int docId = iterator.nextDoc(); docId != DocIdSetIterator.NO_MORE_DOCS; docId = iterator.nextDoc()) {
                 final long primaryTerm = dv.docPrimaryTerm(docId);
@@ -4087,18 +4103,42 @@ public class InternalEngine extends Engine {
                 localCheckpointTracker.markSeqNoAsProcessed(seqNo);
                 localCheckpointTracker.markSeqNoAsPersisted(seqNo);
                 leafStoredFieldLoader.advanceTo(docId);
-                String id = leafIdLoader.getId(docId);
-                if (id == null) {
-                    assert dv.isTombstone(docId);
-                    continue;
+                final boolean isTombstone = dv.isTombstone(docId);
+
+                final String id;
+                final BytesRef uid;
+                if (sliceEnabled) {
+                    // Raw _id bytes (binary doc values in columnar mode, else stored fields); null => a noop tombstone.
+                    final BytesRef rawId = columnar
+                        ? (sliceIdDocValues.advanceExact(docId) ? BytesRef.deepCopyOf(sliceIdDocValues.binaryValue()) : null)
+                        : readRawStoredId(leaf, docId);
+                    if (rawId == null) {
+                        assert isTombstone;
+                        continue;
+                    }
+                    if (isTombstone) {
+                        uid = rawId; // the tombstone _id already IS the compound identity term
+                        id = Uid.decodeCompoundId(rawId);
+                    } else {
+                        id = Uid.decodeId(rawId); // a live doc stores the plain id; rebuild the compound from it + routing
+                        String routing = leafStoredFieldLoader.routing();
+                        if (routing == null && routingDocValues != null && routingDocValues.advanceExact(docId)) {
+                            routing = routingDocValues.lookupOrd(routingDocValues.ordValue()).utf8ToString();
+                        }
+                        uid = Uid.encodeCompoundId(id, routing);
+                    }
+                } else {
+                    id = leafIdLoader.getId(docId);
+                    if (id == null) {
+                        assert isTombstone;
+                        continue;
+                    }
+                    uid = Uid.encodeId(id);
                 }
-                // Key the version map by the same identity term live operations use. For a slice index that is the
-                // compound (slice, id) term (the slice is the doc's routing); otherwise the plain encodeId(id).
-                final BytesRef uid = IdFieldMapper.encodeIdentity(sliceEnabled, id, leafStoredFieldLoader.routing());
                 try (Releasable ignored = versionMap.acquireLock(uid)) {
                     final VersionValue curr = versionMap.getUnderLock(uid);
                     if (curr == null || compareOpToVersionMapOnSeqNo(id, seqNo, primaryTerm, curr) == OpVsLuceneDocStatus.OP_NEWER) {
-                        if (dv.isTombstone(docId)) {
+                        if (isTombstone) {
                             // use 0L for the start time so we can prune this delete tombstone quickly
                             // when the local checkpoint advances (i.e., after a recovery completed).
                             final long startTime = 0L;
@@ -4112,6 +4152,27 @@ public class InternalEngine extends Engine {
         }
         // remove live entries in the version map
         refresh("restore_version_map_and_checkpoint_tracker", SearcherScope.INTERNAL, true);
+    }
+
+    /** Read the raw stored {@code _id} bytes for a document (used for slice indices in document mode), or {@code null}. */
+    private static BytesRef readRawStoredId(LeafReaderContext leaf, int docId) throws IOException {
+        final RawIdVisitor visitor = new RawIdVisitor();
+        leaf.reader().storedFields().document(docId, visitor);
+        return visitor.idBytes;
+    }
+
+    private static final class RawIdVisitor extends StoredFieldVisitor {
+        private BytesRef idBytes;
+
+        @Override
+        public Status needsField(FieldInfo fieldInfo) {
+            return IdFieldMapper.NAME.equals(fieldInfo.name) ? Status.YES : Status.NO;
+        }
+
+        @Override
+        public void binaryField(FieldInfo fieldInfo, byte[] value) {
+            idBytes = new BytesRef(value);
+        }
     }
 
     @Override

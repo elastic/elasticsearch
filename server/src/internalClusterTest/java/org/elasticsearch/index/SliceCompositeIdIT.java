@@ -24,6 +24,7 @@ import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.slice.SliceBuilder;
@@ -376,6 +377,60 @@ public class SliceCompositeIdIT extends ESIntegTestCase {
         // Every doc returned exactly once: no duplicates (set size == total hits) and full coverage.
         assertThat("a doc appeared in more than one partition", seen.size(), equalTo(totalHits));
         assertThat(seen.size(), equalTo(totalDocs));
+    }
+
+    /**
+     * Optimistic concurrency ({@code if_seq_no}/{@code if_primary_term}) is scoped per slice: each {@code (slice, id)}
+     * has its own seq_no/version lineage, so a conditional write only matches its own slice's document. A plain-id keyed
+     * version lookup would let one slice's seq_no satisfy another slice's conditional write.
+     */
+    public void testOptimisticConcurrencyIsScopedPerSlice() {
+        createSliceIndex("occ", 1);
+        DocWriteResponse a = indexDoc("occ", "sa", "1", "va");
+        DocWriteResponse b = indexDoc("occ", "sb", "1", "vb");
+        // The same user id in two slices yields two independent documents, each created (not an update of the other).
+        assertThat(a.getResult(), equalTo(DocWriteResponse.Result.CREATED));
+        assertThat(b.getResult(), equalTo(DocWriteResponse.Result.CREATED));
+
+        // Conditionally updating (sa, 1) with the OTHER slice's seq_no/term must conflict: the check resolves against
+        // the compound (sa, 1) term, whose current seq_no is a's, not b's. (With plain-id keying b's seq_no would match.)
+        VersionConflictEngineException conflict = expectThrows(
+            VersionConflictEngineException.class,
+            () -> client().index(
+                new IndexRequest("occ").id("1")
+                    .source("field", "va2")
+                    .routing("sa")
+                    .setRoutingFromSlice(true)
+                    .setIfSeqNo(b.getSeqNo())
+                    .setIfPrimaryTerm(b.getPrimaryTerm())
+            ).actionGet()
+        );
+        assertThat(conflict.getMessage(), containsString("version conflict"));
+
+        // Using (sa, 1)'s own seq_no/term succeeds; (sb, 1) updates independently on its own lineage.
+        DocWriteResponse updatedA = client().index(
+            new IndexRequest("occ").id("1")
+                .source("field", "va2")
+                .routing("sa")
+                .setRoutingFromSlice(true)
+                .setIfSeqNo(a.getSeqNo())
+                .setIfPrimaryTerm(a.getPrimaryTerm())
+        ).actionGet();
+        assertThat(updatedA.getResult(), equalTo(DocWriteResponse.Result.UPDATED));
+
+        DocWriteResponse updatedB = client().index(
+            new IndexRequest("occ").id("1")
+                .source("field", "vb2")
+                .routing("sb")
+                .setRoutingFromSlice(true)
+                .setIfSeqNo(b.getSeqNo())
+                .setIfPrimaryTerm(b.getPrimaryTerm())
+        ).actionGet();
+        assertThat(updatedB.getResult(), equalTo(DocWriteResponse.Result.UPDATED));
+
+        refresh("occ");
+        assertThat(getDoc("occ", "sa", "1").getSource().get("field"), equalTo("va2"));
+        assertThat(getDoc("occ", "sb", "1").getSource().get("field"), equalTo("vb2"));
     }
 
     /** Drains one scroll-slice partition, recording each hit's source marker, and returns the number of hits seen. */

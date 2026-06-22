@@ -11,10 +11,14 @@ package org.elasticsearch.get;
 
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.admin.indices.alias.Alias;
+import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.get.TransportGetFromTranslogAction;
 import org.elasticsearch.action.get.TransportGetFromTranslogAction.Response;
+import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -92,6 +96,71 @@ public class GetFromTranslogActionIT extends ESIntegTestCase {
         // getFromTranslog in stateful does not trigger flush a new generation.
         // Therefore lastCommittedSegmentInfos does not change which means lastUnsafeSegmentGenerationForGets does not change
         assertThat(response.segmentGeneration(), equalTo(initialGeneration));
+    }
+
+    public void testGetFromTranslogOnSliceIndex() throws Exception {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        final String index = "slice-test";
+        assertAcked(
+            prepareCreate(index).setMapping("field1", "type=keyword,store=true")
+                .setSettings(indexSettings(1, 0).put("index.refresh_interval", -1).put(IndexSettings.SLICE_ENABLED.getKey(), true))
+        );
+        ensureGreen(index);
+        var shardRouting = randomFrom(clusterService().state().routingTable().allShards(index));
+
+        // Warm-up get (as in testGetFromTranslog): the first lookup switches the live version map from append-only to
+        // safe access, so subsequent get-from-translog calls can serve freshly indexed docs from the translog.
+        assertNull(getFromTranslog(shardRouting, index, "1", "s1").getResult());
+
+        // The same id "1" in two slices must each resolve via their own slice's compound _id term — before routing was
+        // threaded through, the shard threw on encodeIdentity(true, id, null). A get from translog triggers a refresh,
+        // so (as in testGetFromTranslog) each write is checked by the get immediately following it.
+        var ra = client().index(
+            new IndexRequest(index).id("1")
+                .source("field1", "va")
+                .routing("s1")
+                .setRoutingFromSlice(true)
+                .setRefreshPolicy(RefreshPolicy.NONE)
+        ).actionGet();
+        var responseA = getFromTranslog(shardRouting, index, "1", "s1");
+        assertNotNull(responseA.getResult());
+        assertThat(responseA.getResult().isExists(), equalTo(true));
+        assertThat(responseA.getResult().getVersion(), equalTo(ra.getVersion()));
+
+        // Deleting (s1, 1) is reflected from the translog for slice s1.
+        client().delete(new DeleteRequest(index, "1").routing("s1").setRoutingFromSlice(true)).actionGet();
+        responseA = getFromTranslog(shardRouting, index, "1", "s1");
+        assertNotNull("get followed by a delete should still return a result", responseA.getResult());
+        assertThat(responseA.getResult().isExists(), equalTo(false));
+
+        // The same id in a different slice is an independent document, resolved by its own compound term.
+        var rb = client().index(
+            new IndexRequest(index).id("1")
+                .source("field1", "vb")
+                .routing("s2")
+                .setRoutingFromSlice(true)
+                .setRefreshPolicy(RefreshPolicy.NONE)
+        ).actionGet();
+        var responseB = getFromTranslog(shardRouting, index, "1", "s2");
+        assertNotNull(responseB.getResult());
+        assertThat(responseB.getResult().isExists(), equalTo(true));
+        assertThat(responseB.getResult().getVersion(), equalTo(rb.getVersion()));
+    }
+
+    private Response getFromTranslog(ShardRouting shardRouting, String index, String id, String routing) throws Exception {
+        var getRequest = client().prepareGet(index, id).setRouting(routing).request();
+        var node = clusterService().state().nodes().get(shardRouting.currentNodeId());
+        assertNotNull(node);
+        TransportGetFromTranslogAction.Request request = new TransportGetFromTranslogAction.Request(getRequest, shardRouting.shardId());
+        var transportService = internalCluster().getInstance(TransportService.class);
+        PlainActionFuture<Response> response = new PlainActionFuture<>();
+        transportService.sendRequest(
+            node,
+            TransportGetFromTranslogAction.NAME,
+            request,
+            new ActionListenerResponseHandler<>(response, Response::new, transportService.getThreadPool().executor(ThreadPool.Names.GET))
+        );
+        return response.get();
     }
 
     private Response getFromTranslog(ShardRouting shardRouting, String id) throws Exception {

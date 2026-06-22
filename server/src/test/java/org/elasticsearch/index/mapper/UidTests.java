@@ -136,6 +136,19 @@ public class UidTests extends ESTestCase {
         assertEquals(id, Uid.decodeCompoundId(b));
     }
 
+    public void testCompoundIdEnforcesSliceLengthBounds() {
+        final String id = randomId();
+        // A 128-byte (ASCII) slice is the maximum and must round-trip; the trailing length byte holds 128 (0x80).
+        final String maxSlice = randomAlphaOfLength(128);
+        BytesRef max = Uid.encodeCompoundId(id, maxSlice);
+        assertEquals(maxSlice, Uid.sliceFromCompoundId(max));
+        assertEquals(id, Uid.decodeCompoundId(max));
+        // Beyond the single-byte length tag the encoding would corrupt, so it is rejected hard (not just asserted),
+        // as is the empty slice (which would collide with the search term's trailing 0x00).
+        expectThrows(IllegalArgumentException.class, () -> Uid.encodeCompoundId(id, randomAlphaOfLength(129)));
+        expectThrows(IllegalArgumentException.class, () -> Uid.encodeCompoundId(id, ""));
+    }
+
     private static String randomSlice() {
         return randomAlphaOfLengthBetween(1, 32);
     }

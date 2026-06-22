@@ -223,7 +223,14 @@ public final class Uid {
     public static BytesRef encodeCompoundId(String id, String slice) {
         BytesRef encodedId = encodeId(id);
         byte[] sliceBytes = slice.getBytes(StandardCharsets.UTF_8);
-        assert sliceBytes.length <= 128 : "slice length [" + sliceBytes.length + "] exceeds 128";
+        // The trailing byte holds the slice length, so the disjointness from the search term (trailing 0x00) relies on
+        // the length being in [1, 128]. SliceIndexing.validateUserSliceValue enforces this on the write API, but this is
+        // the on-disk term encoding, so guard it hard here too rather than only via assertion.
+        if (sliceBytes.length < 1 || sliceBytes.length > 128) {
+            throw new IllegalArgumentException(
+                "slice byte length must be in [1, 128] but was [" + sliceBytes.length + "] for slice [" + slice + "]"
+            );
+        }
         byte[] b = new byte[encodedId.length + sliceBytes.length + 1];
         System.arraycopy(encodedId.bytes, encodedId.offset, b, 0, encodedId.length);
         System.arraycopy(sliceBytes, 0, b, encodedId.length, sliceBytes.length);

@@ -136,7 +136,7 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
     implements
         ActionWithReservedState<Request> {
 
-    private static final Logger logger = LogManager.getLogger(TransportMasterNodeAction.class);
+    public static final Logger logger = LogManager.getLogger(TransportMasterNodeAction.class);
 
     protected final ThreadPool threadPool;
     protected final TransportService transportService;

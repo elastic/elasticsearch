@@ -856,6 +856,15 @@ public class ShardStateAction {
 
         @Override
         public void clusterStatePublished(ClusterState newClusterState) {
+            try {
+                if (newClusterState.version() > 15) {
+                    Thread.sleep(500);
+                }
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+            logger.info("--> executing shardStated::clusterStatePublished for version {}", newClusterState.version());
+
             final String reason;
             final Priority priority;
 

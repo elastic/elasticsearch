@@ -449,6 +449,7 @@ public class MetadataRolloverService {
             );
         }
 
+        logger.info("---> refresh license from rolloverDataStream");
         writeLoadForecaster.refreshLicense();
         metadataBuilder = writeLoadForecaster.withWriteLoadForecastForWriteIndex(dataStreamName, metadataBuilder);
         metadataBuilder = withShardSizeForecastForWriteIndex(dataStreamName, metadataBuilder);

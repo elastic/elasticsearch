@@ -50,10 +50,18 @@ public abstract class AbstractLicenseCheckingWriteLoadForecaster implements Writ
 
     @Override
     public final void refreshLicense() {
-        final var oldValue = hasValidLicense;
         final var newValue = hasValidLicenseSupplier.getAsBoolean();
-        if (newValue != oldValue && VH_HAS_VALID_LICENSE_FIELD.compareAndSet(this, oldValue, newValue)) {
+        logger.info("----> grabbed new value from hasValidLicenseSupplier {}", newValue);
+        try {
+            Thread.sleep(500);
+        } catch (InterruptedException e) {
+            throw new AssertionError(e);
+        }
+        final var oldValue = (boolean) VH_HAS_VALID_LICENSE_FIELD.getAndSet(this, newValue);
+        if (newValue != oldValue) {
             logger.info("license state changed, now [{}]", newValue ? "valid" : "not valid");
+        } else {
+            logger.info("----> new and old value were the same {}", newValue);
         }
     }
 }

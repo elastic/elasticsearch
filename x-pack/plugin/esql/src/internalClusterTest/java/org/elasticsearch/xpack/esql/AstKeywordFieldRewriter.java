@@ -818,21 +818,20 @@ public final class AstKeywordFieldRewriter {
             }
 
             boolean isFunction = expression instanceof Function;
-            String functionName = null;
+            String expressionName = null;
             if (isFunction) {
                 if (expression instanceof org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction unf) {
-                    functionName = unf.name().toUpperCase(Locale.ROOT);
+                    expressionName = unf.name().toUpperCase(Locale.ROOT);
                 } else {
-                    functionName = ((Function) expression).functionName().toUpperCase(Locale.ROOT);
+                    expressionName = ((Function) expression).functionName().toUpperCase(Locale.ROOT);
                 }
+            } else {
+                expressionName = expression.getClass().getSimpleName().toUpperCase(Locale.ROOT);
             }
 
             int i = 0;
             for (Expression child : expression.children()) {
-                String nextTrackingContext = trackingContext;
-                if (isFunction) {
-                    nextTrackingContext = functionName + ":" + i;
-                }
+                String nextTrackingContext = expressionName + ":" + i;
                 wrapExpression(child, scope, nextTrackingContext);
                 i++;
             }

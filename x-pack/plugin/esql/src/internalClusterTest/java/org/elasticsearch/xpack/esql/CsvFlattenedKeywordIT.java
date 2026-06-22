@@ -259,6 +259,8 @@ public class CsvFlattenedKeywordIT extends CsvIT {
         }
 
         Set<String> candidates = new HashSet<>();
+        Map<String, Set<String>> paramNamesByIndex = new HashMap<>();
+
         try (Stream<Path> paths = Files.walk(kibanaDir)) {
             paths.filter(Files::isRegularFile).filter(p -> p.toString().endsWith(".json")).forEach(p -> {
                 try {
@@ -280,11 +282,28 @@ public class CsvFlattenedKeywordIT extends CsvIT {
                             List<Map<String, Object>> params = (List<Map<String, Object>>) sig.get("params");
                             if (params != null) {
                                 for (int i = 0; i < params.size(); i++) {
+                                    String indexKey = name + ":" + i;
+                                    String paramName = (String) params.get(i).get("name");
+                                    if (paramName != null) {
+                                        paramNamesByIndex.computeIfAbsent(indexKey, k -> new TreeSet<>()).add(paramName);
+                                    }
+
+                                    Map<String, Object> hint = (Map<String, Object>) params.get(i).get("hint");
+                                    if (hint != null) {
+                                        Object kind = hint.get("kind");
+                                        if ("entity".equals(kind) || "aggregation".equals(kind)) {
+                                            continue;
+                                        }
+                                    }
+                                    if (params.get(i).containsKey("mapParams")) {
+                                        continue;
+                                    }
+
                                     Object typeObj = params.get(i).get("type");
                                     if (typeObj instanceof String) {
                                         String t = (String) typeObj;
                                         if ("keyword".equals(t) || "text".equals(t)) {
-                                            candidates.add(name + ":" + i);
+                                            candidates.add(indexKey);
                                         }
                                     }
                                 }
@@ -297,8 +316,23 @@ public class CsvFlattenedKeywordIT extends CsvIT {
             });
         }
 
-        List<String> missing = new ArrayList<>(candidates);
-        missing.removeAll(COVERED_ARGUMENTS);
+        Map<String, String> indexToName = new HashMap<>();
+        for (Map.Entry<String, Set<String>> entry : paramNamesByIndex.entrySet()) {
+            indexToName.put(entry.getKey(), entry.getKey().split(":")[0] + ":" + String.join("|", entry.getValue()));
+        }
+
+        Set<String> mappedCandidates = new HashSet<>();
+        for (String c : candidates) {
+            mappedCandidates.add(indexToName.getOrDefault(c, c));
+        }
+
+        Set<String> mappedCovered = new HashSet<>();
+        for (String c : COVERED_ARGUMENTS) {
+            mappedCovered.add(indexToName.getOrDefault(c, c));
+        }
+
+        List<String> missing = new ArrayList<>(mappedCandidates);
+        missing.removeAll(mappedCovered);
         missing.sort(Comparator.naturalOrder());
 
         assertEquals("Missing field_extract coverage for parameters", EXPECTED_MISSING, missing);
@@ -1352,121 +1386,119 @@ public class CsvFlattenedKeywordIT extends CsvIT {
     }
 
     public static final java.util.List<String> EXPECTED_MISSING = java.util.List.of(
-        "ABSENT_OVER_TIME:0",
-        "BUCKET:2",
-        "BUCKET:3",
-        "CIDR_MATCH:1",
-        "CLAMP:0",
-        "CLAMP:1",
-        "CLAMP:2",
-        "CLAMP_MAX:0",
-        "CLAMP_MAX:1",
-        "CLAMP_MIN:0",
-        "CLAMP_MIN:1",
-        "CONTAINS:1",
-        "COUNT_DISTINCT_OVER_TIME:0",
-        "COUNT_OVER_TIME:0",
-        "DATE_DIFF:0",
-        "DATE_FORMAT:0",
-        "DATE_PARSE:0",
-        "DATE_PARSE:1",
-        "DATE_UNIT_COUNT:0",
-        "DATE_UNIT_COUNT:1",
-        "DECAY:2",
-        "EMBEDDING:0",
-        "EMBEDDING:1",
-        "ENDS_WITH:1",
-        "FIRST_OVER_TIME:0",
-        "FROM_BASE64:0",
-        "GREATER_THAN:0",
-        "GREATER_THAN:1",
-        "GREATER_THAN_OR_EQUAL:0",
-        "GREATER_THAN_OR_EQUAL:1",
-        "GREATEST:0",
-        "GREATEST:1",
-        "HASH:0",
-        "IN:0",
-        "IN:1",
-        "IS_NOT_NULL:0",
-        "IS_NULL:0",
-        "JSON_EXTRACT:0",
-        "KNN:0",
-        "KQL:0",
-        "LAST_OVER_TIME:0",
-        "LEAST:0",
-        "LEAST:1",
-        "LESS_THAN:0",
-        "LESS_THAN:1",
-        "LESS_THAN_OR_EQUAL:0",
-        "LESS_THAN_OR_EQUAL:1",
-        "LIKE:0",
-        "LIKE:1",
-        "LOCATE:1",
-        "LTRIM:0",
-        "MATCH:0",
-        "MATCH:1",
-        "MATCH_OPERATOR:0",
-        "MATCH_OPERATOR:1",
-        "MATCH_PHRASE:1",
-        "MAX_OVER_TIME:0",
-        "MIN_OVER_TIME:0",
-        "MV_CONTAINS:1",
-        "MV_DEDUPE:0",
-        "MV_DIFFERENCE:1",
-        "MV_INTERSECTION:0",
-        "MV_INTERSECTION:1",
-        "MV_INTERSECTS:1",
-        "MV_LAST:0",
-        "MV_SLICE:0",
-        "MV_SORT:1",
-        "MV_UNION:0",
-        "MV_UNION:1",
-        "MV_ZIP:2",
-        "NETWORK_DIRECTION:2",
-        "NOT_EQUALS:0",
-        "NOT_EQUALS:1",
-        "NOT_IN:0",
-        "NOT_IN:1",
-        "NOT_LIKE:0",
-        "NOT_LIKE:1",
-        "NOT_RLIKE:0",
-        "NOT_RLIKE:1",
-        "PRESENT_OVER_TIME:0",
-        "QSTR:0",
-        "REPLACE:1",
-        "REPLACE:2",
-        "RLIKE:1",
-        "RTRIM:0",
-        "SPARKLINE:3",
-        "SPARKLINE:4",
-        "SPLIT:0",
-        "TBUCKET:1",
-        "TBUCKET:2",
-        "TEXT_EMBEDDING:0",
-        "TEXT_EMBEDDING:1",
-        "TOP:2",
-        "TOP_SNIPPETS:1",
-        "TO_CARTESIANPOINT:0",
-        "TO_CARTESIANSHAPE:0",
-        "TO_DATEPERIOD:0",
-        "TO_DATETIME:0",
-        "TO_DATE_NANOS:0",
-        "TO_DENSE_VECTOR:0",
-        "TO_DOUBLE:0",
-        "TO_GEOHASH:0",
-        "TO_GEOHEX:0",
-        "TO_GEOPOINT:0",
-        "TO_GEOSHAPE:0",
-        "TO_GEOTILE:0",
-        "TO_IP:0",
-        "TO_TIMEDURATION:0",
-        "TO_UNSIGNED_LONG:0",
-        "TO_VERSION:0",
-        "TRANGE:0",
-        "TRANGE:1",
-        "TRIM:0",
-        "TSTEP:1",
-        "TSTEP:2",
-        "WITHOUT:0"
+        "ABSENT_OVER_TIME:field",
+        "BUCKET:from",
+        "BUCKET:to",
+        "CIDR_MATCH:blockX",
+        "CLAMP:field",
+        "CLAMP:max",
+        "CLAMP:min",
+        "CLAMP_MAX:field",
+        "CLAMP_MAX:max",
+        "CLAMP_MIN:field",
+        "CLAMP_MIN:min",
+        "CONTAINS:substring",
+        "COUNT_DISTINCT_OVER_TIME:field",
+        "COUNT_OVER_TIME:field",
+        "DATE_DIFF:unit",
+        "DATE_FORMAT:date|dateFormat",
+        "DATE_PARSE:datePattern|dateString",
+        "DATE_PARSE:dateString|options",
+        "DATE_UNIT_COUNT:from_unit",
+        "DATE_UNIT_COUNT:to_unit",
+        "DECAY:scale",
+        "EMBEDDING:value",
+        "ENDS_WITH:suffix",
+        "FIRST_OVER_TIME:field",
+        "FROM_BASE64:string",
+        "GREATER_THAN:lhs",
+        "GREATER_THAN:rhs",
+        "GREATER_THAN_OR_EQUAL:lhs",
+        "GREATER_THAN_OR_EQUAL:rhs",
+        "GREATEST:first",
+        "GREATEST:rest",
+        "HASH:algorithm",
+        "IN:field",
+        "IN:inlist",
+        "IS_NOT_NULL:field",
+        "IS_NULL:field",
+        "JSON_EXTRACT:string",
+        "KNN:field",
+        "KQL:query",
+        "LAST_OVER_TIME:field",
+        "LEAST:first",
+        "LEAST:rest",
+        "LESS_THAN:lhs",
+        "LESS_THAN:rhs",
+        "LESS_THAN_OR_EQUAL:lhs",
+        "LESS_THAN_OR_EQUAL:rhs",
+        "LIKE:pattern",
+        "LIKE:str",
+        "LOCATE:substring",
+        "LTRIM:string",
+        "MATCH:field",
+        "MATCH:query",
+        "MATCH_OPERATOR:field",
+        "MATCH_OPERATOR:query",
+        "MATCH_PHRASE:query",
+        "MAX_OVER_TIME:field",
+        "MIN_OVER_TIME:field",
+        "MV_CONTAINS:subset",
+        "MV_DEDUPE:field",
+        "MV_DIFFERENCE:field2",
+        "MV_INTERSECTION:field1",
+        "MV_INTERSECTION:field2",
+        "MV_INTERSECTS:field2",
+        "MV_LAST:field",
+        "MV_SLICE:field",
+        "MV_SORT:order",
+        "MV_UNION:field1",
+        "MV_UNION:field2",
+        "MV_ZIP:delim",
+        "NETWORK_DIRECTION:internal_networks",
+        "NOT_EQUALS:lhs",
+        "NOT_EQUALS:rhs",
+        "NOT_IN:field",
+        "NOT_IN:inlist",
+        "NOT_LIKE:pattern",
+        "NOT_LIKE:str",
+        "NOT_RLIKE:pattern",
+        "NOT_RLIKE:str",
+        "PRESENT_OVER_TIME:field",
+        "QSTR:query",
+        "REPLACE:newString",
+        "REPLACE:regex",
+        "RLIKE:pattern",
+        "RTRIM:string",
+        "SPARKLINE:from",
+        "SPARKLINE:to",
+        "SPLIT:string",
+        "TBUCKET:from",
+        "TBUCKET:to",
+        "TEXT_EMBEDDING:text",
+        "TOP:order",
+        "TOP_SNIPPETS:query",
+        "TO_CARTESIANPOINT:field",
+        "TO_CARTESIANSHAPE:field",
+        "TO_DATEPERIOD:field",
+        "TO_DATETIME:field",
+        "TO_DATE_NANOS:field",
+        "TO_DENSE_VECTOR:field",
+        "TO_DOUBLE:field",
+        "TO_GEOHASH:field",
+        "TO_GEOHEX:field",
+        "TO_GEOPOINT:field",
+        "TO_GEOSHAPE:field",
+        "TO_GEOTILE:field",
+        "TO_IP:field",
+        "TO_TIMEDURATION:field",
+        "TO_UNSIGNED_LONG:field",
+        "TO_VERSION:field",
+        "TRANGE:end_time",
+        "TRANGE:start_time_or_offset",
+        "TRIM:string",
+        "TSTEP:from",
+        "TSTEP:to",
+        "WITHOUT:dimension"
     );
 }

@@ -12,6 +12,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.lucene.BytesRefs;
@@ -87,6 +88,9 @@ import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesParams;
 import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
+import org.elasticsearch.iplocation.api.IpDataLookup;
+import org.elasticsearch.iplocation.api.IpLocationConsumer;
+import org.elasticsearch.iplocation.api.IpLocationService;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.node.Node;
@@ -133,6 +137,7 @@ import org.elasticsearch.xpack.esql.enrich.MatchConfig;
 import org.elasticsearch.xpack.esql.evaluator.EvalMapper;
 import org.elasticsearch.xpack.esql.evaluator.command.CompoundOutputEvaluator;
 import org.elasticsearch.xpack.esql.evaluator.command.GrokEvaluatorExtracter;
+import org.elasticsearch.xpack.esql.evaluator.command.IpLocationFunctionBridge;
 import org.elasticsearch.xpack.esql.evaluator.command.UserAgentFunctionBridge;
 import org.elasticsearch.xpack.esql.expression.Foldables;
 import org.elasticsearch.xpack.esql.expression.Order;
@@ -163,6 +168,7 @@ import org.elasticsearch.xpack.esql.plan.physical.FuseScoreEvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.GrokExec;
 import org.elasticsearch.xpack.esql.plan.physical.HashJoinExec;
 import org.elasticsearch.xpack.esql.plan.physical.HighlightExec;
+import org.elasticsearch.xpack.esql.plan.physical.IpLocationExec;
 import org.elasticsearch.xpack.esql.plan.physical.LimitByExec;
 import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
 import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
@@ -239,6 +245,8 @@ public class LocalExecutionPlanner {
     private final LookupFromIndexService lookupFromIndexService;
     private final InferenceService inferenceService;
     private final UserAgentParserRegistry userAgentParserRegistry;
+    private final IpLocationService ipLocationService;
+    private final ProjectResolver projectResolver;
     private final AbstractPhysicalOperationProviders physicalOperationProviders;
     private final OperatorFactoryRegistry operatorFactoryRegistry;
 
@@ -256,6 +264,8 @@ public class LocalExecutionPlanner {
         LookupFromIndexService lookupFromIndexService,
         InferenceService inferenceService,
         UserAgentParserRegistry userAgentParserRegistry,
+        IpLocationService ipLocationService,
+        ProjectResolver projectResolver,
         AbstractPhysicalOperationProviders physicalOperationProviders,
         OperatorFactoryRegistry operatorFactoryRegistry
     ) {
@@ -273,6 +283,8 @@ public class LocalExecutionPlanner {
         this.lookupFromIndexService = lookupFromIndexService;
         this.inferenceService = inferenceService;
         this.userAgentParserRegistry = userAgentParserRegistry;
+        this.ipLocationService = ipLocationService;
+        this.projectResolver = projectResolver;
         this.physicalOperationProviders = physicalOperationProviders;
         this.operatorFactoryRegistry = operatorFactoryRegistry;
     }
@@ -372,6 +384,8 @@ public class LocalExecutionPlanner {
             return planCompletion(completion, context);
         } else if (node instanceof SampleExec Sample) {
             return planSample(Sample, context);
+        } else if (node instanceof IpLocationExec ipLoc) {
+            return planIpLocation(ipLoc, context);
         } else if (node instanceof UserAgentExec userAgent) {
             return planUserAgent(userAgent, context);
         } else if (node instanceof UriPartsExec uriParts) {
@@ -437,6 +451,28 @@ public class LocalExecutionPlanner {
         return source.with(new MMROperator.Factory(diversifyField, diversifyFieldChannel, limit, queryVector, lambdaValue), source.layout);
     }
 
+    private PhysicalOperation planIpLocation(IpLocationExec exec, LocalExecutionPlannerContext context) {
+        String projectId = projectResolver.getProjectId().id();
+        ipLocationService.requestDownloads(projectId, IpLocationConsumer.ESQL);
+
+        IpDataLookup lookup = ipLocationService.createIpDataLookup(projectId, exec.databaseFile(), exec.outputFieldNames());
+        CompoundOutputEvaluator.OutputFieldsCollectorProvider provider = new CompoundOutputEvaluator.OutputFieldsCollectorProvider() {
+            @Override
+            public CompoundOutputEvaluator.OutputFieldsCollector createOutputFieldsCollector() {
+                return new IpLocationFunctionBridge.IpLocationCollectorImpl(exec.outputFieldNames(), lookup, exec.databaseFile());
+            }
+
+            @Override
+            public String collectorSimpleName() {
+                return IpLocationFunctionBridge.IpLocationCollectorImpl.class.getSimpleName();
+            }
+        };
+        CompoundOutputEvaluator.MultiValueStrategy strategy = exec.firstOnly()
+            ? CompoundOutputEvaluator.MultiValueStrategy.TAKE_FIRST
+            : CompoundOutputEvaluator.MultiValueStrategy.REJECT;
+        return planCompoundOutputEval(exec, provider, strategy, context);
+    }
+
     private PhysicalOperation planUserAgent(UserAgentExec exec, LocalExecutionPlannerContext context) {
         UserAgentParser parser = userAgentParserRegistry.getParser(exec.regexFile());
         if (parser == null) {
@@ -453,20 +489,21 @@ public class LocalExecutionPlanner {
                 return UserAgentFunctionBridge.UserAgentCollectorImpl.class.getSimpleName();
             }
         };
-        return planCompoundOutputEval(exec, provider, context);
+        return planCompoundOutputEval(exec, provider, CompoundOutputEvaluator.MultiValueStrategy.REJECT, context);
     }
 
     private PhysicalOperation planUriParts(UriPartsExec uriParts, LocalExecutionPlannerContext context) {
-        return planCompoundOutputEval(uriParts, uriParts, context);
+        return planCompoundOutputEval(uriParts, uriParts, CompoundOutputEvaluator.MultiValueStrategy.REJECT, context);
     }
 
     private PhysicalOperation planRegisteredDomain(RegisteredDomainExec rd, LocalExecutionPlannerContext context) {
-        return planCompoundOutputEval(rd, rd, context);
+        return planCompoundOutputEval(rd, rd, CompoundOutputEvaluator.MultiValueStrategy.REJECT, context);
     }
 
     private PhysicalOperation planCompoundOutputEval(
         final CompoundOutputEvalExec coe,
         CompoundOutputEvaluator.OutputFieldsCollectorProvider provider,
+        CompoundOutputEvaluator.MultiValueStrategy multiValueStrategy,
         LocalExecutionPlannerContext context
     ) {
         PhysicalOperation source = plan(coe.child(), context);
@@ -484,7 +521,7 @@ public class LocalExecutionPlanner {
             new ColumnExtractOperator.Factory(
                 types,
                 EvalMapper.toEvaluator(context.foldCtx(), coe.input(), layout, context.analysisRegistry()),
-                new CompoundOutputEvaluator.Factory(coe.input().dataType(), coe.source(), provider)
+                new CompoundOutputEvaluator.Factory(coe.input().dataType(), coe.source(), provider, multiValueStrategy)
             ),
             layout
         );

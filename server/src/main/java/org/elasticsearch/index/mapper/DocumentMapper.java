@@ -41,7 +41,14 @@ public class DocumentMapper {
         RootObjectMapper root = new RootObjectMapper.Builder(
             MapperService.SINGLE_MAPPING_NAME,
             mapperService.getIndexMode().isStrictColumnar() ? ObjectMapper.Defaults.SUBOBJECTS_COLUMNAR : ObjectMapper.Defaults.SUBOBJECTS
-        ).build(MapperBuilderContext.root(false, false));
+        ).build(
+            MapperBuilderContext.root(
+                false,
+                false,
+                MapperService.MergeReason.MAPPING_UPDATE,
+                mapperService.getIndexMode().isStrictColumnar()
+            )
+        );
         MetadataFieldMapper[] metadata = mapperService.getMetadataBuilders()
             .values()
             .stream()

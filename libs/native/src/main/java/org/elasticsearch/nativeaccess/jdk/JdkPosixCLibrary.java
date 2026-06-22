@@ -9,9 +9,10 @@
 
 package org.elasticsearch.nativeaccess.jdk;
 
+import org.elasticsearch.foreign.CloseableByteBuffer;
+import org.elasticsearch.foreign.MemorySegmentUtil;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.nativeaccess.CloseableByteBuffer;
 import org.elasticsearch.nativeaccess.lib.PosixCLibrary;
 
 import java.lang.foreign.Arena;
@@ -32,8 +33,8 @@ import static java.lang.foreign.ValueLayout.JAVA_BYTE;
 import static java.lang.foreign.ValueLayout.JAVA_INT;
 import static java.lang.foreign.ValueLayout.JAVA_LONG;
 import static java.lang.foreign.ValueLayout.JAVA_SHORT;
-import static org.elasticsearch.nativeaccess.jdk.LinkerHelper.downcallHandle;
-import static org.elasticsearch.nativeaccess.jdk.MemorySegmentUtil.varHandleWithoutOffset;
+import static org.elasticsearch.foreign.LinkerHelper.downcallHandle;
+import static org.elasticsearch.foreign.MemorySegmentUtil.varHandleWithoutOffset;
 
 class JdkPosixCLibrary implements PosixCLibrary {
 

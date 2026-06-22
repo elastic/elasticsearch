@@ -517,13 +517,12 @@ FROM (FROM partial_mapping_sample_data), (FROM sample_data)
 # Source mode coverage
 ############################
 
-// Synthetic source, regular (non-TS) index (gap): with index.mapping.source.mode=synthetic and
+// Synthetic source, regular (non-TS) index: with index.mapping.source.mode=synthetic and
 // dynamic:false, DocumentParser.parseDynamicValue calls addIgnoredField(), which stores each
-// unmapped field in the _ignored_source stored field. SyntheticSourceLoader then merges
-// _ignored_source into the reconstructed _source it returns. Whether UnmappedFieldsBlockLoader
-// receives the full reconstruction — including those entries — depends on which storedFields
-// are requested by the SourceLoader and merged into the StoredFieldsSpec. This test documents the
-// correct intended behaviour; update this comment if it turns out to pass without a code change.
+// unmapped field in the _ignored_source stored field. SyntheticSourceLoader merges _ignored_source
+// into the reconstructed _source. Note: synthetic source reconstructs dot-notation fields as
+// nested objects, so "unmapped.nested" appears as {"unmapped":{"nested":...}} rather than the
+// flat key used by stored source.
 fromSyntheticSource
 required_capability: optional_fields_load_all
 
@@ -533,13 +532,13 @@ FROM synthetic_source_partial_mapping
 ;
 
 @timestamp:datetime      | client_ip:ip | event_duration:long | message:keyword        | _unmapped_fields:keyword
-2024-10-23T12:15:03.360Z | 173.21.2.162 | 3450232             | Connected to 10.1.0.3! | "{""language_code"":""4"",""unmapped.nested"":""g"",""unmapped_event_duration"":""3450234"",""unmapped_message"":""Disconnected from 10.1.0.3""}"
-2024-10-23T12:27:28.948Z | 173.21.2.113 | 2764888             | Connected to 10.1.0.2! | "{""language_code"":""3"",""unmapped.nested"":""f"",""unmapped_event_duration"":""2764890"",""unmapped_message"":""Disconnected from 10.1.0.2""}"
-2024-10-23T13:33:34.937Z | 173.21.0.5   | 1232381             | 42                     | "{""language_code"":""2"",""unmapped.nested"":""e"",""unmapped_event_duration"":""1232383"",""unmapped_message"":""43""}"
-2024-10-23T13:51:54.732Z | 173.21.3.15  | 725447              | Connection error?      | "{""language_code"":""1"",""unmapped.nested"":""d"",""unmapped_event_duration"":""725449"",""unmapped_message"":""Disconnection error""}"
-2024-10-23T13:52:55.015Z | 173.21.3.15  | 8268152             | Connection error?      | "{""language_code"":""3"",""unmapped.nested"":""c"",""unmapped_event_duration"":""8268154"",""unmapped_message"":""Disconnection error""}"
-2024-10-23T13:53:55.832Z | 173.21.3.15  | 5033754             | Connection error?      | "{""language_code"":""2"",""unmapped.nested"":""b"",""unmapped_event_duration"":""5033756"",""unmapped_message"":""Disconnection error""}"
-2024-10-23T13:55:01.543Z | 173.21.3.15  | 1756466             | Connected to 10.1.0.1! | "{""language_code"":""1"",""unmapped.nested"":""a"",""unmapped_event_duration"":""1756468"",""unmapped_message"":""Disconnected from 10.1.0.1""}"
+2024-10-23T12:15:03.360Z | 173.21.2.162 | 3450232             | Connected to 10.1.0.3! | "{""language_code"":""4"",""unmapped"":{""nested"":""g""},""unmapped_event_duration"":""3450234"",""unmapped_message"":""Disconnected from 10.1.0.3""}"
+2024-10-23T12:27:28.948Z | 173.21.2.113 | 2764888             | Connected to 10.1.0.2! | "{""language_code"":""3"",""unmapped"":{""nested"":""f""},""unmapped_event_duration"":""2764890"",""unmapped_message"":""Disconnected from 10.1.0.2""}"
+2024-10-23T13:33:34.937Z | 173.21.0.5   | 1232381             | 42                     | "{""language_code"":""2"",""unmapped"":{""nested"":""e""},""unmapped_event_duration"":""1232383"",""unmapped_message"":""43""}"
+2024-10-23T13:51:54.732Z | 173.21.3.15  | 725447              | Connection error?      | "{""language_code"":""1"",""unmapped"":{""nested"":""d""},""unmapped_event_duration"":""725449"",""unmapped_message"":""Disconnection error""}"
+2024-10-23T13:52:55.015Z | 173.21.3.15  | 8268152             | Connection error?      | "{""language_code"":""3"",""unmapped"":{""nested"":""c""},""unmapped_event_duration"":""8268154"",""unmapped_message"":""Disconnection error""}"
+2024-10-23T13:53:55.832Z | 173.21.3.15  | 5033754             | Connection error?      | "{""language_code"":""2"",""unmapped"":{""nested"":""b""},""unmapped_event_duration"":""5033756"",""unmapped_message"":""Disconnection error""}"
+2024-10-23T13:55:01.543Z | 173.21.3.15  | 1756466             | Connected to 10.1.0.1! | "{""language_code"":""1"",""unmapped"":{""nested"":""a""},""unmapped_event_duration"":""1756468"",""unmapped_message"":""Disconnected from 10.1.0.1""}"
 ;
 
 ############################

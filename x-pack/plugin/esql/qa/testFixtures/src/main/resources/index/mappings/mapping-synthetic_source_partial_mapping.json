@@ -1,8 +1,5 @@
 {
     "dynamic": "false",
-    "_source": {
-        "mode": "synthetic"
-    },
     "properties": {
         "@timestamp": {
             "type": "date"

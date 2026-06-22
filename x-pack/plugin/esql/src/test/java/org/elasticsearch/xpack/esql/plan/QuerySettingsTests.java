@@ -106,7 +106,7 @@ public class QuerySettingsTests extends ESTestCase {
 
     public void testValidate_UnmappedFields() {
         var setting = QuerySettings.UNMAPPED_FIELDS;
-        String[] allValues = new String[] { "DEFAULT", "NULLIFY", "LOAD", "LOAD_ALL" };
+        String[] allValues = new String[] { "DEFAULT", "NULLIFY", "LOAD", "LOAD_ALL", "LOAD_ALL_EXPAND" };
         String[] nonSnapshotValues = new String[] { "DEFAULT", "NULLIFY", "LOAD" };
 
         assertDefault(setting, equalTo(UnmappedResolution.DEFAULT));
@@ -123,6 +123,26 @@ public class QuerySettingsTests extends ESTestCase {
             NON_SNAPSHOT_CTX_WITH_CPS_ENABLED,
             of("LOAD_ALL"),
             "Error validating setting [unmapped_fields]: unmapped_fields value [LOAD_ALL] requires a snapshot build"
+        );
+
+        // LOAD_ALL_EXPAND is only valid on snapshot builds
+        assertValid(
+            setting,
+            of(randomizeCase("LOAD_ALL_EXPAND")),
+            equalTo(UnmappedResolution.LOAD_ALL_EXPAND),
+            SNAPSHOT_CTX_WITH_CPS_ENABLED
+        );
+        assertValid(
+            setting,
+            of(randomizeCase("LOAD_ALL_EXPAND")),
+            equalTo(UnmappedResolution.LOAD_ALL_EXPAND),
+            SNAPSHOT_CTX_WITH_CPS_DISABLED
+        );
+        assertInvalid(
+            setting.name(),
+            NON_SNAPSHOT_CTX_WITH_CPS_ENABLED,
+            of("LOAD_ALL_EXPAND"),
+            "Error validating setting [unmapped_fields]: unmapped_fields value [LOAD_ALL_EXPAND] requires a snapshot build"
         );
 
         assertInvalid(setting.name(), of(12), "Setting [" + setting.name() + "] must be of type KEYWORD");

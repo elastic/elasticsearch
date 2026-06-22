@@ -378,7 +378,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
      * ErrorPolicy used by the planning-time {@link #metadata} call (which has no per-query
      * {@link FormatReadContext}). Resolved from the {@code WITH} options in {@link #withConfig}
      * so a user request like {@code WITH {"error_mode": "skip_row"}} also applies to schema
-     * sampling — matching ClickHouse's {@code input_format_allow_errors_*} semantics.
+     * sampling — matching common database readers' error-tolerance semantics.
      * Defaults to {@link #defaultErrorPolicy()} (FAIL_FAST), so unset implies "fail at planning
      * if the file cannot be sampled cleanly", consistent with the rest of the system.
      */
@@ -1015,7 +1015,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
      *  the user's {@link ErrorPolicy}. Jackson's stream-based CSV parser cannot guarantee
      *  resync after a malformed record (the tokeniser may have consumed bytes mid-field), so
      *  even a generous {@code max_errors} budget cannot make progress past a permanently
-     *  confused parser state. ClickHouse / DuckDB don't need this guard because their C++
+     *  confused parser state. Native C++ readers don't need this guard because their
      *  parsers can resync reliably. */
     static final int MAX_CONSECUTIVE_SAMPLING_FAILURES = 16;
 
@@ -1036,8 +1036,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
      * {@link #MAX_CONSECUTIVE_SAMPLING_FAILURES} consecutive failures (Jackson resync guard),
      * and throws if zero rows could be collected.
      *
-     * <p>Aligning sampling with the runtime policy matches ClickHouse's
-     * {@code input_format_allow_errors_*} semantics (one budget covering both phases) and
+     * <p>Aligning sampling with the runtime policy matches common database readers'
+     * error-tolerance semantics (one budget covering both phases) and
      * means a {@code WITH {"error_mode": "skip_row"}} request is honoured at planning time
      * too — not just once data starts flowing.
      */

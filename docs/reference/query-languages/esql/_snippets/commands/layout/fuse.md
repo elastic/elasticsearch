@@ -1,6 +1,6 @@
 ```yaml {applies_to}
 serverless: ga
-stack: preview=9.2-9.4, ga 9.5+
+stack: preview 9.2-9.4, ga 9.5+
 ```
 
 The `FUSE` [processing command](/reference/query-languages/esql/commands/processing-commands.md) merges rows from multiple result sets and assigns

@@ -65,40 +65,19 @@ public class DatasetDatasourceRequestInterceptorTests extends ESTestCase {
         assertNull(future.actionGet());
     }
 
-    public void testResolveDatasetDatasourceAuthorized() throws Exception {
+    public void testResolveDatasetReadIsNotDatasourceGated() {
+        // FROM <dataset> (the resolve action) must NOT trigger the datasource check — read access is governed by the
+        // index read privilege on the dataset name. A role with no datasource grant still passes the interceptor.
         Role role = roleWithDatasourceRead("myds");
-        RequestInfo requestInfo = resolveDatasetRequestInfo("myds");
-        var future = new PlainActionFuture<Void>();
-        interceptor.intercept(requestInfo, mock(AuthorizationEngine.class), rbacInfo(role)).addListener(future);
-        assertNull(future.actionGet());
-    }
-
-    public void testResolveDatasetDatasourceDenied() {
-        Role role = roleWithDatasourceRead("myds");
-        RequestInfo requestInfo = resolveDatasetRequestInfo("other");
-        var future = new PlainActionFuture<Void>();
-        interceptor.intercept(requestInfo, mock(AuthorizationEngine.class), rbacInfo(role)).addListener(future);
-        ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class, future::actionGet);
-        assertThat(e.getMessage(), containsString(EsqlDatasetActionNames.ESQL_AUTHORIZE_DATASET_DATASOURCE_ACTION_NAME));
-    }
-
-    public void testResolveDatasetSkipsWhenNoDatasetSurvivedResolution() throws Exception {
-        // No datasource names on the resolve request means no dataset survived (or was targeted) — the
-        // datasource axis has nothing to authorize and must not deny, unlike PUT where one is always present.
-        Role role = roleWithDatasourceRead("myds");
-        RequestInfo requestInfo = resolveDatasetRequestInfo();
-        var future = new PlainActionFuture<Void>();
-        interceptor.intercept(requestInfo, mock(AuthorizationEngine.class), rbacInfo(role)).addListener(future);
-        assertNull(future.actionGet());
-    }
-
-    private static RequestInfo resolveDatasetRequestInfo(String... dataSources) {
-        return new RequestInfo(
+        RequestInfo requestInfo = new RequestInfo(
             AuthenticationTestHelper.builder().build(),
-            new MockDataSourceRequest(EsqlDatasetActionNames.ESQL_AUTHORIZE_DATASET_DATASOURCE_ACTION_NAME, dataSources),
+            new MockDataSourceRequest(EsqlDatasetActionNames.ESQL_AUTHORIZE_DATASET_DATASOURCE_ACTION_NAME, "other"),
             EsqlDatasetActionNames.ESQL_RESOLVE_DATASET_ACTION_NAME,
             null
         );
+        var future = new PlainActionFuture<Void>();
+        interceptor.intercept(requestInfo, mock(AuthorizationEngine.class), rbacInfo(role)).addListener(future);
+        assertNull(future.actionGet());
     }
 
     private static RequestInfo putDatasetRequestInfo(String dataSource) {

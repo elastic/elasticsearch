@@ -97,15 +97,6 @@ public final class DatasetRewriter {
         return List.copyOf(candidates);
     }
 
-    /** Every registered dataset → its parent datasource, for {@code EsqlResolveDatasetAction.Request#dataSourceNames}. */
-    static Map<String, String> datasetToDataSourceMap(ProjectMetadata projectMetadata) {
-        Map<String, String> map = new HashMap<>();
-        for (var entry : DatasetMetadata.get(projectMetadata).datasets().entrySet()) {
-            map.put(entry.getKey(), entry.getValue().dataSource().getName());
-        }
-        return map;
-    }
-
     /** Every registered dataset name — the authorized set for an unsecured context (security disabled, or tests). */
     public static Set<String> allDatasets(ProjectMetadata projectMetadata) {
         return projectMetadata == null ? Set.of() : DatasetMetadata.get(projectMetadata).datasets().keySet();

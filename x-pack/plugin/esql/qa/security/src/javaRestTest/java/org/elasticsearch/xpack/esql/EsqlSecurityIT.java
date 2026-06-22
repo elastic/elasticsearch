@@ -111,7 +111,6 @@ public class EsqlSecurityIT extends ESRestTestCase {
         .user("ds_dataset_create_read_metadata_datasource", "x-pack-test-password", "ds_dataset_create_read_metadata_datasource", false)
         .user("ds_dataset_read_metadata", "x-pack-test-password", "ds_dataset_read_metadata", false)
         .user("ds_dataset_delete", "x-pack-test-password", "ds_dataset_delete", false)
-        .user("ds_dataset_query", "x-pack-test-password", "ds_dataset_query", false)
         .user("ds_dataset_query_no_datasource", "x-pack-test-password", "ds_dataset_query_no_datasource", false)
         .user("ds_dataset_query_dls", "x-pack-test-password", "ds_dataset_query_dls", false)
         .build();
@@ -2497,10 +2496,12 @@ public class EsqlSecurityIT extends ESRestTestCase {
     }
 
     /**
-     * Read on the dataset name alone is not enough: the parent datasource must also be granted via
-     * {@code global.data_source: read} — the datasource axis PUT enforces, applied to the read path.
+     * Read on the dataset name is sufficient — no datasource privilege required. The parent datasource's
+     * credentials are settled at create time (PUT), not re-checked per query, so a role with index {@code read}
+     * on the dataset name but no {@code global.data_source} grant passes authorization. It then fails reading the
+     * (nonexistent) external resource, which must not look like an authorization failure or a hidden name.
      */
-    public void testFromDatasetDeniedWithoutDatasourceRead() throws IOException {
+    public void testFromDatasetAllowedWithDatasetReadOnly() throws IOException {
         assumeTrue("data_sources REST API not supported by cluster", dataSourcesApiSupported());
         ensureSecurityItDatasourcesForTests();
         final String dataset = createSecurityItDatasetAsAdmin();
@@ -2508,27 +2509,6 @@ public class EsqlSecurityIT extends ESRestTestCase {
             ResponseException ex = expectThrows(
                 ResponseException.class,
                 () -> runESQLCommand("ds_dataset_query_no_datasource", "FROM " + dataset + " | STATS COUNT(*)")
-            );
-            assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_FORBIDDEN));
-            assertThat(ex.getMessage(), containsString("cluster:admin/esql/dataset/authorize_datasource"));
-        } finally {
-            deleteDatasetAsAdmin(dataset);
-        }
-    }
-
-    /**
-     * With both axes granted — read on the dataset name and {@code global.data_source: read} on the parent —
-     * the query passes authorization. It then fails reading the (nonexistent) external resource, which must
-     * not look like an authorization failure or a hidden name.
-     */
-    public void testFromDatasetPassesAuthorizationWithFullGrant() throws IOException {
-        assumeTrue("data_sources REST API not supported by cluster", dataSourcesApiSupported());
-        ensureSecurityItDatasourcesForTests();
-        final String dataset = createSecurityItDatasetAsAdmin();
-        try {
-            ResponseException ex = expectThrows(
-                ResponseException.class,
-                () -> runESQLCommand("ds_dataset_query", "FROM " + dataset + " | STATS COUNT(*)")
             );
             assertThat(ex.getResponse().getStatusLine().getStatusCode(), not(equalTo(HttpStatus.SC_FORBIDDEN)));
             assertThat(ex.getResponse().getStatusLine().getStatusCode(), not(equalTo(HttpStatus.SC_UNAUTHORIZED)));

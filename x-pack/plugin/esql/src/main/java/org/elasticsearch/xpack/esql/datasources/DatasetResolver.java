@@ -22,8 +22,8 @@ import static org.elasticsearch.rest.RestUtils.REST_MASTER_TIMEOUT_DEFAULT;
 
 /**
  * Owns the security round-trip for {@code FROM <dataset>}, the companion of {@link DatasetRewriter}: the dataset
- * names the query would read are pushed through {@link EsqlResolveDatasetAction} (which read-authorizes them on
- * the name and parent-datasource axes and rejects DLS/FLS-restricted datasets), then only the authorized names are
+ * names the query would read are pushed through {@link EsqlResolveDatasetAction} (which read-authorizes each name
+ * via the index {@code read} privilege and rejects DLS/FLS-restricted datasets), then only the authorized names are
  * rewritten into external relations. Mirrors how {@code ViewResolver} routes view names through
  * {@code EsqlResolveViewAction}.
  *
@@ -56,11 +56,7 @@ public class DatasetResolver {
             listener.onResponse(parsed);
             return;
         }
-        var request = new EsqlResolveDatasetAction.Request(
-            REST_MASTER_TIMEOUT_DEFAULT,
-            candidates.toArray(String[]::new),
-            DatasetRewriter.datasetToDataSourceMap(projectMetadata)
-        );
+        var request = new EsqlResolveDatasetAction.Request(REST_MASTER_TIMEOUT_DEFAULT, candidates.toArray(String[]::new));
         client.execute(
             EsqlResolveDatasetAction.TYPE,
             request,

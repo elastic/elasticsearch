@@ -19,11 +19,8 @@ import static org.elasticsearch.xpack.core.security.support.Exceptions.authoriza
 import static org.elasticsearch.xpack.security.authz.RBACEngine.maybeGetRBACEngineRole;
 
 /**
- * Authorizes {@code global.data_source} for {@link EsqlDatasetActionNames#ESQL_PUT_DATASET_ACTION_NAME} and
- * {@link EsqlDatasetActionNames#ESQL_RESOLVE_DATASET_ACTION_NAME} when the request advertises a separate datasource
- * cluster action via {@link DataSourceRequestInfo#dataSourceClusterActionName()}. PUT and the query-path read resolve
- * thus enforce the same dual-axis model: the standard filter checks the index privilege on the dataset name, this
- * interceptor checks {@code global.data_source} on the parent datasource.
+ * Authorizes {@code global.data_source} for {@link EsqlDatasetActionNames#ESQL_PUT_DATASET_ACTION_NAME} when the request
+ * advertises a separate datasource cluster action via {@link DataSourceRequestInfo#dataSourceClusterActionName()}.
  */
 public class DatasetDatasourceRequestInterceptor implements RequestInterceptor {
 
@@ -34,7 +31,7 @@ public class DatasetDatasourceRequestInterceptor implements RequestInterceptor {
         AuthorizationInfo authorizationInfo
     ) {
         if (requestInfo.getRequest() instanceof DataSourceRequestInfo dsi
-            && appliesToAction(requestInfo.getAction(), dsi)
+            && EsqlDatasetActionNames.ESQL_PUT_DATASET_ACTION_NAME.equals(requestInfo.getAction())
             && dsi.dataSourceClusterActionName().equals(requestInfo.getAction()) == false) {
             Role role = maybeGetRBACEngineRole(authorizationInfo);
             // Custom AuthorizationEngine implementations do not use RBAC Role; datasource policy is enforced there instead.
@@ -50,14 +47,5 @@ public class DatasetDatasourceRequestInterceptor implements RequestInterceptor {
             }
         }
         return SubscribableListener.nullSuccess();
-    }
-
-    private static boolean appliesToAction(String action, DataSourceRequestInfo dsi) {
-        if (EsqlDatasetActionNames.ESQL_PUT_DATASET_ACTION_NAME.equals(action)) {
-            return true;
-        }
-        // On the resolve path the filter has already narrowed the request to authorized datasets, so
-        // dataSourceNames() is their parents; empty means none survived — nothing to authorize (PUT always has one).
-        return EsqlDatasetActionNames.ESQL_RESOLVE_DATASET_ACTION_NAME.equals(action) && dsi.dataSourceNames().length > 0;
     }
 }

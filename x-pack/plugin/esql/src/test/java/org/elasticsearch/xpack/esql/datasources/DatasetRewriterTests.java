@@ -604,15 +604,6 @@ public class DatasetRewriterTests extends ESTestCase {
         assertThat(DatasetRewriter.candidateDatasets(plan, project, RESOLVER), containsInAnyOrder("logs_a", "logs_b"));
     }
 
-    public void testDatasetToDataSourceMap() {
-        DataSource parent = dataSource("s3_parent", Map.of());
-        Dataset a = new Dataset("logs_a", new DataSourceReference("s3_parent"), "s3://a/", null, Map.of());
-        Dataset b = new Dataset("logs_b", new DataSourceReference("s3_parent"), "s3://b/", null, Map.of());
-        ProjectMetadata project = projectWith(Map.of("s3_parent", parent), Map.of("logs_a", a, "logs_b", b));
-
-        assertThat(DatasetRewriter.datasetToDataSourceMap(project), equalTo(Map.of("logs_a", "s3_parent", "logs_b", "s3_parent")));
-    }
-
     // --
 
     /** Rewrite with every registered dataset authorized — the unsecured-cluster behavior. */

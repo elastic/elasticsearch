@@ -416,32 +416,16 @@ ds_dataset_delete:
     - names: [ 'security_it_ds_*' ]
       privileges: [ 'delete_dataset' ]
 
-# Both axes of the FROM <dataset> read check: read on the dataset names + read on the parent datasource.
-# Queries pass authorization and fail only on the (nonexistent) external resource.
-ds_dataset_query:
-  cluster: []
-  global:
-    data_source:
-      - names: [ "security_it_*" ]
-        privileges: [ "read" ]
-  indices:
-    - names: [ 'security_it_ds_*' ]
-      privileges: [ 'read' ]
-
-# read on dataset names only; no global.data_source — FROM <dataset> must fail authorize_datasource (403).
+# read on the dataset names, no datasource grant — sufficient to query FROM <dataset>.
 ds_dataset_query_no_datasource:
   cluster: []
   indices:
     - names: [ 'security_it_ds_*' ]
       privileges: [ 'read' ]
 
-# Both axes granted but the name read carries DLS — FROM <dataset> must be rejected as DLS/FLS-incompatible.
+# read on the dataset names carrying a DLS query — FROM <dataset> must be rejected as DLS/FLS-incompatible.
 ds_dataset_query_dls:
   cluster: []
-  global:
-    data_source:
-      - names: [ "security_it_*" ]
-        privileges: [ "read" ]
   indices:
     - names: [ 'security_it_ds_*' ]
       privileges: [ 'read' ]

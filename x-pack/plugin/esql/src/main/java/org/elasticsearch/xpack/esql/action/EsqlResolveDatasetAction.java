@@ -31,23 +31,21 @@ import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.core.esql.DataSourceRequestInfo;
 import org.elasticsearch.xpack.core.esql.EsqlDatasetActionNames;
 import org.elasticsearch.xpack.esql.datasources.DatasetRewriter;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 
 /**
  * Read-authorization gate for {@code FROM <dataset>}: narrows the dataset names a query would read to the subset
  * the caller may read. Mirrors {@link EsqlResolveViewAction} — the {@link Request} is an
  * {@link IndicesRequest.Replaceable} with {@code resolveDatasets(true)}, so the security filter drops unauthorized
- * names (hiding their existence) and the DLS/FLS interceptor rejects restricted datasets. It also implements
- * {@link DataSourceRequestInfo} so the datasource interceptor enforces {@code global.data_source: read} on each
- * surviving dataset's parent — the dual-axis model PUT dataset enforces on create.
+ * names (hiding their existence) and the DLS/FLS interceptor rejects restricted datasets. Read access is governed by
+ * the index {@code read} privilege on the dataset name, exactly as for indices and views; the parent datasource's
+ * credentials are an admin concern settled when the dataset is created (PUT), not re-checked per query.
  */
 public class EsqlResolveDatasetAction extends TransportLocalProjectMetadataAction<
     EsqlResolveDatasetAction.Request,
@@ -86,21 +84,15 @@ public class EsqlResolveDatasetAction extends TransportLocalProjectMetadataActio
      * Unlike the view sibling, deliberately carries no remote/CPS plumbing ({@code allowsRemoteIndices},
      * project routing): datasets are local-only and remote-prefixed relations never reach this action.
      */
-    public static class Request extends LocalClusterStateRequest implements IndicesRequest.Replaceable, DataSourceRequestInfo {
+    public static class Request extends LocalClusterStateRequest implements IndicesRequest.Replaceable {
 
         private String[] indices;
-        private final Map<String, String> datasetToDataSource;
         private ResolvedIndexExpressions resolvedIndexExpressions;
 
-        /**
-         * @param indices             the concrete dataset names the query would read if fully authorized
-         * @param datasetToDataSource registered dataset → parent datasource; {@link #dataSourceNames()} reads it for
-         *                            the surviving {@link #indices()} after the filter replaces them
-         */
-        public Request(TimeValue masterTimeout, String[] indices, Map<String, String> datasetToDataSource) {
+        /** @param indices the concrete dataset names the query would read if fully authorized */
+        public Request(TimeValue masterTimeout, String[] indices) {
             super(masterTimeout);
             this.indices = indices;
-            this.datasetToDataSource = Map.copyOf(datasetToDataSource);
         }
 
         @Override
@@ -122,19 +114,6 @@ public class EsqlResolveDatasetAction extends TransportLocalProjectMetadataActio
         @Override
         public IndicesOptions indicesOptions() {
             return DatasetRewriter.RESOLVER_OPTIONS;
-        }
-
-        @Override
-        public String[] dataSourceNames() {
-            // Non-null in practice (ctor + filter); on null, fail closed via the stream NPE rather than
-            // returning empty and silently skipping the datasource check.
-            assert indices != null;
-            return Arrays.stream(indices).map(datasetToDataSource::get).filter(Objects::nonNull).distinct().toArray(String[]::new);
-        }
-
-        @Override
-        public String dataSourceClusterActionName() {
-            return EsqlDatasetActionNames.ESQL_AUTHORIZE_DATASET_DATASOURCE_ACTION_NAME;
         }
 
         @Override

@@ -85,7 +85,7 @@ public class CsvDataSourcePlugin extends Plugin implements DataSourcePlugin {
 
     @Override
     public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
-        // One entry serves both csv and tsv — the mode is carried in CsvReaderStatus.format().
+        // One entry serves both csv and tsv — the format (csv/tsv) is carried in CsvReaderStatus.format().
         return List.of(CsvReaderStatus.ENTRY);
     }
 }

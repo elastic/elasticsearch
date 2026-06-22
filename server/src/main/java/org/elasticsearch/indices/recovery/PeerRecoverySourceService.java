@@ -360,8 +360,10 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
         /// Called when an active recovery completes (successfully or not).
         /// Frees the throttling slot and starts any queued recoveries that now fit within the limit.
         void onRecoveryComplete(IndexShard shard, RecoverySourceHandler handler) {
-            remove(shard, handler);
-            shard.recoveryStats().sourceRecoveryCompleted();
+            synchronized (this) {
+                remove(shard, handler);
+                shard.recoveryStats().sourceRecoveryCompleted();
+            }
             schedulingListeners.onRecoveryCompleted(RecoverySource.Type.PEER, RecoveryRole.SOURCE);
             startRecoveriesUpToLimit();
         }

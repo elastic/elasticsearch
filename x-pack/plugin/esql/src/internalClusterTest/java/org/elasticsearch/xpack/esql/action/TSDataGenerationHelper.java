@@ -37,8 +37,7 @@ import java.util.stream.IntStream;
 
 class TSDataGenerationHelper {
 
-    private static final String TEMPORALITY_SUBFIELD_NAME = "temporality";
-    static final String TEMPORALITY_FIELD_NAME = "attributes." + TEMPORALITY_SUBFIELD_NAME;
+    static final String TEMPORALITY_ATTRIBUTE_NAME = "temporality";
 
     private static Object randomDimensionValue(String dimensionName) {
         // We use dimensionName to determine the type of the value.
@@ -70,11 +69,13 @@ class TSDataGenerationHelper {
             List<String> dimensionsInMetric = ESTestCase.randomNonEmptySubsetOf(tempAttributeSet);
             // TODO: How do we handle the case when there are no dimensions? (i.e. regular randomSubsetof(...)
             usedAttributeNames.addAll(dimensionsInMetric);
-            ArrayList<Tuple<String, Object>> dimensions = dimensionsInMetric.stream().map(attr -> new Tuple<>(attr, randomDimensionValue(attr))).collect(Collectors.toCollection(ArrayList::new));
+            ArrayList<Tuple<String, Object>> dimensions = dimensionsInMetric.stream()
+                .map(attr -> new Tuple<>(attr, randomDimensionValue(attr)))
+                .collect(Collectors.toCollection(ArrayList::new));
             Temporality temporality = ESTestCase.randomFrom(allowedTemporalities);
             if (temporality != null) {
-                usedAttributeNames.add(TEMPORALITY_SUBFIELD_NAME);
-                dimensions.add(new Tuple<>(TEMPORALITY_SUBFIELD_NAME, temporality.bytesRef().utf8ToString()));
+                usedAttributeNames.add(TEMPORALITY_ATTRIBUTE_NAME);
+                dimensions.add(new Tuple<>(TEMPORALITY_ATTRIBUTE_NAME, temporality.bytesRef().utf8ToString()));
             }
             return (List<Tuple<String, Object>>) dimensions;
         }).toList();

@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlQueryProfile;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
+import org.elasticsearch.xpack.esql.action.PreparedEsqlQueryRequest;
 
 import java.util.Arrays;
 import java.util.List;
@@ -28,25 +29,36 @@ import java.util.stream.Collectors;
 
 public class EsqlLogContext extends QueryLoggerContext {
     public static final String TYPE = "esql";
+    public static final String PROMQL_TYPE = "promql";
     private final EsqlQueryRequest request;
     private final @Nullable EsqlQueryResponse response;
     // Cached index names
     private String[] indexNames = null;
 
     EsqlLogContext(Task task, EsqlQueryRequest request, EsqlQueryResponse response) {
-        super(task, TYPE, response.getExecutionInfo().overallTook().nanos());
+        super(task, queryType(request), response.getExecutionInfo().overallTook().nanos());
         this.request = request;
         this.response = response;
     }
 
     EsqlLogContext(Task task, EsqlQueryRequest request, long tookInNanos, Exception error) {
-        super(task, TYPE, tookInNanos, error);
+        super(task, queryType(request), tookInNanos, error);
         this.request = request;
         this.response = null;
     }
 
+    private static String queryType(EsqlQueryRequest request) {
+        return request instanceof PreparedEsqlQueryRequest ? PROMQL_TYPE : TYPE;
+    }
+
     @Override
     public String getQuery() {
+        // Remove the prefix from prepared query
+        if (request instanceof PreparedEsqlQueryRequest) {
+            if (request.queryDescription().startsWith(PreparedEsqlQueryRequest.PREPARED_QUERY_PREFIX)) {
+                return request.queryDescription().substring(PreparedEsqlQueryRequest.PREPARED_QUERY_PREFIX.length());
+            }
+        }
         return request.queryDescription();
     }
 

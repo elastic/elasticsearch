@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.core.ml.job.config.Detector;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
+import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
 
 import java.util.Collections;
 import java.util.Date;
@@ -45,7 +46,13 @@ public class DelayedDataDetectorFactoryTests extends ESTestCase {
 
         // Should not throw
         assertThat(
-            DelayedDataDetectorFactory.buildDetector(job, datafeedConfig, mock(Client.class), xContentRegistry()),
+            DelayedDataDetectorFactory.buildDetector(
+                job,
+                datafeedConfig,
+                mock(Client.class),
+                xContentRegistry(),
+                mock(DataExtractorFactory.class)
+            ),
             instanceOf(NullDelayedDataDetector.class)
         );
 
@@ -53,21 +60,39 @@ public class DelayedDataDetectorFactoryTests extends ESTestCase {
 
         // Should not throw
         assertThat(
-            DelayedDataDetectorFactory.buildDetector(job, datafeedConfig, mock(Client.class), xContentRegistry()),
+            DelayedDataDetectorFactory.buildDetector(
+                job,
+                datafeedConfig,
+                mock(Client.class),
+                xContentRegistry(),
+                mock(DataExtractorFactory.class)
+            ),
             instanceOf(DatafeedDelayedDataDetector.class)
         );
 
         DatafeedConfig tooSmallDatafeedConfig = createDatafeed(true, TimeValue.timeValueSeconds(1));
         IllegalArgumentException e = ESTestCase.expectThrows(
             IllegalArgumentException.class,
-            () -> DelayedDataDetectorFactory.buildDetector(job, tooSmallDatafeedConfig, mock(Client.class), xContentRegistry())
+            () -> DelayedDataDetectorFactory.buildDetector(
+                job,
+                tooSmallDatafeedConfig,
+                mock(Client.class),
+                xContentRegistry(),
+                mock(DataExtractorFactory.class)
+            )
         );
         assertEquals(Messages.getMessage(Messages.DATAFEED_CONFIG_DELAYED_DATA_CHECK_TOO_SMALL, "1s", "2s"), e.getMessage());
 
         DatafeedConfig tooBigDatafeedConfig = createDatafeed(true, TimeValue.timeValueHours(12));
         e = ESTestCase.expectThrows(
             IllegalArgumentException.class,
-            () -> DelayedDataDetectorFactory.buildDetector(job, tooBigDatafeedConfig, mock(Client.class), xContentRegistry())
+            () -> DelayedDataDetectorFactory.buildDetector(
+                job,
+                tooBigDatafeedConfig,
+                mock(Client.class),
+                xContentRegistry(),
+                mock(DataExtractorFactory.class)
+            )
         );
         assertEquals(Messages.getMessage(Messages.DATAFEED_CONFIG_DELAYED_DATA_CHECK_SPANS_TOO_MANY_BUCKETS, "12h", "2s"), e.getMessage());
 
@@ -79,14 +104,21 @@ public class DelayedDataDetectorFactoryTests extends ESTestCase {
             withBigBucketSpan,
             datafeedConfig,
             mock(Client.class),
-            xContentRegistry()
+            xContentRegistry(),
+            mock(DataExtractorFactory.class)
         );
         assertThat(delayedDataDetector.getWindow(), equalTo(TimeValue.timeValueHours(1).millis() * 8));
 
         datafeedConfig = createDatafeed(true, null);
 
         // Should not throw
-        delayedDataDetector = DelayedDataDetectorFactory.buildDetector(job, datafeedConfig, mock(Client.class), xContentRegistry());
+        delayedDataDetector = DelayedDataDetectorFactory.buildDetector(
+            job,
+            datafeedConfig,
+            mock(Client.class),
+            xContentRegistry(),
+            mock(DataExtractorFactory.class)
+        );
         assertThat(delayedDataDetector.getWindow(), equalTo(TimeValue.timeValueHours(2).millis()));
 
     }
@@ -115,6 +147,10 @@ public class DelayedDataDetectorFactoryTests extends ESTestCase {
     }
 
     private Job createJob(TimeValue bucketSpan) {
+        return createJob(bucketSpan, false);
+    }
+
+    private Job createJob(TimeValue bucketSpan, boolean setSummaryCountField) {
         DataDescription.Builder dataDescription = new DataDescription.Builder();
         dataDescription.setTimeField("time");
         dataDescription.setTimeFormat(DataDescription.EPOCH_MS);
@@ -122,6 +158,9 @@ public class DelayedDataDetectorFactoryTests extends ESTestCase {
         Detector.Builder d = new Detector.Builder("count", null);
         AnalysisConfig.Builder analysisConfig = new AnalysisConfig.Builder(Collections.singletonList(d.build()));
         analysisConfig.setBucketSpan(bucketSpan);
+        if (setSummaryCountField) {
+            analysisConfig.setSummaryCountFieldName("count");
+        }
 
         Job.Builder builder = new Job.Builder();
         builder.setId("test-job");
@@ -136,6 +175,52 @@ public class DelayedDataDetectorFactoryTests extends ESTestCase {
 
         if (shouldDetectDelayedData) {
             builder.setDelayedDataCheckConfig(DelayedDataCheckConfig.enabledDelayedDataCheckConfig(delayedDatacheckWindow));
+        } else {
+            builder.setDelayedDataCheckConfig(DelayedDataCheckConfig.disabledDelayedDataCheckConfig());
+        }
+        return builder.build();
+    }
+
+    public void testBuilderGivenEsqlQueryAndDelayedDataEnabled() {
+        Job job = createJob(TimeValue.timeValueSeconds(2), true);
+
+        DatafeedConfig datafeedConfig = createEsqlDatafeed(true, TimeValue.timeValueMinutes(10));
+
+        DelayedDataDetector detector = DelayedDataDetectorFactory.buildDetector(
+            job,
+            datafeedConfig,
+            mock(Client.class),
+            xContentRegistry(),
+            mock(DataExtractorFactory.class)
+        );
+
+        assertThat(detector, instanceOf(EsqlDelayedDataDetector.class));
+        assertThat(detector.getWindow(), equalTo(TimeValue.timeValueMinutes(10).millis()));
+    }
+
+    public void testBuilderGivenEsqlQueryAndDelayedDataDisabledReturnsNull() {
+        Job job = createJob(TimeValue.timeValueSeconds(2), true);
+
+        DatafeedConfig datafeedConfig = createEsqlDatafeed(false, null);
+
+        DelayedDataDetector detector = DelayedDataDetectorFactory.buildDetector(
+            job,
+            datafeedConfig,
+            mock(Client.class),
+            xContentRegistry(),
+            mock(DataExtractorFactory.class)
+        );
+
+        // Delayed data disabled → always a NullDelayedDataDetector, even for ESQL configs
+        assertThat(detector, instanceOf(NullDelayedDataDetector.class));
+    }
+
+    private DatafeedConfig createEsqlDatafeed(boolean shouldDetectDelayedData, TimeValue delayedDataCheckWindow) {
+        DatafeedConfig.Builder builder = new DatafeedConfig.Builder("id", "jobId");
+        builder.setIndices(Collections.singletonList("index1"));
+        builder.setEsqlQuery("FROM index1");
+        if (shouldDetectDelayedData) {
+            builder.setDelayedDataCheckConfig(DelayedDataCheckConfig.enabledDelayedDataCheckConfig(delayedDataCheckWindow));
         } else {
             builder.setDelayedDataCheckConfig(DelayedDataCheckConfig.disabledDelayedDataCheckConfig());
         }

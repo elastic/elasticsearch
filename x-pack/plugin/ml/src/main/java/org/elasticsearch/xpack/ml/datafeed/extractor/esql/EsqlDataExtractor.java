@@ -130,15 +130,24 @@ public class EsqlDataExtractor implements DataExtractor {
         // time field. A trailing SORT overrides any user-supplied SORT, which is
         // the intended behavior for AD ingest.
         String orderedQuery = context.esqlQuery() + " | SORT `" + context.timeField() + "` ASC";
+
+        try (EsqlQueryResponse response = runEsqlQuery(orderedQuery, timeFilter)) {
+            Optional<InputStream> data = toNdjson(response.response(), context.timeField());
+            return new Result(searchInterval, data, List.of());
+        }
+    }
+
+    /**
+     * Builds and executes the ES|QL query request. Extracted as a {@code protected} method so that unit tests can override it to avoid
+     * the {@link org.elasticsearch.xpack.core.esql.action.internal.SharedSecrets} dependency that is only registered by the esql plugin
+     * (which is not on the ml plugin's test classpath).
+     */
+    protected EsqlQueryResponse runEsqlQuery(String orderedQuery, QueryBuilder timeFilter) {
         EsqlQueryRequestBuilder<? extends EsqlQueryRequest, ? extends EsqlQueryResponse> request = EsqlQueryRequestBuilder
             .newRequestBuilder(client)
             .query(orderedQuery)
             .filter(timeFilter);
-
-        try (EsqlQueryResponse response = execute(request)) {
-            Optional<InputStream> data = toNdjson(response.response(), context.timeField());
-            return new Result(searchInterval, data, List.of());
-        }
+        return execute(request);
     }
 
     private static Optional<InputStream> toNdjson(EsqlResponse response, String timeField) throws IOException {

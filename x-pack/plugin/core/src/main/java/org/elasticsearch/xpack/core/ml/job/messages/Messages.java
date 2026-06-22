@@ -19,6 +19,9 @@ public final class Messages {
 
     public static final String DATAFEED_AGGREGATIONS_REQUIRES_JOB_WITH_SUMMARY_COUNT_FIELD =
         "A job configured with a datafeed with aggregations must set summary_count_field_name; use doc_count or suitable alternative";
+    public static final String DATAFEED_ESQL_DELAYED_DATA_REQUIRES_SUMMARY_COUNT_FIELD =
+        "A job configured with a datafeed with an esql_query and delayed_data_check_config enabled must set "
+            + "summary_count_field_name; the field must be produced as a column by the esql_query";
     public static final String DATAFEED_CANNOT_DELETE_IN_CURRENT_STATE = "Cannot delete datafeed [{0}] while its status is {1}";
     public static final String DATAFEED_CANNOT_UPDATE_IN_CURRENT_STATE = "Cannot update datafeed [{0}] while its status is {1}";
     public static final String DATAFEED_CONFIG_CANNOT_USE_SCRIPT_FIELDS_WITH_AGGS =

@@ -44,6 +44,7 @@ public class AnalyzerContext {
     private Boolean hasRemoteIndices;
     private final UnmappedResolution unmappedResolution;
     private final TimestampBounds timestampBounds;
+    private final IpLocationResolution ipLocationResolution;
 
     public AnalyzerContext(
         Configuration configuration,
@@ -58,7 +59,8 @@ public class AnalyzerContext {
         ExternalSourceResolution externalSourceResolution,
         TransportVersion minimumVersion,
         UnmappedResolution unmappedResolution,
-        @Nullable TimestampBounds timestampBounds
+        @Nullable TimestampBounds timestampBounds,
+        IpLocationResolution ipLocationResolution
     ) {
         this.configuration = configuration;
         this.functionRegistry = functionRegistry;
@@ -73,6 +75,7 @@ public class AnalyzerContext {
         this.minimumVersion = minimumVersion;
         this.unmappedResolution = unmappedResolution;
         this.timestampBounds = timestampBounds;
+        this.ipLocationResolution = ipLocationResolution;
 
         assert minimumVersion != null : "AnalyzerContext must have a minimum transport version";
         assert TransportVersion.current().supports(minimumVersion)
@@ -104,7 +107,8 @@ public class AnalyzerContext {
             ExternalSourceResolution.EMPTY,
             minimumVersion,
             unmappedResolution,
-            null
+            null,
+            IpLocationResolution.SERVICE_UNAVAILABLE
         );
     }
 
@@ -175,6 +179,15 @@ public class AnalyzerContext {
         return timestampBounds;
     }
 
+    /**
+     * The pre-fetched IP database metadata used by the {@code ResolveIpLocation} analyzer rule to resolve {@code IP_LOCATION}
+     * output columns. When the service was unavailable while building the context, this is
+     * {@link IpLocationResolution#SERVICE_UNAVAILABLE} and resolution fails verification.
+     */
+    public IpLocationResolution ipLocationResolution() {
+        return ipLocationResolution;
+    }
+
     public Set<String> allowedTags() {
         Set<String> result = new HashSet<>();
         result.addAll(MetadataAttribute.ATTRIBUTES_MAP.keySet());
@@ -202,7 +215,8 @@ public class AnalyzerContext {
         UnmappedResolution unmappedResolution,
         ProjectMetadata projectMetadata,
         EsqlSession.PreAnalysisResult result,
-        @Nullable TimestampBounds timestampBounds
+        @Nullable TimestampBounds timestampBounds,
+        IpLocationResolution ipLocationResolution
     ) {
         this(
             configuration,
@@ -217,7 +231,8 @@ public class AnalyzerContext {
             result.externalSourceResolution(),
             result.minimumTransportVersion(),
             unmappedResolution,
-            timestampBounds
+            timestampBounds,
+            ipLocationResolution
         );
     }
 }

@@ -66,6 +66,15 @@ public abstract class DocumentParserContext {
             this.doc = in.doc();
         }
 
+        private Wrapper(ObjectMapper parent, DocumentParserContext in, XContentParser parser) {
+            super(parent, parent.dynamic == null ? in.dynamic : parent.dynamic, in);
+            this.in = in;
+            this.isWithinCopyTo = in.isWithinCopyTo();
+            this.path = in.path();
+            this.parser = parser;
+            this.doc = in.doc();
+        }
+
         // Used to create a copy_to context.
         // It is important to reset `dynamic` here since it is possible that we copy into a completely different object.
         private Wrapper(RootObjectMapper root, DocumentParserContext in) {
@@ -574,6 +583,28 @@ public abstract class DocumentParserContext {
         return dynamic;
     }
 
+    /**
+     * Resolves the effective {@link ObjectMapper.Dynamic} for an unmapped field named {@code currentFieldName}
+     * in the current parse context.
+     *
+     * <p>In strict columnar index modes, unmapped fields under a declared object prefix may have a
+     * per-prefix dynamic setting different from the root dynamic. This method performs a longest-prefix
+     * match against the per-object dynamic settings captured during auto-flattening, falling back to
+     * the context's inherited dynamic when no prefix matches.
+     *
+     * <p>For all other index modes the method returns {@link #dynamic()} unchanged, preserving the
+     * existing behaviour with zero overhead.
+     *
+     * @param currentFieldName the simple (un-prefixed) name of the field being parsed
+     * @return the resolved dynamic value to use for this field
+     */
+    public final ObjectMapper.Dynamic resolveDynamic(String currentFieldName) {
+        if (indexSettings().getMode().isStrictColumnar() == false) {
+            return dynamic();
+        }
+        return root().resolveDynamic(path().pathAsText(currentFieldName), dynamic());
+    }
+
     public void markFieldAsAppliedFromTemplate(String fieldName) {
         fieldsAppliedFromTemplates.add(fieldName);
     }
@@ -1022,12 +1053,7 @@ public abstract class DocumentParserContext {
      * @return  a new context with a replaced parser
      */
     public final DocumentParserContext switchParser(XContentParser parser) {
-        return new Wrapper(this.parent, this) {
-            @Override
-            public XContentParser parser() {
-                return parser;
-            }
-        };
+        return new Wrapper(this.parent, this, parser);
     }
 
     /**

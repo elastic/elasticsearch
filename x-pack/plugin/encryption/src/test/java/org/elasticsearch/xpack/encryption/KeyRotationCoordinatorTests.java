@@ -64,17 +64,7 @@ public class KeyRotationCoordinatorTests extends ESTestCase {
     // BC FIPS rejects PBKDF2 passwords shorter than 14 chars (112 bits); use a longer literal.
     private static final String PASSWORD_VALUE = "test-password-fips";
 
-    private static final ProjectEncryptionKeyMetadata.PekEncryption NO_OP_ENCRYPTION = new ProjectEncryptionKeyMetadata.PekEncryption() {
-        @Override
-        public byte[] wrap(byte[] plaintextPek, String passwordId) {
-            return plaintextPek;
-        }
-
-        @Override
-        public byte[] unwrap(byte[] wrappedPek, String passwordId) {
-            return wrappedPek;
-        }
-    };
+    private static final ProjectEncryptionKeyMetadata.PekEncryption NO_OP_ENCRYPTION = TestPekEncryption.NO_OP;
 
     private static byte[] randomKey() {
         byte[] keyBytes = new byte[PasswordBasedEncryption.PEK_LENGTH_BYTES];
@@ -283,8 +273,8 @@ public class KeyRotationCoordinatorTests extends ESTestCase {
         coordinator.onClusterStateChanged(new ClusterChangedEvent("test", clusterStateWith(existing, true), clusterStateWith(null, true)));
 
         verify(taskQueue).submitTask(
-            eq("rotate-project-encryption-key-password"),
-            isA(KeyRotationCoordinator.RotatePasswordTask.class),
+            eq("update-project-encryption-key-password-id"),
+            isA(KeyRotationCoordinator.UpdatePasswordIdTask.class),
             any()
         );
     }
@@ -331,8 +321,8 @@ public class KeyRotationCoordinatorTests extends ESTestCase {
         coordinator.reload();
 
         verify(taskQueue).submitTask(
-            eq("rotate-project-encryption-key-password"),
-            isA(KeyRotationCoordinator.RotatePasswordTask.class),
+            eq("update-project-encryption-key-password-id"),
+            isA(KeyRotationCoordinator.UpdatePasswordIdTask.class),
             any()
         );
     }
@@ -365,8 +355,8 @@ public class KeyRotationCoordinatorTests extends ESTestCase {
         coordinator.reload();
 
         verify(taskQueue).submitTask(
-            eq("rotate-project-encryption-key-password"),
-            isA(KeyRotationCoordinator.RotatePasswordTask.class),
+            eq("update-project-encryption-key-password-id"),
+            isA(KeyRotationCoordinator.UpdatePasswordIdTask.class),
             any()
         );
     }

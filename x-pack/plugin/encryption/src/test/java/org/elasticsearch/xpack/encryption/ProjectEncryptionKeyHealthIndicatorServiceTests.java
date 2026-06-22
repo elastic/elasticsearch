@@ -27,29 +27,16 @@ import static org.mockito.Mockito.when;
 public class ProjectEncryptionKeyHealthIndicatorServiceTests extends ESTestCase {
 
     private static final String PASSWORD_ID = "v1";
-    private static final ProjectEncryptionKeyMetadata.PekEncryption NO_OP_ENCRYPTION = new ProjectEncryptionKeyMetadata.PekEncryption() {
-        @Override
-        public byte[] wrap(byte[] plaintextPek, String passwordId) {
-            return plaintextPek;
-        }
+    private static final ProjectEncryptionKeyMetadata.PekEncryption NO_OP_ENCRYPTION = TestPekEncryption.NO_OP;
 
-        @Override
-        public byte[] unwrap(byte[] wrappedPek, String passwordId) {
-            return wrappedPek;
-        }
-    };
-
-    private static byte[] randomWrappedBytes() {
-        // Opaque blob at the canonical wrap length — the health indicator doesn't unwrap, it only reads metadata fields.
-        return randomByteArrayOfLength(
-            PasswordBasedEncryption.SALT_LENGTH_BYTES + AesGcm.OVERHEAD_BYTES + PasswordBasedEncryption.PEK_LENGTH_BYTES
-        );
+    private static byte[] randomKeyBytes() {
+        return randomByteArrayOfLength(PasswordBasedEncryption.PEK_LENGTH_BYTES);
     }
 
     private static ProjectEncryptionKeyMetadata pekMetadata(String passwordId) {
         String keyId = ProjectEncryptionKeyMetadata.generateKeyId();
         return new ProjectEncryptionKeyMetadata(
-            Map.of(keyId, new ProjectEncryptionKeyMetadata.KeyEntry(randomWrappedBytes(), 0L)),
+            Map.of(keyId, new ProjectEncryptionKeyMetadata.KeyEntry(randomKeyBytes(), 0L)),
             keyId,
             passwordId,
             Map.of(),

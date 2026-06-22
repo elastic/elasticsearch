@@ -26,6 +26,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.not;
@@ -34,17 +36,7 @@ public class ProjectEncryptionKeyMetadataTests extends ChunkedToXContentDiffable
 
     private static final String PASSWORD_ID = "v1";
 
-    static final PekEncryption NO_OP_ENCRYPTION = new PekEncryption() {
-        @Override
-        public byte[] wrap(byte[] plaintext, String passwordId) {
-            return plaintext.clone();
-        }
-
-        @Override
-        public byte[] unwrap(byte[] wrapped, String passwordId) {
-            return wrapped.clone();
-        }
-    };
+    static final PekEncryption NO_OP_ENCRYPTION = TestPekEncryption.NO_OP;
 
     private static byte[] randomPlaintextBytes() {
         return randomByteArrayOfLength(PasswordBasedEncryption.PEK_LENGTH_BYTES);
@@ -281,6 +273,50 @@ public class ProjectEncryptionKeyMetadataTests extends ChunkedToXContentDiffable
             NO_OP_ENCRYPTION
         );
         assertTrue(metadata.findRetireableKeyIds(Long.MAX_VALUE).isEmpty());
+    }
+
+    public void testWrappedKeyCacheInvalidatedWhenActivePasswordChanges() throws IOException {
+        AtomicInteger wrapCount = new AtomicInteger();
+        AtomicReference<String> activeId = new AtomicReference<>("v1");
+        PekEncryption tracking = new PekEncryption() {
+            @Override
+            public String activePasswordId() {
+                return activeId.get();
+            }
+
+            @Override
+            public WrappedKey wrap(byte[] plaintext) {
+                wrapCount.incrementAndGet();
+                return new WrappedKey(activeId.get(), plaintext.clone());
+            }
+
+            @Override
+            public byte[] unwrap(byte[] wrapped, String passwordId) {
+                return wrapped.clone();
+            }
+        };
+
+        ToXContent.Params gatewayParams = new ToXContent.MapParams(Map.of(Metadata.CONTEXT_MODE_PARAM, Metadata.CONTEXT_MODE_GATEWAY));
+        ProjectEncryptionKeyMetadata metadata = new ProjectEncryptionKeyMetadata(
+            Map.of("k1", new KeyEntry(randomPlaintextBytes(), 0L)),
+            "k1",
+            "v1",
+            Map.of(),
+            tracking
+        );
+
+        // First GATEWAY serialization triggers one wrap per key.
+        chunkedToXContent(metadata, gatewayParams);
+        assertEquals(1, wrapCount.get());
+
+        // Second call with the same active password — cache hit, no additional wrap.
+        chunkedToXContent(metadata, gatewayParams);
+        assertEquals(1, wrapCount.get());
+
+        // Active password changes — cache miss, wrap called again.
+        activeId.set("v2");
+        chunkedToXContent(metadata, gatewayParams);
+        assertEquals(2, wrapCount.get());
     }
 
     public void testFindRetireableKeyIdsKeyDeactivatedAtRotation() {

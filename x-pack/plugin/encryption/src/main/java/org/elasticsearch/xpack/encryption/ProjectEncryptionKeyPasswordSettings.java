@@ -83,15 +83,15 @@ final class ProjectEncryptionKeyPasswordSettings {
     }
 
     /**
-     * Returns a {@link Settings} that merges all non-secure entries from {@code base} with a durable in-memory snapshot of the
-     * encryption-related secure settings read from {@code secureSource}. The returned instance does not hold a reference to the original
+     * Returns a {@link Settings} that merges all non-secure entries from {@code settings} with a durable in-memory snapshot of the
+     * encryption-related secure settings read from the same source. The returned instance does not hold a reference to the original
      * keystore, so it remains valid after {@link org.elasticsearch.plugins.ReloadablePlugin#reload} closes it.
      */
-    static Settings cloneSettings(Settings base, Settings secureSource) {
+    static Settings cloneSettings(Settings settings) {
         try {
             return Settings.builder()
-                .put(base, false)
-                .setSecureSettings(InMemoryClonedSecureSettings.cloneSecureSettings(secureSource, getSettings()))
+                .put(settings, false)
+                .setSecureSettings(InMemoryClonedSecureSettings.cloneSecureSettings(settings, getSettings()))
                 .build();
         } catch (GeneralSecurityException e) {
             throw new ElasticsearchException("failed to clone project encryption key secure settings", e);

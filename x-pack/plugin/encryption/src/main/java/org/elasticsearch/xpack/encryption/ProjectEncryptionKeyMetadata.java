@@ -53,13 +53,13 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg
 class ProjectEncryptionKeyMetadata extends AbstractNamedDiffable<Metadata.ProjectCustom> implements Metadata.ProjectCustom {
     static final String TYPE = "primary_encryption_key";
 
-    static final TransportVersion PRIMARY_ENCRYPTION_KEY_VERSION = TransportVersion.fromName("primary_encryption_key");
-    static final TransportVersion PRIMARY_ENCRYPTION_KEY_ROTATION = TransportVersion.fromName("primary_encryption_key_rotation");
-    static final TransportVersion PRIMARY_ENCRYPTION_KEY_AT_REST = TransportVersion.fromName("primary_encryption_key_at_rest");
-    /**
-     * Transport version at which PEK bytes switched from password-wrapped form to plaintext over the wire.
-     * Nodes older than this version will not receive this metadata (see {@link #getMinimalSupportedVersion()}).
-     */
+    @SuppressWarnings("unused")
+    private static final TransportVersion PRIMARY_ENCRYPTION_KEY_VERSION = TransportVersion.fromName("primary_encryption_key");
+    @SuppressWarnings("unused")
+    private static final TransportVersion PRIMARY_ENCRYPTION_KEY_ROTATION = TransportVersion.fromName("primary_encryption_key_rotation");
+    @SuppressWarnings("unused")
+    private static final TransportVersion PRIMARY_ENCRYPTION_KEY_AT_REST = TransportVersion.fromName("primary_encryption_key_at_rest");
+
     static final TransportVersion PRIMARY_ENCRYPTION_KEY_CLEARTEXT_TRANSPORT = TransportVersion.fromName(
         "primary_encryption_key_cleartext_transport"
     );
@@ -73,12 +73,16 @@ class ProjectEncryptionKeyMetadata extends AbstractNamedDiffable<Metadata.Projec
 
     /** Wraps and unwraps PEK bytes for disk (gateway) serialization. Injected by {@link EncryptionPlugin} at deserialization time. */
     interface PekEncryption {
-        byte[] wrap(byte[] plaintextPek, String passwordId);
+        String activePasswordId();
+
+        record WrappedKey(String passwordId, byte[] wrapped) {}
+
+        WrappedKey wrap(byte[] plaintextPek);
 
         byte[] unwrap(byte[] wrappedPek, String passwordId);
     }
 
-    /** Plaintext AES-256 key bytes and generation timestamp. Wrapping for disk is handled by {@link PekEncryption}. */
+    /** Plaintext AES-256 key bytes and generation timestamp */
     record KeyEntry(byte[] bytes, long generatedAt) implements Writeable {
 
         KeyEntry {
@@ -115,7 +119,13 @@ class ProjectEncryptionKeyMetadata extends AbstractNamedDiffable<Metadata.Projec
     private final String passwordId;
     private final Map<String, String> handlerKeyIds;
     private final PekEncryption pekEncryption;
-    final ConcurrentHashMap<String, byte[]> wrappedKeyCache = new ConcurrentHashMap<>();
+
+    /** Structured key for the wrapped-key cache, combining the key id and the password id used for wrapping. */
+    record CacheKey(String keyId, String passwordId) {}
+
+    private final ConcurrentHashMap<CacheKey, byte[]> wrappedKeyCache = new ConcurrentHashMap<>();
+
+    private record GatewayBytes(String passwordId, Map<String, byte[]> wrappedByKeyId) {}
 
     ProjectEncryptionKeyMetadata(
         Map<String, KeyEntry> keys,
@@ -187,17 +197,7 @@ class ProjectEncryptionKeyMetadata extends AbstractNamedDiffable<Metadata.Projec
     ProjectEncryptionKeyMetadata withHandlerKeyId(String customName, String keyId) {
         Map<String, String> updated = new HashMap<>(handlerKeyIds);
         updated.put(customName, keyId);
-        ProjectEncryptionKeyMetadata result = new ProjectEncryptionKeyMetadata(keys, activeKeyId, passwordId, updated, pekEncryption);
-        result.seedWrappedKeyCache(wrappedKeyCache);
-        return result;
-    }
-
-    /**
-     * Seeds the wrapped-key cache with pre-computed password-wrapped bytes, avoiding PBKDF2 on the cluster state update thread.
-     * Existing entries are not overwritten.
-     */
-    void seedWrappedKeyCache(Map<String, byte[]> preComputed) {
-        preComputed.forEach(wrappedKeyCache::putIfAbsent);
+        return new ProjectEncryptionKeyMetadata(keys, activeKeyId, passwordId, updated, pekEncryption);
     }
 
     /**
@@ -254,15 +254,17 @@ class ProjectEncryptionKeyMetadata extends AbstractNamedDiffable<Metadata.Projec
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
         final boolean gatewayContext = Metadata.XContentContext.from(params) == Metadata.XContentContext.GATEWAY;
-        final Map<String, byte[]> gatewayBytes = gatewayContext ? getOrComputeWrappedKeys() : null;
+        final GatewayBytes gatewayResult = gatewayContext ? getOrComputeWrappedKeys() : null;
         return chunk((builder, p) -> {
             builder.field(ACTIVE_KEY_ID_FIELD.getPreferredName(), activeKeyId);
-            builder.field(PASSWORD_ID_FIELD.getPreferredName(), passwordId);
+            // GATEWAY: use the id actually chosen by wrap() so the on-disk blob self-describes its wrapping.
+            // API: use the replicated signal id (the master's published active password).
+            builder.field(PASSWORD_ID_FIELD.getPreferredName(), gatewayContext ? gatewayResult.passwordId() : passwordId);
             builder.startObject(KEYS_FIELD.getPreferredName());
             for (Map.Entry<String, KeyEntry> entry : keys.entrySet()) {
                 builder.startObject(entry.getKey());
                 if (gatewayContext) {
-                    builder.field(BYTES_FIELD.getPreferredName(), gatewayBytes.get(entry.getKey()));
+                    builder.field(BYTES_FIELD.getPreferredName(), gatewayResult.wrappedByKeyId().get(entry.getKey()));
                 }
                 builder.field(GENERATED_AT_FIELD.getPreferredName(), entry.getValue().generatedAt());
                 builder.endObject();
@@ -277,9 +279,18 @@ class ProjectEncryptionKeyMetadata extends AbstractNamedDiffable<Metadata.Projec
         });
     }
 
-    private Map<String, byte[]> getOrComputeWrappedKeys() {
-        keys.forEach((k, v) -> wrappedKeyCache.computeIfAbsent(k, ignored -> pekEncryption.wrap(v.bytes(), passwordId)));
-        return wrappedKeyCache;
+    private GatewayBytes getOrComputeWrappedKeys() {
+        String activeId = pekEncryption.activePasswordId();
+        Map<String, byte[]> result = HashMap.newHashMap(keys.size());
+        for (Map.Entry<String, KeyEntry> e : keys.entrySet()) {
+            byte[] plaintextBytes = e.getValue().bytes();
+            byte[] wrapped = wrappedKeyCache.computeIfAbsent(
+                new CacheKey(e.getKey(), activeId),
+                ignored -> pekEncryption.wrap(plaintextBytes).wrapped()
+            );
+            result.put(e.getKey(), wrapped);
+        }
+        return new GatewayBytes(activeId, result);
     }
 
     private static final ConstructingObjectParser<KeyEntry, String> KEY_ENTRY_PARSER = new ConstructingObjectParser<>(

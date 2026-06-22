@@ -100,26 +100,13 @@ class ProjectEncryptionKeyService implements AesGcmEncryptionService.KeyProvider
      */
     public EncryptionServiceState state() {
         KeyCache snapshot = cache;
-
         if (snapshot.activeKeyId == null) {
-            // No PEK installed in cluster state yet.
+            // Awaiting first key install. DISABLED only when no password is configured at all; otherwise READY
+            // (the coordinator will install the first key shortly after the password appears in settings).
             return getActivePasswordId() == null ? EncryptionServiceState.DISABLED : EncryptionServiceState.READY;
         }
-
-        if (snapshot.decryptedKeys.containsKey(snapshot.activeKeyId)) {
-            return EncryptionServiceState.READY;
-        }
-
-        // PEK installed but not yet (successfully) decrypted. Check proactively whether the password is present.
-        if (ProjectEncryptionKeyPasswordSettings.hasPassword(cachedSettings, snapshot.passwordId) == false) {
-            return EncryptionServiceState.UNAVAILABLE_MISSING_PASSWORD;
-        }
-
-        if (snapshot.lockedKeyIds.contains(snapshot.activeKeyId)) {
-            return EncryptionServiceState.UNAVAILABLE_DECRYPTION_FAILED;
-        }
-
-        // Password present, key not yet tried (e.g., cache just rebuilt from a cluster-state update).
+        // Keys are carried in plaintext over the wire (since PRIMARY_ENCRYPTION_KEY_CLEARTEXT_TRANSPORT), so
+        // once a key is installed the node can always encrypt/decrypt without a password.
         return EncryptionServiceState.READY;
     }
 

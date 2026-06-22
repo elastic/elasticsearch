@@ -23,17 +23,7 @@ public class KeyRotationExecutorTests extends ESTestCase {
 
     private static final ClusterName CLUSTER_NAME = new ClusterName("test");
     private static final String PASSWORD_ID = "v1";
-    private static final ProjectEncryptionKeyMetadata.PekEncryption NO_OP_ENCRYPTION = new ProjectEncryptionKeyMetadata.PekEncryption() {
-        @Override
-        public byte[] wrap(byte[] plaintextPek, String passwordId) {
-            return plaintextPek;
-        }
-
-        @Override
-        public byte[] unwrap(byte[] wrappedPek, String passwordId) {
-            return wrappedPek;
-        }
-    };
+    private static final ProjectEncryptionKeyMetadata.PekEncryption NO_OP_ENCRYPTION = TestPekEncryption.NO_OP;
     private final KeyRotationCoordinator.KeyRotationExecutor executor = new KeyRotationCoordinator.KeyRotationExecutor(
         DefaultProjectResolver.INSTANCE,
         NO_OP_ENCRYPTION
@@ -141,7 +131,7 @@ public class KeyRotationExecutorTests extends ESTestCase {
         );
         ClusterState state = stateWith(existing);
 
-        Tuple<ClusterState, Void> result = executor.executeTask(new KeyRotationCoordinator.RotatePasswordTask("v2", PASSWORD_ID), state);
+        Tuple<ClusterState, Void> result = executor.executeTask(new KeyRotationCoordinator.UpdatePasswordIdTask("v2", PASSWORD_ID), state);
 
         ProjectEncryptionKeyMetadata updated = metadataOf(result.v1());
         assertEquals("v2", updated.getPasswordId());
@@ -162,22 +152,7 @@ public class KeyRotationExecutorTests extends ESTestCase {
         );
         ClusterState state = stateWith(existing);
 
-        Tuple<ClusterState, Void> result = executor.executeTask(new KeyRotationCoordinator.RotatePasswordTask("v2", PASSWORD_ID), state);
-        assertSame(state, result.v1());
-    }
-
-    public void testRotatePasswordDropsWhenPasswordIdDrifted() {
-        ProjectEncryptionKeyMetadata existing = new ProjectEncryptionKeyMetadata(
-            Map.of("k1", entry(0L)),
-            "k1",
-            "other-id",
-            Map.of(),
-            NO_OP_ENCRYPTION
-        );
-        ClusterState state = stateWith(existing);
-
-        // Task expected the old id to be PASSWORD_ID, but it has already changed to "other-id".
-        Tuple<ClusterState, Void> result = executor.executeTask(new KeyRotationCoordinator.RotatePasswordTask("v2", PASSWORD_ID), state);
+        Tuple<ClusterState, Void> result = executor.executeTask(new KeyRotationCoordinator.UpdatePasswordIdTask("v2", PASSWORD_ID), state);
         assertSame(state, result.v1());
     }
 

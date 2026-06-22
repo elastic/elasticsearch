@@ -18,11 +18,12 @@ import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.project.DefaultProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.encryption.spi.EncryptedData;
+import org.elasticsearch.xpack.encryption.spi.EncryptionServiceState;
 import org.mockito.ArgumentCaptor;
 
 import java.util.Map;
@@ -36,17 +37,7 @@ public class ProjectEncryptionKeyServiceTests extends ESTestCase {
 
     private static final ClusterName CLUSTER_NAME = new ClusterName("test");
     private static final String PASSWORD_ID = "v1";
-    private static final ProjectEncryptionKeyMetadata.PekEncryption NO_OP_ENCRYPTION = new ProjectEncryptionKeyMetadata.PekEncryption() {
-        @Override
-        public byte[] wrap(byte[] plaintextPek, String passwordId) {
-            return plaintextPek;
-        }
-
-        @Override
-        public byte[] unwrap(byte[] wrappedPek, String passwordId) {
-            return wrappedPek;
-        }
-    };
+    private static final ProjectEncryptionKeyMetadata.PekEncryption NO_OP_ENCRYPTION = TestPekEncryption.NO_OP;
 
     private static ClusterService mockClusterService() {
         ClusterService cs = mock(ClusterService.class);
@@ -160,8 +151,49 @@ public class ProjectEncryptionKeyServiceTests extends ESTestCase {
         assertNull(service.getActiveKey());
     }
 
+    public void testStateDisabledWhenNoPekAndNoPassword() {
+        ClusterService clusterService = mockClusterService();
+        ProjectEncryptionKeyService service = ProjectEncryptionKeyService.create(
+            clusterService,
+            DefaultProjectResolver.INSTANCE,
+            () -> Settings.EMPTY
+        );
+        assertEquals(EncryptionServiceState.DISABLED, service.state());
+    }
+
+    public void testStateReadyWhenNoPekButPasswordConfigured() {
+        ClusterService clusterService = mockClusterService();
+        MockSecureSettings secure = new MockSecureSettings();
+        secure.setString(ProjectEncryptionKeyPasswordSettings.ACTIVE_PASSWORD_ID_KEY, PASSWORD_ID);
+        secure.setString(ProjectEncryptionKeyPasswordSettings.PASSWORD_PREFIX + PASSWORD_ID, "some-password");
+        Settings settings = Settings.builder().setSecureSettings(secure).build();
+        ProjectEncryptionKeyService service = ProjectEncryptionKeyService.create(
+            clusterService,
+            DefaultProjectResolver.INSTANCE,
+            () -> settings
+        );
+        // Password configured but no PEK installed yet — coordinator will install it shortly.
+        assertEquals(EncryptionServiceState.READY, service.state());
+    }
+
+    public void testStateReadyWhenPekInstalled() {
+        ClusterService clusterService = mockClusterService();
+        ProjectEncryptionKeyService service = ProjectEncryptionKeyService.create(
+            clusterService,
+            DefaultProjectResolver.INSTANCE,
+            () -> Settings.EMPTY
+        );
+        ClusterStateListener listener = captureListener(clusterService);
+
+        ProjectEncryptionKeyMetadata pek = plaintextPekMetadata(PASSWORD_ID);
+        listener.clusterChanged(new ClusterChangedEvent("test", stateWithKey(pek), stateWithoutKey()));
+
+        // Keys are plaintext in memory; READY regardless of whether a password is configured.
+        assertEquals(EncryptionServiceState.READY, service.state());
+    }
+
     public void testSettingsChangeDoesNotAffectKeyCache() {
-        ClusterService clusterService = mock(ClusterService.class);
+        ClusterService clusterService = mockClusterService();
         java.util.concurrent.atomic.AtomicReference<Settings> settingsRef = new java.util.concurrent.atomic.AtomicReference<>(
             Settings.EMPTY
         );

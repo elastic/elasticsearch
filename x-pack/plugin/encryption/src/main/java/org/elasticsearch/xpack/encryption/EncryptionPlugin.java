@@ -7,12 +7,10 @@
 package org.elasticsearch.xpack.encryption;
 
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.IOUtils;
@@ -27,7 +25,6 @@ import org.elasticsearch.plugins.ReloadablePlugin;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
-import org.elasticsearch.xpack.encryption.spi.EncryptedData;
 import org.elasticsearch.xpack.encryption.spi.EncryptedDataHandler;
 import org.elasticsearch.xpack.encryption.spi.EncryptedDataHandlerProvider;
 import org.elasticsearch.xpack.encryption.spi.EncryptionService;
@@ -45,7 +42,6 @@ import java.util.function.Supplier;
  */
 public class EncryptionPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin, ReloadablePlugin, HealthPlugin {
 
-    private final Settings settings;
     private final List<EncryptedDataHandlerProvider> encryptedDataHandlerProviders = new ArrayList<>();
 
     private final SetOnce<ProjectEncryptionKeyService> pekService = new SetOnce<>();
@@ -54,41 +50,10 @@ public class EncryptionPlugin extends Plugin implements ActionPlugin, Extensible
 
     private volatile Settings pekSettings;
 
-    private final ProjectEncryptionKeyMetadata.PekEncryption pekEncryption = new ProjectEncryptionKeyMetadata.PekEncryption() {
-        @Override
-        public byte[] wrap(byte[] plaintextPek, String passwordId) {
-            try (SecureString password = ProjectEncryptionKeyPasswordSettings.getPassword(pekSettings, passwordId)) {
-                if (password == null) {
-                    throw new ElasticsearchException(
-                        "cannot wrap PEK for disk: secure setting ["
-                            + ProjectEncryptionKeyPasswordSettings.PASSWORD_PREFIX
-                            + passwordId
-                            + "] is not configured"
-                    );
-                }
-                return PasswordBasedEncryption.wrap(plaintextPek, passwordId, password.getChars()).payload();
-            }
-        }
-
-        @Override
-        public byte[] unwrap(byte[] wrappedPek, String passwordId) {
-            try (SecureString password = ProjectEncryptionKeyPasswordSettings.getPassword(pekSettings, passwordId)) {
-                if (password == null) {
-                    throw new ElasticsearchException(
-                        "cannot unwrap PEK from disk: secure setting ["
-                            + ProjectEncryptionKeyPasswordSettings.PASSWORD_PREFIX
-                            + passwordId
-                            + "] is not configured"
-                    );
-                }
-                return PasswordBasedEncryption.unwrap(new EncryptedData(passwordId, wrappedPek), password.getChars());
-            }
-        }
-    };
+    private final ProjectEncryptionKeyMetadata.PekEncryption pekEncryption = new PasswordPekEncryption(() -> this.pekSettings);
 
     public EncryptionPlugin(Settings settings) {
-        this.settings = settings;
-        this.pekSettings = ProjectEncryptionKeyPasswordSettings.cloneSettings(settings, settings);
+        this.pekSettings = ProjectEncryptionKeyPasswordSettings.cloneSettings(settings);
     }
 
     @Override
@@ -159,7 +124,7 @@ public class EncryptionPlugin extends Plugin implements ActionPlugin, Extensible
 
     @Override
     public void reload(Settings settings) {
-        this.pekSettings = ProjectEncryptionKeyPasswordSettings.cloneSettings(this.settings, settings);
+        this.pekSettings = ProjectEncryptionKeyPasswordSettings.cloneSettings(settings);
         KeyRotationCoordinator localCoordinator = this.coordinator.get();
         if (localCoordinator != null) {
             localCoordinator.reload();

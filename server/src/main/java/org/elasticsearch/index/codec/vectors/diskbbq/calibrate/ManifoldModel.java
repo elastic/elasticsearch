@@ -98,6 +98,8 @@ public final class ManifoldModel {
 
     /**
      * Estimate manifold parameters (alpha, invDim) using default sample sizes.
+     * Query buffers are sized from {@link CalibrationQueries#dimension()} so cosine
+     * normalization and Neyshabur lift are supported.
      */
     public static double[] estimateManifoldParameters(
         VectorSimilarityFunction similarityFunction,
@@ -147,7 +149,7 @@ public final class ManifoldModel {
         double[] logSampleSizes = new double[m];
         double[] logDistances = new double[m];
 
-        float[] queryScratch = new float[dim];
+        float[] queryScratch = new float[queries.dimension()];
         ManifoldTopK[] topKs = new ManifoldTopK[nQueries];
         for (int qi = 0; qi < nQueries; qi++) {
             topKs[qi] = new ManifoldTopK(similarityFunction, 6 * k);

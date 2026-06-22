@@ -1971,3 +1971,83 @@ from employees
 emp_no:integer | hire_date:date             | monthName:keyword
 10004          | 1986-12-01T00:00:00.000Z   | November
 ;
+
+dateFormatFormatFieldDateConstant
+required_capability: string_literal_auto_casting
+
+ROW format="yyyy-MM-dd"
+| EVAL df = DATE_FORMAT(format, "1989-06-02T00:00:00.000Z")
+| KEEP df
+;
+
+df:keyword
+1989-06-02
+;
+
+dateFormatFormatFieldDateField
+required_capability: string_literal_auto_casting
+
+ROW format="yyyy-MM-dd", date_val="1989-06-02T00:00:00.000Z"
+| EVAL df = DATE_FORMAT(format, TO_DATETIME(date_val))
+| KEEP df
+;
+
+df:keyword
+1989-06-02
+;
+
+dateParseFormatFieldStringConstant
+ROW format="yyyy-MM-dd"
+| EVAL b = date_parse(format, "2023-02-01")
+| KEEP b
+;
+
+b:datetime
+2023-02-01T00:00:00.000Z
+;
+
+dateParseFormatFieldStringField
+ROW format="yyyy-MM-dd", a="2023-02-01"
+| EVAL b = date_parse(format, a)
+| KEEP b
+;
+
+b:datetime
+2023-02-01T00:00:00.000Z
+;
+
+dateUnitCountInnerFieldOuterConstant
+required_capability: esql_date_unit_count_fn
+
+ROW dt = to_datetime("2024-02-15T00:00:00.000Z"), inner="day"
+| EVAL days = DATE_UNIT_COUNT(inner, "month", dt)
+| KEEP days
+;
+
+days:long
+29
+;
+
+dateUnitCountInnerConstantOuterField
+required_capability: esql_date_unit_count_fn
+
+ROW dt = to_datetime("2024-02-15T00:00:00.000Z"), outer="month"
+| EVAL days = DATE_UNIT_COUNT("day", outer, dt)
+| KEEP days
+;
+
+days:long
+29
+;
+
+dateUnitCountInnerFieldOuterField
+required_capability: esql_date_unit_count_fn
+
+ROW dt = to_datetime("2024-02-15T00:00:00.000Z"), inner="day", outer="month"
+| EVAL days = DATE_UNIT_COUNT(inner, outer, dt)
+| KEEP days
+;
+
+days:long
+29
+;

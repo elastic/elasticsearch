@@ -209,15 +209,7 @@ public class ManifoldModelTests extends ESTestCase {
         int liftedDim = dim + 1;
         ColinearFixture fixture = newColinearLiftedFixture(dim, corpusSize, numQueries, new Random(23));
 
-        CalibrationQueries queries = new CalibrationQueries(
-            fixture.fvv(),
-            fixture.queryOrdinals(),
-            dim,
-            false,
-            true,
-            null,
-            liftedDim
-        );
+        CalibrationQueries queries = new CalibrationQueries(fixture.fvv(), fixture.queryOrdinals(), dim, false, true, null, liftedDim);
         double[] params = ManifoldModel.estimateManifoldParameters(
             VectorSimilarityFunction.EUCLIDEAN,
             dim,
@@ -270,32 +262,7 @@ public class ManifoldModelTests extends ESTestCase {
      * Must stay aligned with {@link ManifoldModel}'s internal rank multipliers.
      */
     private static int[] ranksForCalibrationK(int k) {
-        int[] multipliers = {
-            29,
-            28,
-            27,
-            26,
-            25,
-            24,
-            23,
-            22,
-            21,
-            20,
-            19,
-            18,
-            17,
-            16,
-            15,
-            14,
-            13,
-            12,
-            11,
-            10,
-            9,
-            8,
-            7,
-            6,
-            5 };
+        int[] multipliers = { 29, 28, 27, 26, 25, 24, 23, 22, 21, 20, 19, 18, 17, 16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5 };
         int[] ranks = new int[multipliers.length];
         for (int i = 0; i < multipliers.length; i++) {
             ranks[i] = Math.max(1, (multipliers[i] * k) / 5);
@@ -339,13 +306,7 @@ public class ManifoldModelTests extends ESTestCase {
         return newColinearFixture(dim, corpusSize, numQueries, random, true);
     }
 
-    private static ColinearFixture newColinearFixture(
-        int dim,
-        int corpusSize,
-        int numQueries,
-        Random random,
-        boolean queriesAtOrigin
-    ) {
+    private static ColinearFixture newColinearFixture(int dim, int corpusSize, int numQueries, Random random, boolean queriesAtOrigin) {
         float[] direction = new float[dim];
         for (int d = 0; d < dim; d++) {
             direction[d] = random.nextFloat();

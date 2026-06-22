@@ -8,9 +8,12 @@
  */
 package org.elasticsearch.cluster.remote.test;
 
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
+
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.test.fixtures.testcontainers.TestContainersThreadFilter;
 import org.elasticsearch.test.rest.ObjectPath;
 import org.junit.After;
 import org.junit.Before;
@@ -19,9 +22,7 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.Optional;
 
-import static org.hamcrest.Matchers.equalTo;
-import static org.junit.Assume.assumeThat;
-
+@ThreadLeakFilters(filters = { TestContainersThreadFilter.class })
 public class RemoteClustersIT extends AbstractMultiClusterRemoteTestCase {
 
     @Before
@@ -75,37 +76,6 @@ public class RemoteClustersIT extends AbstractMultiClusterRemoteTestCase {
         updateClusterSettings(cluster2Client(), setting);
     }
 
-    public void testProxyModeConnectionWorks() throws IOException {
-        String cluster2RemoteClusterSeed = "elasticsearch-" + getDistribution() + "-2:9300";
-        logger.info("Configuring remote cluster [{}]", cluster2RemoteClusterSeed);
-        Settings settings = Settings.builder()
-            .put("cluster.remote.cluster2.mode", "proxy")
-            .put("cluster.remote.cluster2.proxy_address", cluster2RemoteClusterSeed)
-            .build();
-
-        updateClusterSettings(cluster1Client(), settings);
-
-        assertTrue(isConnected(cluster1Client()));
-
-        {
-            Request searchRequest = new Request("POST", "/cluster2:test2/_search");
-            ObjectPath doc = ObjectPath.createFromResponse(cluster1Client().performRequest(searchRequest));
-            assertEquals(2, (int) doc.evaluate("hits.total.value"));
-        }
-    }
-
-    public void testSniffModeConnectionFails() throws IOException {
-        String cluster2RemoteClusterSeed = "elasticsearch-" + getDistribution() + "-2:9300";
-        logger.info("Configuring remote cluster [{}]", cluster2RemoteClusterSeed);
-        Settings settings = Settings.builder()
-            .put("cluster.remote.cluster2alt.mode", "sniff")
-            .put("cluster.remote.cluster2alt.seeds", cluster2RemoteClusterSeed)
-            .build();
-        updateClusterSettings(cluster1Client(), settings);
-
-        assertFalse(isConnected(cluster1Client()));
-    }
-
     public void testHAProxyModeConnectionWorks() throws IOException {
         String proxyAddress = "haproxy:9600";
         logger.info("Configuring remote cluster [{}]", proxyAddress);
@@ -125,8 +95,6 @@ public class RemoteClustersIT extends AbstractMultiClusterRemoteTestCase {
     }
 
     public void testHAProxyModeConnectionWithSNIToCluster1Works() throws IOException {
-        assumeThat("test is only supported if the distribution contains xpack", getDistribution(), equalTo("default"));
-
         Settings settings = Settings.builder()
             .put("cluster.remote.haproxysni1.mode", "proxy")
             .put("cluster.remote.haproxysni1.proxy_address", "haproxy:9600")
@@ -144,8 +112,6 @@ public class RemoteClustersIT extends AbstractMultiClusterRemoteTestCase {
     }
 
     public void testHAProxyModeConnectionWithSNIToCluster2Works() throws IOException {
-        assumeThat("test is only supported if the distribution contains xpack", getDistribution(), equalTo("default"));
-
         Settings settings = Settings.builder()
             .put("cluster.remote.haproxysni2.mode", "proxy")
             .put("cluster.remote.haproxysni2.proxy_address", "haproxy:9600")
@@ -160,6 +126,37 @@ public class RemoteClustersIT extends AbstractMultiClusterRemoteTestCase {
             ObjectPath doc = ObjectPath.createFromResponse(cluster1Client().performRequest(searchRequest));
             assertEquals(2, (int) doc.evaluate("hits.total.value"));
         }
+    }
+
+    public void testProxyModeConnectionWorks() throws IOException {
+        String cluster2RemoteClusterSeed = RemoteClusterTestCluster.CLUSTER_2_NAME + ":9300";
+        logger.info("Configuring remote cluster [{}]", cluster2RemoteClusterSeed);
+        Settings settings = Settings.builder()
+            .put("cluster.remote.cluster2.mode", "proxy")
+            .put("cluster.remote.cluster2.proxy_address", cluster2RemoteClusterSeed)
+            .build();
+
+        updateClusterSettings(cluster1Client(), settings);
+
+        assertTrue(isConnected(cluster1Client()));
+
+        {
+            Request searchRequest = new Request("POST", "/cluster2:test2/_search");
+            ObjectPath doc = ObjectPath.createFromResponse(cluster1Client().performRequest(searchRequest));
+            assertEquals(2, (int) doc.evaluate("hits.total.value"));
+        }
+    }
+
+    public void testSniffModeConnectionFails() throws IOException {
+        String cluster2RemoteClusterSeed = RemoteClusterTestCluster.CLUSTER_2_NAME + ":9300";
+        logger.info("Configuring remote cluster [{}]", cluster2RemoteClusterSeed);
+        Settings settings = Settings.builder()
+            .put("cluster.remote.cluster2alt.mode", "sniff")
+            .put("cluster.remote.cluster2alt.seeds", cluster2RemoteClusterSeed)
+            .build();
+        updateClusterSettings(cluster1Client(), settings);
+
+        assertFalse(isConnected(cluster1Client()));
     }
 
     @SuppressWarnings("unchecked")

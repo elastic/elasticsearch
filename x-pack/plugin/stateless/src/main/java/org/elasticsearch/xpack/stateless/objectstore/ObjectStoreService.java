@@ -646,8 +646,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
     }
 
     private boolean isRunning() {
-        final Lifecycle.State state = lifecycleState();
-        return state != Lifecycle.State.INITIALIZED && state != Lifecycle.State.CLOSED;
+        return lifecycleState() == Lifecycle.State.STARTED;
     }
 
     private void ensureRunning() {

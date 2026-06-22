@@ -6,9 +6,12 @@
  * your election, the "Elastic License 2.0", the "GNU Affero General Public
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
-package org.elasticsearch.gradle.internal.testfixtures;
 
-import org.gradle.api.services.BuildService;
-import org.gradle.api.services.BuildServiceParameters;
+package org.elasticsearch.indices.recovery;
 
-public abstract class DockerComposeThrottle implements BuildService<BuildServiceParameters.None> {}
+/// The role a data node plays in a shard recovery. `SOURCE` is for a node sending shard data in a peer recovery,
+/// `TARGET` for a node on which the shard is recovering.
+public enum RecoveryRole {
+    SOURCE,
+    TARGET
+}

@@ -339,8 +339,8 @@ steps:
         env:
           BWC_VERSION: 8.18.8
 
-      - label: "{{matrix.image}} / 8.19.16 / packaging-tests-upgrade"
-        command: ./.ci/scripts/packaging-test.sh -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v8.19.16
+      - label: "{{matrix.image}} / 8.19.17 / packaging-tests-upgrade"
+        command: ./.ci/scripts/packaging-test.sh -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v8.19.17
         timeout_in_minutes: 300
         matrix:
           setup:
@@ -353,7 +353,7 @@ steps:
           machineType: custom-16-32768
           buildDirectory: /dev/shm/bk
         env:
-          BWC_VERSION: 8.19.16
+          BWC_VERSION: 8.19.17
 
       - label: "{{matrix.image}} / 9.0.8 / packaging-tests-upgrade"
         command: ./.ci/scripts/packaging-test.sh -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v9.0.8
@@ -403,8 +403,8 @@ steps:
         env:
           BWC_VERSION: 9.2.8
 
-      - label: "{{matrix.image}} / 9.3.5 / packaging-tests-upgrade"
-        command: ./.ci/scripts/packaging-test.sh -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v9.3.5
+      - label: "{{matrix.image}} / 9.3.6 / packaging-tests-upgrade"
+        command: ./.ci/scripts/packaging-test.sh -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v9.3.6
         timeout_in_minutes: 300
         matrix:
           setup:
@@ -417,10 +417,10 @@ steps:
           machineType: custom-16-32768
           buildDirectory: /dev/shm/bk
         env:
-          BWC_VERSION: 9.3.5
+          BWC_VERSION: 9.3.6
 
-      - label: "{{matrix.image}} / 9.4.2 / packaging-tests-upgrade"
-        command: ./.ci/scripts/packaging-test.sh -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v9.4.2
+      - label: "{{matrix.image}} / 9.4.3 / packaging-tests-upgrade"
+        command: ./.ci/scripts/packaging-test.sh -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v9.4.3
         timeout_in_minutes: 300
         matrix:
           setup:
@@ -433,7 +433,7 @@ steps:
           machineType: custom-16-32768
           buildDirectory: /dev/shm/bk
         env:
-          BWC_VERSION: 9.4.2
+          BWC_VERSION: 9.4.3
 
       - label: "{{matrix.image}} / 9.5.0 / packaging-tests-upgrade"
         command: ./.ci/scripts/packaging-test.sh -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v9.5.0

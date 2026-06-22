@@ -40,6 +40,7 @@ import org.elasticsearch.xpack.core.transform.transforms.persistence.TransformIn
 import org.elasticsearch.xpack.transform.TransformExtension;
 import org.elasticsearch.xpack.transform.TransformNode;
 import org.elasticsearch.xpack.transform.TransformServices;
+import org.elasticsearch.xpack.transform.action.TransformCloudCredentialManager;
 import org.elasticsearch.xpack.transform.checkpoint.CheckpointProvider;
 import org.elasticsearch.xpack.transform.checkpoint.TransformCheckpointService;
 import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
@@ -247,7 +248,8 @@ public class TransformIndexerFailureOnStatePersistenceTests extends ESTestCase {
                         mock(TransformNode.class),
                         mock(CrossProjectModeDecider.class),
                         projectId -> false,
-                        mock(ProjectResolver.class)
+                        mock(ProjectResolver.class),
+                        mock(TransformCloudCredentialManager.class)
                     ),
                     mock(CheckpointProvider.class),
                     new AtomicReference<>(IndexerState.STOPPED),
@@ -336,7 +338,8 @@ public class TransformIndexerFailureOnStatePersistenceTests extends ESTestCase {
                         mock(TransformNode.class),
                         mock(CrossProjectModeDecider.class),
                         projectId -> false,
-                        mock(ProjectResolver.class)
+                        mock(ProjectResolver.class),
+                        mock(TransformCloudCredentialManager.class)
                     ),
                     mock(CheckpointProvider.class),
                     new AtomicReference<>(IndexerState.STOPPED),
@@ -474,7 +477,8 @@ public class TransformIndexerFailureOnStatePersistenceTests extends ESTestCase {
                     mock(TransformNode.class),
                     mock(CrossProjectModeDecider.class),
                     projectId -> false,
-                    mock(ProjectResolver.class)
+                    mock(ProjectResolver.class),
+                    mock(TransformCloudCredentialManager.class)
                 ),
                 mock(CheckpointProvider.class),
                 new AtomicReference<>(IndexerState.STOPPED),

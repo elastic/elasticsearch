@@ -27,6 +27,7 @@ import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SortField;
+import org.apache.lucene.search.TermRangeQuery;
 import org.apache.lucene.util.AttributeSource;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOBooleanSupplier;
@@ -34,6 +35,7 @@ import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.CompiledAutomaton;
 import org.apache.lucene.util.automaton.Operations;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.lucene.Lucene;
@@ -67,7 +69,6 @@ import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.MappedFieldType.FieldExtractPreference;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MapperMergeContext;
@@ -112,6 +113,7 @@ import java.util.function.Function;
 
 import static org.elasticsearch.index.IndexSettings.IGNORE_ABOVE_SETTING;
 import static org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper.RootFlattenedFieldType.toSubFieldLoaders;
+import static org.elasticsearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
 
 /**
  * A field mapper that accepts a JSON object and flattens it into a single field. This data type
@@ -690,17 +692,65 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
             boolean includeUpper,
             SearchExecutionContext context
         ) {
-
-            // We require range queries to specify both bounds because an unbounded query could incorrectly match
-            // values from other keys. For example, a query on the 'first' key with only a lower bound would become
-            // ("first\0value", null), which would also match the value "second\0value" belonging to the key 'second'.
-            if (lowerTerm == null || upperTerm == null) {
+            // A range with both bounds open matches every value for this key. That is the same set
+            // existsQuery already produces with a {@code PrefixQuery} on {@code key\0}, so we reject
+            // it here and force the caller to ask for "exists" explicitly. The wrong-key risk that
+            // motivated the original restriction is handled per side below.
+            if (lowerTerm == null && upperTerm == null) {
                 throw new IllegalArgumentException(
-                    "[range] queries on keyed [" + CONTENT_TYPE + "] fields must include both an upper and a lower bound."
+                    "[range] queries on keyed [" + CONTENT_TYPE + "] fields must specify at least one of the upper or lower bounds."
                 );
             }
 
-            return super.rangeQuery(lowerTerm, upperTerm, includeLower, includeUpper, context);
+            if (lowerTerm != null && upperTerm != null) {
+                return super.rangeQuery(lowerTerm, upperTerm, includeLower, includeUpper, context);
+            }
+
+            // One side is open. The implicit bound is the key-prefix sentinel so the resulting term
+            // range still falls entirely inside this key's slice of the term namespace, namely
+            // [key\0, key\1). That avoids the cross-key bleed the original throw was guarding
+            // against. For example, a lower-only bound on the {@code "first"} key would otherwise
+            // pair with {@code null} and run all the way past {@code "second\0..."}.
+            //
+            // The lower-side sentinel is {@code key\0}, inclusive. That is the encoding for value
+            // {@code ""} and it is the smallest term in the key's slice. The upper-side sentinel is
+            // {@code key\1}, exclusive. Byte {@code 0x01} is the lowest byte strictly greater than
+            // the {@code 0x00} separator so it sits just past every {@code key\0<value>} encoding
+            // and just before the first term of any sibling key (which must start with a key byte
+            // strictly larger than the open key's, given {@code 0x01} cannot appear before the
+            // separator in the open key itself).
+            if (context.allowExpensiveQueries() == false) {
+                throw new ElasticsearchException(
+                    "[range] queries on [text] or [keyword] fields cannot be executed when '"
+                        + ALLOW_EXPENSIVE_QUERIES.getKey()
+                        + "' is set to false."
+                );
+            }
+            failIfNotIndexed();
+
+            BytesRef lower;
+            boolean lowerInclusive;
+            if (lowerTerm == null) {
+                lower = new BytesRef(key + FlattenedFieldParser.SEPARATOR);
+                lowerInclusive = true;
+            } else {
+                lower = indexedValueForSearch(lowerTerm);
+                lowerInclusive = includeLower;
+            }
+
+            BytesRef upper;
+            boolean upperInclusive;
+            if (upperTerm == null) {
+                upper = new BytesRef(key + (char) (FlattenedFieldParser.SEPARATOR_BYTE + 1));
+                upperInclusive = false;
+            } else {
+                upper = indexedValueForSearch(upperTerm);
+                upperInclusive = includeUpper;
+            }
+
+            TermRangeQuery query = new TermRangeQuery(name(), lower, upper, lowerInclusive, upperInclusive);
+            context.addCircuitBreakerMemory(query.ramBytesUsed(), "range:" + name());
+            return query;
         }
 
         @Override
@@ -1258,6 +1308,13 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
                 // reader checks every document.
                 return BlockSourceReader.lookupMatchingAll();
             }
+            if (mappedSubFields.isEmpty() == false) {
+                // The keyed-channel lookup can't be used here: a mapped sub-field lives in its own typed column,
+                // never the keyed channel, so a doc whose only flattened content is mapped sub-fields has an empty
+                // keyed channel. That lookup would treat it as "field absent" and the source reader would skip the
+                // load entirely. Match all docs so every doc's _source is checked.
+                return BlockSourceReader.lookupMatchingAll();
+            }
             return super.sourceBlockLoaderLookup(blContext, fieldName);
         }
 
@@ -1278,7 +1335,13 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
             final boolean docValuesContainAllValues = ignoreAbove.valuesPotentiallyIgnored() == false || isSyntheticSourceEnabled;
             final boolean preferLoadFromSource = blContext.fieldExtractPreference() == FieldExtractPreference.STORED
                 && isSyntheticSourceEnabled == false;
-            if (hasDocValues() && docValuesContainAllValues && preferLoadFromSource == false) {
+            // A flattened root with mapped sub-fields can't use the doc-values root loader: it would render mapped
+            // leaves with their native type (a long as 200, not "200") and can't reconstruct a sub-field that has
+            // neither doc values nor a stored field (a bare text), so its blob would diverge from the _source one.
+            // Loading from _source instead renders every leaf as a string and keeps every key, so KEEP <root> is
+            // identical on every loading path. The typed sub-field columns (e.g. attributes.status_code) are
+            // unaffected and still return native values.
+            if (hasDocValues() && docValuesContainAllValues && preferLoadFromSource == false && mappedSubFields.isEmpty()) {
                 return new RootFlattenedDocValuesBlockLoader(
                     name(),
                     ignoreAbove,
@@ -1301,9 +1364,22 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
 
         @Override
         public boolean supportsBlockLoaderConfig(BlockLoaderFunctionConfig config, MappedFieldType.FieldExtractPreference preference) {
-            // Only the field_extract sub-key fusion is supported on the flattened root for now,
-            // and only when doc values are available (so we can use the keyed sub-field loader).
-            return config instanceof ExtractFlattenedSubfieldConfig && hasDocValues();
+            if (config instanceof ExtractFlattenedSubfieldConfig(String key)) {
+                return hasDocValues() && isMappedSubField(key) == false;
+            }
+            return false;
+        }
+
+        /**
+         * Whether {@code key} is an explicitly mapped sub-field (declared under {@code properties}) of this
+         * flattened root, as opposed to a dynamic keyed sub-field stored in the keyed channel. Mapped
+         * sub-fields are addressable as their own typed columns; {@code field_extract} excludes them from
+         * pushdown so its result stays consistent across execution paths. {@link #getChildFieldType} relies
+         * on the same {@code mappedSubFields} membership to decide between the typed sub-field type and a
+         * dynamic {@link KeyedFlattenedFieldType}.
+         */
+        public boolean isMappedSubField(String key) {
+            return mappedSubFields.containsKey(key);
         }
 
         @Override

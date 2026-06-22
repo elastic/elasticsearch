@@ -2,8 +2,7 @@
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": [
     "github>elastic/renovate-config:base",
-    "github>elastic/renovate-config:ci-agent-images",
-    ":disableDependencyDashboard"
+    "github>elastic/renovate-config:ci-agent-images"
   ],
   "schedule": [
     "after 1pm on tuesday"
@@ -35,6 +34,20 @@
         "/docker.elastic.co/.*/"
       ],
       "enabled": true
+    },
+    {
+      "description": "Gradle wrapper: one rolling PR per release train (e.g. 9.5.x patch lane and 9.6.x minor/RC lane), lockstep across all wrapper.properties files; manual fix commits preserved",
+      "matchManagers": ["gradle-wrapper"],
+      "matchBaseBranches": ["main"],
+      "enabled": true,
+      "ignoreUnstable": false,
+      "separateMinorPatch": true,
+      "automerge": false,
+      "rebaseWhen": "behind-base-branch",
+      "branchTopic": "gradle-wrapper-{{{newMajor}}}.{{{newMinor}}}.x",
+      "commitMessageTopic": "Gradle wrapper {{{newMajor}}}.{{{newMinor}}}.x",
+      "schedule": ["at any time"],
+      "labels": [":Delivery/Build", ">non-issue", "auto-backport"]
     }
   ]
 }

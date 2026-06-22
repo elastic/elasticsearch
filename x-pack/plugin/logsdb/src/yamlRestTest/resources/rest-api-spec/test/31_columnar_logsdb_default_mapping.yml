@@ -26,15 +26,16 @@ create logsdb_columnar data stream with host.name as keyword:
       indices.put_index_template:
         name: "cl-logsdb-index-template"
         body:
-          index_patterns: ["cl-logsdb"]
+          index_patterns: ["logs-cl-logsdb-test"]
+          priority: 1000
           data_stream: {}
           composed_of: ["cl-logsdb-mappings"]
       allowed_warnings:
-        - "index template [cl-logsdb-index-template] has index patterns [cl-logsdb] matching patterns from existing older templates [global] with patterns (global => [*]); this template [cl-logsdb-index-template] will take precedence during new index creation"
+        - "index template [cl-logsdb-index-template] has index patterns [logs-cl-logsdb-test] matching patterns from existing older templates [global] with patterns (global => [*]); this template [cl-logsdb-index-template] will take precedence during new index creation"
 
   - do:
       indices.create_data_stream:
-        name: "cl-logsdb"
+        name: "logs-cl-logsdb-test"
 
   - is_true: acknowledged
 
@@ -58,15 +59,16 @@ create logsdb_columnar data stream with host.name as keyword and timestamp as da
       indices.put_index_template:
         name: "cl-logsdb-index-template"
         body:
-          index_patterns: ["cl-logsdb"]
+          index_patterns: ["logs-cl-logsdb-test"]
+          priority: 1000
           data_stream: {}
           composed_of: ["cl-logsdb-mappings"]
       allowed_warnings:
-        - "index template [cl-logsdb-index-template] has index patterns [cl-logsdb] matching patterns from existing older templates [global] with patterns (global => [*]); this template [cl-logsdb-index-template] will take precedence during new index creation"
+        - "index template [cl-logsdb-index-template] has index patterns [logs-cl-logsdb-test] matching patterns from existing older templates [global] with patterns (global => [*]); this template [cl-logsdb-index-template] will take precedence during new index creation"
 
   - do:
       indices.create_data_stream:
-        name: "cl-logsdb"
+        name: "logs-cl-logsdb-test"
 
   - is_true: acknowledged
 
@@ -90,20 +92,21 @@ create logsdb_columnar data stream with host.name as integer and timestamp as da
       indices.put_index_template:
         name: "cl-logsdb-index-template"
         body:
-          index_patterns: ["cl-logsdb"]
+          index_patterns: ["logs-cl-logsdb-test"]
+          priority: 1000
           data_stream: {}
           composed_of: ["cl-logsdb-mappings"]
       allowed_warnings:
-        - "index template [cl-logsdb-index-template] has index patterns [cl-logsdb] matching patterns from existing older templates [global] with patterns (global => [*]); this template [cl-logsdb-index-template] will take precedence during new index creation"
+        - "index template [cl-logsdb-index-template] has index patterns [logs-cl-logsdb-test] matching patterns from existing older templates [global] with patterns (global => [*]); this template [cl-logsdb-index-template] will take precedence during new index creation"
 
   - do:
       indices.create_data_stream:
-        name: "cl-logsdb"
+        name: "logs-cl-logsdb-test"
   - is_true: acknowledged
 
   - do:
       indices.get_data_stream:
-        name: "cl-logsdb"
+        name: "logs-cl-logsdb-test"
         expand_wildcards: hidden
   - length: { data_streams: 1 }
   - set: { data_streams.0.indices.0.index_name: backing_index }
@@ -111,7 +114,7 @@ create logsdb_columnar data stream with host.name as integer and timestamp as da
   - do:
       indices.get_settings:
         index: $backing_index
-  - match: { .$backing_index.settings.index.mode: logsdb_columnar }
+  - match: { .$backing_index.settings.index.mode: '/^logsdb(_columnar)?$/' }
   - is_false: .$backing_index.settings.index.logsdb.add_host_name_field
   - match: { .$backing_index.settings.index.logsdb.sort_on_host_name: "true" }
 
@@ -133,20 +136,21 @@ create logsdb_columnar data stream with no host.name and timestamp as date:
       indices.put_index_template:
         name: "cl-logsdb-index-template"
         body:
-          index_patterns: ["cl-logsdb"]
+          index_patterns: ["logs-cl-logsdb-test"]
+          priority: 1000
           data_stream: {}
           composed_of: ["cl-logsdb-mappings"]
       allowed_warnings:
-        - "index template [cl-logsdb-index-template] has index patterns [cl-logsdb] matching patterns from existing older templates [global] with patterns (global => [*]); this template [cl-logsdb-index-template] will take precedence during new index creation"
+        - "index template [cl-logsdb-index-template] has index patterns [logs-cl-logsdb-test] matching patterns from existing older templates [global] with patterns (global => [*]); this template [cl-logsdb-index-template] will take precedence during new index creation"
 
   - do:
       indices.create_data_stream:
-        name: "cl-logsdb"
+        name: "logs-cl-logsdb-test"
   - is_true: acknowledged
 
   - do:
       indices.get_data_stream:
-        name: "cl-logsdb"
+        name: "logs-cl-logsdb-test"
         expand_wildcards: hidden
   - length: { data_streams: 1 }
   - set: { data_streams.0.indices.0.index_name: backing_index }
@@ -154,7 +158,7 @@ create logsdb_columnar data stream with no host.name and timestamp as date:
   - do:
       indices.get_settings:
         index: $backing_index
-  - match: { .$backing_index.settings.index.mode: logsdb_columnar }
+  - match: { .$backing_index.settings.index.mode: '/^logsdb(_columnar)?$/' }
   - match: { .$backing_index.settings.index.logsdb.add_host_name_field: "true" }
   - match: { .$backing_index.settings.index.logsdb.sort_on_host_name: "true" }
 
@@ -178,20 +182,21 @@ create logsdb_columnar data stream with host as keyword and timestamp as date:
       indices.put_index_template:
         name: "cl-logsdb-index-template"
         body:
-          index_patterns: ["cl-logsdb"]
+          index_patterns: ["logs-cl-logsdb-test"]
+          priority: 1000
           data_stream: {}
           composed_of: ["cl-logsdb-mappings"]
       allowed_warnings:
-        - "index template [cl-logsdb-index-template] has index patterns [cl-logsdb] matching patterns from existing older templates [global] with patterns (global => [*]); this template [cl-logsdb-index-template] will take precedence during new index creation"
+        - "index template [cl-logsdb-index-template] has index patterns [logs-cl-logsdb-test] matching patterns from existing older templates [global] with patterns (global => [*]); this template [cl-logsdb-index-template] will take precedence during new index creation"
 
   - do:
       indices.create_data_stream:
-        name: "cl-logsdb"
+        name: "logs-cl-logsdb-test"
   - is_true: acknowledged
 
   - do:
       indices.get_data_stream:
-        name: "cl-logsdb"
+        name: "logs-cl-logsdb-test"
         expand_wildcards: hidden
   - length: { data_streams: 1 }
   - set: { data_streams.0.indices.0.index_name: backing_index }
@@ -199,7 +204,7 @@ create logsdb_columnar data stream with host as keyword and timestamp as date:
   - do:
       indices.get_settings:
         index: $backing_index
-  - match: { .$backing_index.settings.index.mode: logsdb_columnar }
+  - match: { .$backing_index.settings.index.mode: '/^logsdb(_columnar)?$/' }
   - is_true: .$backing_index.settings.index.logsdb.add_host_name_field
   - is_true: .$backing_index.settings.index.logsdb.sort_on_host_name
 
@@ -221,15 +226,16 @@ create logsdb_columnar data stream with host as keyword:
       indices.put_index_template:
         name: "cl-logsdb-index-template"
         body:
-          index_patterns: ["cl-logsdb"]
+          index_patterns: ["logs-cl-logsdb-test"]
+          priority: 1000
           data_stream: {}
           composed_of: ["cl-logsdb-mappings"]
       allowed_warnings:
-        - "index template [cl-logsdb-index-template] has index patterns [cl-logsdb] matching patterns from existing older templates [global] with patterns (global => [*]); this template [cl-logsdb-index-template] will take precedence during new index creation"
+        - "index template [cl-logsdb-index-template] has index patterns [logs-cl-logsdb-test] matching patterns from existing older templates [global] with patterns (global => [*]); this template [cl-logsdb-index-template] will take precedence during new index creation"
 
   - do:
       indices.create_data_stream:
-        name: "cl-logsdb"
+        name: "logs-cl-logsdb-test"
 
   - is_true: acknowledged
 
@@ -258,15 +264,16 @@ create logsdb_columnar data stream with host as text and multi fields:
       indices.put_index_template:
         name: "cl-logsdb-index-template"
         body:
-          index_patterns: ["cl-logsdb"]
+          index_patterns: ["logs-cl-logsdb-test"]
+          priority: 1000
           data_stream: {}
           composed_of: ["cl-logsdb-mappings"]
       allowed_warnings:
-        - "index template [cl-logsdb-index-template] has index patterns [cl-logsdb] matching patterns from existing older templates [global] with patterns (global => [*]); this template [cl-logsdb-index-template] will take precedence during new index creation"
+        - "index template [cl-logsdb-index-template] has index patterns [logs-cl-logsdb-test] matching patterns from existing older templates [global] with patterns (global => [*]); this template [cl-logsdb-index-template] will take precedence during new index creation"
 
   - do:
       indices.create_data_stream:
-        name: "cl-logsdb"
+        name: "logs-cl-logsdb-test"
 
   - is_true: acknowledged
 
@@ -291,15 +298,16 @@ create logsdb_columnar data stream with host as text:
       indices.put_index_template:
         name: "cl-logsdb-index-template"
         body:
-          index_patterns: ["cl-logsdb"]
+          index_patterns: ["logs-cl-logsdb-test"]
+          priority: 1000
           data_stream: {}
           composed_of: ["cl-logsdb-mappings"]
       allowed_warnings:
-        - "index template [cl-logsdb-index-template] has index patterns [cl-logsdb] matching patterns from existing older templates [global] with patterns (global => [*]); this template [cl-logsdb-index-template] will take precedence during new index creation"
+        - "index template [cl-logsdb-index-template] has index patterns [logs-cl-logsdb-test] matching patterns from existing older templates [global] with patterns (global => [*]); this template [cl-logsdb-index-template] will take precedence during new index creation"
 
   - do:
       indices.create_data_stream:
-        name: "cl-logsdb"
+        name: "logs-cl-logsdb-test"
 
   - is_true: acknowledged
 
@@ -327,15 +335,16 @@ create logsdb_columnar data stream with host as text and name as double:
       indices.put_index_template:
         name: "cl-logsdb-index-template"
         body:
-          index_patterns: ["cl-logsdb"]
+          index_patterns: ["logs-cl-logsdb-test"]
+          priority: 1000
           data_stream: {}
           composed_of: ["cl-logsdb-mappings"]
       allowed_warnings:
-        - "index template [cl-logsdb-index-template] has index patterns [cl-logsdb] matching patterns from existing older templates [global] with patterns (global => [*]); this template [cl-logsdb-index-template] will take precedence during new index creation"
+        - "index template [cl-logsdb-index-template] has index patterns [logs-cl-logsdb-test] matching patterns from existing older templates [global] with patterns (global => [*]); this template [cl-logsdb-index-template] will take precedence during new index creation"
 
   - do:
       indices.create_data_stream:
-        name: "cl-logsdb"
+        name: "logs-cl-logsdb-test"
 
   - is_true: acknowledged
 
@@ -365,11 +374,12 @@ create logsdb_columnar data stream with timestamp object mapping:
       indices.put_index_template:
         name: "cl-logsdb-index-template"
         body:
-          index_patterns: ["cl-logsdb"]
+          index_patterns: ["logs-cl-logsdb-test"]
+          priority: 1000
           data_stream: {}
           composed_of: ["cl-logsdb-mappings"]
       allowed_warnings:
-        - "index template [cl-logsdb-index-template] has index patterns [cl-logsdb] matching patterns from existing older templates [global] with patterns (global => [*]); this template [cl-logsdb-index-template] will take precedence during new index creation"
+        - "index template [cl-logsdb-index-template] has index patterns [logs-cl-logsdb-test] matching patterns from existing older templates [global] with patterns (global => [*]); this template [cl-logsdb-index-template] will take precedence during new index creation"
 
   - match: { error.type: "illegal_argument_exception" }
   - match: { error.reason: "composable template [cl-logsdb-index-template] template after composition with component templates [cl-logsdb-mappings] is invalid" }
@@ -380,7 +390,7 @@ create logsdb_columnar data stream with custom sorting without host.name:
       indices.put_index_template:
         name: cl-logs-template
         body:
-          index_patterns: [ cl-logs-http-prod ]
+          index_patterns: [ logs-cl-http-prod ]
           priority: 10000
           template:
             settings:
@@ -396,17 +406,17 @@ create logsdb_columnar data stream with custom sorting without host.name:
                   type: keyword
           data_stream: { }
       allowed_warnings:
-        - "index template [cl-logs-template] has index patterns [cl-logs-http-prod] matching patterns from existing older templates [global] with patterns (global => [*]); this template [cl-logs-template] will take precedence during new index creation"
+        - "index template [cl-logs-template] has index patterns [logs-cl-http-prod] matching patterns from existing older templates [global] with patterns (global => [*]); this template [cl-logs-template] will take precedence during new index creation"
   - is_true: acknowledged
 
   - do:
       indices.create_data_stream:
-        name: cl-logs-http-prod
+        name: logs-cl-http-prod
   - is_true: acknowledged
 
   - do:
       indices.get_data_stream:
-        name: cl-logs-http-prod
+        name: logs-cl-http-prod
 
   - set: { data_streams.0.indices.0.index_name: backing_index }
   - do:
@@ -424,7 +434,7 @@ create logsdb_columnar data stream with custom sorting and host object:
       indices.put_index_template:
         name: cl-logs-template
         body:
-          index_patterns: [ cl-logs-nginx-prod ]
+          index_patterns: [ logs-cl-nginx-prod ]
           priority: 10000
           template:
             settings:
@@ -448,17 +458,17 @@ create logsdb_columnar data stream with custom sorting and host object:
 
           data_stream: { }
       allowed_warnings:
-        - "index template [cl-logs-template] has index patterns [cl-logs-nginx-prod] matching patterns from existing older templates [global] with patterns (global => [*]); this template [cl-logs-template] will take precedence during new index creation"
+        - "index template [cl-logs-template] has index patterns [logs-cl-nginx-prod] matching patterns from existing older templates [global] with patterns (global => [*]); this template [cl-logs-template] will take precedence during new index creation"
   - is_true: acknowledged
 
   - do:
       indices.create_data_stream:
-        name: cl-logs-nginx-prod
+        name: logs-cl-nginx-prod
   - is_true: acknowledged
 
   - do:
       indices.get_data_stream:
-        name: cl-logs-nginx-prod
+        name: logs-cl-nginx-prod
 
   - set: { data_streams.0.indices.0.index_name: backing_index }
   - do:
@@ -477,7 +487,7 @@ create logsdb_columnar data stream with custom sorting and dynamically mapped ho
       indices.put_index_template:
         name: cl-logs-template
         body:
-          index_patterns: [ cl-logs-kafka-qa ]
+          index_patterns: [ logs-cl-kafka-qa ]
           priority: 10000
           template:
             settings:
@@ -497,17 +507,12 @@ create logsdb_columnar data stream with custom sorting and dynamically mapped ho
 
           data_stream: { }
       allowed_warnings:
-        - "index template [cl-logs-template] has index patterns [cl-logs-kafka-qa] matching patterns from existing older templates [global] with patterns (global => [*]); this template [cl-logs-template] will take precedence during new index creation"
-  - is_true: acknowledged
-
-  - do:
-      indices.create_data_stream:
-        name: cl-logs-kafka-qa
+        - "index template [cl-logs-template] has index patterns [logs-cl-kafka-qa] matching patterns from existing older templates [global] with patterns (global => [*]); this template [cl-logs-template] will take precedence during new index creation"
   - is_true: acknowledged
 
   - do:
       bulk:
-        index: cl-logs-kafka-qa
+        index: logs-cl-kafka-qa
         refresh: true
         body:
           - { "create": { } }
@@ -517,7 +522,7 @@ create logsdb_columnar data stream with custom sorting and dynamically mapped ho
 
   - do:
       indices.get_data_stream:
-        name: cl-logs-kafka-qa
+        name: logs-cl-kafka-qa
 
   - set: { data_streams.0.indices.0.index_name: backing_index }
   - do:
@@ -536,7 +541,7 @@ create logsdb_columnar data stream with custom sorting and host.name object:
       indices.put_index_template:
         name: cl-logs-template
         body:
-          index_patterns: [ cl-logs-nginx-qa ]
+          index_patterns: [ logs-cl-nginx-qa ]
           priority: 10000
           template:
             settings:
@@ -559,17 +564,17 @@ create logsdb_columnar data stream with custom sorting and host.name object:
 
           data_stream: { }
       allowed_warnings:
-        - "index template [cl-logs-template] has index patterns [cl-logs-nginx-qa] matching patterns from existing older templates [global] with patterns (global => [*]); this template [cl-logs-template] will take precedence during new index creation"
+        - "index template [cl-logs-template] has index patterns [logs-cl-nginx-qa] matching patterns from existing older templates [global] with patterns (global => [*]); this template [cl-logs-template] will take precedence during new index creation"
   - is_true: acknowledged
 
   - do:
       indices.create_data_stream:
-        name: cl-logs-nginx-qa
+        name: logs-cl-nginx-qa
   - is_true: acknowledged
 
   - do:
       indices.get_data_stream:
-        name: cl-logs-nginx-qa
+        name: logs-cl-nginx-qa
 
   - set: { data_streams.0.indices.0.index_name: backing_index }
   - do:
@@ -586,7 +591,7 @@ create logsdb_columnar data stream with default sorting on malformed host.name:
       indices.put_index_template:
         name: cl-logs-template
         body:
-          index_patterns: [ cl-logs-win-prod ]
+          index_patterns: [ logs-cl-win-prod ]
           priority: 10000
           template:
             settings:
@@ -604,17 +609,17 @@ create logsdb_columnar data stream with default sorting on malformed host.name:
 
           data_stream: { }
       allowed_warnings:
-        - "index template [cl-logs-template] has index patterns [cl-logs-win-prod] matching patterns from existing older templates [global] with patterns (global => [*]); this template [cl-logs-template] will take precedence during new index creation"
+        - "index template [cl-logs-template] has index patterns [logs-cl-win-prod] matching patterns from existing older templates [global] with patterns (global => [*]); this template [cl-logs-template] will take precedence during new index creation"
   - is_true: acknowledged
 
   - do:
       indices.create_data_stream:
-        name: cl-logs-win-prod
+        name: logs-cl-win-prod
   - is_true: acknowledged
 
   - do:
       bulk:
-        index: cl-logs-win-prod
+        index: logs-cl-win-prod
         refresh: true
         body:
           - { "create": { } }
@@ -624,7 +629,7 @@ create logsdb_columnar data stream with default sorting on malformed host.name:
 
   - do:
       indices.get_data_stream:
-        name: cl-logs-win-prod
+        name: logs-cl-win-prod
 
   - set: { data_streams.0.indices.0.index_name: backing_index }
   - do:
@@ -644,7 +649,7 @@ create logsdb_columnar data stream with custom sorting and host.name date field:
       indices.put_index_template:
         name: cl-logs-template
         body:
-          index_patterns: [ cl-logs-http-prod ]
+          index_patterns: [ logs-cl-http-prod ]
           priority: 10000
           template:
             settings:
@@ -664,17 +669,17 @@ create logsdb_columnar data stream with custom sorting and host.name date field:
 
           data_stream: { }
       allowed_warnings:
-        - "index template [cl-logs-template] has index patterns [cl-logs-http-prod] matching patterns from existing older templates [global] with patterns (global => [*]); this template [cl-logs-template] will take precedence during new index creation"
+        - "index template [cl-logs-template] has index patterns [logs-cl-http-prod] matching patterns from existing older templates [global] with patterns (global => [*]); this template [cl-logs-template] will take precedence during new index creation"
   - is_true: acknowledged
 
   - do:
       indices.create_data_stream:
-        name: cl-logs-http-prod
+        name: logs-cl-http-prod
   - is_true: acknowledged
 
   - do:
       indices.get_data_stream:
-        name: cl-logs-http-prod
+        name: logs-cl-http-prod
 
   - set: { data_streams.0.indices.0.index_name: backing_index }
   - do:
@@ -691,7 +696,7 @@ create logsdb_columnar data stream with custom sorting and missing host.name fie
       indices.put_index_template:
         name: cl-logs-template
         body:
-          index_patterns: [ cl-logs-http-qa ]
+          index_patterns: [ logs-cl-http-qa ]
           priority: 10000
           template:
             settings:
@@ -709,17 +714,17 @@ create logsdb_columnar data stream with custom sorting and missing host.name fie
 
           data_stream: { }
       allowed_warnings:
-        - "index template [cl-logs-template] has index patterns [cl-logs-http-qa] matching patterns from existing older templates [global] with patterns (global => [*]); this template [cl-logs-template] will take precedence during new index creation"
+        - "index template [cl-logs-template] has index patterns [logs-cl-http-qa] matching patterns from existing older templates [global] with patterns (global => [*]); this template [cl-logs-template] will take precedence during new index creation"
   - is_true: acknowledged
 
   - do:
       indices.create_data_stream:
-        name: cl-logs-http-qa
+        name: logs-cl-http-qa
   - is_true: acknowledged
 
   - do:
       indices.get_data_stream:
-        name: cl-logs-http-qa
+        name: logs-cl-http-qa
 
   - set: { data_streams.0.indices.0.index_name: backing_index }
   - do:
@@ -736,7 +741,7 @@ create logsdb_columnar data stream with custom sorting and host.name field witho
       indices.put_index_template:
         name: cl-logs-template
         body:
-          index_patterns: [ cl-logs-http-dev ]
+          index_patterns: [ logs-cl-http-dev ]
           priority: 10000
           template:
             settings:
@@ -755,13 +760,13 @@ create logsdb_columnar data stream with custom sorting and host.name field witho
 
           data_stream: { }
       allowed_warnings:
-        - "index template [cl-logs-template] has index patterns [cl-logs-http-dev] matching patterns from existing older templates [global] with patterns (global => [*]); this template [cl-logs-template] will take precedence during new index creation"
+        - "index template [cl-logs-template] has index patterns [logs-cl-http-dev] matching patterns from existing older templates [global] with patterns (global => [*]); this template [cl-logs-template] will take precedence during new index creation"
   - is_true: acknowledged
 
   - do:
       catch: bad_request
       indices.create_data_stream:
-        name: cl-logs-http-dev
+        name: logs-cl-http-dev
 
   - match: { error.type: "illegal_argument_exception" }
   - match: { error.reason: "docvalues not found for index sort field:[host.name]" }
@@ -772,7 +777,7 @@ create logsdb_columnar data stream with incompatible ignore_above on host.name:
       indices.put_index_template:
         name: cl-logsdb-index-template-ignore-above
         body:
-          index_patterns: [ cl-logsdb-ignore-above ]
+          index_patterns: [ logs-cl-logsdb-ignore-above ]
           priority: 10000
           template:
             settings:
@@ -787,17 +792,17 @@ create logsdb_columnar data stream with incompatible ignore_above on host.name:
                   ignore_above: 128
           data_stream: {}
       allowed_warnings:
-        - "index template [cl-logsdb-index-template-ignore-above] has index patterns [cl-logsdb-ignore-above] matching patterns from existing older templates [global] with patterns (global => [*]); this template [cl-logsdb-index-template-ignore-above] will take precedence during new index creation"
+        - "index template [cl-logsdb-index-template-ignore-above] has index patterns [logs-cl-logsdb-ignore-above] matching patterns from existing older templates [global] with patterns (global => [*]); this template [cl-logsdb-index-template-ignore-above] will take precedence during new index creation"
   - is_true: acknowledged
 
   - do:
       indices.create_data_stream:
-        name: cl-logsdb-ignore-above
+        name: logs-cl-logsdb-ignore-above
   - is_true: acknowledged
 
   - do:
       indices.get_data_stream:
-        name: cl-logsdb-ignore-above
+        name: logs-cl-logsdb-ignore-above
 
   - set: { data_streams.0.indices.0.index_name: backing_index }
   - do:
@@ -814,7 +819,7 @@ create logsdb_columnar data stream with no sorting and host.name as text:
       indices.put_index_template:
         name: cl-logsdb-index-template-non-keyword
         body:
-          index_patterns: [ cl-logsdb-non-keyword ]
+          index_patterns: [ logs-cl-logsdb-non-keyword ]
           priority: 10000
           template:
             settings:
@@ -825,17 +830,17 @@ create logsdb_columnar data stream with no sorting and host.name as text:
                   type: text
           data_stream: {}
       allowed_warnings:
-        - "index template [cl-logsdb-index-template-non-keyword] has index patterns [cl-logsdb-non-keyword] matching patterns from existing older templates [global] with patterns (global => [*]); this template [cl-logsdb-index-template-non-keyword] will take precedence during new index creation"
+        - "index template [cl-logsdb-index-template-non-keyword] has index patterns [logs-cl-logsdb-non-keyword] matching patterns from existing older templates [global] with patterns (global => [*]); this template [cl-logsdb-index-template-non-keyword] will take precedence during new index creation"
   - is_true: acknowledged
 
   - do:
       indices.create_data_stream:
-        name: cl-logsdb-non-keyword
+        name: logs-cl-logsdb-non-keyword
   - is_true: acknowledged
 
   - do:
       indices.get_data_stream:
-        name: cl-logsdb-non-keyword
+        name: logs-cl-logsdb-non-keyword
 
   - set: { data_streams.0.indices.0.index_name: backing_index }
   - do:
@@ -851,7 +856,7 @@ create logsdb_columnar data stream without index sorting and ignore_above on hos
       indices.put_index_template:
         name: cl-logsdb-index-template-ignore-above-override
         body:
-          index_patterns: [ cl-logsdb-ignore-above-override ]
+          index_patterns: [ logs-cl-logsdb-ignore-above-override ]
           priority: 10000
           template:
             settings:
@@ -864,17 +869,17 @@ create logsdb_columnar data stream without index sorting and ignore_above on hos
                   ignore_above: 128
           data_stream: {}
       allowed_warnings:
-        - "index template [cl-logsdb-index-template-ignore-above-override] has index patterns [cl-logsdb-ignore-above-override] matching patterns from existing older templates [global] with patterns (global => [*]); this template [cl-logsdb-index-template-ignore-above-override] will take precedence during new index creation"
+        - "index template [cl-logsdb-index-template-ignore-above-override] has index patterns [logs-cl-logsdb-ignore-above-override] matching patterns from existing older templates [global] with patterns (global => [*]); this template [cl-logsdb-index-template-ignore-above-override] will take precedence during new index creation"
   - is_true: acknowledged
 
   - do:
       indices.create_data_stream:
-        name: cl-logsdb-ignore-above-override
+        name: logs-cl-logsdb-ignore-above-override
   - is_true: acknowledged
 
   - do:
       indices.get_data_stream:
-        name: cl-logsdb-ignore-above-override
+        name: logs-cl-logsdb-ignore-above-override
 
   - set: { data_streams.0.indices.0.index_name: backing_index }
   - do:
@@ -891,7 +896,8 @@ create logsdb_columnar data stream with host.name as alias and sorting on it:
       indices.put_index_template:
         name: cl-logsdb-index-template-alias
         body:
-          index_patterns: [ cl-logsdb-alias ]
+          index_patterns: [ logs-cl-logsdb-alias ]
+          priority: 1000
           template:
             settings:
               index:
@@ -910,7 +916,7 @@ create logsdb_columnar data stream with host.name as alias and sorting on it:
   - do:
       catch: bad_request
       indices.create_data_stream:
-        name: cl-logsdb-alias
+        name: logs-cl-logsdb-alias
 
   - match: { error.type: "illegal_argument_exception" }
   - match: { error.reason: "Cannot use alias [host.name] as an index sort field" }
@@ -921,7 +927,8 @@ create logsdb_columnar data stream with multi-fields on host.name:
       indices.put_index_template:
         name: cl-logsdb-index-template-multi-fields
         body:
-          index_patterns: [ cl-logsdb-multi-fields ]
+          index_patterns: [ logs-cl-logsdb-multi-fields ]
+          priority: 1000
           template:
             settings:
               index:
@@ -937,16 +944,16 @@ create logsdb_columnar data stream with multi-fields on host.name:
                       type: "keyword"
           data_stream: {}
       allowed_warnings:
-        - "index template [cl-logsdb-index-template-multi-fields] has index patterns [cl-logsdb-multi-fields] matching patterns from existing older templates [global] with patterns (global => [*]); this template [cl-logsdb-index-template-multi-fields] will take precedence during new index creation"
+        - "index template [cl-logsdb-index-template-multi-fields] has index patterns [logs-cl-logsdb-multi-fields] matching patterns from existing older templates [global] with patterns (global => [*]); this template [cl-logsdb-index-template-multi-fields] will take precedence during new index creation"
 
   - do:
       indices.create_data_stream:
-        name: cl-logsdb-multi-fields
+        name: logs-cl-logsdb-multi-fields
   - is_true: acknowledged
 
   - do:
       indices.get_data_stream:
-        name: cl-logsdb-multi-fields
+        name: logs-cl-logsdb-multi-fields
 
   - set: { data_streams.0.indices.0.index_name: backing_index }
   - do:
@@ -962,7 +969,8 @@ create logsdb_columnar data stream with multi-fields on host.name and no sorting
       indices.put_index_template:
         name: cl-logsdb-no-sort-multi-fields-template
         body:
-          index_patterns: [ cl-logsdb-no-sort-multi-fields ]
+          index_patterns: [ logs-cl-logsdb-no-sort-multi-fields ]
+          priority: 1000
           template:
             settings:
               mode: logsdb_columnar
@@ -975,16 +983,16 @@ create logsdb_columnar data stream with multi-fields on host.name and no sorting
                       type: keyword
           data_stream: {}
       allowed_warnings:
-        - "index template [cl-logsdb-no-sort-multi-fields-template] has index patterns [cl-logsdb-no-sort-multi-fields] matching patterns from existing older templates [global] with patterns (global => [*]); this template [cl-logsdb-no-sort-multi-fields-template] will take precedence during new index creation"
+        - "index template [cl-logsdb-no-sort-multi-fields-template] has index patterns [logs-cl-logsdb-no-sort-multi-fields] matching patterns from existing older templates [global] with patterns (global => [*]); this template [cl-logsdb-no-sort-multi-fields-template] will take precedence during new index creation"
 
   - do:
       indices.create_data_stream:
-        name: cl-logsdb-no-sort-multi-fields
+        name: logs-cl-logsdb-no-sort-multi-fields
   - is_true: acknowledged
 
   - do:
       indices.get_data_stream:
-        name: cl-logsdb-no-sort-multi-fields
+        name: logs-cl-logsdb-no-sort-multi-fields
 
   - set: { data_streams.0.indices.0.index_name: backing_index }
   - do:
@@ -1000,7 +1008,7 @@ create logsdb_columnar data stream with custom empty sorting:
       indices.put_index_template:
         name: cl-logs-template
         body:
-          index_patterns: [ cl-logs-http-empty ]
+          index_patterns: [ logs-cl-http-empty ]
           priority: 10000
           template:
             settings:
@@ -1014,17 +1022,17 @@ create logsdb_columnar data stream with custom empty sorting:
                   type: keyword
           data_stream: { }
       allowed_warnings:
-        - "index template [cl-logs-template] has index patterns [cl-logs-http-empty] matching patterns from existing older templates [global] with patterns (global => [*]); this template [cl-logs-template] will take precedence during new index creation"
+        - "index template [cl-logs-template] has index patterns [logs-cl-http-empty] matching patterns from existing older templates [global] with patterns (global => [*]); this template [cl-logs-template] will take precedence during new index creation"
   - is_true: acknowledged
 
   - do:
       indices.create_data_stream:
-        name: cl-logs-http-empty
+        name: logs-cl-http-empty
   - is_true: acknowledged
 
   - do:
       indices.get_data_stream:
-        name: cl-logs-http-empty
+        name: logs-cl-http-empty
 
   - set: { data_streams.0.indices.0.index_name: backing_index }
   - do:
@@ -1040,7 +1048,7 @@ create logsdb_columnar data stream with custom sorting on timestamp:
       indices.put_index_template:
         name: cl-logs-template
         body:
-          index_patterns: [ cl-logs-http-dev ]
+          index_patterns: [ logs-cl-http-dev ]
           priority: 10000
           template:
             settings:
@@ -1054,17 +1062,17 @@ create logsdb_columnar data stream with custom sorting on timestamp:
                   type: keyword
           data_stream: { }
       allowed_warnings:
-        - "index template [cl-logs-template] has index patterns [cl-logs-http-dev] matching patterns from existing older templates [global] with patterns (global => [*]); this template [cl-logs-template] will take precedence during new index creation"
+        - "index template [cl-logs-template] has index patterns [logs-cl-http-dev] matching patterns from existing older templates [global] with patterns (global => [*]); this template [cl-logs-template] will take precedence during new index creation"
   - is_true: acknowledged
 
   - do:
       indices.create_data_stream:
-        name: cl-logs-http-dev
+        name: logs-cl-http-dev
   - is_true: acknowledged
 
   - do:
       indices.get_data_stream:
-        name: cl-logs-http-dev
+        name: logs-cl-http-dev
 
   - set: { data_streams.0.indices.0.index_name: backing_index }
   - do:
@@ -1093,20 +1101,21 @@ create logsdb_columnar data stream with timestamp mixed date_nanos and date fiel
       indices.put_index_template:
         name: "cl-logsdb-index-template"
         body:
-          index_patterns: ["cl-logsdb"]
+          index_patterns: ["logs-cl-logsdb-test"]
+          priority: 1000
           data_stream: {}
           composed_of: ["cl-logsdb-mappings"]
       allowed_warnings:
-        - "index template [cl-logsdb-index-template] has index patterns [cl-logsdb] matching patterns from existing older templates [global] with patterns (global => [*]); this template [cl-logsdb-index-template] will take precedence during new index creation"
+        - "index template [cl-logsdb-index-template] has index patterns [logs-cl-logsdb-test] matching patterns from existing older templates [global] with patterns (global => [*]); this template [cl-logsdb-index-template] will take precedence during new index creation"
 
   - do:
       indices.create_data_stream:
-        name: "cl-logsdb"
+        name: "logs-cl-logsdb-test"
 
   - is_true: acknowledged
   - do:
       bulk:
-        index: cl-logsdb
+        index: logs-cl-logsdb-test
         refresh: true
         body:
           - create: {}
@@ -1129,12 +1138,12 @@ create logsdb_columnar data stream with timestamp mixed date_nanos and date fiel
                   type: "date_nanos"
   - do:
       indices.rollover:
-        alias: cl-logsdb
+        alias: logs-cl-logsdb-test
         wait_for_active_shards: 1
   - match: { rolled_over: true }
   - do:
       bulk:
-        index: cl-logsdb
+        index: logs-cl-logsdb-test
         refresh: true
         body:
           - create: {}
@@ -1143,7 +1152,7 @@ create logsdb_columnar data stream with timestamp mixed date_nanos and date fiel
   - is_false: errors
   - do:
       search:
-        index: cl-logsdb
+        index: logs-cl-logsdb-test
         body:
           query:
             range:
@@ -1160,7 +1169,7 @@ create logsdb_columnar data stream with timestamp mixed date_nanos and date fiel
   - do:
       esql.query:
         body:
-          query: 'FROM cl-logsdb | WHERE @timestamp >= "2025-09-09" | STATS min = min(@timestamp) BY day = BUCKET(@timestamp, 1 day) | LIMIT 10'
+          query: 'FROM logs-cl-logsdb-test | WHERE @timestamp >= "2025-09-09" | STATS min = min(@timestamp) BY day = BUCKET(@timestamp, 1 day) | LIMIT 10'
   - match: { columns.0.name: "min" }
   - match: { columns.0.type: "date_nanos" }
   - match: { columns.1.name: "day" }
@@ -1172,9 +1181,9 @@ create logsdb_columnar data stream with timestamp mixed date_nanos and date fiel
 rollover logsdb_columnar data stream with host as keyword:
   - do:
       indices.put_index_template:
-        name: "cl-example"
+        name: "logs-cl-example-template"
         body:
-          "index_patterns": [ "cl-example*" ]
+          "index_patterns": [ "logs-cl-example-*" ]
           "template":
             "settings":
               "mode": "logsdb_columnar"
@@ -1188,23 +1197,23 @@ rollover logsdb_columnar data stream with host as keyword:
           "priority": 500
           "data_stream": {}
       allowed_warnings:
-        - "index template [cl-example] has index patterns [cl-example*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [cl-example] will take precedence during new index creation"
+        - "index template [logs-cl-example-template] has index patterns [logs-cl-example-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [logs-cl-example-template] will take precedence during new index creation"
 
   - do:
       index:
-        index: "cl-example"
+        index: "logs-cl-example-test"
         body:
           "@timestamp": "2025-01-01T00:00:00.000Z"
           "host": "test-host"
 
   - do:
       indices.rollover:
-        alias: "cl-example"
+        alias: "logs-cl-example-test"
   - match: { rolled_over: true }
 
   - do:
       indices.get_data_stream:
-        name: "cl-example"
+        name: "logs-cl-example-test"
         expand_wildcards: hidden
   - length: { data_streams: 1 }
   - set: { data_streams.0.indices.0.index_name: backing_index_0 }
@@ -1229,3 +1238,39 @@ rollover logsdb_columnar data stream with host as keyword:
       indices.get_mapping:
         index: $backing_index_1
   - match: { .$backing_index_1.mappings.properties.host.properties: null }
+
+---
+"Columnar index rejects dynamic runtime at root":
+  - requires:
+      cluster_features: ["mapper.columnar_rejects_runtime_dynamic"]
+      reason: "strict columnar modes reject dynamic:runtime only from this version"
+  - do:
+      catch: bad_request
+      indices.create:
+        index: test_columnar_dynamic_runtime
+        body:
+          settings:
+            index.mode: columnar
+          mappings:
+            dynamic: runtime
+
+  - match: { error.type: "mapper_parsing_exception" }
+  - match: { error.reason: "Failed to parse mapping: dynamic [runtime] is not supported in strict columnar mode" }
+
+---
+"Logsdb columnar index rejects dynamic runtime at root":
+  - requires:
+      cluster_features: ["mapper.columnar_rejects_runtime_dynamic"]
+      reason: "strict columnar modes reject dynamic:runtime only from this version"
+  - do:
+      catch: bad_request
+      indices.create:
+        index: test_logsdb_columnar_dynamic_runtime
+        body:
+          settings:
+            index.mode: logsdb_columnar
+          mappings:
+            dynamic: runtime
+
+  - match: { error.type: "mapper_parsing_exception" }
+  - match: { error.reason: "Failed to parse mapping: dynamic [runtime] is not supported in strict columnar mode" }

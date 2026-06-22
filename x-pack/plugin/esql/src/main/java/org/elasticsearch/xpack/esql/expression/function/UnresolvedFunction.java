@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.function.Function;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
+import org.elasticsearch.xpack.esql.core.tree.NodeStringMapper;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
@@ -149,7 +150,7 @@ public class UnresolvedFunction extends Function implements Unresolvable {
     }
 
     @Override
-    public void nodeString(StringBuilder sb, NodeStringFormat format) {
+    public void nodeString(StringBuilder sb, NodeStringFormat format, NodeStringMapper mapper) {
         sb.append(toString());
     }
 

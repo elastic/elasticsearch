@@ -70,6 +70,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.BitSet;
@@ -1017,7 +1018,7 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
                     ? intStats.getMinimum()
                     : null;
                 case INT -> sortType.getCategory() == TypeDescription.Category.INT && stats instanceof IntegerColumnStatistics intStats
-                    ? (long) intStats.getMinimum()
+                    ? intStats.getMinimum()
                     : null;
                 case DOUBLE -> stats instanceof DoubleColumnStatistics doubleStats ? rawDouble(doubleStats.getMinimum()) : null;
                 case BOOLEAN -> stats instanceof BooleanColumnStatistics booleanStats ? (booleanStats.getFalseCount() > 0 ? 0L : 1L) : null;
@@ -1031,7 +1032,7 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
                     ? intStats.getMaximum()
                     : null;
                 case INT -> sortType.getCategory() == TypeDescription.Category.INT && stats instanceof IntegerColumnStatistics intStats
-                    ? (long) intStats.getMaximum()
+                    ? intStats.getMaximum()
                     : null;
                 case DOUBLE -> stats instanceof DoubleColumnStatistics doubleStats ? rawDouble(doubleStats.getMaximum()) : null;
                 case BOOLEAN -> stats instanceof BooleanColumnStatistics booleanStats ? (booleanStats.getTrueCount() > 0 ? 1L : 0L) : null;
@@ -1834,7 +1835,7 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
                 try {
                     delegate.close();
                 } catch (IOException e) {
-                    throw new RuntimeException(e);
+                    throw new UncheckedIOException("Failed to close ORC reader", e);
                 }
             } else {
                 remaining -= rows;

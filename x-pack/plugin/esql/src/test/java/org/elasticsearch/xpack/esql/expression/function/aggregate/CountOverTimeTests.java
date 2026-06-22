@@ -11,6 +11,7 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.AbstractAggregationTestCase;
@@ -32,6 +33,11 @@ import static org.hamcrest.Matchers.equalTo;
 public class CountOverTimeTests extends AbstractAggregationTestCase {
     public CountOverTimeTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
+    }
+
+    @Override
+    protected boolean canSerialize() {
+        return false;
     }
 
     @ParametersFactory
@@ -98,7 +104,7 @@ public class CountOverTimeTests extends AbstractAggregationTestCase {
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        return new CountOverTime(source, args.get(0), AggregateFunction.NO_WINDOW);
+        return new CountOverTime(source, args.get(0), AggregateFunction.NO_WINDOW, Literal.NULL);
     }
 
     @Override

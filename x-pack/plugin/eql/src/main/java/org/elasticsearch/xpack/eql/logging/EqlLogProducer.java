@@ -22,6 +22,8 @@ public class EqlLogProducer implements ActivityLogProducer<EqlLogContext> {
         msg.field(QueryLogging.QUERY_FIELD_QUERY, context.getQuery());
         msg.field(QueryLogging.QUERY_FIELD_INDICES, context.getIndices());
         msg.field(QueryLogging.QUERY_FIELD_RESULT_COUNT, context.getResultCount());
+        context.getFilter().ifPresent(filter -> msg.field(QueryLogging.QUERY_FIELD_FILTER, filter));
+
         var remotes = context.remoteClusterAliases();
         if (remotes.isEmpty() == false) {
             msg.field(QueryLogging.QUERY_FIELD_REMOTE_COUNT, remotes.size());

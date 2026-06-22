@@ -1525,7 +1525,9 @@ public class ExternalSourceResolverTests extends ESTestCase {
             capabilities,
             Settings.EMPTY,
             blockFactory,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            new DataSourceCredentials(),
+            () -> false
         );
 
         ExternalSourceResolver resolver = new ExternalSourceResolver(EsExecutors.DIRECT_EXECUTOR_SERVICE, module);
@@ -1605,7 +1607,9 @@ public class ExternalSourceResolverTests extends ESTestCase {
             capabilities,
             Settings.EMPTY,
             blockFactory,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            new DataSourceCredentials(),
+            () -> false
         );
 
         return new ExternalSourceResolver(EsExecutors.DIRECT_EXECUTOR_SERVICE, module);
@@ -1670,7 +1674,9 @@ public class ExternalSourceResolverTests extends ESTestCase {
             capabilities,
             Settings.EMPTY,
             blockFactory,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            new DataSourceCredentials(),
+            () -> false
         );
 
         return new ExternalSourceResolver(EsExecutors.DIRECT_EXECUTOR_SERVICE, module, Settings.EMPTY, cacheService);

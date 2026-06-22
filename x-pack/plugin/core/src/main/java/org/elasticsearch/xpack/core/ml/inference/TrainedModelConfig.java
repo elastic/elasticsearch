@@ -67,7 +67,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
     public static final int MAX_DESCRIPTION_LENGTH = 1_000;
     public static final int MAX_TAGS_LENGTH = 100;
     public static final int MAX_PREFIX_STRING_LENGTH = 1_000;
-    public static final int MAX_INPUT_FIELD_NAMES = 100;
+    public static final int MAX_INPUT_FIELD_NAMES = 600;
     public static final int MAX_DEFAULT_FIELD_MAP_ENTRIES = 100;
     public static final int MAX_METADATA_SIZE_BYTES = (int) ByteSizeValue.ofKb(64).getBytes();
 

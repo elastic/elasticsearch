@@ -115,7 +115,7 @@ public class AzureBlobContainerRetriesTests extends AbstractBlobContainerRetries
     private HttpServer secondaryHttpServer;
 
     @Before
-    public void setUp() throws Exception {
+    public void initializeAzureResources() throws Exception {
         threadPool = new TestThreadPool(
             getTestClass().getName(),
             AzureRepositoryPlugin.executorBuilder(Settings.EMPTY),
@@ -126,13 +126,11 @@ public class AzureBlobContainerRetriesTests extends AbstractBlobContainerRetries
         clientProvider = AzureClientProvider.create(threadPool, Settings.EMPTY);
         clientProvider.start();
         clusterService = ClusterServiceUtils.createClusterService(threadPool);
-        super.setUp();
     }
 
     @After
-    public void tearDown() throws Exception {
+    public void closeAzureResources() throws Exception {
         clientProvider.close();
-        super.tearDown();
         secondaryHttpServer.stop(0);
         ThreadPool.terminate(threadPool, 10L, TimeUnit.SECONDS);
     }

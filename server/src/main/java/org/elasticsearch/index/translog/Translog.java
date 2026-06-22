@@ -1406,6 +1406,12 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         }
 
         public Index(Engine.Index index, Engine.IndexResult indexResult) {
+            // The translog uid for an index op is the PLAIN encodeId(id), with the routing stored alongside. For a
+            // slice-enabled index the engine identity term is the compound (slice, id), but it is NOT stored here:
+            // replay re-parses the source with this routing (applyTranslogOperation -> prepareIndex -> encodeIdentity)
+            // and rebuilds the compound. This is therefore only correct as long as the routing of a slice index's index
+            // op is always its slice (which is what the write path guarantees, and is asserted on replay). Deletes, by
+            // contrast, are not re-parsed, so Translog.Delete stores the compound uid directly.
             this(
                 Uid.encodeId(index.id()),
                 indexResult.getSeqNo(),

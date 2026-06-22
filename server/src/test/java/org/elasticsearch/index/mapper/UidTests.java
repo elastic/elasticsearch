@@ -149,8 +149,19 @@ public class UidTests extends ESTestCase {
         expectThrows(IllegalArgumentException.class, () -> Uid.encodeCompoundId(id, ""));
     }
 
+    /** The characters {@link org.elasticsearch.index.SliceIndexing#validateUserSliceValue} accepts: {@code [a-zA-Z0-9._:-]}. */
+    private static final String SLICE_CHARS = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._:-";
+
     private static String randomSlice() {
-        return randomAlphaOfLengthBetween(1, 32);
+        // Span the full allowed charset and length range (1..128 bytes), often hitting the 128-byte maximum so the
+        // trailing length byte exercises its 0x80 boundary against the bounds check in encodeCompoundId. All allowed
+        // characters are single-byte ASCII, so the char length equals the byte length.
+        final int length = rarely() ? 128 : randomIntBetween(1, 128);
+        final StringBuilder slice = new StringBuilder(length);
+        for (int i = 0; i < length; i++) {
+            slice.append(SLICE_CHARS.charAt(randomInt(SLICE_CHARS.length() - 1)));
+        }
+        return slice.toString();
     }
 
     private static String randomId() {

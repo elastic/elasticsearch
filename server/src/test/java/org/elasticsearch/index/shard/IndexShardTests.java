@@ -3663,7 +3663,7 @@ public class IndexShardTests extends IndexShardTestCase {
         closeShards(sourceShard, targetShard);
     }
 
-    public void testRequestRecoveryCancellationThrowsWhenStarted() throws IOException {
+    public void testRequestRecoveryCancellationThrowsWhenShardHasAlreadyStarted() throws IOException {
         final IndexShard shard = newStartedShard();
         final DiscoveryNode localNode = DiscoveryNodeUtils.builder("foo").roles(emptySet()).build();
         final RecoveryCancelledException cause = new RecoveryCancelledException(shard.shardId(), null, localNode);

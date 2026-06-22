@@ -37,8 +37,7 @@ import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
-import java.util.ArrayList;
-import java.util.List;
+import java.util.Arrays;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -46,7 +45,6 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Consumer;
 
 import static org.elasticsearch.indices.recovery.ThrottlingRecoveryService.INDICES_RECOVERY_MAX_CONCURRENT_RECOVERIES_SETTING;
 import static org.hamcrest.Matchers.equalTo;
@@ -88,39 +86,26 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         final var callerThread = Thread.currentThread();
         final var executionThread = new AtomicReference<Thread>();
         final var consumerReturned = new CountDownLatch(1);
-        final var recoveryDone = new AtomicBoolean(false);
         final var expectedStats = new RecoveryStats();
-        final var userListener = new RecoveryListener() {
-            @Override
-            public void onRecoveryDone(
-                RecoveryState state,
-                ShardLongFieldRange timestampMillisFieldRange,
-                ShardLongFieldRange eventIngestedMillisFieldRange
-            ) {
-                recoveryDone.set(true);
-            }
 
-            @Override
-            public void onRecoveryFailure(RecoveryFailedException e, boolean sendShardFailure) {
-                fail(e);
-            }
-
-            @Override
-            public void onRecoveryAborted() {
-                fail("recovery aborted");
-            }
-        };
+        final var listener = new TestCaptureResultListener(ExpectedRecoveryOutcome.COMPLETED);
         expectedStats.targetRecoveryQueued(recoveryType);
-        service.enqueue(userListener, newRecoveryState(recoveryType), UUIDs.randomBase64UUID(), stats, schedulingListener -> {
-            executionThread.set(Thread.currentThread());
+        service.enqueue(
+            listener,
+            newRecoveryState(recoveryType, new ShardId(randomIndexName(), IndexMetadata.INDEX_UUID_NA_VALUE, 1)),
+            UUIDs.randomBase64UUID(),
+            stats,
+            schedulingListener -> {
+                executionThread.set(Thread.currentThread());
 
-            expectedStats.targetRecoveryDequeuedAndStarted(recoveryType);
-            assertThat(stats, equalTo(expectedStats));
+                expectedStats.targetRecoveryDequeuedAndStarted(recoveryType);
+                assertThat(stats, equalTo(expectedStats));
 
-            schedulingListener.onRecoveryDone(null, ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY);
-            assertTrue("user listener should have been notified of completion", recoveryDone.get());
-            consumerReturned.countDown();
-        });
+                schedulingListener.onRecoveryDone(null, ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY);
+                assertTrue("user listener should have been notified of completion", listener.wasNotified());
+                consumerReturned.countDown();
+            }
+        );
         safeAwait(consumerReturned);
         expectedStats.targetRecoveryCompleted(recoveryType);
         assertThat(stats, equalTo(expectedStats));
@@ -253,16 +238,20 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         );
         final var started = new AtomicInteger();
 
-        // Delay completion until we explicitly trigger time jump
-        final long completionTime = taskQueue.getCurrentTimeMillis() + 100;
         for (int i = 0; i < 10; i++) {
-            service.enqueue(RecoveryListener.NOOP, newRecoveryState(), UUIDs.randomBase64UUID(), stats, schedulingListener -> {
-                started.incrementAndGet();
-                taskQueue.scheduleAt(
-                    completionTime,
-                    () -> schedulingListener.onRecoveryDone(null, ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY)
-                );
-            });
+            service.enqueue(
+                new TestCaptureResultListener(ExpectedRecoveryOutcome.COMPLETED),
+                newRecoveryState(),
+                UUIDs.randomBase64UUID(),
+                stats,
+                schedulingListener -> {
+                    started.incrementAndGet();
+                    taskQueue.scheduleAt(
+                        taskQueue.getCurrentTimeMillis() + 100, // Delay completion until we explicitly trigger time jump
+                        () -> schedulingListener.onRecoveryDone(null, ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY)
+                    );
+                }
+            );
         }
 
         taskQueue.runAllRunnableTasks();
@@ -409,62 +398,21 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
             newClusterService(1),
             new CompositeRecoverySchedulingListener()
         );
-        final var firstTaskFailed = new AtomicBoolean(false);
-        final var secondTaskCompleted = new AtomicBoolean(false);
 
-        RecoveryListener firstListener = new RecoveryListener() {
-            @Override
-            public void onRecoveryDone(
-                RecoveryState state,
-                ShardLongFieldRange timestampMillisFieldRange,
-                ShardLongFieldRange eventIngestedMillisFieldRange
-            ) {
-                fail("first task should fail");
-            }
-
-            @Override
-            public void onRecoveryFailure(RecoveryFailedException e, boolean sendShardFailure) {
-                firstTaskFailed.set(true);
-            }
-
-            @Override
-            public void onRecoveryAborted() {
-                fail("recovery aborted");
-            }
-        };
-
-        RecoveryListener secondListener = new RecoveryListener() {
-            @Override
-            public void onRecoveryDone(
-                RecoveryState state,
-                ShardLongFieldRange timestampMillisFieldRange,
-                ShardLongFieldRange eventIngestedMillisFieldRange
-            ) {
-                secondTaskCompleted.set(true);
-            }
-
-            @Override
-            public void onRecoveryFailure(RecoveryFailedException e, boolean sendShardFailure) {
-                fail(e);
-            }
-
-            @Override
-            public void onRecoveryAborted() {
-                fail("recovery aborted");
-            }
-        };
-
-        service.enqueue(firstListener, newRecoveryState(), UUIDs.randomBase64UUID(), stats, ignored -> {
+        final var listener1 = new TestCaptureResultListener(ExpectedRecoveryOutcome.FAILED);
+        service.enqueue(listener1, newRecoveryState(), UUIDs.randomBase64UUID(), stats, ignored -> {
             throw new RuntimeException("test recovery task injected failure");
         });
-        service.enqueue(secondListener, newRecoveryState(), UUIDs.randomBase64UUID(), stats, schedulingListener -> {
-            assertTrue("first task should have completed before second one started", firstTaskFailed.get());
+
+        final var listener2 = new TestCaptureResultListener(ExpectedRecoveryOutcome.COMPLETED);
+        service.enqueue(listener2, newRecoveryState(), UUIDs.randomBase64UUID(), stats, schedulingListener -> {
+            assertTrue("first task should have completed before second one started", listener1.wasNotified());
             schedulingListener.onRecoveryDone(null, ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY);
         });
 
         taskQueue.runAllRunnableTasks();
-        assertTrue(secondTaskCompleted.get());
         assertThat(service.currentQueueSize(), equalTo(0));
+        ensureListenersWereNotified(listener1, listener2);
     }
 
     public void testRecoveryAbortedTriggersNextQueuedRecovery() {
@@ -474,60 +422,18 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
             newClusterService(1),
             new CompositeRecoverySchedulingListener()
         );
-        final var firstTaskAborted = new AtomicBoolean(false);
-        final var secondTaskCompleted = new AtomicBoolean(false);
 
-        RecoveryListener firstListener = new RecoveryListener() {
-            @Override
-            public void onRecoveryDone(
-                RecoveryState state,
-                ShardLongFieldRange timestampMillisFieldRange,
-                ShardLongFieldRange eventIngestedMillisFieldRange
-            ) {
-                fail("first task should be aborted");
-            }
-
-            @Override
-            public void onRecoveryFailure(RecoveryFailedException e, boolean sendShardFailure) {
-                fail(e);
-            }
-
-            @Override
-            public void onRecoveryAborted() {
-                firstTaskAborted.set(true);
-            }
-        };
-
-        RecoveryListener secondListener = new RecoveryListener() {
-            @Override
-            public void onRecoveryDone(
-                RecoveryState state,
-                ShardLongFieldRange timestampMillisFieldRange,
-                ShardLongFieldRange eventIngestedMillisFieldRange
-            ) {
-                secondTaskCompleted.set(true);
-            }
-
-            @Override
-            public void onRecoveryFailure(RecoveryFailedException e, boolean sendShardFailure) {
-                fail(e);
-            }
-
-            @Override
-            public void onRecoveryAborted() {
-                fail("second task should not be aborted");
-            }
-        };
-
-        service.enqueue(firstListener, newRecoveryState(), UUIDs.randomBase64UUID(), stats, RecoveryListener::onRecoveryAborted);
-        service.enqueue(secondListener, newRecoveryState(), UUIDs.randomBase64UUID(), stats, schedulingListener -> {
-            assertTrue("first task should have completed before second one started", firstTaskAborted.get());
+        final var listener1 = new TestCaptureResultListener(ExpectedRecoveryOutcome.ABORTED);
+        service.enqueue(listener1, newRecoveryState(), UUIDs.randomBase64UUID(), stats, RecoveryListener::onRecoveryAborted);
+        final var listener2 = new TestCaptureResultListener(ExpectedRecoveryOutcome.COMPLETED);
+        service.enqueue(listener2, newRecoveryState(), UUIDs.randomBase64UUID(), stats, schedulingListener -> {
+            assertTrue("first task should have completed before second one started", listener1.wasNotified());
             schedulingListener.onRecoveryDone(null, ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY);
         });
 
         taskQueue.runAllRunnableTasks();
-        assertTrue(secondTaskCompleted.get());
         assertThat(service.currentQueueSize(), equalTo(0));
+        ensureListenersWereNotified(listener1, listener2);
     }
 
     public void testCloseAbortsQueuedButNotDispatchedRecoveries() {
@@ -538,63 +444,34 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
             new CompositeRecoverySchedulingListener()
         );
 
-        final var queuedTaskAborted = new AtomicBoolean();
         final var runningTaskDispatched = new AtomicBoolean();
-        final var runningTaskListener = new RecoveryListener() {
-            @Override
-            public void onRecoveryDone(
-                RecoveryState state,
-                ShardLongFieldRange timestampMillisFieldRange,
-                ShardLongFieldRange eventIngestedMillisFieldRange
-            ) {}
-
-            @Override
-            public void onRecoveryFailure(RecoveryFailedException e, boolean sendShardFailure) {
-                fail("unexpected failure " + e.getDetailedMessage());
-            }
-
-            @Override
-            public void onRecoveryAborted() {
-                fail("unexpected abort");
-            }
-        };
-
-        service.enqueue(runningTaskListener, newRecoveryState(), UUIDs.randomBase64UUID(), stats, listener -> {
+        final var listener1 = new TestCaptureResultListener(ExpectedRecoveryOutcome.COMPLETED);
+        service.enqueue(listener1, newRecoveryState(), UUIDs.randomBase64UUID(), stats, listener -> {
             runningTaskDispatched.set(true);
             taskQueue.scheduleAt(
                 taskQueue.getCurrentTimeMillis() + 1000,
                 () -> listener.onRecoveryDone(null, ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY)
             );
         });
-        service.enqueue(new RecoveryListener() {
-            @Override
-            public void onRecoveryDone(
-                RecoveryState state,
-                ShardLongFieldRange timestampMillisFieldRange,
-                ShardLongFieldRange eventIngestedMillisFieldRange
-            ) {
-                fail("unexpected completion");
-            }
-
-            @Override
-            public void onRecoveryFailure(RecoveryFailedException e, boolean sendShardFailure) {
-                fail("unexpected failure");
-            }
-
-            @Override
-            public void onRecoveryAborted() {
-                queuedTaskAborted.set(true);
-            }
-        }, newRecoveryState(), UUIDs.randomBase64UUID(), stats, ignored -> fail("queued task should not be dispatched after close"));
+        final var listener2 = new TestCaptureResultListener(ExpectedRecoveryOutcome.ABORTED);
+        service.enqueue(
+            listener2,
+            newRecoveryState(),
+            UUIDs.randomBase64UUID(),
+            stats,
+            ignored -> fail("queued task should not be dispatched after close")
+        );
 
         taskQueue.runAllRunnableTasks();
         assertTrue("first task should have been dispatched", runningTaskDispatched.get());
-        assertFalse("second task should still be queued", queuedTaskAborted.get());
+        assertFalse(listener1.wasNotified());
+        assertThat("second task should still be queued", service.currentQueueSize(), equalTo(1));
+        assertFalse(listener2.wasNotified());
 
         service.close();
-        assertTrue("queued task should be aborted on close", queuedTaskAborted.get());
         assertThat(service.currentQueueSize(), equalTo(0));
         taskQueue.runAllTasks();
+        ensureListenersWereNotified();
     }
 
     public void testEnqueueAfterCloseImmediatelyAborts() {
@@ -606,35 +483,22 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         );
         service.close();
 
-        final var aborted = new AtomicBoolean();
-        service.enqueue(new RecoveryListener() {
-            @Override
-            public void onRecoveryDone(
-                RecoveryState state,
-                ShardLongFieldRange timestampMillisFieldRange,
-                ShardLongFieldRange eventIngestedMillisFieldRange
-            ) {
-                fail("should not complete normally after close");
-            }
-
-            @Override
-            public void onRecoveryFailure(RecoveryFailedException e, boolean sendShardFailure) {
-                fail("should not fail after close");
-            }
-
-            @Override
-            public void onRecoveryAborted() {
-                aborted.set(true);
-            }
-        }, newRecoveryState(), UUIDs.randomBase64UUID(), stats, ignored -> fail("should not be dispatched after close"));
-
-        assertTrue("task enqueued after close should be immediately aborted", aborted.get());
+        final var listener = new TestCaptureResultListener(ExpectedRecoveryOutcome.ABORTED);
+        service.enqueue(
+            listener,
+            newRecoveryState(),
+            UUIDs.randomBase64UUID(),
+            stats,
+            ignored -> fail("should not be dispatched after close")
+        );
+        ensureListenersWereNotified(listener);
         assertThat(service.currentQueueSize(), equalTo(0));
     }
 
     public void testRecordedCancellationAppliedAtEnqueueTime() {
+        final var taskQueue = new DeterministicTaskQueue();
         final var service = new ThrottlingRecoveryService(
-            threadPool.generic(),
+            taskQueue.getThreadPool().generic(),
             newClusterService(10),
             new CompositeRecoverySchedulingListener()
         );
@@ -643,21 +507,17 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
 
         assertTrue(service.cancelRecoveries(Map.of(allocationId, shardId)).isEmpty());
 
-        final var listener = new TestCaptureResultListener(true);
-        final var recoveryState = mockRecoveryState(shardId);
-        enqueue(
-            service,
-            listener,
-            recoveryState,
-            allocationId,
-            l -> l.onRecoveryDone(recoveryState, ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY)
-        );
-        safeAwait(listener);
+        final var listener = new TestCaptureResultListener(ExpectedRecoveryOutcome.CANCELLED_IN_QUEUE);
+        service.enqueue(listener, newRecoveryState(shardId), allocationId, stats, ignored -> fail("task should have been cancelled"));
+        taskQueue.runAllTasks();
+        assertThat(service.currentQueueSize(), equalTo(0));
+        ensureListenersWereNotified(listener);
     }
 
     public void testCancellationAppliedWhenTaskInPendingQueue() {
+        final var taskQueue = new DeterministicTaskQueue();
         final var service = new ThrottlingRecoveryService(
-            threadPool.generic(),
+            taskQueue.getThreadPool().generic(),
             newClusterService(1),
             new CompositeRecoverySchedulingListener()
         );
@@ -666,24 +526,23 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         final var shardId2 = new ShardId("index2", UUIDs.randomBase64UUID(), 0);
         final var allocationId2 = UUIDs.randomBase64UUID();
 
-        enqueue(service, RecoveryListener.NOOP, mockRecoveryState(shardId1), allocationId1, listener -> {});
+        final var listener1 = new TestCaptureResultListener(ExpectedRecoveryOutcome.ABORTED);
+        service.enqueue(listener1, newRecoveryState(shardId1), allocationId1, new RecoveryStats(), listener -> {
+            taskQueue.scheduleAt(taskQueue.getCurrentTimeMillis() + 100, listener::onRecoveryAborted);
+        });
 
-        final var recoveryState = mockRecoveryState(shardId2);
-        final var task2Listener = new TestCaptureResultListener(true);
-        enqueue(
-            service,
-            task2Listener,
-            mockRecoveryState(shardId2),
-            allocationId2,
-            l -> l.onRecoveryDone(recoveryState, ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY)
-        );
+        final var listener2 = new TestCaptureResultListener(ExpectedRecoveryOutcome.CANCELLED_IN_QUEUE);
+        service.enqueue(listener2, newRecoveryState(shardId2), allocationId2, stats, ignored -> fail("task should have been cancelled"));
         service.cancelRecoveries(Map.of(allocationId2, shardId2));
-        safeAwait(task2Listener);
+        taskQueue.runAllTasks();
+        assertThat(service.currentQueueSize(), equalTo(0));
+        ensureListenersWereNotified(listener1, listener2);
     }
 
     public void testStaleEntryRemovedOnClusterStateChange() {
+        final var taskQueue = new DeterministicTaskQueue();
         final var service = new ThrottlingRecoveryService(
-            threadPool.generic(),
+            taskQueue.getThreadPool().generic(),
             newClusterService(10),
             new CompositeRecoverySchedulingListener()
         );
@@ -700,90 +559,49 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         when(routingNodes.node(anyString())).thenReturn(null);
         service.clusterChanged(event);
 
-        final var listener = new TestCaptureResultListener(false);
-        final var recoveryState = mockRecoveryState(shardId);
-        enqueue(
-            service,
+        final var recoveryState = newRecoveryState(shardId);
+        final var listener = new TestCaptureResultListener(ExpectedRecoveryOutcome.COMPLETED);
+        service.enqueue(
             listener,
             recoveryState,
             allocationId,
+            stats,
             l -> l.onRecoveryDone(recoveryState, ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY)
         );
-        safeAwait(listener);
+        taskQueue.runAllRunnableTasks();
+        assertThat(service.currentQueueSize(), equalTo(0));
+        ensureListenersWereNotified(listener);
     }
 
     public void testCancelRecoveryReturnsFalseWhenNoLongerInQueue() {
-        final List<Runnable> capturedTasks = new ArrayList<>();
+        final var taskQueue = new DeterministicTaskQueue();
         final var service = new ThrottlingRecoveryService(
-            capturedTasks::add,
+            taskQueue.getThreadPool().generic(),
             newClusterService(10),
             new CompositeRecoverySchedulingListener()
         );
         final var shardId = new ShardId(randomIndexName(), UUIDs.randomBase64UUID(), 0);
         final var allocationId = UUIDs.randomBase64UUID();
+        final var recoveryState = newRecoveryState(shardId);
 
-        enqueue(service, RecoveryListener.NOOP, mockRecoveryState(shardId), allocationId, listener -> {});
-        assertThat(capturedTasks.size(), equalTo(1));
+        service.enqueue(
+            new TestCaptureResultListener(ExpectedRecoveryOutcome.COMPLETED),
+            recoveryState,
+            allocationId,
+            stats,
+            l -> taskQueue.scheduleAt(
+                taskQueue.getCurrentTimeMillis() + 100,
+                () -> l.onRecoveryDone(recoveryState, ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY)
+            )
+        );
 
+        taskQueue.runAllRunnableTasks();
+        assertThat(service.currentQueueSize(), equalTo(0));
         assertTrue(
             "should return empty set when task is no longer in pending queue",
             service.cancelRecoveries(Map.of(allocationId, shardId)).isEmpty()
         );
-    }
-
-    private void enqueue(
-        ThrottlingRecoveryService service,
-        RecoveryListener listener,
-        RecoveryState state,
-        String allocationId,
-        Consumer<RecoveryListener> task
-    ) {
-        service.enqueue(listener, state, allocationId, stats, task);
-    }
-
-    private static RecoveryState mockRecoveryState(ShardId shardId) {
-        final var state = mock(RecoveryState.class);
-        when(state.getRecoverySource()).thenReturn(RecoverySource.ExistingStoreRecoverySource.INSTANCE);
-        when(state.getShardId()).thenReturn(shardId);
-        return state;
-    }
-
-    private static class TestCaptureResultListener extends SubscribableListener<Void> implements RecoveryListener {
-        private final boolean shouldBeCancelled;
-
-        TestCaptureResultListener(boolean shouldBeCancelled) {
-            this.shouldBeCancelled = shouldBeCancelled;
-        }
-
-        @Override
-        public void onRecoveryDone(
-            RecoveryState state,
-            ShardLongFieldRange timestampMillisFieldRange,
-            ShardLongFieldRange eventIngestedMillisFieldRange
-        ) {
-            if (shouldBeCancelled == false) {
-                super.onResponse(null);
-            } else {
-                fail(new AssertionError("unexpected recovery success"));
-            }
-        }
-
-        @Override
-        public void onRecoveryFailure(RecoveryFailedException e, boolean sendShardFailure) {
-            if (e instanceof RecoveryCancelledException == false) {
-                fail(new AssertionError("unexpected failure type", e));
-            }
-            if (shouldBeCancelled) {
-                super.onResponse(null);
-            } else {
-                fail(new AssertionError("unexpected recovery cancellation", e));
-            }
-        }
-
-        @Override
-        public void onRecoveryAborted() {
-            fail(new AssertionError("unexpected recovery abort"));
-        }
+        taskQueue.runAllTasks();
     }
 
     /// Stress one [ThrottlingRecoveryService] by enqueueing many tasks with randomized completion times,
@@ -887,6 +705,76 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         }
     }
 
+    private enum ExpectedRecoveryOutcome {
+        COMPLETED,
+        CANCELLED_IN_QUEUE,
+        CANCELLED_STARTED,
+        FAILED,
+        ABORTED
+    }
+
+    private void ensureListenersWereNotified(TestCaptureResultListener... listeners) {
+        assertTrue("all listeners should have been notified", Arrays.stream(listeners).allMatch(TestCaptureResultListener::wasNotified));
+    }
+
+    private static class TestCaptureResultListener extends SubscribableListener<Void> implements RecoveryListener {
+        private final ExpectedRecoveryOutcome expectedOutcome;
+        private volatile boolean notified;
+
+        TestCaptureResultListener(ExpectedRecoveryOutcome expectedOutcome) {
+            this.expectedOutcome = expectedOutcome;
+        }
+
+        @Override
+        public void onRecoveryDone(
+            RecoveryState state,
+            ShardLongFieldRange timestampMillisFieldRange,
+            ShardLongFieldRange eventIngestedMillisFieldRange
+        ) {
+            assert super.isDone() == false;
+            switch (expectedOutcome) {
+                case COMPLETED -> super.onResponse(null);
+                case ABORTED, CANCELLED_IN_QUEUE, CANCELLED_STARTED, FAILED -> fail(
+                    "unexpected recovery success, expected outcome: " + expectedOutcome
+                );
+            }
+        }
+
+        @Override
+        public void onRecoveryFailure(RecoveryFailedException e, boolean sendShardFailure) {
+            assert super.isDone() == false;
+            switch (expectedOutcome) {
+                case FAILED -> super.onResponse(null);
+                case CANCELLED_IN_QUEUE, CANCELLED_STARTED -> {
+                    assert expectedOutcome == ExpectedRecoveryOutcome.CANCELLED_IN_QUEUE || sendShardFailure
+                        : "should notify the master solely when cancelling started recoveries";
+                    if (e instanceof RecoveryCancelledException == false) {
+                        throw new AssertionError("unexpected failure type", e);
+                    }
+                    super.onResponse(null);
+                }
+                case ABORTED, COMPLETED -> fail(
+                    new AssertionError("unexpected recovery cancellation, expected outcome: " + expectedOutcome, e)
+                );
+            }
+        }
+
+        @Override
+        public void onRecoveryAborted() {
+            assert super.isDone() == false;
+            switch (expectedOutcome) {
+                case ABORTED -> super.onResponse(null);
+                case COMPLETED, CANCELLED_IN_QUEUE, CANCELLED_STARTED, FAILED -> fail(
+                    "unexpected recovery abortion, expected outcome: " + expectedOutcome
+                );
+            }
+        }
+
+        public boolean wasNotified() {
+            return super.isDone();
+        }
+    }
+
     private static ClusterService newClusterService(int maxConcurrentRecoveries) {
         ClusterService clusterService = mock(ClusterService.class);
         Settings settings = Settings.builder()
@@ -899,13 +787,19 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
     }
 
     private static RecoveryState newRecoveryState() {
-        return newRecoveryState(randomFrom(RecoverySource.Type.values()));
+        return newRecoveryState(
+            randomFrom(RecoverySource.Type.values()),
+            new ShardId(randomIndexName(), IndexMetadata.INDEX_UUID_NA_VALUE, 1)
+        );
     }
 
-    private static RecoveryState newRecoveryState(RecoverySource.Type type) {
-        final var indexName = randomIndexName();
+    private static RecoveryState newRecoveryState(ShardId shardId) {
+        return newRecoveryState(randomFrom(RecoverySource.Type.values()), shardId);
+    }
+
+    private static RecoveryState newRecoveryState(RecoverySource.Type type, ShardId shardId) {
         final var routing = TestShardRouting.newShardRouting(
-            new ShardId(indexName, IndexMetadata.INDEX_UUID_NA_VALUE, 1),
+            shardId,
             "node",
             type.equals(RecoverySource.Type.PEER) == false,
             ShardRoutingState.INITIALIZING,
@@ -917,11 +811,11 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
                     randomUUID(),
                     new Snapshot(ProjectId.DEFAULT, randomRepoName(), new SnapshotId(randomSnapshotName(), randomUUID())),
                     IndexVersion.current(),
-                    new IndexId(indexName, randomUUID())
+                    new IndexId(shardId.getIndexName(), randomUUID())
                 );
                 case LOCAL_SHARDS -> RecoverySource.LocalShardsRecoverySource.INSTANCE;
                 case RESHARD_SPLIT -> new RecoverySource.ReshardSplitRecoverySource(
-                    new ShardId(indexName, IndexMetadata.INDEX_UUID_NA_VALUE, 0)
+                    new ShardId(shardId.getIndexName(), IndexMetadata.INDEX_UUID_NA_VALUE, 0)
                 );
             }
         );

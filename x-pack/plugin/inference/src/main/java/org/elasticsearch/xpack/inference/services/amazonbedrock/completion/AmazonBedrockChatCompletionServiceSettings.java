@@ -71,7 +71,8 @@ public class AmazonBedrockChatCompletionServiceSettings extends AmazonBedrockSer
             String region,
             String model,
             String provider,
-            RateLimitSettings rateLimitSettings
+            RateLimitSettings rateLimitSettings,
+            ConfigurationParseContext context
         ) {
             return new AmazonBedrockChatCompletionServiceSettings(
                 region,

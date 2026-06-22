@@ -30,6 +30,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.xpack.inference.common.parser.NumberParser.validatePositiveInteger;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.DIMENSIONS;
+import static org.elasticsearch.xpack.inference.services.ServiceFields.DIMENSIONS_SET_BY_USER;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MAX_INPUT_TOKENS;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.SIMILARITY;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalPositiveInteger;
@@ -43,19 +44,22 @@ public class AmazonBedrockEmbeddingsServiceSettings extends AmazonBedrockService
     /**
      * Creates an {@link ObjectParser} for the Llama embeddings service settings.
      *
-     * @param ignoreUnknownFields whether the parser should tolerate unknown fields. This is {@code false} for request parsing (so that
+     * @param isPersistentContext whether the parser is applied to the persistent state. This is {@code false} for request parsing (so that
      *                            unexpected fields are rejected) and {@code true} for persisted configuration (so that fields written by
      *                            other versions are tolerated).
      * @return the parser
      */
-    static ObjectParser<Builder, ConfigurationParseContext> createParser(boolean ignoreUnknownFields) {
+    static ObjectParser<Builder, ConfigurationParseContext> createParser(boolean isPersistentContext) {
         ObjectParser<Builder, ConfigurationParseContext> parser = new ObjectParser<>(
             ModelConfigurations.SERVICE_SETTINGS,
-            ignoreUnknownFields,
+            isPersistentContext,
             Builder::new
         );
         AmazonBedrockServiceSettings.declareCommonFields(parser);
         parser.declareInt(Builder::setDimensions, new ParseField(DIMENSIONS));
+        if (isPersistentContext) {
+            parser.declareBoolean(Builder::setDimensionsSetByUser, new ParseField(DIMENSIONS_SET_BY_USER));
+        }
         parser.declareString(Builder::setSimilarity, EnumParser::parseSimilarity, new ParseField(SIMILARITY));
         parser.declareInt(Builder::setMaxInputTokens, new ParseField(MAX_INPUT_TOKENS));
         return parser;
@@ -214,12 +218,17 @@ public class AmazonBedrockEmbeddingsServiceSettings extends AmazonBedrockService
      */
     public static class Builder extends AmazonBedrockServiceSettings.Builder<AmazonBedrockEmbeddingsServiceSettings> {
         private Integer dimensions;
+        private Boolean dimensionsSetByUser;
         private SimilarityMeasure similarity;
         private Integer maxInputTokens;
 
         public void setDimensions(Integer dimensions) {
             validatePositiveInteger(dimensions, DIMENSIONS);
             this.dimensions = dimensions;
+        }
+
+        public void setDimensionsSetByUser(Boolean dimensionsSetByUser) {
+            this.dimensionsSetByUser = dimensionsSetByUser;
         }
 
         public void setSimilarity(SimilarityMeasure similarity) {
@@ -236,14 +245,16 @@ public class AmazonBedrockEmbeddingsServiceSettings extends AmazonBedrockService
             String region,
             String model,
             String provider,
-            RateLimitSettings rateLimitSettings
+            RateLimitSettings rateLimitSettings,
+            ConfigurationParseContext context
         ) {
             return new AmazonBedrockEmbeddingsServiceSettings(
                 region,
                 model,
                 AmazonBedrockProvider.fromString(provider),
                 dimensions,
-                false,
+                // Set the dimensionsSetByUser flag only if we're parsing the request and dimensions was populated by the user
+                context == ConfigurationParseContext.REQUEST && dimensions != null ? dimensionsSetByUser : false,
                 maxInputTokens,
                 similarity,
                 rateLimitSettings

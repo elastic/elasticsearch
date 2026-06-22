@@ -30,6 +30,8 @@ import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.ingest.common.IngestCommonPlugin;
+import org.elasticsearch.ingest.geoip.GeoIpTestUtils;
+import org.elasticsearch.ingest.geoip.IngestGeoIpPlugin;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.license.internal.XPackLicenseStatus;
@@ -264,6 +266,7 @@ public class CsvIT extends ESTestCase {
         var nodeDirectory = createTempDir();
         var configDirectory = nodeDirectory.resolve("config");
         createCustomRegexConfig(configDirectory);
+        createGeoIpConfig(configDirectory);
         cluster = new InternalTestCluster(
             randomLong(),
             nodeDirectory,
@@ -278,6 +281,7 @@ public class CsvIT extends ESTestCase {
                     return Settings.builder()
                         .put("xpack.security.enabled", false)
                         .put("xpack.license.self_generated.type", "trial")
+                        .put("ingest.geoip.downloader.enabled", false)
                         .build();
                 }
 
@@ -304,6 +308,7 @@ public class CsvIT extends ESTestCase {
                 SpatialPlugin.class,
                 UnsignedLongMapperPlugin.class,
                 UserAgentPlugin.class,
+                IngestGeoIpPlugin.class,
                 VersionFieldPlugin.class,
                 Wildcard.class
             ),
@@ -330,6 +335,10 @@ public class CsvIT extends ESTestCase {
         assumeFalseLogging(
             "CSV tests cannot handle EXTERNAL sources (requires QA integration tests)",
             testCase.query.trim().toUpperCase(java.util.Locale.ROOT).startsWith("EXTERNAL")
+        );
+        assumeFalseLogging(
+            "CSV tests cannot handle dataset-backed FROM <dataset> sources (requires QA integration tests)",
+            testCase.datasetSources.isEmpty() == false
         );
         assumeTrueLogging(
             "CSV tests don't support remote cluster capability requirements",
@@ -701,6 +710,12 @@ public class CsvIT extends ESTestCase {
             assert is != null : "custom-regexes.yml not found on classpath";
             Files.copy(is, userAgentDir.resolve("custom-regexes.yml"));
         }
+    }
+
+    private static void createGeoIpConfig(Path configDir) throws IOException {
+        Path geoIpDir = configDir.resolve("ingest-geoip");
+        Files.createDirectories(geoIpDir);
+        GeoIpTestUtils.copyDefaultDatabases(geoIpDir);
     }
 
     private static class ResponseListener extends PlainActionFuture<EsqlQueryResponse> {

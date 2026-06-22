@@ -225,20 +225,25 @@ public abstract class CheckForbiddenApisTask extends DefaultTask implements Patt
     }
 
     /**
-     * Opt-in to checking for direct usage of {@code java.lang.foreign} preview APIs that
-     * were renamed between JDK 21 and 22. Callers should use the adapter classes in
-     * {@code org.elasticsearch.foreign.adapter} instead.
+     * Opt-in to checking for direct usage of {@code java.lang.foreign} APIs that
+     * should go through the adapter classes in {@code org.elasticsearch.foreign.adapter}.
      *
-     * <p>This adds the {@code jdk-foreign-signatures} forbidden API signature file and
-     * configures a child-first classloader with the de-previewed foreign API stub JAR so
-     * that the forbidden-apis checker can resolve the JDK 21 preview method signatures.
+     * <p>On JDK 21 this adds the {@code jdk-foreign-signatures} file (with preview-era
+     * method names like {@code getUtf8String}) and configures a child-first classloader
+     * with the de-previewed foreign API stub JAR so the checker can resolve them.
+     * On JDK 22+ it adds {@code jdk-foreign-signatures22} (with the renamed methods
+     * like {@code getString}) which resolve against the standard JDK.
      *
      * @param jarFile the stub JAR produced by {@code ExtractForeignApiTask}
      */
     public void checkForeignApiUsage(Provider<RegularFile> jarFile) {
-        addSignatureFiles("jdk-foreign-signatures");
-        if (jarFile.isPresent()) {
-            setForeignApiJar(jarFile.get().getAsFile());
+        if (Runtime.version().feature() == 21) {
+            addSignatureFiles("jdk-foreign-signatures");
+            if (jarFile.isPresent()) {
+                setForeignApiJar(jarFile.get().getAsFile());
+            }
+        } else {
+            addSignatureFiles("jdk-foreign-signatures22");
         }
     }
 

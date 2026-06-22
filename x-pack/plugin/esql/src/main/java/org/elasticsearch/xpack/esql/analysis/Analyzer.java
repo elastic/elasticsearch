@@ -18,6 +18,8 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.mapper.IdFieldMapper;
+import org.elasticsearch.iplocation.api.DatabaseProperty;
+import org.elasticsearch.iplocation.api.IpDataLookupInfo;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.esql.Column;
@@ -143,6 +145,7 @@ import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.Insist;
+import org.elasticsearch.xpack.esql.plan.logical.IpLocation;
 import org.elasticsearch.xpack.esql.plan.logical.Keep;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -157,6 +160,7 @@ import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesCollapse;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
+import org.elasticsearch.xpack.esql.plan.logical.UnresolvedIpLocation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.ViewShadowRelation;
 import org.elasticsearch.xpack.esql.plan.logical.fuse.Fuse;
@@ -198,6 +202,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.SequencedMap;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -255,6 +260,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             new ResolveExternalRelations(),
             new PruneEmptyUnionAllBranch(),
             new ResolveEnrich(),
+            new ResolveIpLocation(),
             new ResolveLookupTables(),
             new ResolveFunctions(),
             new ResolvePromqlFunctions(),
@@ -602,6 +608,65 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 return value.toString();
             }
             return null;
+        }
+    }
+
+    /**
+     * Resolves the transient {@link UnresolvedIpLocation} node produced by the parser into a fully-typed {@link IpLocation} node.
+     * The output columns depend on the IP database schema, which is read from the {@link IpLocationResolution} carried by the
+     * {@link AnalyzerContext}. That metadata is pre-fetched on the coordinator before analysis, so this rule never touches the
+     * IP location service itself. If the service was unavailable, the database is unknown, or a requested property is invalid, the
+     * node is left unresolved with a specific message, which the verifier turns into a failure.
+     */
+    private static class ResolveIpLocation extends ParameterizedAnalyzerRule<UnresolvedIpLocation, AnalyzerContext> {
+
+        @Override
+        protected LogicalPlan rule(UnresolvedIpLocation plan, AnalyzerContext context) {
+            IpLocationResolution ipLocationResolution = context.ipLocationResolution();
+            if (ipLocationResolution.serviceAvailable() == false) {
+                return plan.withUnresolvedMessage("IP_LOCATION command requires the IP location service to be available");
+            }
+            IpDataLookupInfo info = ipLocationResolution.databaseInfo(plan.databaseFile());
+            if (info == null) {
+                return plan.withUnresolvedMessage(
+                    Strings.format(
+                        "IP location database [%s] is not recognized. Use a bundled MaxMind/ipinfo filename "
+                            + "(e.g. GeoLite2-City.mmdb, GeoIP2-City.mmdb, asn.mmdb) or register the file via the Manage IP Geolocation "
+                            + "Database API.",
+                        plan.databaseFile()
+                    )
+                );
+            }
+
+            SequencedMap<String, Class<?>> filteredOutputFields;
+            List<String> properties = plan.properties();
+            if (properties == null) {
+                filteredOutputFields = info.getDefaultFields();
+            } else {
+                Set<DatabaseProperty> validProperties = DatabaseProperty.buildValidSet(info.getFields().keySet());
+                filteredOutputFields = new LinkedHashMap<>();
+                for (String property : properties) {
+                    DatabaseProperty dp;
+                    try {
+                        dp = DatabaseProperty.parseProperty(validProperties, property);
+                    } catch (IllegalArgumentException e) {
+                        return plan.withUnresolvedMessage(e.getMessage());
+                    }
+                    Class<?> type = info.getFields().get(dp.fieldName());
+                    assert type != null : "valid property [" + dp.fieldName() + "] has no type in the database fields map";
+                    filteredOutputFields.put(dp.fieldName(), type);
+                }
+            }
+
+            return IpLocation.createInitialInstance(
+                plan.source(),
+                plan.child(),
+                plan.input(),
+                plan.outputPrefix(),
+                plan.databaseFile(),
+                plan.firstOnly(),
+                filteredOutputFields
+            );
         }
     }
 

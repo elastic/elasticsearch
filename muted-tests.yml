@@ -671,3 +671,6 @@ tests:
 - class: org.elasticsearch.upgrades.RecoveryIT
   method: testAutoExpandIndicesDuringRollingUpgrade
   issue: https://github.com/elastic/elasticsearch/issues/151857
+- class: org.elasticsearch.upgrades.RecoveryIT
+  method: testRetentionLeasesEstablishedWhenRelocatingPrimary
+  issue: https://github.com/elastic/elasticsearch/issues/151858

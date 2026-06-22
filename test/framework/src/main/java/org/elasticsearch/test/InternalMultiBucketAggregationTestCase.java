@@ -187,6 +187,6 @@ public abstract class InternalMultiBucketAggregationTestCase<T extends InternalA
             null
         );
         Exception e = expectThrows(CircuitBreakingException.class, () -> InternalAggregationTestCase.reduce(List.of(agg), reduceContext));
-        assertThat(e.getMessage(), startsWith("[parent] Data too large, data for [test] "));
+        assertThat(e.getMessage(), startsWith("[parent] Data too large, data for [parent] "));
     }
 }

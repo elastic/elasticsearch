@@ -11,6 +11,7 @@ package org.elasticsearch.reindex;
 
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.admin.indices.alias.Alias;
+import org.elasticsearch.action.admin.indices.close.CloseIndexResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
@@ -39,6 +40,7 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -451,10 +453,18 @@ public class ReindexBasicTests extends ReindexTestCase {
     public void testReindexFailsWhenSourceIndexIsClosed() {
         String sourceIndex = "source";
         String destIndex = "dest";
-        createIndex(sourceIndex);
+        createIndex(sourceIndex, Settings.builder().put("index.routing.rebalance.enable", "none").build());
         ensureGreen(sourceIndex);
         indexRandom(true, prepareIndex(sourceIndex).setId("1").setSource("foo", "bar"));
-        indicesAdmin().prepareClose(sourceIndex).get();
+
+        CloseIndexResponse closeResponse = indicesAdmin().prepareClose(sourceIndex).get();
+        assertThat(closeResponse.isAcknowledged(), is(true));
+        assertThat(closeResponse.getIndices(), hasSize(1));
+        assertThat(
+            "close did not actually close source: " + closeResponse.getIndices(),
+            closeResponse.getIndices().getFirst().hasFailures(),
+            is(false)
+        );
 
         Exception e = expectThrows(Exception.class, () -> {
             ReindexRequest request = new ReindexRequest();

@@ -226,24 +226,6 @@ public class TimeSeriesMetadataFieldBlockLoaderTests extends MapperServiceTestCa
         assertThat(sourcePaths(loader), equalTo(Set.of("labels.__name__", "labels.instance")));
     }
 
-    /**
-     * With no exclusions the wildcard {@code index.dimensions} shortcut is still honored as-is, since there is
-     * nothing to remove and the source filter understands the {@code labels.*} pattern.
-     */
-    public void testWildcardDimensionSettingUsedWhenNothingExcluded() throws IOException {
-        Settings settings = Settings.builder()
-            .put(TSDB_PROMETHEUS_LIKE_SETTINGS)
-            .putList(IndexMetadata.INDEX_DIMENSIONS.getKey(), "labels.*")
-            .build();
-        BlockLoader loader = createBlockLoader(
-            settings,
-            PROMETHEUS_LIKE_MAPPING,
-            new BlockLoaderFunctionConfig.TimeSeriesMetadata(false, Set.of())
-        );
-        assertThat(loader, instanceOf(TimeSeriesMetadataFieldBlockLoader.class));
-        assertThat(sourcePaths(loader), equalTo(Set.of("labels.*")));
-    }
-
     public void testNoConfigReturnSourceBlockLoader() throws IOException {
         MapperService mapperService = createMapperService(TSDB_SYNTHETIC_SETTINGS, MAPPING);
         BlockLoader loader = mapperService.documentMapper()

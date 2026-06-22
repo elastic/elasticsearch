@@ -28,8 +28,6 @@ import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.VectorScorer;
 import org.apache.lucene.store.IndexInput;
-import org.apache.lucene.util.DocIdSetBuilder;
-import org.apache.lucene.util.IntsRef;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.search.profile.query.QueryProfiler;
 
@@ -315,18 +313,38 @@ public abstract class RescoreKnnVectorQuery extends Query implements QueryProfil
                 if (ringScorers[idx] != scorer || ringDocBases[idx] != docBase) break;    // scorer has changed - stop there
             }
 
-            DocIdSetBuilder docIds = new DocIdSetBuilder(ringDocIds[(ringHead + count - 1) % PREFETCH_BUFFER_SIZE] + 1);
-            var adder = docIds.grow(count);
-            int firstHalfCount = Math.min(PREFETCH_BUFFER_SIZE - ringHead, count);
-            adder.add(new IntsRef(ringDocIds, ringHead, firstHalfCount));
-            if (firstHalfCount < count) {
-                // the ring loops round - add the other half
-                adder.add(new IntsRef(ringDocIds, 0, count - firstHalfCount));
-            }
-            DocIdSetIterator iterator = docIds.build().iterator();
+            final int docIdCount = count;
+            DocIdSetIterator iterator = new DocIdSetIterator() {
+                private int idx = 0;    // just start at 0, we know where we're going from
+
+                private int docID(int idx) {
+                    assert idx < docIdCount;
+                    return ringDocIds[(ringHead + idx) % PREFETCH_BUFFER_SIZE];
+                }
+
+                @Override
+                public int docID() {
+                    return idx == docIdCount ? DocIdSetIterator.NO_MORE_DOCS : docID(idx);
+                }
+
+                @Override
+                public int nextDoc() {
+                    if (idx < docIdCount) idx++;
+                    return docID();
+                }
+
+                @Override
+                public int advance(int target) throws IOException {
+                    return slowAdvance(target);
+                }
+
+                @Override
+                public long cost() {
+                    return docIdCount;
+                }
+            };
 
             scorer.iterator().advance(ringDocIds[ringHead]);
-            iterator.advance(ringDocIds[ringHead]);
 
             DocAndFloatFeatureBuffer buffer = new DocAndFloatFeatureBuffer();
             scorer.bulk(iterator).nextDocsAndScores(DocIdSetIterator.NO_MORE_DOCS, null, buffer);

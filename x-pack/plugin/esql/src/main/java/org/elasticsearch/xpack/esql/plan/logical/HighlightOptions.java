@@ -32,9 +32,7 @@ public record HighlightOptions(String preTag, String postTag, String encoder, in
     public static final String DEFAULT_ENCODER = "default";
     public static final String HTML_ENCODER = "html";
     public static final int DEFAULT_NUMBER_OF_FRAGMENTS = 5;
-    // 0 means "no explicit fragment size": fragment on sentence boundaries without bounding each fragment to a char
-    // budget. A positive value re-splits long sentences to at most that many characters (bounded sentence scanner).
-    public static final int DEFAULT_FRAGMENT_SIZE = 0;
+    public static final int DEFAULT_FRAGMENT_SIZE = 100;
     public static final int DEFAULT_NO_MATCH_SIZE = 0;
 
     public static HighlightOptions from(MapExpression options, FoldContext foldContext) {

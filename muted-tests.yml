@@ -674,3 +674,6 @@ tests:
 - class: org.elasticsearch.upgrades.RecoveryIT
   method: testRetentionLeasesEstablishedWhenRelocatingPrimary
   issue: https://github.com/elastic/elasticsearch/issues/151858
+- class: org.elasticsearch.upgrades.RecoveryIT
+  method: testRecoveryClosedIndex
+  issue: https://github.com/elastic/elasticsearch/issues/151859

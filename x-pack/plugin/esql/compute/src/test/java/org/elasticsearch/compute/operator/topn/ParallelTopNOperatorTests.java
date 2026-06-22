@@ -519,6 +519,31 @@ public class ParallelTopNOperatorTests extends TopNOperatorTests {
         }
     }
 
+    /**
+     * Test which catches a race condition bug. Previously, noMoreInputs() was used rather isFinished()
+     * for checking if the input buffer was empty before merging the worker operators into the main
+     * merge operator. It was possible for a page to be added to the queue, then for finish() to be
+     * called, and then for notMoreInputs to return true while the page was still in the queue.
+     * This test can catch the race-condition, though the code now has the correct call to isFinished().
+     */
+    public void testNoPageLossUnderConcurrentFinish() throws Exception {
+        for (int i = 0; i < 1000; i++) {
+            DriverContext ctx = driverContext();
+            TopNOperator.TopNOperatorFactory factory = workerOnlyFactory();
+            TopNOperator initial = factory.get(ctx);
+            TopNOperator.ParallelWorkerConfig config = new TopNOperator.ParallelWorkerConfig(workerExecutor(), 1, 10, 0);
+            ParallelTopNOperator op = new ParallelTopNOperator(config, ctx, factory, initial);
+            try {
+                op.addInput(buildLongPage(ctx.blockFactory(), LongStream.of(123L)));
+                op.finish();
+                assertBusy(() -> assertThat(op.isBlocked(), sameInstance(Operator.NOT_BLOCKED)));
+                assertThat("iteration " + i + ": page lost", getLongResults(op), equalTo(List.of(123L)));
+            } finally {
+                op.close();
+            }
+        }
+    }
+
     // -------------------------------------------------------------------------
     // Helpers
     // -------------------------------------------------------------------------

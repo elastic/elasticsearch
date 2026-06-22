@@ -34,6 +34,9 @@ class ElasticsearchForeignAccessFuncTest extends AbstractJavaGradleFuncTest {
 
         then:
         result.task(":extractForeignApiJar").outcome in [TaskOutcome.SUCCESS, TaskOutcome.SKIPPED]
+        if (result.task(":extractForeignApiJar").outcome == TaskOutcome.SUCCESS) {
+            file("build/jdk21-foreign-api.jar").exists()
+        }
     }
 
     def "compileJava succeeds with enableForeignAccess"() {
@@ -47,7 +50,32 @@ class ElasticsearchForeignAccessFuncTest extends AbstractJavaGradleFuncTest {
         result.task(":compileJava").outcome == TaskOutcome.SUCCESS
     }
 
-    def "compileJava is up-to-date on second run (CC reuse)"() {
+    def "extractForeignApiJar is up-to-date on second run"() {
+        given:
+        clazz('org.acme.Dummy')
+
+        when:
+        gradleRunner('extractForeignApiJar', '-g', gradleUserHome).build()
+        def result = gradleRunner('extractForeignApiJar', '-g', gradleUserHome).build()
+
+        then:
+        result.task(":extractForeignApiJar").outcome == TaskOutcome.UP_TO_DATE
+    }
+
+    def "extractForeignApiJar is loaded from build cache after clean"() {
+        given:
+        clazz('org.acme.Dummy')
+
+        when:
+        gradleRunner('extractForeignApiJar', '--build-cache', '-g', gradleUserHome).build()
+        gradleRunner('clean', '-g', gradleUserHome).build()
+        def result = gradleRunner('extractForeignApiJar', '--build-cache', '-g', gradleUserHome).build()
+
+        then:
+        result.task(":extractForeignApiJar").outcome == TaskOutcome.FROM_CACHE
+    }
+
+    def "compileJava is up-to-date on second run"() {
         given:
         clazz('org.acme.Dummy')
 

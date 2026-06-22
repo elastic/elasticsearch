@@ -81,6 +81,7 @@ public class DataStreamLifecycleUsageTransportAction extends XPackUsageFeatureTr
 
         LongSummaryStatistics dataRetentionStats = new LongSummaryStatistics();
         LongSummaryStatistics effectiveRetentionStats = new LongSummaryStatistics();
+        LongSummaryStatistics frozenAfterStats = new LongSummaryStatistics();
 
         for (DataStream dataStream : dataStreams) {
             if (dataStream.getDataLifecycle() != null && dataStream.getDataLifecycle().enabled()) {
@@ -88,6 +89,9 @@ public class DataStreamLifecycleUsageTransportAction extends XPackUsageFeatureTr
                 // Track data retention
                 if (dataStream.getDataLifecycle().dataRetention() != null) {
                     dataRetentionStats.accept(dataStream.getDataLifecycle().dataRetention().getMillis());
+                }
+                if (dataStream.getDataLifecycle().frozenAfter() != null) {
+                    frozenAfterStats.accept(dataStream.getDataLifecycle().frozenAfter().getMillis());
                 }
                 // Track effective retention
                 Tuple<TimeValue, DataStreamLifecycle.RetentionSource> effectiveDataRetentionWithSource = dataStream.getDataLifecycle()
@@ -116,6 +120,7 @@ public class DataStreamLifecycleUsageTransportAction extends XPackUsageFeatureTr
             DataStreamLifecycle.CLUSTER_LIFECYCLE_DEFAULT_ROLLOVER_SETTING.getDefault(null).equals(rolloverConfiguration),
             DataStreamLifecycleFeatureSetUsage.RetentionStats.create(dataRetentionStats),
             DataStreamLifecycleFeatureSetUsage.RetentionStats.create(effectiveRetentionStats),
+            DataStreamLifecycleFeatureSetUsage.RetentionStats.create(frozenAfterStats),
             globalRetentionStats
         );
     }

@@ -6,7 +6,7 @@
       capabilities:
         - method: GET
           path: /_xpack/usage
-          capabilities: [ 'global_retention_telemetry' ]
+          capabilities: [ 'global_retention_telemetry', 'frozen_after_telemetry' ]
 
   - do:
       xpack.usage: {}
@@ -26,6 +26,11 @@
   - is_false: data_lifecycle.effective_retention.maximum_millis
   - is_false: data_lifecycle.effective_retention.average_millis
 
+  - match: { data_lifecycle.frozen_after.configured_data_streams: 0 }
+  - is_false: data_lifecycle.frozen_after.minimum_millis
+  - is_false: data_lifecycle.frozen_after.maximum_millis
+  - is_false: data_lifecycle.frozen_after.average_millis
+
   - match: { data_lifecycle.global_retention.max.defined: false }
   - match: { data_lifecycle.global_retention.default.defined: false }
 
@@ -42,6 +47,7 @@
                 '@timestamp':
                   type: date
             lifecycle:
+              frozen_after: 3d
               data_retention: 10d
           data_stream: {}
   - is_true: acknowledged
@@ -64,6 +70,7 @@
                 '@timestamp':
                   type: date
             lifecycle:
+              frozen_after: 1d
               data_retention: 5d
           data_stream: {}
 
@@ -86,6 +93,7 @@
                   type: date
             lifecycle:
               enabled: false
+              frozen_after: 12h
               data_retention: 1d
           data_stream: { }
 
@@ -109,8 +117,13 @@
 
   - match: { data_lifecycle.effective_retention.retained_data_streams: 2 }
   - match: { data_lifecycle.effective_retention.minimum_millis: 432000000 }
-  - match: { data_lifecycle.data_retention.maximum_millis: 864000000 }
-  - match: { data_lifecycle.data_retention.average_millis: 648000000 }
+  - match: { data_lifecycle.effective_retention.maximum_millis: 864000000 }
+  - match: { data_lifecycle.effective_retention.average_millis: 648000000 }
+
+  - match: { data_lifecycle.frozen_after.configured_data_streams: 2 }
+  - match: { data_lifecycle.frozen_after.minimum_millis: 86400000 }
+  - match: { data_lifecycle.frozen_after.maximum_millis: 259200000 }
+  - match: { data_lifecycle.frozen_after.average_millis: 172800000 }
 
   - do:
       indices.delete_data_stream:

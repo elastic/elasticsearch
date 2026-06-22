@@ -68,12 +68,12 @@ public class DataStreamFeatureSetUsage extends XPackFeatureUsage {
         DataStreamLifecycleFeatureSetUsage.RetentionStats.toXContentFragment(
             builder,
             streamStats.failuresLifecycleDataRetentionStats,
-            false
+            DataStreamLifecycleFeatureSetUsage.RetentionStats.DATA_RETENTION
         );
         DataStreamLifecycleFeatureSetUsage.RetentionStats.toXContentFragment(
             builder,
             streamStats.failuresLifecycleEffectiveRetentionStats,
-            true
+            DataStreamLifecycleFeatureSetUsage.RetentionStats.EFFECTIVE_RETENTION
         );
         builder.startObject("global_retention");
         DataStreamLifecycleFeatureSetUsage.GlobalRetentionStats.toXContentFragment(

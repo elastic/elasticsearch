@@ -39,6 +39,7 @@ public class DataStreamLifecycleFeatureSetUsageTests extends AbstractWireSeriali
                     randomBoolean(),
                     generateRetentionStats(),
                     generateRetentionStats(),
+                    generateRetentionStats(),
                     randomBoolean() ? Map.of() : Map.of("default", generateGlobalRetention(), "max", generateGlobalRetention())
                 )
             )
@@ -69,9 +70,10 @@ public class DataStreamLifecycleFeatureSetUsageTests extends AbstractWireSeriali
         var defaultRollover = instance.lifecycleStats.defaultRolloverUsed;
         var dataRetentionStats = instance.lifecycleStats.dataRetentionStats;
         var effectiveRetentionStats = instance.lifecycleStats.effectiveRetentionStats;
+        var frozenAfterStats = instance.lifecycleStats.frozenAfterStats;
         var maxRetention = instance.lifecycleStats.globalRetentionStats.get("max");
         var defaultRetention = instance.lifecycleStats.globalRetentionStats.get("default");
-        switch (randomInt(5)) {
+        switch (randomInt(6)) {
             case 0 -> count += (count > 0 ? -1 : 1);
             case 1 -> defaultRollover = defaultRollover == false;
             case 2 -> dataRetentionStats = randomValueOtherThan(
@@ -82,8 +84,12 @@ public class DataStreamLifecycleFeatureSetUsageTests extends AbstractWireSeriali
                 effectiveRetentionStats,
                 DataStreamLifecycleFeatureSetUsageTests::generateRetentionStats
             );
-            case 4 -> maxRetention = randomValueOtherThan(maxRetention, DataStreamLifecycleFeatureSetUsageTests::generateGlobalRetention);
-            case 5 -> defaultRetention = randomValueOtherThan(
+            case 4 -> frozenAfterStats = randomValueOtherThan(
+                frozenAfterStats,
+                DataStreamLifecycleFeatureSetUsageTests::generateRetentionStats
+            );
+            case 5 -> maxRetention = randomValueOtherThan(maxRetention, DataStreamLifecycleFeatureSetUsageTests::generateGlobalRetention);
+            case 6 -> defaultRetention = randomValueOtherThan(
                 defaultRetention,
                 DataStreamLifecycleFeatureSetUsageTests::generateGlobalRetention
             );
@@ -97,7 +103,14 @@ public class DataStreamLifecycleFeatureSetUsageTests extends AbstractWireSeriali
             map.put("max", maxRetention);
         }
         return new DataStreamLifecycleFeatureSetUsage(
-            new DataStreamLifecycleFeatureSetUsage.LifecycleStats(count, defaultRollover, dataRetentionStats, effectiveRetentionStats, map)
+            new DataStreamLifecycleFeatureSetUsage.LifecycleStats(
+                count,
+                defaultRollover,
+                dataRetentionStats,
+                effectiveRetentionStats,
+                frozenAfterStats,
+                map
+            )
         );
     }
 

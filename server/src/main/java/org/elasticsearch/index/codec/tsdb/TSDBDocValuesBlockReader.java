@@ -41,7 +41,8 @@ public final class TSDBDocValuesBlockReader {
      *
      * @param meta              segment metadata input positioned at this field's header
      * @param entry             entry to populate with the parsed metadata
-     * @param numericBlockShift block shift used to size the per-field block index
+     * @param numericBlockShift format-level block shift; becomes the effective block size
+     *                          when no per-field {@link org.elasticsearch.index.codec.tsdb.pipeline.PipelineDescriptor} is present
      */
     public void readFieldEntry(final IndexInput meta, final AbstractTSDBDocValuesProducer.NumericEntry entry, int numericBlockShift)
         throws IOException {
@@ -50,12 +51,22 @@ public final class TSDBDocValuesBlockReader {
 
     /**
      * Parses the field metadata from {@code meta} into {@code entry} with an optional
-     * metadata header hook.
+     * per-field metadata hook.
+     *
+     * <p>Block size resolution uses a two-step strategy. {@code entry.blockSize} is first
+     * seeded from {@code numericBlockShift} (the format-level default). If {@code fieldMetaReader}
+     * is provided, it is invoked to read additional per-field metadata (for example, an
+     * {@link org.elasticsearch.index.codec.tsdb.es95.ES95TSDBDocValuesFormat} callback that
+     * populates {@code entry.pipelineDescriptor}). When that descriptor is present its
+     * {@code blockShift} takes precedence, overriding the format-level default. The block
+     * index is then sized using whichever value won, so {@code entry.blockSize} is the
+     * single source of truth for all downstream iteration.
      *
      * @param meta              segment metadata input positioned at this field's header
      * @param entry             entry to populate with the parsed metadata
-     * @param numericBlockShift block shift used to size the per-field block index
-     * @param fieldMetaReader  optional callback invoked after the block-shift marker to read
+     * @param numericBlockShift format-level block shift; used as the default block size
+     *                          when no per-field descriptor is present
+     * @param fieldMetaReader   optional callback invoked after the layout marker to read
      *                          additional per-field metadata, or {@code null}
      */
     public void readFieldEntry(

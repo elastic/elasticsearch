@@ -1,0 +1,7 @@
+area: "Infra/Scripting, Ingest Node"
+issues:
+ - 60470
+ - 80038
+pr: 151916
+summary: Expose ingest metadata via `ctx._ingest` in Painless
+type: bug

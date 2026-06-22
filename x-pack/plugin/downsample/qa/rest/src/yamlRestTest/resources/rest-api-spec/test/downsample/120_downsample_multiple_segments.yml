@@ -56,6 +56,8 @@
           - '{"@timestamp": "2021-04-28T18:30:00.000Z", "sensor_id": "A", "requests": 110, "cpu_usage": 52.0}'
           - '{"index": {}}'
           - '{"@timestamp": "2021-04-28T18:30:05.000Z", "sensor_id": "B", "requests": 220, "cpu_usage": 62.0}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T19:16:10.000Z", "sensor_id": "B", "requests": 400, "cpu_usage": 75.0}'
 
   # Third segment
   - do:

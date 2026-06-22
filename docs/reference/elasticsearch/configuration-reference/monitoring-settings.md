@@ -3,7 +3,7 @@ navigation_title: "Monitoring settings"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/monitoring-settings.html
 applies_to:
-  stack:
+  stack: deprecated, removed 10.0
 ---
 
 # Monitoring settings in {{es}}
@@ -46,7 +46,7 @@ $$$xpack-monitoring-collection-interval$$$
 `xpack.monitoring.collection.interval` {applies_to}`stack: deprecated 6.3, removed 10.0` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on Elastic Cloud Hosted")
 :   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) Setting to `-1` to disable data collection is no longer supported beginning with 7.0.0.
 
-    Controls how often data samples are collected. Defaults to `10s`. If you modify the collection interval, set the `xpack.monitoring.min_interval_seconds` option in `kibana.yml` to the same value.
+    Controls how often data samples are collected. Defaults to `10s`. If you modify the collection interval, set the `monitoring.ui.min_interval_seconds` option in `kibana.yml` to the same value.
 
 
 `xpack.monitoring.elasticsearch.collection.enabled` {applies_to}`stack: deprecated 7.16, removed 10.0`
@@ -70,11 +70,6 @@ $$$xpack-monitoring-collection-interval$$$
 `xpack.monitoring.collection.index.recovery.timeout` {applies_to}`stack: deprecated 7.16, removed 10.0`
 :   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) Timeout for collecting the recovery information, in [time units](/reference/elasticsearch/rest-apis/api-conventions.md#time-units). Defaults to `10s`.
 
-`xpack.monitoring.collection.min_interval_seconds` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on Elastic Cloud Hosted")
-:   Specifies the minimum number of seconds that a time bucket in a chart can represent. If you modify the `xpack.monitoring.collection.interval`, use the same value in this setting.
-
-    Defaults to `10` (10 seconds).
-
 $$$xpack-monitoring-history-duration$$$
 
 `xpack.monitoring.history.duration` {applies_to}`stack: deprecated 7.16, removed 10.0` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on Elastic Cloud Hosted")
@@ -87,11 +82,11 @@ $$$xpack-monitoring-history-duration$$$
     ::::
 
 
-`xpack.monitoring.exporters`
+`xpack.monitoring.exporters` {applies_to}`stack: deprecated, removed 10.0`
 :   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) Configures where the agent stores monitoring data. By default, the agent uses a local exporter that indexes monitoring data on the cluster where it is installed. Use an HTTP exporter to send data to a separate monitoring cluster. For more information, see [Local exporter settings](#local-exporter-settings), [HTTP exporter settings](#http-exporter-settings), and [How it works](docs-content://deploy-manage/monitor/stack-monitoring.md).
 
 
-## Local exporter settings [local-exporter-settings]
+### Local exporter settings [local-exporter-settings]
 
 The `local` exporter is the default exporter used by {{monitor-features}}. As the name is meant to imply, it exports data to the *local* cluster, which means that there is not much needed to be configured.
 
@@ -114,7 +109,7 @@ xpack.monitoring.exporters.my_local:
 `wait_master.timeout` {applies_to}`stack: deprecated 7.16, removed 10.0`
 :   Time to wait for the master node to setup `local` exporter for monitoring, in [time units](/reference/elasticsearch/rest-apis/api-conventions.md#time-units). After that wait period, the non-master nodes warn the user for possible missing configuration. Defaults to `30s`.
 
-## HTTP exporter settings [http-exporter-settings]
+### HTTP exporter settings [http-exporter-settings]
 
 The following lists settings that can be supplied with the `http` exporter. All settings are shown as what follows the name you select for your exporter:
 
@@ -202,11 +197,7 @@ xpack.monitoring.exporters.my_remote:
     For example: `["elasticsearch_version_mismatch","xpack_license_expiration"]`.
 
 
-## {{monitoring}} TLS/SSL settings [ssl-monitoring-settings]
-
-```{applies_to}
-stack: deprecated, removed 10.0
-```
+### {{monitoring}} TLS/SSL settings [ssl-monitoring-settings]
 
 You can configure the following TLS/SSL settings.
 
@@ -240,16 +231,12 @@ You can configure the following TLS/SSL settings.
     For more information, see Oracle’s [Java Cryptography Architecture documentation](https://docs.oracle.com/en/java/javase/11/security/oracle-providers.md#GUID-7093246A-31A3-4304-AC5F-5FB6400405E2).
 
 
-### {{monitoring}} TLS/SSL key and trusted certificate settings [monitoring-tls-ssl-key-trusted-certificate-settings]
+#### {{monitoring}} TLS/SSL key and trusted certificate settings [monitoring-tls-ssl-key-trusted-certificate-settings]
 
 The following settings are used to specify a private key, certificate, and the trusted certificates that should be used when communicating over an SSL/TLS connection. A private key and certificate are optional and would be used if the server requires client authentication for PKI authentication.
 
 
-#### PEM encoded files [_pem_encoded_files]
-
-```{applies_to}
-stack: deprecated 7.16, removed 10.0
-```
+##### PEM encoded files [_pem_encoded_files]
 
 When using PEM encoded files, use the following settings:
 
@@ -281,11 +268,7 @@ When using PEM encoded files, use the following settings:
 
 
 
-#### Java keystore files [_java_keystore_files]
-
-```{applies_to}
-stack: deprecated, removed 10.0
-```
+##### Java keystore files [_java_keystore_files]
 
 When using Java keystore files (JKS), which contain the private key, certificate and certificates that should be trusted, use the following settings:
 
@@ -326,11 +309,7 @@ When using Java keystore files (JKS), which contain the private key, certificate
 :   ([Secure](docs-content://deploy-manage/security/secure-settings.md)) Password for the truststore.
 
 
-#### PKCS#12 files [monitoring-pkcs12-files]
-
-```{applies_to}
-stack: deprecated, removed 10.0
-```
+##### PKCS#12 files [monitoring-pkcs12-files]
 
 {{es}} can be configured to use PKCS#12 container files (`.p12` or `.pfx` files) that contain the private key, certificate and certificates that should be trusted.
 

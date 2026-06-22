@@ -854,7 +854,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
      * decoding is OFF ({@link CsvFormatOptions#decodesEscapes()} is false — i.e. any mode except
      * {@code escaped}: {@code plain}, {@code quoted}, or {@code quoted} with {@code escape: none}) but
      * the sample carries the whole-field {@code \N} null marker, the data is almost certainly a
-     * a database text export read under a mode that won't decode it — {@code \N} stays the
+     * database text export read under a mode that won't decode it — {@code \N} stays the
      * literal two characters instead of null. This catches both the safe {@code plain} default and the
      * {@code mode: escaped, quote: …} case (which resolves to quoted, dropping the decode).
      * <p>

@@ -89,7 +89,7 @@ final class ProjectEncryptionKeyPasswordSettings {
     static Settings cloneSettings(Settings base, Settings secureSource) {
         try {
             return Settings.builder()
-                .put(base)
+                .put(base, false)
                 .setSecureSettings(InMemoryClonedSecureSettings.cloneSecureSettings(secureSource, getSettings()))
                 .build();
         } catch (GeneralSecurityException e) {

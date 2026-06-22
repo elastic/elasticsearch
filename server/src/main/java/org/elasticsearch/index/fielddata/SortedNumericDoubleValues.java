@@ -137,7 +137,26 @@ public abstract class SortedNumericDoubleValues {
      */
     public static SortedNumericDoubleValues wrap(SortedNumericDocValues values) {
         NumericDocValues singleton = DocValues.unwrapSingleton(values);
-        return new SortedNumericDoubleValues(singleton != null, values) {
+        if (singleton != null) {
+            // It's more efficient to access singleton doc values via the unwrapped singleton
+            return new SortedNumericDoubleValues(true, singleton) {
+                @Override
+                public boolean advanceExact(int target) throws IOException {
+                    return singleton.advanceExact(target);
+                }
+
+                @Override
+                public int docValueCount() {
+                    return 1;
+                }
+
+                @Override
+                public double nextValue() throws IOException {
+                    return NumericUtils.sortableLongToDouble(singleton.longValue());
+                }
+            };
+        }
+        return new SortedNumericDoubleValues(false, values) {
             @Override
             public boolean advanceExact(int target) throws IOException {
                 return values.advanceExact(target);
@@ -150,7 +169,7 @@ public abstract class SortedNumericDoubleValues {
 
             @Override
             public int docValueCount() {
-                return singleton != null ? 1 : values.docValueCount();
+                return values.docValueCount();
             }
         };
     }

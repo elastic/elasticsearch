@@ -129,6 +129,26 @@ setup:
   - match: { hits.hits.1._id: "2" }
   - match: { hits.hits.2._id: "3" }
   - match: { hits.hits.3._id: "4" }
+
+---
+"KNN search with _all":
+  - do:
+      search:
+        index: bbq_disk_slice
+        _slice: _all
+        body:
+          knn:
+            field: vector
+            query_vector: [0.707107, 0.707107, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+            k: 4
+            num_candidates: 10
+
+  - match: { hits.total.value: 4 }
+  - length: { hits.hits: 4 }
+  - match: { hits.hits.0._id: "1" }
+  - match: { hits.hits.1._id: "2" }
+  - match: { hits.hits.2._id: "3" }
+  - match: { hits.hits.3._id: "4" }
 ---
 "Search without _slice is rejected on slice-enabled index":
   - do:
@@ -138,6 +158,7 @@ setup:
         body:
           query:
             match_all: {}
+
 ---
 "KNN search requires _slice when slice indexing is enabled":
   - do:
@@ -150,19 +171,7 @@ setup:
             query_vector: [0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
             k: 1
             num_candidates: 10
----
-"KNN search rejects _slice=_all":
-  - do:
-      catch: /\[_slice\] is required for KNN queries when \[index.slice.enabled\] is true/
-      search:
-        index: bbq_disk_slice
-        _slice: _all
-        body:
-          knn:
-            field: vector
-            query_vector: [0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
-            k: 1
-            num_candidates: 10
+
 ---
 "Index requires _slice when slice indexing is enabled":
   - do:

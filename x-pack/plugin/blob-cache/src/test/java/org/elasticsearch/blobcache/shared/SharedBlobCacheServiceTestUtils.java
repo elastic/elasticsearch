@@ -33,4 +33,18 @@ public final class SharedBlobCacheServiceTestUtils {
     ) {
         cacheService.get(cacheKey, fileLength, region);
     }
+
+    /**
+     * Ensures a cache region is present for the given key, file length, region index, and timestamp by calling
+     * {@link SharedBlobCacheService#get(SharedBlobCacheService.KeyBase, long, int, long)}.
+     */
+    public static <K extends SharedBlobCacheService.KeyBase> void cacheRegion(
+        SharedBlobCacheService<K> cacheService,
+        K cacheKey,
+        long fileLength,
+        int region,
+        long timestampMillis
+    ) {
+        cacheService.get(cacheKey, fileLength, region, timestampMillis);
+    }
 }

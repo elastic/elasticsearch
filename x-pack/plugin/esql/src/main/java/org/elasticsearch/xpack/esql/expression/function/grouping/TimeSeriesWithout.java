@@ -11,8 +11,8 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
@@ -157,19 +157,12 @@ public class TimeSeriesWithout extends GroupingFunction.NonEvaluatableGroupingFu
 
     @Override
     protected TypeResolution resolveType() {
+        // Excluded labels are matched by name, so any label reference is acceptable - including labels that are not
+        // (or not yet known to be) dimensions. Excluding a label that is absent from a series is simply a no-op.
         for (Expression field : children()) {
-            if (field instanceof FieldAttribute fa) {
-                if (fa.isDimension() == false) {
-                    return new TypeResolution(ENTRY.name + " requires dimension fields, but [" + fa.sourceText() + "] is not a dimension");
-                }
-            } else {
+            if (field instanceof Attribute == false) {
                 return new TypeResolution(
-                    ENTRY.name
-                        + " requires dimension field names, got ["
-                        + field.sourceText()
-                        + "] of type ["
-                        + field.dataType().typeName()
-                        + "]"
+                    ENTRY.name + " requires label names, got [" + field.sourceText() + "] of type [" + field.dataType().typeName() + "]"
                 );
             }
         }

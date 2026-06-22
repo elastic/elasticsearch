@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.downsample;
 
 import org.apache.lucene.internal.hppc.IntArrayList;
 import org.apache.lucene.search.DocIdSetIterator;
+import org.elasticsearch.action.downsample.DownsampleConfig;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogramCircuitBreaker;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogramMerger;
@@ -265,6 +266,20 @@ public class AggregateHistogramFieldDownsamplerTests extends ESTestCase {
         resetDataPoints = new ResetDataPoints();
         producer.updateResetDataPoints(resetDataPoints);
         assertThat(resetDataPoints.isEmpty(), equalTo(true));
+    }
+
+    public void testIsAggregateDownsamplerConsistentWithCreate() {
+        assertThat(ExponentialHistogramFieldDownsampler.isAggregateDownsampler(DownsampleConfig.SamplingMethod.AGGREGATE), equalTo(true));
+        assertThat(
+            ExponentialHistogramFieldDownsampler.create("test", null, DownsampleConfig.SamplingMethod.AGGREGATE),
+            instanceOf(ExponentialHistogramFieldDownsampler.AggregateHistogram.class)
+        );
+
+        assertThat(ExponentialHistogramFieldDownsampler.isAggregateDownsampler(DownsampleConfig.SamplingMethod.LAST_VALUE), equalTo(false));
+        assertThat(
+            ExponentialHistogramFieldDownsampler.create("test", null, DownsampleConfig.SamplingMethod.LAST_VALUE),
+            instanceOf(ExponentialHistogramFieldDownsampler.LastValueProducer.class)
+        );
     }
 
     /**

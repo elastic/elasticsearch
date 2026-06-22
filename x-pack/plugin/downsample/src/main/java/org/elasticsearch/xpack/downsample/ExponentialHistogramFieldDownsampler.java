@@ -53,21 +53,9 @@ abstract class ExponentialHistogramFieldDownsampler extends AbstractFieldDownsam
 
     protected abstract ExponentialHistogram downsampledValue();
 
-    /**
-     * Collect values with temporality awareness. All exponential histogram downsamplers use this path.
-     */
-    abstract void collect(ExponentialHistogramValuesReader docValues, long[] timestamps, IntArrayList docIdBuffer, Temporality temporality)
-        throws IOException;
-
-    /**
-     * Called when the tsid changes. Subclasses should reset any cross-bucket state.
-     */
-    abstract void tsidReset();
-
-    /**
-     * Called to flush reset data points for cumulative temporality.
-     */
-    abstract void updateResetDataPoints(ResetDataPoints resetDataPoints);
+    static boolean isAggregateDownsampler(DownsampleConfig.SamplingMethod samplingMethod) {
+        return samplingMethod == DownsampleConfig.SamplingMethod.AGGREGATE;
+    }
 
     public static boolean supportsFieldType(MappedFieldType fieldType) {
         return ExponentialHistogramFieldMapper.CONTENT_TYPE.equals(fieldType.typeName());
@@ -85,11 +73,6 @@ abstract class ExponentialHistogramFieldDownsampler extends AbstractFieldDownsam
     public ExponentialHistogramValuesReader getLeaf(LeafReaderContext context) throws IOException {
         LeafExponentialHistogramFieldData exponentialHistogramFieldData = (LeafExponentialHistogramFieldData) fieldData.load(context);
         return exponentialHistogramFieldData.getHistogramValues();
-    }
-
-    @Override
-    public final void collect(ExponentialHistogramValuesReader docValues, IntArrayList docIdBuffer) throws IOException {
-        throw new UnsupportedOperationException("Use collect(docValues, timestamps, docIdBuffer, temporality) instead");
     }
 
     /**
@@ -114,6 +97,15 @@ abstract class ExponentialHistogramFieldDownsampler extends AbstractFieldDownsam
         }
 
         @Override
+        public void collect(ExponentialHistogramValuesReader docValues, IntArrayList docIdBuffer) throws IOException {
+            throw new UnsupportedOperationException("Use collect(docValues, timestamps, docIdBuffer, temporality) instead");
+        }
+
+        @Override
+        public void collectCurrentValues(ExponentialHistogramValuesReader docValues) {
+            throw new UnsupportedOperationException("This producer should never be called without timestamps");
+        }
+
         void collect(ExponentialHistogramValuesReader docValues, long[] timestamps, IntArrayList docIdBuffer, Temporality temporality)
             throws IOException {
             assert assertTemporality(temporality) : "delegate should change only after a tsid reset";
@@ -135,11 +127,6 @@ abstract class ExponentialHistogramFieldDownsampler extends AbstractFieldDownsam
             }
         }
 
-        @Override
-        public void collectCurrentValues(ExponentialHistogramValuesReader docValues) {
-            throw new UnsupportedOperationException("This producer should never be called without timestamps");
-        }
-
         private boolean assertTemporality(Temporality temporality) {
             if (temporalityCollector == null) {
                 return true;
@@ -159,7 +146,6 @@ abstract class ExponentialHistogramFieldDownsampler extends AbstractFieldDownsam
             }
         }
 
-        @Override
         void tsidReset() {
             if (temporalityCollector != null) {
                 temporalityCollector.tsidReset();
@@ -185,7 +171,6 @@ abstract class ExponentialHistogramFieldDownsampler extends AbstractFieldDownsam
             return temporalityCollector;
         }
 
-        @Override
         void updateResetDataPoints(ResetDataPoints resetDataPoints) {
             if (temporalityCollector == cumulativeCollector) {
                 cumulativeCollector.updateResetDataPoints(resetDataPoints);
@@ -401,18 +386,16 @@ abstract class ExponentialHistogramFieldDownsampler extends AbstractFieldDownsam
         }
 
         @Override
-        void collect(ExponentialHistogramValuesReader docValues, long[] timestamps, IntArrayList docIdBuffer, Temporality temporality)
-            throws IOException {
+        public void collect(ExponentialHistogramValuesReader docValues, IntArrayList docIdBuffer) throws IOException {
             if (isDone()) {
                 return;
             }
-            for (int i = 0; i < docIdBuffer.size(); i++) {
+            for (int i = 0; i < docIdBuffer.size() && isDone() == false; i++) {
                 int docId = docIdBuffer.get(i);
                 if (docValues.advanceExact(docId) == false) {
                     continue;
                 }
                 collectCurrentValues(docValues);
-                return;
             }
         }
 
@@ -421,14 +404,6 @@ abstract class ExponentialHistogramFieldDownsampler extends AbstractFieldDownsam
             lastValue = docValues.histogramValue();
             state = State.BUCKET_COMPLETED;
         }
-
-        @Override
-        void tsidReset() {
-            reset();
-        }
-
-        @Override
-        void updateResetDataPoints(ResetDataPoints resetDataPoints) {}
 
         @Override
         protected ExponentialHistogram downsampledValue() {

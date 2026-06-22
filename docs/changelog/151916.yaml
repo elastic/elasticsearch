@@ -1,4 +1,4 @@
-area: "Infra/Scripting, Ingest Node"
+area: Infra/Scripting
 issues:
  - 60470
  - 80038

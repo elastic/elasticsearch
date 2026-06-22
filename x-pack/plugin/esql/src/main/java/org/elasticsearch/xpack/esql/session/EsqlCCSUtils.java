@@ -168,13 +168,14 @@ public class EsqlCCSUtils {
         }
     }
 
-    static String createQualifiedLookupIndexExpressionFromAvailableClusters(EsqlExecutionInfo executionInfo, String localPattern) {
-        if (executionInfo.getClusters().isEmpty()) {
-            return localPattern;
-        }
-        return executionInfo.getRunningClusterAliases()
+    static String createQualifiedLookupIndexExpressionFromAvailableClusters(Set<String> lookupIndexScope, String localPattern) {
+        return lookupIndexScope.stream()
             .map(clusterAlias -> RemoteClusterAware.buildRemoteIndexName(clusterAlias, localPattern))
             .collect(joining(","));
+    }
+
+    static Set<String> onlyRunning(EsqlExecutionInfo executionInfo, Set<String> clusterAliases) {
+        return executionInfo.getRunningClusterAliases().filter(clusterAliases::contains).collect(toSet());
     }
 
     static void updateExecutionInfoWithUnavailableClusters(

@@ -35,6 +35,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesExpressionGrouper;
+import org.elasticsearch.iplocation.api.IpDataLookupInfo;
 import org.elasticsearch.iplocation.api.IpLocationConsumer;
 import org.elasticsearch.iplocation.api.IpLocationService;
 import org.elasticsearch.logging.LogManager;
@@ -55,6 +56,7 @@ import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerSettings;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
 import org.elasticsearch.xpack.esql.analysis.InSubqueryResolver;
+import org.elasticsearch.xpack.esql.analysis.IpLocationResolution;
 import org.elasticsearch.xpack.esql.analysis.PreAnalyzer;
 import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
 import org.elasticsearch.xpack.esql.analysis.Verifier;
@@ -1075,10 +1077,29 @@ public class EsqlSession {
         if (ipLocationService == null || projectMetadata == null) {
             return;
         }
-        plan.forEachDown(
-            UnresolvedIpLocation.class,
-            ip -> ipLocationService.requestDownloads(projectMetadata.id().id(), IpLocationConsumer.ESQL)
-        );
+        if (plan.anyMatch(UnresolvedIpLocation.class::isInstance)) {
+            ipLocationService.requestDownloads(projectMetadata.id().id(), IpLocationConsumer.ESQL);
+        }
+    }
+
+    /**
+     * Pre-fetches the IP database metadata for every {@code IP_LOCATION} command in the plan and bundles it into an
+     * {@link IpLocationResolution} for the analyzer.
+     * The lookup is a synchronous, side-effect-free metadata read keyed by database file name; an unrecognized database
+     * yields no entry, which the analyzer rule reports as an unresolved command.
+     */
+    private IpLocationResolution resolveIpLocations(LogicalPlan plan) {
+        if (ipLocationService == null) {
+            return IpLocationResolution.SERVICE_UNAVAILABLE;
+        }
+        Map<String, IpDataLookupInfo> databaseInfo = new HashMap<>();
+        plan.forEachDown(UnresolvedIpLocation.class, ip -> {
+            IpDataLookupInfo info = ipLocationService.getIpDataLookupInfo(ip.databaseFile());
+            if (info != null) {
+                databaseInfo.put(ip.databaseFile(), info);
+            }
+        });
+        return IpLocationResolution.fromPrefetched(databaseInfo);
     }
 
     private void gatherSettingsMetrics(EsqlStatement statement) {
@@ -2003,7 +2024,7 @@ public class EsqlSession {
             projectMetadata,
             r,
             timestampBounds,
-            ipLocationService
+            resolveIpLocations(parsed)
         );
         Analyzer analyzer = new Analyzer(analyzerContext, verifier);
         LogicalPlan plan = analyzer.analyze(parsed);

@@ -81,7 +81,7 @@ public class MutableAnalyzerContext extends AnalyzerContext {
             minimumVersion,
             unmappedResolution,
             timestampBounds,
-            null
+            IpLocationResolution.SERVICE_UNAVAILABLE
         );
         this.currentVersion = minimumVersion;
     }

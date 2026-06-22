@@ -20,7 +20,6 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.iplocation.api.DatabaseProperty;
 import org.elasticsearch.iplocation.api.IpDataLookupInfo;
-import org.elasticsearch.iplocation.api.IpLocationService;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.esql.Column;
@@ -614,19 +613,20 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
     /**
      * Resolves the transient {@link UnresolvedIpLocation} node produced by the parser into a fully-typed {@link IpLocation} node.
-     * The output columns depend on the IP database schema, which is read here (synchronously, with no side effects) from the
-     * {@link IpLocationService} carried by the {@link AnalyzerContext}. If the service is unavailable, the database is unknown, or a
-     * requested property is invalid, the node is left unresolved with a specific message, which the verifier turns into a failure.
+     * The output columns depend on the IP database schema, which is read from the {@link IpLocationResolution} carried by the
+     * {@link AnalyzerContext}. That metadata is pre-fetched on the coordinator before analysis, so this rule never touches the
+     * IP location service itself. If the service was unavailable, the database is unknown, or a requested property is invalid, the
+     * node is left unresolved with a specific message, which the verifier turns into a failure.
      */
     private static class ResolveIpLocation extends ParameterizedAnalyzerRule<UnresolvedIpLocation, AnalyzerContext> {
 
         @Override
         protected LogicalPlan rule(UnresolvedIpLocation plan, AnalyzerContext context) {
-            IpLocationService ipLocationService = context.ipLocationService();
-            if (ipLocationService == null) {
+            IpLocationResolution ipLocationResolution = context.ipLocationResolution();
+            if (ipLocationResolution.serviceAvailable() == false) {
                 return plan.withUnresolvedMessage("IP_LOCATION command requires the IP location service to be available");
             }
-            IpDataLookupInfo info = ipLocationService.getIpDataLookupInfo(plan.databaseFile());
+            IpDataLookupInfo info = ipLocationResolution.databaseInfo(plan.databaseFile());
             if (info == null) {
                 return plan.withUnresolvedMessage(
                     Strings.format(

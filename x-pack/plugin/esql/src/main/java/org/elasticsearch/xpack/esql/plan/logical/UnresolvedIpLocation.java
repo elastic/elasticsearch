@@ -25,9 +25,9 @@ import java.util.Objects;
  * <p>
  * The output columns of {@code IP_LOCATION} depend on the IP database schema, which is only available through the
  * {@link org.elasticsearch.iplocation.api.IpLocationService}. To keep that service out of the parser, the parser emits this
- * unresolved node carrying only the syntax-level options; the {@code ResolveIpLocation} analyzer rule then reads the service
- * from the {@link org.elasticsearch.xpack.esql.analysis.AnalyzerContext} and rewrites it into a resolved
- * {@link IpLocation} node (or leaves it unresolved with a specific message, which the verifier reports).
+ * unresolved node carrying only the syntax-level options; the {@code ResolveIpLocation} analyzer rule then reads the
+ * pre-fetched database metadata from the {@link org.elasticsearch.xpack.esql.analysis.AnalyzerContext} and rewrites it into a
+ * resolved {@link IpLocation} node (or leaves it unresolved with a specific message, which the verifier reports).
  * <p>
  * This node is never serialized: it is always resolved (or fails verification) on the coordinator before the plan is mapped to a
  * physical plan. It is therefore intentionally not registered as a {@code NamedWriteable}.

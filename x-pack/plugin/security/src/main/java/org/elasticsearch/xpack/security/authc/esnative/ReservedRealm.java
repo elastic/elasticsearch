@@ -264,10 +264,14 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
                 listener.onResponse(users);
             }, (e) -> {
                 if (e instanceof UnavailableShardsException) {
-                    logger.warn(
-                        "failed to retrieve reserved users, the security index is not available, the cluster may still be starting up",
-                        e
-                    );
+                    if (nativeUsersStore.isInitialized()) {
+                        logger.error("failed to retrieve reserved users, the security index is not available", e);
+                    } else {
+                        logger.warn(
+                            "failed to retrieve reserved users, the security index is not available, the cluster may still be starting up",
+                            e
+                        );
+                    }
                 } else {
                     logger.error("failed to retrieve reserved users", e);
                 }
@@ -285,12 +289,20 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
             }
         }, (e) -> {
             if (e instanceof UnavailableShardsException) {
-                logger.warn(
-                    (Supplier<?>) () -> "failed to retrieve password hash for reserved user ["
-                        + username
-                        + "], the security index is not available, the cluster may still be starting up",
-                    e
-                );
+                if (nativeUsersStore.isInitialized()) {
+                    logger.error(
+                        (Supplier<?>) () -> "failed to retrieve password hash for reserved user [" + username + "]"
+                            + ", the security index is not available",
+                        e
+                    );
+                } else {
+                    logger.warn(
+                        (Supplier<?>) () -> "failed to retrieve password hash for reserved user ["
+                            + username
+                            + "], the security index is not available, the cluster may still be starting up",
+                        e
+                    );
+                }
             } else {
                 logger.error((Supplier<?>) () -> "failed to retrieve password hash for reserved user [" + username + "]", e);
             }

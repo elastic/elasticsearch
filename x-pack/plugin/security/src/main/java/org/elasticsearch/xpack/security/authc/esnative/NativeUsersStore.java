@@ -90,10 +90,26 @@ public class NativeUsersStore {
 
     private final SecurityIndexManager securityIndex;
 
+    /**
+     * Tracks whether we have ever successfully completed a security index operation.
+     * Before this flag is set, shard-not-available errors are logged at WARN level
+     * (expected during cluster startup). After the first successful operation, the same
+     * errors are logged at ERROR level since the cluster has been fully initialized.
+     */
+    private volatile boolean initialized = false;
+
     public NativeUsersStore(Settings settings, Client client, SecurityIndexManager securityIndex) {
         this.settings = settings;
         this.client = client;
         this.securityIndex = securityIndex;
+    }
+
+    /**
+     * Returns true if the security index has been successfully queried at least once,
+     * indicating that the cluster has completed initialization.
+     */
+    public boolean isInitialized() {
+        return initialized;
     }
 
     /**
@@ -245,6 +261,7 @@ public class NativeUsersStore {
                     new ActionListener<GetResponse>() {
                         @Override
                         public void onResponse(GetResponse response) {
+                            initialized = true;
                             logger.trace(
                                 "user [{}] is doc [{}] in index [{}] with primTerm [{}] and seqNo [{}]",
                                 user,
@@ -261,13 +278,22 @@ public class NativeUsersStore {
                             if (t instanceof IndexNotFoundException) {
                                 logger.trace(() -> "could not retrieve user [" + user + "] because security index does not exist", t);
                             } else if (TransportActions.isShardNotAvailableException(t)) {
-                                logger.warn(
-                                    () -> "failed to retrieve user ["
-                                        + user
-                                        + "] because the security index is not available, "
-                                        + "the cluster may still be starting up",
-                                    t
-                                );
+                                if (initialized) {
+                                    logger.error(
+                                        () -> "failed to retrieve user ["
+                                            + user
+                                            + "] because the security index is not available",
+                                        t
+                                    );
+                                } else {
+                                    logger.warn(
+                                        () -> "failed to retrieve user ["
+                                            + user
+                                            + "] because the security index is not available, "
+                                            + "the cluster may still be starting up",
+                                        t
+                                    );
+                                }
                             } else {
                                 logger.error(() -> "failed to retrieve user [" + user + "]", t);
                             }
@@ -658,6 +684,7 @@ public class NativeUsersStore {
                     new ActionListener<GetResponse>() {
                         @Override
                         public void onResponse(GetResponse getResponse) {
+                            initialized = true;
                             if (getResponse.isExists()) {
                                 Map<String, Object> sourceMap = getResponse.getSourceAsMap();
                                 String password = (String) sourceMap.get(Fields.PASSWORD.getPreferredName());
@@ -715,6 +742,7 @@ public class NativeUsersStore {
                     new ActionListener<SearchResponse>() {
                         @Override
                         public void onResponse(SearchResponse searchResponse) {
+                            initialized = true;
                             Map<String, ReservedUserInfo> userInfos = new HashMap<>();
                             assert searchResponse.getHits().getTotalHits().value() <= 10
                                 : "there are more than 10 reserved users we need to change this to retrieve them all!";
@@ -745,11 +773,15 @@ public class NativeUsersStore {
                                 logger.trace("could not retrieve built in users since security index does not exist", e);
                                 listener.onResponse(Collections.emptyMap());
                             } else if (TransportActions.isShardNotAvailableException(e)) {
-                                logger.warn(
-                                    "failed to retrieve built in users, "
-                                        + "the security index is not available, the cluster may still be starting up",
-                                    e
-                                );
+                                if (initialized) {
+                                    logger.error("failed to retrieve built in users, the security index is not available", e);
+                                } else {
+                                    logger.warn(
+                                        "failed to retrieve built in users, "
+                                            + "the security index is not available, the cluster may still be starting up",
+                                        e
+                                    );
+                                }
                                 listener.onFailure(e);
                             } else {
                                 logger.error("failed to retrieve built in users", e);

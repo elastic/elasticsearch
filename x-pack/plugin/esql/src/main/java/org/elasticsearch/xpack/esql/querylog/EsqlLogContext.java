@@ -17,7 +17,7 @@ import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlQueryProfile;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
-import org.elasticsearch.xpack.esql.action.PreparedEsqlQueryRequest;
+import org.elasticsearch.xpack.esql.action.PromqlQueryRequest;
 
 import java.util.Arrays;
 import java.util.List;
@@ -48,16 +48,13 @@ public class EsqlLogContext extends QueryLoggerContext {
     }
 
     private static String queryType(EsqlQueryRequest request) {
-        return request instanceof PreparedEsqlQueryRequest ? PROMQL_TYPE : TYPE;
+        return request instanceof PromqlQueryRequest ? PROMQL_TYPE : TYPE;
     }
 
     @Override
     public String getQuery() {
-        // Remove the prefix from prepared query
-        if (request instanceof PreparedEsqlQueryRequest) {
-            if (request.queryDescription().startsWith(PreparedEsqlQueryRequest.PREPARED_QUERY_PREFIX)) {
-                return request.queryDescription().substring(PreparedEsqlQueryRequest.PREPARED_QUERY_PREFIX.length());
-            }
+        if (request instanceof PromqlQueryRequest promqlQueryRequest) {
+            return promqlQueryRequest.originalQuery();
         }
         return request.queryDescription();
     }
@@ -117,6 +114,9 @@ public class EsqlLogContext extends QueryLoggerContext {
 
     @Override
     public String[] getIndices() {
+        if (request instanceof PromqlQueryRequest promqlQueryRequest) {
+            return new String[] { promqlQueryRequest.getIndex() };
+        }
         if (response == null) {
             return null;
         }

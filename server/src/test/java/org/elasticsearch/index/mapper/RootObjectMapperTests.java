@@ -986,9 +986,7 @@ public class RootObjectMapperTests extends MapperServiceTestCase {
                 b.startObject("attributes").field("enabled", false).endObject();
             }));
 
-            merge(mapperService, mapping(b -> {
-                b.startObject("resource").field("enabled", false).endObject();
-            }));
+            merge(mapperService, mapping(b -> { b.startObject("resource").field("enabled", false).endObject(); }));
 
             RootObjectMapper root = mapperService.documentMapper().mapping().getRoot();
             assertEquals(Boolean.FALSE, root.getPrefixProperties().get("attributes").enabled());

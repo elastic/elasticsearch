@@ -1114,7 +1114,7 @@ public class SubqueryWithRowCommandTests extends AbstractStatementParserTests {
         UnresolvedRelation mainRelation = as(unionAll.children().get(0), UnresolvedRelation.class);
         assertEquals(unquoteIndexPattern(mainQueryIndexPattern), mainRelation.indexPattern().indexPattern());
 
-        Subquery subquery =  as(unionAll.children().get(1), Subquery.class);
+        Subquery subquery = as(unionAll.children().get(1), Subquery.class);
         as(subquery.plan(), Row.class);
     }
 

@@ -1488,7 +1488,7 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
             }
         } else if (irArgumentNodes.size() == 1) {
             // new T[n], 1-D: size is runtime. Evaluate n, spill it, charge pad8(16 + elemSize*n), then allocate.
-            // A partial allocation such as new int[5][] also lands here with a reference component type (charges only the outer).
+            // Reference component types (e.g. new String[n]) use REFERENCE_SIZE per element via fieldSize.
             Class<?> componentType = expressionType.getComponentType();
             visit(irArgumentNodes.get(0), writeScope);
             Variable length = writeScope.defineInternalVariable(int.class, "arrayLength");

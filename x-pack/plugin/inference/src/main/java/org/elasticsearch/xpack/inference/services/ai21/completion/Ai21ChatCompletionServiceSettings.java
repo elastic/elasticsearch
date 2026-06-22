@@ -183,7 +183,7 @@ public class Ai21ChatCompletionServiceSettings extends FilteredXContentObject im
 
     /**
      * Parses an update request, which may only contain the mutable {@code rate_limit} field. Including any immutable field (such as
-     * {@code model_id} or {@code url}) causes the strict parser to reject the request.
+     * {@code model_id}) causes the strict parser to reject the request.
      */
     private static class Update {
 

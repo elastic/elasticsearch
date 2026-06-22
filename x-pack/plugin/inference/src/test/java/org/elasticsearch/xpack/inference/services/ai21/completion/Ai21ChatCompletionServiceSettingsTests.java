@@ -80,7 +80,7 @@ public class Ai21ChatCompletionServiceSettingsTests extends AbstractBWCSerializa
     public void testUpdateServiceSettings_GivenImmutableFields_ThrowsException() {
         var serviceSettings = new Ai21ChatCompletionServiceSettings(INITIAL_TEST_MODEL_ID, new RateLimitSettings(INITIAL_TEST_RATE_LIMIT));
 
-        for (String immutableField : List.of(ServiceFields.MODEL_ID, ServiceFields.URL)) {
+        for (String immutableField : List.of(ServiceFields.MODEL_ID)) {
             var e = expectThrows(
                 XContentParseException.class,
                 () -> serviceSettings.updateServiceSettings(new HashMap<>(Map.of(immutableField, "value")))

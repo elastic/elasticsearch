@@ -35,9 +35,11 @@ import java.util.Objects;
 import static org.elasticsearch.xpack.inference.common.parser.StringParser.validateStringIsNotNullOrEmpty;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredEnum;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredString;
+import static org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockConstants.ACCESS_KEY_FIELD;
 import static org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockConstants.MODEL_FIELD;
 import static org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockConstants.PROVIDER_FIELD;
 import static org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockConstants.REGION_FIELD;
+import static org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockConstants.SECRET_KEY_FIELD;
 
 public abstract class AmazonBedrockServiceSettings extends FilteredXContentObject implements ServiceSettings {
 
@@ -59,9 +61,10 @@ public abstract class AmazonBedrockServiceSettings extends FilteredXContentObjec
             (p, c) -> RateLimitSettings.createParser(c == ConfigurationParseContext.PERSISTENT, DEFAULT_RATE_LIMIT_SETTINGS).apply(p, null),
             new ParseField(RateLimitSettings.FIELD_NAME)
         );
-        // api_key appears in the same JSON block as service settings in REST requests; DefaultSecretSettings extracts it separately.
-        // Declare it here as a no-op so the strict REQUEST parser does not reject it as an unknown field.
-        parser.declareString((b, v) -> {}, new ParseField(DefaultSecretSettings.API_KEY));
+        // access_key/secret_key appear in the same JSON block as service settings in REST requests; DefaultSecretSettings extracts them
+        // separately. Declare it here as a no-op so the strict REQUEST parser does not reject it as an unknown field.
+        parser.declareString((b, v) -> {}, new ParseField(ACCESS_KEY_FIELD));
+        parser.declareString((b, v) -> {}, new ParseField(SECRET_KEY_FIELD));
     }
 
     protected final String region;

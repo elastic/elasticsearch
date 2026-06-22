@@ -12,8 +12,13 @@ package org.elasticsearch.gradle.internal
 import com.tngtech.archunit.core.domain.JavaClass
 import com.tngtech.archunit.core.domain.JavaClasses
 import com.tngtech.archunit.core.domain.JavaModifier
+import com.tngtech.archunit.lang.ArchCondition
 import com.tngtech.archunit.lang.ArchRule
+import com.tngtech.archunit.lang.ConditionEvents
+import com.tngtech.archunit.lang.SimpleConditionEvent
 import org.gradle.api.DefaultTask
+import org.gradle.api.Project
+import org.gradle.api.tasks.TaskContainer
 import spock.lang.Shared
 
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.classes
@@ -58,8 +63,40 @@ class TaskModellingArchUnitSpec extends AbstractArchUnitSpec {
         "org.elasticsearch.gradle.internal.test.rest.CopyRestApiTask",
     ] as Set
 
+    /**
+     * Classes that still create untyped (plain {@code DefaultTask}) tasks via the no-type
+     * {@code register(String)} / {@code create(String)} / {@code Project.task(...)} overloads. New
+     * entries must not be added — register tasks with a dedicated typed task class instead.
+     * Existing entries should be removed as they are migrated (the staleness test enforces this).
+     */
+    private static final Set<String> KNOWN_UNTYPED_TASK_CREATORS = [
+        "org.elasticsearch.gradle.internal.EmbeddedProviderPlugin",
+        "org.elasticsearch.gradle.internal.InternalDistributionBwcSetupPlugin",
+        "org.elasticsearch.gradle.internal.precommit.CheckstylePrecommitPlugin",
+        "org.elasticsearch.gradle.internal.test.DistroTestPlugin",
+    ] as Set
+
     @Shared
     JavaClasses productionClasses = importProductionClasses()
+
+    def "build logic does not create untyped (DefaultTask) tasks"() {
+        given:
+        ArchRule rule = classes()
+            .that(notInBaseline(KNOWN_UNTYPED_TASK_CREATORS))
+            .should(notCreateUntypedTasks())
+            .because("untyped DefaultTask tasks have no managed inputs/outputs; register tasks with a dedicated typed task class")
+
+        expect:
+        rule.check(productionClasses)
+    }
+
+    def "the untyped-task-creators baseline contains no stale entries"() {
+        expect:
+        List<String> stale = staleBaselineEntries(KNOWN_UNTYPED_TASK_CREATORS, productionClasses) { JavaClass c ->
+            createsUntypedTask(c)
+        }
+        assert stale.isEmpty(), "Stale KNOWN_UNTYPED_TASK_CREATORS entries (migrated or removed) — delete them:\n  " + stale.join("\n  ")
+    }
 
     def "task types are abstract"() {
         given:
@@ -81,5 +118,45 @@ class TaskModellingArchUnitSpec extends AbstractArchUnitSpec {
             c.isAssignableTo(DefaultTask) && c.modifiers.contains(JavaModifier.ABSTRACT) == false
         }
         assert stale.isEmpty(), "Stale KNOWN_NON_ABSTRACT_TASKS entries (made abstract or removed) — delete them:\n  " + stale.join("\n  ")
+    }
+
+    private static ArchCondition<JavaClass> notCreateUntypedTasks() {
+        return new ArchCondition<JavaClass>("not create untyped (DefaultTask) tasks") {
+            @Override
+            void check(JavaClass item, ConditionEvents events) {
+                if (createsUntypedTask(item)) {
+                    events.add(SimpleConditionEvent.violated(item, "${item.fullName} creates an untyped DefaultTask"))
+                }
+            }
+        }
+    }
+
+    /**
+     * True if the class registers/creates a task without a task type: the no-type
+     * {@code register(String)} / {@code create(String)} / {@code create(Map)} overloads on a task
+     * container, or any {@code Project.task(...)} overload. These all yield a plain
+     * {@code DefaultTask}.
+     */
+    private static boolean createsUntypedTask(JavaClass clazz) {
+        return clazz.methodCallsFromSelf.any { call ->
+            def target = call.target
+            String name = target.name
+            List params = target.rawParameterTypes
+            boolean singleStringArg = params.size() == 1 && params[0].fullName == "java.lang.String"
+            if ((name == "register" || name == "create") && singleStringArg && isTaskContainer(target.owner)) {
+                return true
+            }
+            if (name == "create" && params.size() == 1 && params[0].isAssignableTo(Map) && isTaskContainer(target.owner)) {
+                return true
+            }
+            if (name == "task" && target.owner.isAssignableTo(Project)) {
+                return true
+            }
+            return false
+        }
+    }
+
+    private static boolean isTaskContainer(JavaClass owner) {
+        return owner.isAssignableTo(TaskContainer) || owner.fullName == TaskContainer.name
     }
 }

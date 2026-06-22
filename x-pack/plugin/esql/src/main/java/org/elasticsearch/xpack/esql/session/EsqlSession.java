@@ -14,7 +14,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesFailure;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.SubscribableListener;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.TriConsumer;
 import org.elasticsearch.common.collect.Iterators;
@@ -73,7 +72,6 @@ import org.elasticsearch.xpack.esql.core.querydsl.QueryDslTimestampBoundsExtract
 import org.elasticsearch.xpack.esql.core.querydsl.QueryDslTimestampBoundsExtractor.TimestampBounds;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.util.Holder;
-import org.elasticsearch.xpack.esql.datasources.DatasetRewriter;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolution;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolver;
 import org.elasticsearch.xpack.esql.datasources.PartitionFilterHintExtractor;
@@ -121,6 +119,7 @@ import org.elasticsearch.xpack.esql.planner.premapper.PreMapper;
 import org.elasticsearch.xpack.esql.plugin.ComputeService;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.plugin.TransportActionServices;
+import org.elasticsearch.xpack.esql.session.schema.SchemaService;
 import org.elasticsearch.xpack.esql.telemetry.FeatureMetric;
 import org.elasticsearch.xpack.esql.telemetry.Metrics;
 import org.elasticsearch.xpack.esql.telemetry.PlanTelemetry;
@@ -182,10 +181,9 @@ public class EsqlSession {
     private final String sessionId;
     private final TransportVersion localClusterMinimumVersion;
     private final AnalyzerSettings analyzerSettings;
-    private final IndexResolver indexResolver;
     private final EnrichPolicyResolver enrichPolicyResolver;
-    private final ViewResolver viewResolver;
     private final ExternalSourceResolver externalSourceResolver;
+    private final SchemaService schemaService;
 
     private final EsqlParser parser;
     private final PreAnalyzer preAnalyzer;
@@ -198,7 +196,6 @@ public class EsqlSession {
     private final Mapper mapper;
     private final PlanTelemetry planTelemetry;
     private final IndicesExpressionGrouper indicesExpressionGrouper;
-    private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final InferenceService inferenceService;
     private final RemoteClusterService remoteClusterService;
     private final BlockFactory blockFactory;
@@ -267,9 +264,7 @@ public class EsqlSession {
         this.sessionId = sessionId;
         this.localClusterMinimumVersion = localClusterMinimumVersion;
         this.analyzerSettings = analyzerSettings;
-        this.indexResolver = indexResolver;
         this.enrichPolicyResolver = enrichPolicyResolver;
-        this.viewResolver = viewResolver;
         this.externalSourceResolver = externalSourceResolver;
         this.parser = parser;
         this.preAnalyzer = preAnalyzer;
@@ -280,7 +275,6 @@ public class EsqlSession {
         this.mapper = mapper;
         this.planTelemetry = planTelemetry;
         this.indicesExpressionGrouper = indicesExpressionGrouper;
-        this.indexNameExpressionResolver = services.indexNameExpressionResolver();
         this.inferenceService = services.inferenceService();
         this.preMapper = new PreMapper(services);
         this.remoteClusterService = services.transportService().getRemoteClusterService();
@@ -291,6 +285,7 @@ public class EsqlSession {
         this.clusterUuid = resolveClusterUuid(services.clusterService());
         this.projectMetadata = projectMetadata;
         this.ipLocationService = services.ipLocationService();
+        this.schemaService = new SchemaService(indexResolver, viewResolver, externalSourceResolver, services.indexNameExpressionResolver());
     }
 
     public String sessionId() {
@@ -328,7 +323,7 @@ public class EsqlSession {
         // once resolution succeeds, because IN subqueries can be hidden inside view definitions and only become visible — and are
         // rewritten away into SemiJoin/AntiJoin/MarkJoin — during resolution. The WHERE counter is set by the analyzer/verifier plan
         // walk via FeatureMetric.WHERE matching SemiJoin/AntiJoin/MarkJoin too.
-        viewResolver.replaceViews(
+        schemaService.replaceViews(
             statement.plan(),
             projectRouting(request, statement),
             (query, viewName) -> parser.parseView(
@@ -1211,7 +1206,7 @@ public class EsqlSession {
         // expansion (wildcards, exclusions, date math, etc.) flows through the same
         // IndexNameExpressionResolver path indices use. The rewriter bails internally when there are
         // no datasets registered (the feature flag gates the CRUD layer that puts datasets there).
-        parsed = DatasetRewriter.rewrite(parsed, projectMetadata, indexNameExpressionResolver);
+        parsed = schemaService.rewriteDatasets(parsed, projectMetadata);
         datasetResolutionProfile.stop();
         TimeSpanMarker preAnalysisProfile = executionInfo.queryProfile().preAnalysis();
         preAnalysisProfile.start();
@@ -1386,7 +1381,7 @@ public class EsqlSession {
         // No need to update the minimum transport version in the PreAnalysisResult,
         // it should already have been determined during the main index resolution.
         executionInfo.queryProfile().incFieldCapsCalls();
-        indexResolver.resolveLookupIndices(
+        schemaService.resolveLookupIndices(
             EsqlCCSUtils.createQualifiedLookupIndexExpressionFromAvailableClusters(executionInfo, localPattern),
             result.wildcardJoinIndices().contains(localPattern) ? IndexResolver.ALL_FIELDS : result.fieldNames,
             // We use the minimum version determined in the main index resolution, because for remote LOOKUP JOIN, we're only considering
@@ -1418,7 +1413,7 @@ public class EsqlSession {
 
         var filterHints = PartitionFilterHintExtractor.extract(plan);
 
-        externalSourceResolver.resolve(
+        schemaService.resolveExternalSources(
             preAnalysis.icebergPaths(),
             pathConfigs,
             filterHints.isEmpty() ? null : filterHints,
@@ -1736,7 +1731,7 @@ public class EsqlSession {
             listener.onResponse(result.withIndices(indexPattern, IndexResolution.empty(indexPattern.indexPattern())));
         } else {
             executionInfo.queryProfile().incFieldCapsCalls();
-            indexResolver.resolveMainIndicesVersioned(
+            schemaService.resolveMainIndicesVersioned(
                 indexPattern.indexPattern(),
                 result.fieldNames,
                 createQueryFilter(indexMode, requestFilter),
@@ -1761,7 +1756,7 @@ public class EsqlSession {
                     EsqlCCSUtils.checkForViewErrors(indexResolution.inner().failures());
                     maybeRetryConcreteTimeSeriesResolution(indexPattern, indexMode, result, indexResolution, l, retryListener -> {
                         executionInfo.queryProfile().incFieldCapsCalls();
-                        indexResolver.resolveMainIndicesVersioned(
+                        schemaService.resolveMainIndicesVersioned(
                             indexPattern.indexPattern(),
                             result.fieldNames,
                             requestFilter,
@@ -1795,7 +1790,7 @@ public class EsqlSession {
         ActionListener<PreAnalysisResult> listener
     ) {
         executionInfo.queryProfile().incFieldCapsCalls();
-        indexResolver.resolveFlatIndicesVersioned(
+        schemaService.resolveFlatIndicesVersioned(
             linkedIndexPattern.kind() == LinkedIndexPattern.Kind.OPTIONAL,
             linkedIndexPattern.pattern().indexPattern(),
             projectRouting,
@@ -1830,7 +1825,7 @@ public class EsqlSession {
         ActionListener<PreAnalysisResult> listener
     ) {
         executionInfo.queryProfile().incFieldCapsCalls();
-        indexResolver.resolveFlatIndicesVersioned(
+        schemaService.resolveFlatIndicesVersioned(
             false /* lenient */,
             indexPattern.indexPattern(),
             projectRouting,
@@ -1851,7 +1846,7 @@ public class EsqlSession {
                 planTelemetry.linkedProjectsCount(executionInfo.clusterInfo.size());
                 maybeRetryConcreteTimeSeriesResolution(indexPattern, indexMode, result, indexResolution, l, retryListener -> {
                     executionInfo.queryProfile().incFieldCapsCalls();
-                    indexResolver.resolveFlatIndicesVersioned(
+                    schemaService.resolveFlatIndicesVersioned(
                         false /* lenient */,
                         indexPattern.indexPattern(),
                         projectRouting,

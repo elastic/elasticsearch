@@ -14,7 +14,7 @@ import org.elasticsearch.simdvec.internal.vectorization.Native22ESVectorUtilSupp
 
 final class Native22ESVectorizationProvider extends ESVectorizationProvider {
     @Override
-    ESVectorUtilSupport getVectorUtilSupport() {
+    public ESVectorUtilSupport getVectorUtilSupport() {
         return new Native22ESVectorUtilSupport();
     }
 

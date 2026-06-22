@@ -23,6 +23,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
@@ -51,6 +52,7 @@ public class MultiGetRequest extends LegacyActionRequest
     private static final ParseField TYPE = new ParseField("_type");
     private static final ParseField ID = new ParseField("_id");
     private static final ParseField ROUTING = new ParseField("routing");
+    private static final ParseField SLICE = new ParseField(SliceIndexing.PARAM_NAME);
     private static final ParseField VERSION = new ParseField("version");
     private static final ParseField VERSION_TYPE = new ParseField("version_type");
     private static final ParseField FIELDS = new ParseField("fields");
@@ -65,6 +67,10 @@ public class MultiGetRequest extends LegacyActionRequest
         private String index;
         private String id;
         private String routing;
+        // Whether this item's routing came from the _slice parameter. Like GetRequest, this is provenance used for
+        // coordinating-node validation only and is intentionally not serialized (the routing value itself is what the
+        // shard needs to build the slice-scoped identity term).
+        private boolean routingFromSlice;
         private String[] storedFields;
         private long version = Versions.MATCH_ANY;
         private VersionType versionType = VersionType.INTERNAL;
@@ -123,6 +129,16 @@ public class MultiGetRequest extends LegacyActionRequest
 
         public String routing() {
             return this.routing;
+        }
+
+        /** Mark whether this item's {@link #routing()} was supplied via the {@code _slice} parameter. */
+        public Item setRoutingFromSlice(boolean routingFromSlice) {
+            this.routingFromSlice = routingFromSlice;
+            return this;
+        }
+
+        public boolean isRoutingFromSlice() {
+            return this.routingFromSlice;
         }
 
         public Item storedFields(String... fields) {
@@ -355,6 +371,18 @@ public class MultiGetRequest extends LegacyActionRequest
         XContentParser parser,
         boolean allowExplicitIndex
     ) throws IOException {
+        return add(defaultIndex, defaultFields, defaultFetchSource, defaultRouting, false, parser, allowExplicitIndex);
+    }
+
+    public MultiGetRequest add(
+        @Nullable String defaultIndex,
+        @Nullable String[] defaultFields,
+        @Nullable FetchSourceContext defaultFetchSource,
+        @Nullable String defaultRouting,
+        boolean defaultRoutingFromSlice,
+        XContentParser parser,
+        boolean allowExplicitIndex
+    ) throws IOException {
         Token token;
         String currentFieldName = null;
         if ((token = parser.nextToken()) != Token.START_OBJECT) {
@@ -366,9 +394,18 @@ public class MultiGetRequest extends LegacyActionRequest
                 currentFieldName = parser.currentName();
             } else if (token == Token.START_ARRAY) {
                 if ("docs".equals(currentFieldName)) {
-                    parseDocuments(parser, this.items, defaultIndex, defaultFields, defaultFetchSource, defaultRouting, allowExplicitIndex);
+                    parseDocuments(
+                        parser,
+                        this.items,
+                        defaultIndex,
+                        defaultFields,
+                        defaultFetchSource,
+                        defaultRouting,
+                        defaultRoutingFromSlice,
+                        allowExplicitIndex
+                    );
                 } else if ("ids".equals(currentFieldName)) {
-                    parseIds(parser, this.items, defaultIndex, defaultFields, defaultFetchSource, defaultRouting);
+                    parseIds(parser, this.items, defaultIndex, defaultFields, defaultFetchSource, defaultRouting, defaultRoutingFromSlice);
                 } else {
                     final String message = String.format(
                         Locale.ROOT,
@@ -399,6 +436,7 @@ public class MultiGetRequest extends LegacyActionRequest
         @Nullable String[] defaultFields,
         @Nullable FetchSourceContext defaultFetchSource,
         @Nullable String defaultRouting,
+        boolean defaultRoutingFromSlice,
         boolean allowExplicitIndex
     ) throws IOException {
         String currentFieldName = null;
@@ -410,6 +448,8 @@ public class MultiGetRequest extends LegacyActionRequest
             String index = defaultIndex;
             String id = null;
             String routing = defaultRouting;
+            boolean routingFromSlice = defaultRoutingFromSlice;
+            String slice = null;
             List<String> storedFields = null;
             long version = Versions.MATCH_ANY;
             VersionType versionType = VersionType.INTERNAL;
@@ -429,6 +469,9 @@ public class MultiGetRequest extends LegacyActionRequest
                         id = parser.text();
                     } else if (ROUTING.match(currentFieldName, parser.getDeprecationHandler())) {
                         routing = parser.text();
+                        routingFromSlice = false;
+                    } else if (SLICE.match(currentFieldName, parser.getDeprecationHandler())) {
+                        slice = parser.text();
                     } else if (FIELDS.match(currentFieldName, parser.getDeprecationHandler())) {
                         throw new ParsingException(
                             parser.getTokenLocation(),
@@ -524,8 +567,17 @@ public class MultiGetRequest extends LegacyActionRequest
             } else {
                 aFields = defaultFields;
             }
+            if (slice != null) {
+                if (routingFromSlice == false && routing != null) {
+                    throw new IllegalArgumentException("[routing] is not allowed together with [" + SliceIndexing.PARAM_NAME + "]");
+                }
+                SliceIndexing.validateUserSliceValue(slice);
+                routing = slice;
+                routingFromSlice = true;
+            }
             items.add(
                 new Item(index, id).routing(routing)
+                    .setRoutingFromSlice(routingFromSlice)
                     .storedFields(aFields)
                     .version(version)
                     .versionType(versionType)
@@ -540,7 +592,8 @@ public class MultiGetRequest extends LegacyActionRequest
         @Nullable String defaultIndex,
         @Nullable String[] defaultFields,
         @Nullable FetchSourceContext defaultFetchSource,
-        @Nullable String defaultRouting
+        @Nullable String defaultRouting,
+        boolean defaultRoutingFromSlice
     ) throws IOException {
         Token token;
         while ((token = parser.nextToken()) != Token.END_ARRAY) {
@@ -551,6 +604,7 @@ public class MultiGetRequest extends LegacyActionRequest
                 new Item(defaultIndex, parser.text()).storedFields(defaultFields)
                     .fetchSourceContext(defaultFetchSource)
                     .routing(defaultRouting)
+                    .setRoutingFromSlice(defaultRoutingFromSlice)
             );
         }
     }

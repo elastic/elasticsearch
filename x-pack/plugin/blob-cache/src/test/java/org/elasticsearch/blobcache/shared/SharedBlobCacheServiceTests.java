@@ -77,6 +77,8 @@ import static org.elasticsearch.blobcache.BlobCacheMetrics.EvictionScanMode.Lowe
 import static org.elasticsearch.blobcache.BlobCacheMetrics.EvictionScanOutcome.Evicted;
 import static org.elasticsearch.blobcache.BlobCacheMetrics.EvictionScanOutcome.None;
 import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
+import static org.elasticsearch.telemetry.InstrumentType.DOUBLE_HISTOGRAM;
+import static org.elasticsearch.telemetry.InstrumentType.LONG_HISTOGRAM;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -1590,12 +1592,12 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             // the lowest-frequency list is empty, so the scan walks nothing and frees nothing
             assertThat(cacheService.maybeEvictLeastUsed(generateCacheKey(), regionSize, 0), is(false));
 
-            var none = evictionScanMeasurements(recording, BLOB_CACHE_EVICTION_SCANNED_ENTRIES, LowestFrequency, None);
+            var none = evictionScanMeasurements(recording, LONG_HISTOGRAM, BLOB_CACHE_EVICTION_SCANNED_ENTRIES, LowestFrequency, None);
             assertThat(none, hasSize(1));
             assertThat(none.get(0).getLong(), is(0L));
-            var noneTime = evictionScanMeasurements(recording, BLOB_CACHE_EVICTION_SCAN_TIME, LowestFrequency, None);
+            var noneTime = evictionScanMeasurements(recording, DOUBLE_HISTOGRAM, BLOB_CACHE_EVICTION_SCAN_TIME, LowestFrequency, None);
             assertThat(noneTime, hasSize(1));
-            assertThat(noneTime.get(0).getLong(), is(scanMicros));
+            assertThat(noneTime.get(0).getDouble(), is((double) scanMicros));
 
             // a decay moves every entry down to frequency 0, making them eligible for the lowest-frequency scan
             cacheService.maybeScheduleDecayAndNewEpoch();
@@ -1606,20 +1608,31 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 assertThat(cacheService.maybeEvictLeastUsed(generateCacheKey(), regionSize, 0), is(true));
             }
 
-            var evicted = evictionScanMeasurements(recording, BLOB_CACHE_EVICTION_SCANNED_ENTRIES, LowestFrequency, Evicted);
+            var evicted = evictionScanMeasurements(
+                recording,
+                LONG_HISTOGRAM,
+                BLOB_CACHE_EVICTION_SCANNED_ENTRIES,
+                LowestFrequency,
+                Evicted
+            );
             assertThat(evicted, hasSize(numRegions));
             for (Measurement measurement : evicted) {
                 assertThat(measurement.getLong(), is(1L));
             }
-            var evictedTime = evictionScanMeasurements(recording, BLOB_CACHE_EVICTION_SCAN_TIME, LowestFrequency, Evicted);
+            var evictedTime = evictionScanMeasurements(
+                recording,
+                DOUBLE_HISTOGRAM,
+                BLOB_CACHE_EVICTION_SCAN_TIME,
+                LowestFrequency,
+                Evicted
+            );
             assertThat(evictedTime, hasSize(numRegions));
             for (Measurement measurement : evictedTime) {
-                assertThat(measurement.getLong(), is(scanMicros));
+                assertThat(measurement.getDouble(), is((double) scanMicros));
             }
 
             // every eviction scan reached through this path is a lowest-frequency scan
-            for (Measurement measurement : recording.getRecorder()
-                .getMeasurements(InstrumentType.LONG_HISTOGRAM, BLOB_CACHE_EVICTION_SCANNED_ENTRIES)) {
+            for (Measurement measurement : recording.getRecorder().getMeasurements(LONG_HISTOGRAM, BLOB_CACHE_EVICTION_SCANNED_ENTRIES)) {
                 assertThat(measurement.attributes().get(BlobCacheMetrics.EVICTION_SCAN_MODE_ATTRIBUTE_KEY), is(LowestFrequency.name()));
             }
         }
@@ -1663,20 +1676,29 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             // get() of a new key has no free region: the scan walks frequency 0 (empty) then evicts the frequency-1 head
             cacheService.get(generateCacheKey(), regionSize, 0);
 
-            var evicted = evictionScanMeasurements(recordingEvicted, BLOB_CACHE_EVICTION_SCANNED_ENTRIES, AllFrequencies, Evicted);
+            var evicted = evictionScanMeasurements(
+                recordingEvicted,
+                LONG_HISTOGRAM,
+                BLOB_CACHE_EVICTION_SCANNED_ENTRIES,
+                AllFrequencies,
+                Evicted
+            );
             assertThat(evicted, hasSize(1));
             assertThat(evicted.get(0).getLong(), is(1L));
-            assertThat(evictionScanMeasurements(recordingEvicted, BLOB_CACHE_EVICTION_SCAN_TIME, AllFrequencies, Evicted), hasSize(1));
-            assertThat(evictionScanMeasurementsByMode(recordingEvicted, BLOB_CACHE_EVICTION_SCANNED_ENTRIES, LowestFrequency), empty());
-            assertThat(evictionScanMeasurementsByMode(recordingEvicted, BLOB_CACHE_EVICTION_SCAN_TIME, LowestFrequency), empty());
             assertThat(
-                recordingEvicted.getRecorder().getMeasurements(InstrumentType.LONG_HISTOGRAM, BLOB_CACHE_EVICTION_SCANNED_ENTRIES),
+                evictionScanMeasurements(recordingEvicted, DOUBLE_HISTOGRAM, BLOB_CACHE_EVICTION_SCAN_TIME, AllFrequencies, Evicted),
                 hasSize(1)
             );
             assertThat(
-                recordingEvicted.getRecorder().getMeasurements(InstrumentType.LONG_HISTOGRAM, BLOB_CACHE_EVICTION_SCAN_TIME),
-                hasSize(1)
+                evictionScanMeasurementsByMode(recordingEvicted, LONG_HISTOGRAM, BLOB_CACHE_EVICTION_SCANNED_ENTRIES, LowestFrequency),
+                empty()
             );
+            assertThat(
+                evictionScanMeasurementsByMode(recordingEvicted, DOUBLE_HISTOGRAM, BLOB_CACHE_EVICTION_SCAN_TIME, LowestFrequency),
+                empty()
+            );
+            assertThat(recordingEvicted.getRecorder().getMeasurements(LONG_HISTOGRAM, BLOB_CACHE_EVICTION_SCANNED_ENTRIES), hasSize(1));
+            assertThat(recordingEvicted.getRecorder().getMeasurements(DOUBLE_HISTOGRAM, BLOB_CACHE_EVICTION_SCAN_TIME), hasSize(1));
         }
 
         // scenario 2 (None): a policy that never evicts walks every cached entry across every frequency bucket and frees nothing
@@ -1712,32 +1734,36 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             // no entry is evictable: the scan walks every cached entry once across all frequency buckets and the allocation fails
             expectThrows(AlreadyClosedException.class, () -> cacheService.get(generateCacheKey(), regionSize, 0));
 
-            var none = evictionScanMeasurements(recordingNone, BLOB_CACHE_EVICTION_SCANNED_ENTRIES, AllFrequencies, None);
+            var none = evictionScanMeasurements(recordingNone, LONG_HISTOGRAM, BLOB_CACHE_EVICTION_SCANNED_ENTRIES, AllFrequencies, None);
             assertThat(none, hasSize(1));
             assertThat(none.get(0).getLong(), is((long) numRegions));
-            assertThat(evictionScanMeasurements(recordingNone, BLOB_CACHE_EVICTION_SCAN_TIME, AllFrequencies, None), hasSize(1));
-            assertThat(evictionScanMeasurementsByMode(recordingNone, BLOB_CACHE_EVICTION_SCANNED_ENTRIES, LowestFrequency), empty());
-            assertThat(evictionScanMeasurementsByMode(recordingNone, BLOB_CACHE_EVICTION_SCAN_TIME, LowestFrequency), empty());
             assertThat(
-                recordingNone.getRecorder().getMeasurements(InstrumentType.LONG_HISTOGRAM, BLOB_CACHE_EVICTION_SCANNED_ENTRIES),
+                evictionScanMeasurements(recordingNone, DOUBLE_HISTOGRAM, BLOB_CACHE_EVICTION_SCAN_TIME, AllFrequencies, None),
                 hasSize(1)
             );
             assertThat(
-                recordingNone.getRecorder().getMeasurements(InstrumentType.LONG_HISTOGRAM, BLOB_CACHE_EVICTION_SCAN_TIME),
-                hasSize(1)
+                evictionScanMeasurementsByMode(recordingNone, LONG_HISTOGRAM, BLOB_CACHE_EVICTION_SCANNED_ENTRIES, LowestFrequency),
+                empty()
             );
+            assertThat(
+                evictionScanMeasurementsByMode(recordingNone, DOUBLE_HISTOGRAM, BLOB_CACHE_EVICTION_SCAN_TIME, LowestFrequency),
+                empty()
+            );
+            assertThat(recordingNone.getRecorder().getMeasurements(LONG_HISTOGRAM, BLOB_CACHE_EVICTION_SCANNED_ENTRIES), hasSize(1));
+            assertThat(recordingNone.getRecorder().getMeasurements(DOUBLE_HISTOGRAM, BLOB_CACHE_EVICTION_SCAN_TIME), hasSize(1));
         }
     }
     // TODO(szybia): write test to exercise the EvictionScanOutcome::Free outcome
 
     private static List<Measurement> evictionScanMeasurements(
         RecordingMeterRegistry recording,
+        InstrumentType instrumentType,
         String histogramName,
         BlobCacheMetrics.EvictionScanMode mode,
         BlobCacheMetrics.EvictionScanOutcome outcome
     ) {
         return recording.getRecorder()
-            .getMeasurements(InstrumentType.LONG_HISTOGRAM, histogramName)
+            .getMeasurements(instrumentType, histogramName)
             .stream()
             .filter(m -> mode.name().equals(m.attributes().get(BlobCacheMetrics.EVICTION_SCAN_MODE_ATTRIBUTE_KEY)))
             .filter(m -> outcome.name().equals(m.attributes().get(BlobCacheMetrics.EVICTION_SCAN_OUTCOME_ATTRIBUTE_KEY)))
@@ -1746,11 +1772,12 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
 
     private static List<Measurement> evictionScanMeasurementsByMode(
         RecordingMeterRegistry recording,
+        InstrumentType instrumentType,
         String histogramName,
         BlobCacheMetrics.EvictionScanMode mode
     ) {
         return recording.getRecorder()
-            .getMeasurements(InstrumentType.LONG_HISTOGRAM, histogramName)
+            .getMeasurements(instrumentType, histogramName)
             .stream()
             .filter(m -> mode.name().equals(m.attributes().get(BlobCacheMetrics.EVICTION_SCAN_MODE_ATTRIBUTE_KEY)))
             .toList();

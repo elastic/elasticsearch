@@ -57,6 +57,7 @@ import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.index.analysis.TokenizerFactory;
 import org.elasticsearch.index.mapper.KeywordFieldMapper.KeywordFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType.Relation;
+import org.elasticsearch.lucene.queries.SlowCustomBinaryDocValuesPrefixQuery;
 import org.elasticsearch.lucene.queries.SlowCustomBinaryDocValuesTermQuery;
 import org.elasticsearch.lucene.queries.SlowCustomBinaryDocValuesWildcardQuery;
 import org.elasticsearch.script.ScriptCompiler;
@@ -220,6 +221,21 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
             "[range] queries on [text] or [keyword] fields cannot be executed when " + "'search.allow_expensive_queries' is set to false.",
             ee.getMessage()
         );
+    }
+
+    public void testPrefixQueryHighCardinality() {
+        KeywordFieldMapper.Builder builder = new KeywordFieldMapper.Builder("field", defaultIndexSettings());
+        builder.docValues(FieldMapper.DocValuesParameter.Values.Cardinality.HIGH);
+        MappedFieldType ft = new KeywordFieldType(
+            "field",
+            IndexType.docValuesOnly(),
+            TextSearchInfo.SIMPLE_MATCH_ONLY,
+            null,
+            builder,
+            true
+        );
+        assertEquals(new SlowCustomBinaryDocValuesPrefixQuery("field", "foo", false), ft.prefixQuery("foo", null, false, MOCK_CONTEXT));
+        assertEquals(new SlowCustomBinaryDocValuesPrefixQuery("field", "foo", true), ft.prefixQuery("foo", null, true, MOCK_CONTEXT));
     }
 
     public void testWildcardQueryHighCardinality() {

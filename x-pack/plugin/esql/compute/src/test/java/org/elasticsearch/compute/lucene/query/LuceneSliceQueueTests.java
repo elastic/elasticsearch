@@ -25,6 +25,7 @@ import org.apache.lucene.index.StoredFields;
 import org.apache.lucene.index.TermVectors;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.search.AcceptDocs;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.KnnCollector;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.util.Bits;
@@ -41,6 +42,7 @@ import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Queue;
@@ -359,6 +361,126 @@ public class LuceneSliceQueueTests extends ESTestCase {
             assertThat(slice.getLast().maxDoc(), equalTo(Integer.MAX_VALUE));
         }
         assertThat(slices, hasSize(sliceOffset));
+    }
+
+    public void testBalancedBinPackOneBigManySmall() {
+        // 1 big segment + 100 small segments, target = 2 slices.
+        // Worst-fit-decreasing should produce two roughly-equal slices: big alone vs all the smalls.
+        LeafReaderContext big = new MockLeafReader(10_000_000).getContext();
+        List<LeafReaderContext> all = new ArrayList<>();
+        all.add(big);
+        for (int i = 0; i < 100; i++) {
+            all.add(new MockLeafReader(100_000).getContext());
+        }
+        List<List<PartialLeafReaderContext>> slices = LuceneSliceQueue.PartitioningStrategy.balancedBinPack(all, Set.of(), 2);
+        assertThat(slices, hasSize(2));
+        // Each slice's leaf-doc-sum should be approximately 10M.
+        long sliceADocs = slices.get(0).stream().mapToLong(p -> p.leafReaderContext().reader().maxDoc()).sum();
+        long sliceBDocs = slices.get(1).stream().mapToLong(p -> p.leafReaderContext().reader().maxDoc()).sum();
+        assertThat(sliceADocs + sliceBDocs, equalTo(20_000_000L));
+        assertThat(Math.abs(sliceADocs - sliceBDocs), Matchers.lessThanOrEqualTo(100_000L));
+    }
+
+    public void testBalancedBinPackKeepsGuardedLeavesIsolated() {
+        LeafReaderContext guarded = new MockLeafReader(500_000).getContext();
+        LeafReaderContext a = new MockLeafReader(200_000).getContext();
+        LeafReaderContext b = new MockLeafReader(200_000).getContext();
+        List<List<PartialLeafReaderContext>> slices = LuceneSliceQueue.PartitioningStrategy.balancedBinPack(
+            List.of(guarded, a, b),
+            Set.of(guarded),
+            2
+        );
+        // guarded becomes its own slice; the remaining two get the full target parallelism (one bin
+        // each), so total slices can exceed the target — the guarded slice doesn't eat into the
+        // budget for the leaves that still need iterating.
+        assertThat(slices, hasSize(3));
+        assertThat(slices.get(0), hasSize(1));
+        assertThat(slices.get(0).getFirst().leafReaderContext(), equalTo(guarded));
+        assertThat(slices.get(1), hasSize(1));
+        assertThat(slices.get(2), hasSize(1));
+    }
+
+    /**
+     * Regression for the starvation bug: when guarded (shortcut, O(1)) leaves already meet or exceed
+     * the target slice count, the unguarded leaves — the ones that actually need iterating — must
+     * still get their own full target-sized parallelism, not be crammed onto a single serialized
+     * slice. The guarded slices are independent O(1) work and must not subtract from that budget.
+     */
+    public void testBalancedBinPackDoesNotStarveUnguardedLeaves() {
+        List<LeafReaderContext> guarded = new ArrayList<>();
+        for (int i = 0; i < 5; i++) {
+            guarded.add(new MockLeafReader(100_000).getContext());
+        }
+        LeafReaderContext a = new MockLeafReader(200_000).getContext();
+        LeafReaderContext b = new MockLeafReader(200_000).getContext();
+        List<LeafReaderContext> all = new ArrayList<>(guarded);
+        all.add(a);
+        all.add(b);
+        int target = 2;
+        List<List<PartialLeafReaderContext>> slices = LuceneSliceQueue.PartitioningStrategy.balancedBinPack(
+            all,
+            new HashSet<>(guarded),
+            target
+        );
+        // 5 guarded single-leaf slices + the 2 unguarded leaves spread across min(target, 2) = 2 bins.
+        assertThat(slices, hasSize(7));
+        long unguardedSlices = slices.stream()
+            .filter(s -> s.stream().anyMatch(p -> p.leafReaderContext() == a || p.leafReaderContext() == b))
+            .count();
+        assertThat("unguarded leaves must each get their own slice, not be serialized", unguardedSlices, equalTo(2L));
+    }
+
+    public void testDocPartitioningKeepWhole() {
+        LeafReaderContext small = new MockLeafReader(400).getContext();
+        LeafReaderContext mediumGuarded = new MockLeafReader(800_000).getContext();
+        LeafReaderContext largeSplit = new MockLeafReader(1_400_990).getContext();
+        var adaptivePartitioner = new LuceneSliceQueue.AdaptivePartitioner(250_000, 5);
+        List<List<PartialLeafReaderContext>> slices = adaptivePartitioner.partition(
+            List.of(small, mediumGuarded, largeSplit),
+            Set.of(mediumGuarded)
+        );
+        // The guarded leaf is emitted as a single full-leaf slice before any large-segment slices.
+        assertThat(slices.get(0), hasSize(1));
+        assertThat(slices.get(0).getFirst().leafReaderContext(), equalTo(mediumGuarded));
+        assertThat(slices.get(0).getFirst().minDoc(), equalTo(0));
+        // Full-leaf bound (not Integer.MAX_VALUE) — matches the convention used by SHARD.
+        assertThat(slices.get(0).getFirst().maxDoc(), equalTo(mediumGuarded.reader().maxDoc()));
+        // Large unguarded leaf gets split into multiple sub-segment slices.
+        long largeSplitSliceCount = slices.stream().filter(s -> s.size() == 1 && s.getFirst().leafReaderContext() == largeSplit).count();
+        assertThat(largeSplitSliceCount, greaterThan(1L));
+        // Small leaf is grouped via IndexSearcher.slices (its own one-slice group).
+        long smallSliceCount = slices.stream().filter(s -> s.stream().anyMatch(p -> p.leafReaderContext() == small)).count();
+        assertThat(smallSliceCount, equalTo(1L));
+    }
+
+    /**
+     * The {@code min_docs_per_slice} override (surfaced as the {@code min_docs_per_slice} query pragma) lets a small
+     * index actually exercise DOC partitioning: with the default {@link LuceneSliceQueue#MIN_DOCS_PER_SLICE} floor a
+     * one-segment index below the floor collapses to a single slice (no parallelism), but lowering the floor splits the
+     * segment into multiple slices. This is what makes DOC/SEGMENT parallelism testable without indexing tens of
+     * thousands of documents.
+     */
+    public void testDocPartitioningHonorsMinDocsPerSliceOverride() throws IOException {
+        IndexSearcher searcher = new IndexSearcher(new MultiReader(new MockLeafReader(1_000)));
+        int taskConcurrency = 4;
+        // Default floor (50k) ≫ the 1_000-doc segment: one slice, no parallelism.
+        var defaultSlices = LuceneSliceQueue.PartitioningStrategy.DOC.groups(
+            searcher,
+            taskConcurrency,
+            null,
+            LuceneSliceQueue.LeafSplitGuard.NEVER,
+            LuceneSliceQueue.MIN_DOCS_PER_SLICE
+        );
+        assertThat(defaultSlices, hasSize(1));
+        // Lowered floor: the segment splits so several drivers can share the scan.
+        var overriddenSlices = LuceneSliceQueue.PartitioningStrategy.DOC.groups(
+            searcher,
+            taskConcurrency,
+            null,
+            LuceneSliceQueue.LeafSplitGuard.NEVER,
+            100
+        );
+        assertThat(overriddenSlices.size(), greaterThan(1));
     }
 
     public void testCreateSlice() throws IOException {

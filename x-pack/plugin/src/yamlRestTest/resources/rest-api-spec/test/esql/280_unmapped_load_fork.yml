@@ -6,7 +6,7 @@ setup:
         - method: POST
           path: /_query
           parameters: [ ]
-          capabilities: [ optional_fields_v5, optional_fields_fix_unmapped_load_multi_index_pattern, optional_fields_load_with_fork ]
+          capabilities: [ optional_fields_v5, optional_fields_fix_unmapped_load_multi_index_pattern, optional_fields_load_with_fork_subqueries_and_views ]
       reason: 'requires SET unmapped_fields="load" support for FORK across single and multiple index patterns'
   #
   # The table below represents the field mappings for the three indices created in this test.

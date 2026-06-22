@@ -1,0 +1,7 @@
+SET unmapped_fields="nullify"; FROM employees
+| EVAL language_code = languages
+| FORK (LOOKUP JOIN languages_lookup ON language_code)
+       (WHERE does_not_exist::KEYWORD == "x")
+       (STATS c = COUNT(*) BY emp_no)
+| KEEP _fork, emp_no, language_name, does_not_exist, c
+| SORT _fork, emp_no

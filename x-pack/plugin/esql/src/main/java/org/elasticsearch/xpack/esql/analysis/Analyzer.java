@@ -1459,10 +1459,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
          * Whether an unmapped keyword field loaded from {@code _source} at a FORK branch's source relation would surface in the
          * branch output, used by {@link #resolveFork} to decide between loading and null-filling a missing column under
          * {@code unmapped_fields="load"}. Walks from the branch root to its leaf following column-preserving unary plans; returns
-         * {@code true} only when the leaf is a loadable {@link EsRelation} (non-LOOKUP). A {@link Project} (KEEP or a prior
-         * alignment projection) or an {@link Aggregate} (STATS drops non-grouped fields) would hide the loaded field, and a
-         * non-loadable source (ROW / local relation) cannot load it, so all of these return {@code false} and the caller
-         * null-fills the column instead.
+         * {@code true} only when the leaf is a loadable {@link EsRelation} (non-LOOKUP).
          */
         private static boolean branchCanSurfaceLoadedField(LogicalPlan branch) {
             LogicalPlan plan = branch;
@@ -1473,7 +1470,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 if (plan instanceof Project || plan instanceof Aggregate) {
                     return false;
                 }
-                if (plan instanceof UnaryPlan unaryPlan) {
+                if (plan instanceof Join join && join.config().type() == JoinTypes.LEFT) {
+                    plan = join.left();
+                } else if (plan instanceof UnaryPlan unaryPlan) {
                     plan = unaryPlan.child();
                 } else {
                     return false;

@@ -6,7 +6,7 @@ setup:
         - method: POST
           path: /_query
           parameters: [ ]
-          capabilities: [ optional_fields_load_with_subqueries_and_views, views_with_branching ]
+          capabilities: [ optional_fields_load_with_fork_subqueries_and_views, views_with_branching ]
       reason: 'requires SET unmapped_fields="load" support for subqueries and views'
   #
   # Both indices map id and color but leave note unmapped (dynamic: false); note is present in _source. Under

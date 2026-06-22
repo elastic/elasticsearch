@@ -700,7 +700,7 @@ FROM partial_mapping_sample_data
 // has to be loaded from _source ("43"). unmapped_event_duration is referenced only after the FORK, proving
 // it is loaded in both branches too.
 loadUnmappedFieldAcrossForkBranches
-required_capability: optional_fields_load_with_fork
+required_capability: optional_fields_load_with_fork_subqueries_and_views
 required_capability: fork_v9
 
 SET unmapped_fields="load"\;
@@ -720,7 +720,7 @@ fork2         | 42                | 43                       | 1232383
 
 // A field absent from all mappings and _source is null in the merged FORK output for every branch.
 loadAbsentFieldAcrossForkBranches
-required_capability: optional_fields_load_with_fork
+required_capability: optional_fields_load_with_fork_subqueries_and_views
 required_capability: fork_v9
 
 SET unmapped_fields="load"\;
@@ -736,6 +736,50 @@ fork1         | 42                     | null
 fork2         | Connected to 10.1.0.1! | null
 ;
 
+// A FORK branch topped by a LOOKUP JOIN must still surface the cross-branch loaded unmapped field: a LEFT join
+// preserves its left-hand (primary) columns, so unmapped_message loaded from the primary's _source flows through
+// the join. unmapped_message is only referenced in branch 2's WHERE; branch 1 (the LOOKUP JOIN) never references it
+// yet still loads it from _source ("43") rather than null-filling it. message_type comes from the lookup index, so it
+// is null in branch 2 which has no join. See https://github.com/elastic/elasticsearch/issues/142033.
+loadUnmappedFieldAcrossForkBranchWithLookupJoin
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+required_capability: join_lookup_v12
+required_capability: fork_v9
+
+SET unmapped_fields="load"\;
+FROM partial_mapping_sample_data
+| FORK (WHERE message == "42" | LOOKUP JOIN partial_message_types_lookup ON message)
+       (WHERE unmapped_message == "Disconnected from 10.1.0.1")
+| KEEP _fork, message, message_type, unmapped_message
+| SORT _fork
+;
+
+_fork:keyword | message:keyword        | message_type:keyword | unmapped_message:keyword
+fork1         | 42                     | numeric              | 43
+fork2         | Connected to 10.1.0.1! | null                 | Disconnected from 10.1.0.1
+;
+
+// Same as above but the FORK branch uses an expression-based LOOKUP JOIN (no row matches, so message_type is null), proving the
+// cross-branch loaded unmapped_message still surfaces through an expression join. unmapped_message is referenced only in branch 2.
+loadUnmappedFieldAcrossForkBranchWithExpressionLookupJoin
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+required_capability: lookup_join_on_boolean_expression
+required_capability: join_lookup_v12
+required_capability: fork_v9
+
+SET unmapped_fields="load"\;
+FROM partial_mapping_sample_data
+| FORK (WHERE event_duration == 1232381 | LOOKUP JOIN partial_message_types_lookup ON unmapped_event_duration > message_type)
+       (WHERE unmapped_message == "Disconnected from 10.1.0.1")
+| KEEP _fork, message_type, unmapped_message
+| SORT _fork
+;
+
+_fork:keyword | message_type:keyword | unmapped_message:keyword
+fork1         | null                 | 43
+fork2         | null                 | Disconnected from 10.1.0.1
+;
+
 ##############################
 # LOAD mode + subqueries/views #
 ##############################
@@ -744,7 +788,7 @@ fork2         | Connected to 10.1.0.1! | null
 // (Decision A in #142033). Both branches read the same physical index, but unmapped_message is referenced only in the first branch:
 // it is loaded there ("43"), while the sibling branch null-fills it even though the value exists in that branch's _source.
 loadUnmappedFieldInOneSubqueryBranch
-required_capability: optional_fields_load_with_subqueries_and_views
+required_capability: optional_fields_load_with_fork_subqueries_and_views
 required_capability: subquery_in_from_command
 
 SET unmapped_fields="load"\;
@@ -763,7 +807,7 @@ FROM (FROM partial_mapping_sample_data | WHERE message == "42" | KEEP @timestamp
 // everywhere for union-type consistency (Decision B in #142033), even though it exists in each branch's _source. The branches do not
 // project their output, so the null-filled column flows up to the union for the outer reference to resolve against.
 loadUnmappedFieldReferencedOnlyAboveSubqueries
-required_capability: optional_fields_load_with_subqueries_and_views
+required_capability: optional_fields_load_with_fork_subqueries_and_views
 required_capability: subquery_in_from_command
 
 SET unmapped_fields="load"\;

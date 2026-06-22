@@ -406,6 +406,34 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
             """);
     }
 
+    // does_not_exist is referenced only in the WHERE branch, but the LOOKUP JOIN branch must still surface it: a LEFT join preserves
+    // its left-hand columns, so under load it is loaded into the join branch's own (left) source and flows through the join rather than
+    // being null-filled (#142033). Without the fix the join branch null-fills it while the sibling branch loads the real value.
+    public void testForkLoadsUnmappedFieldAcrossLookupJoinBranch() throws Exception {
+        runTests("""
+            FROM employees
+            | EVAL language_code = languages
+            | FORK (LOOKUP JOIN languages_lookup ON language_code)
+                   (WHERE does_not_exist::KEYWORD == "x")
+            | KEEP _fork, emp_no, language_name, does_not_exist
+            | SORT _fork, emp_no
+            """);
+    }
+
+    // The LOOKUP JOIN branch loads does_not_exist across (into its left source), the WHERE branch loads it directly, and the STATS branch
+    // null-fills it because an aggregation drops non-grouped fields - exercising load-through-join, load-direct and null-fill in one FORK.
+    public void testForkLoadsUnmappedFieldAcrossLookupJoinAndStatsBranches() throws Exception {
+        runTests("""
+            FROM employees
+            | EVAL language_code = languages
+            | FORK (LOOKUP JOIN languages_lookup ON language_code)
+                   (WHERE does_not_exist::KEYWORD == "x")
+                   (STATS c = COUNT(*) BY emp_no)
+            | KEEP _fork, emp_no, language_name, does_not_exist, c
+            | SORT _fork, emp_no
+            """);
+    }
+
     public void testForkWithEval() throws Exception {
         runTests("""
             FROM employees

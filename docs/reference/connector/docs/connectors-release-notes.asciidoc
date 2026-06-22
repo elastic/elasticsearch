@@ -10,6 +10,21 @@ Prior to version *8.16.0*, the connector release notes were published as part of
 ====
 
 [discrete]
+[[es-connectors-release-notes-8-19-17]]
+=== 8.19.17
+
+[discrete]
+[[es-connectors-release-notes-8-19-17-bug-fixes]]
+===== Bug fixes
+
+* The Jira connector now falls back to the deprecated `rest/api/2/search` endpoint for Jira Server and Data Center deployments, fixing syncs against versions older than v10 that do not support the newer `rest/api/3/search/jql` endpoint.
+See: https://github.com/elastic/connectors/pull/4059[*PR 4059*], https://github.com/elastic/connectors/issues/4058[*Issue 4058*]
+* Fixed an Outlook connector crash on localized (non-English) Exchange servers by resolving the contacts and archive folders through locale-agnostic distinguished folder IDs instead of English display names.
+See: https://github.com/elastic/connectors/pull/4065[*PR 4065*], https://github.com/elastic/connectors/issues/4064[*Issue 4064*]
+* Fixed an Outlook connector crash on on-premises Exchange when Active Directory contained users without a mail attribute; those users are now skipped with a warning instead of aborting the sync.
+See: https://github.com/elastic/connectors/pull/4078[*PR 4078*]
+
+[discrete]
 [[es-connectors-release-notes-8-19-16]]
 === 8.19.16
 

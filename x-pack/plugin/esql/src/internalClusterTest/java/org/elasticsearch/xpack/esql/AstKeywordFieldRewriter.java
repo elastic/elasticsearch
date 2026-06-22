@@ -820,9 +820,9 @@ public final class AstKeywordFieldRewriter {
             boolean isFunction = expression instanceof org.elasticsearch.xpack.esql.core.expression.function.Function;
             String nextParentFunction = parentFunction;
             if (isFunction) {
-                nextParentFunction = ((org.elasticsearch.xpack.esql.core.expression.function.Function) expression).functionName().toUpperCase(Locale.ROOT);
+                nextParentFunction = ((org.elasticsearch.xpack.esql.core.expression.function.Function) expression).functionName()
+                    .toUpperCase(Locale.ROOT);
             }
-
 
             int i = 0;
             for (Expression child : expression.children()) {

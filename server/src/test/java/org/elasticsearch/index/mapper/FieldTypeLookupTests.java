@@ -621,10 +621,10 @@ public class FieldTypeLookupTests extends ESTestCase {
         assertNull(lookup.get("status"));
     }
 
-    // --- prefix_properties.passthrough-based alias resolution (strict columnar mode path) ---
+    // --- prefix_properties-based alias resolution (strict columnar mode path) ---
 
     /**
-     * When {@code passthroughByPrefix} is populated (strict columnar mode), flat fields whose names
+     * When {@code prefixProperties} is populated (strict columnar mode), flat fields whose names
      * start with a passthrough prefix get short-name root aliases so queries can omit the prefix.
      */
     public void testPrefixBasedAliasForPassthroughByPrefix() {
@@ -636,7 +636,7 @@ public class FieldTypeLookupTests extends ESTestCase {
             List.of(),
             List.of(),
             List.of(),
-            Map.of("attributes", 1)
+            Map.of("attributes", new PrefixProperties(null, 1))
         );
 
         assertSame(envField.fieldType(), lookup.get("env"));
@@ -653,7 +653,13 @@ public class FieldTypeLookupTests extends ESTestCase {
     public void testPrefixBasedAliasMultiSegmentPrefix() {
         MockFieldMapper deepField = new MockFieldMapper("path.to.my.field");
 
-        FieldTypeLookup lookup = new FieldTypeLookup(List.of(deepField), List.of(), List.of(), List.of(), Map.of("path.to", 0));
+        FieldTypeLookup lookup = new FieldTypeLookup(
+            List.of(deepField),
+            List.of(),
+            List.of(),
+            List.of(),
+            Map.of("path.to", new PrefixProperties(null, 0))
+        );
 
         // alias is everything after "path.to." — "my.field", not just "field"
         assertSame(deepField.fieldType(), lookup.get("my.field"));
@@ -672,7 +678,7 @@ public class FieldTypeLookupTests extends ESTestCase {
             List.of(),
             List.of(),
             List.of(),
-            Map.of("attributes", 1, "resource", 2)
+            Map.of("attributes", new PrefixProperties(null, 1), "resource", new PrefixProperties(null, 2))
         );
 
         // resource has priority 2 > 1, so resource.env wins for alias "env"
@@ -680,14 +686,14 @@ public class FieldTypeLookupTests extends ESTestCase {
     }
 
     /**
-     * When no {@code passthroughByPrefix} is provided (empty map), no prefix-based aliases are created.
+     * When no {@code prefixProperties} is provided (empty map), no prefix-based aliases are created.
      */
     public void testNoPrefixBasedAliasWhenPassthroughByPrefixEmpty() {
         MockFieldMapper envField = new MockFieldMapper("attributes.env");
 
         FieldTypeLookup lookup = new FieldTypeLookup(List.of(envField), List.of(), List.of(), List.of(), Map.of());
 
-        assertNull("empty passthroughByPrefix must not create aliases", lookup.get("env"));
+        assertNull("empty prefixProperties must not create aliases", lookup.get("env"));
     }
 
     /**
@@ -702,7 +708,7 @@ public class FieldTypeLookupTests extends ESTestCase {
             List.of(),
             List.of(),
             List.of(),
-            Map.of("attributes", 1)
+            Map.of("attributes", new PrefixProperties(null, 1))
         );
 
         assertSame(rootEnv.fieldType(), lookup.get("env"));

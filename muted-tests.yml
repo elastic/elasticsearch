@@ -593,9 +593,6 @@ tests:
 - class: org.elasticsearch.index.store.BytesReadHeaderIT
   method: testMultiSearchSetsBytesReadHeader
   issue: https://github.com/elastic/elasticsearch/issues/151595
-- class: org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingServiceIT
-  method: testCacheIsWarmedOnUnhollowing
-  issue: https://github.com/elastic/elasticsearch/issues/151600
 - class: org.elasticsearch.datastreams.lifecycle.ExplainDataStreamLifecycleIT
   method: testExplainFailuresLifecycle
   issue: https://github.com/elastic/elasticsearch/issues/151602

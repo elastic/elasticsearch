@@ -169,7 +169,7 @@ setup:
   - do:
       esql.query:
         body:
-          query: 'PROMQL index=promql-downsample-1h step=1h start="2024-05-10T00:00:00Z" end="2024-05-10T01:00:00Z" rx=(max_over_time(network.eth0.rx[1h]))'
+          query: 'PROMQL index=promql-downsample-1h step=1h start="2024-05-10T00:13:42Z" end="2024-05-10T01:13:42Z" rx=(max_over_time(network.eth0.rx[1h]))'
 
   - match: {columns.0.name: "rx"}
   - match: {columns.0.type: "double"}
@@ -177,16 +177,16 @@ setup:
   - match: {columns.1.type: "date"}
   - length: {values: 2}
   - match: {values.0.0: 60.0}
-  - match: {values.0.1: "2024-05-10T00:00:00.000Z"}
+  - match: {values.0.1: "2024-05-10T00:13:42.000Z"}
   - match: {values.1.0: 120.0}
-  - match: {values.1.1: "2024-05-10T01:00:00.000Z"}
+  - match: {values.1.1: "2024-05-10T01:13:42.000Z"}
 
 ---
 "PromQL min_over_time over 30m downsample target":
   - do:
       esql.query:
         body:
-          query: 'PROMQL index=promql-downsample-30m step=30m start="2024-05-10T00:00:00Z" end="2024-05-10T01:30:00Z" rx=(min_over_time(network.eth0.rx[30m]))'
+          query: 'PROMQL index=promql-downsample-30m step=30m start="2024-05-10T00:13:42Z" end="2024-05-10T01:43:42Z" rx=(min_over_time(network.eth0.rx[30m]))'
 
   - match: {columns.0.name: "rx"}
   - match: {columns.0.type: "double"}
@@ -194,13 +194,13 @@ setup:
   - match: {columns.1.type: "date"}
   - length: {values: 4}
   - match: {values.0.0: 10.0}
-  - match: {values.0.1: "2024-05-10T00:00:00.000Z"}
+  - match: {values.0.1: "2024-05-10T00:13:42.000Z"}
   - match: {values.1.0: 40.0}
-  - match: {values.1.1: "2024-05-10T00:30:00.000Z"}
+  - match: {values.1.1: "2024-05-10T00:43:42.000Z"}
   - match: {values.2.0: 70.0}
-  - match: {values.2.1: "2024-05-10T01:00:00.000Z"}
+  - match: {values.2.1: "2024-05-10T01:13:42.000Z"}
   - match: {values.3.0: 100.0}
-  - match: {values.3.1: "2024-05-10T01:30:00.000Z"}
+  - match: {values.3.1: "2024-05-10T01:43:42.000Z"}
 
 ---
 "PromQL avg_over_time over 1h downsample target":
@@ -276,28 +276,28 @@ setup:
   - do:
       esql.query:
         body:
-          query: 'PROMQL index=promql-downsample-5m-last-value step=30m start="2024-05-10T00:00:00Z" end="2024-05-10T01:30:00Z" rx=(last_over_time(network.eth0.rx[30m]))'
+          query: 'PROMQL index=promql-downsample-5m-last-value step=30m start="2024-05-10T00:13:42Z" end="2024-05-10T01:43:42Z" rx=(last_over_time(network.eth0.rx[30m]))'
 
   - match: {columns.0.name: "rx"}
   - match: {columns.0.type: "double"}
   - match: {columns.1.name: "step"}
   - match: {columns.1.type: "date"}
   - length: {values: 4}
-  - match: {values.0.0: 10.0}
-  - match: {values.0.1: "2024-05-10T00:00:00.000Z"}
-  - match: {values.1.0: 40.0}
-  - match: {values.1.1: "2024-05-10T00:30:00.000Z"}
-  - match: {values.2.0: 70.0}
-  - match: {values.2.1: "2024-05-10T01:00:00.000Z"}
-  - match: {values.3.0: 100.0}
-  - match: {values.3.1: "2024-05-10T01:30:00.000Z"}
+  - match: {values.0.0: 20.0}
+  - match: {values.0.1: "2024-05-10T00:13:42.000Z"}
+  - match: {values.1.0: 50.0}
+  - match: {values.1.1: "2024-05-10T00:43:42.000Z"}
+  - match: {values.2.0: 80.0}
+  - match: {values.2.1: "2024-05-10T01:13:42.000Z"}
+  - match: {values.3.0: 110.0}
+  - match: {values.3.1: "2024-05-10T01:43:42.000Z"}
 
 ---
 "PromQL max_over_time over mixed downsampled and raw indices":
   - do:
       esql.query:
         body:
-          query: 'PROMQL index=promql-downsample-30m,promql-source step=30m start="2024-05-10T00:00:00Z" end="2024-05-10T02:30:00Z" rx=(max_over_time(network.eth0.rx[30m]))'
+          query: 'PROMQL index=promql-downsample-30m,promql-source step=30m start="2024-05-10T00:13:42Z" end="2024-05-10T02:43:42Z" rx=(max_over_time(network.eth0.rx[30m]))'
 
   - match: {columns.0.name: "rx"}
   - match: {columns.0.type: "double"}
@@ -305,17 +305,17 @@ setup:
   - match: {columns.1.type: "date"}
   - length: {values: 6}
   - match: {values.0.0: 30.0}
-  - match: {values.0.1: "2024-05-10T00:00:00.000Z"}
+  - match: {values.0.1: "2024-05-10T00:13:42.000Z"}
   - match: {values.1.0: 60.0}
-  - match: {values.1.1: "2024-05-10T00:30:00.000Z"}
+  - match: {values.1.1: "2024-05-10T00:43:42.000Z"}
   - match: {values.2.0: 90.0}
-  - match: {values.2.1: "2024-05-10T01:00:00.000Z"}
+  - match: {values.2.1: "2024-05-10T01:13:42.000Z"}
   - match: {values.3.0: 120.0}
-  - match: {values.3.1: "2024-05-10T01:30:00.000Z"}
-  - match: {values.4.0: 150.0}
-  - match: {values.4.1: "2024-05-10T02:00:00.000Z"}
-  - match: {values.5.0: 180.0}
-  - match: {values.5.1: "2024-05-10T02:30:00.000Z"}
+  - match: {values.3.1: "2024-05-10T01:43:42.000Z"}
+  - match: {values.4.0: 140.0}
+  - match: {values.4.1: "2024-05-10T02:13:42.000Z"}
+  - match: {values.5.0: 170.0}
+  - match: {values.5.1: "2024-05-10T02:43:42.000Z"}
 
 ---
 "PromQL increase over mixed downsampled and raw counter":

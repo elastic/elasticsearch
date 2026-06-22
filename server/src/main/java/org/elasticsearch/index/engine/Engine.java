@@ -348,6 +348,9 @@ public abstract class Engine implements Closeable {
     }
 
     private static long getBKDReaderBytes(FieldInfo fieldInfo) {
+        // On construction, the BKDReader constructs two byte arrays each of size packedIndexBytesLength. We add that to
+        // the base shallow size of the BKDReader and BKDConfig to get an estimate of the total memory used by the BKDReader.
+        // The IndexInputs in the BKDReader are an abstract class so we don't estimate their size due to differing concrete implementations.
         int packedIndexBytesLength = fieldInfo.getPointIndexDimensionCount() * fieldInfo.getPointNumBytes();
         return BKD_READER_BASE_RAM_BYTES_USED + BKD_CONFIG_BASE_RAM_BYTES_USED + 2 * byteArrayRamBytesUsed(packedIndexBytesLength);
     }

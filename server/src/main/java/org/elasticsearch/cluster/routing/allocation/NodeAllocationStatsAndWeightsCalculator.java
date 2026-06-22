@@ -21,8 +21,6 @@ import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalance;
 import org.elasticsearch.cluster.routing.allocation.allocator.WeightFunction;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
 
 import java.util.Map;
 
@@ -30,7 +28,6 @@ import java.util.Map;
  * Calculates the allocation weights and usage stats for each node: see {@link NodeAllocationStatsAndWeight} for details.
  */
 public class NodeAllocationStatsAndWeightsCalculator {
-    private static final Logger logger = LogManager.getLogger(NodeAllocationStatsAndWeightsCalculator.class);
     private final WriteLoadForecaster writeLoadForecaster;
     private final BalancingWeightsFactory balancingWeightsFactory;
 
@@ -66,7 +63,6 @@ public class NodeAllocationStatsAndWeightsCalculator {
     ) {
         if (metadata.hasAnyIndices()) {
             // must not use licensed features when just starting up
-            logger.info("---> refreshLicense from nodesAllocationStatsAndWeights");
             writeLoadForecaster.refreshLicense();
         }
         final BalancingWeights balancingWeights = balancingWeightsFactory.create();

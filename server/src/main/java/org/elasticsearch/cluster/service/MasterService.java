@@ -505,7 +505,6 @@ public class MasterService extends AbstractLifecycleComponent {
                     for (final var executionResult : executionResults) {
                         executionResult.onPublishSuccess(newClusterState);
                     }
-                    logger.info("--> published was successful for version {}", newClusterState.version());
 
                     try {
                         executor.clusterStatePublished(newClusterState);
@@ -1506,12 +1505,6 @@ public class MasterService extends AbstractLifecycleComponent {
             }, batchCompletionListener -> {
                 final var nextBatch = takeNextBatch();
                 assert currentlyExecutingBatch == nextBatch;
-                logger.info(
-                    "---> EXECUTING BATCH: queue=[{}] priority=[{}] pendingCount=[{}]",
-                    nextBatch.queueName(),
-                    nextBatch.getPriority(),
-                    nextBatch.getPendingCount()
-                );
                 if (lifecycle.started()) {
                     starvationWatcher.onCurrentBatchPriority(nextBatch.getPriority());
                     nextBatch.run(batchCompletionListener);

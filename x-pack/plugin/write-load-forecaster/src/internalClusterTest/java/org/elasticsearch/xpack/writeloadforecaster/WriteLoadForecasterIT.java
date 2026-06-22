@@ -86,8 +86,6 @@ public class WriteLoadForecasterIT extends ESIntegTestCase {
 
         assertAllPreviousForecastsAreClearedAfterRollover(dataStream, metadata);
 
-        logger.info("--> test refreshing license");
-
         setHasValidLicense(false);
         writeLoadForecaster.refreshLicense();
 
@@ -177,7 +175,7 @@ public class WriteLoadForecasterIT extends ESIntegTestCase {
             ).actionGet()
         );
 
-        final int numberOfRollovers = 1;
+        final int numberOfRollovers = randomIntBetween(5, 10);
         for (int i = 0; i < numberOfRollovers; i++) {
 
             assertBusy(() -> {
@@ -200,11 +198,8 @@ public class WriteLoadForecasterIT extends ESIntegTestCase {
             });
 
             assertAcked(indicesAdmin().rolloverIndex(new RolloverRequest(dataStreamName, null)).actionGet());
-            logger.info("----> rollover request returns");
         }
-        logger.info("----> ensureGreen starts");
         ensureGreen();
-        logger.info("----> ensureGreen returned");
     }
 
     static void indexDocs(String dataStream, int numDocs) {

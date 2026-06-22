@@ -169,7 +169,6 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                 + "]";
         if (allocation.metadata().hasAnyIndices()) {
             // must not use licensed features when just starting up
-            logger.info("--> refresh license from balanced shard allocator");
             writeLoadForecaster.refreshLicense();
         }
 

@@ -92,7 +92,6 @@ public class TransportGetDesiredBalanceAction extends TransportMasterNodeReadAct
             return;
         }
         var clusterInfo = clusterInfoService.getClusterInfo();
-        logger.info("---> refreshLicense from transportgetdesiredbalance");
         writeLoadForecaster.refreshLicense();
         listener.onResponse(
             new DesiredBalanceResponse(

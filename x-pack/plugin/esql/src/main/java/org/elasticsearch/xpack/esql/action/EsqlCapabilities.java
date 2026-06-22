@@ -3056,6 +3056,11 @@ public class EsqlCapabilities {
         FIX_REORDER_LIMIT_PROJECT_AND_ORDER_BY_PRESERVES_REFS,
 
         /**
+         * Supports the {@code IP_LOCATION} command.
+         */
+        IP_LOCATION_COMMAND,
+
+        /**
          * Support query approximation with FORK and subqueries.
          */
         APPROXIMATION_FORK(Build.current().isSnapshot()),
@@ -3070,6 +3075,18 @@ public class EsqlCapabilities {
          * Support FIRST and EARLIEST aggregation on the remaining types: dense_vector, exponential_histogram, tdigest.
          */
         FIRST_AGG_EXTENDED_TYPES_2,
+
+        /**
+         * Support FIRST and EARLIEST aggregation on the flattened data type.
+         */
+        FIRST_AGG_EXTENDED_TYPES_3,
+
+        /**
+         * FUSE uses FIRST(col, NULL) instead of VALUES for passthrough columns,
+         * enabling dense_vector, exponential_histogram, and tdigest fields to
+         * flow through FORK + FUSE hybrid-search pipelines.
+         */
+        FUSE_PASSTHROUGH_WITH_FIRST,
 
         /**
          * Support for the {@code DEDUP} command, which removes duplicate rows from the result set.

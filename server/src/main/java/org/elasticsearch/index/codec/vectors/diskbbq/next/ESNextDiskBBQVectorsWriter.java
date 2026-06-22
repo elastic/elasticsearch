@@ -36,6 +36,7 @@ import org.apache.lucene.util.packed.DirectWriter;
 import org.apache.lucene.util.packed.PackedInts;
 import org.apache.lucene.util.packed.PackedLongValues;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.core.WelfordVariance;
 import org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer;
 import org.elasticsearch.index.codec.vectors.cluster.CentroidOps;
 import org.elasticsearch.index.codec.vectors.cluster.ClusteringFloatVectorValues;
@@ -569,24 +570,19 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
     private static void printClusterQualityStatistics(int[] clusterSizes) {
         float min = Float.MAX_VALUE;
         float max = Float.MIN_VALUE;
-        float mean = 0;
-        float m2 = 0;
-        int count = 0;
+        WelfordVariance clusterSizeStats = new WelfordVariance();
         for (int size : clusterSizes) {
-            count += 1;
-            float delta = size - mean;
-            mean += delta / count;
-            m2 += delta * (size - mean);
+            clusterSizeStats.add(size);
             min = Math.min(min, size);
             max = Math.max(max, size);
         }
-        float variance = m2 / (clusterSizes.length - 1);
+        double variance = clusterSizeStats.m2() / (clusterSizes.length - 1);
         logger.debug(
             "Centroid count: {} min: {} max: {} mean: {} stdDev: {} variance: {}",
             clusterSizes.length,
             min,
             max,
-            mean,
+            clusterSizeStats.mean(),
             Math.sqrt(variance),
             variance
         );

@@ -32,6 +32,7 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -51,8 +52,8 @@ public abstract class AbstractSearchTestCase extends ESTestCase {
     private TestSearchExtPlugin searchExtPlugin;
     private NamedXContentRegistry xContentRegistry;
 
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void setUpSearchTestCase() throws Exception {
         searchExtPlugin = new TestSearchExtPlugin();
         SearchModule searchModule = new SearchModule(Settings.EMPTY, Collections.singletonList(searchExtPlugin));
         List<NamedWriteableRegistry.Entry> namedWriteables = new ArrayList<>();
@@ -66,6 +67,10 @@ public abstract class AbstractSearchTestCase extends ESTestCase {
             new NamedXContentRegistry.Entry(RankBuilder.class, new ParseField(TestRankBuilder.NAME), TestRankBuilder::fromXContent)
         );
         xContentRegistry = new NamedXContentRegistry(namedXContents);
+    }
+
+    public final void setUp() throws Exception {
+        super.setUp();
     }
 
     @Override

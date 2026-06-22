@@ -23,6 +23,7 @@ package org.elasticsearch.index.codec.vectors;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.GroupVIntUtil;
+import org.apache.lucene.util.LongValues;
 import org.apache.lucene.util.hnsw.HnswGraph;
 
 import java.io.IOException;
@@ -32,12 +33,12 @@ import java.util.Arrays;
  * Off-heap {@link HnswGraph} that reads neighbor lists directly from an {@link IndexInput} slice
  * rather than keeping them in memory. The serialized format is produced by
  * {@link HnswUtils#writeMultiLevelGraph}.
- * Mostly copied from Apache Lucene
+ * The only minor difference from Lucene's is that GroupVarInt is always utilized for neighbor connections.
  */
 public final class OffHeapHnswGraph extends HnswGraph {
     private final IndexInput neighborData;
     private final int[][] nodesByLevel;
-    private final long[] offsets;
+    private final LongValues offsets;
     private final long[] levelIndexOffsets;
     private final int size;
     private final int numLevels;
@@ -47,7 +48,15 @@ public final class OffHeapHnswGraph extends HnswGraph {
     private int arcCount;
     private int arcUpTo;
 
-    OffHeapHnswGraph(IndexInput neighborData, int[][] nodesByLevel, long[] offsets, int size, int numLevels, int entryNode, int maxConn) {
+    OffHeapHnswGraph(
+        IndexInput neighborData,
+        int[][] nodesByLevel,
+        LongValues offsets,
+        int size,
+        int numLevels,
+        int entryNode,
+        int maxConn
+    ) {
         this.neighborData = neighborData;
         this.nodesByLevel = nodesByLevel;
         this.offsets = offsets;
@@ -67,7 +76,7 @@ public final class OffHeapHnswGraph extends HnswGraph {
     public void seek(int level, int target) throws IOException {
         final int index = level == 0 ? target : Arrays.binarySearch(nodesByLevel[level], 0, nodesByLevel[level].length, target);
         assert index >= 0 : "seek level=" + level + " target=" + target + " not found";
-        neighborData.seek(offsets[index + (int) levelIndexOffsets[level]]);
+        neighborData.seek(offsets.get(index + levelIndexOffsets[level]));
         arcCount = neighborData.readVInt();
         assert arcCount <= currentNeighbors.length : "too many neighbors: " + arcCount;
         if (arcCount > 0) {

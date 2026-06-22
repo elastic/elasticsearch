@@ -48,11 +48,11 @@ public class HnswUtilsTests extends ESTestCase {
 
         int numLevels = built.numLevels();
         try (Directory dir = newDirectory()) {
-            try (var out = dir.createOutput("g", IOContext.DEFAULT)) {
-                HnswUtils.writeMultiLevelGraph(out, built);
+            try (var graphOut = dir.createOutput("g", IOContext.DEFAULT); var metaOut = dir.createOutput("g.meta", IOContext.DEFAULT)) {
+                HnswUtils.writeMultiLevelGraph(graphOut, metaOut, built);
             }
-            try (var in = dir.openInput("g", IOContext.DEFAULT)) {
-                HnswGraph graph = HnswUtils.readGraph(in);
+            try (var graphIn = dir.openInput("g", IOContext.DEFAULT); var metaIn = dir.openInput("g.meta", IOContext.DEFAULT)) {
+                HnswGraph graph = HnswUtils.readGraph(graphIn, metaIn);
 
                 assertEquals(numLevels, graph.numLevels());
                 assertEquals(built.size(), graph.size());
@@ -120,11 +120,14 @@ public class HnswUtilsTests extends ESTestCase {
 
         // round-trip through serialization and BFS the deserialized level-0 graph
         try (Directory dir = newDirectory()) {
-            try (var out = dir.createOutput("graph", IOContext.DEFAULT)) {
-                HnswUtils.writeMultiLevelGraph(out, built);
+            try (
+                var graphOut = dir.createOutput("graph", IOContext.DEFAULT);
+                var metaOut = dir.createOutput("graph.meta", IOContext.DEFAULT)
+            ) {
+                HnswUtils.writeMultiLevelGraph(graphOut, metaOut, built);
             }
-            try (var in = dir.openInput("graph", IOContext.DEFAULT)) {
-                HnswGraph graph = HnswUtils.readGraph(in);
+            try (var graphIn = dir.openInput("graph", IOContext.DEFAULT); var metaIn = dir.openInput("graph.meta", IOContext.DEFAULT)) {
+                HnswGraph graph = HnswUtils.readGraph(graphIn, metaIn);
                 assertEquals(built.numLevels(), graph.numLevels());
                 int[][] readAdjacency = new int[numVectors][];
                 for (int node = 0; node < numVectors; node++) {
@@ -155,11 +158,11 @@ public class HnswUtilsTests extends ESTestCase {
         var neighborhoods = NeighborHood.computeNeighborhoods(vectors, candidates);
         HnswUtils.MultiLevelAdjacency built = HnswUtils.buildMultiLevelFromNeighborhoods(neighborhoods, floatScorer(vectors, sim), m, 42L);
         try (Directory dir = newDirectory()) {
-            try (var out = dir.createOutput("g", IOContext.DEFAULT)) {
-                HnswUtils.writeMultiLevelGraph(out, built);
+            try (var graphOut = dir.createOutput("g", IOContext.DEFAULT); var metaOut = dir.createOutput("g.meta", IOContext.DEFAULT)) {
+                HnswUtils.writeMultiLevelGraph(graphOut, metaOut, built);
             }
-            try (var in = dir.openInput("g", IOContext.DEFAULT)) {
-                HnswGraph graph = HnswUtils.readGraph(in);
+            try (var graphIn = dir.openInput("g", IOContext.DEFAULT); var metaIn = dir.openInput("g.meta", IOContext.DEFAULT)) {
+                HnswGraph graph = HnswUtils.readGraph(graphIn, metaIn);
                 int found = 0;
                 int queries = Math.min(numVectors, 40);
                 for (int qi = 0; qi < queries; qi++) {

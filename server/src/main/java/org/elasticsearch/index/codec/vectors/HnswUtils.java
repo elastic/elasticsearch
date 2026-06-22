@@ -12,10 +12,14 @@ package org.elasticsearch.index.codec.vectors;
 import org.apache.lucene.store.ByteBuffersDataOutput;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
+import org.apache.lucene.store.RandomAccessInput;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.IntroSorter;
+import org.apache.lucene.util.LongValues;
 import org.apache.lucene.util.hnsw.HnswGraph;
 import org.apache.lucene.util.hnsw.UpdateableRandomVectorScorer;
+import org.apache.lucene.util.packed.DirectMonotonicReader;
+import org.apache.lucene.util.packed.DirectMonotonicWriter;
 import org.elasticsearch.index.codec.vectors.cluster.NeighborHood;
 
 import java.io.IOException;
@@ -33,6 +37,9 @@ public final class HnswUtils {
     // Per-node candidate cap when building an upper level's adjacency from a brute-force kNN over that
     // level's (small) node set; pruned down to maxConn diverse links.
     private static final int LEVEL_NEIGHBOR_CANDIDATES = 64;
+
+    // Block shift for DirectMonotonicWriter/Reader; same value used by Lucene99HnswVectorsFormat.
+    private static final int DIRECT_MONOTONIC_BLOCK_SHIFT = 16;
 
     /**
      * A multi-level HNSW adjacency, ready to serialize. Level 0 contains all nodes (so
@@ -106,6 +113,7 @@ public final class HnswUtils {
                 new NodesByScoreSorter(sortBuf, scoreBuf).sort(0, sz);
                 int keptCount = prune(scorer, sz, maxConn, sortBuf, scoreBuf, keptNodes, diversityScratch);
                 result[c] = Arrays.copyOf(keptNodes, keptCount);
+                sizes[c] = keptCount;
             }
         }
         return result;
@@ -145,6 +153,9 @@ public final class HnswUtils {
             do {
                 u = random.nextDouble();
             } while (u == 0.0);
+            // Geometric level assignment per the HNSW paper: level = floor(-ln(u) / ln(maxConn)).
+            // Higher levels are exponentially rarer: the expected fraction of nodes on level l+1 is
+            // 1/maxConn of those on level l.
             final int level = (int) Math.floor(-Math.log(u) * mL);
             levelOf[c] = level;
             if (level > maxLevel) {
@@ -190,8 +201,9 @@ public final class HnswUtils {
 
         final int[][] adj = new int[m][];
         final int[] sizes = new int[m];
-        for (int i = 0; i < m; i++)
+        for (int i = 0; i < m; i++) {
             adj[i] = new int[maxConn];
+        }
 
         // Step 1: directed diversity-pruned edges among levelNodes.
         for (int i = 0; i < m; i++) {
@@ -212,6 +224,8 @@ public final class HnswUtils {
 
         // Step 2: symmetrize — for each directed edge i→j, add reverse j→i (global ordinals).
         // levelNodes is sorted ascending so Arrays.binarySearch gives global→local in O(log m).
+        // TODO: Maybe after further testing & pushing in production, we can remove the backlinking
+        // we know all the vectors given the neighborhoods already, maybe we just diversify the forward links
         for (int i = 0; i < m; i++) {
             for (int ki = 0; ki < sizes[i]; ki++) {
                 final int neighborGlobal = adj[i][ki];
@@ -235,6 +249,7 @@ public final class HnswUtils {
                 new NodesByScoreSorter(sortBuf, scoreBuf).sort(0, sz);
                 int keptCount = prune(scorer, sz, maxConn, sortBuf, scoreBuf, keptGlobal, diversityScratch);
                 result[i] = Arrays.copyOf(keptGlobal, keptCount);
+                sizes[i] = keptCount;
             }
         }
         return result;
@@ -243,6 +258,8 @@ public final class HnswUtils {
     /**
      * Appends {@code nb} to {@code adj[c]} if it is not already present, growing the backing array as
      * needed. The linear-scan dedup is acceptable because neighbor lists are bounded by {@code maxConn}.
+     * Lists are unsorted during building (held in diversity-pruned score order with reverse edges
+     * appended at the end), so binary search is not applicable.
      */
     private static void addNeighborIfAbsent(int[][] adj, int[] sizes, int c, int nb) {
         final int sz = sizes[c];
@@ -255,27 +272,32 @@ public final class HnswUtils {
         adj[c][sizes[c]++] = nb;
     }
 
-    /** Serializes a {@link MultiLevelAdjacency} into {@code out} (see the class javadoc for the layout). */
-    public static void writeMultiLevelGraph(IndexOutput out, MultiLevelAdjacency graph) throws IOException {
+    /**
+     * Serializes a {@link MultiLevelAdjacency} into {@code graphOut}, writing the
+     * {@link DirectMonotonicWriter} offset-table metadata to {@code metaOut}.
+     * The only minor difference from Lucene's output format is that this always uses GroupVarInt for neighbor encoding.
+     */
+    public static void writeMultiLevelGraph(IndexOutput graphOut, IndexOutput metaOut, MultiLevelAdjacency graph) throws IOException {
         final int size = graph.size();
         final int numLevels = graph.numLevels();
-        out.writeVInt(graph.maxConn());
-        out.writeVInt(numLevels);
-        out.writeVInt(graph.entryNode());
-        out.writeVInt(size);
+        graphOut.writeVInt(graph.maxConn());
+        graphOut.writeVInt(numLevels);
+        graphOut.writeVInt(graph.entryNode());
+        graphOut.writeVInt(size);
         int totalNodes = size;
         for (int level = 1; level < numLevels; level++) {
             final int[] nodes = graph.nodesByLevel()[level];
             totalNodes += nodes.length;
-            out.writeVInt(nodes.length);
+            graphOut.writeVInt(nodes.length);
             for (int i = 0; i < nodes.length; i++) {
-                out.writeVInt(i == 0 ? nodes[0] : nodes[i] - nodes[i - 1]);
+                graphOut.writeVInt(i == 0 ? nodes[0] : nodes[i] - nodes[i - 1]);
             }
         }
-        // neighbor data, ordered: all level-0 nodes (0..size-1), then each upper level's sorted nodes
+        // Collect neighbor data; record per-node byte offsets (monotonically increasing).
         final ByteBuffersDataOutput neighbors = new ByteBuffersDataOutput();
         final long[] offsets = new long[totalNodes];
         int offsetIdx = 0;
+        final int[] deltas = new int[graph.maxConn()];
         for (int level = 0; level < numLevels; level++) {
             final int[][] levelAdjacency = graph.neighborsByLevel()[level];
             final int levelSize = level == 0 ? size : graph.nodesByLevel()[level].length;
@@ -285,19 +307,31 @@ public final class HnswUtils {
                 Arrays.sort(nb);
                 neighbors.writeVInt(nb.length);
                 if (nb.length > 0) {
-                    // delta-encode into a copy so that nb retains sorted ordinals after writing
-                    final int[] deltas = nb.clone();
-                    for (int j = deltas.length - 1; j > 0; j--) {
-                        deltas[j] -= deltas[j - 1];
+                    int prev = 0;
+                    for (int j = 0; j < nb.length; j++) {
+                        deltas[j] = nb[j] - prev;
+                        prev = nb[j];
                     }
-                    neighbors.writeGroupVInts(deltas, deltas.length);
+                    neighbors.writeGroupVInts(deltas, nb.length);
                 }
             }
         }
+        // Write DirectMonotonic-compressed offsets: metadata to metaOut, data to graphOut.
+        final long offsetsStart = graphOut.getFilePointer();
+        metaOut.writeLong(offsetsStart);
+        metaOut.writeVInt(DIRECT_MONOTONIC_BLOCK_SHIFT);
+        final DirectMonotonicWriter offsetWriter = DirectMonotonicWriter.getInstance(
+            metaOut,
+            graphOut,
+            totalNodes,
+            DIRECT_MONOTONIC_BLOCK_SHIFT
+        );
         for (long offset : offsets) {
-            out.writeLong(offset);
+            offsetWriter.add(offset);
         }
-        out.copyBytes(neighbors.toDataInput(), neighbors.size());
+        offsetWriter.finish();
+        metaOut.writeLong(graphOut.getFilePointer() - offsetsStart);
+        graphOut.copyBytes(neighbors.toDataInput(), neighbors.size());
     }
 
     private static final class NodesByScoreSorter extends IntroSorter {
@@ -336,36 +370,37 @@ public final class HnswUtils {
         }
     }
 
-    /** Reads a graph previously written by {@link #writeMultiLevelGraph} from {@code graphSlice}. */
-    public static HnswGraph readGraph(IndexInput graphSlice) throws IOException {
-        graphSlice.seek(0);
-        final int maxConn = graphSlice.readVInt();
-        final int numLevels = graphSlice.readVInt();
-        final int entryNode = graphSlice.readVInt();
-        final int size = graphSlice.readVInt();
+    /**
+     * Reads a graph previously written by {@link #writeMultiLevelGraph} from {@code graphIn} and
+     * {@code metaIn}.
+     */
+    public static HnswGraph readGraph(IndexInput graphIn, IndexInput metaIn) throws IOException {
+        graphIn.seek(0);
+        final int maxConn = graphIn.readVInt();
+        final int numLevels = graphIn.readVInt();
+        final int entryNode = graphIn.readVInt();
+        final int size = graphIn.readVInt();
         final int[][] nodesByLevel = new int[numLevels][];
         int totalNodes = size;
         for (int level = 1; level < numLevels; level++) {
-            final int numNodes = graphSlice.readVInt();
+            final int numNodes = graphIn.readVInt();
             final int[] nodeIds = new int[numNodes];
             int previous = 0;
             for (int i = 0; i < numNodes; i++) {
-                previous += graphSlice.readVInt();
+                previous += graphIn.readVInt();
                 nodeIds[i] = previous;
             }
             nodesByLevel[level] = nodeIds;
             totalNodes += numNodes;
         }
-        final long[] offsets = new long[totalNodes];
-        for (int i = 0; i < totalNodes; i++) {
-            offsets[i] = graphSlice.readLong();
-        }
-        final long neighborDataStart = graphSlice.getFilePointer();
-        final IndexInput neighborData = graphSlice.slice(
-            "hnsw-graph-neighbors",
-            neighborDataStart,
-            graphSlice.length() - neighborDataStart
-        );
+        final long offsetsStart = metaIn.readLong();
+        final int blockShift = metaIn.readVInt();
+        final DirectMonotonicReader.Meta offsetsMeta = DirectMonotonicReader.loadMeta(metaIn, totalNodes, blockShift);
+        final long offsetsLength = metaIn.readLong();
+        final RandomAccessInput offsetData = graphIn.randomAccessSlice(offsetsStart, offsetsLength);
+        final LongValues offsets = DirectMonotonicReader.getInstance(offsetsMeta, offsetData);
+        final long neighborDataStart = offsetsStart + offsetsLength;
+        final IndexInput neighborData = graphIn.slice("hnsw-graph-neighbors", neighborDataStart, graphIn.length() - neighborDataStart);
         return new OffHeapHnswGraph(neighborData, nodesByLevel, offsets, size, numLevels, entryNode, maxConn);
     }
 

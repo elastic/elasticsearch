@@ -68,7 +68,7 @@ setup:
           - '{"index": {}}'
           - '{"@timestamp": "2024-05-10T01:40:00Z", "cluster": "prod", "pod": "one", "network": {"eth0": {"rx": 110.0, "tx": 1100}}}'
           - '{"index": {}}'
-          - '{"@timestamp": "2024-05-10T01:50:00Z", "cluster": "prod", "pod": "one", "network": {"eth0": {"rx": 120.0, "tx": 1200}}}'
+          - '{"@timestamp": "2024-05-10T01:50:00Z", "cluster": "prod", "pod": "one", "network": {"eth0": {"rx": 120.0, "tx": 100}}}'
 
   - do:
       indices.put_settings:
@@ -121,6 +121,9 @@ setup:
                       rx:
                         type: double
                         time_series_metric: gauge
+                      tx:
+                        type: double
+                        time_series_metric: counter
 
   - do:
       bulk:
@@ -128,17 +131,17 @@ setup:
         index: promql-source
         body:
           - '{"index": {}}'
-          - '{"@timestamp": "2024-05-10T02:00:00Z", "cluster": "prod", "pod": "one", "network": {"eth0": {"rx": 130.0}}}'
+          - '{"@timestamp": "2024-05-10T02:00:00Z", "cluster": "prod", "pod": "one", "network": {"eth0": {"rx": 130.0, "tx": 1100}}}'
           - '{"index": {}}'
-          - '{"@timestamp": "2024-05-10T02:10:00Z", "cluster": "prod", "pod": "one", "network": {"eth0": {"rx": 140.0}}}'
+          - '{"@timestamp": "2024-05-10T02:10:00Z", "cluster": "prod", "pod": "one", "network": {"eth0": {"rx": 140.0, "tx": 1200}}}'
           - '{"index": {}}'
-          - '{"@timestamp": "2024-05-10T02:20:00Z", "cluster": "prod", "pod": "one", "network": {"eth0": {"rx": 150.0}}}'
+          - '{"@timestamp": "2024-05-10T02:20:00Z", "cluster": "prod", "pod": "one", "network": {"eth0": {"rx": 150.0, "tx": 1300}}}'
           - '{"index": {}}'
-          - '{"@timestamp": "2024-05-10T02:30:00Z", "cluster": "prod", "pod": "one", "network": {"eth0": {"rx": 160.0}}}'
+          - '{"@timestamp": "2024-05-10T02:30:00Z", "cluster": "prod", "pod": "one", "network": {"eth0": {"rx": 160.0, "tx": 1400}}}'
           - '{"index": {}}'
-          - '{"@timestamp": "2024-05-10T02:40:00Z", "cluster": "prod", "pod": "one", "network": {"eth0": {"rx": 170.0}}}'
+          - '{"@timestamp": "2024-05-10T02:40:00Z", "cluster": "prod", "pod": "one", "network": {"eth0": {"rx": 170.0, "tx": 1500}}}'
           - '{"index": {}}'
-          - '{"@timestamp": "2024-05-10T02:50:00Z", "cluster": "prod", "pod": "one", "network": {"eth0": {"rx": 180.0}}}'
+          - '{"@timestamp": "2024-05-10T02:50:00Z", "cluster": "prod", "pod": "one", "network": {"eth0": {"rx": 180.0, "tx": 1600}}}'
 
 ---
 "PromQL max_over_time over 30m downsample target":
@@ -313,3 +316,26 @@ setup:
   - match: {values.4.1: "2024-05-10T02:00:00.000Z"}
   - match: {values.5.0: 180.0}
   - match: {values.5.1: "2024-05-10T02:30:00.000Z"}
+
+---
+"PromQL increase over mixed downsampled and raw counter":
+  - do:
+      esql.query:
+        body:
+          query: 'PROMQL index=promql-downsample-30m,promql-source step=30m start="2024-05-10T00:00:00Z" end="2024-05-10T02:30:00Z" tx=(increase(network.eth0.tx[30m]))'
+
+  - match: {columns.0.name: "tx"}
+  - match: {columns.0.type: "double"}
+  - match: {columns.1.name: "step"}
+  - match: {columns.1.type: "date"}
+  - length: {values: 5}
+  - match: {values.0.0: 300.0}
+  - match: {values.0.1: "2024-05-10T00:30:00.000Z"}
+  - match: {values.1.0: 300.0}
+  - match: {values.1.1: "2024-05-10T01:00:00.000Z"}
+  - match: {values.2.0: 300.0}
+  - match: {values.2.1: "2024-05-10T01:30:00.000Z"}
+  - match: {values.3.0: 100.0}
+  - match: {values.3.1: "2024-05-10T02:00:00.000Z"}
+  - match: {values.4.0: 300.0}
+  - match: {values.4.1: "2024-05-10T02:30:00.000Z"}

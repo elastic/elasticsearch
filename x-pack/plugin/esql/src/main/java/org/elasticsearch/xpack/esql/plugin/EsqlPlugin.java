@@ -47,6 +47,8 @@ import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.ExtensiblePlugin;
@@ -168,6 +170,8 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
     // (enforced in createComponents). The PEK flag lives in the encryption impl plugin, not the SPI we
     // compile against, so we reference it by name — FeatureFlag resolves identically off the build flag.
     private static final FeatureFlag PROJECT_ENCRYPTION_KEY_FEATURE_FLAG = new FeatureFlag("project_encryption_key");
+
+    private static final Logger logger = LogManager.getLogger(EsqlPlugin.class);
 
     public static final String ESQL_WORKER_THREAD_POOL_NAME = "esql_worker";
 
@@ -354,6 +358,15 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         EsqlFunctionRegistry functionRegistry = new EsqlFunctionRegistry();
         EsqlParser parser = new EsqlParser(new EsqlConfig(functionRegistry));
         capabilities.set(EsqlCapabilities.capabilities(functionRegistry, false));
+
+        services.ipLocationService()
+            .addDatabaseAvailabilityListener(
+                (projectId, databaseFile) -> logger.trace(
+                    "IP location database [{}] became available for project [{}]",
+                    databaseFile,
+                    projectId
+                )
+            );
 
         ExternalSourceCacheService cacheService = new ExternalSourceCacheService(settings);
         services.clusterService()

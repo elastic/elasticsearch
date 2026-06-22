@@ -16,6 +16,7 @@ import org.elasticsearch.index.codec.vectors.BFloat16;
 import org.elasticsearch.index.codec.vectors.BaseQuantizedHnswBFloat16VectorsFormatTestCase;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.junit.AssumptionViolatedException;
+import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.concurrent.ExecutorService;
@@ -32,8 +33,11 @@ import static org.hamcrest.Matchers.hasEntry;
 
 public class ES94HnswScalarQuantizedBFloat16VectorsFormatTests extends BaseQuantizedHnswBFloat16VectorsFormatTestCase {
 
-    private int randomBits() {
-        return randomFrom(1, 2, 4, 7);
+    private static int bits;
+
+    @BeforeClass
+    public static void initBits() {
+        bits = randomFrom(1, 2, 4, 7);
     }
 
     @Override
@@ -42,20 +46,14 @@ public class ES94HnswScalarQuantizedBFloat16VectorsFormatTests extends BaseQuant
             DEFAULT_MAX_CONN,
             DEFAULT_BEAM_WIDTH,
             DenseVectorFieldMapper.ElementType.BFLOAT16,
-            randomBits(),
+            bits,
             false
         );
     }
 
     @Override
     protected KnnVectorsFormat createFormat(int maxConn, int beamWidth) {
-        return new ES94HnswScalarQuantizedVectorsFormat(
-            maxConn,
-            beamWidth,
-            DenseVectorFieldMapper.ElementType.BFLOAT16,
-            randomBits(),
-            false
-        );
+        return new ES94HnswScalarQuantizedVectorsFormat(maxConn, beamWidth, DenseVectorFieldMapper.ElementType.BFLOAT16, bits, false);
     }
 
     @Override
@@ -64,7 +62,7 @@ public class ES94HnswScalarQuantizedBFloat16VectorsFormatTests extends BaseQuant
             maxConn,
             beamWidth,
             DenseVectorFieldMapper.ElementType.BFLOAT16,
-            randomBits(),
+            bits,
             false,
             numMergeWorkers,
             service
@@ -83,7 +81,7 @@ public class ES94HnswScalarQuantizedBFloat16VectorsFormatTests extends BaseQuant
             16,
             100,
             DenseVectorFieldMapper.ElementType.BFLOAT16,
-            randomBits(),
+            bits,
             false,
             1,
             null,

@@ -33,7 +33,6 @@ import org.apache.lucene.util.SameThreadExecutorService;
 import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.hamcrest.Matcher;
-import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Map;
@@ -63,17 +62,11 @@ public abstract class BaseHnswVectorsFormatTestCase extends BaseKnnVectorsFormat
 
     private KnnVectorsFormat format;
 
-    @Before
-    public void setUpHnswVectorsFormat() throws Exception {
-        format = createFormat();
-    }
-
-    public final void setUp() throws Exception {
-        super.setUp();
-    }
-
     @Override
-    protected Codec getCodec() {
+    protected final Codec getCodec() {
+        if (format == null) {
+            format = createFormat();
+        }
         return TestUtil.alwaysKnnVectorsFormat(format);
     }
 

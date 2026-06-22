@@ -65,7 +65,7 @@ import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
 /**
  * Mostly copied from Lucene
  */
-abstract class AbstractDiversifyingChildrenIVFKnnVectorQueryTestCase extends LuceneTestCase {
+public abstract class AbstractDiversifyingChildrenIVFKnnVectorQueryTestCase extends LuceneTestCase {
 
     protected TestIvfQueryConfigResolver testResolver() {
         return new TestIvfQueryConfigResolver(ESNextDiskBBQVectorsFormat.QuantEncoding.ONE_BIT_4BIT_QUERY, false, 1.0f);

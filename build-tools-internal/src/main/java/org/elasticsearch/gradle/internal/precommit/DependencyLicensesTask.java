@@ -10,7 +10,6 @@ package org.elasticsearch.gradle.internal.precommit;
 
 import org.elasticsearch.gradle.internal.AbstractDependenciesTask;
 import org.elasticsearch.gradle.internal.conventions.problems.ElasticsearchBuildProblems;
-import org.elasticsearch.gradle.internal.conventions.problems.ProblemReporting;
 import org.elasticsearch.gradle.internal.precommit.LicenseAnalyzer.LicenseInfo;
 import org.gradle.api.GradleException;
 import org.gradle.api.artifacts.Configuration;
@@ -26,7 +25,6 @@ import org.gradle.api.problems.Problem;
 import org.gradle.api.problems.ProblemId;
 import org.gradle.api.problems.ProblemReporter;
 import org.gradle.api.problems.Problems;
-import org.gradle.api.problems.Severity;
 import org.gradle.api.provider.Property;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.specs.Spec;
@@ -244,9 +242,14 @@ public abstract class DependencyLicensesTask extends AbstractDependenciesTask {
 
     private void throwIfProblems() {
         if (collectedProblems.isEmpty() == false) {
-            ProblemReporting.reportErrors(problemReporter, collectedProblems);
-            throw new GradleException(
-                "Dependency license check failed with " + collectedProblems.size() + " problem" + (collectedProblems.size() == 1 ? "" : "s")
+            throw problemReporter.throwing(
+                new GradleException(
+                    "Dependency license check failed with "
+                        + collectedProblems.size()
+                        + " problem"
+                        + (collectedProblems.size() == 1 ? "" : "s")
+                ),
+                collectedProblems
             );
         }
     }
@@ -255,7 +258,7 @@ public abstract class DependencyLicensesTask extends AbstractDependenciesTask {
         collectedProblems.add(
             problemReporter.create(
                 ProblemId.create(id, displayName, ElasticsearchBuildProblems.DEPENDENCY_LICENSES),
-                spec -> spec.contextualLabel(details).details(details).severity(Severity.ERROR).solution(solution)
+                spec -> spec.contextualLabel(details).details(details).solution(solution)
             )
         );
     }

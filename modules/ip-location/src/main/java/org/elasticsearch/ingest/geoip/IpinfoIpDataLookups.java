@@ -249,11 +249,11 @@ final class IpinfoIpDataLookups {
         String asName,
         String asDomain,
         String asType,
-        @Nullable String carrierName,
-        @Nullable String mcc,
-        @Nullable String mnc,
-        @Nullable String asChanged,
-        @Nullable String geoChanged,
+        String carrierName,
+        String mcc,
+        String mnc,
+        String asChanged,
+        String geoChanged,
         String city,
         String region,
         String regionCode,
@@ -265,8 +265,8 @@ final class IpinfoIpDataLookups {
         Double longitude,
         String timezone,
         String postalCode,
-        @Nullable String dmaCode,
-        @Nullable String geonameId,
+        String dmaCode,
+        String geonameId,
         Integer radius,
         Boolean isAnonymous,
         Boolean isAnycast,
@@ -277,7 +277,7 @@ final class IpinfoIpDataLookups {
         Boolean isRelay,
         Boolean isTor,
         Boolean isVpn,
-        @Nullable String privacyName
+        String privacyName
     ) {
         @SuppressWarnings("checkstyle:RedundantModifier")
         @MaxMindDbConstructor
@@ -286,11 +286,11 @@ final class IpinfoIpDataLookups {
             @MaxMindDbParameter(name = "as_name") String asName,
             @MaxMindDbParameter(name = "as_domain") String asDomain,
             @MaxMindDbParameter(name = "as_type") String asType,
-            @Nullable @MaxMindDbParameter(name = "carrier_name") String carrierName,
-            @Nullable @MaxMindDbParameter(name = "mcc") String mcc,
-            @Nullable @MaxMindDbParameter(name = "mnc") String mnc,
-            @Nullable @MaxMindDbParameter(name = "as_changed") String asChanged,
-            @Nullable @MaxMindDbParameter(name = "geo_changed") String geoChanged,
+            @MaxMindDbParameter(name = "carrier_name") String carrierName,
+            @MaxMindDbParameter(name = "mcc") String mcc,
+            @MaxMindDbParameter(name = "mnc") String mnc,
+            @MaxMindDbParameter(name = "as_changed") String asChanged,
+            @MaxMindDbParameter(name = "geo_changed") String geoChanged,
             @MaxMindDbParameter(name = "city") String city,
             @MaxMindDbParameter(name = "region") String region,
             @MaxMindDbParameter(name = "region_code") String regionCode,
@@ -302,8 +302,8 @@ final class IpinfoIpDataLookups {
             @MaxMindDbParameter(name = "longitude") Double longitude,
             @MaxMindDbParameter(name = "timezone") String timezone,
             @MaxMindDbParameter(name = "postal_code") String postalCode,
-            @Nullable @MaxMindDbParameter(name = "dma_code") String dmaCode,
-            @Nullable @MaxMindDbParameter(name = "geoname_id") String geonameId,
+            @MaxMindDbParameter(name = "dma_code") String dmaCode,
+            @MaxMindDbParameter(name = "geoname_id") String geonameId,
             @MaxMindDbParameter(name = "radius") Integer radius,
             @MaxMindDbParameter(name = "is_anonymous") Boolean isAnonymous,
             @MaxMindDbParameter(name = "is_anycast") Boolean isAnycast,
@@ -314,7 +314,7 @@ final class IpinfoIpDataLookups {
             @MaxMindDbParameter(name = "is_relay") Boolean isRelay,
             @MaxMindDbParameter(name = "is_tor") Boolean isTor,
             @MaxMindDbParameter(name = "is_vpn") Boolean isVpn,
-            @Nullable @MaxMindDbParameter(name = "privacy_name") String privacyName
+            @MaxMindDbParameter(name = "privacy_name") String privacyName
         ) {
             this(
                 parseAsn(asn),
@@ -522,25 +522,25 @@ final class IpinfoIpDataLookups {
                         if (result.network() != null) collector.network(result.network());
                     }
                     case CITY_NAME -> {
-                        if (response.city != null) collector.cityName(response.city);
+                        if (Strings.hasText(response.city)) collector.cityName(response.city);
                     }
                     case REGION_NAME -> {
-                        if (response.region != null) collector.regionName(response.region);
+                        if (Strings.hasText(response.region)) collector.regionName(response.region);
                     }
                     case REGION_ISO_CODE -> {
-                        if (response.regionCode != null) collector.regionIsoCode(response.regionCode);
+                        if (Strings.hasText(response.regionCode)) collector.regionIsoCode(response.regionCode);
                     }
                     case COUNTRY_NAME -> {
-                        if (response.country != null) collector.countryName(response.country);
+                        if (Strings.hasText(response.country)) collector.countryName(response.country);
                     }
                     case COUNTRY_ISO_CODE -> {
-                        if (response.countryCode != null) collector.countryIsoCode(response.countryCode);
+                        if (Strings.hasText(response.countryCode)) collector.countryIsoCode(response.countryCode);
                     }
                     case CONTINENT_NAME -> {
-                        if (response.continent != null) collector.continentName(response.continent);
+                        if (Strings.hasText(response.continent)) collector.continentName(response.continent);
                     }
                     case CONTINENT_CODE -> {
-                        if (response.continentCode != null) collector.continentCode(response.continentCode);
+                        if (Strings.hasText(response.continentCode)) collector.continentCode(response.continentCode);
                     }
                     case LOCATION -> {
                         if (response.latitude != null && response.longitude != null) {
@@ -548,10 +548,10 @@ final class IpinfoIpDataLookups {
                         }
                     }
                     case TIMEZONE -> {
-                        if (response.timezone != null) collector.timezone(response.timezone);
+                        if (Strings.hasText(response.timezone)) collector.timezone(response.timezone);
                     }
                     case POSTAL_CODE -> {
-                        if (response.postalCode != null) collector.postalCode(response.postalCode);
+                        if (Strings.hasText(response.postalCode)) collector.postalCode(response.postalCode);
                     }
                     case DMA_CODE -> {
                         if (Strings.hasText(response.dmaCode)) collector.dmaCode(response.dmaCode);
@@ -566,13 +566,13 @@ final class IpinfoIpDataLookups {
                         if (response.asn != null) collector.asn(response.asn);
                     }
                     case ORGANIZATION_NAME -> {
-                        if (response.asName != null) collector.organizationName(response.asName);
+                        if (Strings.hasText(response.asName)) collector.organizationName(response.asName);
                     }
                     case DOMAIN -> {
-                        if (response.asDomain != null) collector.domain(response.asDomain);
+                        if (Strings.hasText(response.asDomain)) collector.domain(response.asDomain);
                     }
                     case TYPE -> {
-                        if (response.asType != null) collector.type(response.asType);
+                        if (Strings.hasText(response.asType)) collector.type(response.asType);
                     }
                     case ISP -> {
                         if (Strings.hasText(response.carrierName)) collector.isp(response.carrierName);

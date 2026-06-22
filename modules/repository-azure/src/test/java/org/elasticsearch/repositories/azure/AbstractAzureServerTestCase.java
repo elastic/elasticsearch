@@ -119,6 +119,30 @@ public abstract class AbstractAzureServerTestCase extends ESTestCase {
         String clientName,
         SecureSettings secureSettings
     ) {
+        return createBlobContainer(
+            maxRetries,
+            tryTimeout,
+            readTimeout,
+            secondaryHost,
+            locationMode,
+            clientName,
+            secureSettings,
+            null,
+            null
+        );
+    }
+
+    protected BlobContainer createBlobContainer(
+        final int maxRetries,
+        final TimeValue tryTimeout,
+        @Nullable final TimeValue readTimeout,
+        String secondaryHost,
+        final LocationMode locationMode,
+        String clientName,
+        SecureSettings secureSettings,
+        @Nullable String dataAccessTier,
+        @Nullable String metadataAccessTier
+    ) {
         final Settings.Builder clientSettings = Settings.builder();
 
         String endpoint = "ignored;DefaultEndpointsProtocol=http;BlobEndpoint=" + getEndpointForServer(httpServer, ACCOUNT);
@@ -182,7 +206,15 @@ public abstract class AbstractAzureServerTestCase extends ESTestCase {
 
         return new AzureBlobContainer(
             BlobPath.EMPTY,
-            new AzureBlobStore(ProjectId.DEFAULT, repositoryMetadata, service, BigArrays.NON_RECYCLING_INSTANCE, RepositoriesMetrics.NOOP)
+            new AzureBlobStore(
+                ProjectId.DEFAULT,
+                repositoryMetadata,
+                service,
+                BigArrays.NON_RECYCLING_INSTANCE,
+                RepositoriesMetrics.NOOP,
+                dataAccessTier,
+                metadataAccessTier
+            )
         );
     }
 
@@ -252,6 +284,10 @@ public abstract class AbstractAzureServerTestCase extends ESTestCase {
         private String clientName = randomIdentifier();
         @Nullable
         private SecureSettings secureSettings;
+        @Nullable
+        private String dataAccessTier;
+        @Nullable
+        private String metadataAccessTier;
 
         public BlobContainerBuilder withClientName(String clientName) {
             this.clientName = Objects.requireNonNull(clientName);
@@ -288,6 +324,16 @@ public abstract class AbstractAzureServerTestCase extends ESTestCase {
             return this;
         }
 
+        public BlobContainerBuilder withDataAccessTier(String dataAccessTier) {
+            this.dataAccessTier = dataAccessTier;
+            return this;
+        }
+
+        public BlobContainerBuilder withMetadataAccessTier(String metadataAccessTier) {
+            this.metadataAccessTier = metadataAccessTier;
+            return this;
+        }
+
         public BlobContainer build() {
             if (secureSettings == null) {
                 final MockSecureSettings secureSettings = new MockSecureSettings();
@@ -297,7 +343,17 @@ public abstract class AbstractAzureServerTestCase extends ESTestCase {
                 this.secureSettings = secureSettings;
             }
 
-            return createBlobContainer(maxRetries, tryTimeout, readTimeout, secondaryHost, locationMode, clientName, secureSettings);
+            return createBlobContainer(
+                maxRetries,
+                tryTimeout,
+                readTimeout,
+                secondaryHost,
+                locationMode,
+                clientName,
+                secureSettings,
+                dataAccessTier,
+                metadataAccessTier
+            );
         }
     }
 }

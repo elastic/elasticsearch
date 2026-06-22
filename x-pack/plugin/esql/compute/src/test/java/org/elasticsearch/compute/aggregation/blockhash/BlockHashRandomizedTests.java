@@ -200,9 +200,13 @@ public class BlockHashRandomizedTests extends ComputeTestCase {
                          * page (the vector/vector fast path). Page sizes are assumed safe, so
                          * emitting exactly positionCount in one shot is acceptable.
                          */
+                        int effectiveEmitBatchSize = emitBatchSize;
+                        if (blockHash instanceof LongIntAdaptiveBlockHash adaptive) {
+                            effectiveEmitBatchSize = adaptive.effectiveEmitBatchSize();
+                        }
                         assertThat(
                             ordsAndKeys.ords().getTotalValueCount(),
-                            either(lessThanOrEqualTo(emitBatchSize)).or(equalTo(positionCount))
+                            either(lessThanOrEqualTo(effectiveEmitBatchSize)).or(equalTo(positionCount))
                         );
                     }
                     batchCount[0]++;

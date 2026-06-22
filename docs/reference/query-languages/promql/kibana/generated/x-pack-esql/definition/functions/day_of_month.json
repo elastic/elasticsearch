@@ -20,6 +20,5 @@
   "examples" : [
     "day_of_month()"
   ],
-  "preview" : true,
   "snapshot_only" : false
 }

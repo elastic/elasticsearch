@@ -402,13 +402,15 @@ public class CorruptionIT extends AbstractStatelessPluginIntegTestCase {
             NodeEnvironment nodeEnvironment,
             Settings settings,
             ThreadPool threadPool,
-            BlobCacheMetrics blobCacheMetrics
+            BlobCacheMetrics blobCacheMetrics,
+            ClusterService clusterService
         ) {
             TestSharedBlobCacheService testSharedBlobCacheService = new TestSharedBlobCacheService(
                 nodeEnvironment,
                 settings,
                 threadPool,
-                blobCacheMetrics
+                blobCacheMetrics,
+                clusterService
             );
             testSharedBlobCacheService.assertInvariants();
             return testSharedBlobCacheService;
@@ -423,13 +425,15 @@ public class CorruptionIT extends AbstractStatelessPluginIntegTestCase {
             NodeEnvironment environment,
             Settings settings,
             ThreadPool threadPool,
-            BlobCacheMetrics blobCacheMetrics
+            BlobCacheMetrics blobCacheMetrics,
+            ClusterService clusterService
         ) {
             super(
                 environment,
                 settings,
                 threadPool,
                 blobCacheMetrics,
+                clusterService,
                 new ThreadLocalDirectoryMetricHolder<>(BlobStoreCacheDirectoryMetrics::new)
             );
         }

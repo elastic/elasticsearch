@@ -17,7 +17,6 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
-import org.elasticsearch.test.index.IndexVersionUtils;
 
 import java.io.IOException;
 
@@ -104,19 +103,6 @@ public class ColumnarLogsdbIndexModeTests extends ESTestCase {
         );
         assertThat(settings.getIndexSortConfig().hasPrimarySortOnField("host.name"), equalTo(true));
         assertThat(IndexMode.LOGSDB_COLUMNAR.getDefaultMapping(settings).string(), containsString("host.name"));
-    }
-
-    public void testDefaultHostNameSortFieldBwc() {
-        final IndexMetadata metadata = IndexMetadata.builder("test")
-            .settings(
-                indexSettings(IndexVersionUtils.getPreviousVersion(IndexVersions.LOGSB_OPTIONAL_SORTING_ON_HOST_NAME), 1, 1).put(
-                    buildSettings()
-                )
-            )
-            .build();
-        assertThat(metadata.getIndexMode(), equalTo(IndexMode.LOGSDB_COLUMNAR));
-        final IndexSettings settings = new IndexSettings(metadata, Settings.EMPTY);
-        assertThat(settings.getIndexSortConfig().hasPrimarySortOnField("host.name"), equalTo(true));
     }
 
     public void testDefaultHostNameSortWithOrder() {
@@ -246,10 +232,7 @@ public class ColumnarLogsdbIndexModeTests extends ESTestCase {
     }
 
     public void testIndexDisabledByDefault() {
-        assumeTrue(
-            "index_disabled_by_default feature flag must be enabled",
-            IndexSettings.INDEX_DISABLED_BY_DEFAULT_FEATURE_FLAG.isEnabled()
-        );
+        assumeTrue("columnar feature flag must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         Settings settings = IndexSettingsTests.newIndexMeta("test", buildSettings()).getSettings();
         assertTrue(IndexSettings.INDEX_DISABLED_BY_DEFAULT.get(settings));
     }

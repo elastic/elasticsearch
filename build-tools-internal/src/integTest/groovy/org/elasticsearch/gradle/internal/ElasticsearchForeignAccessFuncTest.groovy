@@ -12,6 +12,9 @@ package org.elasticsearch.gradle.internal
 import org.elasticsearch.gradle.fixtures.AbstractJavaGradleFuncTest
 import org.gradle.testkit.runner.TaskOutcome
 
+import static org.junit.Assume.assumeFalse
+import static org.junit.Assume.assumeTrue
+
 class ElasticsearchForeignAccessFuncTest extends AbstractJavaGradleFuncTest {
 
     def setup() {
@@ -25,7 +28,13 @@ class ElasticsearchForeignAccessFuncTest extends AbstractJavaGradleFuncTest {
         """.stripIndent()
     }
 
+    private static boolean isJdk21() {
+        return Runtime.version().feature() == 21
+    }
+
     def "extractForeignApiJar task is registered and produces output"() {
+        assumeTrue("Requires JDK 21", isJdk21())
+
         given:
         clazz('org.acme.Dummy')
 
@@ -33,24 +42,13 @@ class ElasticsearchForeignAccessFuncTest extends AbstractJavaGradleFuncTest {
         def result = gradleRunner('extractForeignApiJar', '-g', gradleUserHome).build()
 
         then:
-        result.task(":extractForeignApiJar").outcome in [TaskOutcome.SUCCESS, TaskOutcome.SKIPPED]
-        if (result.task(":extractForeignApiJar").outcome == TaskOutcome.SUCCESS) {
-            file("build/jdk21-foreign-api.jar").exists()
-        }
-    }
-
-    def "compileJava succeeds with enableForeignAccess"() {
-        given:
-        clazz('org.acme.Dummy')
-
-        when:
-        def result = gradleRunner('compileJava', '-g', gradleUserHome).build()
-
-        then:
-        result.task(":compileJava").outcome == TaskOutcome.SUCCESS
+        result.task(":extractForeignApiJar").outcome == TaskOutcome.SUCCESS
+        file("build/jdk21-foreign-api.jar").exists()
     }
 
     def "extractForeignApiJar is up-to-date on second run"() {
+        assumeTrue("Requires JDK 21", isJdk21())
+
         given:
         clazz('org.acme.Dummy')
 
@@ -63,6 +61,8 @@ class ElasticsearchForeignAccessFuncTest extends AbstractJavaGradleFuncTest {
     }
 
     def "extractForeignApiJar is loaded from build cache after clean"() {
+        assumeTrue("Requires JDK 21", isJdk21())
+
         given:
         clazz('org.acme.Dummy')
 
@@ -73,6 +73,30 @@ class ElasticsearchForeignAccessFuncTest extends AbstractJavaGradleFuncTest {
 
         then:
         result.task(":extractForeignApiJar").outcome == TaskOutcome.FROM_CACHE
+    }
+
+    def "extractForeignApiJar is skipped on non-JDK 21"() {
+        assumeFalse("Requires non-JDK 21", isJdk21())
+
+        given:
+        clazz('org.acme.Dummy')
+
+        when:
+        def result = gradleRunner('extractForeignApiJar', '-g', gradleUserHome).build()
+
+        then:
+        result.task(":extractForeignApiJar").outcome == TaskOutcome.SKIPPED
+    }
+
+    def "compileJava succeeds with enableForeignAccess"() {
+        given:
+        clazz('org.acme.Dummy')
+
+        when:
+        def result = gradleRunner('compileJava', '-g', gradleUserHome).build()
+
+        then:
+        result.task(":compileJava").outcome == TaskOutcome.SUCCESS
     }
 
     def "compileJava is up-to-date on second run"() {

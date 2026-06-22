@@ -44,7 +44,6 @@ import org.elasticsearch.index.shard.IndexShardTestCase;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.transport.MockTransport;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportException;
@@ -106,10 +105,8 @@ public class TransportReplicationAllPermitsAcquisitionTests extends IndexShardTe
     private boolean globalBlock;
     private ClusterBlock block;
 
-    @Override
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void initializeClusterAndShards() throws Exception {
         globalBlock = randomBoolean();
         RestStatus restStatus = randomFrom(RestStatus.values());
         block = new ClusterBlock(randomIntBetween(1, 10), randomAlphaOfLength(5), false, true, false, restStatus, ClusterBlockLevel.ALL);
@@ -209,13 +206,11 @@ public class TransportReplicationAllPermitsAcquisitionTests extends IndexShardTe
         shardStateAction = new ShardStateAction(clusterService, transportService, null, null, threadPool);
     }
 
-    @Override
     @After
-    public void tearDown() throws Exception {
+    public void closeClusterAndServices() throws Exception {
         closeShards(primary, replica);
         transportService.stop();
         clusterService.close();
-        super.tearDown();
     }
 
     public void testTransportReplicationActionWithAllPermits() throws Exception {
@@ -392,10 +387,6 @@ public class TransportReplicationAllPermitsAcquisitionTests extends IndexShardTe
                 }
             }
         }
-        assertWarnings(
-            "[indices.merge.scheduler.use_thread_pool] setting was deprecated in Elasticsearch and will be removed in a future release. "
-                + "See the breaking changes documentation for the next major version."
-        );
     }
 
     private void assertSuccessfulOperation(final TestAction action, final Response response) {
@@ -486,7 +477,6 @@ public class TransportReplicationAllPermitsAcquisitionTests extends IndexShardTe
 
         @Override
         protected void shardOperationOnPrimary(
-            Task task,
             Request shardRequest,
             IndexShard shard,
             ActionListener<PrimaryResult<Request, Response>> listener
@@ -577,14 +567,13 @@ public class TransportReplicationAllPermitsAcquisitionTests extends IndexShardTe
 
         @Override
         protected void shardOperationOnPrimary(
-            Task task,
             Request shardRequest,
             IndexShard shard,
             ActionListener<PrimaryResult<Request, Response>> listener
         ) {
             assertNoBlocks("block must not exist when executing the operation on primary shard: it should have been blocked before");
             assertThat(shard.getActiveOperationsCount(), greaterThan(0));
-            super.shardOperationOnPrimary(task, shardRequest, shard, listener);
+            super.shardOperationOnPrimary(shardRequest, shard, listener);
         }
 
         @Override
@@ -652,13 +641,12 @@ public class TransportReplicationAllPermitsAcquisitionTests extends IndexShardTe
 
         @Override
         protected void shardOperationOnPrimary(
-            Task task,
             Request shardRequest,
             IndexShard shard,
             ActionListener<PrimaryResult<Request, Response>> listener
         ) {
             assertEquals("All permits must be acquired", IndexShard.OPERATIONS_BLOCKED, shard.getActiveOperationsCount());
-            super.shardOperationOnPrimary(task, shardRequest, shard, listener);
+            super.shardOperationOnPrimary(shardRequest, shard, listener);
         }
 
         @Override

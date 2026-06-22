@@ -72,6 +72,7 @@ import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.ThreadLocalDirectoryMetricHolder;
 import org.elasticsearch.index.translog.TranslogConfig;
 import org.elasticsearch.indices.cluster.IndexRemovalReason;
+import org.elasticsearch.indices.recovery.CompositeRecoverySchedulingListener;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.indices.recovery.StatelessPrimaryRelocationAction;
 import org.elasticsearch.indices.recovery.StatelessUnpromotableRelocationAction;
@@ -496,6 +497,7 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
                         clusterService(),
                         actionFilters,
                         indicesService,
+                        new CompositeRecoverySchedulingListener(),
                         peerRecoveryTargetService,
                         testStatelessPlugin.statelessCommitService,
                         mock(IndexShardCacheWarmer.class),
@@ -840,10 +842,10 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
             hollowShardsService = mock(HollowShardsService.class);
             // Let hollowShardsService pass on mutable operation check
             doAnswer(invocation -> {
-                ActionListener<Void> listener = invocation.getArgument(2);
+                ActionListener<Void> listener = invocation.getArgument(3);
                 listener.onResponse(null);
                 return null;
-            }).when(hollowShardsService).beforeMutableOperation(any(), anyBoolean(), anyActionListener());
+            }).when(hollowShardsService).beforeMutableOperation(any(), anyBoolean(), any(), anyActionListener());
             when(hollowShardsService.isHollowShard(any(ShardId.class))).thenReturn(false);
             when(hollowShardsService.isHollowableIndexShard(any(IndexShard.class), anyBoolean())).thenReturn(false);
 

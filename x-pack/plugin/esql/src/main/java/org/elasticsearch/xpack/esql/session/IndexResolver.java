@@ -595,9 +595,7 @@ public class IndexResolver {
     }
 
     private static Map<String, Set<String>> partiallyUnmappedTypesByName(EsField field, Set<String> mappedIndices) {
-        return field instanceof TypeConflictedField tcf
-            ? tcf.getTypesToIndices()
-            : Map.of(field.getDataType().widenSmallNumeric().typeName(), mappedIndices);
+        return field instanceof TypeConflictedField tcf ? tcf.getTypesToIndices() : Map.of(field.getDataType().typeName(), mappedIndices);
     }
 
     private static Map<DataType, Set<String>> partiallyUnmappedTypesByDataType(EsField field, Set<String> mappedIndices) {
@@ -606,7 +604,7 @@ public class IndexResolver {
             tcf.getTypesToIndices().forEach((typeName, indices) -> result.put(DataType.fromTypeName(typeName), indices));
             return result;
         }
-        return Map.of(field.getDataType().widenSmallNumeric(), mappedIndices);
+        return Map.of(field.getDataType(), mappedIndices);
     }
 
     private static UnsupportedEsField unsupported(String name, IndexFieldCapabilities fc) {

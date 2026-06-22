@@ -1471,6 +1471,7 @@ public class DatafeedManagerTests extends ESTestCase {
 
     @SuppressWarnings("unchecked")
     public void testUpdateDatafeedFirstTimeMigrationShouldDefaultProjectRoutingToOrigin() {
+        assumeTrue("feature under test must be enabled", DatafeedConfig.DATAFEED_CROSS_PROJECT.isEnabled());
         Settings settings = Settings.builder().put("serverless.cross_project.enabled", true).put("xpack.security.enabled", false).build();
 
         DatafeedConfigProvider datafeedConfigProvider = mock(DatafeedConfigProvider.class);
@@ -1508,6 +1509,7 @@ public class DatafeedManagerTests extends ESTestCase {
 
     @SuppressWarnings("unchecked")
     public void testUpdateDatafeedFirstTimeMigrationShouldNotOverrideExistingProjectRouting() {
+        assumeTrue("feature under test must be enabled", DatafeedConfig.DATAFEED_CROSS_PROJECT.isEnabled());
         Settings settings = Settings.builder().put("serverless.cross_project.enabled", true).put("xpack.security.enabled", false).build();
 
         DatafeedConfigProvider datafeedConfigProvider = mock(DatafeedConfigProvider.class);
@@ -1552,6 +1554,7 @@ public class DatafeedManagerTests extends ESTestCase {
 
     @SuppressWarnings("unchecked")
     public void testUpdateDatafeedFirstTimeMigrationShouldHonourExplicitProjectRoutingInUpdate() {
+        assumeTrue("feature under test must be enabled", DatafeedConfig.DATAFEED_CROSS_PROJECT.isEnabled());
         Settings settings = Settings.builder().put("serverless.cross_project.enabled", true).put("xpack.security.enabled", false).build();
 
         DatafeedConfigProvider datafeedConfigProvider = mock(DatafeedConfigProvider.class);
@@ -1596,6 +1599,7 @@ public class DatafeedManagerTests extends ESTestCase {
 
     @SuppressWarnings("unchecked")
     public void testUpdateDatafeedAlreadyMigratedShouldNotDefaultRoutingOnRekey() {
+        assumeTrue("feature under test must be enabled", DatafeedConfig.DATAFEED_CROSS_PROJECT.isEnabled());
         Settings settings = Settings.builder().put("serverless.cross_project.enabled", true).put("xpack.security.enabled", false).build();
 
         DatafeedConfigProvider datafeedConfigProvider = mock(DatafeedConfigProvider.class);

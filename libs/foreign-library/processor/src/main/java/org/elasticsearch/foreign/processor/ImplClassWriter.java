@@ -41,7 +41,8 @@ import static org.elasticsearch.foreign.processor.ClassWriterUtil.primitiveClass
  *
  * <p>Each generated class:
  * <ul>
- *   <li>is package-private {@code final} with a package-private no-arg constructor (only {@code $Provider} in the same package can instantiate it)</li>
+ *   <li>is package-private {@code final} with a package-private no-arg constructor (only {@code $Provider}
+ *   in the same package can instantiate it)</li>
  *   <li>implements the annotated interface</li>
  *   <li>has one {@code private static final MethodHandle} field per {@code @Function} method</li>
  *   <li>initializes those fields in {@code <clinit>}</li>

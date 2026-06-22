@@ -674,7 +674,38 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
 
     protected boolean supportsViews() {
         if (supportsViews == null) {
-            supportsViews = hasCapabilities(adminClient(), List.of("views_with_no_branching", "views_crud_as_index_actions"));
+            try {
+                // Step 1: check via /_capabilities that ALL nodes understand views (allMatch semantics).
+                boolean esqlViewsSupported = clusterHasCapability(
+                    adminClient(),
+                    "POST",
+                    "/_query",
+                    List.of(),
+                    List.of("views_crud_as_index_actions")
+                ).orElse(false);
+
+                if (esqlViewsSupported == false) {
+                    supportsViews = false;
+                } else {
+                    // Step 2: probe the REST endpoint directly. In non-serverless mode all nodes return
+                    // 200 regardless of @ServerlessScope. In serverless mode an old node without
+                    // @ServerlessScope(Scope.PUBLIC) returns 410. A single probe cannot cover every node
+                    // in a mixed-serverless cluster, but any 410 is a definitive signal that view loading
+                    // will fail on at least some nodes.
+                    try {
+                        adminClient().performRequest(new Request("GET", "/_query/view"));
+                        supportsViews = true;
+                    } catch (ResponseException e) {
+                        if (e.getResponse().getStatusLine().getStatusCode() == 410) {
+                            supportsViews = false;
+                        } else {
+                            throw e;
+                        }
+                    }
+                }
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
         }
         return supportsViews;
     }

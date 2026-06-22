@@ -229,21 +229,12 @@ public class TaskExecutionTimeTrackingEsThreadPoolExecutorTests extends ESTestCa
     }
 
     public void testEwmrUtilizationTracking() throws Exception {
-        final ThreadContext context = new ThreadContext(Settings.EMPTY);
         final int poolSize = randomIntBetween(1, 4);
-        final TaskExecutionTimeTrackingEsThreadPoolExecutor executor = new TaskExecutionTimeTrackingEsThreadPoolExecutor(
+        final TaskExecutionTimeTrackingEsThreadPoolExecutor executor = buildExecutor(
             "test-threadpool",
             poolSize,
-            poolSize,
-            1000,
-            TimeUnit.MILLISECONDS,
-            ConcurrentCollections.newBlockingQueue(),
             settableWrapper(TimeUnit.MILLISECONDS.toNanos(10)),
-            TestEsExecutors.testOnlyDaemonThreadFactory("queuetest"),
-            new EsAbortPolicy(),
-            context,
-            EsExecutors.TaskTrackingConfig.builder().threadUtilizationEwmrHalfLife(randomTimeValue(10, 100, TimeUnit.SECONDS)).build(),
-            EsExecutors.HotThreadsOnLargeQueueConfig.DISABLED
+            EsExecutors.TaskTrackingConfig.builder().threadUtilizationEwmrHalfLife(randomTimeValue(10, 100, TimeUnit.SECONDS)).build()
         );
         try {
             assertThat(executor.getAverageActiveThreads(), equalTo(0.0));

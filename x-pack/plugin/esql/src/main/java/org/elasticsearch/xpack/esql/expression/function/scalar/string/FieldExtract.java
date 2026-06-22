@@ -18,6 +18,7 @@ import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.flattened.ExtractFlattenedSubfieldConfig;
+import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
 import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
@@ -207,6 +208,7 @@ public class FieldExtract extends EsqlScalarFunction implements BlockLoaderExpre
 
     @Evaluator(warnExceptions = IllegalArgumentException.class)
     public static void process(BytesRefBlock.Builder builder, BytesRef flattenedJson, BytesRef path) {
+        assert FlattenedFieldMapper.assertSortedKeys(flattenedJson);
         String key = path.utf8ToString();
         validateFieldExtractPath(key);
         extractTopLevelKey(builder, flattenedJson, key);
@@ -214,6 +216,7 @@ public class FieldExtract extends EsqlScalarFunction implements BlockLoaderExpre
 
     @Evaluator(extraName = "Constant", warnExceptions = IllegalArgumentException.class)
     static void processConstant(BytesRefBlock.Builder builder, BytesRef flattenedJson, @Fixed String path) {
+        assert FlattenedFieldMapper.assertSortedKeys(flattenedJson);
         // path was validated at plan time, no need to re-check per row.
         extractTopLevelKey(builder, flattenedJson, path);
     }
@@ -224,7 +227,8 @@ public class FieldExtract extends EsqlScalarFunction implements BlockLoaderExpre
                 .createParser(XContentParserConfiguration.EMPTY, str.bytes, str.offset, str.length)
         ) {
             if (parser.nextToken() != XContentParser.Token.START_OBJECT) {
-                throw new IllegalArgumentException("path [" + key + "] does not exist");
+                builder.appendNull();
+                return;
             }
             XContentParser.Token token;
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
@@ -238,7 +242,7 @@ public class FieldExtract extends EsqlScalarFunction implements BlockLoaderExpre
                     parser.skipChildren();
                 }
             }
-            throw new IllegalArgumentException("path [" + key + "] does not exist");
+            builder.appendNull();
         } catch (IOException | XContentParseException e) {
             throw new IllegalArgumentException("invalid JSON input");
         }

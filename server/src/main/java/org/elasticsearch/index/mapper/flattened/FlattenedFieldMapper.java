@@ -96,6 +96,8 @@ import org.elasticsearch.search.sort.BucketedSort;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -143,6 +145,36 @@ import static org.elasticsearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
 public final class FlattenedFieldMapper extends FieldMapper implements PassThroughFieldSource {
 
     public static final String CONTENT_TYPE = "flattened";
+
+    public static boolean assertSortedKeys(BytesRef json) {
+        try (
+            XContentParser parser = XContentType.JSON.xContent()
+                .createParser(XContentParserConfiguration.EMPTY, json.bytes, json.offset, json.length)
+        ) {
+            if (parser.nextToken() != XContentParser.Token.START_OBJECT) {
+                return true;
+            }
+            BytesRef prevKey = null;
+            XContentParser.Token token;
+            while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                if (token == XContentParser.Token.FIELD_NAME) {
+                    BytesRef currentKey = new BytesRef(parser.currentName());
+                    if (prevKey != null && prevKey.compareTo(currentKey) > 0) {
+                        throw new AssertionError(
+                            "Keys are not sorted: '" + prevKey.utf8ToString() + "' > '" + currentKey.utf8ToString() + "'"
+                        );
+                    }
+                    prevKey = currentKey;
+                    parser.nextToken();
+                    parser.skipChildren();
+                }
+            }
+        } catch (java.io.IOException e) {
+            throw new java.io.UncheckedIOException(e);
+        }
+        return true;
+    }
+
     public static final String KEYED_FIELD_SUFFIX = "._keyed";
     public static final String KEYED_IGNORED_VALUES_FIELD_SUFFIX = "._keyed._ignored";
     public static final String TIME_SERIES_DIMENSIONS_ARRAY_PARAM = "time_series_dimensions";

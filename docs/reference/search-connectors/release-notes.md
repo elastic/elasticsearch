@@ -13,6 +13,26 @@ If you are an Enterprise Search user and want to upgrade to Elastic 9.0, refer t
 It includes detailed steps, tooling, and resources to help you transition to supported alternatives in 9.x, such as Elasticsearch, the Open Web Crawler, and self-managed connectors.
 :::
 
+## 9.4.3 [connectors-9.4.3-release-notes]
+
+### Fixes [connectors-9.4.3-fixes]
+* The Jira connector now falls back to the deprecated `rest/api/2/search` endpoint for Jira Server and Data Center deployments, fixing syncs against versions older than v10 that do not support the newer `rest/api/3/search/jql` endpoint. [#4059](https://github.com/elastic/connectors/pull/4059), [#4058](https://github.com/elastic/connectors/issues/4058)
+* Reduced the Jira connector's memory usage during full syncs and fixed a case where a failed fetch could leave a sync waiting indefinitely, both of which contributed to growing memory consumption in agentless deployments. [#4062](https://github.com/elastic/connectors/pull/4062), [#3914](https://github.com/elastic/connectors/issues/3914)
+* Fixed sync jobs reporting an indexed document count of `0` even when documents were successfully ingested; the counts are now updated correctly when the bulk error monitor triggers mid-batch, and user-supplied `elasticsearch.bulk.error_monitor.*` settings are now honored. [#4047](https://github.com/elastic/connectors/pull/4047), [#3736](https://github.com/elastic/connectors/issues/3736)
+* Fixed the Confluence connector failing against Confluence Data Center and Server with an HTTP 500 from `/rest/api/space`; the connector no longer requests the unused `permissions` and `history` expansions on Data Center and Server. [#4041](https://github.com/elastic/connectors/pull/4041)
+* Fixed an Outlook connector crash on localized (non-English) Exchange servers by resolving the contacts and archive folders through locale-agnostic distinguished folder IDs instead of English display names. [#4065](https://github.com/elastic/connectors/pull/4065), [#4064](https://github.com/elastic/connectors/issues/4064)
+* Fixed an Outlook connector crash on on-premises Exchange when Active Directory contained users without a mail attribute; those users are now skipped with a warning instead of aborting the sync. [#4078](https://github.com/elastic/connectors/pull/4078)
+
+## 9.3.6 [connectors-9.3.6-release-notes]
+
+### Fixes [connectors-9.3.6-fixes]
+* The Jira connector now falls back to the deprecated `rest/api/2/search` endpoint for Jira Server and Data Center deployments, fixing syncs against versions older than v10 that do not support the newer `rest/api/3/search/jql` endpoint. [#4059](https://github.com/elastic/connectors/pull/4059), [#4058](https://github.com/elastic/connectors/issues/4058)
+* Reduced the Jira connector's memory usage during full syncs and fixed a case where a failed fetch could leave a sync waiting indefinitely, both of which contributed to growing memory consumption in agentless deployments. [#4062](https://github.com/elastic/connectors/pull/4062), [#3914](https://github.com/elastic/connectors/issues/3914)
+* Fixed sync jobs reporting an indexed document count of `0` even when documents were successfully ingested; the counts are now updated correctly when the bulk error monitor triggers mid-batch, and user-supplied `elasticsearch.bulk.error_monitor.*` settings are now honored. [#4047](https://github.com/elastic/connectors/pull/4047), [#3736](https://github.com/elastic/connectors/issues/3736)
+* Fixed the Confluence connector failing against Confluence Data Center and Server with an HTTP 500 from `/rest/api/space`; the connector no longer requests the unused `permissions` and `history` expansions on Data Center and Server. [#4041](https://github.com/elastic/connectors/pull/4041)
+* Fixed an Outlook connector crash on localized (non-English) Exchange servers by resolving the contacts and archive folders through locale-agnostic distinguished folder IDs instead of English display names. [#4065](https://github.com/elastic/connectors/pull/4065), [#4064](https://github.com/elastic/connectors/issues/4064)
+* Fixed an Outlook connector crash on on-premises Exchange when Active Directory contained users without a mail attribute; those users are now skipped with a warning instead of aborting the sync. [#4078](https://github.com/elastic/connectors/pull/4078)
+
 ## 9.4.2 [connectors-9.4.2-release-notes]
 
 ### Features and enhancements [connectors-9.4.2-features-enhancements]

@@ -151,6 +151,7 @@ public class LoggersTests extends ESTestCase {
 
             // With the flag off, no warning is emitted even though the child would be overridden.
             Loggers.setLevel(parent, Level.INFO, false);
+            assertWarnings(); // no warnings
 
             // With the flag on, a single warning is emitted when any child logger's explicit level would be overridden.
             Loggers.setLevel(child, Level.TRACE); // re-establish child level (it was just overridden by the parent update above)
@@ -163,11 +164,12 @@ public class LoggersTests extends ESTestCase {
             // No warning if the child already has the same level as the new parent level.
             Loggers.setLevel(child, Level.DEBUG);
             Loggers.setLevel(parent, Level.DEBUG, true); // child already at DEBUG — no override warning
-            // (assertWarnings with no arguments verifies no warnings were emitted)
+            assertWarnings(); // no warnings
 
             // No warning when resetting the parent (null level).
             Loggers.setLevel(child, Level.TRACE);
             Loggers.setLevel(parent, (Level) null, true);
+            assertWarnings(); // no warnings
         });
     }
 

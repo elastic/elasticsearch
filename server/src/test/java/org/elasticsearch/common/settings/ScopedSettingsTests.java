@@ -1347,7 +1347,7 @@ public class ScopedSettingsTests extends ESTestCase {
                 // Set a parent logger that has no explicitly-configured children — no deprecation warning expected.
                 settings.applySettings(Settings.builder().put("logger.test.nodeprecation", "DEBUG").build());
                 assertEquals(Level.DEBUG, LogManager.getLogger("test.nodeprecation").getLevel());
-                // assertWarnings() with no args verifies no warnings were emitted.
+                assertWarnings(); // no warnings
             } finally {
                 Loggers.setLevel(LogManager.getLogger("test.nodeprecation"), parentOriginal);
             }

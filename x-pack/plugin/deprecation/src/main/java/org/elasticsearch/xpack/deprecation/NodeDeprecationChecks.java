@@ -1088,14 +1088,10 @@ public class NodeDeprecationChecks {
             .toList();
 
         List<String> affectedChildren = new ArrayList<>();
-        for (int i = 0; i < loggerNames.size(); i++) {
-            String parent = loggerNames.get(i);
-            for (int j = 0; j < loggerNames.size(); j++) {
-                if (i != j) {
-                    String candidate = loggerNames.get(j);
-                    if (candidate.startsWith(parent + ".")) {
-                        affectedChildren.add(candidate);
-                    }
+        for (var parent : loggerNames) {
+            for (var candidate : loggerNames) {
+                if (candidate.startsWith(parent + ".")) {
+                    affectedChildren.add(candidate);
                 }
             }
         }

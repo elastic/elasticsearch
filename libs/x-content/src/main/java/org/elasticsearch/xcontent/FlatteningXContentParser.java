@@ -10,6 +10,7 @@
 package org.elasticsearch.xcontent;
 
 import java.io.IOException;
+import java.util.Objects;
 
 /**
  * A subclass of XContentSubParser that provides the functionality to flatten
@@ -26,7 +27,7 @@ public class FlatteningXContentParser extends XContentSubParser {
      */
     public FlatteningXContentParser(XContentParser parser, String parentName) {
         super(parser);
-        this.prefix = parentName + '.';
+        this.prefix = Objects.requireNonNull(parentName) + '.';
     }
 
     /**

@@ -842,6 +842,7 @@ public class ObjectMapper extends Mapper {
      * Used to detect intermediate object segments when {@code subobjects} is disabled.
      */
     public boolean hasMappedFieldsWithPrefix(String prefix) {
+        assert prefix.endsWith(".") == false : "prefix must not end with a dot";
         return mappedPrefixes.contains(prefix);
     }
 

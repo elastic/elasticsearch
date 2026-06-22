@@ -319,7 +319,12 @@ public class BlobStoreSyncDirectoryTests extends ESTestCase {
             dir.close();
             blockExecutionLatch.countDown();
 
-            assertThrows(Exception.class, syncFuture::get);
+            try {
+                syncFuture.get();
+            } catch (Exception ignored) {
+                // there's a controlled race, in most cases an exception will be thrown. If a `sync()` method executes when `dir.close()`
+                // executes it may not throw an exception, but it will eventually cancel uploads anyway.
+            }
             assertThat(uploadedFiles, is(empty()));
         }
     }

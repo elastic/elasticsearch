@@ -434,7 +434,7 @@ public final class AstKeywordFieldRewriter {
         private Set<String> processNode(LogicalPlan node, Set<String> scope) {
             if (node instanceof Eval eval) {
                 for (Alias field : eval.fields()) {
-                    wrapExpression(field, scope, null, -1);
+                    wrapExpression(field, scope, null);
                 }
                 return removeAll(scope, aliasNames(eval.fields()));
             }
@@ -443,7 +443,7 @@ public final class AstKeywordFieldRewriter {
             }
             if (node instanceof OrderBy orderBy) {
                 for (Expression order : orderBy.order()) {
-                    wrapExpression(order, scope, null, -1);
+                    wrapExpression(order, scope, null);
                 }
                 return scope;
             }
@@ -470,7 +470,7 @@ public final class AstKeywordFieldRewriter {
                 return processAggregate(aggregate, scope, false);
             }
             if (node instanceof RegexExtract regexExtract) {
-                wrapExpression(regexExtract.input(), scope, null, -1);
+                wrapExpression(regexExtract.input(), scope, null);
                 return removeAll(scope, attributeNames(regexExtract.extractedFields()));
             }
             if (node instanceof Join join) {
@@ -493,7 +493,7 @@ public final class AstKeywordFieldRewriter {
             // Source commands (FROM/TS/ROW), subquery sources and any other command: wrap whatever
             // own expressions the node exposes (a no-op for leaf sources) and preserve scope.
             for (Expression expression : node.expressions()) {
-                wrapExpression(expression, scope, null, -1);
+                wrapExpression(expression, scope, null);
             }
             return scope;
         }
@@ -511,7 +511,7 @@ public final class AstKeywordFieldRewriter {
         private Set<String> processFilter(Filter filter, Set<String> scope) {
             Set<String> hoist = collectInSubqueryLhsHoist(filter.condition(), scope);
             Set<String> wrapScope = removeAll(scope, hoist);
-            wrapExpression(filter.condition(), wrapScope, null, -1);
+            wrapExpression(filter.condition(), wrapScope, null);
             hoistBeforeCommand(filter.source(), hoist);
             return wrapScope;
         }
@@ -630,7 +630,7 @@ public final class AstKeywordFieldRewriter {
                     // backtick alias before wrapping.
                     int start = startOffset(alias.source());
                     addEdit(start, start, "`" + alias.source().text() + "` = ");
-                    wrapExpression(alias.child(), scope, null, -1);
+                    wrapExpression(alias.child(), scope, null);
                     return;
                 }
                 if (scope.contains(alias.name())) {
@@ -641,13 +641,13 @@ public final class AstKeywordFieldRewriter {
                     }
                     shadowed.add(alias.name());
                 }
-                wrapExpression(alias.child(), scope, null, -1);
+                wrapExpression(alias.child(), scope, null);
                 return;
             }
             if (mentionsInScope(piece, scope) && spanMatches(piece.source())) {
                 int start = startOffset(piece.source());
                 addEdit(start, start, "`" + piece.source().text() + "` = ");
-                wrapExpression(piece, scope, null, -1);
+                wrapExpression(piece, scope, null);
             }
         }
 
@@ -789,17 +789,13 @@ public final class AstKeywordFieldRewriter {
          * (wrapping in-scope ones), protects the LHS of the match operator {@code :}, and recurses
          * into {@code IN (subquery)} by wrapping the left-hand side and rewriting the subquery.
          *
-         * @param parentFunction the uppercased name of the enclosing {@link Function}, or {@code null}
-         *                       when the expression is not directly inside a function call
-         * @param argIndex       the zero-based position of {@code expression} within its parent
-         *                       function's argument list, or {@code -1} when {@code parentFunction}
-         *                       is {@code null}; used to record which {@code FUNCTION:argIndex} pairs
-         *                       were covered by an in-scope attribute during rewriting
+         * @param trackingContext the tracking context for function arguments, or {@code null}
+         *                        when the expression is not directly inside a function call
          */
-        private void wrapExpression(Expression expression, Set<String> scope, String parentFunction, int argIndex) {
+        private void wrapExpression(Expression expression, Set<String> scope, String trackingContext) {
             if (expression instanceof UnresolvedAttribute attr) {
-                if (parentFunction != null && scope.contains(attr.name()) && spanMatches(attr.source())) {
-                    coveredArguments.add(parentFunction + ":" + argIndex);
+                if (trackingContext != null && scope.contains(attr.name()) && spanMatches(attr.source())) {
+                    coveredArguments.add(trackingContext);
                 }
                 wrapAttribute(attr, scope);
                 return;
@@ -809,7 +805,7 @@ public final class AstKeywordFieldRewriter {
                 // attribute there is hoisted into a preceding EVAL (the IN-subquery resolver rejects
                 // a field_extract(...) LHS), and is excluded from this scope so it is not wrapped in
                 // place. A non-attribute LHS (constant/expression) is wrapped here as usual.
-                wrapExpression(inSubquery.value(), scope, null, -1);
+                wrapExpression(inSubquery.value(), scope, null);
                 processInSubquery(inSubquery);
                 return;
             }
@@ -822,14 +818,22 @@ public final class AstKeywordFieldRewriter {
             }
 
             boolean isFunction = expression instanceof Function;
-            String nextParentFunction = parentFunction;
+            String functionName = null;
             if (isFunction) {
-                nextParentFunction = ((Function) expression).functionName().toUpperCase(Locale.ROOT);
+                if (expression instanceof org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction unf) {
+                    functionName = unf.name().toUpperCase(Locale.ROOT);
+                } else {
+                    functionName = ((Function) expression).functionName().toUpperCase(Locale.ROOT);
+                }
             }
 
             int i = 0;
             for (Expression child : expression.children()) {
-                wrapExpression(child, scope, nextParentFunction, isFunction ? i : argIndex);
+                String nextTrackingContext = trackingContext;
+                if (isFunction) {
+                    nextTrackingContext = functionName + ":" + i;
+                }
+                wrapExpression(child, scope, nextTrackingContext);
                 i++;
             }
         }

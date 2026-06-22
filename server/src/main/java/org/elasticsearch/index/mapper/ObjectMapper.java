@@ -15,6 +15,7 @@ import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Explicit;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
@@ -130,6 +131,12 @@ public class ObjectMapper extends Mapper {
         protected Optional<SourceKeepMode> sourceKeepMode = Optional.empty();
         protected Dynamic dynamic;
         protected final List<Mapper.Builder> mappersBuilders = new ArrayList<>();
+        /**
+         * Accumulates per-prefix settings captured during auto-flattening in strict columnar mode.
+         * Populated by {@link #flattenBuildersIfNeeded} when {@link MapperBuilderContext#isStrictColumnar()} is true.
+         * Read by {@link RootObjectMapper.Builder#build} to persist the entries so they survive round-trips.
+         */
+        protected final Map<String, PrefixProperties> prefixProperties = new HashMap<>();
 
         public Builder(String name) {
             this(name, Defaults.SUBOBJECTS);
@@ -350,7 +357,7 @@ public class ObjectMapper extends Mapper {
             Map<String, Mapper.Builder> map = new HashMap<>();
             for (Mapper.Builder builder : builders) {
                 if (subobjects.value() == Subobjects.DISABLED && builder instanceof ObjectMapper.Builder objectMapperBuilder) {
-                    objectMapperBuilder.asFlattenedFieldBuilders(builderContext, map, new ContentPath());
+                    objectMapperBuilder.asFlattenedFieldBuilders(builderContext, map, new ContentPath(), this.prefixProperties);
                 } else {
                     Mapper.Builder existing = map.get(builder.leafName());
                     if (existing != null) {
@@ -368,16 +375,32 @@ public class ObjectMapper extends Mapper {
          * avoiding the need to build an intermediate ObjectMapper.
          *
          * @param parentContext the builder context of the parent object (used for full-path error messages)
-         * @param result       the map to collect flattened field builders into
-         * @param path         tracks the relative path for field renaming
+         * @param result        the map to collect flattened field builders into
+         * @param path          tracks the relative path for field renaming
+         * @param collector     accumulates per-prefix settings in strict columnar mode;
+         *                      must be the root builder's {@code prefixProperties} map so all entries
+         *                      from the full nested hierarchy land in one place
          */
-        private void asFlattenedFieldBuilders(MapperBuilderContext parentContext, Map<String, Mapper.Builder> result, ContentPath path) {
+        private void asFlattenedFieldBuilders(
+            MapperBuilderContext parentContext,
+            Map<String, Mapper.Builder> result,
+            ContentPath path,
+            Map<String, PrefixProperties> collector
+        ) {
             String fullName = parentContext.buildFullName(path.pathAsText(leafName()));
             ensureBuilderFlattenable(parentContext, fullName);
+            if (parentContext.isStrictColumnar()) {
+                if (dynamic != null) {
+                    collector.merge(fullName, new PrefixProperties(dynamic, null), PrefixProperties::merge);
+                }
+                if (this instanceof PassThroughObjectMapper.Builder ptBuilder) {
+                    collector.merge(fullName, new PrefixProperties(null, ptBuilder.priority), PrefixProperties::merge);
+                }
+            }
             path.add(leafName());
             for (Mapper.Builder childBuilder : mappersBuilders) {
                 if (childBuilder instanceof ObjectMapper.Builder objectMapperBuilder) {
-                    objectMapperBuilder.asFlattenedFieldBuilders(parentContext, result, path);
+                    objectMapperBuilder.asFlattenedFieldBuilders(parentContext, result, path, collector);
                 } else if (childBuilder instanceof FieldMapper.Builder fieldMapperBuilder) {
                     fieldMapperBuilder.setLeafName(path.pathAsText(fieldMapperBuilder.leafName()));
                     result.put(fieldMapperBuilder.leafName(), fieldMapperBuilder);
@@ -387,7 +410,9 @@ public class ObjectMapper extends Mapper {
         }
 
         private void ensureBuilderFlattenable(MapperBuilderContext context, String fullName) {
-            if (dynamic != null && context.getDynamic() != dynamic) {
+            // In strict columnar mode, objects with a different dynamic than the parent are allowed;
+            // their declared dynamic is captured in prefixProperties for index-time resolution.
+            if (dynamic != null && context.getDynamic() != dynamic && context.isStrictColumnar() == false) {
                 throwAutoFlatteningException(
                     fullName,
                     "the value of [dynamic] ("
@@ -540,6 +565,9 @@ public class ObjectMapper extends Mapper {
                 if (value.equalsIgnoreCase("strict")) {
                     builder.dynamic(Dynamic.STRICT);
                 } else if (value.equalsIgnoreCase("runtime")) {
+                    if (parserContext.getIndexSettings().getMode().isStrictColumnar()) {
+                        throw new MapperParsingException("dynamic [runtime] is not supported in strict columnar mode");
+                    }
                     builder.dynamic(Dynamic.RUNTIME);
                 } else {
                     boolean dynamic = XContentMapValues.nodeBooleanValue(fieldNode, fieldName + ".dynamic");
@@ -719,6 +747,7 @@ public class ObjectMapper extends Mapper {
     protected final Dynamic dynamic;
 
     protected final Map<String, Mapper> mappers;
+    private final String[] sortedFieldNames;
 
     ObjectMapper(
         String name,
@@ -739,8 +768,12 @@ public class ObjectMapper extends Mapper {
         this.dynamic = dynamic;
         if (mappers == null) {
             this.mappers = Map.of();
+            this.sortedFieldNames = Strings.EMPTY_ARRAY;
         } else {
             this.mappers = Map.copyOf(mappers);
+            String[] names = mappers.keySet().toArray(String[]::new);
+            Arrays.sort(names);
+            sortedFieldNames = names;
         }
         assert subobjects.value() != Subobjects.DISABLED || this.mappers.values().stream().noneMatch(m -> m instanceof ObjectMapper)
             : "When subobjects is false, mappers must not contain an ObjectMapper";
@@ -789,6 +822,21 @@ public class ObjectMapper extends Mapper {
 
     public Map<String, Mapper> getMappers() {
         return mappers;
+    }
+
+    /**
+     * Returns true if any mapped child field has {@code prefix} as a dotted-path prefix,
+     * i.e. any key in this mapper's children starts with {@code prefix + "."}.
+     * Used to detect intermediate object segments when {@code subobjects} is disabled.
+     */
+    public boolean hasMappedFieldsWithPrefix(String prefix) {
+        String searchKey = prefix + ".";
+        int idx = Arrays.binarySearch(sortedFieldNames, searchKey);
+        if (idx >= 0) {
+            return true;
+        }
+        int insertionPoint = ~idx;
+        return insertionPoint < sortedFieldNames.length && sortedFieldNames[insertionPoint].startsWith(searchKey);
     }
 
     @Override
@@ -957,17 +1005,22 @@ public class ObjectMapper extends Mapper {
         };
     }
 
-    SourceLoader.SyntheticFieldLoader syntheticFieldLoader(SourceFilter filter, Collection<Mapper> mappers, boolean isFragment) {
+    SourceLoader.SyntheticFieldLoader syntheticFieldLoader(
+        SourceFilter filter,
+        Collection<Mapper> mappers,
+        boolean isFragment,
+        boolean columnarStored
+    ) {
         var fields = mappers.stream()
             .sorted(Comparator.comparing(Mapper::fullPath))
             .map(m -> innerSyntheticFieldLoader(filter, m))
             .filter(l -> l != SourceLoader.SyntheticFieldLoader.NOTHING)
-            .toList();
-        return new SyntheticSourceFieldLoader(filter, fields, isFragment);
+            .toArray(SourceLoader.SyntheticFieldLoader[]::new);
+        return new SyntheticSourceFieldLoader(filter, fields, isFragment, columnarStored);
     }
 
     final SourceLoader.SyntheticFieldLoader syntheticFieldLoader(@Nullable SourceFilter filter) {
-        return syntheticFieldLoader(filter, mappers.values(), false);
+        return syntheticFieldLoader(filter, mappers.values(), false, false);
     }
 
     private SourceLoader.SyntheticFieldLoader innerSyntheticFieldLoader(SourceFilter filter, Mapper mapper) {
@@ -981,6 +1034,8 @@ public class ObjectMapper extends Mapper {
         }
 
         if (mapper instanceof ObjectMapper objectMapper) {
+            // columnarStored is not propagated: the single-blob shortcut in write() is guarded by isRoot(),
+            // which is only true for RootObjectMapper, never for child object mappers.
             return objectMapper.syntheticFieldLoader(filter);
         }
 
@@ -993,7 +1048,7 @@ public class ObjectMapper extends Mapper {
     private class SyntheticSourceFieldLoader implements SourceLoader.SyntheticFieldLoader {
         private final SourceFilter filter;
         private final XContentParserConfiguration parserConfig;
-        private final List<SourceLoader.SyntheticFieldLoader> fields;
+        private final SourceLoader.SyntheticFieldLoader[] fields;
         private final boolean isFragment;
 
         private boolean storedFieldLoadersHaveValues;
@@ -1008,10 +1063,18 @@ public class ObjectMapper extends Mapper {
         // Use an ordered map between field names and writers to order writing by field name.
         private TreeMap<String, FieldWriter> currentWriters;
 
-        private SyntheticSourceFieldLoader(SourceFilter filter, List<SourceLoader.SyntheticFieldLoader> fields, boolean isFragment) {
+        private final boolean columnarStored;
+
+        private SyntheticSourceFieldLoader(
+            SourceFilter filter,
+            SourceLoader.SyntheticFieldLoader[] fields,
+            boolean isFragment,
+            boolean columnarStored
+        ) {
             this.fields = fields;
             this.isFragment = isFragment;
             this.filter = filter;
+            this.columnarStored = columnarStored;
             String fullPath = ObjectMapper.this.isRoot() ? null : fullPath();
             this.parserConfig = filter == null
                 ? XContentParserConfiguration.EMPTY
@@ -1025,7 +1088,7 @@ public class ObjectMapper extends Mapper {
 
         @Override
         public Stream<Map.Entry<String, StoredFieldLoader>> storedFieldLoaders() {
-            return fields.stream()
+            return Arrays.stream(fields)
                 .flatMap(SourceLoader.SyntheticFieldLoader::storedFieldLoaders)
                 .map(e -> Map.entry(e.getKey(), newValues -> {
                     storedFieldLoadersHaveValues = true;
@@ -1124,9 +1187,9 @@ public class ObjectMapper extends Mapper {
                 return;
             }
 
-            if (isRoot() && isEnabled() == false) {
-                // If the root object mapper is disabled, it is expected to contain
-                // the source encapsulated within a single ignored source value.
+            if (isRoot() && (isEnabled() == false || columnarStored)) {
+                // If the root object mapper is disabled, or this is a columnar_stored index, the source is
+                // encapsulated within a single ignored source value pre-computed at index time.
                 assert ignoredValues.size() == 1 : ignoredValues.size();
                 var value = ignoredValues.get(0).value();
                 var type = XContentDataHelper.decodeType(value);
@@ -1170,7 +1233,9 @@ public class ObjectMapper extends Mapper {
         @Override
         public void reset() {
             softReset();
-            fields.forEach(SourceLoader.SyntheticFieldLoader::reset);
+            for (var loader : fields) {
+                loader.reset();
+            }
         }
 
         @Override

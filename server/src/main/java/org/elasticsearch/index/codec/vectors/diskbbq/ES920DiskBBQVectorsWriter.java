@@ -22,13 +22,13 @@ import org.apache.lucene.util.hnsw.IntToIntFunction;
 import org.apache.lucene.util.packed.PackedInts;
 import org.apache.lucene.util.packed.PackedLongValues;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.core.WelfordVariance;
 import org.elasticsearch.index.codec.vectors.BQVectorUtils;
 import org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer;
 import org.elasticsearch.index.codec.vectors.cluster.CentroidOps;
 import org.elasticsearch.index.codec.vectors.cluster.HierarchicalKMeans;
 import org.elasticsearch.index.codec.vectors.cluster.KMeansFloatVectorValues;
 import org.elasticsearch.index.codec.vectors.cluster.KMeansResult;
-import org.elasticsearch.index.codec.vectors.diskbbq.next.IvfSegmentConfig;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.simdvec.ESVectorUtil;
@@ -364,28 +364,25 @@ public class ES920DiskBBQVectorsWriter extends IVFVectorsWriter {
     private static void printClusterQualityStatistics(int[][] clusters) {
         float min = Float.MAX_VALUE;
         float max = Float.MIN_VALUE;
-        float mean = 0;
-        float m2 = 0;
-        // iteratively compute the variance & mean
-        int count = 0;
+        WelfordVariance clusterSizeStats = new WelfordVariance();
+        int observationNumber = 0;
         for (int[] cluster : clusters) {
-            count += 1;
+            observationNumber += 1;
             if (cluster == null) {
+                clusterSizeStats.advanceToObservation(observationNumber);
                 continue;
             }
-            float delta = cluster.length - mean;
-            mean += delta / count;
-            m2 += delta * (cluster.length - mean);
+            clusterSizeStats.addAsObservation(cluster.length, observationNumber);
             min = Math.min(min, cluster.length);
             max = Math.max(max, cluster.length);
         }
-        float variance = m2 / (clusters.length - 1);
+        double variance = clusterSizeStats.m2() / (clusters.length - 1);
         logger.debug(
             "Centroid count: {} min: {} max: {} mean: {} stdDev: {} variance: {}",
             clusters.length,
             min,
             max,
-            mean,
+            clusterSizeStats.mean(),
             Math.sqrt(variance),
             variance
         );
@@ -653,21 +650,11 @@ public class ES920DiskBBQVectorsWriter extends IVFVectorsWriter {
     @Override
     public CentroidAssignments calculateCentroids(FieldInfo fieldInfo, KMeansFloatVectorValues floatVectorValues, MergeState mergeState)
         throws IOException {
-        // TODO: consider hinting / bootstrapping hierarchical kmeans with the prior segments centroids
-        // TODO: for flush we are doing this over the vectors and here centroids which seems duplicative
-        // preliminary tests suggest recall is good using only centroids but need to do further evaluation
-        HierarchicalKMeans<float[]> hierarchicalKMeans;
-        if (mergeExec != null) {
-            hierarchicalKMeans = HierarchicalKMeans.ofConcurrent(
-                CentroidOps.FLOAT,
-                floatVectorValues.dimension(),
-                mergeExec,
-                numMergeWorkers
-            );
-        } else {
-            hierarchicalKMeans = HierarchicalKMeans.ofSerial(CentroidOps.FLOAT, floatVectorValues.dimension());
-        }
-        return calculateCentroids(hierarchicalKMeans, floatVectorValues, fieldInfo);
+        // 9.2 indices intentionally do not participate in the tiered merge strategy: the on-disk
+        // layout would require a bespoke streaming centroid reader to surface priors, and the
+        // payoff (a transitional format that ages out) does not justify the added complexity.
+        // Fall back to the standard hierarchical rebuild so the 9.2 path stays minimal.
+        return calculateCentroids(fieldInfo, floatVectorValues);
     }
 
     /**

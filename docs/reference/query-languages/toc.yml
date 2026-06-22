@@ -121,6 +121,7 @@ toc:
                   - file: esql/commands/fuse.md
                   - file: esql/commands/grok.md
                   - file: esql/commands/inlinestats-by.md
+                  - hidden: esql/commands/ip-location.md
                   - file: esql/commands/keep.md
                   - file: esql/commands/limit.md
                   - file: esql/commands/lookup-join.md
@@ -347,6 +348,7 @@ toc:
                   - file: esql/functions-operators/type-conversion-functions/to_dense_vector.md
                   - file: esql/functions-operators/type-conversion-functions/to_double.md
                   - file: esql/functions-operators/type-conversion-functions/to_exponential_histogram.md
+                  - file: esql/functions-operators/type-conversion-functions/to_gauge.md
                   - file: esql/functions-operators/type-conversion-functions/to_geohash.md
                   - file: esql/functions-operators/type-conversion-functions/to_geohex.md
                   - file: esql/functions-operators/type-conversion-functions/to_geopoint.md

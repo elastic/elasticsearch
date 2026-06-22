@@ -745,6 +745,24 @@ public class ObjectMapperTests extends MapperServiceTestCase {
         }
     }
 
+    public void testStrictColumnarModesRejectRuntimeDynamic() {
+        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        for (IndexMode indexMode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
+            Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), indexMode.getName()).build();
+            MapperParsingException e = expectThrows(MapperParsingException.class, () -> createMapperService(settings, mapping(b -> {
+                b.startObject("metrics");
+                {
+                    b.field("dynamic", "runtime");
+                    b.startObject("properties");
+                    b.startObject("time").field("type", "long").endObject();
+                    b.endObject();
+                }
+                b.endObject();
+            })));
+            assertThat(e.getMessage(), containsString("dynamic [runtime] is not supported in strict columnar mode"));
+        }
+    }
+
     public void testColumnarModesRejectSyntheticSourceKeepOnObject() {
         assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         for (IndexMode indexMode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
@@ -795,5 +813,82 @@ public class ObjectMapperTests extends MapperServiceTestCase {
                 )
             );
         }
+    }
+
+    public void testStrictColumnarModesAllowHeterogeneousDynamic() throws Exception {
+        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        for (IndexMode indexMode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
+            Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), indexMode.getName()).build();
+            // Root dynamic=true, attributes dynamic=false, resource dynamic=strict
+            MapperService mapperService = createMapperService(settings, mapping(b -> {
+                b.startObject("attributes");
+                {
+                    b.field("dynamic", "false");
+                    b.startObject("properties");
+                    b.startObject("host").field("type", "keyword").endObject();
+                    b.endObject();
+                }
+                b.endObject();
+                b.startObject("resource");
+                {
+                    b.field("dynamic", "strict");
+                    b.startObject("properties");
+                    b.startObject("service").field("type", "keyword").endObject();
+                    b.endObject();
+                }
+                b.endObject();
+            }));
+            // Objects flattened — no ObjectMapper in the tree
+            assertNull(mapperService.mappingLookup().objectMappers().get("attributes"));
+            assertNull(mapperService.mappingLookup().objectMappers().get("resource"));
+            // Leaf fields exist
+            assertNotNull(mapperService.fieldType("attributes.host"));
+            assertNotNull(mapperService.fieldType("resource.service"));
+            // Prefix→dynamic map is populated
+            RootObjectMapper root = mapperService.mappingLookup().getMapping().getRoot();
+            assertEquals(ObjectMapper.Dynamic.FALSE, root.getPrefixProperties().get("attributes").dynamic());
+            assertEquals(ObjectMapper.Dynamic.STRICT, root.getPrefixProperties().get("resource").dynamic());
+        }
+    }
+
+    public void testStrictColumnarModesHeterogeneousDynamicNestedPrefixes() throws Exception {
+        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        for (IndexMode indexMode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
+            Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), indexMode.getName()).build();
+            // foo dynamic=false, foo.bar dynamic=true (overrides parent)
+            MapperService mapperService = createMapperService(settings, mapping(b -> {
+                b.startObject("foo");
+                {
+                    b.field("dynamic", "false");
+                    b.startObject("properties");
+                    b.startObject("bar");
+                    {
+                        b.field("dynamic", "true");
+                        b.startObject("properties");
+                        b.startObject("x").field("type", "keyword").endObject();
+                        b.endObject();
+                    }
+                    b.endObject();
+                    b.endObject();
+                }
+                b.endObject();
+            }));
+            RootObjectMapper root = mapperService.mappingLookup().getMapping().getRoot();
+            assertEquals(ObjectMapper.Dynamic.FALSE, root.getPrefixProperties().get("foo").dynamic());
+            assertEquals(ObjectMapper.Dynamic.TRUE, root.getPrefixProperties().get("foo.bar").dynamic());
+        }
+    }
+
+    public void testNonColumnarSubobjectsFalseStillRejectsMismatchedDynamic() {
+        // Regression: plain subobjects:false (non-columnar) must still throw on dynamic mismatch
+        MapperBuilderContext rootContext = MapperBuilderContext.root(false, false);
+        ObjectMapper.Builder parentBuilder = new ObjectMapper.Builder("parent", Explicit.of(ObjectMapper.Subobjects.DISABLED)).add(
+            new ObjectMapper.Builder("child").dynamic(ObjectMapper.Dynamic.FALSE)
+        );
+        MapperParsingException exception = expectThrows(MapperParsingException.class, () -> parentBuilder.build(rootContext));
+        assertThat(
+            exception.getMessage(),
+            containsString("the value of [dynamic] (FALSE) is not compatible with the value from its parent context")
+        );
     }
 }

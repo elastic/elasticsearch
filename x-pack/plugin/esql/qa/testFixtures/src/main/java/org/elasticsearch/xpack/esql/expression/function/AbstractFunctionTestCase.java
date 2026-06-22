@@ -499,11 +499,11 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         return EvalMapper.toEvaluator(FoldContext.small(), e, builder.build());
     }
 
-    protected final Page row(List<Object> values) {
+    public static Page row(List<Object> values) {
         return maybeConvertBytesRefsToOrdinals(new Page(1, BlockUtils.fromListRow(TestBlockFactory.getNonBreakingInstance(), values)));
     }
 
-    private Page maybeConvertBytesRefsToOrdinals(Page page) {
+    private static Page maybeConvertBytesRefsToOrdinals(Page page) {
         boolean anyBytesRef = false;
         for (int b = 0; b < page.getBlockCount(); b++) {
             if (page.getBlock(b).elementType() == ElementType.BYTES_REF) {
@@ -576,7 +576,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
      * Hack together a layout by scanning for Fields.
      * Those will show up in the layout in whatever order a depth first traversal finds them.
      */
-    protected static void buildLayout(Layout.Builder builder, Expression e) {
+    public static void buildLayout(Layout.Builder builder, Expression e) {
         dedupAndBuildLayout(new HashSet<>(), builder, e);
     }
 
@@ -948,6 +948,10 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
     private final List<CircuitBreaker> breakers = Collections.synchronizedList(new ArrayList<>());
 
     protected final DriverContext driverContext() {
+        return driverContext(breakers);
+    }
+
+    public static DriverContext driverContext(List<CircuitBreaker> breakers) {
         BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofMb(256)).withCircuitBreaking();
         breakers.add(bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST));
         return new DriverContext(bigArrays, BlockFactory.builder(bigArrays).build(), null);

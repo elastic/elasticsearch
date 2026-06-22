@@ -18,6 +18,8 @@ import java.util.List;
 
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.nullValue;
 
 public class AggregateCounterFieldDownsamplerTests extends ESTestCase {
 
@@ -31,16 +33,22 @@ public class AggregateCounterFieldDownsamplerTests extends ESTestCase {
         IntArrayList docIdBuffer = IntArrayList.from(6, 5, 4, 3, 2, 1, 0);
         long[] timeValues = new long[] { 70, 60, 50, 40, 30, 20, 10 };
         SortedNumericDoubleValues counterValues = createNumericValuesInstance(docIdBuffer, 64, 32, 16, 8, 4, 2, 1);
-        producer.collect(counterValues, timeValues, docIdBuffer);
+        producer.collect(counterValues, timeValues, docIdBuffer, randomFrom(Temporality.DEFAULT, Temporality.CUMULATIVE));
+        assertThat(producer.delegateCollector(), instanceOf(NumericMetricFieldDownsampler.AggregateCounter.CumulativeCollector.class));
         producer.updateResetDataPoints(resetDataPoints);
-        assertThat(producer.downsampledValue, equalTo(1.0));
+        assertThat(producer.downsampledValue(), equalTo(1.0));
         assertThat(resetDataPoints.isEmpty(), equalTo(true));
         producer.reset();
-        assertThat(producer.downsampledValue, equalTo(Double.NaN));
-        assertThat(producer.previousValue, equalTo(1.0));
-        assertThat(producer.lastTimestamp, equalTo(-1L));
+        assertThat(producer.delegateCollector(), instanceOf(NumericMetricFieldDownsampler.AggregateCounter.CumulativeCollector.class));
+        NumericMetricFieldDownsampler.AggregateCounter.CumulativeCollector collector =
+            (NumericMetricFieldDownsampler.AggregateCounter.CumulativeCollector) producer.delegateCollector();
+        assertThat(collector.downsampledValue(), equalTo(Double.NaN));
+        assertThat(collector.previousValue, equalTo(1.0));
+        assertThat(collector.lastTimestamp, equalTo(-1L));
+        assertThat(producer.isDone(), equalTo(false));
         producer.tsidReset();
-        assertThat(producer.previousValue, equalTo(Double.NaN));
+        assertThat(collector.previousValue, equalTo(Double.NaN));
+        assertThat(producer.delegateCollector(), nullValue());
     }
 
     /**
@@ -55,10 +63,11 @@ public class AggregateCounterFieldDownsamplerTests extends ESTestCase {
         IntArrayList docIdBuffer = IntArrayList.from(6, 5, 4, 3, 2, 1, 0);
         long[] timeValues = new long[] { 70, 60, 50, 40, 30, 20, 10 };
         SortedNumericDoubleValues counterValues = createNumericValuesInstance(docIdBuffer, 8, 5, 16, 8, 4, 2, 1);
-        producer.collect(counterValues, timeValues, docIdBuffer);
+        producer.collect(counterValues, timeValues, docIdBuffer, randomFrom(Temporality.DEFAULT, Temporality.CUMULATIVE));
         producer.updateResetDataPoints(resetDataPoints);
-        assertThat(producer.downsampledValue, equalTo(1.0));
+        assertThat(producer.downsampledValue(), equalTo(1.0));
         assertThat(resetDataPoints.countResetDocuments(), equalTo(2));
+        assertThat(producer.isDone(), equalTo(false));
         resetDataPoints.processDataPoints((timestamp, dataPoints) -> {
             assertThat(timestamp, anyOf(equalTo(60L), equalTo(50L)));
             if (timestamp == 60L) {
@@ -69,11 +78,15 @@ public class AggregateCounterFieldDownsamplerTests extends ESTestCase {
             }
         });
         producer.reset();
-        assertThat(producer.downsampledValue, equalTo(Double.NaN));
-        assertThat(producer.previousValue, equalTo(1.0));
-        assertThat(producer.lastTimestamp, equalTo(-1L));
+        assertThat(producer.downsampledValue(), equalTo(Double.NaN));
+        assertThat(producer.delegateCollector(), instanceOf(NumericMetricFieldDownsampler.AggregateCounter.CumulativeCollector.class));
+        NumericMetricFieldDownsampler.AggregateCounter.CumulativeCollector collector =
+            (NumericMetricFieldDownsampler.AggregateCounter.CumulativeCollector) producer.delegateCollector();
+        assertThat(collector.previousValue, equalTo(1.0));
+        assertThat(collector.lastTimestamp, equalTo(-1L));
         producer.tsidReset();
-        assertThat(producer.previousValue, equalTo(Double.NaN));
+        assertThat(collector.previousValue, equalTo(Double.NaN));
+        assertThat(producer.delegateCollector(), nullValue());
     }
 
     /**
@@ -89,20 +102,24 @@ public class AggregateCounterFieldDownsamplerTests extends ESTestCase {
         IntArrayList docIdBuffer = IntArrayList.from(2, 1, 0);
         long[] timeValues = new long[] { 30, 20, 10 };
         SortedNumericDoubleValues counterValues = createNumericValuesInstance(docIdBuffer, 7, 0, 1);
-        producer.collect(counterValues, timeValues, docIdBuffer);
+        producer.collect(counterValues, timeValues, docIdBuffer, randomFrom(Temporality.DEFAULT, Temporality.CUMULATIVE));
         producer.updateResetDataPoints(resetDataPoints);
-        assertThat(producer.downsampledValue, equalTo(1.0));
+        assertThat(producer.downsampledValue(), equalTo(1.0));
         assertThat(resetDataPoints.countResetDocuments(), equalTo(1));
         resetDataPoints.processDataPoints((timestamp, dataPoints) -> {
             assertThat(timestamp, equalTo(20L));
             assertThat(dataPoints, equalTo(List.of(Tuple.tuple("my-counter", 0.0))));
         });
         producer.reset();
-        assertThat(producer.downsampledValue, equalTo(Double.NaN));
-        assertThat(producer.previousValue, equalTo(1.0));
-        assertThat(producer.lastTimestamp, equalTo(-1L));
+        assertThat(producer.downsampledValue(), equalTo(Double.NaN));
+        assertThat(producer.delegateCollector(), instanceOf(NumericMetricFieldDownsampler.AggregateCounter.CumulativeCollector.class));
+        NumericMetricFieldDownsampler.AggregateCounter.CumulativeCollector collector =
+            (NumericMetricFieldDownsampler.AggregateCounter.CumulativeCollector) producer.delegateCollector();
+        assertThat(collector.previousValue, equalTo(1.0));
+        assertThat(collector.lastTimestamp, equalTo(-1L));
         producer.tsidReset();
-        assertThat(producer.previousValue, equalTo(Double.NaN));
+        assertThat(collector.previousValue, equalTo(Double.NaN));
+        assertThat(producer.delegateCollector(), nullValue());
     }
 
     /**
@@ -119,9 +136,9 @@ public class AggregateCounterFieldDownsamplerTests extends ESTestCase {
         IntArrayList docIdBuffer = IntArrayList.from(7, 6, 5, 4, 3, 2, 1, 0);
         long[] timeValues = new long[] { 80, 70, 60, 50, 40, 30, 20, 10 };
         SortedNumericDoubleValues counterValues = createNumericValuesInstance(docIdBuffer, 4, 2, 5, 3, 8, 4, 2, 1);
-        producer.collect(counterValues, timeValues, docIdBuffer);
+        producer.collect(counterValues, timeValues, docIdBuffer, randomFrom(Temporality.DEFAULT, Temporality.CUMULATIVE));
         producer.updateResetDataPoints(resetDataPoints);
-        assertThat(producer.downsampledValue, equalTo(1.0));
+        assertThat(producer.downsampledValue(), equalTo(1.0));
         assertThat(resetDataPoints.countResetDocuments(), equalTo(3));
         resetDataPoints.processDataPoints((timestamp, dataPoints) -> {
             assertThat(timestamp, anyOf(equalTo(40L), equalTo(60L), equalTo(70L)));
@@ -136,11 +153,15 @@ public class AggregateCounterFieldDownsamplerTests extends ESTestCase {
             }
         });
         producer.reset();
-        assertThat(producer.downsampledValue, equalTo(Double.NaN));
-        assertThat(producer.previousValue, equalTo(1.0));
-        assertThat(producer.lastTimestamp, equalTo(-1L));
+        assertThat(producer.downsampledValue(), equalTo(Double.NaN));
+        assertThat(producer.delegateCollector(), instanceOf(NumericMetricFieldDownsampler.AggregateCounter.CumulativeCollector.class));
+        NumericMetricFieldDownsampler.AggregateCounter.CumulativeCollector collector =
+            (NumericMetricFieldDownsampler.AggregateCounter.CumulativeCollector) producer.delegateCollector();
+        assertThat(collector.previousValue, equalTo(1.0));
+        assertThat(collector.lastTimestamp, equalTo(-1L));
         producer.tsidReset();
-        assertThat(producer.previousValue, equalTo(Double.NaN));
+        assertThat(collector.previousValue, equalTo(Double.NaN));
+        assertThat(producer.delegateCollector(), nullValue());
     }
 
     /**
@@ -157,9 +178,9 @@ public class AggregateCounterFieldDownsamplerTests extends ESTestCase {
         IntArrayList docIdBuffer = IntArrayList.from(6, 5, 4, 3, 2, 1, 0);
         long[] timeValues = new long[] { 70, 60, 50, 40, 30, 20, 10 };
         SortedNumericDoubleValues counterValues = createNumericValuesInstance(docIdBuffer, 4, 2, 5, 3, 4, 2, 1);
-        producer.collect(counterValues, timeValues, docIdBuffer);
+        producer.collect(counterValues, timeValues, docIdBuffer, randomFrom(Temporality.DEFAULT, Temporality.CUMULATIVE));
         producer.updateResetDataPoints(resetDataPoints);
-        assertThat(producer.downsampledValue, equalTo(1.0));
+        assertThat(producer.downsampledValue(), equalTo(1.0));
         assertThat(resetDataPoints.countResetDocuments(), equalTo(4));
         resetDataPoints.processDataPoints((timestamp, dataPoints) -> {
             assertThat(timestamp, anyOf(equalTo(30L), equalTo(40L), equalTo(50L), equalTo(60L)));
@@ -177,11 +198,15 @@ public class AggregateCounterFieldDownsamplerTests extends ESTestCase {
             }
         });
         producer.reset();
-        assertThat(producer.downsampledValue, equalTo(Double.NaN));
-        assertThat(producer.previousValue, equalTo(1.0));
-        assertThat(producer.lastTimestamp, equalTo(-1L));
+        assertThat(producer.downsampledValue(), equalTo(Double.NaN));
+        assertThat(producer.delegateCollector(), instanceOf(NumericMetricFieldDownsampler.AggregateCounter.CumulativeCollector.class));
+        NumericMetricFieldDownsampler.AggregateCounter.CumulativeCollector collector =
+            (NumericMetricFieldDownsampler.AggregateCounter.CumulativeCollector) producer.delegateCollector();
+        assertThat(collector.previousValue, equalTo(1.0));
+        assertThat(collector.lastTimestamp, equalTo(-1L));
         producer.tsidReset();
-        assertThat(producer.previousValue, equalTo(Double.NaN));
+        assertThat(collector.previousValue, equalTo(Double.NaN));
+        assertThat(producer.delegateCollector(), nullValue());
     }
 
     /**
@@ -199,9 +224,9 @@ public class AggregateCounterFieldDownsamplerTests extends ESTestCase {
         IntArrayList docIdBuffer = IntArrayList.from(6, 5, 4);
         long[] timeValues = new long[] { 70, 60, 50 };
         SortedNumericDoubleValues counterValues = createNumericValuesInstance(docIdBuffer, 6, 5, 4);
-        producer.collect(counterValues, timeValues, docIdBuffer);
+        producer.collect(counterValues, timeValues, docIdBuffer, randomFrom(Temporality.DEFAULT, Temporality.CUMULATIVE));
         producer.updateResetDataPoints(resetDataPoints);
-        assertThat(producer.downsampledValue, equalTo(4.0));
+        assertThat(producer.downsampledValue(), equalTo(4.0));
         assertThat(resetDataPoints.isEmpty(), equalTo(true));
         producer.reset();
 
@@ -209,21 +234,25 @@ public class AggregateCounterFieldDownsamplerTests extends ESTestCase {
         docIdBuffer = IntArrayList.from(3, 2, 1, 0);
         timeValues = new long[] { 40, 30, 20, 10 };
         counterValues = createNumericValuesInstance(docIdBuffer, 2, 0, 8, 7);
-        producer.collect(counterValues, timeValues, docIdBuffer);
+        producer.collect(counterValues, timeValues, docIdBuffer, randomFrom(Temporality.DEFAULT, Temporality.CUMULATIVE));
         resetDataPoints = new CounterResetDataPoints();
         producer.updateResetDataPoints(resetDataPoints);
-        assertThat(producer.downsampledValue, equalTo(7.0));
+        assertThat(producer.downsampledValue(), equalTo(7.0));
         assertThat(resetDataPoints.countResetDocuments(), equalTo(1));
         resetDataPoints.processDataPoints((timestamp, dataPoints) -> {
             assertThat(timestamp, equalTo(20L));
             assertThat(dataPoints, equalTo(List.of(Tuple.tuple("my-counter", 8.0))));
         });
         producer.reset();
-        assertThat(producer.downsampledValue, equalTo(Double.NaN));
-        assertThat(producer.previousValue, equalTo(7.0));
-        assertThat(producer.lastTimestamp, equalTo(-1L));
+        assertThat(producer.downsampledValue(), equalTo(Double.NaN));
+        assertThat(producer.delegateCollector(), instanceOf(NumericMetricFieldDownsampler.AggregateCounter.CumulativeCollector.class));
+        NumericMetricFieldDownsampler.AggregateCounter.CumulativeCollector collector =
+            (NumericMetricFieldDownsampler.AggregateCounter.CumulativeCollector) producer.delegateCollector();
+        assertThat(collector.previousValue, equalTo(7.0));
+        assertThat(collector.lastTimestamp, equalTo(-1L));
         producer.tsidReset();
-        assertThat(producer.previousValue, equalTo(Double.NaN));
+        assertThat(collector.previousValue, equalTo(Double.NaN));
+        assertThat(producer.delegateCollector(), nullValue());
     }
 
     /**
@@ -241,9 +270,9 @@ public class AggregateCounterFieldDownsamplerTests extends ESTestCase {
         IntArrayList docIdBuffer = IntArrayList.from(6, 5, 4);
         long[] timeValues = new long[] { 40, 20, 10 };
         SortedNumericDoubleValues counterValues = createNumericValuesInstance(docIdBuffer, 6, 5, 4);
-        producer.collect(counterValues, timeValues, docIdBuffer);
+        producer.collect(counterValues, timeValues, docIdBuffer, randomFrom(Temporality.DEFAULT, Temporality.CUMULATIVE));
         producer.updateResetDataPoints(resetDataPoints);
-        assertThat(producer.downsampledValue, equalTo(4.0));
+        assertThat(producer.downsampledValue(), equalTo(4.0));
         assertThat(resetDataPoints.isEmpty(), equalTo(true));
         producer.tsidReset();
 
@@ -251,10 +280,10 @@ public class AggregateCounterFieldDownsamplerTests extends ESTestCase {
         docIdBuffer = IntArrayList.from(3, 2, 1, 0);
         timeValues = new long[] { 40, 30, 20, 10 };
         counterValues = createNumericValuesInstance(docIdBuffer, 2, 0, 8, 7);
-        producer.collect(counterValues, timeValues, docIdBuffer);
+        producer.collect(counterValues, timeValues, docIdBuffer, randomFrom(Temporality.DEFAULT, Temporality.CUMULATIVE));
         resetDataPoints = new CounterResetDataPoints();
         producer.updateResetDataPoints(resetDataPoints);
-        assertThat(producer.downsampledValue, equalTo(7.0));
+        assertThat(producer.downsampledValue(), equalTo(7.0));
         assertThat(resetDataPoints.countResetDocuments(), equalTo(2));
         resetDataPoints.processDataPoints((timestamp, dataPoints) -> {
             assertThat(timestamp, anyOf(equalTo(20L), equalTo(30L)));
@@ -266,11 +295,103 @@ public class AggregateCounterFieldDownsamplerTests extends ESTestCase {
             }
         });
         producer.reset();
-        assertThat(producer.downsampledValue, equalTo(Double.NaN));
-        assertThat(producer.previousValue, equalTo(7.0));
-        assertThat(producer.lastTimestamp, equalTo(-1L));
+        assertThat(producer.downsampledValue(), equalTo(Double.NaN));
+        assertThat(producer.delegateCollector(), instanceOf(NumericMetricFieldDownsampler.AggregateCounter.CumulativeCollector.class));
+        NumericMetricFieldDownsampler.AggregateCounter.CumulativeCollector collector =
+            (NumericMetricFieldDownsampler.AggregateCounter.CumulativeCollector) producer.delegateCollector();
+        assertThat(collector.previousValue, equalTo(7.0));
+        assertThat(collector.lastTimestamp, equalTo(-1L));
         producer.tsidReset();
-        assertThat(producer.previousValue, equalTo(Double.NaN));
+        assertThat(collector.previousValue, equalTo(Double.NaN));
+        assertThat(producer.delegateCollector(), nullValue());
+    }
+
+    /**
+     * Delta temporality: values represent increments and are summed within a bucket.
+     * No reset data points are produced regardless of value patterns.
+     */
+    public void testDeltaCounterSumsValues() throws IOException {
+        CounterResetDataPoints resetDataPoints = new CounterResetDataPoints();
+        NumericMetricFieldDownsampler.AggregateCounter producer = new NumericMetricFieldDownsampler.AggregateCounter("my-counter", null);
+        IntArrayList docIdBuffer = IntArrayList.from(6, 5, 4, 3, 2, 1, 0);
+        long[] timeValues = new long[] { 70, 60, 50, 40, 30, 20, 10 };
+        // Values that would trigger reset detection in cumulative mode (5 > 3, 8 > 2), but delta just sums them
+        SortedNumericDoubleValues counterValues = createNumericValuesInstance(docIdBuffer, 8, 5, 16, 8, 4, 2, 1);
+        producer.collect(counterValues, timeValues, docIdBuffer, Temporality.DELTA);
+        producer.updateResetDataPoints(resetDataPoints);
+        assertThat(producer.downsampledValue(), equalTo(44.0));
+        assertThat(resetDataPoints.isEmpty(), equalTo(true));
+
+        // Reset and collect a second bucket
+        producer.reset();
+        assertThat(producer.downsampledValue(), equalTo(0.0));
+        assertThat(producer.delegateCollector(), instanceOf(NumericMetricFieldDownsampler.AggregateCounter.DeltaCollector.class));
+        docIdBuffer = IntArrayList.from(9, 8, 7);
+        timeValues = new long[] { 100, 90, 80 };
+        counterValues = createNumericValuesInstance(docIdBuffer, 3, 7, 10);
+        producer.collect(counterValues, timeValues, docIdBuffer, Temporality.DELTA);
+        resetDataPoints = new CounterResetDataPoints();
+        producer.updateResetDataPoints(resetDataPoints);
+        assertThat(producer.downsampledValue(), equalTo(20.0));
+        assertThat(resetDataPoints.isEmpty(), equalTo(true));
+    }
+
+    /**
+     * Mixed temporality across tsid changes: delta and cumulative tsids are handled independently.
+     */
+    public void testDeltaCounterWithTsidChange() throws IOException {
+        NumericMetricFieldDownsampler.AggregateCounter producer = new NumericMetricFieldDownsampler.AggregateCounter("my-counter", null);
+        CounterResetDataPoints resetDataPoints;
+
+        // tsid_1: delta — values are summed
+        IntArrayList docIdBuffer = IntArrayList.from(2, 1, 0);
+        long[] timeValues = new long[] { 30, 20, 10 };
+        SortedNumericDoubleValues counterValues = createNumericValuesInstance(docIdBuffer, 5, 3, 2);
+        producer.collect(counterValues, timeValues, docIdBuffer, Temporality.DELTA);
+        assertThat(producer.downsampledValue(), equalTo(10.0));
+        resetDataPoints = new CounterResetDataPoints();
+        producer.updateResetDataPoints(resetDataPoints);
+        assertThat(resetDataPoints.isEmpty(), equalTo(true));
+        assertThat(producer.delegateCollector(), instanceOf(NumericMetricFieldDownsampler.AggregateCounter.DeltaCollector.class));
+        producer.tsidReset();
+        assertThat(producer.delegateCollector(), nullValue());
+
+        // tsid_2: delta — starts fresh, values are summed
+        docIdBuffer = IntArrayList.from(5, 4, 3);
+        timeValues = new long[] { 30, 20, 10 };
+        counterValues = createNumericValuesInstance(docIdBuffer, 100, 200, 300);
+        producer.collect(counterValues, timeValues, docIdBuffer, Temporality.DELTA);
+        assertThat(producer.delegateCollector(), instanceOf(NumericMetricFieldDownsampler.AggregateCounter.DeltaCollector.class));
+        assertThat(producer.downsampledValue(), equalTo(600.0));
+        resetDataPoints = new CounterResetDataPoints();
+        producer.updateResetDataPoints(resetDataPoints);
+        assertThat(resetDataPoints.isEmpty(), equalTo(true));
+        producer.tsidReset();
+        assertThat(producer.delegateCollector(), nullValue());
+
+        // tsid_3: cumulative with a reset — oldest value kept, reset data points produced
+        docIdBuffer = IntArrayList.from(9, 8, 7, 6);
+        timeValues = new long[] { 40, 30, 20, 10 };
+        counterValues = createNumericValuesInstance(docIdBuffer, 2, 0, 8, 7);
+        producer.collect(counterValues, timeValues, docIdBuffer, randomFrom(Temporality.DEFAULT, Temporality.CUMULATIVE));
+        assertThat(producer.downsampledValue(), equalTo(7.0));
+        resetDataPoints = new CounterResetDataPoints();
+        producer.updateResetDataPoints(resetDataPoints);
+        assertThat(resetDataPoints.countResetDocuments(), equalTo(2));
+        assertThat(producer.delegateCollector(), instanceOf(NumericMetricFieldDownsampler.AggregateCounter.CumulativeCollector.class));
+        producer.tsidReset();
+        assertThat(producer.delegateCollector(), nullValue());
+
+        // tsid_4: delta again — fully independent from the cumulative tsid
+        docIdBuffer = IntArrayList.from(12, 11, 10);
+        timeValues = new long[] { 30, 20, 10 };
+        counterValues = createNumericValuesInstance(docIdBuffer, 7, 3, 1);
+        producer.collect(counterValues, timeValues, docIdBuffer, Temporality.DELTA);
+        assertThat(producer.downsampledValue(), equalTo(11.0));
+        resetDataPoints = new CounterResetDataPoints();
+        producer.updateResetDataPoints(resetDataPoints);
+        assertThat(resetDataPoints.isEmpty(), equalTo(true));
+        assertThat(producer.delegateCollector(), instanceOf(NumericMetricFieldDownsampler.AggregateCounter.DeltaCollector.class));
     }
 
     static SortedNumericDoubleValues createNumericValuesInstance(IntArrayList docIdBuffer, double... values) {

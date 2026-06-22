@@ -68,6 +68,8 @@ import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.TS_INFO_C
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.UNMAPPED_FIELDS;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.VIEWS_WITH_BRANCHING;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.VIEWS_WITH_NO_BRANCHING;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITHOUT_VIEW;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITH_VIEW;
 import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.doesntHaveCapabilities;
 import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.hasCapabilities;
 import static org.mockito.ArgumentMatchers.any;
@@ -242,6 +244,12 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
             "Dense vector equality is not supported in CCS unless all nodes support it",
             testCase.requiredCapabilities.contains(DENSE_VECTOR_EQUALITY.capabilityName())
         );
+
+        // TODO remove this when addressing https://github.com/elastic/esql-planning/issues/517
+        assumeFalse(
+            "skip CCS for IN subqueries until convertToRemoteIndices supports IN subquery",
+            testCase.requiredCapabilities.contains(WHERE_IN_SUBQUERY_WITHOUT_VIEW.capabilityName())
+        );
     }
 
     private TestFeatureService remoteFeaturesService() throws IOException {
@@ -377,6 +385,11 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
     static CsvSpecReader.CsvTestCase convertToRemoteIndices(CsvSpecReader.CsvTestCase testCase) {
         if (dataLocation == null) {
             dataLocation = randomFrom(DataLocation.values());
+        }
+        // convertToRemoteIndices does not support WHERE IN subquery yet
+        if (testCase.requiredCapabilities.contains(WHERE_IN_SUBQUERY_WITHOUT_VIEW.capabilityName())
+            || testCase.requiredCapabilities.contains(WHERE_IN_SUBQUERY_WITH_VIEW.capabilityName())) {
+            return testCase;
         }
         if (testCase.requiredCapabilities.contains(SUBQUERY_IN_FROM_COMMAND.capabilityName())) {
             return convertSubqueryToRemoteIndices(testCase);

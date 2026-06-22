@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.action;
 
-import org.elasticsearch.Build;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
@@ -42,6 +41,8 @@ import org.elasticsearch.xpack.core.enrich.action.ExecuteEnrichPolicyAction;
 import org.elasticsearch.xpack.core.enrich.action.GetEnrichPolicyAction;
 import org.elasticsearch.xpack.enrich.EnrichPlugin;
 import org.elasticsearch.xpack.esql.CsvTestsDataLoader;
+import org.elasticsearch.xpack.esql.datasources.datasource.TestEncryptionServicePlugin;
+import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -100,6 +101,7 @@ public class LookupJoinIT extends AbstractEsqlIntegTestCase {
         plugins.add(LocalStateEnrich.class);
         plugins.add(IngestCommonPlugin.class);
         plugins.add(ReindexPlugin.class);
+        plugins.add(TestEncryptionServicePlugin.class);
         return plugins;
     }
 
@@ -377,33 +379,50 @@ public class LookupJoinIT extends AbstractEsqlIntegTestCase {
                 )
             );
 
-            // Verify the correct lookup operator is used: streaming in snapshot builds, non-streaming in release builds
-            assertNotNull("profile should be present", response.profile());
-            List<String> allOperators = response.profile()
-                .drivers()
-                .stream()
-                .flatMap(d -> d.operators().stream())
-                .map(OperatorStatus::operator)
-                .toList();
-            if (Build.current().isSnapshot()) {
-                assertTrue(
-                    "expected StreamingLookupOperator in snapshot build, got: " + allOperators,
-                    allOperators.stream().anyMatch(op -> op.contains("StreamingLookupOperator"))
-                );
-                assertFalse(
-                    "unexpected LookupOperator in snapshot build, got: " + allOperators,
-                    allOperators.stream().anyMatch(op -> op.contains("LookupOperator") && op.contains("StreamingLookupOperator") == false)
-                );
-            } else {
-                assertTrue(
-                    "expected LookupOperator in release build, got: " + allOperators,
-                    allOperators.stream().anyMatch(op -> op.contains("LookupOperator") && op.contains("StreamingLookupOperator") == false)
-                );
-                assertFalse(
-                    "unexpected StreamingLookupOperator in release build, got: " + allOperators,
-                    allOperators.stream().anyMatch(op -> op.contains("StreamingLookupOperator"))
-                );
-            }
+            // Verify the streaming lookup operator is used by default
+            assertLookupOperator(response, true);
+        }
+    }
+
+    /**
+     * Tests that disabling {@code esql.query.lookup_join_streaming} falls back to the non-streaming lookup operator.
+     */
+    public void testLookupJoinStreamingDisabled() throws IOException {
+        // Required indices for this test
+        ensureIndices(List.of(SAMPLE_DATA_INDEX, MESSAGE_TYPES_LOOKUP_INDEX));
+
+        String query = String.format(Locale.ROOT, """
+            FROM %s
+            | LOOKUP JOIN %s ON message
+            | KEEP @timestamp, client_ip, event_duration, message, type
+            | SORT @timestamp DESC
+            """, SAMPLE_DATA_INDEX, MESSAGE_TYPES_LOOKUP_INDEX);
+
+        updateClusterSettings(Settings.builder().put(EsqlPlugin.LOOKUP_JOIN_STREAMING.getKey(), false));
+        try (EsqlQueryResponse response = run(syncEsqlQueryRequest(query).profile(true))) {
+            assertLookupOperator(response, false);
+        } finally {
+            updateClusterSettings(Settings.builder().putNull(EsqlPlugin.LOOKUP_JOIN_STREAMING.getKey()));
+        }
+    }
+
+    private static void assertLookupOperator(EsqlQueryResponse response, boolean expectStreaming) {
+        assertNotNull("profile should be present", response.profile());
+        List<String> allOperators = response.profile()
+            .drivers()
+            .stream()
+            .flatMap(d -> d.operators().stream())
+            .map(OperatorStatus::operator)
+            .toList();
+        boolean hasStreaming = allOperators.stream().anyMatch(op -> op.contains("StreamingLookupOperator"));
+        boolean hasNonStreaming = allOperators.stream()
+            .anyMatch(op -> op.contains("LookupOperator") && op.contains("StreamingLookupOperator") == false);
+        if (expectStreaming) {
+            assertTrue("expected StreamingLookupOperator, got: " + allOperators, hasStreaming);
+            assertFalse("unexpected LookupOperator, got: " + allOperators, hasNonStreaming);
+        } else {
+            assertTrue("expected LookupOperator, got: " + allOperators, hasNonStreaming);
+            assertFalse("unexpected StreamingLookupOperator, got: " + allOperators, hasStreaming);
         }
     }
 

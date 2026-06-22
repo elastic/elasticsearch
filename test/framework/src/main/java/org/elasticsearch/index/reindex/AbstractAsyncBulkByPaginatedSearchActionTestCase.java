@@ -21,7 +21,7 @@ import java.util.Collections;
 
 public abstract class AbstractAsyncBulkByPaginatedSearchActionTestCase<
     Request extends AbstractBulkByPaginatedSearchRequest<Request>,
-    Response extends BulkByScrollResponse> extends ESTestCase {
+    Response extends BulkByPaginatedSearchResponse> extends ESTestCase {
     protected ThreadPool threadPool;
     protected BulkByPaginatedSearchTask task;
 
@@ -45,10 +45,13 @@ public abstract class AbstractAsyncBulkByPaginatedSearchActionTestCase<
     }
 
     @After
-    @Override
-    public void tearDown() throws Exception {
-        super.tearDown();
+    public void shutdownThreadPool() throws Exception {
         threadPool.shutdown();
+    }
+
+    @Override
+    public final void tearDown() throws Exception {
+        super.tearDown();
     }
 
     protected abstract Request request();

@@ -2288,16 +2288,16 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
         final DirectMonotonicReader indexReader = DirectMonotonicReader.getInstance(entry.indexMeta, indexSlice, merging);
         final IndexInput valuesData = data.slice("values", entry.valuesOffset, entry.valuesLength);
 
-        final int blockSize = entry.blockSize;
-        final int blockShift = Integer.numberOfTrailingZeros(blockSize);
-        final int blockMask = blockSize - 1;
+        final int numericBlockSize = entry.blockSize;
+        final int numericBlockShift = Integer.numberOfTrailingZeros(numericBlockSize);
+        final int numericBlockMask = numericBlockSize - 1;
 
         if (entry.docsWithFieldOffset == -1) {
             // dense
             return new BaseDenseNumericValues(maxDoc) {
                 private final BlockDecoder decoder = blockDecoder(entry, maxOrd);
                 private long currentBlockIndex = -1;
-                private final long[] currentBlock = new long[blockSize];
+                private final long[] currentBlock = new long[numericBlockSize];
                 private long lookaheadBlockIndex = -1;
                 private long[] lookaheadBlock;
                 private IndexInput lookaheadData = null;
@@ -2305,8 +2305,8 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
                 @Override
                 public long longValue() throws IOException {
                     final int index = doc;
-                    final int blockIndex = index >>> blockShift;
-                    final int blockInIndex = index & blockMask;
+                    final int blockIndex = index >>> numericBlockShift;
+                    final int blockInIndex = index & numericBlockMask;
                     if (blockIndex == currentBlockIndex) {
                         return currentBlock[blockInIndex];
                     }
@@ -2346,8 +2346,8 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
                     doc = docs.get(docsCount - 1);
                     for (int i = offset; i < docsCount;) {
                         int index = docs.get(i);
-                        final int blockIndex = index >>> blockShift;
-                        final int blockInIndex = index & blockMask;
+                        final int blockIndex = index >>> numericBlockShift;
+                        final int blockInIndex = index & numericBlockMask;
                         if (blockIndex != currentBlockIndex) {
                             assert blockIndex > currentBlockIndex : blockIndex + " < " + currentBlockIndex;
                             if (currentBlockIndex + 1 != blockIndex) {
@@ -2358,7 +2358,7 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
                         }
 
                         int length = 1;
-                        int remainingBlockLength = Math.min(blockSize - blockInIndex, docsCount - i);
+                        int remainingBlockLength = Math.min(numericBlockSize - blockInIndex, docsCount - i);
                         for (int newLength = remainingBlockLength; newLength > 1; newLength = newLength >> 1) {
                             int lastIndex = i + newLength - 1;
                             if (isDense(index, docs.get(lastIndex), newLength)) {
@@ -2374,14 +2374,14 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
 
                 @Override
                 long lookAheadValueAt(int targetDoc) throws IOException {
-                    final int blockIndex = targetDoc >>> blockShift;
-                    final int valueIndex = targetDoc & blockMask;
+                    final int blockIndex = targetDoc >>> numericBlockShift;
+                    final int valueIndex = targetDoc & numericBlockMask;
                     if (blockIndex == currentBlockIndex) {
                         return currentBlock[valueIndex];
                     }
                     if (lookaheadBlockIndex != blockIndex) {
                         if (lookaheadBlock == null) {
-                            lookaheadBlock = new long[blockSize];
+                            lookaheadBlock = new long[numericBlockSize];
                             lookaheadData = data.slice("look_ahead_values", entry.valuesOffset, entry.valuesLength);
                         }
                         if (lookaheadBlockIndex + 1 != blockIndex) {
@@ -2417,7 +2417,7 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
                     DocValuesSkipper skipper = fieldInfo != null && fieldInfo.docValuesSkipIndexType() == DocValuesSkipIndexType.RANGE
                         ? getSkipper(fieldInfo)
                         : null;
-                    final FixedBitSet matches = new FixedBitSet(blockSize);
+                    final FixedBitSet matches = new FixedBitSet(numericBlockSize);
                     if (skipper != null) {
                         // Skips at two levels: skipper blocks (coarse min/max range check), then
                         // per-numeric-block SIMD bitmasks via inRangeBitmask.
@@ -2453,15 +2453,15 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
                                         return iterDoc = firstDocInSkipper;
                                     } else if (minVal <= upperValue && lowerValue <= maxVal) {
                                         // Partial overlap: scan SIMD bitmask for each numeric block.
-                                        int firstBlock = firstDocInSkipper >>> blockShift;
-                                        int lastBlock = lastDocInSkipper >>> blockShift;
+                                        int firstBlock = firstDocInSkipper >>> numericBlockShift;
+                                        int lastBlock = lastDocInSkipper >>> numericBlockShift;
                                         for (int blockId = firstBlock; blockId <= lastBlock; blockId++) {
                                             loadRangeBitmaskForBlock(blockId, lowerValue, upperValue, matches);
-                                            int firstInBlock = blockId == firstBlock ? firstDocInSkipper & blockMask : 0;
-                                            int lastInBlock = blockId == lastBlock ? lastDocInSkipper & blockMask : blockMask;
+                                            int firstInBlock = blockId == firstBlock ? firstDocInSkipper & numericBlockMask : 0;
+                                            int lastInBlock = blockId == lastBlock ? lastDocInSkipper & numericBlockMask : numericBlockMask;
                                             int bit = matches.nextSetBit(firstInBlock, lastInBlock + 1);
                                             if (bit != NO_MORE_DOCS) {
-                                                return iterDoc = (blockId << blockShift) + bit;
+                                                return iterDoc = (blockId << numericBlockShift) + bit;
                                             }
                                         }
                                     }
@@ -2491,14 +2491,14 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
                                         bitSet.set(firstDocInSkipper - offset, lastDocInSkipper + 1 - offset);
                                     } else if (minVal <= upperValue && lowerValue <= maxVal) {
                                         // Partial overlap: scan SIMD bitmask for each numeric block.
-                                        int firstBlock = firstDocInSkipper >>> blockShift;
-                                        int lastBlock = lastDocInSkipper >>> blockShift;
+                                        int firstBlock = firstDocInSkipper >>> numericBlockShift;
+                                        int lastBlock = lastDocInSkipper >>> numericBlockShift;
                                         for (int blockId = firstBlock; blockId <= lastBlock; blockId++) {
                                             loadRangeBitmaskForBlock(blockId, lowerValue, upperValue, matches);
-                                            int firstInBlock = blockId == firstBlock ? firstDocInSkipper & blockMask : 0;
-                                            int lastInBlock = blockId == lastBlock ? lastDocInSkipper & blockMask : blockMask;
+                                            int firstInBlock = blockId == firstBlock ? firstDocInSkipper & numericBlockMask : 0;
+                                            int lastInBlock = blockId == lastBlock ? lastDocInSkipper & numericBlockMask : numericBlockMask;
                                             // shift by blockBase to matching bitSet's coordinate space
-                                            int blockBase = (blockId << blockShift) - offset;
+                                            int blockBase = (blockId << numericBlockShift) - offset;
                                             matches.forEach(firstInBlock, lastInBlock + 1, blockBase, bitSet::set);
                                         }
                                     }
@@ -2512,11 +2512,11 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
 
                             @Override
                             public int docIDRunEnd() throws IOException {
-                                int blockId = iterDoc >>> blockShift;
+                                int blockId = iterDoc >>> numericBlockShift;
                                 if (currentBlockIndex == blockId) {
                                     // We already have a decoded bitmask, find the first non-matching position after iterDoc
-                                    int firstClearBit = nextClearBit((iterDoc & blockMask) + 1, matches);
-                                    return Math.min((blockId << blockShift) + firstClearBit, maxDoc);
+                                    int firstClearBit = nextClearBit((iterDoc & numericBlockMask) + 1, matches);
+                                    return Math.min((blockId << numericBlockShift) + firstClearBit, maxDoc);
                                 }
                                 // No decoded block: if the whole skipper block is in range, claim the run extends to its end.
                                 if (lowerValue <= skipper.minValue(0) && skipper.maxValue(0) <= upperValue) {
@@ -2550,15 +2550,15 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
                                 if (target >= maxDoc) {
                                     return iterDoc = NO_MORE_DOCS;
                                 }
-                                int firstBlock = target >>> blockShift;
-                                int lastBlock = (maxDoc - 1) >>> blockShift;
+                                int firstBlock = target >>> numericBlockShift;
+                                int lastBlock = (maxDoc - 1) >>> numericBlockShift;
                                 for (int blockId = firstBlock; blockId <= lastBlock; blockId++) {
                                     loadRangeBitmaskForBlock(blockId, lowerValue, upperValue, matches);
-                                    int firstInBlock = blockId == firstBlock ? target & blockMask : 0;
-                                    int lastInBlock = blockId == lastBlock ? (maxDoc - 1) & blockMask : blockMask;
+                                    int firstInBlock = blockId == firstBlock ? target & numericBlockMask : 0;
+                                    int lastInBlock = blockId == lastBlock ? (maxDoc - 1) & numericBlockMask : numericBlockMask;
                                     int bit = matches.nextSetBit(firstInBlock, lastInBlock + 1);
                                     if (bit != NO_MORE_DOCS) {
-                                        return iterDoc = (blockId << blockShift) + bit;
+                                        return iterDoc = (blockId << numericBlockShift) + bit;
                                     }
                                 }
                                 return iterDoc = NO_MORE_DOCS;
@@ -2569,14 +2569,14 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
                                 if (iterDoc >= upTo) {
                                     return;
                                 }
-                                int firstBlock = iterDoc >>> blockShift;
-                                int lastBlock = (upTo - 1) >>> blockShift;
+                                int firstBlock = iterDoc >>> numericBlockShift;
+                                int lastBlock = (upTo - 1) >>> numericBlockShift;
                                 for (int blockId = firstBlock; blockId <= lastBlock; blockId++) {
                                     loadRangeBitmaskForBlock(blockId, lowerValue, upperValue, matches);
-                                    int firstInBlock = blockId == firstBlock ? iterDoc & blockMask : 0;
-                                    int lastInBlock = blockId == lastBlock ? (upTo - 1) & blockMask : blockMask;
+                                    int firstInBlock = blockId == firstBlock ? iterDoc & numericBlockMask : 0;
+                                    int lastInBlock = blockId == lastBlock ? (upTo - 1) & numericBlockMask : numericBlockMask;
                                     // shift by blockBase to matching bitSet's coordinate space
-                                    int blockBase = (blockId << blockShift) - offset;
+                                    int blockBase = (blockId << numericBlockShift) - offset;
                                     matches.forEach(firstInBlock, lastInBlock + 1, blockBase, bitSet::set);
                                 }
                                 // Honor the intoBitSet contract: leave the iterator positioned at the
@@ -2586,11 +2586,11 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
 
                             @Override
                             public int docIDRunEnd() throws IOException {
-                                int blockId = iterDoc >>> blockShift;
+                                int blockId = iterDoc >>> numericBlockShift;
                                 if (currentBlockIndex == blockId) {
                                     // We already have a decoded bitmask, find the first non-matching position after iterDoc
-                                    int firstClearBit = nextClearBit((iterDoc & blockMask) + 1, matches);
-                                    return Math.min((blockId << blockShift) + firstClearBit, maxDoc);
+                                    int firstClearBit = nextClearBit((iterDoc & numericBlockMask) + 1, matches);
+                                    return Math.min((blockId << numericBlockShift) + firstClearBit, maxDoc);
                                 }
                                 return iterDoc + 1;
                             }
@@ -2659,13 +2659,13 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
                 private final BlockDecoder decoder = blockDecoder(entry, maxOrd);
                 private IndexedDISI lookAheadDISI;
                 private long currentBlockIndex = -1;
-                private final long[] currentBlock = new long[blockSize];
+                private final long[] currentBlock = new long[numericBlockSize];
 
                 @Override
                 public long longValue() throws IOException {
                     final int index = disi.index();
-                    final int blockIndex = index >>> blockShift;
-                    final int blockInIndex = index & blockMask;
+                    final int blockIndex = index >>> numericBlockShift;
+                    final int blockInIndex = index & numericBlockMask;
                     if (blockIndex != currentBlockIndex) {
                         assert blockIndex > currentBlockIndex : blockIndex + "<=" + currentBlockIndex;
                         if (currentBlockIndex + 1 != blockIndex) {
@@ -2726,8 +2726,8 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
                     try (var singletonLongBuilder = singletonLongBuilder(factory, toDouble, valueCount, toInt)) {
                         for (int i = 0; i < valueCount;) {
                             final int index = firstIndex + i;
-                            final int blockIndex = index >>> blockShift;
-                            final int blockStartIndex = index & blockMask;
+                            final int blockIndex = index >>> numericBlockShift;
+                            final int blockStartIndex = index & numericBlockMask;
                             if (blockIndex != currentBlockIndex) {
                                 assert blockIndex > currentBlockIndex : blockIndex + "<=" + currentBlockIndex;
                                 if (currentBlockIndex + 1 != blockIndex) {
@@ -2736,7 +2736,7 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
                                 currentBlockIndex = blockIndex;
                                 decoder.decode(valuesData, currentBlock);
                             }
-                            final int count = Math.min(blockSize - blockStartIndex, valueCount - i);
+                            final int count = Math.min(numericBlockSize - blockStartIndex, valueCount - i);
                             singletonLongBuilder.appendLongs(currentBlock, blockStartIndex, count);
                             i += count;
                         }
@@ -2798,15 +2798,15 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
 
         final IndexInput valuesData = data.slice("values", entry.valuesOffset, entry.valuesLength);
 
-        final int blockSize = entry.blockSize;
-        final int blockShift = Integer.numberOfTrailingZeros(blockSize);
-        final int blockMask = blockSize - 1;
+        final int numericBlockSize = entry.blockSize;
+        final int numericBlockShift = Integer.numberOfTrailingZeros(numericBlockSize);
+        final int numericBlockMask = numericBlockSize - 1;
         final long[] currentBlockIndex = { -1 };
-        final long[] currentBlock = new long[blockSize];
+        final long[] currentBlock = new long[numericBlockSize];
         final BlockDecoder decoder = blockDecoder(entry, maxOrd);
         return index -> {
-            final long blockIndex = index >>> blockShift;
-            final int blockInIndex = (int) (index & blockMask);
+            final long blockIndex = index >>> numericBlockShift;
+            final int blockInIndex = (int) (index & numericBlockMask);
             if (blockIndex != currentBlockIndex[0]) {
                 if (currentBlockIndex[0] + 1 != blockIndex) {
                     valuesData.seek(indexReader.get(blockIndex));

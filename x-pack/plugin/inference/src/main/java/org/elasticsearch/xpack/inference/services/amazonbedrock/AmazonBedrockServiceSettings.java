@@ -80,7 +80,8 @@ public abstract class AmazonBedrockServiceSettings extends FilteredXContentObjec
      * Accumulates the parsed common fields and assembles a {@link AmazonBedrockServiceSettings}, enforcing that the required fields are
      * present. Task-specific builders extend this and contribute their own fields.
      *
-     * @param <T> the task-specific settings type produced by {@link #build(String, String, String, RateLimitSettings)}
+     * @param <T> the task-specific settings type produced by {@link #build(String, String, String, RateLimitSettings,
+     * ConfigurationParseContext)}
      */
     public abstract static class Builder<T extends AmazonBedrockServiceSettings> {
         private String region;
@@ -104,13 +105,19 @@ public abstract class AmazonBedrockServiceSettings extends FilteredXContentObjec
             this.rateLimitSettings = rateLimitSettings;
         }
 
-        protected abstract T build(String region, String model, String provider, RateLimitSettings rateLimitSettings);
+        protected abstract T build(
+            String region,
+            String model,
+            String provider,
+            RateLimitSettings rateLimitSettings,
+            ConfigurationParseContext context
+        );
 
-        public final T build() {
+        public final T build(ConfigurationParseContext context) {
             validateStringIsNotNullOrEmpty(region, REGION_FIELD);
             validateStringIsNotNullOrEmpty(model, MODEL_FIELD);
             validateStringIsNotNullOrEmpty(provider, PROVIDER_FIELD);
-            return build(region, model, provider, rateLimitSettings);
+            return build(region, model, provider, rateLimitSettings, context);
         }
     }
 
@@ -128,7 +135,7 @@ public abstract class AmazonBedrockServiceSettings extends FilteredXContentObjec
         ObjectParser<? extends AmazonBedrockServiceSettings.Builder<T>, ConfigurationParseContext> parser
     ) {
         try (var xParser = XContentHelper.mapToXContentParser(XContentParserConfiguration.EMPTY, map)) {
-            return parser.apply(xParser, context).build();
+            return parser.apply(xParser, context).build(context);
         } catch (IOException e) {
             throw new ElasticsearchParseException("Failed to parse [{}]", e, ModelConfigurations.SERVICE_SETTINGS);
         }

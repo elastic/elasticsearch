@@ -17,6 +17,7 @@ import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.SourceOperator;
+import org.elasticsearch.compute.operator.topn.SharedMinCompetitive;
 import org.elasticsearch.compute.operator.topn.SharedNumericThreshold;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
@@ -174,6 +175,13 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
     private final boolean batchReadCapable;
     @Nullable
     private volatile SharedNumericThreshold.Supplier thresholdSupplier;
+    /**
+     * BytesRef competitive bound for a single keyword/text sort key, published by the generic
+     * {@code TopNOperator}. Mutually exclusive with {@link #thresholdSupplier} (a query's TopN over
+     * this source has a single sort key of one type).
+     */
+    @Nullable
+    private volatile SharedMinCompetitive.Supplier minCompetitiveSupplier;
     @Nullable
     private volatile String thresholdColumnName;
     @Nullable
@@ -513,8 +521,37 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             throw new IllegalStateException("numeric threshold must be installed before source operators are created");
         }
         this.thresholdSupplier = thresholdSupplier;
+        // Numeric and BytesRef thresholds are mutually exclusive (one sort key, one type); clear the
+        // other so a stale supplier can never be picked up by dynamicThreshold().
+        this.minCompetitiveSupplier = null;
         this.thresholdColumnName = columnName;
         this.thresholdElementType = elementType;
+        this.thresholdAscending = ascending;
+        this.thresholdNullsFirst = nullsFirst;
+        closeDynamicThreshold();
+    }
+
+    /**
+     * Installs the shared {@code BYTES_REF} competitive threshold for a single keyword/text sort
+     * key, fed by the generic {@code TopNOperator}'s {@link SharedMinCompetitive} side-channel. Must
+     * be called during planning, before the first {@link #get(DriverContext)} call creates source
+     * operators from this factory.
+     */
+    public synchronized void setMinCompetitiveSupplier(
+        SharedMinCompetitive.Supplier minCompetitiveSupplier,
+        String columnName,
+        boolean ascending,
+        boolean nullsFirst
+    ) {
+        if (operatorRefCount.get() != 0) {
+            throw new IllegalStateException("min competitive threshold must be installed before source operators are created");
+        }
+        this.minCompetitiveSupplier = minCompetitiveSupplier;
+        // Mutually exclusive with the numeric threshold; clear it so a stale supplier can never be
+        // picked up by dynamicThreshold().
+        this.thresholdSupplier = null;
+        this.thresholdColumnName = columnName;
+        this.thresholdElementType = ElementType.BYTES_REF;
         this.thresholdAscending = ascending;
         this.thresholdNullsFirst = nullsFirst;
         closeDynamicThreshold();
@@ -886,22 +923,34 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
     @Nullable
     private DynamicThreshold dynamicThreshold() {
         DynamicThreshold threshold = cachedThreshold;
-        if (threshold != null || thresholdSupplier == null) {
+        if (threshold != null || (thresholdSupplier == null && minCompetitiveSupplier == null)) {
             return threshold;
         }
         synchronized (this) {
             threshold = cachedThreshold;
-            if (threshold == null && thresholdSupplier != null) {
-                if (thresholdColumnName == null || thresholdElementType == null) {
-                    throw new IllegalStateException("numeric threshold descriptor is incomplete");
+            if (threshold == null) {
+                if (thresholdColumnName == null) {
+                    throw new IllegalStateException("threshold descriptor is incomplete");
                 }
-                threshold = new DynamicThreshold(
-                    thresholdColumnName,
-                    thresholdElementType,
-                    thresholdAscending,
-                    thresholdNullsFirst,
-                    thresholdSupplier.get()
-                );
+                if (thresholdSupplier != null) {
+                    if (thresholdElementType == null) {
+                        throw new IllegalStateException("numeric threshold descriptor is incomplete");
+                    }
+                    threshold = new DynamicThreshold(
+                        thresholdColumnName,
+                        thresholdElementType,
+                        thresholdAscending,
+                        thresholdNullsFirst,
+                        thresholdSupplier.get()
+                    );
+                } else if (minCompetitiveSupplier != null) {
+                    threshold = new DynamicThreshold(
+                        thresholdColumnName,
+                        thresholdAscending,
+                        thresholdNullsFirst,
+                        minCompetitiveSupplier.get()
+                    );
+                }
                 cachedThreshold = threshold;
             }
             return threshold;

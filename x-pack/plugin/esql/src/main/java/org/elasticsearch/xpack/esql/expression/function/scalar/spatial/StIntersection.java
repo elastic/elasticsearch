@@ -59,6 +59,7 @@ public class StIntersection extends BinarySpatialGeometryFunction {
 
     @FunctionInfo(
         returnType = { "geo_shape", "cartesian_shape" },
+        briefSummary = "Returns the geometric intersection of two geometries.",
         description = "Returns the geometric intersection of two geometries. "
             + "The result is a geometry representing the portion that both input geometries have in common. "
             + "Returns an empty geometry if the inputs do not intersect. "

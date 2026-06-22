@@ -50,6 +50,7 @@ public class StUnion extends BinarySpatialGeometryFunction {
 
     @FunctionInfo(
         returnType = { "geo_shape", "cartesian_shape" },
+        briefSummary = "Returns the geometric union of two geometries.",
         description = "Returns the geometric union of two geometries. "
             + "The result is a geometry that covers all points covered by either input geometry. "
             + "Both geometries must share the same coordinate reference system.",

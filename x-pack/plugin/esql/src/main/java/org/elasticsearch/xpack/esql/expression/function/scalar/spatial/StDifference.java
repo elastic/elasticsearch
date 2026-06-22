@@ -59,6 +59,7 @@ public class StDifference extends BinarySpatialGeometryFunction {
 
     @FunctionInfo(
         returnType = { "geo_shape", "cartesian_shape" },
+        briefSummary = "Returns the part of `geomA` that does not intersect with `geomB`.",
         description = "Returns the part of `geomA` that does not intersect with `geomB`. "
             + "This is equivalent to subtracting `geomB` from `geomA`. "
             + "Both geometries must share the same coordinate reference system.",

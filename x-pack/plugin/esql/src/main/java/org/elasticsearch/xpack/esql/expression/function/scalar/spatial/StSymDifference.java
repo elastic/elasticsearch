@@ -59,6 +59,7 @@ public class StSymDifference extends BinarySpatialGeometryFunction {
 
     @FunctionInfo(
         returnType = { "geo_shape", "cartesian_shape" },
+        briefSummary = "Returns the symmetric difference of two geometries.",
         description = "Returns the symmetric difference of two geometries, that is the parts of each geometry "
             + "that are not shared by both. This is equivalent to the union of the two differences: "
             + "`ST_UNION(ST_DIFFERENCE(geomA, geomB), ST_DIFFERENCE(geomB, geomA))`. "

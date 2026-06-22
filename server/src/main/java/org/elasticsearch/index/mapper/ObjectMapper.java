@@ -35,6 +35,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
@@ -130,6 +131,12 @@ public class ObjectMapper extends Mapper {
         protected Optional<SourceKeepMode> sourceKeepMode = Optional.empty();
         protected Dynamic dynamic;
         protected final List<Mapper.Builder> mappersBuilders = new ArrayList<>();
+        /**
+         * Accumulates per-prefix settings captured during auto-flattening in strict columnar mode.
+         * Populated by {@link #flattenBuildersIfNeeded} when {@link MapperBuilderContext#isStrictColumnar()} is true.
+         * Read by {@link RootObjectMapper.Builder#build} to persist the entries so they survive round-trips.
+         */
+        protected final Map<String, PrefixProperties> prefixProperties = new HashMap<>();
 
         public Builder(String name) {
             this(name, Defaults.SUBOBJECTS);
@@ -350,7 +357,7 @@ public class ObjectMapper extends Mapper {
             Map<String, Mapper.Builder> map = new HashMap<>();
             for (Mapper.Builder builder : builders) {
                 if (subobjects.value() == Subobjects.DISABLED && builder instanceof ObjectMapper.Builder objectMapperBuilder) {
-                    objectMapperBuilder.asFlattenedFieldBuilders(builderContext, map, new ContentPath());
+                    objectMapperBuilder.asFlattenedFieldBuilders(builderContext, map, new ContentPath(), this.prefixProperties);
                 } else {
                     Mapper.Builder existing = map.get(builder.leafName());
                     if (existing != null) {
@@ -368,16 +375,32 @@ public class ObjectMapper extends Mapper {
          * avoiding the need to build an intermediate ObjectMapper.
          *
          * @param parentContext the builder context of the parent object (used for full-path error messages)
-         * @param result       the map to collect flattened field builders into
-         * @param path         tracks the relative path for field renaming
+         * @param result        the map to collect flattened field builders into
+         * @param path          tracks the relative path for field renaming
+         * @param collector     accumulates per-prefix settings in strict columnar mode;
+         *                      must be the root builder's {@code prefixProperties} map so all entries
+         *                      from the full nested hierarchy land in one place
          */
-        private void asFlattenedFieldBuilders(MapperBuilderContext parentContext, Map<String, Mapper.Builder> result, ContentPath path) {
+        private void asFlattenedFieldBuilders(
+            MapperBuilderContext parentContext,
+            Map<String, Mapper.Builder> result,
+            ContentPath path,
+            Map<String, PrefixProperties> collector
+        ) {
             String fullName = parentContext.buildFullName(path.pathAsText(leafName()));
             ensureBuilderFlattenable(parentContext, fullName);
+            if (parentContext.isStrictColumnar()) {
+                if (dynamic != null) {
+                    collector.merge(fullName, new PrefixProperties(dynamic, null), PrefixProperties::merge);
+                }
+                if (this instanceof PassThroughObjectMapper.Builder ptBuilder) {
+                    collector.merge(fullName, new PrefixProperties(null, ptBuilder.priority), PrefixProperties::merge);
+                }
+            }
             path.add(leafName());
             for (Mapper.Builder childBuilder : mappersBuilders) {
                 if (childBuilder instanceof ObjectMapper.Builder objectMapperBuilder) {
-                    objectMapperBuilder.asFlattenedFieldBuilders(parentContext, result, path);
+                    objectMapperBuilder.asFlattenedFieldBuilders(parentContext, result, path, collector);
                 } else if (childBuilder instanceof FieldMapper.Builder fieldMapperBuilder) {
                     fieldMapperBuilder.setLeafName(path.pathAsText(fieldMapperBuilder.leafName()));
                     result.put(fieldMapperBuilder.leafName(), fieldMapperBuilder);
@@ -387,7 +410,9 @@ public class ObjectMapper extends Mapper {
         }
 
         private void ensureBuilderFlattenable(MapperBuilderContext context, String fullName) {
-            if (dynamic != null && context.getDynamic() != dynamic) {
+            // In strict columnar mode, objects with a different dynamic than the parent are allowed;
+            // their declared dynamic is captured in prefixProperties for index-time resolution.
+            if (dynamic != null && context.getDynamic() != dynamic && context.isStrictColumnar() == false) {
                 throwAutoFlatteningException(
                     fullName,
                     "the value of [dynamic] ("
@@ -722,6 +747,9 @@ public class ObjectMapper extends Mapper {
     protected final Dynamic dynamic;
 
     protected final Map<String, Mapper> mappers;
+    // Pre-computed set of all dot-path prefixes of mapped field names, used by hasMappedFieldsWithPrefix.
+    // Only populated when subobjects is DISABLED, since that is the only call site.
+    private final Set<String> mappedPrefixes;
 
     ObjectMapper(
         String name,
@@ -742,8 +770,22 @@ public class ObjectMapper extends Mapper {
         this.dynamic = dynamic;
         if (mappers == null) {
             this.mappers = Map.of();
+            this.mappedPrefixes = Set.of();
         } else {
             this.mappers = Map.copyOf(mappers);
+            if (subobjects.value() == Subobjects.DISABLED) {
+                Set<String> prefixes = new HashSet<>();
+                for (String fieldName : mappers.keySet()) {
+                    int dot = fieldName.indexOf('.');
+                    while (dot >= 0) {
+                        prefixes.add(fieldName.substring(0, dot));
+                        dot = fieldName.indexOf('.', dot + 1);
+                    }
+                }
+                this.mappedPrefixes = prefixes.isEmpty() ? Set.of() : Set.copyOf(prefixes);
+            } else {
+                this.mappedPrefixes = Set.of();
+            }
         }
         assert subobjects.value() != Subobjects.DISABLED || this.mappers.values().stream().noneMatch(m -> m instanceof ObjectMapper)
             : "When subobjects is false, mappers must not contain an ObjectMapper";
@@ -792,6 +834,16 @@ public class ObjectMapper extends Mapper {
 
     public Map<String, Mapper> getMappers() {
         return mappers;
+    }
+
+    /**
+     * Returns true if any mapped child field has {@code prefix} as a dotted-path prefix,
+     * i.e. any key in this mapper's children starts with {@code prefix + "."}.
+     * Used to detect intermediate object segments when {@code subobjects} is disabled.
+     */
+    public boolean hasMappedFieldsWithPrefix(String prefix) {
+        assert prefix.endsWith(".") == false : "prefix must not end with a dot";
+        return mappedPrefixes.contains(prefix);
     }
 
     @Override
@@ -970,7 +1022,7 @@ public class ObjectMapper extends Mapper {
             .sorted(Comparator.comparing(Mapper::fullPath))
             .map(m -> innerSyntheticFieldLoader(filter, m))
             .filter(l -> l != SourceLoader.SyntheticFieldLoader.NOTHING)
-            .toList();
+            .toArray(SourceLoader.SyntheticFieldLoader[]::new);
         return new SyntheticSourceFieldLoader(filter, fields, isFragment, columnarStored);
     }
 
@@ -1003,7 +1055,7 @@ public class ObjectMapper extends Mapper {
     private class SyntheticSourceFieldLoader implements SourceLoader.SyntheticFieldLoader {
         private final SourceFilter filter;
         private final XContentParserConfiguration parserConfig;
-        private final List<SourceLoader.SyntheticFieldLoader> fields;
+        private final SourceLoader.SyntheticFieldLoader[] fields;
         private final boolean isFragment;
 
         private boolean storedFieldLoadersHaveValues;
@@ -1022,7 +1074,7 @@ public class ObjectMapper extends Mapper {
 
         private SyntheticSourceFieldLoader(
             SourceFilter filter,
-            List<SourceLoader.SyntheticFieldLoader> fields,
+            SourceLoader.SyntheticFieldLoader[] fields,
             boolean isFragment,
             boolean columnarStored
         ) {
@@ -1043,7 +1095,7 @@ public class ObjectMapper extends Mapper {
 
         @Override
         public Stream<Map.Entry<String, StoredFieldLoader>> storedFieldLoaders() {
-            return fields.stream()
+            return Arrays.stream(fields)
                 .flatMap(SourceLoader.SyntheticFieldLoader::storedFieldLoaders)
                 .map(e -> Map.entry(e.getKey(), newValues -> {
                     storedFieldLoadersHaveValues = true;
@@ -1188,7 +1240,9 @@ public class ObjectMapper extends Mapper {
         @Override
         public void reset() {
             softReset();
-            fields.forEach(SourceLoader.SyntheticFieldLoader::reset);
+            for (var loader : fields) {
+                loader.reset();
+            }
         }
 
         @Override

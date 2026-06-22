@@ -9,6 +9,11 @@
 
 package org.elasticsearch.upgrades;
 
+import com.carrotsearch.randomizedtesting.TestMethodAndParams;
+import com.carrotsearch.randomizedtesting.annotations.Name;
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+import com.carrotsearch.randomizedtesting.annotations.TestCaseOrdering;
+
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
 import org.elasticsearch.client.Request;
@@ -19,15 +24,25 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.snapshots.SnapshotsServiceUtils;
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.cluster.local.distribution.DistributionType;
+import org.elasticsearch.test.cluster.util.Version;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.junit.Before;
+import org.junit.ClassRule;
+import org.junit.rules.RuleChain;
+import org.junit.rules.TemporaryFolder;
+import org.junit.rules.TestRule;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.HttpURLConnection;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -46,7 +61,14 @@ import static org.hamcrest.Matchers.is;
  *     <li>Run against the old version cluster from the first step: {@link TestStep#STEP3_OLD_CLUSTER}</li>
  *     <li>Run against the current version cluster from the second step: {@link TestStep#STEP4_NEW_CLUSTER}</li>
  * </ul>
+ * <p>
+ * Rather than splitting the four steps across separate Gradle tasks and JVMs (as the legacy {@code testClusters} setup did), the steps are
+ * modelled as ordered test parameters. Two {@link ElasticsearchCluster} rules — one on the old version and one on the current version —
+ * share the same {@code path.repo} directory and run for the duration of the suite. {@link TestCaseOrdering} guarantees that every test
+ * method runs against {@link TestStep#STEP1_OLD_CLUSTER} first, then {@link TestStep#STEP2_NEW_CLUSTER}, and so on, so the repository state
+ * accumulated by earlier steps is observed by later ones.
  */
+@TestCaseOrdering(MultiVersionRepositoryAccessIT.TestStepOrdering.class)
 public class MultiVersionRepositoryAccessIT extends ESRestTestCase {
 
     private enum TestStep {
@@ -66,18 +88,100 @@ public class MultiVersionRepositoryAccessIT extends ESRestTestCase {
             return name;
         }
 
-        public static TestStep parse(String value) {
-            return switch (value) {
-                case "step1" -> STEP1_OLD_CLUSTER;
-                case "step2" -> STEP2_NEW_CLUSTER;
-                case "step3" -> STEP3_OLD_CLUSTER;
-                case "step4" -> STEP4_NEW_CLUSTER;
-                default -> throw new AssertionError("unknown test step: " + value);
-            };
+        /**
+         * Whether this step runs against the old-version cluster (steps 1 and 3) as opposed to the current-version cluster (steps 2 and 4).
+         */
+        boolean runsAgainstOldCluster() {
+            return this == STEP1_OLD_CLUSTER || this == STEP3_OLD_CLUSTER;
         }
     }
 
-    private static final TestStep TEST_STEP = TestStep.parse(System.getProperty("tests.rest.suite"));
+    /**
+     * Orders test execution so that all methods run against {@link TestStep#STEP1_OLD_CLUSTER} before any run against
+     * {@link TestStep#STEP2_NEW_CLUSTER}, and so on. This preserves the sequential old/new/old/new repository access the legacy
+     * multi-task setup relied on.
+     */
+    public static class TestStepOrdering implements Comparator<TestMethodAndParams> {
+        @Override
+        public int compare(TestMethodAndParams o1, TestMethodAndParams o2) {
+            return Integer.compare(getOrdinal(o1), getOrdinal(o2));
+        }
+
+        private static int getOrdinal(TestMethodAndParams t) {
+            return ((TestStep) t.getInstanceArguments().get(0)).ordinal();
+        }
+    }
+
+    private static final String OLD_CLUSTER_VERSION = System.getProperty("tests.old_cluster_version");
+
+    private static final TemporaryFolder repoDirectory = new TemporaryFolder();
+
+    private static final ElasticsearchCluster oldCluster = buildCluster(OLD_CLUSTER_VERSION, isOldClusterDetachedVersion());
+
+    private static final ElasticsearchCluster newCluster = buildCluster(Version.CURRENT.toString(), false);
+
+    private static ElasticsearchCluster buildCluster(String version, boolean detachedVersion) {
+        var cluster = ElasticsearchCluster.local()
+            .distribution(DistributionType.DEFAULT)
+            .version(version, detachedVersion)
+            .nodes(2)
+            .setting("path.repo", () -> repoDirectory.getRoot().getPath())
+            .setting("xpack.security.enabled", "false");
+        // 8.10.x versions contain a bogus assertion that trips when reading repositories touched by newer versions
+        // see https://github.com/elastic/elasticsearch/issues/98454 for details
+        if (version.equals("8.10.0") || version.equals("8.10.1") || version.equals("8.10.2") || version.equals("8.10.3")) {
+            cluster.jvmArg("-da");
+        }
+        return cluster.build();
+    }
+
+    @ClassRule
+    public static TestRule ruleChain = RuleChain.outerRule(repoDirectory).around(oldCluster).around(newCluster);
+
+    /**
+     * Tracks which cluster the shared REST client is currently pointing at, so we only tear down and re-create the client when a step
+     * needs the other cluster.
+     */
+    private static Boolean clientUsesOldCluster = null;
+
+    @ParametersFactory(shuffle = false)
+    public static Iterable<Object[]> parameters() {
+        return Arrays.stream(TestStep.values()).map(s -> new Object[] { s }).collect(Collectors.toList());
+    }
+
+    private final TestStep testStep;
+
+    public MultiVersionRepositoryAccessIT(@Name("step") TestStep testStep) {
+        this.testStep = testStep;
+    }
+
+    @Override
+    protected String getTestRestCluster() {
+        return testStep.runsAgainstOldCluster() ? oldCluster.getHttpAddresses() : newCluster.getHttpAddresses();
+    }
+
+    /**
+     * Repoints the shared REST client at the cluster required by the current step. {@link ESRestTestCase#initClient()} runs first (as a
+     * superclass {@code @Before}) and is a no-op once the client is initialized, so here we explicitly close and re-create the client
+     * whenever the step switches between the old and new cluster.
+     */
+    @Before
+    public void selectClusterForStep() throws IOException {
+        boolean needsOldCluster = testStep.runsAgainstOldCluster();
+        if (clientUsesOldCluster != null && clientUsesOldCluster != needsOldCluster) {
+            closeClients();
+            initClient();
+        }
+        clientUsesOldCluster = needsOldCluster;
+    }
+
+    /**
+     * The repository name must be stable across all four steps so that a repository created in one step is observed by later steps.
+     * {@link #getTestName()} includes the parameterized step suffix (e.g. {@code "testReadOnlyRepo {step=step1}"}), so strip it.
+     */
+    private String getRepoName() {
+        return getTestName().split(" ")[0];
+    }
 
     @Override
     protected boolean preserveSnapshotsUponCompletion() {
@@ -95,42 +199,42 @@ public class MultiVersionRepositoryAccessIT extends ESRestTestCase {
     }
 
     public void testCreateAndRestoreSnapshot() throws IOException {
-        final String repoName = getTestName();
+        final String repoName = getRepoName();
         try {
             final int shards = 3;
             final String index = "test-index";
             createIndex(index, shards);
             createRepository(repoName, false, true);
-            createSnapshot(repoName, "snapshot-" + TEST_STEP, index);
+            createSnapshot(repoName, "snapshot-" + testStep, index);
             final String snapshotToDeleteName = "snapshot-to-delete";
             // Create a snapshot and delete it right away again to test the impact of each version's cleanup functionality that is run
             // as part of the snapshot delete
             createSnapshot(repoName, snapshotToDeleteName, index);
             final List<Map<String, Object>> snapshotsIncludingToDelete = listSnapshots(repoName);
             // Every step creates one snapshot and we have to add one more for the temporary snapshot
-            assertThat(snapshotsIncludingToDelete, hasSize(TEST_STEP.ordinal() + 1 + 1));
+            assertThat(snapshotsIncludingToDelete, hasSize(testStep.ordinal() + 1 + 1));
             assertThat(
                 snapshotsIncludingToDelete.stream().map(sn -> (String) sn.get("snapshot")).collect(Collectors.toList()),
                 hasItem(snapshotToDeleteName)
             );
             deleteSnapshot(repoName, snapshotToDeleteName);
             final List<Map<String, Object>> snapshots = listSnapshots(repoName);
-            assertThat(snapshots, hasSize(TEST_STEP.ordinal() + 1));
-            switch (TEST_STEP) {
+            assertThat(snapshots, hasSize(testStep.ordinal() + 1));
+            switch (testStep) {
                 case STEP2_NEW_CLUSTER, STEP4_NEW_CLUSTER -> assertSnapshotStatusSuccessful(
                     repoName,
                     snapshots.stream().map(sn -> (String) sn.get("snapshot")).toArray(String[]::new)
                 );
-                case STEP1_OLD_CLUSTER -> assertSnapshotStatusSuccessful(repoName, "snapshot-" + TEST_STEP);
+                case STEP1_OLD_CLUSTER -> assertSnapshotStatusSuccessful(repoName, "snapshot-" + testStep);
                 case STEP3_OLD_CLUSTER -> assertSnapshotStatusSuccessful(
                     repoName,
-                    "snapshot-" + TEST_STEP,
+                    "snapshot-" + testStep,
                     "snapshot-" + TestStep.STEP3_OLD_CLUSTER
                 );
             }
-            if (TEST_STEP == TestStep.STEP3_OLD_CLUSTER) {
+            if (testStep == TestStep.STEP3_OLD_CLUSTER) {
                 ensureSnapshotRestoreWorks(repoName, "snapshot-" + TestStep.STEP1_OLD_CLUSTER, shards, index);
-            } else if (TEST_STEP == TestStep.STEP4_NEW_CLUSTER) {
+            } else if (testStep == TestStep.STEP4_NEW_CLUSTER) {
                 for (TestStep value : TestStep.values()) {
                     ensureSnapshotRestoreWorks(repoName, "snapshot-" + value, shards, index);
                 }
@@ -141,28 +245,28 @@ public class MultiVersionRepositoryAccessIT extends ESRestTestCase {
     }
 
     public void testReadOnlyRepo() throws IOException {
-        final String repoName = getTestName();
+        final String repoName = getRepoName();
         final int shards = 3;
-        final boolean readOnly = TEST_STEP.ordinal() > 1; // only restore from read-only repo in steps 3 and 4
+        final boolean readOnly = testStep.ordinal() > 1; // only restore from read-only repo in steps 3 and 4
         createRepository(repoName, readOnly, true);
         final String index = "test-index";
         if (readOnly == false) {
             createIndex(index, shards);
-            createSnapshot(repoName, "snapshot-" + TEST_STEP, index);
+            createSnapshot(repoName, "snapshot-" + testStep, index);
         }
         final List<Map<String, Object>> snapshots = listSnapshots(repoName);
-        switch (TEST_STEP) {
+        switch (testStep) {
             case STEP1_OLD_CLUSTER -> assertThat(snapshots, hasSize(1));
             case STEP2_NEW_CLUSTER, STEP4_NEW_CLUSTER, STEP3_OLD_CLUSTER -> assertThat(snapshots, hasSize(2));
         }
-        if (TEST_STEP == TestStep.STEP1_OLD_CLUSTER || TEST_STEP == TestStep.STEP3_OLD_CLUSTER) {
+        if (testStep == TestStep.STEP1_OLD_CLUSTER || testStep == TestStep.STEP3_OLD_CLUSTER) {
             assertSnapshotStatusSuccessful(repoName, "snapshot-" + TestStep.STEP1_OLD_CLUSTER);
         } else {
             assertSnapshotStatusSuccessful(repoName, "snapshot-" + TestStep.STEP1_OLD_CLUSTER, "snapshot-" + TestStep.STEP2_NEW_CLUSTER);
         }
-        if (TEST_STEP == TestStep.STEP3_OLD_CLUSTER) {
+        if (testStep == TestStep.STEP3_OLD_CLUSTER) {
             ensureSnapshotRestoreWorks(repoName, "snapshot-" + TestStep.STEP1_OLD_CLUSTER, shards, index);
-        } else if (TEST_STEP == TestStep.STEP4_NEW_CLUSTER) {
+        } else if (testStep == TestStep.STEP4_NEW_CLUSTER) {
             ensureSnapshotRestoreWorks(repoName, "snapshot-" + TestStep.STEP1_OLD_CLUSTER, shards, index);
             ensureSnapshotRestoreWorks(repoName, "snapshot-" + TestStep.STEP2_NEW_CLUSTER, shards, index);
         }
@@ -174,7 +278,7 @@ public class MultiVersionRepositoryAccessIT extends ESRestTestCase {
     );
 
     public void testUpgradeMovesRepoToNewMetaVersion() throws IOException {
-        final String repoName = getTestName();
+        final String repoName = getRepoName();
         try {
             final int shards = 3;
             final String index = "test-index";
@@ -183,7 +287,7 @@ public class MultiVersionRepositoryAccessIT extends ESRestTestCase {
             // 7.12.0+ will try to load RepositoryData during repo creation if verify is true, which is impossible in case of version
             // incompatibility in the downgrade test step. We verify that it is impossible here and then create the repo using verify=false
             // to check behavior on other operations below.
-            final boolean verify = TEST_STEP != TestStep.STEP3_OLD_CLUSTER
+            final boolean verify = testStep != TestStep.STEP3_OLD_CLUSTER
                 || SnapshotsServiceUtils.includesUUIDs(minNodeVersion)
                 || minNodeVersion.before(IndexVersions.V_7_12_0);
             if (verify == false) {
@@ -191,13 +295,13 @@ public class MultiVersionRepositoryAccessIT extends ESRestTestCase {
             }
             createRepository(repoName, false, verify);
             // only create some snapshots in the first two steps
-            if (TEST_STEP == TestStep.STEP1_OLD_CLUSTER || TEST_STEP == TestStep.STEP2_NEW_CLUSTER) {
-                createSnapshot(repoName, "snapshot-" + TEST_STEP, index);
+            if (testStep == TestStep.STEP1_OLD_CLUSTER || testStep == TestStep.STEP2_NEW_CLUSTER) {
+                createSnapshot(repoName, "snapshot-" + testStep, index);
                 final List<Map<String, Object>> snapshots = listSnapshots(repoName);
                 // Every step creates one snapshot
-                assertThat(snapshots, hasSize(TEST_STEP.ordinal() + 1));
+                assertThat(snapshots, hasSize(testStep.ordinal() + 1));
                 assertSnapshotStatusSuccessful(repoName, snapshots.stream().map(sn -> (String) sn.get("snapshot")).toArray(String[]::new));
-                if (TEST_STEP == TestStep.STEP1_OLD_CLUSTER) {
+                if (testStep == TestStep.STEP1_OLD_CLUSTER) {
                     ensureSnapshotRestoreWorks(repoName, "snapshot-" + TestStep.STEP1_OLD_CLUSTER, shards, index);
                 } else {
                     deleteSnapshot(repoName, "snapshot-" + TestStep.STEP1_OLD_CLUSTER);
@@ -210,14 +314,14 @@ public class MultiVersionRepositoryAccessIT extends ESRestTestCase {
                 }
             } else {
                 if (SnapshotsServiceUtils.includesUUIDs(minNodeVersion) == false) {
-                    assertThat(TEST_STEP, is(TestStep.STEP3_OLD_CLUSTER));
+                    assertThat(testStep, is(TestStep.STEP3_OLD_CLUSTER));
                     expectThrowsAnyOf(EXPECTED_BWC_EXCEPTIONS, () -> listSnapshots(repoName));
                     expectThrowsAnyOf(EXPECTED_BWC_EXCEPTIONS, () -> deleteSnapshot(repoName, "snapshot-1"));
                     expectThrowsAnyOf(EXPECTED_BWC_EXCEPTIONS, () -> deleteSnapshot(repoName, "snapshot-2"));
                     expectThrowsAnyOf(EXPECTED_BWC_EXCEPTIONS, () -> createSnapshot(repoName, "snapshot-impossible", index));
                 } else {
                     assertThat(listSnapshots(repoName), hasSize(2));
-                    if (TEST_STEP == TestStep.STEP4_NEW_CLUSTER) {
+                    if (testStep == TestStep.STEP4_NEW_CLUSTER) {
                         ensureSnapshotRestoreWorks(repoName, "snapshot-1", shards, index);
                         ensureSnapshotRestoreWorks(repoName, "snapshot-2", shards, index);
                     }
@@ -229,7 +333,7 @@ public class MultiVersionRepositoryAccessIT extends ESRestTestCase {
     }
 
     public void testSnapshotCreatedInOldVersionCanBeDeletedInNew() throws IOException {
-        final String repoName = getTestName();
+        final String repoName = getRepoName();
         try {
             final int shards = 3;
             final String index = "test-index";
@@ -237,20 +341,20 @@ public class MultiVersionRepositoryAccessIT extends ESRestTestCase {
             final IndexVersion minNodeVersion = minimumIndexVersion();
             // 7.12.0+ will try to load RepositoryData during repo creation if verify is true, which is impossible in case of version
             // incompatibility in the downgrade test step.
-            final boolean verify = TEST_STEP != TestStep.STEP3_OLD_CLUSTER
+            final boolean verify = testStep != TestStep.STEP3_OLD_CLUSTER
                 || SnapshotsServiceUtils.includesUUIDs(minNodeVersion)
                 || minNodeVersion.before(IndexVersions.V_7_12_0);
             createRepository(repoName, false, verify);
 
             // Create snapshots in the first step
-            if (TEST_STEP == TestStep.STEP1_OLD_CLUSTER) {
+            if (testStep == TestStep.STEP1_OLD_CLUSTER) {
                 int numberOfSnapshots = randomIntBetween(5, 10);
                 for (int i = 0; i < numberOfSnapshots; i++) {
                     createSnapshot(repoName, "snapshot-" + i, index);
                 }
                 final List<Map<String, Object>> snapshots = listSnapshots(repoName);
                 assertSnapshotStatusSuccessful(repoName, snapshots.stream().map(sn -> (String) sn.get("snapshot")).toArray(String[]::new));
-            } else if (TEST_STEP == TestStep.STEP2_NEW_CLUSTER) {
+            } else if (testStep == TestStep.STEP2_NEW_CLUSTER) {
                 final List<Map<String, Object>> snapshots = listSnapshots(repoName);
                 List<String> snapshotNames = new ArrayList<>(snapshots.stream().map(sn -> (String) sn.get("snapshot")).toList());
 

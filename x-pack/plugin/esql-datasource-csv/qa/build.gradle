@@ -5,9 +5,7 @@
  * 2.0.
  */
 
-apply plugin: 'java'
 apply plugin: 'elasticsearch.internal-java-rest-test'
-apply plugin: 'elasticsearch.internal-yaml-rest-test'
 apply plugin: org.elasticsearch.gradle.internal.precommit.CheckstylePrecommitPlugin
 apply plugin: org.elasticsearch.gradle.internal.precommit.ForbiddenApisPrecommitPlugin
 apply plugin: org.elasticsearch.gradle.internal.precommit.ForbiddenPatternsPrecommitPlugin
@@ -212,14 +210,5 @@ tasks.named('javaRestTest') {
     events = ["passed", "skipped", "failed"]
     exceptionFormat = "full"
     showStandardStreams = false
-  }
-}
-
-restResources {
-  restApi {
-    include '_common', 'bulk', 'get', 'indices', 'esql', 'xpack', 'cluster', 'capabilities', 'index'
-  }
-  restTests {
-    includeXpack 'esql'
   }
 }

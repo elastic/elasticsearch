@@ -26,6 +26,7 @@ import org.junit.rules.TestRule;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 
 /**
  * Runs external source csv-spec tests on a 3-node cluster with each distribution
@@ -77,6 +78,14 @@ public class ExternalDistributedSpecIT extends AbstractExternalSourceSpecTestCas
     @Override
     protected String getTestRestCluster() {
         return CLUSTER_INSTANCE.getHttpAddresses();
+    }
+
+    // Migrated specs run via FROM <dataset> on S3 and via the rebuilt EXTERNAL query on the other backends.
+    // On this 3-node cluster the warm pass may re-scan on a second coordinator (a coverage gap, never a wrong
+    // answer; see runColdThenWarm), but all three distribution modes must still agree per query.
+    @Override
+    protected Set<StorageBackend> datasetModeBackends() {
+        return Set.of(StorageBackend.S3);
     }
 
     @ParametersFactory(argumentFormatting = "csv-spec:%2$s.%3$s [%7$s/%8$s]")

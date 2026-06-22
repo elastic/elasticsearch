@@ -663,6 +663,11 @@ public class CsvTestsDataLoader {
         }
         if (loadedDatasets.isEmpty() == false) {
             forceMerge(client, loadedDatasets);
+            // Lookup-mode indices use auto_expand_replicas: 0-all, so createIndex returns once the primary is
+            // active while replicas may still be initializing. On a multi-node cluster a LOOKUP JOIN routed to a
+            // node whose replica is not yet active fails with NoShardAvailableActionException. Wait for green so
+            // every copy is active before tests query these indices.
+            ensureGreen(client, loadedDatasets);
         }
     }
 
@@ -1232,6 +1237,15 @@ public class CsvTestsDataLoader {
                 builder.substring(0, 100)
             )
         );
+    }
+
+    private static void ensureGreen(RestClient client, Set<String> indices) throws IOException {
+        ESRestTestCase.ensureHealth(client, String.join(",", indices), request -> {
+            request.addParameter("wait_for_status", "green");
+            request.addParameter("wait_for_no_relocating_shards", "true");
+            request.addParameter("timeout", "60s");
+            request.addParameter("level", "shards");
+        });
     }
 
     private static void forceMerge(RestClient client, Set<String> indices) throws IOException {

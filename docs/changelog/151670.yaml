@@ -1,5 +1,6 @@
 area: ES|QL
-issues: []
+issues:
+ - 147286
 pr: 151670
 summary: Chunk time-series aggregation output
 type: feature

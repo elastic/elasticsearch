@@ -20,6 +20,7 @@ import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.iplocation.api.DatabaseProperty;
 import org.elasticsearch.iplocation.api.IpLocationInfoMapCollector;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.BeforeClass;
@@ -583,6 +584,43 @@ public class IpinfoIpDataLookupsTests extends ESTestCase {
         );
     }
 
+    /**
+     * The mobile-carrier ({@code carrier_name}/{@code isp}, {@code mcc}/{@code mobile_country_code},
+     * {@code mnc}/{@code mobile_network_code}), {@code dma_code}, and privacy {@code privacy_name}/{@code service}
+     * fields are valid {@link Database#IpinfoPlus} properties, but the {@code ipinfo_plus_sample.mmdb} sample
+     * database happens to contain no rows that populate them. As a result the corresponding branches of
+     * {@link IpinfoIpDataLookups.Plus#transform} are never exercised by the data-driven tests above. This test
+     * drives {@code transform} directly with a {@link IpinfoIpDataLookups.PlusResult} that sets exactly those
+     * fields, verifying each is collected under its expected output key.
+     */
+    public void testPlusMobileCarrierAndServiceFields() {
+        IpinfoIpDataLookups.PlusResult response = plusResultBuilder().carrierName("Verizon Wireless")
+            .mcc("310")
+            .mnc("012")
+            .dmaCode("501")
+            .privacyName("Example VPN Provider")
+            .build();
+
+        Set<DatabaseProperty> properties = Set.of(
+            DatabaseProperty.ISP,
+            DatabaseProperty.MOBILE_COUNTRY_CODE,
+            DatabaseProperty.MOBILE_NETWORK_CODE,
+            DatabaseProperty.DMA_CODE,
+            DatabaseProperty.SERVICE
+        );
+
+        IpinfoIpDataLookups.Plus lookup = new IpinfoIpDataLookups.Plus(properties);
+        IpLocationInfoMapCollector actual = new IpLocationInfoMapCollector();
+        lookup.transform(new InternalIpDataLookup.Result<>(response, "1.0.0.0", "1.0.0.0/31"), actual);
+
+        assertThat(actual.keySet(), containsInAnyOrder("isp", "mobile_country_code", "mobile_network_code", "dma_code", "service"));
+        assertThat(actual.get("isp"), equalTo("Verizon Wireless"));
+        assertThat(actual.get("mobile_country_code"), equalTo("310"));
+        assertThat(actual.get("mobile_network_code"), equalTo("012"));
+        assertThat(actual.get("dma_code"), equalTo("501"));
+        assertThat(actual.get("service"), equalTo("Example VPN Provider"));
+    }
+
     public void testPlusInvariants() {
         assumeFalse("https://github.com/elastic/elasticsearch/issues/114266", Constants.WINDOWS);
 
@@ -774,5 +812,85 @@ public class IpinfoIpDataLookupsTests extends ESTestCase {
         Path path = resolveSharedDatabase(sharedDbDir, "ipinfo/" + databaseName);
         final GeoIpCache cache = new GeoIpCache(1000);
         return new DatabaseReaderLazyLoader(ProjectId.DEFAULT, cache, path, null);
+    }
+
+    private static PlusResultBuilder plusResultBuilder() {
+        return new PlusResultBuilder();
+    }
+
+    /**
+     * Builder that confines the verbose positional {@link IpinfoIpDataLookups.PlusResult} record constructor to a single place. Every
+     * component defaults to {@code null}; setters are provided only for the fields exercised by tests, and can be added as needed.
+     * {@code build()} fills the remaining components with {@code null}
+     */
+    private static final class PlusResultBuilder {
+        private String carrierName;
+        private String mcc;
+        private String mnc;
+        private String dmaCode;
+        private String privacyName;
+
+        PlusResultBuilder carrierName(String carrierName) {
+            this.carrierName = carrierName;
+            return this;
+        }
+
+        PlusResultBuilder mcc(String mcc) {
+            this.mcc = mcc;
+            return this;
+        }
+
+        PlusResultBuilder mnc(String mnc) {
+            this.mnc = mnc;
+            return this;
+        }
+
+        PlusResultBuilder dmaCode(String dmaCode) {
+            this.dmaCode = dmaCode;
+            return this;
+        }
+
+        PlusResultBuilder privacyName(String privacyName) {
+            this.privacyName = privacyName;
+            return this;
+        }
+
+        IpinfoIpDataLookups.PlusResult build() {
+            return new IpinfoIpDataLookups.PlusResult(
+                (Long) null, // asn
+                null, // asName
+                null, // asDomain
+                null, // asType
+                carrierName,
+                mcc,
+                mnc,
+                null, // asChanged
+                null, // geoChanged
+                null, // city
+                null, // region
+                null, // regionCode
+                null, // country
+                null, // countryCode
+                null, // continent
+                null, // continentCode
+                null, // latitude
+                null, // longitude
+                null, // timezone
+                null, // postalCode
+                dmaCode,
+                null, // geonameId
+                null, // radius
+                null, // isAnonymous
+                null, // isAnycast
+                null, // isHosting
+                null, // isMobile
+                null, // isSatellite
+                null, // isProxy
+                null, // isRelay
+                null, // isTor
+                null, // isVpn
+                privacyName
+            );
+        }
     }
 }

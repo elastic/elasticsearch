@@ -143,15 +143,11 @@ $endif$
     public void collect($type$ value, $if(hasExtra)$$Extratype$ extraValue, $endif$int bucket) {
         long rootIndex = (long) bucket * bucketSize;
         if (inHeapMode(bucket)) {
-            if (betterThan(
-                // comment to make spotless happy about line breaks
-                value,
-                $if(BytesRef)$bytesAt(rootIndex)$else$values.get(rootIndex)$endif$$if(hasExtra)$,
-                extraValue,
-                $if(ExtraBytesRef)$extraBytesAt(rootIndex)$else$extraValues.get(rootIndex)$endif$
-$else$
+            $type$ rootValue = $if(BytesRef)$bytesAt(rootIndex)$else$values.get(rootIndex)$endif$;
+$if(hasExtra)$
+            $Extratype$ rootExtra = $if(ExtraBytesRef)$extraBytesAt(rootIndex)$else$extraValues.get(rootIndex)$endif$;
 $endif$
-            )) {
+            if (betterThan(value, rootValue$if(hasExtra)$, extraValue, rootExtra$endif$)) {
 $if(BytesRef)$
                 clearedBytesAt(rootIndex).append(value);
 $else$
@@ -234,12 +230,19 @@ $endif$
 
         // TODO: This can be improved for heapified buckets by making use of the heap structures
         for (long i = otherBounds.v1(); i < otherBounds.v2(); i++) {
-            collect(
-                // comment to make spotless happy about line breaks
-                $if(BytesRef)$other.values.get(i) == null ? new BytesRef() : other.values.get(i).bytesRefView()$else$other.values.get(i)$endif$$if(hasExtra)$,
-                $if(ExtraBytesRef)$other.extraValues.get(i) == null ? new BytesRef() : other.extraValues.get(i).bytesRefView()$else$other.extraValues.get(i)$endif$$endif$,
-                groupId
-            );
+$if(BytesRef)$
+            $type$ otherValue = other.values.get(i) == null ? new BytesRef() : other.values.get(i).bytesRefView();
+$else$
+            $type$ otherValue = other.values.get(i);
+$endif$
+$if(hasExtra)$
+$if(ExtraBytesRef)$
+            $Extratype$ otherExtra = other.extraValues.get(i) == null ? new BytesRef() : other.extraValues.get(i).bytesRefView();
+$else$
+            $Extratype$ otherExtra = other.extraValues.get(i);
+$endif$
+$endif$
+            collect(otherValue$if(hasExtra)$, otherExtra$endif$, groupId);
         }
     }
 
@@ -533,12 +536,9 @@ $endif$
         long oldMax = values.size();
         assert oldMax % bucketSize == 0;
 
-        long newSize = BigArrays.overSize(
-            // comment to make spotless happy about line breaks
-            ((long) bucket + 1) * bucketSize,
-            $if(BytesRef)$PageCacheRecycler.OBJECT_PAGE_SIZE$else$PageCacheRecycler.$TYPE$_PAGE_SIZE$endif$,
-            $if(BytesRef)$org.apache.lucene.util.RamUsageEstimator.NUM_BYTES_OBJECT_REF$else$$BYTES$$endif$
-        );
+        int pageSize = $if(BytesRef)$PageCacheRecycler.OBJECT_PAGE_SIZE$else$PageCacheRecycler.$TYPE$_PAGE_SIZE$endif$;
+        int bytesPerElement = $BYTES$;
+        long newSize = BigArrays.overSize(((long) bucket + 1) * bucketSize, pageSize, bytesPerElement);
         // Round up to the next full bucket.
         newSize = (newSize + bucketSize - 1) / bucketSize;
         values = bigArrays.resize(values, newSize * bucketSize);
@@ -643,32 +643,29 @@ $endif$
             int leftChild = parent * 2 + 1;
             long leftIndex = rootIndex + leftChild;
             if (leftChild < heapSize) {
-                if (betterThan(
-                    // comment to make spotless happy about line breaks
-                    $if(BytesRef)$bytesAt(worstIndex)$else$values.get(worstIndex)$endif$,
-                    $if(BytesRef)$bytesAt(leftIndex)$else$values.get(leftIndex)$endif$$if(hasExtra)$,
-                    $if(ExtraBytesRef)$extraBytesAt(worstIndex)$else$extraValues.get(worstIndex)$endif$,
-                    $if(ExtraBytesRef)$extraBytesAt(leftIndex)$else$extraValues.get(leftIndex)$endif$
-$else$
+                $type$ worstValue = $if(BytesRef)$bytesAt(worstIndex)$else$values.get(worstIndex)$endif$;
+                $type$ leftValue = $if(BytesRef)$bytesAt(leftIndex)$else$values.get(leftIndex)$endif$;
+$if(hasExtra)$
+                $Extratype$ worstExtra = $if(ExtraBytesRef)$extraBytesAt(worstIndex)$else$extraValues.get(worstIndex)$endif$;
+                $Extratype$ leftExtra = $if(ExtraBytesRef)$extraBytesAt(leftIndex)$else$extraValues.get(leftIndex)$endif$;
 $endif$
-                )) {
+                if (betterThan(worstValue, leftValue$if(hasExtra)$, worstExtra, leftExtra$endif$)) {
                     worst = leftChild;
                     worstIndex = leftIndex;
                 }
                 int rightChild = leftChild + 1;
                 long rightIndex = rootIndex + rightChild;
-                if (rightChild < heapSize
-                    && betterThan(
-                        // comment to make spotless happy about line breaks
-                        $if(BytesRef)$bytesAt(worstIndex)$else$values.get(worstIndex)$endif$,
-                        $if(BytesRef)$bytesAt(rightIndex)$else$values.get(rightIndex)$endif$$if(hasExtra)$,
-                        $if(ExtraBytesRef)$extraBytesAt(worstIndex)$else$extraValues.get(worstIndex)$endif$,
-                        $if(ExtraBytesRef)$extraBytesAt(rightIndex)$else$extraValues.get(rightIndex)$endif$
-$else$
+                if (rightChild < heapSize) {
+                    worstValue = $if(BytesRef)$bytesAt(worstIndex)$else$values.get(worstIndex)$endif$;
+                    $type$ rightValue = $if(BytesRef)$bytesAt(rightIndex)$else$values.get(rightIndex)$endif$;
+$if(hasExtra)$
+                    worstExtra = $if(ExtraBytesRef)$extraBytesAt(worstIndex)$else$extraValues.get(worstIndex)$endif$;
+                    $Extratype$ rightExtra = $if(ExtraBytesRef)$extraBytesAt(rightIndex)$else$extraValues.get(rightIndex)$endif$;
 $endif$
-                    )) {
-                    worst = rightChild;
-                    worstIndex = rightIndex;
+                    if (betterThan(worstValue, rightValue$if(hasExtra)$, worstExtra, rightExtra$endif$)) {
+                        worst = rightChild;
+                        worstIndex = rightIndex;
+                    }
                 }
             }
             if (worst == parent) {

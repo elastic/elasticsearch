@@ -100,11 +100,8 @@ public class BytesRefBucketedSort implements Releasable {
     public void collect(BytesRef value, int bucket) {
         long rootIndex = (long) bucket * bucketSize;
         if (inHeapMode(bucket)) {
-            if (betterThan(
-                // comment to make spotless happy about line breaks
-                value,
-                bytesAt(rootIndex)
-            )) {
+            BytesRef rootValue = bytesAt(rootIndex);
+            if (betterThan(value, rootValue)) {
                 clearedBytesAt(rootIndex).append(value);
                 downHeap(rootIndex, 0, bucketSize);
             }
@@ -165,11 +162,8 @@ public class BytesRefBucketedSort implements Releasable {
 
         // TODO: This can be improved for heapified buckets by making use of the heap structures
         for (long i = otherBounds.v1(); i < otherBounds.v2(); i++) {
-            collect(
-                // comment to make spotless happy about line breaks
-                other.values.get(i) == null ? new BytesRef() : other.values.get(i).bytesRefView(),
-                groupId
-            );
+            BytesRef otherValue = other.values.get(i) == null ? new BytesRef() : other.values.get(i).bytesRefView();
+            collect(otherValue, groupId);
         }
     }
 
@@ -310,12 +304,9 @@ public class BytesRefBucketedSort implements Releasable {
         long oldMax = values.size();
         assert oldMax % bucketSize == 0;
 
-        long newSize = BigArrays.overSize(
-            // comment to make spotless happy about line breaks
-            ((long) bucket + 1) * bucketSize,
-            PageCacheRecycler.OBJECT_PAGE_SIZE,
-            org.apache.lucene.util.RamUsageEstimator.NUM_BYTES_OBJECT_REF
-        );
+        int pageSize = PageCacheRecycler.OBJECT_PAGE_SIZE;
+        int bytesPerElement = org.apache.lucene.util.RamUsageEstimator.NUM_BYTES_OBJECT_REF;
+        long newSize = BigArrays.overSize(((long) bucket + 1) * bucketSize, pageSize, bytesPerElement);
         // Round up to the next full bucket.
         newSize = (newSize + bucketSize - 1) / bucketSize;
         values = bigArrays.resize(values, newSize * bucketSize);
@@ -409,24 +400,21 @@ public class BytesRefBucketedSort implements Releasable {
             int leftChild = parent * 2 + 1;
             long leftIndex = rootIndex + leftChild;
             if (leftChild < heapSize) {
-                if (betterThan(
-                    // comment to make spotless happy about line breaks
-                    bytesAt(worstIndex),
-                    bytesAt(leftIndex)
-                )) {
+                BytesRef worstValue = bytesAt(worstIndex);
+                BytesRef leftValue = bytesAt(leftIndex);
+                if (betterThan(worstValue, leftValue)) {
                     worst = leftChild;
                     worstIndex = leftIndex;
                 }
                 int rightChild = leftChild + 1;
                 long rightIndex = rootIndex + rightChild;
-                if (rightChild < heapSize
-                    && betterThan(
-                        // comment to make spotless happy about line breaks
-                        bytesAt(worstIndex),
-                        bytesAt(rightIndex)
-                    )) {
-                    worst = rightChild;
-                    worstIndex = rightIndex;
+                if (rightChild < heapSize) {
+                    worstValue = bytesAt(worstIndex);
+                    BytesRef rightValue = bytesAt(rightIndex);
+                    if (betterThan(worstValue, rightValue)) {
+                        worst = rightChild;
+                        worstIndex = rightIndex;
+                    }
                 }
             }
             if (worst == parent) {

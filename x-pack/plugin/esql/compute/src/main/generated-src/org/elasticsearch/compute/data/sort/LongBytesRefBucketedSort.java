@@ -102,13 +102,9 @@ public class LongBytesRefBucketedSort implements Releasable {
     public void collect(long value, BytesRef extraValue, int bucket) {
         long rootIndex = (long) bucket * bucketSize;
         if (inHeapMode(bucket)) {
-            if (betterThan(
-                // comment to make spotless happy about line breaks
-                value,
-                values.get(rootIndex),
-                extraValue,
-                extraBytesAt(rootIndex)
-            )) {
+            long rootValue = values.get(rootIndex);
+            BytesRef rootExtra = extraBytesAt(rootIndex);
+            if (betterThan(value, rootValue, extraValue, rootExtra)) {
                 values.set(rootIndex, value);
                 clearedExtraBytesAt(rootIndex).append(extraValue);
                 downHeap(rootIndex, 0, bucketSize);
@@ -171,12 +167,9 @@ public class LongBytesRefBucketedSort implements Releasable {
 
         // TODO: This can be improved for heapified buckets by making use of the heap structures
         for (long i = otherBounds.v1(); i < otherBounds.v2(); i++) {
-            collect(
-                // comment to make spotless happy about line breaks
-                other.values.get(i),
-                other.extraValues.get(i) == null ? new BytesRef() : other.extraValues.get(i).bytesRefView(),
-                groupId
-            );
+            long otherValue = other.values.get(i);
+            BytesRef otherExtra = other.extraValues.get(i) == null ? new BytesRef() : other.extraValues.get(i).bytesRefView();
+            collect(otherValue, otherExtra, groupId);
         }
     }
 
@@ -342,12 +335,9 @@ public class LongBytesRefBucketedSort implements Releasable {
         long oldMax = values.size();
         assert oldMax % bucketSize == 0;
 
-        long newSize = BigArrays.overSize(
-            // comment to make spotless happy about line breaks
-            ((long) bucket + 1) * bucketSize,
-            PageCacheRecycler.LONG_PAGE_SIZE,
-            Long.BYTES
-        );
+        int pageSize = PageCacheRecycler.LONG_PAGE_SIZE;
+        int bytesPerElement = Long.BYTES;
+        long newSize = BigArrays.overSize(((long) bucket + 1) * bucketSize, pageSize, bytesPerElement);
         // Round up to the next full bucket.
         newSize = (newSize + bucketSize - 1) / bucketSize;
         values = bigArrays.resize(values, newSize * bucketSize);
@@ -434,28 +424,25 @@ public class LongBytesRefBucketedSort implements Releasable {
             int leftChild = parent * 2 + 1;
             long leftIndex = rootIndex + leftChild;
             if (leftChild < heapSize) {
-                if (betterThan(
-                    // comment to make spotless happy about line breaks
-                    values.get(worstIndex),
-                    values.get(leftIndex),
-                    extraBytesAt(worstIndex),
-                    extraBytesAt(leftIndex)
-                )) {
+                long worstValue = values.get(worstIndex);
+                long leftValue = values.get(leftIndex);
+                BytesRef worstExtra = extraBytesAt(worstIndex);
+                BytesRef leftExtra = extraBytesAt(leftIndex);
+                if (betterThan(worstValue, leftValue, worstExtra, leftExtra)) {
                     worst = leftChild;
                     worstIndex = leftIndex;
                 }
                 int rightChild = leftChild + 1;
                 long rightIndex = rootIndex + rightChild;
-                if (rightChild < heapSize
-                    && betterThan(
-                        // comment to make spotless happy about line breaks
-                        values.get(worstIndex),
-                        values.get(rightIndex),
-                        extraBytesAt(worstIndex),
-                        extraBytesAt(rightIndex)
-                    )) {
-                    worst = rightChild;
-                    worstIndex = rightIndex;
+                if (rightChild < heapSize) {
+                    worstValue = values.get(worstIndex);
+                    long rightValue = values.get(rightIndex);
+                    worstExtra = extraBytesAt(worstIndex);
+                    BytesRef rightExtra = extraBytesAt(rightIndex);
+                    if (betterThan(worstValue, rightValue, worstExtra, rightExtra)) {
+                        worst = rightChild;
+                        worstIndex = rightIndex;
+                    }
                 }
             }
             if (worst == parent) {

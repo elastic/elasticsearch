@@ -97,13 +97,9 @@ public class DoubleLongBucketedSort implements Releasable {
     public void collect(double value, long extraValue, int bucket) {
         long rootIndex = (long) bucket * bucketSize;
         if (inHeapMode(bucket)) {
-            if (betterThan(
-                // comment to make spotless happy about line breaks
-                value,
-                values.get(rootIndex),
-                extraValue,
-                extraValues.get(rootIndex)
-            )) {
+            double rootValue = values.get(rootIndex);
+            long rootExtra = extraValues.get(rootIndex);
+            if (betterThan(value, rootValue, extraValue, rootExtra)) {
                 values.set(rootIndex, value);
                 extraValues.set(rootIndex, extraValue);
                 downHeap(rootIndex, 0, bucketSize);
@@ -166,12 +162,9 @@ public class DoubleLongBucketedSort implements Releasable {
 
         // TODO: This can be improved for heapified buckets by making use of the heap structures
         for (long i = otherBounds.v1(); i < otherBounds.v2(); i++) {
-            collect(
-                // comment to make spotless happy about line breaks
-                other.values.get(i),
-                other.extraValues.get(i),
-                groupId
-            );
+            double otherValue = other.values.get(i);
+            long otherExtra = other.extraValues.get(i);
+            collect(otherValue, otherExtra, groupId);
         }
     }
 
@@ -307,12 +300,9 @@ public class DoubleLongBucketedSort implements Releasable {
         long oldMax = values.size();
         assert oldMax % bucketSize == 0;
 
-        long newSize = BigArrays.overSize(
-            // comment to make spotless happy about line breaks
-            ((long) bucket + 1) * bucketSize,
-            PageCacheRecycler.DOUBLE_PAGE_SIZE,
-            Double.BYTES
-        );
+        int pageSize = PageCacheRecycler.DOUBLE_PAGE_SIZE;
+        int bytesPerElement = Double.BYTES;
+        long newSize = BigArrays.overSize(((long) bucket + 1) * bucketSize, pageSize, bytesPerElement);
         // Round up to the next full bucket.
         newSize = (newSize + bucketSize - 1) / bucketSize;
         values = bigArrays.resize(values, newSize * bucketSize);
@@ -399,28 +389,25 @@ public class DoubleLongBucketedSort implements Releasable {
             int leftChild = parent * 2 + 1;
             long leftIndex = rootIndex + leftChild;
             if (leftChild < heapSize) {
-                if (betterThan(
-                    // comment to make spotless happy about line breaks
-                    values.get(worstIndex),
-                    values.get(leftIndex),
-                    extraValues.get(worstIndex),
-                    extraValues.get(leftIndex)
-                )) {
+                double worstValue = values.get(worstIndex);
+                double leftValue = values.get(leftIndex);
+                long worstExtra = extraValues.get(worstIndex);
+                long leftExtra = extraValues.get(leftIndex);
+                if (betterThan(worstValue, leftValue, worstExtra, leftExtra)) {
                     worst = leftChild;
                     worstIndex = leftIndex;
                 }
                 int rightChild = leftChild + 1;
                 long rightIndex = rootIndex + rightChild;
-                if (rightChild < heapSize
-                    && betterThan(
-                        // comment to make spotless happy about line breaks
-                        values.get(worstIndex),
-                        values.get(rightIndex),
-                        extraValues.get(worstIndex),
-                        extraValues.get(rightIndex)
-                    )) {
-                    worst = rightChild;
-                    worstIndex = rightIndex;
+                if (rightChild < heapSize) {
+                    worstValue = values.get(worstIndex);
+                    double rightValue = values.get(rightIndex);
+                    worstExtra = extraValues.get(worstIndex);
+                    long rightExtra = extraValues.get(rightIndex);
+                    if (betterThan(worstValue, rightValue, worstExtra, rightExtra)) {
+                        worst = rightChild;
+                        worstIndex = rightIndex;
+                    }
                 }
             }
             if (worst == parent) {

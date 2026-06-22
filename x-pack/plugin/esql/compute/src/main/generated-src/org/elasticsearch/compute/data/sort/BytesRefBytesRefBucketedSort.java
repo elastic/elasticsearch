@@ -102,13 +102,9 @@ public class BytesRefBytesRefBucketedSort implements Releasable {
     public void collect(BytesRef value, BytesRef extraValue, int bucket) {
         long rootIndex = (long) bucket * bucketSize;
         if (inHeapMode(bucket)) {
-            if (betterThan(
-                // comment to make spotless happy about line breaks
-                value,
-                bytesAt(rootIndex),
-                extraValue,
-                extraBytesAt(rootIndex)
-            )) {
+            BytesRef rootValue = bytesAt(rootIndex);
+            BytesRef rootExtra = extraBytesAt(rootIndex);
+            if (betterThan(value, rootValue, extraValue, rootExtra)) {
                 clearedBytesAt(rootIndex).append(value);
                 clearedExtraBytesAt(rootIndex).append(extraValue);
                 downHeap(rootIndex, 0, bucketSize);
@@ -171,12 +167,9 @@ public class BytesRefBytesRefBucketedSort implements Releasable {
 
         // TODO: This can be improved for heapified buckets by making use of the heap structures
         for (long i = otherBounds.v1(); i < otherBounds.v2(); i++) {
-            collect(
-                // comment to make spotless happy about line breaks
-                other.values.get(i) == null ? new BytesRef() : other.values.get(i).bytesRefView(),
-                other.extraValues.get(i) == null ? new BytesRef() : other.extraValues.get(i).bytesRefView(),
-                groupId
-            );
+            BytesRef otherValue = other.values.get(i) == null ? new BytesRef() : other.values.get(i).bytesRefView();
+            BytesRef otherExtra = other.extraValues.get(i) == null ? new BytesRef() : other.extraValues.get(i).bytesRefView();
+            collect(otherValue, otherExtra, groupId);
         }
     }
 
@@ -374,12 +367,9 @@ public class BytesRefBytesRefBucketedSort implements Releasable {
         long oldMax = values.size();
         assert oldMax % bucketSize == 0;
 
-        long newSize = BigArrays.overSize(
-            // comment to make spotless happy about line breaks
-            ((long) bucket + 1) * bucketSize,
-            PageCacheRecycler.OBJECT_PAGE_SIZE,
-            org.apache.lucene.util.RamUsageEstimator.NUM_BYTES_OBJECT_REF
-        );
+        int pageSize = PageCacheRecycler.OBJECT_PAGE_SIZE;
+        int bytesPerElement = org.apache.lucene.util.RamUsageEstimator.NUM_BYTES_OBJECT_REF;
+        long newSize = BigArrays.overSize(((long) bucket + 1) * bucketSize, pageSize, bytesPerElement);
         // Round up to the next full bucket.
         newSize = (newSize + bucketSize - 1) / bucketSize;
         values = bigArrays.resize(values, newSize * bucketSize);
@@ -475,28 +465,25 @@ public class BytesRefBytesRefBucketedSort implements Releasable {
             int leftChild = parent * 2 + 1;
             long leftIndex = rootIndex + leftChild;
             if (leftChild < heapSize) {
-                if (betterThan(
-                    // comment to make spotless happy about line breaks
-                    bytesAt(worstIndex),
-                    bytesAt(leftIndex),
-                    extraBytesAt(worstIndex),
-                    extraBytesAt(leftIndex)
-                )) {
+                BytesRef worstValue = bytesAt(worstIndex);
+                BytesRef leftValue = bytesAt(leftIndex);
+                BytesRef worstExtra = extraBytesAt(worstIndex);
+                BytesRef leftExtra = extraBytesAt(leftIndex);
+                if (betterThan(worstValue, leftValue, worstExtra, leftExtra)) {
                     worst = leftChild;
                     worstIndex = leftIndex;
                 }
                 int rightChild = leftChild + 1;
                 long rightIndex = rootIndex + rightChild;
-                if (rightChild < heapSize
-                    && betterThan(
-                        // comment to make spotless happy about line breaks
-                        bytesAt(worstIndex),
-                        bytesAt(rightIndex),
-                        extraBytesAt(worstIndex),
-                        extraBytesAt(rightIndex)
-                    )) {
-                    worst = rightChild;
-                    worstIndex = rightIndex;
+                if (rightChild < heapSize) {
+                    worstValue = bytesAt(worstIndex);
+                    BytesRef rightValue = bytesAt(rightIndex);
+                    worstExtra = extraBytesAt(worstIndex);
+                    BytesRef rightExtra = extraBytesAt(rightIndex);
+                    if (betterThan(worstValue, rightValue, worstExtra, rightExtra)) {
+                        worst = rightChild;
+                        worstIndex = rightIndex;
+                    }
                 }
             }
             if (worst == parent) {

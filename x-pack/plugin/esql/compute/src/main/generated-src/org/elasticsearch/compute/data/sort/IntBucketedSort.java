@@ -94,11 +94,8 @@ public class IntBucketedSort implements Releasable {
     public void collect(int value, int bucket) {
         long rootIndex = (long) bucket * bucketSize;
         if (inHeapMode(bucket)) {
-            if (betterThan(
-                // comment to make spotless happy about line breaks
-                value,
-                values.get(rootIndex)
-            )) {
+            int rootValue = values.get(rootIndex);
+            if (betterThan(value, rootValue)) {
                 values.set(rootIndex, value);
                 downHeap(rootIndex, 0, bucketSize);
             }
@@ -159,11 +156,8 @@ public class IntBucketedSort implements Releasable {
 
         // TODO: This can be improved for heapified buckets by making use of the heap structures
         for (long i = otherBounds.v1(); i < otherBounds.v2(); i++) {
-            collect(
-                // comment to make spotless happy about line breaks
-                other.values.get(i),
-                groupId
-            );
+            int otherValue = other.values.get(i);
+            collect(otherValue, groupId);
         }
     }
 
@@ -272,12 +266,9 @@ public class IntBucketedSort implements Releasable {
         long oldMax = values.size();
         assert oldMax % bucketSize == 0;
 
-        long newSize = BigArrays.overSize(
-            // comment to make spotless happy about line breaks
-            ((long) bucket + 1) * bucketSize,
-            PageCacheRecycler.INT_PAGE_SIZE,
-            Integer.BYTES
-        );
+        int pageSize = PageCacheRecycler.INT_PAGE_SIZE;
+        int bytesPerElement = Integer.BYTES;
+        long newSize = BigArrays.overSize(((long) bucket + 1) * bucketSize, pageSize, bytesPerElement);
         // Round up to the next full bucket.
         newSize = (newSize + bucketSize - 1) / bucketSize;
         values = bigArrays.resize(values, newSize * bucketSize);
@@ -362,24 +353,21 @@ public class IntBucketedSort implements Releasable {
             int leftChild = parent * 2 + 1;
             long leftIndex = rootIndex + leftChild;
             if (leftChild < heapSize) {
-                if (betterThan(
-                    // comment to make spotless happy about line breaks
-                    values.get(worstIndex),
-                    values.get(leftIndex)
-                )) {
+                int worstValue = values.get(worstIndex);
+                int leftValue = values.get(leftIndex);
+                if (betterThan(worstValue, leftValue)) {
                     worst = leftChild;
                     worstIndex = leftIndex;
                 }
                 int rightChild = leftChild + 1;
                 long rightIndex = rootIndex + rightChild;
-                if (rightChild < heapSize
-                    && betterThan(
-                        // comment to make spotless happy about line breaks
-                        values.get(worstIndex),
-                        values.get(rightIndex)
-                    )) {
-                    worst = rightChild;
-                    worstIndex = rightIndex;
+                if (rightChild < heapSize) {
+                    worstValue = values.get(worstIndex);
+                    int rightValue = values.get(rightIndex);
+                    if (betterThan(worstValue, rightValue)) {
+                        worst = rightChild;
+                        worstIndex = rightIndex;
+                    }
                 }
             }
             if (worst == parent) {

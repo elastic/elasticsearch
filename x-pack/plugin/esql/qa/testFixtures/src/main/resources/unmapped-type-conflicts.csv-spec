@@ -4,6 +4,37 @@
 # Mapped and unmapped conflict tests #
 ######################################
 
+typeConflictWithUnmappedJustFrom - old data node
+required_capability: metadata_fields_remote_test
+# both nodes needs this cap
+required_capability: optional_fields_v5
+# so the gating behavior in Analyzer "executes"
+required_capability_coordinator: optional_fields_unmapped_load_auto_cast_two_legged_punks_v2
+# so the gating behavior in Analyzer "kicks in"
+missing_capability_data_node: optional_fields_unmapped_load_auto_cast_two_legged_punks_v2
+
+SET unmapped_fields="load"\;
+FROM sample_data, no_mapping_sample_data METADATA _index
+;
+ignoreOrder:true
+
+@timestamp:date              | client_ip:ip | event_duration:long | message:keyword        | _index:keyword
+2023-10-23T13:55:01.543Z     | 172.21.3.15  | 1756467             | Connected to 10.1.0.1  | remote_cluster:sample_data
+2023-10-23T13:53:55.832Z     | 172.21.3.15  | 5033755             | Connection error       | remote_cluster:sample_data
+2023-10-23T13:52:55.015Z     | 172.21.3.15  | 8268153             | Connection error       | remote_cluster:sample_data
+2023-10-23T13:51:54.732Z     | 172.21.3.15  | 725448              | Connection error       | remote_cluster:sample_data
+2023-10-23T13:33:34.937Z     | 172.21.0.5   | 1232382             | Disconnected           | remote_cluster:sample_data
+2023-10-23T12:27:28.948Z     | 172.21.2.113 | 2764889             | Connected to 10.1.0.2  | remote_cluster:sample_data
+2023-10-23T12:15:03.360Z     | 172.21.2.162 | 3450233             | Connected to 10.1.0.3  | remote_cluster:sample_data
+null                         | null         | null                | Connected to 10.1.0.1! | remote_cluster:no_mapping_sample_data
+null                         | null         | null                | Connection error?      | remote_cluster:no_mapping_sample_data
+null                         | null         | null                | Connection error?      | remote_cluster:no_mapping_sample_data
+null                         | null         | null                | Connection error?      | remote_cluster:no_mapping_sample_data
+null                         | null         | null                | 42                     | remote_cluster:no_mapping_sample_data
+null                         | null         | null                | Connected to 10.1.0.2! | remote_cluster:no_mapping_sample_data
+null                         | null         | null                | Connected to 10.1.0.3! | remote_cluster:no_mapping_sample_data
+;
+
 typeConflictWithUnmappedJustFrom
 required_capability: optional_fields_v5
 required_capability: optional_fields_unmapped_load_auto_cast_two_legged_punks
@@ -30,6 +61,38 @@ ignoreOrder:true
 2024-10-23T12:15:03.360Z     | 173.21.2.162 | 3450232             | Connected to 10.1.0.3! | no_mapping_sample_data
 ;
 
+
+typeConflictWithUnmappedJustKeepWildcard - old data node
+required_capability: metadata_fields_remote_test
+# both nodes needs this cap
+required_capability: optional_fields_v5
+# so the gating behavior in Analyzer "executes"
+required_capability_coordinator: optional_fields_unmapped_load_auto_cast_two_legged_punks_v2
+# so the gating behavior in Analyzer "kicks in"
+missing_capability_data_node: optional_fields_unmapped_load_auto_cast_two_legged_punks_v2
+
+SET unmapped_fields="load"\;
+FROM sample_data, no_mapping_sample_data METADATA _index
+| KEEP *
+;
+ignoreOrder:true
+
+@timestamp:date              | client_ip:ip | event_duration:long | message:keyword        | _index:keyword
+2023-10-23T13:55:01.543Z     | 172.21.3.15  | 1756467             | Connected to 10.1.0.1  | remote_cluster:sample_data
+2023-10-23T13:53:55.832Z     | 172.21.3.15  | 5033755             | Connection error       | remote_cluster:sample_data
+2023-10-23T13:52:55.015Z     | 172.21.3.15  | 8268153             | Connection error       | remote_cluster:sample_data
+2023-10-23T13:51:54.732Z     | 172.21.3.15  | 725448              | Connection error       | remote_cluster:sample_data
+2023-10-23T13:33:34.937Z     | 172.21.0.5   | 1232382             | Disconnected           | remote_cluster:sample_data
+2023-10-23T12:27:28.948Z     | 172.21.2.113 | 2764889             | Connected to 10.1.0.2  | remote_cluster:sample_data
+2023-10-23T12:15:03.360Z     | 172.21.2.162 | 3450233             | Connected to 10.1.0.3  | remote_cluster:sample_data
+null                         | null         | null                | Connected to 10.1.0.1! | remote_cluster:no_mapping_sample_data
+null                         | null         | null                | Connection error?      | remote_cluster:no_mapping_sample_data
+null                         | null         | null                | Connection error?      | remote_cluster:no_mapping_sample_data
+null                         | null         | null                | Connection error?      | remote_cluster:no_mapping_sample_data
+null                         | null         | null                | 42                     | remote_cluster:no_mapping_sample_data
+null                         | null         | null                | Connected to 10.1.0.2! | remote_cluster:no_mapping_sample_data
+null                         | null         | null                | Connected to 10.1.0.3! | remote_cluster:no_mapping_sample_data
+;
 
 typeConflictWithUnmappedJustKeepWildcard
 required_capability: optional_fields_v5
@@ -58,6 +121,38 @@ ignoreOrder:true
 2024-10-23T12:15:03.360Z     | 173.21.2.162 | 3450232             | Connected to 10.1.0.3! | no_mapping_sample_data
 ;
 
+
+typeConflictWithUnmappedJustKeepWildcardPrefix - old data node
+required_capability: metadata_fields_remote_test
+# both nodes needs this cap
+required_capability: optional_fields_v5
+# so the gating behavior in Analyzer "executes"
+required_capability_coordinator: optional_fields_unmapped_load_auto_cast_two_legged_punks_v2
+# so the gating behavior in Analyzer "kicks in"
+missing_capability_data_node: optional_fields_unmapped_load_auto_cast_two_legged_punks_v2
+
+SET unmapped_fields="load"\;
+FROM sample_data, no_mapping_sample_data METADATA _index
+| KEEP @t*, cli*, ev*, me*, _in*
+;
+ignoreOrder:true
+
+@timestamp:date              | client_ip:ip | event_duration:long | message:keyword        | _index:keyword
+2023-10-23T13:55:01.543Z     | 172.21.3.15  | 1756467             | Connected to 10.1.0.1  | remote_cluster:sample_data
+2023-10-23T13:53:55.832Z     | 172.21.3.15  | 5033755             | Connection error       | remote_cluster:sample_data
+2023-10-23T13:52:55.015Z     | 172.21.3.15  | 8268153             | Connection error       | remote_cluster:sample_data
+2023-10-23T13:51:54.732Z     | 172.21.3.15  | 725448              | Connection error       | remote_cluster:sample_data
+2023-10-23T13:33:34.937Z     | 172.21.0.5   | 1232382             | Disconnected           | remote_cluster:sample_data
+2023-10-23T12:27:28.948Z     | 172.21.2.113 | 2764889             | Connected to 10.1.0.2  | remote_cluster:sample_data
+2023-10-23T12:15:03.360Z     | 172.21.2.162 | 3450233             | Connected to 10.1.0.3  | remote_cluster:sample_data
+null                         | null         | null                | Connected to 10.1.0.1! | remote_cluster:no_mapping_sample_data
+null                         | null         | null                | Connection error?      | remote_cluster:no_mapping_sample_data
+null                         | null         | null                | Connection error?      | remote_cluster:no_mapping_sample_data
+null                         | null         | null                | Connection error?      | remote_cluster:no_mapping_sample_data
+null                         | null         | null                | 42                     | remote_cluster:no_mapping_sample_data
+null                         | null         | null                | Connected to 10.1.0.2! | remote_cluster:no_mapping_sample_data
+null                         | null         | null                | Connected to 10.1.0.3! | remote_cluster:no_mapping_sample_data
+;
 
 typeConflictWithUnmappedJustKeepWildcardPrefix
 required_capability: optional_fields_v5
@@ -474,6 +569,31 @@ emp_no:integer | gender:text           | _index:keyword
 10003          | null                  | employees_no_gender
 ;
 
+typeConflictPartiallyUnmappedNonKeywordFieldsNotLoadedWithoutExplicitMention - old data node
+required_capability: metadata_fields_remote_test
+# both nodes needs this cap
+required_capability: optional_fields_v5
+# so the gating behavior in Analyzer "executes"
+required_capability_coordinator: optional_fields_unmapped_load_auto_cast_two_legged_punks_v2
+# so the gating behavior in Analyzer "kicks in"
+missing_capability_data_node: optional_fields_unmapped_load_auto_cast_two_legged_punks_v2
+
+SET unmapped_fields="load"\;
+FROM sample_data, no_mapping_sample_data METADATA _index
+| SORT _index, message DESC
+| LIMIT 6
+;
+ignoreOrder:true
+
+@timestamp:date          | client_ip:ip | event_duration:long | message:keyword        | _index:keyword
+null                     | null         | null                | Connection error?      | remote_cluster:no_mapping_sample_data
+null                     | null         | null                | Connection error?      | remote_cluster:no_mapping_sample_data
+null                     | null         | null                | Connection error?      | remote_cluster:no_mapping_sample_data
+null                     | null         | null                | Connected to 10.1.0.3! | remote_cluster:no_mapping_sample_data
+null                     | null         | null                | Connected to 10.1.0.2! | remote_cluster:no_mapping_sample_data
+null                     | null         | null                | Connected to 10.1.0.1! | remote_cluster:no_mapping_sample_data
+;
+
 // Verify that partially-mapped non-keyword fields (date, ip, long) are NOT loaded from _source when not mentioned
 // explicitly, at least until we solve https://github.com/elastic/elasticsearch/issues/141995.
 // All fields in sample_data are partially mapped (no_mapping_sample_data has no mapped fields).
@@ -663,6 +783,38 @@ no_mapping_sample_data
 no_mapping_sample_data
 no_mapping_sample_data
 no_mapping_sample_data
+;
+
+typeConflictPartiallyUnmappedKeywordFieldKept - old data node
+required_capability: metadata_fields_remote_test
+# both nodes needs this cap
+required_capability: optional_fields_v5
+# so the gating behavior in Analyzer "executes"
+required_capability_coordinator: optional_fields_unmapped_load_auto_cast_two_legged_punks_v2
+# so the gating behavior in Analyzer "kicks in"
+missing_capability_data_node: optional_fields_unmapped_load_auto_cast_two_legged_punks_v2
+
+SET unmapped_fields="load"\;
+FROM sample_data, no_mapping_sample_data METADATA _index
+| KEEP event_duration
+;
+ignoreOrder:true
+
+event_duration:long
+1756467
+5033755
+8268153
+725448
+1232382
+2764889
+3450233
+null
+null
+null
+null
+null
+null
+null
 ;
 
 // reproducer for https://github.com/elastic/elasticsearch/issues/145206
@@ -2080,6 +2232,38 @@ no_mapping_sample_data | 2024-10-23T13:55:01.543Z
 # SORT with type casts      #
 #############################
 
+typeConflictLongUnmappedSortWithCastToLong - old data node
+required_capability: metadata_fields_remote_test
+# both nodes needs this cap
+required_capability: optional_fields_v5
+# so the gating behavior in Analyzer "executes"
+required_capability_coordinator: optional_fields_unmapped_load_auto_cast_two_legged_punks_v2
+# so the gating behavior in Analyzer "kicks in"
+missing_capability_data_node: optional_fields_unmapped_load_auto_cast_two_legged_punks_v2
+
+SET unmapped_fields="load"\;
+FROM sample_data, no_mapping_sample_data METADATA _index
+| SORT event_duration::long, _index
+| KEEP _index, event_duration
+;
+
+_index:keyword                        | event_duration:long
+remote_cluster:no_mapping_sample_data | null
+remote_cluster:sample_data            | 725448
+remote_cluster:no_mapping_sample_data | null
+remote_cluster:sample_data            | 1232382
+remote_cluster:no_mapping_sample_data | null
+remote_cluster:sample_data            | 1756467
+remote_cluster:no_mapping_sample_data | null
+remote_cluster:sample_data            | 2764889
+remote_cluster:no_mapping_sample_data | null
+remote_cluster:sample_data            | 3450233
+remote_cluster:no_mapping_sample_data | null
+remote_cluster:sample_data            | 5033755
+remote_cluster:no_mapping_sample_data | null
+remote_cluster:sample_data            | 8268153
+;
+
 typeConflictLongUnmappedSortWithCastToLong
 required_capability: optional_fields_v5
 required_capability: optional_fields_unmapped_load_auto_cast_two_legged_punks
@@ -2105,6 +2289,38 @@ no_mapping_sample_data | 5033754
 sample_data            | 5033755
 no_mapping_sample_data | 8268152
 sample_data            | 8268153
+;
+
+typeConflictLongUnmappedSortWithCastToKeyword - old data node
+required_capability: metadata_fields_remote_test
+# both nodes needs this cap
+required_capability: optional_fields_v5
+# so the gating behavior in Analyzer "executes"
+required_capability_coordinator: optional_fields_unmapped_load_auto_cast_two_legged_punks_v2
+# so the gating behavior in Analyzer "kicks in"
+missing_capability_data_node: optional_fields_unmapped_load_auto_cast_two_legged_punks_v2
+
+SET unmapped_fields="load"\;
+FROM sample_data, no_mapping_sample_data METADATA _index
+| SORT event_duration::keyword, _index
+| KEEP _index, event_duration
+;
+
+_index:keyword                        | event_duration:long
+remote_cluster:no_mapping_sample_data | null
+remote_cluster:sample_data            | 1232382
+remote_cluster:no_mapping_sample_data | null
+remote_cluster:sample_data            | 1756467
+remote_cluster:no_mapping_sample_data | null
+remote_cluster:sample_data            | 2764889
+remote_cluster:no_mapping_sample_data | null
+remote_cluster:sample_data            | 3450233
+remote_cluster:no_mapping_sample_data | null
+remote_cluster:sample_data            | 5033755
+remote_cluster:no_mapping_sample_data | null
+remote_cluster:sample_data            | 725448
+remote_cluster:no_mapping_sample_data | null
+remote_cluster:sample_data            | 8268153
 ;
 
 typeConflictLongUnmappedSortWithCastToKeyword
@@ -2527,6 +2743,36 @@ avg_cost:double | c:long | _index:keyword
 6.423125        | 200    | k8s
 6.423125        | 200    | k8s_unmapped
 ;
+
+typeConflictLongUnmappedTimeseriesSortWithCast - old data node
+required_capability: metadata_fields_remote_test
+# both nodes needs this cap
+required_capability: optional_fields_v5
+# so the gating behavior in Analyzer "executes"
+required_capability_coordinator: optional_fields_unmapped_load_auto_cast_two_legged_punks_v2
+# so the gating behavior in Analyzer "kicks in"
+missing_capability_data_node: optional_fields_unmapped_load_auto_cast_two_legged_punks_v2
+
+SET unmapped_fields="load"\;
+FROM k8s, k8s_unmapped METADATA _index
+| SORT network.bytes_in::long DESC, _index
+| KEEP _index, network.bytes_in
+| LIMIT 10
+;
+
+_index:keyword              | network.bytes_in:long
+remote_cluster:k8s          | 1021
+remote_cluster:k8s_unmapped | null
+remote_cluster:k8s          | 1018
+remote_cluster:k8s_unmapped | null
+remote_cluster:k8s          | 1009
+remote_cluster:k8s_unmapped | null
+remote_cluster:k8s          | 1007
+remote_cluster:k8s_unmapped | null
+remote_cluster:k8s          | 1006
+remote_cluster:k8s_unmapped | null
+;
+
 
 typeConflictLongUnmappedTimeseriesSortWithCast
 required_capability: optional_fields_v5

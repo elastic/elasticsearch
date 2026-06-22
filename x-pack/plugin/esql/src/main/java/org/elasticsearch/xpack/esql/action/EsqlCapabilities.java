@@ -307,6 +307,7 @@ public class EsqlCapabilities {
          * See https://github.com/elastic/elasticsearch/issues/141995
          */
         OPTIONAL_FIELDS_UNMAPPED_LOAD_AUTO_CAST_TWO_LEGGED_PUNKS,
+        OPTIONAL_FIELDS_UNMAPPED_LOAD_AUTO_CAST_TWO_LEGGED_PUNKS_V2,
 
         /**
          * Fix for a {@code ClassCastException} when an explicitly cast or implicitly widened partially unmapped small numeric field.

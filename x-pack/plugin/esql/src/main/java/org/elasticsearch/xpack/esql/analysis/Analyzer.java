@@ -308,6 +308,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         "esql_lookup_join_full_text_function"
     );
 
+    public static final TransportVersion RESOLVE_TWO_LEGGED_PUNKS = TransportVersion.fromName("resolve_two_legged_punks");
+
     private final Verifier verifier;
 
     public Analyzer(AnalyzerContext context, Verifier verifier) {
@@ -3027,6 +3029,11 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         @Override
         public LogicalPlan apply(LogicalPlan plan, AnalyzerContext context) {
             if (context.unmappedResolution() != UnmappedResolution.LOAD) {
+                return plan;
+            }
+
+            if (context.minimumVersion().supports(RESOLVE_TWO_LEGGED_PUNKS) == false) {
+                // Implicit auto-casting of two-legged PUNKS will not take place, given old nodes were detected.
                 return plan;
             }
 

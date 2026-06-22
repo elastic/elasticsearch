@@ -9,11 +9,14 @@
 
 package org.elasticsearch.foreign.processor;
 
+import org.elasticsearch.core.SuppressForbidden;
+
 import java.lang.invoke.MethodHandle;
 
 /**
  * Tests that {@link ImplClassWriter} generates correct {@code $Impl} class files.
  */
+@SuppressForbidden(reason = "tests verify private fields of processor-generated classes; getDeclaredField is the only way to access them")
 public class ImplClassWriterTests extends ProcessorTestCase {
 
     /**
@@ -138,7 +141,7 @@ public class ImplClassWriterTests extends ProcessorTestCase {
         assertEquals("getErrorName$mh must be a MethodHandle", java.lang.invoke.MethodHandle.class, mhField.getType());
 
         // The generated method must have return type String
-        java.lang.reflect.Method method = implClass.getDeclaredMethod("getErrorName", long.class);
+        java.lang.reflect.Method method = implClass.getMethod("getErrorName", long.class);
         assertEquals("getErrorName must return String", String.class, method.getReturnType());
     }
 }

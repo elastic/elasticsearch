@@ -278,7 +278,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             SINGLE_NODE_CHECKS,
             c -> c.apply(settings, null, ClusterState.EMPTY_STATE, new XPackLicenseState(() -> 0))
         );
-        final String expectedUrl = "https://ela.st/es-deprecation-9-monitoring-settings";
+        final String expectedUrl = "https://ela.st/es-10-legacy-monitoring-removal";
         assertThat(
             issues,
             hasItem(
@@ -302,7 +302,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             SINGLE_NODE_CHECKS,
             c -> c.apply(settings, null, ClusterState.EMPTY_STATE, licenseState)
         );
-        final String expectedUrl = "https://ela.st/es-deprecation-9-monitoring-settings";
+        final String expectedUrl = "https://ela.st/es-10-legacy-monitoring-removal";
         assertThat(
             issues,
             hasItem(
@@ -327,7 +327,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             SINGLE_NODE_CHECKS,
             c -> c.apply(settings, null, ClusterState.EMPTY_STATE, licenseState)
         );
-        final String expectedUrl = "https://ela.st/es-deprecation-9-monitoring-settings";
+        final String expectedUrl = "https://ela.st/es-10-legacy-monitoring-removal";
         assertThat(
             issues,
             hasItem(
@@ -353,7 +353,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             SINGLE_NODE_CHECKS,
             c -> c.apply(settings, null, ClusterState.EMPTY_STATE, licenseState)
         );
-        final String expectedUrl = "https://ela.st/es-deprecation-9-monitoring-settings";
+        final String expectedUrl = "https://ela.st/es-10-legacy-monitoring-removal";
         assertThat(
             issues,
             hasItem(
@@ -510,7 +510,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             c -> c.apply(settings, null, ClusterState.EMPTY_STATE, new XPackLicenseState(() -> 0))
         );
 
-        final String expectedUrl = "https://ela.st/es-deprecation-9-monitoring-exporter-use-ingest-setting";
+        final String expectedUrl = "https://ela.st/es-10-legacy-monitoring-removal";
         assertThat(
             issues,
             hasItem(
@@ -536,7 +536,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             c -> c.apply(settings, null, ClusterState.EMPTY_STATE, new XPackLicenseState(() -> 0))
         );
 
-        final String expectedUrl = "https://ela.st/es-deprecation-9-monitoring-exporter-pipeline-timeout-setting";
+        final String expectedUrl = "https://ela.st/es-10-legacy-monitoring-removal";
         assertThat(
             issues,
             hasItem(
@@ -561,7 +561,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             c -> c.apply(settings, null, ClusterState.EMPTY_STATE, new XPackLicenseState(() -> 0))
         );
 
-        final String expectedUrl = "https://ela.st/es-deprecation-9-monitoring-exporter-create-legacy-template-setting";
+        final String expectedUrl = "https://ela.st/es-10-legacy-monitoring-removal";
         assertThat(
             issues,
             hasItem(
@@ -856,7 +856,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         final DeprecationIssue expected = new DeprecationIssue(
             DeprecationIssue.Level.CRITICAL,
             "The [" + concreteSettingKey + "] settings are deprecated and will be removed in 10.0",
-            "https://ela.st/es-deprecation-9-monitoring-exporter-use-ingest-setting",
+            "https://ela.st/es-10-legacy-monitoring-removal",
             "Remove the following settings: [" + concreteSettingKey + "]",
             false,
             meta

@@ -37,6 +37,7 @@ import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.allocator.AllocationActionMultiListener;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
@@ -44,8 +45,6 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.injection.guice.Inject;
-import org.elasticsearch.snapshots.SnapshotInProgressException;
-import org.elasticsearch.snapshots.SnapshotsServiceUtils;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -58,7 +57,6 @@ import java.util.Deque;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
-import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.action.admin.indices.create.AutoCreateAction.AUTO_CREATE_INDEX_PRIORITY_SETTING;
 import static org.elasticsearch.cluster.routing.allocation.allocator.AllocationActionListener.rerouteCompletionIsNotRequired;
@@ -66,17 +64,29 @@ import static org.elasticsearch.cluster.routing.allocation.allocator.AllocationA
 /**
  * Internal action that creates one or more historical TSDB backing indices to cover past timestamps.
  * It submits a cluster update per data stream and creates backing indices anchored to the start time of
- * the next existing backing index, tiling backward in {@link #INDEX_DURATION}-sized slots. When the gap
- * between two neighbouring indices is small enough (≤ {@link #GAP_FILL_THRESHOLD} × duration), a single
- * index is created that fills the entire gap.
+ * the next existing backing index, tiling backward in {@link #PAST_TSDB_INDEX_DURATION}-sized slots.
+ * When the gap between two neighbouring indices is small enough (≤ {@link #GAP_FILL_THRESHOLD} × duration),
+ * a single index is created that fills the entire gap.
  */
 public class TransportPastTimeSeriesIndexCreationAction extends TransportMasterNodeAction<
     PastTimeSeriesIndexCreationAction.Request,
     PastTimeSeriesIndexCreationAction.Response> {
 
-    static final long INDEX_DURATION = new TimeValue(1, TimeUnit.DAYS).millis();
     /**
-     * Maximum gap between two existing backing indices, expressed as a multiple of {@link #INDEX_DURATION},
+     * Controls the size of each historical TSDB backing index created by this action.
+     * Defaults to 1 day; valid range is [1h, 7d].
+     */
+    public static final Setting<TimeValue> PAST_TSDB_INDEX_DURATION = Setting.timeSetting(
+        "data_streams.past_tsdb_index_duration",
+        TimeValue.timeValueDays(1),
+        TimeValue.timeValueHours(1),
+        TimeValue.timeValueDays(7),
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
+    /**
+     * Maximum gap between two existing backing indices, expressed as a multiple of {@link #PAST_TSDB_INDEX_DURATION},
      * that is filled by a single new index instead of tiling backward from the next index.
      */
     static final double GAP_FILL_THRESHOLD = 1.3;
@@ -107,16 +117,19 @@ public class TransportPastTimeSeriesIndexCreationAction extends TransportMasterN
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.projectResolver = projectResolver;
+        PastTimeSeriesIndexCreationExecutor pastTimeSeriesIndexCreationExecutor = new PastTimeSeriesIndexCreationExecutor(
+            settings,
+            clusterService,
+            allocationService,
+            createDataStreamService,
+            systemIndices,
+            projectResolver
+        );
+        pastTimeSeriesIndexCreationExecutor.init();
         this.taskQueue = clusterService.createTaskQueue(
             "past-tsdb-index-creation",
             AUTO_CREATE_INDEX_PRIORITY_SETTING.get(settings),
-            new PastTimeSeriesIndexCreationExecutor(
-                clusterService,
-                allocationService,
-                createDataStreamService,
-                systemIndices,
-                projectResolver
-            )
+            pastTimeSeriesIndexCreationExecutor
         );
     }
 
@@ -190,13 +203,30 @@ public class TransportPastTimeSeriesIndexCreationAction extends TransportMasterN
         }
     }
 
-    record PastTimeSeriesIndexCreationExecutor(
-        ClusterService clusterService,
-        AllocationService allocationService,
-        MetadataCreateDataStreamService createDataStreamService,
-        SystemIndices systemIndices,
-        ProjectResolver projectResolver
-    ) implements ClusterStateTaskExecutor<PastTsdbIndexCreationTask> {
+    static class PastTimeSeriesIndexCreationExecutor implements ClusterStateTaskExecutor<PastTsdbIndexCreationTask> {
+
+        private final ClusterService clusterService;
+        private final AllocationService allocationService;
+        private final MetadataCreateDataStreamService createDataStreamService;
+        private final SystemIndices systemIndices;
+        private final ProjectResolver projectResolver;
+        private long indexDurationMillis;
+
+        PastTimeSeriesIndexCreationExecutor(
+            Settings settings,
+            ClusterService clusterService,
+            AllocationService allocationService,
+            MetadataCreateDataStreamService createDataStreamService,
+            SystemIndices systemIndices,
+            ProjectResolver projectResolver
+        ) {
+            this.clusterService = clusterService;
+            this.allocationService = allocationService;
+            this.createDataStreamService = createDataStreamService;
+            this.systemIndices = systemIndices;
+            this.projectResolver = projectResolver;
+            this.indexDurationMillis = PAST_TSDB_INDEX_DURATION.get(settings).millis();
+        }
 
         @Override
         public ClusterState execute(BatchExecutionContext<PastTsdbIndexCreationTask> batchExecutionContext) throws Exception {
@@ -218,7 +248,8 @@ public class TransportPastTimeSeriesIndexCreationAction extends TransportMasterN
                         systemIndices,
                         task,
                         createdIndexNames,
-                        coveredTimestamps
+                        coveredTimestamps,
+                        indexDurationMillis
                     );
                     stateChanged |= createdIndexNames.isEmpty() == false;
                     taskContext.success(new ClusterStateAckListener() {
@@ -283,7 +314,8 @@ public class TransportPastTimeSeriesIndexCreationAction extends TransportMasterN
             SystemIndices systemIndices,
             PastTsdbIndexCreationTask task,
             List<String> createdIndexNames,
-            Set<Instant> coveredTimestamps
+            Set<Instant> coveredTimestamps,
+            long indexDurationMillis
         ) throws Exception {
             String dataStreamName = task.dataStreamName();
             long[] timestamps = task.sortedTimestamps();
@@ -317,15 +349,16 @@ public class TransportPastTimeSeriesIndexCreationAction extends TransportMasterN
 
                 long indexStart;
                 long indexEnd;
-                if (previousIndex != null && (nextIndex.start() - previousIndex.end()) <= (long) (INDEX_DURATION * GAP_FILL_THRESHOLD)) {
+                if (previousIndex != null
+                    && (nextIndex.start() - previousIndex.end()) <= (long) (indexDurationMillis * GAP_FILL_THRESHOLD)) {
                     indexStart = previousIndex.end();
                     indexEnd = nextIndex.start();
                 } else {
                     // Tile backward in duration-sized slots anchored to nextIndex.start().
                     // k is the zero-based slot index counting back from nextIndex: slot 0 = [next-D, next), slot 1 = [next-2D, next-D), …
-                    long k = Math.floorDiv(nextIndex.start() - ts - 1, INDEX_DURATION);
-                    indexEnd = nextIndex.start() - k * INDEX_DURATION;
-                    indexStart = indexEnd - INDEX_DURATION;
+                    long k = Math.floorDiv(nextIndex.start() - ts - 1, indexDurationMillis);
+                    indexEnd = nextIndex.start() - k * indexDurationMillis;
+                    indexStart = indexEnd - indexDurationMillis;
                     if (previousIndex != null) {
                         indexStart = Math.max(indexStart, previousIndex.end());
                     }
@@ -371,13 +404,9 @@ public class TransportPastTimeSeriesIndexCreationAction extends TransportMasterN
             return sortedIndexBoundaries;
         }
 
-        static void ensureNoSnapshotInProgress(ProjectState projectState, String dataStreamName) throws SnapshotInProgressException {
-            Set<String> snapshottingStreams = SnapshotsServiceUtils.snapshottingDataStreams(projectState, Set.of(dataStreamName));
-            if (snapshottingStreams.isEmpty() == false) {
-                throw new SnapshotInProgressException(
-                    "cannot create past TSDB backing index for [" + dataStreamName + "]: a snapshot is in progress for this data stream"
-                );
-            }
+        public void init() {
+            clusterService.getClusterSettings()
+                .addSettingsUpdateConsumer(PAST_TSDB_INDEX_DURATION, tv -> indexDurationMillis = tv.millis());
         }
     }
 

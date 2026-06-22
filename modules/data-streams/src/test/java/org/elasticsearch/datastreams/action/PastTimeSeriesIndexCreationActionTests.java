@@ -26,6 +26,7 @@ import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.TimeValue;
@@ -62,6 +63,7 @@ import static org.mockito.Mockito.when;
 public class PastTimeSeriesIndexCreationActionTests extends ESTestCase {
 
     private static final String DATA_STREAM = "my-tsdb";
+    private static final long INDEX_DURATION_MILLIS = TimeValue.timeValueDays(1).millis();
 
     private ProjectId projectId;
     private MetadataCreateDataStreamService createDataStreamService;
@@ -240,7 +242,8 @@ public class PastTimeSeriesIndexCreationActionTests extends ESTestCase {
                 systemIndices,
                 task,
                 new ArrayList<>(),
-                new HashSet<>()
+                new HashSet<>(),
+                INDEX_DURATION_MILLIS
             )
         );
     }
@@ -251,6 +254,11 @@ public class PastTimeSeriesIndexCreationActionTests extends ESTestCase {
         when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
         ClusterService clusterService = mock(ClusterService.class);
         when(clusterService.createTaskQueue(any(), any(), any())).thenReturn(mock(MasterServiceTaskQueue.class));
+        ClusterSettings clusterSettings = new ClusterSettings(
+            Settings.EMPTY,
+            Set.of(TransportPastTimeSeriesIndexCreationAction.PAST_TSDB_INDEX_DURATION)
+        );
+        when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
 
         var action = new TransportPastTimeSeriesIndexCreationAction(
             mock(TransportService.class),
@@ -332,7 +340,8 @@ public class PastTimeSeriesIndexCreationActionTests extends ESTestCase {
             systemIndices,
             task,
             createdNames,
-            covered
+            covered,
+            INDEX_DURATION_MILLIS
         );
         return new TaskResult(updatedClusterState, covered, createdNames);
     }

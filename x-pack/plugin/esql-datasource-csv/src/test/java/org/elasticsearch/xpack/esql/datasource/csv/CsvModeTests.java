@@ -19,7 +19,7 @@ import java.util.Map;
 
 /**
  * The {@code mode} preset over the (quoting, escaping) knobs: {@code quoted} (RFC-4180 wrapping),
- * {@code escaped} (backslash, no quoting — ClickHouse/MySQL/Postgres), {@code plain} (no quoting, no
+ * {@code escaped} (backslash, no quoting — database exports), {@code plain} (no quoting, no
  * escaping — Unix/bioinformatics). {@code mode} only seeds the two knobs; explicit {@code quote}/
  * {@code escape} keys always override it (the literal {@code none} turns a knob off), so there is no
  * coherence rejection. The only validation that survives is structural: the ACTIVE characters must be
@@ -35,8 +35,8 @@ public class CsvModeTests extends ESTestCase {
         assertEquals(Mode.PLAIN, Mode.parse(" Plain "));
         assertNull(Mode.parse(null));
         assertNull(Mode.parse(""));
-        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> Mode.parse("clickhouse"));
-        assertEquals("Invalid mode [clickhouse]. Accepted values: \"quoted\", \"escaped\", \"plain\"", ex.getMessage());
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> Mode.parse("tabbed"));
+        assertEquals("Invalid mode [tabbed]. Accepted values: \"quoted\", \"escaped\", \"plain\"", ex.getMessage());
     }
 
     public void testPreModeConstructorDefaultsToQuoted() {
@@ -151,9 +151,9 @@ public class CsvModeTests extends ESTestCase {
     public void testInvalidModeValueRejected() {
         IllegalArgumentException ex = expectThrows(
             IllegalArgumentException.class,
-            () -> csvReader().withConfigTrackingConsumedKeys(Map.of("mode", "clickhouse"))
+            () -> csvReader().withConfigTrackingConsumedKeys(Map.of("mode", "tabbed"))
         );
-        assertEquals("Invalid mode [clickhouse]. Accepted values: \"quoted\", \"escaped\", \"plain\"", ex.getMessage());
+        assertEquals("Invalid mode [tabbed]. Accepted values: \"quoted\", \"escaped\", \"plain\"", ex.getMessage());
     }
 
     // ---- Acceptance: configurations resolve ----

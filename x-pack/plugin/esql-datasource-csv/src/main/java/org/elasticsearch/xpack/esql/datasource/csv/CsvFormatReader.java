@@ -122,7 +122,7 @@ import java.util.regex.Pattern;
  *   <tr><td>{@code mode}</td><td>{@code quoted} ({@code .csv}) / {@code plain} ({@code .tsv})</td>
  *       <td>Named preset for how a separator-that-is-data is written: {@code quoted} (fields wrap in
  *           the quote character, RFC 4180), {@code escaped} (backslash sequences, {@code \N} null —
- *           ClickHouse/MySQL/Postgres exports), or {@code plain} (every byte literal). A preset over
+ *           database text exports), or {@code plain} (every byte literal). A preset over
  *           the {@code quote}/{@code escape} knobs; see the override matrix below.</td></tr>
  *   <tr><td>{@code quote}</td><td>{@code "}</td><td>Quoting character; setting it turns quoting on
  *           regardless of {@code mode}, the literal {@code none} turns it off (overrides the preset)</td></tr>
@@ -156,10 +156,9 @@ import java.util.regex.Pattern;
  *   <caption>Resolved (quoting, escaping) and what each combination does</caption>
  *   <tr><th>{@code (quoting, escaping)}</th><th>Reached by</th><th>Behavior</th></tr>
  *   <tr><td>{@code (true, true)}</td><td>{@code mode: quoted} (default for {@code .csv})</td>
- *       <td>RFC 4180 quoting; backslash escapes inside quoted fields (Excel / MySQL-enclosed)</td></tr>
+ *       <td>RFC 4180 quoting; backslash escapes inside quoted fields (spreadsheet / enclosed-and-escaped)</td></tr>
  *   <tr><td>{@code (false, true)}</td><td>{@code mode: escaped}</td>
- *       <td>No quoting; C-style value decode — {@code \t \n \\}, {@code \N} → null (ClickHouse
- *           {@code TabSeparated}, MySQL {@code LOAD DATA}, PostgreSQL {@code COPY})</td></tr>
+ *       <td>No quoting; C-style value decode — {@code \t \n \\}, {@code \N} → null (database text exports)</td></tr>
  *   <tr><td>{@code (false, false)}</td><td>{@code mode: plain} (default for {@code .tsv})</td>
  *       <td>No quoting, no escaping; every byte literal — a field cannot contain the delimiter or a
  *           newline. Never silently corrupts input.</td></tr>
@@ -168,7 +167,7 @@ import java.util.regex.Pattern;
  *           (a Windows path inside quotes survives intact)</td></tr>
  * </table>
  * Examples of overrides: {@code mode: plain, quote: "\""} turns quoting on for an otherwise-plain
- * file; {@code mode: escaped, quote: "\""} adds quoting to ClickHouse data (which then parses as
+ * file; {@code mode: escaped, quote: "\""} adds quoting to backslash-escaped data (which then parses as
  * {@code (true, true)} — the C-style decode no longer runs).
  * <p>
  * The two knobs are independent: an override touches only its own knob and leaves the other at the
@@ -498,7 +497,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
         }
         // Explicit quote/escape override the preset. A bare character turns the knob on with that
         // character; the literal "none" turns it off (so e.g. `mode: quoted, escape: none` is pure
-        // RFC 4180 with no backslash escape, and `mode: escaped, quote: "\""` quotes ClickHouse data).
+        // RFC 4180 with no backslash escape, and `mode: escaped, quote: "\""` quotes backslash-escaped data).
         Object quoteValue = config.get(CONFIG_QUOTE);
         if (isExplicitlySet(quoteValue)) {
             if (isNone(quoteValue)) {
@@ -530,8 +529,9 @@ public class CsvFormatReader implements SegmentableFormatReader {
             // rewrites \N to N before the sample is built), so warn deterministically here, at config
             // time, on the response header the query author actually reads.
             HeaderWarning.addWarning(
-                "Mode [escaped] with a quote override turns on quoting and disables the escaped-mode "
-                    + "decode (\\N to null, \\t to tab); drop the quote to keep decoding, or keep it to parse as quoted."
+                "Mode [escaped] with a quote override turns quoting on, which disables the escaped-mode decode "
+                    + "(\\N to null, \\t to tab). To keep decoding, remove the quote from the WITH options; "
+                    + "keep it to parse quoted fields instead."
             );
         }
 
@@ -775,6 +775,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
     }
 
     private List<Attribute> readSchema(StorageObject object) throws IOException {
+        String sourceLocation = object.path().toString();
         InputStream stream = object.newStream();
         // Abort rather than close: providers like S3 drain remaining bytes on close() to reuse
         // the connection. We read only the schema prefix of what may be a multi-GB file, so
@@ -793,7 +794,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 options.quoting()
             );
             if (options.headerRow() == false) {
-                return inferSchemaWithSyntheticNames(recordReader);
+                return inferSchemaWithSyntheticNames(recordReader, sourceLocation);
             }
             String headerLine = null;
             String record;
@@ -813,26 +814,27 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 checkUniqueAttributeNames(typedSchema);
                 return typedSchema;
             }
-            List<Attribute> inferred = inferSchemaFromSample(headerLine, recordReader);
+            List<Attribute> inferred = inferSchemaFromSample(headerLine, recordReader, sourceLocation);
             checkUniqueAttributeNames(inferred);
             return inferred;
         }
     }
 
-    private List<Attribute> inferSchemaFromSample(String headerLine, CsvLogicalRecordReader recordReader) throws IOException {
+    private List<Attribute> inferSchemaFromSample(String headerLine, CsvLogicalRecordReader recordReader, String sourceLocation)
+        throws IOException {
         String[] columnNames = splitFieldsForOptions(headerLine, options);
         Iterator<List<?>> csvIterator = newCsvIterator(recordReader);
         CircuitBreaker breaker = blockFactory.breaker();
         SchemaSample sample = collectSampleRows(csvIterator, options.commentPrefix(), schemaSampleSize, breaker, effectivePolicy);
         try {
-            maybeHintUndecodedNullMarker(sample.rows());
+            maybeHintUndecodedNullMarker(sample.rows(), sourceLocation);
             return CsvSchemaInferrer.inferSchema(columnNames, sample.rows());
         } finally {
             breaker.addWithoutBreaking(-sample.reservedBytes());
         }
     }
 
-    private List<Attribute> inferSchemaWithSyntheticNames(CsvLogicalRecordReader recordReader) throws IOException {
+    private List<Attribute> inferSchemaWithSyntheticNames(CsvLogicalRecordReader recordReader, String sourceLocation) throws IOException {
         Iterator<List<?>> csvIterator = newCsvIterator(recordReader);
         CircuitBreaker breaker = blockFactory.breaker();
         SchemaSample sample = collectSampleRows(csvIterator, options.commentPrefix(), schemaSampleSize, breaker, effectivePolicy);
@@ -840,7 +842,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             if (sample.rows().isEmpty()) {
                 throw new IOException("CSV file has no data rows");
             }
-            maybeHintUndecodedNullMarker(sample.rows());
+            maybeHintUndecodedNullMarker(sample.rows(), sourceLocation);
             return inferSyntheticSchema(sample.rows(), options.columnPrefix());
         } finally {
             breaker.addWithoutBreaking(-sample.reservedBytes());
@@ -852,7 +854,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
      * decoding is OFF ({@link CsvFormatOptions#decodesEscapes()} is false — i.e. any mode except
      * {@code escaped}: {@code plain}, {@code quoted}, or {@code quoted} with {@code escape: none}) but
      * the sample carries the whole-field {@code \N} null marker, the data is almost certainly a
-     * ClickHouse/MySQL/Postgres export read under a mode that won't decode it — {@code \N} stays the
+     * a database text export read under a mode that won't decode it — {@code \N} stays the
      * literal two characters instead of null. This catches both the safe {@code plain} default and the
      * {@code mode: escaped, quote: …} case (which resolves to quoted, dropping the decode).
      * <p>
@@ -865,22 +867,29 @@ public class CsvFormatReader implements SegmentableFormatReader {
      * than any backslash sequence, so a literal Windows path like {@code C:\temp} never produces a
      * false nudge. Returns on the first match.
      */
-    private void maybeHintUndecodedNullMarker(List<String[]> sampleRows) {
+    private void maybeHintUndecodedNullMarker(List<String[]> sampleRows, String sourceLocation) {
         if (options.decodesEscapes()) {
             return;
         }
-        for (String[] row : sampleRows) {
+        for (int r = 0; r < sampleRows.size(); r++) {
+            String[] row = sampleRows.get(r);
             if (row == null) {
                 continue;
             }
-            for (String cell : row) {
-                if (isBackslashNullMarker(cell)) {
+            for (int c = 0; c < row.length; c++) {
+                if (isBackslashNullMarker(row[c])) {
                     HeaderWarning.addWarning(
                         "["
                             + format
-                            + "] values include the \\N null marker but the current mode does not decode it; "
-                            + "\\N stays the literal two characters. If this is a ClickHouse, MySQL, or PostgreSQL "
-                            + "export, set \"mode\": \"escaped\" (without a quote override) to decode \\N to null."
+                            + "] read from ["
+                            + sourceLocation
+                            + "]: the value at data row ["
+                            + (r + 1)
+                            + "], column ["
+                            + (c + 1)
+                            + "] is the \\N null marker, but the current mode keeps it as literal text instead of reading "
+                            + "it as null. Set \"mode\": \"escaped\" in the WITH options to decode it; do not also set a "
+                            + "quote, which turns the decode back off."
                     );
                     return;
                 }
@@ -983,7 +992,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
      * withheld too: Jackson's escape is "next char is literal" (so {@code \t} would become {@code t}),
      * not the C-style sequences the escaped mode needs; the backslash must reach
      * {@link #decodeFieldValue} untouched. When quoting is on, the escape character is installed only
-     * if escaping is also on (MySQL-enclosed style); pure RFC 4180 (escaping off) leaves the backslash
+     * if escaping is also on (enclosed-and-escaped style); pure RFC 4180 (escaping off) leaves the backslash
      * as data so e.g. a Windows path inside quotes survives intact.
      */
     private CsvSchema newCsvSchema() {
@@ -1749,10 +1758,9 @@ public class CsvFormatReader implements SegmentableFormatReader {
     }
 
     /**
-     * Value decode for the {@code escaped} mode (ClickHouse {@code TabSeparated} / MySQL
-     * {@code LOAD DATA} / PostgreSQL {@code COPY} text semantics): a whole-field {@code \N} is null
+     * Value decode for the {@code escaped} mode (C-style backslash text semantics): a whole-field {@code \N} is null
      * and {@code \}-sequences un-escape C-style — the named cases {@code \t \n \r \0 \b \f} are
-     * exactly ClickHouse's output escape set, and any other {@code \c} is {@code c} (its parse
+     * the standard C-style output escape set, and any other {@code \c} is {@code c} (its parse
      * rule). Runs only when {@link CsvFormatOptions#decodesEscapes()} (escaping on, quoting off);
      * identity otherwise, and lazy — a field without the escape character (the overwhelmingly common
      * case) is returned as-is, so the decode stays off the hot path. Boundary scanning is untouched by
@@ -1787,7 +1795,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 case '0' -> '\0';
                 case 'b' -> '\b';
                 case 'f' -> '\f';
-                // Any other \c is c — including \\ and \' — matching ClickHouse's parse rule.
+                // Any other \c is c — including \\ and \' — matching the C-style parse rule.
                 default -> next;
             });
         }
@@ -2205,7 +2213,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             }
             prefetchedRows = sample.rows();
             prefetchedRowsBytes = sample.reservedBytes();
-            maybeHintUndecodedNullMarker(sample.rows());
+            maybeHintUndecodedNullMarker(sample.rows(), sourceLocation);
             return CsvSchemaInferrer.inferSchema(columnNames, sample.rows());
         }
 
@@ -2225,7 +2233,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             }
             prefetchedRows = sample.rows();
             prefetchedRowsBytes = sample.reservedBytes();
-            maybeHintUndecodedNullMarker(sample.rows());
+            maybeHintUndecodedNullMarker(sample.rows(), sourceLocation);
             return inferSyntheticSchema(sample.rows(), options.columnPrefix());
         }
 

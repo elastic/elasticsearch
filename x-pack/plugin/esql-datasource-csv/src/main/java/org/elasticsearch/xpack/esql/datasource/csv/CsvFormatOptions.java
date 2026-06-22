@@ -77,14 +77,13 @@ public record CsvFormatOptions(
      * <ul>
      *   <li>{@link #QUOTED} — {@code (quoting, escaping) = (true, true)}. Fields may be wrapped in
      *       {@link CsvFormatOptions#quoteChar}; an embedded quote is doubled (RFC 4180) and a
-     *       backslash escapes inside a quoted field. Excel, Python, R, spreadsheet CSV.</li>
+     *       backslash escapes inside a quoted field. The RFC 4180 spreadsheet/dataframe ecosystem.</li>
      *   <li>{@link #ESCAPED} — {@code (false, true)}. No quoting; specials are escaped with
      *       {@link CsvFormatOptions#escapeChar} ({@code \t}, {@code \n}, {@code \\}) and null is
-     *       {@code \N}. ClickHouse {@code TabSeparated}, MySQL {@code LOAD DATA}, PostgreSQL
-     *       {@code COPY} text.</li>
+     *       {@code \N}. Common database text exports (tab-separated, backslash-escaped).</li>
      *   <li>{@link #PLAIN} — {@code (false, false)}. No quoting, no escaping; every byte is literal,
-     *       so a field cannot contain the delimiter or a newline. Unix tools, bioinformatics formats,
-     *       IANA tab-separated-values.</li>
+     *       so a field cannot contain the delimiter or a newline. Unix tooling and scientific text
+     *       formats; the IANA tab-separated-values registration.</li>
      * </ul>
      * The fourth combination {@code (true, false)} — pure RFC 4180 quoting with no backslash escape —
      * has no preset name but is reachable via {@code mode: quoted, escape: none}.
@@ -148,9 +147,9 @@ public record CsvFormatOptions(
 
     /**
      * The {@code .tsv} baseline is {@link Mode#PLAIN} — {@code (quoting, escaping) = (false, false)}:
-     * bulk TSV at rest (DB exports, Unix tooling, bioinformatics) does not quote, and a quoting reader
-     * glues records on a stray {@code "}. PLAIN never silently corrupts any input; ClickHouse-style
-     * files opt into full escape fidelity with {@code "mode": "escaped"}. CSV keeps QUOTED — that
+     * bulk TSV at rest (DB exports, Unix tooling, scientific data) does not quote, and a quoting reader
+     * glues records on a stray {@code "}. PLAIN never silently corrupts any input; backslash-escaped
+     * exports opt into full escape fidelity with {@code "mode": "escaped"}. CSV keeps QUOTED — that
      * ecosystem quotes.
      */
     public static final CsvFormatOptions TSV = new CsvFormatOptions(

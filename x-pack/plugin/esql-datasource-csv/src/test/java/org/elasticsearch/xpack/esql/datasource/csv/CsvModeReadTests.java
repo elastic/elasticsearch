@@ -36,7 +36,7 @@ import static org.hamcrest.Matchers.instanceOf;
 
 /**
  * End-to-end behavior of the {@code mode} presets through {@link CsvFormatReader#read}: {@code plain}
- * (every byte literal), {@code escaped} (ClickHouse/MySQL/Postgres backslash semantics), and
+ * (every byte literal), {@code escaped} (database-export backslash semantics), and
  * {@code quoted} (RFC 4180, unchanged) — plus the permissive {@code quote}/{@code escape} overrides
  * that reach the rest of the (quoting, escaping) grid. The plain/escaped cases are the cure for the
  * original field-leading-quote failure: with quoting on, a value starting with {@code "} opens a
@@ -83,7 +83,7 @@ public class CsvModeReadTests extends ESTestCase {
     }
 
     /** {@code escaped}: {@code \t}/{@code \n} decode to the control bytes, {@code \\} to one backslash. */
-    public void testEscapedDecodesClickHouseSequences() throws IOException {
+    public void testEscapedDecodesBackslashSequences() throws IOException {
         String tsv = """
             a:keyword\tb:keyword\tc:keyword
             has\\ttab\tline1\\nline2\tC:\\\\temp
@@ -189,7 +189,7 @@ public class CsvModeReadTests extends ESTestCase {
      * Permissive override: {@code mode: escaped, quote: "\""} turns quoting on, so the reader switches
      * to the quote-state splitter and a quoted field may carry the tab delimiter as data. (The C-style
      * value decode is off once quoting is on — {@link CsvFormatOptions#decodesEscapes()} is false — so
-     * this is plain RFC-4180-with-escape parsing, not ClickHouse decoding.)
+     * this is plain RFC-4180-with-escape parsing, not C-style escaped decoding.)
      */
     public void testEscapedQuoteOverrideEnablesQuoting() throws IOException {
         assertThat(tsvReader(Map.of("mode", "escaped", "quote", "\"")).recordSplitter(1024), instanceOf(CsvRecordSplitter.class));
@@ -330,7 +330,7 @@ public class CsvModeReadTests extends ESTestCase {
         List<String> warnings = drainWarnings();
         assertTrue(
             "expected a config-time decode-disabled warning, got: " + warnings,
-            warnings.stream().anyMatch(w -> w.contains("turns on quoting and disables the escaped-mode decode"))
+            warnings.stream().anyMatch(w -> w.contains("disables the escaped-mode decode"))
         );
     }
 
@@ -350,9 +350,15 @@ public class CsvModeReadTests extends ESTestCase {
     private static void assertNullMarkerWarning(List<String> warnings) {
         // Match on an escape-free slice of the message: HeaderWarning escapes backslashes and quotes in
         // the header value, so a literal "\N" / "\"mode\"" substring would not match the drained value.
+        // Also assert the directed action and a location field are present.
         assertTrue(
             "expected an undecoded null-marker response warning, got: " + warnings,
-            warnings.stream().anyMatch(w -> w.contains("null marker but the current mode does not decode it"))
+            warnings.stream()
+                .anyMatch(
+                    w -> w.contains("null marker, but the current mode keeps it as literal text")
+                        && w.contains("data row [")
+                        && w.contains("Set ")
+                )
         );
     }
 

@@ -668,3 +668,6 @@ tests:
 - class: org.elasticsearch.gradle.internal.InternalDistributionDownloadPluginFuncTest
   method: resolves current version from local build
   issue: https://github.com/elastic/elasticsearch/issues/151851
+- class: org.elasticsearch.upgrades.RecoveryIT
+  method: testAutoExpandIndicesDuringRollingUpgrade
+  issue: https://github.com/elastic/elasticsearch/issues/151857

@@ -35,6 +35,7 @@ import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
 import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.capabilities.Resolvables;
+import org.elasticsearch.xpack.esql.core.capabilities.UnresolvedException;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
@@ -951,7 +952,16 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         @Override
         protected LogicalPlan rule(LogicalPlan plan, AnalyzerContext context) {
             boolean hasSingleChild = plan.children().size() == 1;
-            boolean childOutputResolved = hasSingleChild && Resolvables.resolved(plan.children().getFirst().output());
+            boolean childOutputResolved = false;
+            if (hasSingleChild) {
+                try {
+                    childOutputResolved = Resolvables.resolved(plan.children().getFirst().output());
+                } catch (UnresolvedException e) {
+                    // Keep/Drop/Rename may still contain unresolved wildcard projections (for example `KEEP foo*` under nullify).
+                    // Treat this as unresolved child output and let analysis continue to resolve the wildcard later.
+                    childOutputResolved = false;
+                }
+            }
             boolean canResolveAgainstConcreteChildOutput = context.unmappedResolution() != UnmappedResolution.DEFAULT
                 && hasSingleChild
                 && (plan instanceof Keep

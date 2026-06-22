@@ -1,0 +1,17 @@
+// To mute tests follow example in file: example.csv-spec
+
+//
+// Sorted long tests
+//
+
+verifyCloseLongsSorted
+SELECT l - 1 + 1 as x FROM sorted_longs ORDER BY 1;
+
+       x:l
+---------------
+9223372036854775804
+9223372036854775805
+9223372036854775806
+9223372036854775807
+;
+

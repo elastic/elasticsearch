@@ -69,6 +69,7 @@ public class DataLoader {
         loadLogsDatasetIntoEs(client, "logs", "logs");
         loadLogNanosDatasetIntoEs(client, "logs_nanos", "logs_nanos");
         loadLogUnsignedLongIntoEs(client, "logs_unsigned_long", "logs_unsigned_long");
+        loadSortedLongsIntoEs(client, "sorted_longs", "sorted_longs");
         makeAlias(client, "test_alias", "test_emp", "test_emp_copy");
         makeAlias(client, "test_alias_emp", "test_emp", "test_emp_copy");
         loadNoColsDatasetIntoEs(client, "empty_mapping");
@@ -354,6 +355,22 @@ public class DataLoader {
                 createIndex.startObject("bytes_in").field("type", "unsigned_long").endObject();
                 createIndex.startObject("bytes_out").field("type", "unsigned_long").endObject();
                 createIndex.startObject("status").field("type", "keyword").endObject();
+            }
+            createIndex.endObject();
+        }
+        createIndex.endObject();
+
+        loadDatasetIntoEs(client, index, filename, createIndex);
+    }
+
+    protected static void loadSortedLongsIntoEs(RestClient client, String index, String filename) throws Exception {
+        XContentBuilder createIndex = JsonXContent.contentBuilder().startObject();
+        createIndex.startObject("mappings");
+        {
+            createIndex.startObject("properties");
+            {
+                createIndex.startObject("id").field("type", "integer").endObject();
+                createIndex.startObject("l").field("type", "long").endObject();
             }
             createIndex.endObject();
         }

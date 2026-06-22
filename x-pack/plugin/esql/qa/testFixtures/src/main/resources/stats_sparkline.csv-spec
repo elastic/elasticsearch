@@ -32,6 +32,50 @@ sparkline:long
 [0, 92610, 0, 0, 44817, 0, 62405, 0, 49095, 103064, 218159, 0]
 ;
 
+
+sparklineWithWeightedAvg
+required_capability: fn_sparkline
+FROM employees
+| STATS sparkline = SPARKLINE(WEIGHTED_AVG(salary, height), hire_date, 20, "1985-01-01T00:00:00Z", "1985-12-31T00:00:00Z")
+;
+
+sparkline:double
+[0.0, 45530.883116883124, 0.0, 0.0, 44817.0, 0.0, 62405.0, 0.0, 49095.0, 51403.83557951482, 54760.79102564103, 0.0]
+;
+
+avgAndSparklineWithWeightedAvg
+required_capability: fn_sparkline
+FROM employees
+| STATS avg = AVG(salary),
+        sparkline = SPARKLINE(WEIGHTED_AVG(salary, height), hire_date, 20, "1985-01-01T00:00:00Z", "1985-12-31T00:00:00Z")
+;
+
+avg:double | sparkline:double
+48248.55   | [0.0, 45530.883116883124, 0.0, 0.0, 44817.0, 0.0, 62405.0, 0.0, 49095.0, 51403.83557951482, 54760.79102564103, 0.0]
+;
+
+weightedAvgAndSparklineWithCount
+required_capability: fn_sparkline
+FROM employees
+| STATS weighted_avg = WEIGHTED_AVG(salary, height),
+        sparkline = SPARKLINE(COUNT(), hire_date, 20, "1985-01-01T00:00:00Z", "1985-12-31T00:00:00Z")
+;
+
+weighted_avg:double | sparkline:long
+48473.84130754439   | [0, 2, 0, 0, 1, 0, 1, 0, 1, 2, 4, 0]
+;
+
+weightedAvgAndSparklineWithSameWeightedAvg
+required_capability: fn_sparkline
+FROM employees
+| STATS weighted_avg = WEIGHTED_AVG(salary, height),
+        sparkline = SPARKLINE(WEIGHTED_AVG(salary, height), hire_date, 20, "1985-01-01T00:00:00Z", "1985-12-31T00:00:00Z")
+;
+
+weighted_avg:double | sparkline:double
+48473.84130754439   | [0.0, 45530.883116883124, 0.0, 0.0, 44817.0, 0.0, 62405.0, 0.0, 49095.0, 51403.83557951482, 54760.79102564103, 0.0]
+;
+
 sparklineWithGrouping
 required_capability: fn_sparkline
 FROM employees
@@ -39,7 +83,7 @@ FROM employees
 | SORT gender
 ;
 
-sparkline:long                         | gender:keyword
+sparkline:long                       | gender:keyword
 [0, 1, 0, 0, 1, 0, 1, 0, 0, 0, 1, 0] | F
 [0, 1, 0, 0, 0, 0, 0, 0, 1, 1, 3, 0] | M
 [0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0] | null

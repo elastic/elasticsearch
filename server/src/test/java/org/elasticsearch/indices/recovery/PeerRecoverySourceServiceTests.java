@@ -12,6 +12,7 @@ package org.elasticsearch.indices.recovery;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -698,33 +699,47 @@ public class PeerRecoverySourceServiceTests extends IndexShardTestCase {
     public void testDynamicLimitDecreaseDoesNotNotifySchedulingListeners() throws IOException {
         final IndexShard primary1 = newStartedShard(true);
         final IndexShard primary2 = newStartedShard(true);
-        final var serviceWithSettings = newPeerRecoverySourceServiceWithDynamicLimit(3);
+        final IndexShard primary3 = newStartedShard(true);
+        final IndexShard primary4 = newStartedShard(true);
+        final var schedulingListeners = new CompositeRecoverySchedulingListener();
+        final var serviceWithSettings = newPeerRecoverySourceServiceWithDynamicLimit(3, schedulingListeners);
         final var service = serviceWithSettings.v1();
         final var clusterSettings = serviceWithSettings.v2();
         service.start();
         final var task = newRecoveryTask();
 
+        // Fill all 3 active slots, then queue primary4
         service.ongoingRecoveries.addOrEnqueueNewRecovery(newStartRecoveryRequest(primary1), task, primary1, ActionListener.noop());
         service.ongoingRecoveries.addOrEnqueueNewRecovery(newStartRecoveryRequest(primary2), task, primary2, ActionListener.noop());
-        assertEquals(2, service.ongoingRecoveries.activeRecoveryCount());
+        service.ongoingRecoveries.addOrEnqueueNewRecovery(newStartRecoveryRequest(primary3), task, primary3, ActionListener.noop());
+        service.ongoingRecoveries.addOrEnqueueNewRecovery(newStartRecoveryRequest(primary4), task, primary4, ActionListener.noop());
+        assertEquals(3, service.ongoingRecoveries.activeRecoveryCount());
+        assertEquals(1, service.ongoingRecoveries.queuedRecoveryCount());
 
-        final var listenerCallCount = new AtomicInteger();
-        service.ongoingRecoveries.addRecoverySchedulingListener(listenerCallCount::incrementAndGet);
+        final var dequeuedCount = new AtomicInteger();
+        schedulingListeners.addListener(new RecoverySchedulingListener() {
+            @Override
+            public void onRecoveryDequeuedAndStarted(RecoverySource.Type type, RecoveryRole role) {
+                dequeuedCount.incrementAndGet();
+            }
+        });
 
-        // Decreasing the limit dequeues nothing, so scheduling listeners must not be notified
+        // Decreasing the limit must not dequeue primary4 even though it is pending
         clusterSettings.applySettings(
             Settings.builder().put(INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING.getKey(), 1).build()
         );
 
-        assertEquals(0, listenerCallCount.get());
+        assertEquals(0, dequeuedCount.get());
+        assertEquals(1, service.ongoingRecoveries.queuedRecoveryCount());
 
-        closeShards(primary1, primary2);
+        closeShards(primary1, primary2, primary3, primary4);
     }
 
     public void testDynamicLimitIncreaseWithEmptyQueueDoesNotNotifySchedulingListeners() throws IOException {
         final IndexShard primary1 = newStartedShard(true);
         final IndexShard primary2 = newStartedShard(true);
-        final var serviceWithSettings = newPeerRecoverySourceServiceWithDynamicLimit(2);
+        final var schedulingListeners = new CompositeRecoverySchedulingListener();
+        final var serviceWithSettings = newPeerRecoverySourceServiceWithDynamicLimit(2, schedulingListeners);
         final var service = serviceWithSettings.v1();
         final var clusterSettings = serviceWithSettings.v2();
         service.start();
@@ -735,14 +750,19 @@ public class PeerRecoverySourceServiceTests extends IndexShardTestCase {
         assertEquals(2, service.ongoingRecoveries.activeRecoveryCount());
         assertEquals(0, service.ongoingRecoveries.queuedRecoveryCount());
 
-        final var listenerCallCount = new AtomicInteger();
-        service.ongoingRecoveries.addRecoverySchedulingListener(listenerCallCount::incrementAndGet);
+        final var dequeuedCount = new AtomicInteger();
+        schedulingListeners.addListener(new RecoverySchedulingListener() {
+            @Override
+            public void onRecoveryDequeuedAndStarted(RecoverySource.Type type, RecoveryRole role) {
+                dequeuedCount.incrementAndGet();
+            }
+        });
 
-        // Queue is empty, so raising the limit starts nothing and must not notify scheduling listeners
+        // Queue is empty, so raising the limit dequeues nothing and must not fire onRecoveryDequeuedAndStarted
         clusterSettings.applySettings(
             Settings.builder().put(INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING.getKey(), 4).build()
         );
-        assertEquals(0, listenerCallCount.get());
+        assertEquals(0, dequeuedCount.get());
 
         closeShards(primary1, primary2);
     }
@@ -794,7 +814,17 @@ public class PeerRecoverySourceServiceTests extends IndexShardTestCase {
         final IndexShard primary3 = newStartedShard(true);
         final IndexShard primary4 = newStartedShard(true);
         final IndexShard primary5 = newStartedShard(true);
-        final var serviceWithSettings = newPeerRecoverySourceServiceWithDynamicLimit(2);
+        // onRecoveryCompleted fires after remove() decrements activeRecoveryHandlerCount, so awaiting
+        // all 3 guarantees the active count is stable before we assert.
+        final var recoveriesCompleted = new CountDownLatch(3);
+        final var schedulingListeners = new CompositeRecoverySchedulingListener();
+        schedulingListeners.addListener(new RecoverySchedulingListener() {
+            @Override
+            public void onRecoveryCompleted(RecoverySource.Type type, RecoveryRole role) {
+                recoveriesCompleted.countDown();
+            }
+        });
+        final var serviceWithSettings = newPeerRecoverySourceServiceWithDynamicLimit(2, schedulingListeners);
         final var service = serviceWithSettings.v1();
         final var clusterSettings = serviceWithSettings.v2();
         service.start();
@@ -808,19 +838,13 @@ public class PeerRecoverySourceServiceTests extends IndexShardTestCase {
         assertEquals(2, service.ongoingRecoveries.activeRecoveryCount());
         assertEquals(3, service.ongoingRecoveries.queuedRecoveryCount());
 
-        // 1 notification when the initial drain runs + 1 per onRecoveryComplete for each of the 3 queued recoveries.
-        // Using scheduling listeners (fired after onRecoveryComplete decrements activeRecoveryHandlerCount) avoids
-        // the race where the recovery listener fires before onRecoveryComplete updates the count.
-        final var schedulingChanges = new CountDownLatch(4);
-        service.ongoingRecoveries.addRecoverySchedulingListener(schedulingChanges::countDown);
-
         // Raising the limit high enough to fit everything drains the entire queue at once
         clusterSettings.applySettings(
             Settings.builder().put(INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING.getKey(), 5).build()
         );
 
-        // Wait for all scheduling notifications — the last fires after the final onRecoveryComplete has run.
-        safeAwait(schedulingChanges);
+        // Wait for all 3 queued recoveries to complete.
+        safeAwait(recoveriesCompleted);
         assertEquals(2, service.ongoingRecoveries.activeRecoveryCount());
         assertEquals(0, service.ongoingRecoveries.queuedRecoveryCount());
         assertEquals(0, primary3.recoveryStats().currentAsSourceQueued());
@@ -838,7 +862,17 @@ public class PeerRecoverySourceServiceTests extends IndexShardTestCase {
         final IndexShard primary3 = newStartedShard(true);
         final IndexShard primary4 = newStartedShard(true);
         final IndexShard primary5 = newStartedShard(true);
-        final var serviceWithSettings = newPeerRecoverySourceServiceWithDynamicLimit(2);
+        // onRecoveryCompleted fires after remove() decrements activeRecoveryHandlerCount, so awaiting
+        // all 3 guarantees the active count is stable before we assert.
+        final var recoveriesCompleted = new CountDownLatch(3);
+        final var schedulingListeners = new CompositeRecoverySchedulingListener();
+        schedulingListeners.addListener(new RecoverySchedulingListener() {
+            @Override
+            public void onRecoveryCompleted(RecoverySource.Type type, RecoveryRole role) {
+                recoveriesCompleted.countDown();
+            }
+        });
+        final var serviceWithSettings = newPeerRecoverySourceServiceWithDynamicLimit(2, schedulingListeners);
         final var service = serviceWithSettings.v1();
         final var clusterSettings = serviceWithSettings.v2();
         service.start();
@@ -853,19 +887,13 @@ public class PeerRecoverySourceServiceTests extends IndexShardTestCase {
         assertEquals(2, service.ongoingRecoveries.activeRecoveryCount());
         assertEquals(3, service.ongoingRecoveries.queuedRecoveryCount());
 
-        // 1 notification when the initial drain runs (primary3+primary4) + 1 per onRecoveryComplete for each of the
-        // 3 queued recoveries. Scheduling listeners fire after onRecoveryComplete decrements activeRecoveryHandlerCount,
-        // so awaiting all 4 guarantees the count is stable before we assert.
-        final var schedulingChanges = new CountDownLatch(4);
-        service.ongoingRecoveries.addRecoverySchedulingListener(schedulingChanges::countDown);
-
         // Raising to 4 opens 2 initial slots; the remaining queued recovery drains via cascade
         clusterSettings.applySettings(
             Settings.builder().put(INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING.getKey(), 4).build()
         );
 
-        // Wait for all scheduling notifications — the last fires after the final onRecoveryComplete has run.
-        safeAwait(schedulingChanges);
+        // Wait for all 3 queued recoveries to complete.
+        safeAwait(recoveriesCompleted);
         assertEquals(2, service.ongoingRecoveries.activeRecoveryCount());
         assertEquals(0, service.ongoingRecoveries.queuedRecoveryCount());
         assertEquals(0, primary3.recoveryStats().currentAsSourceQueued());
@@ -884,6 +912,13 @@ public class PeerRecoverySourceServiceTests extends IndexShardTestCase {
     }
 
     private Tuple<PeerRecoverySourceService, ClusterSettings> newPeerRecoverySourceServiceWithDynamicLimit(int limit) {
+        return newPeerRecoverySourceServiceWithDynamicLimit(limit, new CompositeRecoverySchedulingListener());
+    }
+
+    private Tuple<PeerRecoverySourceService, ClusterSettings> newPeerRecoverySourceServiceWithDynamicLimit(
+        int limit,
+        CompositeRecoverySchedulingListener schedulingListeners
+    ) {
         final var registeredSettings = new HashSet<>(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         registeredSettings.add(INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING);
         final var settings = Settings.builder()
@@ -891,7 +926,7 @@ public class PeerRecoverySourceServiceTests extends IndexShardTestCase {
             .put(INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING.getKey(), limit)
             .build();
         final var clusterSettings = new ClusterSettings(settings, registeredSettings);
-        return Tuple.tuple(newPeerRecoverySourceService(settings, clusterSettings), clusterSettings);
+        return Tuple.tuple(newPeerRecoverySourceService(settings, clusterSettings, schedulingListeners), clusterSettings);
     }
 
     private PeerRecoverySourceService newPeerRecoverySourceService(int limit, Set<Setting<?>> registeredSettings) {
@@ -899,10 +934,18 @@ public class PeerRecoverySourceServiceTests extends IndexShardTestCase {
             .put(NodeRoles.dataNode())
             .put(PeerRecoverySourceService.INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING.getKey(), limit)
             .build();
-        return newPeerRecoverySourceService(settings, new ClusterSettings(settings, registeredSettings));
+        return newPeerRecoverySourceService(
+            settings,
+            new ClusterSettings(settings, registeredSettings),
+            new CompositeRecoverySchedulingListener()
+        );
     }
 
-    private PeerRecoverySourceService newPeerRecoverySourceService(Settings settings, ClusterSettings clusterSettings) {
+    private PeerRecoverySourceService newPeerRecoverySourceService(
+        Settings settings,
+        ClusterSettings clusterSettings,
+        CompositeRecoverySchedulingListener schedulingListeners
+    ) {
         final var indicesService = mock(IndicesService.class);
         final var clusterService = mock(ClusterService.class);
         when(clusterService.getSettings()).thenReturn(settings);
@@ -915,7 +958,7 @@ public class PeerRecoverySourceServiceTests extends IndexShardTestCase {
             clusterService,
             new RecoverySettings(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)),
             mock(RecoveryPlannerService.class),
-            new CompositeRecoverySchedulingListener()
+            schedulingListeners
         );
     }
 

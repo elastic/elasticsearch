@@ -12,7 +12,6 @@ package org.elasticsearch.gradle.internal;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.file.RegularFileProperty;
 import org.gradle.api.tasks.CacheableTask;
-import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.OutputFile;
 import org.gradle.api.tasks.TaskAction;
 import org.objectweb.asm.ClassReader;
@@ -81,11 +80,6 @@ public abstract class ExtractForeignApiTask extends DefaultTask {
     private static final String PREVIEW_FEATURE_DESCRIPTOR = "Ljdk/internal/javac/PreviewFeature;";
     private static final String FOREIGN_PACKAGE_PREFIX = "java/lang/foreign/";
     private static final int PUBLIC_OR_PROTECTED = Opcodes.ACC_PUBLIC | Opcodes.ACC_PROTECTED;
-
-    @Input
-    public String getJdkVersion() {
-        return Runtime.version().toString();
-    }
 
     @OutputFile
     public abstract RegularFileProperty getOutputJar();

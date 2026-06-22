@@ -17,11 +17,14 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.xcontent.DeprecationHandler;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.junit.AfterClass;
 import org.junit.AssumptionViolatedException;
@@ -30,6 +33,9 @@ import org.junit.BeforeClass;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.net.URL;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -45,6 +51,7 @@ import java.util.TreeSet;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoTimeout;
 import static org.elasticsearch.xpack.esql.CsvSpecReader.specParser;
@@ -154,6 +161,8 @@ public class CsvFlattenedKeywordIT extends CsvIT {
      */
     public static final String LOG_REWRITTEN_QUERIES_PROPERTY = "tests.run_keyword_flattened_variant.log_queries";
 
+    public static final java.util.Set<String> COVERED_ARGUMENTS = java.util.concurrent.ConcurrentHashMap.newKeySet();
+
     public CsvFlattenedKeywordIT(
         String fileName,
         String groupName,
@@ -233,6 +242,65 @@ public class CsvFlattenedKeywordIT extends CsvIT {
      * {@code keyword→flattened summary:} prefix so it can be grepped out of a long Gradle log
      * without any additional filter.
      */
+    @AfterClass
+    @SuppressWarnings("unchecked")
+    public static void verifyFieldExtractCoverage() throws Exception {
+        String kibanaDirProp = System.getProperty("esql.kibana.docs.dir");
+        if (kibanaDirProp == null) {
+            throw new IllegalStateException("System property esql.kibana.docs.dir is not set");
+        }
+        Path kibanaDir = Paths.get(kibanaDirProp);
+        if (Files.isDirectory(kibanaDir) == false) {
+            throw new IllegalStateException("Could not find docs/reference/query-languages/esql/kibana/generated at " + kibanaDir);
+        }
+
+        Set<String> candidates = new HashSet<>();
+        try (Stream<Path> paths = Files.walk(kibanaDir)) {
+            paths.filter(Files::isRegularFile).filter(p -> p.toString().endsWith(".json")).forEach(p -> {
+                try {
+                    try (
+                        XContentParser parser = JsonXContent.jsonXContent.createParser(
+                            NamedXContentRegistry.EMPTY,
+                            DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+                            Files.newInputStream(p)
+                        )
+                    ) {
+                        Map<String, Object> map = parser.map();
+                        String name = (String) map.get("name");
+                        if (name == null) return;
+                        name = name.toUpperCase(Locale.ROOT);
+
+
+                        List<Map<String, Object>> signatures = (List<Map<String, Object>>) map.get("signatures");
+                        if (signatures == null) return;
+                        for (Map<String, Object> sig : signatures) {
+                            List<Map<String, Object>> params = (List<Map<String, Object>>) sig.get("params");
+                            if (params != null) {
+                                for (int i = 0; i < params.size(); i++) {
+                                    Object typeObj = params.get(i).get("type");
+                                    if (typeObj instanceof String) {
+                                        String t = (String) typeObj;
+                                        if ("keyword".equals(t) || "text".equals(t)) {
+                                            candidates.add(name + ":" + i);
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                } catch (Exception e) {
+                    throw new RuntimeException("Error parsing " + p, e);
+                }
+            });
+        }
+
+        List<String> missing = new ArrayList<>(candidates);
+        missing.removeAll(COVERED_ARGUMENTS);
+        missing.sort(Comparator.naturalOrder());
+
+        assertEquals("Missing field_extract coverage for parameters", EXPECTED_MISSING, missing);
+    }
+
     @AfterClass
     public static void logKeywordToFlattenedSummary() {
         int silenced = 0;
@@ -716,6 +784,7 @@ public class CsvFlattenedKeywordIT extends CsvIT {
                 KeywordToFlattenedTransformer.WRAPPER_SUBKEY,
                 expectedColumnOrder
             );
+            COVERED_ARGUMENTS.addAll(result.coveredArguments());
             if (result.modified() == false) {
                 NO_KEYWORD_REFS_COUNT.incrementAndGet();
                 // Logged at INFO so the launched/skipped split is visible in the test JVM stdout, alongside the
@@ -1278,4 +1347,192 @@ public class CsvFlattenedKeywordIT extends CsvIT {
             }
         }
     }
+
+    public static final java.util.List<String> EXPECTED_MISSING = java.util.List.of(
+        "ABSENT:0",
+        "ABSENT_OVER_TIME:0",
+        "BIT_LENGTH:0",
+        "BUCKET:2",
+        "BUCKET:3",
+        "BYTE_LENGTH:0",
+        "CASE:1",
+        "CASE:2",
+        "CATEGORIZE:0",
+        "CHUNK:0",
+        "CIDR_MATCH:1",
+        "CLAMP:0",
+        "CLAMP:1",
+        "CLAMP:2",
+        "CLAMP_MAX:0",
+        "CLAMP_MAX:1",
+        "CLAMP_MIN:0",
+        "CLAMP_MIN:1",
+        "COALESCE:0",
+        "COALESCE:1",
+        "CONCAT:0",
+        "CONCAT:1",
+        "CONTAINS:0",
+        "CONTAINS:1",
+        "COUNT:0",
+        "COUNT_DISTINCT:0",
+        "COUNT_DISTINCT_OVER_TIME:0",
+        "COUNT_OVER_TIME:0",
+        "DATE_DIFF:0",
+        "DATE_EXTRACT:0",
+        "DATE_FORMAT:0",
+        "DATE_PARSE:0",
+        "DATE_PARSE:1",
+        "DATE_UNIT_COUNT:0",
+        "DATE_UNIT_COUNT:1",
+        "DECAY:2",
+        "EARLIEST:0",
+        "EMBEDDING:0",
+        "EMBEDDING:1",
+        "ENDS_WITH:0",
+        "ENDS_WITH:1",
+        "FIRST:0",
+        "FIRST_OVER_TIME:0",
+        "FROM_BASE64:0",
+        "GREATER_THAN:0",
+        "GREATER_THAN:1",
+        "GREATER_THAN_OR_EQUAL:0",
+        "GREATER_THAN_OR_EQUAL:1",
+        "GREATEST:0",
+        "GREATEST:1",
+        "HASH:0",
+        "HASH:1",
+        "IN:0",
+        "IN:1",
+        "IS_NOT_NULL:0",
+        "IS_NULL:0",
+        "JSON_EXTRACT:0",
+        "JSON_EXTRACT:1",
+        "KNN:0",
+        "KQL:0",
+        "LAST:0",
+        "LAST_OVER_TIME:0",
+        "LATEST:0",
+        "LEAST:0",
+        "LEAST:1",
+        "LEFT:0",
+        "LENGTH:0",
+        "LESS_THAN:0",
+        "LESS_THAN:1",
+        "LESS_THAN_OR_EQUAL:0",
+        "LESS_THAN_OR_EQUAL:1",
+        "LIKE:0",
+        "LIKE:1",
+        "LOCATE:0",
+        "LOCATE:1",
+        "LTRIM:0",
+        "MATCH:0",
+        "MATCH:1",
+        "MATCH_OPERATOR:0",
+        "MATCH_OPERATOR:1",
+        "MATCH_PHRASE:0",
+        "MATCH_PHRASE:1",
+        "MAX:0",
+        "MAX_OVER_TIME:0",
+        "MD5:0",
+        "MIN:0",
+        "MIN_OVER_TIME:0",
+        "MV_APPEND:0",
+        "MV_APPEND:1",
+        "MV_CONCAT:0",
+        "MV_CONCAT:1",
+        "MV_CONTAINS:0",
+        "MV_CONTAINS:1",
+        "MV_COUNT:0",
+        "MV_DEDUPE:0",
+        "MV_DIFFERENCE:0",
+        "MV_DIFFERENCE:1",
+        "MV_FIRST:0",
+        "MV_INTERSECTION:0",
+        "MV_INTERSECTION:1",
+        "MV_INTERSECTS:0",
+        "MV_INTERSECTS:1",
+        "MV_LAST:0",
+        "MV_MAX:0",
+        "MV_MIN:0",
+        "MV_SLICE:0",
+        "MV_SORT:0",
+        "MV_SORT:1",
+        "MV_UNION:0",
+        "MV_UNION:1",
+        "MV_ZIP:0",
+        "MV_ZIP:1",
+        "MV_ZIP:2",
+        "NETWORK_DIRECTION:2",
+        "NOT_EQUALS:0",
+        "NOT_EQUALS:1",
+        "NOT_IN:0",
+        "NOT_IN:1",
+        "NOT_LIKE:0",
+        "NOT_LIKE:1",
+        "NOT_RLIKE:0",
+        "NOT_RLIKE:1",
+        "PRESENT:0",
+        "PRESENT_OVER_TIME:0",
+        "QSTR:0",
+        "REPEAT:0",
+        "REPLACE:0",
+        "REPLACE:1",
+        "REPLACE:2",
+        "REVERSE:0",
+        "RIGHT:0",
+        "RLIKE:1",
+        "RTRIM:0",
+        "SAMPLE:0",
+        "SHA1:0",
+        "SHA256:0",
+        "SPARKLINE:3",
+        "SPARKLINE:4",
+        "SPLIT:0",
+        "SPLIT:1",
+        "STARTS_WITH:0",
+        "STARTS_WITH:1",
+        "SUBSTRING:0",
+        "TBUCKET:1",
+        "TBUCKET:2",
+        "TEXT_EMBEDDING:0",
+        "TEXT_EMBEDDING:1",
+        "TOP:0",
+        "TOP:2",
+        "TOP_SNIPPETS:0",
+        "TOP_SNIPPETS:1",
+        "TO_BASE64:0",
+        "TO_BOOLEAN:0",
+        "TO_CARTESIANPOINT:0",
+        "TO_CARTESIANSHAPE:0",
+        "TO_DATEPERIOD:0",
+        "TO_DATETIME:0",
+        "TO_DATE_NANOS:0",
+        "TO_DENSE_VECTOR:0",
+        "TO_DOUBLE:0",
+        "TO_GEOHASH:0",
+        "TO_GEOHEX:0",
+        "TO_GEOPOINT:0",
+        "TO_GEOSHAPE:0",
+        "TO_GEOTILE:0",
+        "TO_INTEGER:0",
+        "TO_IP:0",
+        "TO_LONG:0",
+        "TO_LOWER:0",
+        "TO_STRING:0",
+        "TO_TEXT:0",
+        "TO_TIMEDURATION:0",
+        "TO_UNSIGNED_LONG:0",
+        "TO_UPPER:0",
+        "TO_VERSION:0",
+        "TRANGE:0",
+        "TRANGE:1",
+        "TRIM:0",
+        "TSTEP:1",
+        "TSTEP:2",
+        "URL_DECODE:0",
+        "URL_ENCODE:0",
+        "URL_ENCODE_COMPONENT:0",
+        "VALUES:0",
+        "WITHOUT:0"
+    );
 }

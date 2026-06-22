@@ -166,7 +166,13 @@ public final class AstKeywordFieldRewriter {
      * @param rewrittenFieldNames the set of keyword field names that were actually wrapped at least once
      * @param skipEvents          every in-scope keyword reference that was left unwrapped, in pipeline order
      */
-    public record RewriteResult(String rewrittenQuery, boolean modified, Set<String> rewrittenFieldNames, List<SkipEvent> skipEvents) {}
+    public record RewriteResult(
+        String rewrittenQuery,
+        boolean modified,
+        Set<String> rewrittenFieldNames,
+        List<SkipEvent> skipEvents,
+        Set<String> coveredArguments
+    ) {}
 
     private AstKeywordFieldRewriter() {}
 
@@ -181,7 +187,7 @@ public final class AstKeywordFieldRewriter {
     public static RewriteResult rewrite(String query, ScopeResolver scopeResolver, String wrapperSubKey, List<String> expectedColumnOrder) {
         Set<String> initialScope = scopeResolver.resolveScope(query);
         if (initialScope.isEmpty()) {
-            return new RewriteResult(query, false, Set.of(), List.of());
+            return new RewriteResult(query, false, Set.of(), List.of(), Set.of());
         }
         LogicalPlan plan;
         try {
@@ -190,14 +196,20 @@ public final class AstKeywordFieldRewriter {
             // The query uses grammar this parser configuration rejects (or relies on bound params);
             // leave it unmodified so the unmodified spec runs and any failure is attributable to the
             // engine rather than to a malformed rewrite.
-            return new RewriteResult(query, false, Set.of(), List.of());
+            return new RewriteResult(query, false, Set.of(), List.of(), Set.of());
         }
         Walker walker = new Walker(query, scopeResolver, wrapperSubKey);
         Set<String> endScope = walker.processPipeline(plan, initialScope);
         String body = walker.applyEdits();
         String rewritten = appendTopLevelTailRecovery(body, endScope, expectedColumnOrder, wrapperSubKey, walker.rewrittenNames);
         boolean modified = rewritten.equals(query) == false;
-        return new RewriteResult(rewritten, modified, Set.copyOf(walker.rewrittenNames), List.copyOf(walker.skipEvents));
+        return new RewriteResult(
+            rewritten,
+            modified,
+            Set.copyOf(walker.rewrittenNames),
+            List.copyOf(walker.skipEvents),
+            Set.copyOf(walker.coveredArguments)
+        );
     }
 
     /**
@@ -310,6 +322,7 @@ public final class AstKeywordFieldRewriter {
         private final Map<String, Edit> editsByKey = new LinkedHashMap<>();
         final Set<String> rewrittenNames = new HashSet<>();
         final List<SkipEvent> skipEvents = new ArrayList<>();
+        final Set<String> coveredArguments = new HashSet<>();
 
         Walker(String query, ScopeResolver scopeResolver, String wrapperSubKey) {
             this.query = query;
@@ -776,7 +789,14 @@ public final class AstKeywordFieldRewriter {
          * into {@code IN (subquery)} by wrapping the left-hand side and rewriting the subquery.
          */
         private void wrapExpression(Expression expression, Set<String> scope) {
+            wrapExpression(expression, scope, null, -1);
+        }
+
+        private void wrapExpression(Expression expression, Set<String> scope, String parentFunction, int argIndex) {
             if (expression instanceof UnresolvedAttribute attr) {
+                if (parentFunction != null && scope.contains(attr.name()) && spanMatches(attr.source())) {
+                    coveredArguments.add(parentFunction + ":" + argIndex);
+                }
                 wrapAttribute(attr, scope);
                 return;
             }
@@ -785,7 +805,7 @@ public final class AstKeywordFieldRewriter {
                 // attribute there is hoisted into a preceding EVAL (the IN-subquery resolver rejects
                 // a field_extract(...) LHS), and is excluded from this scope so it is not wrapped in
                 // place. A non-attribute LHS (constant/expression) is wrapped here as usual.
-                wrapExpression(inSubquery.value(), scope);
+                wrapExpression(inSubquery.value(), scope, null, -1);
                 processInSubquery(inSubquery);
                 return;
             }
@@ -796,8 +816,18 @@ public final class AstKeywordFieldRewriter {
                 recordSkips(List.of(matchOperator), scope, SkipSite.MATCH_OPERATOR_LHS);
                 return;
             }
+
+            boolean isFunction = expression instanceof org.elasticsearch.xpack.esql.core.expression.function.Function;
+            String nextParentFunction = parentFunction;
+            if (isFunction) {
+                nextParentFunction = ((org.elasticsearch.xpack.esql.core.expression.function.Function) expression).functionName().toUpperCase(Locale.ROOT);
+            }
+
+
+            int i = 0;
             for (Expression child : expression.children()) {
-                wrapExpression(child, scope);
+                wrapExpression(child, scope, nextParentFunction, isFunction ? i : argIndex);
+                i++;
             }
         }
 

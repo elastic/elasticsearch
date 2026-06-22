@@ -177,7 +177,7 @@ public class ParallelTopNOperator implements Operator, Accountable {
             worker.addInput(page);
         }
 
-        if (in.noMoreInputs() || closed) {
+        if (in.isFinished()) {
             // Finished draining (or aborting). Produce output pages and transfer them to the driver.
             boolean abort = closed || failureCollector.hasFailure();
             if (abort == false) {

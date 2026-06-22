@@ -530,7 +530,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             // rewrites \N to N before the sample is built), so warn deterministically here, at config
             // time, on the response header the query author actually reads.
             HeaderWarning.addWarning(
-                "EXTERNAL [mode: escaped] with a quote override turns on quoting and disables the escaped-mode "
+                "Mode [escaped] with a quote override turns on quoting and disables the escaped-mode "
                     + "decode (\\N to null, \\t to tab); drop the quote to keep decoding, or keep it to parse as quoted."
             );
         }
@@ -876,7 +876,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             for (String cell : row) {
                 if (isBackslashNullMarker(cell)) {
                     HeaderWarning.addWarning(
-                        "EXTERNAL ["
+                        "["
                             + format
                             + "] values include the \\N null marker but the current mode does not decode it; "
                             + "\\N stays the literal two characters. If this is a ClickHouse, MySQL, or PostgreSQL "

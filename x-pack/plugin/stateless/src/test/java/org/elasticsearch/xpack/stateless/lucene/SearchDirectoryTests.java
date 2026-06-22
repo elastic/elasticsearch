@@ -519,32 +519,67 @@ public class SearchDirectoryTests extends ESTestCase {
         try (var node = createFakeStatelessNode(regionSize, cacheSize)) {
             final var searchDirectory = SearchDirectory.unwrapDirectory(node.searchStore.directory());
 
-            // Commit A: f_A is internal with range R_A.
+            final var genFile = "_0_1.liv";
+            final var fileA = "file_A";
+            final var fileB = "file_B";
+            // Commit A: fileA and the generational file are internal with timeRangeA.
             final var locationA = createBlobLocation(1L, 1L, 0L, 100L);
-            final var rangeA = new StatelessCompoundCommit.TimestampFieldValueRange(1000L, 2000L);
-            searchDirectory.updateCommit(createCommitWithTimestamp(node.shardId, 1L, Map.of("f_A", locationA), Set.of("f_A"), rangeA));
-            assertThat(
-                "after commit A, internal file f_A resolves to midpoint of commit A's range",
-                searchDirectory.getTimestampMillis("f_A"),
-                equalTo(BlobFileRanges.midpointMillisOrUnknown(rangeA))
-            );
-
-            // Commit B (later generation): f_A is referenced at the same location; f_B is the new internal file with range R_B.
-            final var locationB = createBlobLocation(1L, 2L, 0L, 100L);
-            final var rangeB = new StatelessCompoundCommit.TimestampFieldValueRange(5000L, 6000L);
+            final var genLocationGen1 = createBlobLocation(1L, 1L, 100L, 100L);
+            final var timeRangeA = new StatelessCompoundCommit.TimestampFieldValueRange(1000L, 2000L);
             searchDirectory.updateCommit(
-                createCommitWithTimestamp(node.shardId, 2L, Map.of("f_A", locationA, "f_B", locationB), Set.of("f_B"), rangeB)
+                createCommitWithTimestamp(
+                    node.shardId,
+                    1L,
+                    Map.of(fileA, locationA, genFile, genLocationGen1),
+                    Set.of(fileA, genFile),
+                    timeRangeA
+                )
+            );
+            assertThat(
+                "after commit A, internal file fileA resolves to midpoint of commit A's range",
+                searchDirectory.getTimestampMillis(fileA),
+                equalTo(BlobFileRanges.midpointMillisOrUnknown(timeRangeA))
+            );
+            assertThat(
+                "after commit A, the generational file resolves to midpoint of commit A's range",
+                searchDirectory.getTimestampMillis(genFile),
+                equalTo(BlobFileRanges.midpointMillisOrUnknown(timeRangeA))
+            );
+
+            // Commit B (later generation): fileA is still referenced at the same location; fileB is the new internal file with timeRangeB;
+            // the generational file has been copied into the gen-2 BCC, so commit B lists it at a *new* blob location.
+            final var locationB = createBlobLocation(1L, 2L, 0L, 100L);
+            final var genLocationGen2 = createBlobLocation(1L, 2L, 100L, 100L);
+            final var timeRangeB = new StatelessCompoundCommit.TimestampFieldValueRange(5000L, 6000L);
+            searchDirectory.updateCommit(
+                createCommitWithTimestamp(
+                    node.shardId,
+                    2L,
+                    Map.of(fileA, locationA, fileB, locationB, genFile, genLocationGen2),
+                    Set.of(fileB, genFile),
+                    timeRangeB
+                )
             );
 
             assertThat(
-                "after commit B, f_A (referenced at the same blob location) retains commit A's midpoint",
-                searchDirectory.getTimestampMillis("f_A"),
-                equalTo(BlobFileRanges.midpointMillisOrUnknown(rangeA))
+                "after commit B, fileA (referenced at the same blob location) retains commit A's midpoint",
+                searchDirectory.getTimestampMillis(fileA),
+                equalTo(BlobFileRanges.midpointMillisOrUnknown(timeRangeA))
             );
             assertThat(
-                "f_B is internal to commit B, so it receives commit B's representative timestamp",
-                searchDirectory.getTimestampMillis("f_B"),
-                equalTo(BlobFileRanges.midpointMillisOrUnknown(rangeB))
+                "fileB is internal to commit B, so it receives commit B's representative timestamp",
+                searchDirectory.getTimestampMillis(fileB),
+                equalTo(BlobFileRanges.midpointMillisOrUnknown(timeRangeB))
+            );
+            assertThat(
+                "the generational file stays pinned to the first (gen-1) blob location across commits",
+                searchDirectory.getBlobLocation(genFile),
+                equalTo(genLocationGen1)
+            );
+            assertThat(
+                "the generational file retains commit A's midpoint even though commit B re-lists it at a new location with a new range",
+                searchDirectory.getTimestampMillis(genFile),
+                equalTo(BlobFileRanges.midpointMillisOrUnknown(timeRangeA))
             );
             assertThat(
                 "unknown file returns UNKNOWN_TIMESTAMP",

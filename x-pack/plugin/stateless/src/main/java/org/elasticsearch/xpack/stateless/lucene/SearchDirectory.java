@@ -482,9 +482,7 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
                         // stamped from the file's originating CC is retained.
                         commitFileRanges = existingRanges;
                     } else {
-                        assert existingRanges == null
-                            || existingRanges.blobLocation().equals(blobLocationFromCommit)
-                            || isGenerationalFile(fileName)
+                        assert existingRanges == null || isGenerationalFile(fileName)
                             : "A non-generational file ["
                                 + fileName
                                 + "] has unexpectedly changed blob location from "
@@ -494,6 +492,7 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
                         // Case 3: not previously tracked, or blob location changed.
                         // Use newCommit's timestamp only when this file is internal to newCommit (i.e., the commit physically wrote it).
                         // Files referenced from older CCs have no timestamp info here and report unknown.
+                        // Note: for generational files we use updatedMetadata.putIfAbsent() below so new timestamps is not actually used.
                         StatelessCompoundCommit.TimestampFieldValueRange ts = null;
                         if (newCommitInternalFiles != null && newCommitInternalFiles.contains(fileName)) {
                             ts = newCommitTimestamp;

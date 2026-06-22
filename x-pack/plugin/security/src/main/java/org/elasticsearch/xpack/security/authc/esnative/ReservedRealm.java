@@ -267,7 +267,15 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
                 if (ExceptionsHelper.unwrapCause(e) instanceof UnavailableShardsException) {
                     // Surface a 503 so callers retry, mirroring getUserInfo.
                     listener.onFailure(Exceptions.authenticationProcessError("failed to retrieve reserved users", e));
-                } else {
+                if (e instanceof UnavailableShardsException) {
+                    if (nativeUsersStore.isInitialized()) {
+                        logger.error("failed to retrieve reserved users, the security index is not available", e);
+                    } else {
+                        logger.warn(
+                            "failed to retrieve reserved users, the security index is not available, the cluster may still be starting up",
+                            e
+                        );
+                    }                } else {
                     listener.onResponse(anonymousEnabled ? Collections.singletonList(anonymousUser) : Collections.emptyList());
                 }
             }));
@@ -288,7 +296,21 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
                 listener.onFailure(
                     Exceptions.authenticationProcessError("failed to retrieve password hash for reserved user [" + username + "]", e)
                 );
-            } else {
+            if (e instanceof UnavailableShardsException) {
+                if (nativeUsersStore.isInitialized()) {
+                    logger.error(
+                        (Supplier<?>) () -> "failed to retrieve password hash for reserved user [" + username + "]"
+                            + ", the security index is not available",
+                        e
+                    );
+                } else {
+                    logger.warn(
+                        (Supplier<?>) () -> "failed to retrieve password hash for reserved user ["
+                            + username
+                            + "], the security index is not available, the cluster may still be starting up",
+                        e
+                    );
+                }            } else {
                 listener.onResponse(null);
             }
         }));

@@ -632,3 +632,27 @@ tests:
 - class: org.elasticsearch.cluster.ClusterInfoServiceIT
   method: testMaxQueueLatenciesInClusterInfo
   issue: https://github.com/elastic/elasticsearch/issues/151837
+- class: org.elasticsearch.gradle.internal.InternalDistributionDownloadPluginFuncTest
+  method: resolves current version from local build
+  issue: https://github.com/elastic/elasticsearch/issues/151851
+- class: org.elasticsearch.upgrades.RecoveryIT
+  method: testAutoExpandIndicesDuringRollingUpgrade
+  issue: https://github.com/elastic/elasticsearch/issues/151857
+- class: org.elasticsearch.upgrades.RecoveryIT
+  method: testRetentionLeasesEstablishedWhenRelocatingPrimary
+  issue: https://github.com/elastic/elasticsearch/issues/151858
+- class: org.elasticsearch.upgrades.RecoveryIT
+  method: testRecoveryClosedIndex
+  issue: https://github.com/elastic/elasticsearch/issues/151859
+- class: org.elasticsearch.xpack.stateless.StatelessHollowIndexShardsIT
+  method: testCloseWhileShardsAreHollowed
+  issue: https://github.com/elastic/elasticsearch/issues/151861
+- class: org.elasticsearch.action.search.SearchQueryThenFetchAsyncActionTests
+  method: testScrollDisableBottomFieldSort
+  issue: https://github.com/elastic/elasticsearch/issues/151862
+- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
+  method: test {csv-spec:string.convertFromUnsignedLong}
+  issue: https://github.com/elastic/elasticsearch/issues/151871
+- class: org.elasticsearch.index.store.BytesReadHeaderIT
+  method: testMultipleIndicesAccumulateBytesRead
+  issue: https://github.com/elastic/elasticsearch/issues/151874

@@ -16,7 +16,12 @@ import com.tngtech.archunit.lang.ArchRule
 import org.gradle.api.Task
 import spock.lang.Shared
 
+import org.gradle.api.Project
+import org.gradle.api.invocation.Gradle
+import org.gradle.api.artifacts.Configuration
+
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses
+import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noFields
 
 /**
  * Configuration-cache hygiene for task implementations. A {@link Task} that calls
@@ -48,6 +53,19 @@ class ConfigurationCacheArchUnitSpec extends AbstractArchUnitSpec {
             .should().callMethodWhere(targetNamed("getProject"))
             .because("Task.getProject() captures the Project model and breaks the configuration cache; "
                 + "use task properties and injected services instead")
+
+        expect:
+        rule.check(productionClasses)
+    }
+
+    def "task implementations do not hold Project, Gradle or Configuration fields"() {
+        given:
+        ArchRule rule = noFields()
+            .that().areDeclaredInClassesThat().areAssignableTo(Task)
+            .should().haveRawType(Project)
+            .orShould().haveRawType(Gradle)
+            .orShould().haveRawType(Configuration)
+            .because("capturing the Project/Gradle model or a Configuration as task state breaks the configuration cache")
 
         expect:
         rule.check(productionClasses)

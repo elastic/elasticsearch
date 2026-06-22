@@ -2465,11 +2465,10 @@ public class EsqlSecurityIT extends ESRestTestCase {
     }
 
     /**
-     * {@code FROM <dataset>} mirrors PUT's dual-axis authorization on the read path: a read on the dataset
-     * name (the name is routed through the security filter before the rewrite strips it from the plan) plus
-     * {@code global.data_source: read} on the parent datasource (the same {@code authorize_datasource} check
-     * PUT runs). A principal without read on the name gets the same {@code Unknown index} error a missing
-     * index produces — like unauthorized indices and views, dataset existence is not revealed.
+     * {@code FROM <dataset>} requires the index {@code read} privilege on the dataset name — the name is routed
+     * through the security filter before the rewrite strips it from the plan. A principal without read on the name
+     * gets the same {@code Unknown index} error a missing index produces — like unauthorized indices and views,
+     * dataset existence is not revealed.
      */
     public void testFromDatasetDeniedWithoutReadOnName() throws IOException {
         assumeTrue("data_sources REST API not supported by cluster", dataSourcesApiSupported());
@@ -2525,7 +2524,7 @@ public class EsqlSecurityIT extends ESRestTestCase {
         ensureSecurityItDatasourcesForTests();
         final String dataset = createSecurityItDatasetAsAdmin();
         try {
-            // ds_dataset_query_dls holds both axes but its read on `security_it_ds_*` carries a DLS query.
+            // ds_dataset_query_dls has read on `security_it_ds_*` but that read carries a DLS query.
             ResponseException ex = expectThrows(
                 ResponseException.class,
                 () -> runESQLCommand("ds_dataset_query_dls", "FROM " + dataset + " | STATS COUNT(*)")

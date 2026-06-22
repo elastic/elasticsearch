@@ -10,6 +10,11 @@
 // casting int32 → int64 across files A and B) hit a current engine limitation around
 // cross-file column-type widening and are intentionally excluded here. The UBN tests below
 // only project columns that do not require widening.
+//
+// Authored as FROM <dataset>: each test declares its source via a `dataset:` directive. On dataset-capable
+// backends (S3) ParquetFormatSpecIT registers the dataset and runs the FROM query verbatim; the other backends
+// rebuild the equivalent EXTERNAL query. The dataset name encodes the schema_resolution option so the same name
+// always carries the same settings.
 
 // ===== UNION_BY_NAME on divergent Parquet schemas =====
 // Unified schema: name:keyword, age:long (widened), score:double (null in B), city:keyword (null in A)
@@ -18,8 +23,9 @@
 parquetUbnCount
 required_capability: external_command
 required_capability: external_source_read_schema
+dataset: employees_multifile_ubn_union: "{{employees_multifile_ubn}}" WITH {"schema_resolution": "union_by_name"}
 
-EXTERNAL "{{employees_multifile_ubn}}" WITH {"schema_resolution": "union_by_name"}
+FROM employees_multifile_ubn_union
 | STATS count = COUNT(*);
 
 count:long
@@ -29,8 +35,9 @@ count:long
 parquetUbnProjectPruning
 required_capability: external_command
 required_capability: external_source_read_schema
+dataset: employees_multifile_ubn_union: "{{employees_multifile_ubn}}" WITH {"schema_resolution": "union_by_name"}
 
-EXTERNAL "{{employees_multifile_ubn}}" WITH {"schema_resolution": "union_by_name"}
+FROM employees_multifile_ubn_union
 | KEEP name, city
 | SORT name ASC;
 
@@ -49,8 +56,9 @@ dave         | london
 parquetFfwAllRows
 required_capability: external_command
 required_capability: external_source_read_schema
+dataset: employees_multifile_ubn_ffw: "{{employees_multifile_ubn}}" WITH {"schema_resolution": "first_file_wins"}
 
-EXTERNAL "{{employees_multifile_ubn}}" WITH {"schema_resolution": "first_file_wins"}
+FROM employees_multifile_ubn_ffw
 | SORT name ASC;
 warningRegex:Column \[age\] in file \[.*parquet_ubn_b\.parquet\] has type \[LONG\] incompatible with planner type \[INTEGER\]; returning nulls for this column
 warningRegex:Parquet file \[.*parquet_ubn_b\.parquet\] has columns whose on-disk type is incompatible with the planner type; they are returned as null
@@ -65,8 +73,9 @@ dave         | null        | null
 parquetFfwCount
 required_capability: external_command
 required_capability: external_source_read_schema
+dataset: employees_multifile_ubn_ffw: "{{employees_multifile_ubn}}" WITH {"schema_resolution": "first_file_wins"}
 
-EXTERNAL "{{employees_multifile_ubn}}" WITH {"schema_resolution": "first_file_wins"}
+FROM employees_multifile_ubn_ffw
 | STATS count = COUNT(*);
 warningRegex:Column \[age\] in file \[.*parquet_ubn_b\.parquet\] has type \[LONG\] incompatible with planner type \[INTEGER\]; returning nulls for this column
 warningRegex:Parquet file \[.*parquet_ubn_b\.parquet\] has columns whose on-disk type is incompatible with the planner type; they are returned as null
@@ -78,8 +87,9 @@ count:long
 parquetFfwFilterAnchorOnly
 required_capability: external_command
 required_capability: external_source_read_schema
+dataset: employees_multifile_ubn_ffw: "{{employees_multifile_ubn}}" WITH {"schema_resolution": "first_file_wins"}
 
-EXTERNAL "{{employees_multifile_ubn}}" WITH {"schema_resolution": "first_file_wins"}
+FROM employees_multifile_ubn_ffw
 | WHERE score IS NOT NULL
 | KEEP name, score
 | SORT name ASC;

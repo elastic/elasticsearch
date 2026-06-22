@@ -22,6 +22,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.xpack.encryption.spi.EncryptedData;
+import org.elasticsearch.xpack.encryption.spi.EncryptionServiceState;
 
 import java.io.Closeable;
 import java.util.Arrays;
@@ -62,6 +63,7 @@ class ProjectEncryptionKeyService implements AesGcmEncryptionService.KeyProvider
     private final ClusterStateListener clusterStateListener = this::onClusterStateChanged;
     private volatile Settings cachedSettings;
     private volatile KeyCache cache = KeyCache.EMPTY;
+    private volatile boolean encryptionRequired = true;
 
     private ProjectEncryptionKeyService(ClusterService clusterService, ProjectResolver projectResolver, Settings settings) {
         this.clusterService = clusterService;
@@ -72,6 +74,8 @@ class ProjectEncryptionKeyService implements AesGcmEncryptionService.KeyProvider
     static ProjectEncryptionKeyService create(ClusterService clusterService, ProjectResolver projectResolver, Settings settings) {
         ProjectEncryptionKeyService service = new ProjectEncryptionKeyService(clusterService, projectResolver, settings);
         clusterService.addListener(service.clusterStateListener);
+        clusterService.getClusterSettings()
+            .initializeAndWatch(ProjectEncryptionKeyPasswordSettings.ENCRYPTION_REQUIRED, v -> service.encryptionRequired = v);
         return service;
     }
 
@@ -109,6 +113,40 @@ class ProjectEncryptionKeyService implements AesGcmEncryptionService.KeyProvider
     @Nullable
     String getActivePasswordId() {
         return ProjectEncryptionKeyPasswordSettings.getActivePasswordId(cachedSettings);
+    }
+
+    /**
+     * Returns the current {@link EncryptionServiceState} of this node based on the cached cluster-state metadata and secure settings.
+     * This is a read-only snapshot — it does not trigger key unwrapping.
+     */
+    public EncryptionServiceState state() {
+        KeyCache snapshot = cache;
+
+        if (snapshot.activeKeyId == null) {
+            // No PEK installed in cluster state yet.
+            return getActivePasswordId() == null ? EncryptionServiceState.DISABLED : EncryptionServiceState.READY;
+        }
+
+        if (snapshot.decryptedKeys.containsKey(snapshot.activeKeyId)) {
+            return EncryptionServiceState.READY;
+        }
+
+        // PEK installed but not yet (successfully) decrypted. Check proactively whether the password is present.
+        if (ProjectEncryptionKeyPasswordSettings.hasPassword(cachedSettings, snapshot.passwordId) == false) {
+            return EncryptionServiceState.UNAVAILABLE_MISSING_PASSWORD;
+        }
+
+        if (snapshot.lockedKeyIds.contains(snapshot.activeKeyId)) {
+            return EncryptionServiceState.UNAVAILABLE_DECRYPTION_FAILED;
+        }
+
+        // Password present, key not yet tried (e.g., cache just rebuilt from a cluster-state update).
+        return EncryptionServiceState.READY;
+    }
+
+    /** Returns whether callers must refuse to store secrets when the service is not {@link EncryptionServiceState#READY}. */
+    public boolean isEncryptionRequired() {
+        return encryptionRequired;
     }
 
     private void onClusterStateChanged(ClusterChangedEvent event) {

@@ -23,6 +23,7 @@ import java.time.Duration;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -600,6 +601,110 @@ public class CrossClusterLookupJoinIT extends AbstractCrossClusterTestCase {
                 syncEsqlQueryRequest("FROM data,*:data | LOOKUP JOIN lookup ON key | WHERE f1 == 1").filter(new TermQueryBuilder("f2", 2))
             )
         );
+    }
+
+    public void testRemoteLookupJoinIndexScope() throws IOException {
+        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        setupClusters(3);
+        setSkipUnavailable(REMOTE_CLUSTER_1, false);
+        setSkipUnavailable(REMOTE_CLUSTER_2, false);
+
+        var defaultSettings = Settings.builder();
+        createIndexWithDocument(REMOTE_CLUSTER_1, "data", defaultSettings, Map.of("key", 1, "cluster", "remote-1"));
+        createIndexWithDocument(REMOTE_CLUSTER_2, "data", defaultSettings, Map.of("key", 2, "cluster", "remote-2"));
+
+        var lookupSettings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.LOOKUP);
+        createIndexWithDocument(REMOTE_CLUSTER_1, "lookup_remote_1", lookupSettings, Map.of("key", 1, "location", "lookup-remote-1"));
+        createIndexWithDocument(REMOTE_CLUSTER_2, "lookup_remote_2", lookupSettings, Map.of("key", 2, "location", "lookup-remote-2"));
+        createIndexWithDocument(REMOTE_CLUSTER_1, "lookup_remote_both", lookupSettings, Map.of("key", 1, "location", "lookup-remote-b1"));
+        createIndexWithDocument(REMOTE_CLUSTER_2, "lookup_remote_both", lookupSettings, Map.of("key", 2, "location", "lookup-remote-b2"));
+
+        try (EsqlQueryResponse resp = runQuery("""
+            FROM (FROM cluster-a:data | LOOKUP JOIN lookup_remote_1 ON key),
+                 (FROM remote-b:data)
+            | KEEP key, cluster, location
+            | SORT key
+            """, randomBoolean())) {
+            assertThat(
+                getValuesList(resp),
+                equalTo(
+                    List.of(
+                        List.of(1L, "remote-1", "lookup-remote-1"),
+                        Arrays.asList(2L, "remote-2", null)// List.of does not permit nulls
+                    )
+                )
+            );
+        }
+
+        try (EsqlQueryResponse resp = runQuery("""
+            FROM (FROM cluster-a:data),
+                 (FROM remote-b:data | LOOKUP JOIN lookup_remote_2 ON key)
+            | KEEP key, cluster, location
+            | SORT key
+            """, randomBoolean())) {
+            assertThat(
+                getValuesList(resp),
+                equalTo(
+                    List.of(
+                        Arrays.asList(1L, "remote-1", null),// List.of does not permit nulls
+                        List.of(2L, "remote-2", "lookup-remote-2")
+                    )
+                )
+            );
+        }
+
+        try (EsqlQueryResponse resp = runQuery("""
+            FROM (FROM cluster-a:data | LOOKUP JOIN lookup_remote_1 ON key),
+                 (FROM remote-b:data | LOOKUP JOIN lookup_remote_2 ON key)
+            | KEEP key, cluster, location
+            | SORT key
+            """, randomBoolean())) {
+            assertThat(
+                getValuesList(resp),
+                equalTo(
+                    List.of(
+                        //
+                        List.of(1L, "remote-1", "lookup-remote-1"),
+                        List.of(2L, "remote-2", "lookup-remote-2")
+                    )
+                )
+            );
+        }
+
+        try (EsqlQueryResponse resp = runQuery("""
+            FROM (FROM cluster-a:data | LOOKUP JOIN lookup_remote_both ON key),
+                 (FROM remote-b:data | LOOKUP JOIN lookup_remote_both ON key)
+            | KEEP key, cluster, location
+            | SORT key
+            """, randomBoolean())) {
+            assertThat(
+                getValuesList(resp),
+                equalTo(
+                    List.of(
+                        //
+                        List.of(1L, "remote-1", "lookup-remote-b1"),
+                        List.of(2L, "remote-2", "lookup-remote-b2")
+                    )
+                )
+            );
+        }
+
+        try (EsqlQueryResponse resp = runQuery("""
+            FROM *:data | LOOKUP JOIN lookup_remote_both ON key
+            | KEEP key, cluster, location
+            | SORT key
+            """, randomBoolean())) {
+            assertThat(
+                getValuesList(resp),
+                equalTo(
+                    List.of(
+                        //
+                        List.of(1L, "remote-1", "lookup-remote-b1"),
+                        List.of(2L, "remote-2", "lookup-remote-b2")
+                    )
+                )
+            );
+        }
     }
 
     private void createIndexWithDocument(String clusterAlias, String indexName, Settings.Builder settings, Map<String, Object> source) {

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.compute.lucene.query;
 
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.DocIdStream;
 import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.MatchAllDocsQuery;
@@ -54,13 +55,15 @@ public class LuceneCountOperator extends LuceneOperator {
             int taskConcurrency,
             List<ElementType> tagTypes,
             int limit,
-            LongSupplier directoryBytesRead
+            LongSupplier directoryBytesRead,
+            int minDocsPerSlice
         ) {
             super(
                 contexts,
                 queryFunction,
                 // DOC partitioning is now safe for count — see #count(LuceneScorer) which suppresses
-                // the Weight.count() shortcut for sub-segment slices.
+                // the Weight.count() shortcut for sub-segment slices. The leaf-split guard below
+                // keeps shortcut-eligible leaves whole so the leaf-wide shortcut still fires.
                 dataPartitioning,
                 LuceneCountOperator::partitioningStrategyForCount,
                 docThresholdForAutoStrategy,
@@ -68,7 +71,9 @@ public class LuceneCountOperator extends LuceneOperator {
                 limit,
                 false,
                 shardContext -> ScoreMode.COMPLETE_NO_SCORES,
-                directoryBytesRead
+                directoryBytesRead,
+                minDocsPerSlice,
+                LuceneCountOperator::leafHasCountShortcut
             );
             this.shardRefCounters = contexts;
             this.tagTypes = tagTypes;
@@ -84,6 +89,15 @@ public class LuceneCountOperator extends LuceneOperator {
             return "LuceneCountOperator[dataPartitioning = " + dataPartitioning + ", limit = " + limit + "]";
         }
     }
+
+    /**
+     * Upper bound on the number of docs scored per call to {@link #count(LuceneScorer)} when the
+     * leaf-wide {@link Weight#count(LeafReaderContext)} shortcut doesn't apply. Bounds the
+     * uninterrupted scoring time so the surrounding driver loop can check cancellation and refresh
+     * status promptly. Matches the value used by
+     * {@link LuceneTopNSourceOperator}.
+     */
+    private static final int NUM_DOCS_INTERVAL = 1 << 12;
 
     private final List<ElementType> tagTypes;
     private final Map<List<Object>, PerTagsState> tagsToState = new HashMap<>();
@@ -167,9 +181,11 @@ public class LuceneCountOperator extends LuceneOperator {
                 return;
             }
         }
-        // could not apply shortcut, trigger the search
-        // TODO: avoid iterating all documents in multiple calls to make cancellation more responsive.
-        scorer.scoreNextRange(state, leafReaderContext.reader().getLiveDocs(), remainingDocs);
+        // Could not apply the shortcut: iterate the matching docs. Bound per-call work to
+        // NUM_DOCS_INTERVAL so the outer loop can yield to the driver between chunks for
+        // cancellation and status updates. The loop in #getCheckedOutput will keep calling count()
+        // on the same scorer until its slice range is exhausted.
+        scorer.scoreNextRange(state, leafReaderContext.reader().getLiveDocs(), Math.min(remainingDocs, NUM_DOCS_INTERVAL));
     }
 
     private Page buildResult() {
@@ -263,17 +279,37 @@ public class LuceneCountOperator extends LuceneOperator {
     }
 
     /**
-     * We can't use Weight.count() with doc-partitioning because if the query gets cached mid-way, the count becomes incorrect.
-     * Over-counting occurs when some parts are counted doc-by-doc while the first part is counted entirely via the cached shortcut.
-     * Under-counting occurs when the first part is not cached but later parts are, causing those parts to be skipped.
-     * To make doc-partitioning work properly for count, we would need coordination between threads.
+     * Auto strategy for the count operator. Diverges from
+     * {@link LuceneSourceOperator.Factory#autoStrategy(int)}: count picks
+     * {@link LuceneSliceQueue.PartitioningStrategy#DOC} for any non-trivial query.
+     *
+     * <p>Rationale: count's hot path is the leaf-wide {@link Weight#count(LeafReaderContext)}
+     * shortcut. When it returns a value, the {@link #leafHasCountShortcut leaf-split guard}
+     * keeps the leaf whole so the shortcut still fires. When it returns {@code -1} we must
+     * iterate the leaf to count, and at that point we want maximum parallelism — DOC. The
+     * "costly to build scorer" trade-off that pushes the source operator to SEGMENT does not
+     * apply here: count touches each matching doc at most once regardless of strategy.
+     *
+     * <p>{@link MatchAllDocsQuery} and {@link MatchNoDocsQuery} stay on SHARD as explicit fast
+     * paths (no Weight needed; the count is {@code maxDoc - deletedDocs} or {@code 0}).
      */
     static LuceneSliceQueue.PartitioningStrategy partitioningStrategyForCount(Query q) {
         final Query unwrapped = LuceneSourceOperator.Factory.unwrapQuery(q);
         return switch (unwrapped) {
             case MatchAllDocsQuery unused -> LuceneSliceQueue.PartitioningStrategy.SHARD;
             case MatchNoDocsQuery unused -> LuceneSliceQueue.PartitioningStrategy.SHARD;
-            default -> LuceneSliceQueue.PartitioningStrategy.SEGMENT;
+            default -> LuceneSliceQueue.PartitioningStrategy.DOC;
         };
+    }
+
+    /**
+     * Leaf-split guard for the count operator: when {@link Weight#count(LeafReaderContext)}
+     * returns a non-negative value for a leaf, that leaf is emitted as a single full-leaf slice
+     * (bypassing the DOC adaptive splitter). The driver then re-applies
+     * {@code Weight.count(leaf)} via the {@link LuceneOperator.LuceneScorer#coversFullLeaf()}
+     * branch in {@link #count(LuceneScorer)} — a cheap call when the shortcut is supported.
+     */
+    static boolean leafHasCountShortcut(Weight weight, LeafReaderContext leaf) throws IOException {
+        return weight.count(leaf) != -1;
     }
 }

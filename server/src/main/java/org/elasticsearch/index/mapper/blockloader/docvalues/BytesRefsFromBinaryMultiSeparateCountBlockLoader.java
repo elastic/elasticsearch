@@ -10,6 +10,7 @@
 package org.elasticsearch.index.mapper.blockloader.docvalues;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
@@ -29,16 +30,29 @@ import java.io.IOException;
  */
 public class BytesRefsFromBinaryMultiSeparateCountBlockLoader extends BlockDocValuesReader.DocValuesBlockLoader {
 
+    /**
+     * Where a document's array order is recorded.
+     */
+    public enum ArrayOrderSource {
+        NONE,  // no ordering
+        FROM_OFFSETS,  // reconstructs order from a sidebar .offsets field
+        INLINE  // order is already preserved in the binary blob, so reads the blob directly
+    }
+
     private final String fieldName;
-    private final boolean readInArrayOrder;   // whether to emit the values in arrival order at index time
+    private final ArrayOrderSource arrayOrderSource;
 
     public BytesRefsFromBinaryMultiSeparateCountBlockLoader(String fieldName) {
-        this(fieldName, false);
+        this(fieldName, ArrayOrderSource.NONE);
     }
 
     public BytesRefsFromBinaryMultiSeparateCountBlockLoader(String fieldName, boolean readInArrayOrder) {
+        this(fieldName, readInArrayOrder ? ArrayOrderSource.FROM_OFFSETS : ArrayOrderSource.NONE);
+    }
+
+    public BytesRefsFromBinaryMultiSeparateCountBlockLoader(String fieldName, ArrayOrderSource arrayOrderSource) {
         this.fieldName = fieldName;
-        this.readInArrayOrder = readInArrayOrder;
+        this.arrayOrderSource = arrayOrderSource;
     }
 
     @Override
@@ -74,6 +88,16 @@ public class BytesRefsFromBinaryMultiSeparateCountBlockLoader extends BlockDocVa
 
     @Override
     public ColumnAtATimeReader reader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
+        if (arrayOrderSource == ArrayOrderSource.INLINE) {
+            // The ArrayOrderInlineNull format never collapses to "all counts == 1 means single value" (a lone null is count==1 with no
+            // binary blob), so we must always load the counts column and advance on it.
+            BinaryAndCounts bc = BinaryAndCounts.get(breaker, context, fieldName, false);
+            if (bc == null) {
+                // Binary field absent in this segment (only all-null / empty arrays): every value reads as null.
+                return ConstantNull.COLUMN_READER;
+            }
+            return new ArrayOrderInlineNull(bc.binary(), bc.counts());
+        }
         BinaryAndCounts bc = BinaryAndCounts.get(breaker, context, fieldName, true);
         if (bc == null) {
             return ConstantNull.COLUMN_READER;
@@ -81,7 +105,7 @@ public class BytesRefsFromBinaryMultiSeparateCountBlockLoader extends BlockDocVa
         if (bc.counts() == null) {
             return new BytesRefsFromBinaryBlockLoader.BytesRefsFromBinary(bc.binary());
         }
-        if (readInArrayOrder) {
+        if (arrayOrderSource == ArrayOrderSource.FROM_OFFSETS) {
             TrackingSortedDocValues offsets;
             try {
                 offsets = TrackingSortedDocValues.get(breaker, context, FieldArrayContext.offsetsFieldName(fieldName));
@@ -181,6 +205,98 @@ public class BytesRefsFromBinaryMultiSeparateCountBlockLoader extends BlockDocVa
         @Override
         public void close() {
             Releasables.close(super::close, counts, offsets);
+        }
+    }
+
+    /**
+     * Reader for {@link org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField.ArrayOrderInlineNull ArrayOrderInlineNull}.
+     * Drops nulls and emits the non-null values in document order (a single non-null value as a bare value, two or more inside a
+     * position entry). Advances on the {@code .counts} field, since an all-null or empty array writes a count but no binary blob.
+     */
+    static class ArrayOrderInlineNull extends AbstractBytesRefsFromBinaryReader {
+
+        private final TrackingNumericDocValues counts;
+        private final ByteArrayStreamInput in = new ByteArrayStreamInput();
+        private final BytesRef scratch = new BytesRef();
+        private int[] offsets = new int[8];
+        private int[] lengths = new int[8];
+
+        ArrayOrderInlineNull(TrackingBinaryDocValues docValues, TrackingNumericDocValues counts) {
+            super(docValues);
+            this.counts = counts;
+        }
+
+        @Override
+        public int docId() {
+            return counts.docValues().docID();
+        }
+
+        @Override
+        public void read(int doc, BlockLoader.BytesRefBuilder builder) throws IOException {
+            if (counts.docValues().advanceExact(doc) == false) {
+                builder.appendNull(); // field absent for this document
+                return;
+            }
+            int slotCount = Math.toIntExact(counts.docValues().longValue());
+            if (docValues.docValues().advanceExact(doc) == false) {
+                // all-null array or empty array: no non-null values
+                builder.appendNull();
+                return;
+            }
+            BytesRef bytes = docValues.docValues().binaryValue();
+            if (slotCount == 1) {
+                builder.appendBytesRef(bytes); // single non-null value stored raw
+                return;
+            }
+            scratch.bytes = bytes.bytes;
+            in.reset(bytes.bytes, bytes.offset, bytes.length);
+            int nonNull = 0;
+            for (int i = 0; i < slotCount; i++) {
+                int encodedLength = in.readVInt();
+                if (encodedLength == 0) {
+                    continue; // null slot dropped
+                }
+                int length = encodedLength - 1;
+                int offset = in.getPosition();
+                in.setPosition(offset + length);
+                ensureCapacity(nonNull + 1);
+                offsets[nonNull] = offset;
+                lengths[nonNull] = length;
+                nonNull++;
+            }
+            if (nonNull == 0) {
+                // binary present implies at least one non-null value, but stay defensive
+                builder.appendNull();
+            } else if (nonNull == 1) {
+                scratch.offset = offsets[0];
+                scratch.length = lengths[0];
+                builder.appendBytesRef(scratch);
+            } else {
+                builder.beginPositionEntry();
+                for (int i = 0; i < nonNull; i++) {
+                    scratch.offset = offsets[i];
+                    scratch.length = lengths[i];
+                    builder.appendBytesRef(scratch);
+                }
+                builder.endPositionEntry();
+            }
+        }
+
+        private void ensureCapacity(int minSize) {
+            if (offsets.length < minSize) {
+                offsets = ArrayUtil.grow(offsets, minSize);
+                lengths = ArrayUtil.grow(lengths, minSize);
+            }
+        }
+
+        @Override
+        public String toString() {
+            return "BytesRefsFromArrayOrderInlineNullBinarySeparateCount";
+        }
+
+        @Override
+        public void close() {
+            Releasables.close(super::close, counts);
         }
     }
 }

@@ -87,6 +87,7 @@ import org.elasticsearch.xpack.esql.plan.logical.RegisteredDomain;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
+import org.elasticsearch.xpack.esql.plan.logical.UnresolvedIpLocation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UriParts;
 import org.elasticsearch.xpack.esql.plan.logical.UserAgent;
@@ -4866,5 +4867,65 @@ public class StatementParserTests extends AbstractStatementParserTests {
         LogicalPlan cmd = processingCommand("user_agent ua = a WITH { \"original\": true }");
         UserAgent ua = as(cmd, UserAgent.class);
         assertEqualsIgnoringIds(attribute("a"), ua.getInput());
+    }
+
+    // --- IP_LOCATION tests ---
+
+    public void testIpLocationCommand() {
+        assumeTrue("requires ip_location command capability", EsqlCapabilities.Cap.IP_LOCATION_COMMAND.isEnabled());
+        LogicalPlan cmd = processingCommand("ip_location g = a");
+        UnresolvedIpLocation ip = as(cmd, UnresolvedIpLocation.class);
+        assertEqualsIgnoringIds(attribute("a"), ip.input());
+        assertEquals("GeoLite2-City.mmdb", ip.databaseFile());
+        assertTrue(ip.firstOnly());
+        assertNull(ip.properties());
+    }
+
+    public void testIpLocationCommandWithOptions() {
+        assumeTrue("requires ip_location command capability", EsqlCapabilities.Cap.IP_LOCATION_COMMAND.isEnabled());
+        LogicalPlan cmd = processingCommand(
+            "ip_location g = a WITH { \"database_file\": \"GeoLite2-Country.mmdb\", \"first_only\": false }"
+        );
+        UnresolvedIpLocation ip = as(cmd, UnresolvedIpLocation.class);
+        assertEqualsIgnoringIds(attribute("a"), ip.input());
+        assertEquals("GeoLite2-Country.mmdb", ip.databaseFile());
+        assertFalse(ip.firstOnly());
+    }
+
+    public void testIpLocationCommandWithProperties() {
+        assumeTrue("requires ip_location command capability", EsqlCapabilities.Cap.IP_LOCATION_COMMAND.isEnabled());
+        LogicalPlan cmd = processingCommand("ip_location g = a WITH { \"properties\": [\"city_name\", \"country_iso_code\"] }");
+        UnresolvedIpLocation ip = as(cmd, UnresolvedIpLocation.class);
+        assertEquals(List.of("city_name", "country_iso_code"), ip.properties());
+    }
+
+    public void testIpLocationCommandUnknownOption() {
+        assumeTrue("requires ip_location command capability", EsqlCapabilities.Cap.IP_LOCATION_COMMAND.isEnabled());
+        expectError("row a = \"test\" | ip_location g = a WITH { \"unknown_option\": \"value\" }", "Invalid option");
+    }
+
+    public void testIpLocationCommandEmptyPropertiesRejected() {
+        assumeTrue("requires ip_location command capability", EsqlCapabilities.Cap.IP_LOCATION_COMMAND.isEnabled());
+        // ES|QL has no empty-array literal; an empty list is rejected as a syntax error rather than producing zero columns.
+        expectError("row a = \"test\" | ip_location g = a WITH { \"properties\": [] }", "no viable alternative at input '[]'");
+    }
+
+    public void testIpLocationCommandFirstOnlyAcceptsBothValues() {
+        assumeTrue("requires ip_location command capability", EsqlCapabilities.Cap.IP_LOCATION_COMMAND.isEnabled());
+        LogicalPlan cmdTrue = processingCommand("ip_location g = a WITH { \"first_only\": true }");
+        UnresolvedIpLocation ipTrue = as(cmdTrue, UnresolvedIpLocation.class);
+        assertTrue(ipTrue.firstOnly());
+
+        LogicalPlan cmdFalse = processingCommand("ip_location g = a WITH { \"first_only\": false }");
+        UnresolvedIpLocation ipFalse = as(cmdFalse, UnresolvedIpLocation.class);
+        assertFalse(ipFalse.firstOnly());
+    }
+
+    public void testIpLocationCommandFirstOnlyTypeMismatch() {
+        assumeTrue("requires ip_location command capability", EsqlCapabilities.Cap.IP_LOCATION_COMMAND.isEnabled());
+        expectError(
+            "row a = \"test\" | ip_location g = a WITH { \"first_only\": \"yes\" }",
+            "Option [first_only] must be a boolean literal"
+        );
     }
 }

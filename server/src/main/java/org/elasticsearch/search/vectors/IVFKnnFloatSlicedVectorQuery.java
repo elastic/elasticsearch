@@ -48,7 +48,7 @@ public class IVFKnnFloatSlicedVectorQuery extends IVFKnnFloatVectorQuery {
      * @param filter the filter to apply to the results
      * @param visitRatio the ratio of vectors to score for the IVF search strategy
      * @param sliceField the field used for slicing the index
-     * @param sliceIds the slices to be search
+     * @param sliceIds the slices to be searched. If the array is empty, all slices are searched
      */
     public IVFKnnFloatSlicedVectorQuery(
         String field,
@@ -64,7 +64,6 @@ public class IVFKnnFloatSlicedVectorQuery extends IVFKnnFloatVectorQuery {
         super(field, query, k, numCands, filter, visitRatio, queryConfigResolver);
         this.sliceField = Objects.requireNonNull(sliceField);
         this.sliceIds = Objects.requireNonNull(sliceIds);
-        assert sliceIds.length > 0;
     }
 
     @Override
@@ -97,9 +96,14 @@ public class IVFKnnFloatSlicedVectorQuery extends IVFKnnFloatVectorQuery {
         }
         // Get ordinals sorted so we can share the iterator of the filter if it exists. Note that it means tht in case
         // of filters, we cannot process slices in parallel as the iterator needs to be consume in order.
-        final int[] ords = sliceToSortedOrds(sortedDocValues, sliceIds);
-        if (ords.length == 0) {
-            return NO_RESULTS;
+        final int[] ords;
+        if (sliceIds.length > 0) {
+            ords = sliceToSortedOrds(sortedDocValues, sliceIds);
+            if (ords.length == 0) {
+                return NO_RESULTS;
+            }
+        } else {
+            ords = null;
         }
         final DocValuesSkipper skipper = ctx.reader().getDocValuesSkipper(sliceField);
         if (skipper == null) {
@@ -134,19 +138,36 @@ public class IVFKnnFloatSlicedVectorQuery extends IVFKnnFloatVectorQuery {
             docIdIteratorSupplier = null;
             costSupplier = null;
         }
-        for (int i = 0; i < ords.length; i++) {
-            assert i == 0 || ords[i - 1] < ords[i];
-            approximateSearchForOneSlice(
-                sortedDocValues,
-                skipper,
-                ords[i],
-                knnCollector,
-                docIdIteratorSupplier,
-                costSupplier,
-                liveDocs,
-                maxDoc,
-                ctx
-            );
+        if (ords != null) {
+            for (int i = 0; i < ords.length; i++) {
+                assert i == 0 || ords[i - 1] < ords[i];
+                approximateSearchForOneSlice(
+                    sortedDocValues,
+                    skipper,
+                    ords[i],
+                    knnCollector,
+                    docIdIteratorSupplier,
+                    costSupplier,
+                    liveDocs,
+                    maxDoc,
+                    ctx
+                );
+            }
+        } else {
+            int numOrds = sortedDocValues.getValueCount();
+            for (int i = 0; i < numOrds; i++) {
+                approximateSearchForOneSlice(
+                    sortedDocValues,
+                    skipper,
+                    i,
+                    knnCollector,
+                    docIdIteratorSupplier,
+                    costSupplier,
+                    liveDocs,
+                    maxDoc,
+                    ctx
+                );
+            }
         }
         TopDocs results = knnCollector instanceof BulkKnnCollector bulkKnnCollector
             ? bulkKnnCollector.unsortedTopK()

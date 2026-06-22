@@ -21,6 +21,8 @@ import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
+import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.paramAsConstant;
@@ -39,6 +41,10 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.startsWith;
 
 public class LookupJoinParserTests extends AbstractStatementParserTests {
+
+    // Keywords active in the JOIN lexer mode (see lexer/Join.g4); an unquoted index whose name equals
+    // one of these is lexed as the keyword instead of an UNQUOTED_SOURCE, changing the parse error.
+    private static final Set<String> JOIN_MODE_KEYWORDS = Set.of("on", "as", "join", "using");
 
     public void testValidJoinPatternFieldJoin() {
         var basePattern = randomIndexPatterns(without(CROSS_CLUSTER));
@@ -324,10 +330,14 @@ public class LookupJoinParserTests extends AbstractStatementParserTests {
             {
                 // Selectors are not yet supported in join patterns on the right.
                 // Unquoted case: The language specification does not allow mixing `:` and `::` characters in an index expression
-                var joinPattern = randomIndexPattern(without(CROSS_CLUSTER), without(WILDCARD_PATTERN), without(DATE_MATH), INDEX_SELECTOR);
                 // We do different validation based on the quotation of the pattern, so forcefully unquote the expression instead of leaving
                 // it to chance.
-                joinPattern = unquoteIndexPattern(joinPattern);
+                var joinPattern = unquoteIndexPattern(
+                    randomValueOtherThanMany(
+                        p -> JOIN_MODE_KEYWORDS.contains(unquoteIndexPattern(p).split("::", 2)[0].toLowerCase(Locale.ROOT)),
+                        () -> randomIndexPattern(without(CROSS_CLUSTER), without(WILDCARD_PATTERN), without(DATE_MATH), INDEX_SELECTOR)
+                    )
+                );
                 expectError(
                     "FROM " + randomIndexPatterns(without(CROSS_CLUSTER)) + " | LOOKUP JOIN " + joinPattern + " ON " + onClause,
                     "no viable alternative at input "

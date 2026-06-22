@@ -120,7 +120,7 @@ public class MatchOnlyTextFieldMapperTests extends MapperTestCase {
         if (FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled()) {
             checker.registerConflictCheck("doc_values", b -> b.field("doc_values", true));
         }
-        if (IndexSettings.INDEX_DISABLED_BY_DEFAULT_FEATURE_FLAG.isEnabled()) {
+        if (IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled()) {
             checker.registerConflictCheck("index", b -> b.field("index", false));
         }
     }
@@ -704,8 +704,8 @@ public class MatchOnlyTextFieldMapperTests extends MapperTestCase {
     }
 
     @Override
-    protected DocValuesType expectedSingleValuedDocValuesType() {
-        // match_only_text defaults to HIGH cardinality, which uses binary doc values
+    protected DocValuesType expectedDocValuesTypeForMultiValueFalse() {
+        // match_only_text defaults to HIGH cardinality, which uses binary doc values — that path is unchanged by the write-side fix
         return DocValuesType.BINARY;
     }
 
@@ -740,8 +740,8 @@ public class MatchOnlyTextFieldMapperTests extends MapperTestCase {
         String v1 = randomAlphanumericOfLength(4);
         String v2 = randomAlphanumericOfLength(4);
         String v3 = randomAlphanumericOfLength(4);
-        // Duplicate v2 and an interleaved null: sorted-deduped doc-values order would reorder/collapse them and drop the null; the offsets
-        // sidecar must restore arrival order, the duplicate, and the null position.
+        // Duplicate v2 and an interleaved null: sorted-deduped doc-values order would reorder/collapse them and drop the null; the in-order
+        // binary doc values must restore arrival order, the duplicate, and the null position.
         assertThat(
             syntheticSource(mapper, b -> b.array("field", v2, v1, null, v3, v2)),
             containsString("\"field\":[\"" + v2 + "\",\"" + v1 + "\",null,\"" + v3 + "\",\"" + v2 + "\"]")
@@ -833,8 +833,8 @@ public class MatchOnlyTextFieldMapperTests extends MapperTestCase {
         assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
 
         // A plain keyword multi-field (dv-backed, no normalizer/ignore_above/null_value) is a complete copy of the raw values, so the field
-        // skips its own doc values (and offsets) and loads through the delegate; the keyword's doc values are the only copy that is
-        // written.
+        // skips its own doc values and loads through the delegate; the keyword's doc values are the only copy that is written. When the
+        // field instead keeps its own doc values, in strict columnar mode it stores them in document order (no offsets sidecar).
         assertDocValuesDedup(b -> {}, false);
         // null_value on the keyword delegate substitutes values, so the keyword copy is not byte-identical and the field keeps its own.
         assertDocValuesDedup(b -> b.field("null_value", "NULL"), true);
@@ -880,7 +880,10 @@ public class MatchOnlyTextFieldMapperTests extends MapperTestCase {
             }
         }
         assertThat("field's own binary doc values", hasOwnBinaryDocValues, equalTo(expectsOwnDocValues));
-        assertThat("field's own offsets sidecar", hasOwnOffsets, equalTo(expectsOwnDocValues));
+        // High-cardinality columnar fields store values in document order in their own binary doc values, never via a sidecar offsets
+        // field.
+        assertFalse("field's own offsets sidecar", hasOwnOffsets);
+        assertThat("field stores array values in order", fieldMapper.storesArrayValuesInOrder(), equalTo(expectsOwnDocValues));
     }
 
     public void testDocValuesExplicitlyDisabled() throws IOException {

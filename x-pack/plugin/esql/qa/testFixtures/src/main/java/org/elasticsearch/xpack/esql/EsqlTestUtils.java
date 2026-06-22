@@ -15,6 +15,7 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.RemoteException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
@@ -54,6 +55,11 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.RoutingPathFields;
 import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.ingest.geoip.IpDatabase;
+import org.elasticsearch.ingest.geoip.IpDatabaseProvider;
+import org.elasticsearch.ingest.geoip.IpLocationServiceAdapter;
+import org.elasticsearch.iplocation.api.IpDataLookupInfo;
+import org.elasticsearch.iplocation.api.IpLocationService;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -71,6 +77,7 @@ import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerSettings;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
+import org.elasticsearch.xpack.esql.analysis.IpLocationResolution;
 import org.elasticsearch.xpack.esql.analysis.MutableAnalyzerContext;
 import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
 import org.elasticsearch.xpack.esql.analysis.Verifier;
@@ -692,6 +699,42 @@ public final class EsqlTestUtils {
     }
 
     public static final EsqlFunctionRegistry TEST_FUNCTION_REGISTRY = new EsqlFunctionRegistry();
+
+    /**
+     * A lightweight {@link IpLocationService} for parse-time tests. Backed by a null-returning
+     * {@link IpDatabaseProvider} so that {@code getIpDataLookupInfo} resolves database schemas
+     * from filenames (via {@link IpLocationServiceAdapter}) without requiring actual database files.
+     */
+    public static final IpLocationService TEST_IP_LOCATION_SERVICE = IpLocationServiceAdapter.fromDatabaseProvider(
+        new IpDatabaseProvider() {
+            @Override
+            public Boolean isValid(ProjectId projectId, String name) {
+                return true;
+            }
+
+            @Override
+            public IpDatabase getDatabase(ProjectId projectId, String name) {
+                return null;
+            }
+        }
+    );
+
+    /**
+     * Service-backed {@link IpLocationResolution} for analyzer tests. Production builds a prefetched, plan-derived resolution in
+     * {@code EsqlSession}; the test analyzer context is built before the query plan is known, so it instead resolves database
+     * metadata on demand against {@link #TEST_IP_LOCATION_SERVICE}.
+     */
+    public static final IpLocationResolution TEST_IP_LOCATION_RESOLUTION = new IpLocationResolution() {
+        @Override
+        public boolean serviceAvailable() {
+            return true;
+        }
+
+        @Override
+        public IpDataLookupInfo databaseInfo(String databaseFile) {
+            return TEST_IP_LOCATION_SERVICE.getIpDataLookupInfo(databaseFile);
+        }
+    };
 
     public static final EsqlParser TEST_PARSER = new EsqlParser(new EsqlConfig(TEST_FUNCTION_REGISTRY));
 

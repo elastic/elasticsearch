@@ -629,9 +629,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.datasources.CompressionDelegatingFormatReaderTests
   method: testDelegatesMetadataAndReadZstd
   issue: https://github.com/elastic/elasticsearch/issues/151784
-- class: org.elasticsearch.search.msearch.MultiSearchIT
-  method: testBreakerAccountingEndToEnd
-  issue: https://github.com/elastic/elasticsearch/issues/151786
 - class: org.elasticsearch.xpack.esql.expression.function.aggregate.PercentileTests
   method: "testAggregateIntermediate {TestCase=<exponential_histogram>, <long> #3}"
   issue: https://github.com/elastic/elasticsearch/issues/151787

@@ -13,8 +13,11 @@ import fixture.azure.AzureHttpFixture;
 import fixture.azure.MockAzureBlobStore;
 
 import com.azure.core.exception.HttpResponseException;
+import com.azure.storage.blob.BlobClient;
 import com.azure.storage.blob.BlobContainerClient;
 import com.azure.storage.blob.BlobServiceClient;
+import com.azure.storage.blob.models.AccessTier;
+import com.azure.storage.blob.models.BlobProperties;
 import com.azure.storage.blob.models.BlobStorageException;
 
 import org.elasticsearch.ExceptionsHelper;
@@ -28,6 +31,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.OperationPurpose;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.SecureSettings;
@@ -39,17 +43,22 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.AbstractThirdPartyRepositoryTestCase;
+import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.rest.RestStatus;
 import org.junit.ClassRule;
 
 import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
+import java.io.ByteArrayInputStream;
 import java.net.HttpURLConnection;
 import java.nio.channels.Channels;
 import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.List;
+import java.util.Optional;
 import java.util.zip.CRC32;
 import java.util.zip.CheckedInputStream;
 import java.util.zip.CheckedOutputStream;
@@ -59,6 +68,7 @@ import static org.elasticsearch.common.io.Streams.limitStream;
 import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomPurpose;
 import static org.hamcrest.Matchers.blankOrNullString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.not;
 
@@ -297,5 +307,108 @@ public class AzureStorageCleanupThirdPartyTests extends AbstractThirdPartyReposi
             )
         );
         destinationBlobContainer.delete(randomPurpose());
+    }
+
+    /**
+     * Verifies that the {@code data_access_tier} / {@code metadata_access_tier} settings are applied to the correct uploads. We configure
+     * two distinct access tiers, write blobs with each {@link OperationPurpose} via the single-part, multi-part and server-side copy paths,
+     * and read the access tier back from the blob properties.
+     */
+    public void testAccessTierPerOperationPurpose() throws Exception {
+        final List<AccessTier> accessTiers = shuffledList(new ArrayList<>(AzureBlobStore.ALLOWED_ACCESS_TIERS_BY_LOWER_NAME.values()));
+        final AccessTier dataAccessTier = accessTiers.get(0);
+        final AccessTier metadataAccessTier = accessTiers.get(1);
+        logger.info("--> data_access_tier [{}], metadata_access_tier [{}]", dataAccessTier, metadataAccessTier);
+
+        final String repoName = "test-access-tier-repo";
+        final AcknowledgedResponse putRepositoryResponse = clusterAdmin().preparePutRepository(
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
+            repoName
+        )
+            .setType("azure")
+            .setSettings(
+                Settings.builder()
+                    .put("container", System.getProperty("test.azure.container"))
+                    .put("base_path", System.getProperty("test.azure.base") + randomAlphaOfLength(8))
+                    .put(AzureRepository.Repository.MAX_SINGLE_PART_UPLOAD_SIZE_SETTING.getKey(), ByteSizeValue.of(1, ByteSizeUnit.MB))
+                    .put(AzureRepository.Repository.DATA_ACCESS_TIER_SETTING.getKey(), dataAccessTier.toString())
+                    .put(AzureRepository.Repository.METADATA_ACCESS_TIER_SETTING.getKey(), metadataAccessTier.toString())
+            )
+            .get();
+        assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
+
+        try {
+            final BlobStoreRepository repository = (BlobStoreRepository) getInstanceFromNode(RepositoriesService.class).repository(
+                repoName
+            );
+            final AzureBlobStore blobStore = asInstanceOf(AzureBlobStore.class, repository.blobStore());
+            final BlobContainer blobContainer = blobStore.blobContainer(repository.basePath());
+            final String keyPrefix = repository.basePath().buildAsString();
+            try {
+                // a purpose that resolves to no explicit access tier (i.e. neither SNAPSHOT_DATA nor SNAPSHOT_METADATA)
+                final OperationPurpose noTierPurpose = randomFrom(
+                    OperationPurpose.REPOSITORY_ANALYSIS,
+                    OperationPurpose.CLUSTER_STATE,
+                    OperationPurpose.INDICES,
+                    OperationPurpose.TRANSLOG
+                );
+                for (final OperationPurpose purpose : List.of(
+                    OperationPurpose.SNAPSHOT_DATA,
+                    OperationPurpose.SNAPSHOT_METADATA,
+                    noTierPurpose
+                )) {
+                    final Optional<AccessTier> expectedTier = blobStore.resolveAccessTier(purpose);
+
+                    // single-part upload (blob stays below the multipart threshold)
+                    final String singlePartName = randomIdentifier();
+                    final BytesReference singlePartBytes = randomBytesReference(between(1, 512));
+                    blobContainer.writeBlob(purpose, singlePartName, singlePartBytes, true);
+                    assertAccessTier(blobStore, keyPrefix + singlePartName, expectedTier, "single-part upload", purpose);
+
+                    // multi-part upload (exceeds the single-part threshold so the block list upload path is used)
+                    final String multiPartName = randomIdentifier();
+                    final int multiPartSize = Math.toIntExact(blobStore.getLargeBlobThresholdInBytes()) + between(1, 1024);
+                    final byte[] multiPartBytes = randomByteArrayOfLength(multiPartSize);
+                    blobContainer.writeBlob(purpose, multiPartName, new ByteArrayInputStream(multiPartBytes), multiPartSize, true);
+                    assertAccessTier(blobStore, keyPrefix + multiPartName, expectedTier, "multi-part upload", purpose);
+
+                    // server-side copy (source is the small single-part blob written above)
+                    final String copyName = randomIdentifier();
+                    blobContainer.copyBlob(purpose, blobContainer, singlePartName, copyName, singlePartBytes.length());
+                    assertAccessTier(blobStore, keyPrefix + copyName, expectedTier, "server-side copy", purpose);
+                }
+            } finally {
+                blobContainer.delete(randomPurpose());
+            }
+        } finally {
+            clusterAdmin().prepareDeleteRepository(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, repoName).get();
+        }
+    }
+
+    private static void assertAccessTier(
+        AzureBlobStore blobStore,
+        String blobKey,
+        Optional<AccessTier> expectedTier,
+        String uploadType,
+        OperationPurpose purpose
+    ) {
+        final BlobServiceClient client = blobStore.getService()
+            .client(ProjectId.DEFAULT, "default", LocationMode.PRIMARY_ONLY, purpose)
+            .getSyncClient();
+        final BlobClient blobClient = client.getBlobContainerClient(blobStore.toString()).getBlobClient(blobKey);
+        final BlobProperties properties = blobClient.getProperties();
+        final String message = uploadType + " with purpose [" + purpose + "]";
+        if (expectedTier.isPresent()) {
+            assertThat(message, properties.getAccessTier(), equalTo(expectedTier.get()));
+            assertThat(message + " should carry an explicit tier", Boolean.TRUE.equals(properties.isAccessTierInferred()), is(false));
+        } else {
+            // No tier configured: the fixture reports no tier, while a real account reports its inferred default tier
+            assertThat(
+                message + " should not carry an explicit tier",
+                properties.getAccessTier() == null || Boolean.TRUE.equals(properties.isAccessTierInferred()),
+                is(true)
+            );
+        }
     }
 }

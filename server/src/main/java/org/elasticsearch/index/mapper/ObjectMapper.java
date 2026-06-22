@@ -15,7 +15,6 @@ import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Explicit;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
@@ -36,6 +35,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
@@ -759,7 +759,9 @@ public class ObjectMapper extends Mapper {
     protected final Dynamic dynamic;
 
     protected final Map<String, Mapper> mappers;
-    private final String[] sortedFieldNames;
+    // Pre-computed set of all dot-path prefixes of mapped field names, used by hasMappedFieldsWithPrefix.
+    // Only populated when subobjects is DISABLED, since that is the only call site.
+    private final Set<String> mappedPrefixes;
 
     ObjectMapper(
         String name,
@@ -780,12 +782,22 @@ public class ObjectMapper extends Mapper {
         this.dynamic = dynamic;
         if (mappers == null) {
             this.mappers = Map.of();
-            this.sortedFieldNames = Strings.EMPTY_ARRAY;
+            this.mappedPrefixes = Set.of();
         } else {
             this.mappers = Map.copyOf(mappers);
-            String[] names = mappers.keySet().toArray(String[]::new);
-            Arrays.sort(names);
-            sortedFieldNames = names;
+            if (subobjects.value() == Subobjects.DISABLED) {
+                Set<String> prefixes = new HashSet<>();
+                for (String fieldName : mappers.keySet()) {
+                    int dot = fieldName.indexOf('.');
+                    while (dot >= 0) {
+                        prefixes.add(fieldName.substring(0, dot));
+                        dot = fieldName.indexOf('.', dot + 1);
+                    }
+                }
+                this.mappedPrefixes = prefixes.isEmpty() ? Set.of() : Set.copyOf(prefixes);
+            } else {
+                this.mappedPrefixes = Set.of();
+            }
         }
         assert subobjects.value() != Subobjects.DISABLED || this.mappers.values().stream().noneMatch(m -> m instanceof ObjectMapper)
             : "When subobjects is false, mappers must not contain an ObjectMapper";
@@ -842,13 +854,8 @@ public class ObjectMapper extends Mapper {
      * Used to detect intermediate object segments when {@code subobjects} is disabled.
      */
     public boolean hasMappedFieldsWithPrefix(String prefix) {
-        String searchKey = prefix + ".";
-        int idx = Arrays.binarySearch(sortedFieldNames, searchKey);
-        if (idx >= 0) {
-            return true;
-        }
-        int insertionPoint = ~idx;
-        return insertionPoint < sortedFieldNames.length && sortedFieldNames[insertionPoint].startsWith(searchKey);
+        assert prefix.endsWith(".") == false : "prefix must not end with a dot";
+        return mappedPrefixes.contains(prefix);
     }
 
     @Override

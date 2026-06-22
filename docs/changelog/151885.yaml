@@ -2,5 +2,5 @@ area: ES|QL
 issues:
  - 123389
 pr: 151885
-summary: FUSE is GA in 9.5.0
+summary: Make FUSE command GA
 type: feature

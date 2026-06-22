@@ -107,11 +107,7 @@ public final class ManifoldModel {
         int[] corpusOrdinals,
         int k
     ) throws IOException {
-        return estimateManifoldParameters(similarityFunction, dim, queries, fvv, corpusOrdinals, k, ranksForK(k));
-    }
-
-    static int[] ranksForK(int k) {
-        return ranksFromMultipliers(k);
+        return estimateManifoldParameters(similarityFunction, dim, queries, fvv, corpusOrdinals, k, ranksFromMultipliers(k));
     }
 
     private static int[] ranksFromMultipliers(int k) {
@@ -216,6 +212,7 @@ public final class ManifoldModel {
         private final int capacity;
         private final float[] buffer;
         private final float[] scratch;
+        private final float[] bulkDistances;
         private int size;
         private int maxIndex;
 
@@ -224,22 +221,49 @@ public final class ManifoldModel {
             this.capacity = capacity;
             this.buffer = new float[capacity];
             this.scratch = new float[capacity];
+            this.bulkDistances = new float[4];
         }
 
         void add(float[] query, FloatVectorValues fvv, int[] corpusOrdinals, int startDoc, int endDoc) throws IOException {
             boolean dotLike = isDotLike(similarityFunction);
-            for (int d = startDoc; d < endDoc; d++) {
+            int d = startDoc;
+            int bulkLimit = endDoc - 3;
+            while (d < bulkLimit) {
+                float[] v0 = fvv.vectorValue(corpusOrdinals[d]);
+                float[] v1 = fvv.vectorValue(corpusOrdinals[d + 1]);
+                float[] v2 = fvv.vectorValue(corpusOrdinals[d + 2]);
+                float[] v3 = fvv.vectorValue(corpusOrdinals[d + 3]);
+                if (dotLike) {
+                    ESVectorUtil.dotProductBulk(query, v0, v1, v2, v3, 0, bulkDistances);
+                    considerCandidate(-bulkDistances[0]);
+                    considerCandidate(-bulkDistances[1]);
+                    considerCandidate(-bulkDistances[2]);
+                    considerCandidate(-bulkDistances[3]);
+                } else {
+                    ESVectorUtil.squareDistanceBulk(query, 0, query.length, v0, v1, v2, v3, bulkDistances);
+                    considerCandidate(bulkDistances[0]);
+                    considerCandidate(bulkDistances[1]);
+                    considerCandidate(bulkDistances[2]);
+                    considerCandidate(bulkDistances[3]);
+                }
+                d += 4;
+            }
+            for (; d < endDoc; d++) {
                 float[] doc = fvv.vectorValue(corpusOrdinals[d]);
                 float dist = dotLike ? -ESVectorUtil.dotProduct(query, doc) : ESVectorUtil.squareDistance(query, doc);
-                if (size < capacity) {
-                    buffer[size++] = dist;
-                    if (size == capacity) {
-                        updateMaxIndex();
-                    }
-                } else if (dist < buffer[maxIndex]) {
-                    buffer[maxIndex] = dist;
+                considerCandidate(dist);
+            }
+        }
+
+        private void considerCandidate(float dist) {
+            if (size < capacity) {
+                buffer[size++] = dist;
+                if (size == capacity) {
                     updateMaxIndex();
                 }
+            } else if (dist < buffer[maxIndex]) {
+                buffer[maxIndex] = dist;
+                updateMaxIndex();
             }
         }
 

@@ -9,8 +9,8 @@ deprecation:
     in one operation, use the existing wildcard support for settings (e.g. `"logger.*": null`) rather than attempting to
     configure a high level logger (e.g. `"logger.org.elasticsearch": "INFO"`)
   title: Implicit configuration of child loggers on logger setting updates is deprecated.
-issues: [65208]
+issues: []
 pr: 151637
-summary: |-
-  Implicit configuration of child loggers on logger setting updates is deprecated, this behavior will be removed in 10.0.
+summary: "Implicit configuration of child loggers on logger setting updates is deprecated,\
+  \ this behavior will be removed in 10.0."
 type: deprecation

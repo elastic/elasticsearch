@@ -43,6 +43,7 @@ import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.repositories.azure.executors.ReactorScheduledExecutorService;
 import org.elasticsearch.rest.RestStatus;
@@ -53,6 +54,7 @@ import java.time.Duration;
 import java.util.Optional;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.repositories.azure.AzureRepositoryPlugin.NETTY_EVENT_LOOP_THREAD_POOL_NAME;
@@ -264,14 +266,13 @@ class AzureClientProvider extends AbstractLifecycleComponent {
                 if (signalType != SignalType.ON_COMPLETE) {
                     logger.info("Got unexpected signal type disposing connection provider: {}", signalType);
                 }
-                // Now safe to shut down the event loop
-                eventLoopGroup.shutdownGracefully().addListener(future -> {
-                    if (future.isSuccess() == false) {
-                        logger.warn("Error shutting down Azure event loop, but resetting schedulers anyway", future.cause());
-                    }
+                // Now it's safe to shut down the event loop
+                try {
+                    FutureUtils.get(eventLoopGroup.shutdownGracefully(), 10, TimeUnit.SECONDS);
+                } finally {
                     // Now everything is shut down, reset the factory to clear any cached schedulers
                     Schedulers.resetFactory();
-                });
+                }
             })
             .subscribe(null, throwable -> logger.warn("Error shutting down connection provider", throwable));
     }

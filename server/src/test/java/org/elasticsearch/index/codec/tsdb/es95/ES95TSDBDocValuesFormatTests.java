@@ -85,10 +85,6 @@ public class ES95TSDBDocValuesFormatTests extends AbstractTSDBDocValuesFormatTes
         );
     }
 
-    /**
-     * Monotonically increasing values exercise the ideal pipeline path: constant deltas,
-     * offset removal, GCD factoring, and near-zero-bit bitpacking.
-     */
     public void testMonotonicTimestamps() throws IOException {
         final long base = BASE_TIMESTAMP;
         final long interval = 10_000L;
@@ -117,10 +113,6 @@ public class ES95TSDBDocValuesFormatTests extends AbstractTSDBDocValuesFormatTes
         }
     }
 
-    /**
-     * All-constant values: deltas are zero, offset is zero, GCD is irrelevant, bitpacking
-     * should use zero bits per value.
-     */
     public void testConstantValues() throws IOException {
         final long constantValue = random().nextLong();
         final int numDocs = 1024;
@@ -148,10 +140,6 @@ public class ES95TSDBDocValuesFormatTests extends AbstractTSDBDocValuesFormatTes
         }
     }
 
-    /**
-     * Values that share a common factor exercise the GCD pipeline stage, which should
-     * detect the factor and divide all values to reduce the bit width.
-     */
     public void testGcdFriendlyValues() throws IOException {
         final long gcd = 1000L;
         final int numDocs = 1024;
@@ -183,11 +171,6 @@ public class ES95TSDBDocValuesFormatTests extends AbstractTSDBDocValuesFormatTes
         }
     }
 
-    /**
-     * Write a segment with ES819, write another with ES95, force merge into ES95.
-     * This verifies ES95 can consume ES819 segments during merge (the reverse of
-     * what {@link #testAddIndices()} covers).
-     */
     public void testMergeES819IntoES95() throws IOException {
         final int numDocs = 512;
         final long[] values = new long[numDocs];
@@ -230,10 +213,6 @@ public class ES95TSDBDocValuesFormatTests extends AbstractTSDBDocValuesFormatTes
         }
     }
 
-    /**
-     * Verify that both supported block sizes (128 and 512 values per block) produce
-     * correct results.
-     */
     public void testBothBlockSizes() throws IOException {
         final int numDocs = 1024;
         final long[] values = new long[numDocs];
@@ -284,11 +263,6 @@ public class ES95TSDBDocValuesFormatTests extends AbstractTSDBDocValuesFormatTes
         }
     }
 
-    /**
-     * Multi-valued sorted numeric fields must also go through the pipeline correctly.
-     * Each document gets a random number of values (1-5) and all values are verified
-     * after round-tripping through the codec.
-     */
     public void testSortedNumericWithPipeline() throws IOException {
         final int numDocs = 1024;
         final long[][] expected = new long[numDocs][];

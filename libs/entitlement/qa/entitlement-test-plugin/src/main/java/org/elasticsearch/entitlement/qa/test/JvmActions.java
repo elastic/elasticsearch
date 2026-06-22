@@ -115,12 +115,12 @@ class JvmActions {
         MethodHandles.lookup().defineClass(new byte[0]);
     }
 
-    @EntitlementTest(expectedAccess = ES_MODULES_ONLY, expectedExceptionIfDenied = IllegalAccessException.class)
+    @EntitlementTest(expectedAccess = ES_MODULES_ONLY, expectedExceptionIfDenied = IllegalAccessException.class, fromJavaVersion = 21)
     static void defineHiddenClass() throws IllegalAccessException {
         MethodHandles.lookup().defineHiddenClass(new byte[0], false);
     }
 
-    @EntitlementTest(expectedAccess = ES_MODULES_ONLY, expectedExceptionIfDenied = IllegalAccessException.class)
+    @EntitlementTest(expectedAccess = ES_MODULES_ONLY, expectedExceptionIfDenied = IllegalAccessException.class, fromJavaVersion = 21)
     static void defineHiddenClassWithClassData() throws IllegalAccessException {
         MethodHandles.lookup().defineHiddenClassWithClassData(new byte[0], "data", false);
     }

@@ -22,6 +22,7 @@ import org.elasticsearch.telemetry.metric.LongWithAttributes;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -37,6 +38,7 @@ import java.util.function.Function;
 
 import static org.elasticsearch.threadpool.ThreadPool.THREAD_POOL_METRIC_NAME_QUEUE_TIME;
 import static org.elasticsearch.threadpool.ThreadPool.THREAD_POOL_METRIC_NAME_UTILIZATION;
+import static org.elasticsearch.threadpool.ThreadPool.THREAD_POOL_METRIC_NAME_UTILIZATION_EWMR;
 
 /**
  * An extension to thread pool executor, which tracks statistics for the task execution time.
@@ -104,7 +106,8 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
     }
 
     public List<Instrument> setupMetrics(MeterRegistry meterRegistry, String threadPoolName) {
-        return List.of(
+        var instruments = new ArrayList<Instrument>();
+        instruments.add(
             meterRegistry.registerLongsGauge(
                 ThreadPool.THREAD_POOL_METRIC_PREFIX + threadPoolName + THREAD_POOL_METRIC_NAME_QUEUE_TIME,
                 "Time tasks spent in the queue for the " + threadPoolName + " thread pool",
@@ -123,7 +126,9 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
                     queueLatencyMillisHistogram.clear();
                     return metricValues;
                 }
-            ),
+            )
+        );
+        instruments.add(
             meterRegistry.registerDoubleGauge(
                 ThreadPool.THREAD_POOL_METRIC_PREFIX + threadPoolName + THREAD_POOL_METRIC_NAME_UTILIZATION,
                 "fraction of maximum thread time utilized for " + threadPoolName,
@@ -131,6 +136,17 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
                 () -> new DoubleWithAttributes(pollUtilization(UtilizationTrackingPurpose.APM), Map.of())
             )
         );
+        if (threadUtilizationRate != null) {
+            instruments.add(
+                meterRegistry.registerDoubleGauge(
+                    ThreadPool.THREAD_POOL_METRIC_PREFIX + threadPoolName + THREAD_POOL_METRIC_NAME_UTILIZATION_EWMR,
+                    "EWMR-based fraction of maximum thread time utilized for " + threadPoolName,
+                    "fraction",
+                    () -> new DoubleWithAttributes(getAverageUtilization(), Map.of())
+                )
+            );
+        }
+        return List.copyOf(instruments);
     }
 
     @Override

@@ -74,7 +74,11 @@ public class EncryptionPlugin extends Plugin implements ActionPlugin, Extensible
             services.projectResolver(),
             settings
         );
-        AesGcmEncryptionService encryptionService = new AesGcmEncryptionService(pekService);
+        AesGcmEncryptionService encryptionService = new AesGcmEncryptionService(
+            pekService,
+            pekService::state,
+            pekService::isEncryptionRequired
+        );
         List<EncryptedDataHandler<?>> handlers = encryptedDataHandlerProviders.stream().flatMap(p -> p.getHandlers().stream()).toList();
         EncryptedDataHandlerRegistry handlerRegistry = new EncryptedDataHandlerRegistry(handlers);
         KeyRotationCoordinator coordinator = KeyRotationCoordinator.create(

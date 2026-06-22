@@ -2199,20 +2199,23 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
 
     /**
      * Whether this mapper exposes the {@code doc_values.multi_value} sub-parameter. Override and return {@code true} for mappers that
-     * participate in single-value enforcement; also override {@link #expectedSingleValuedDocValuesType()} to declare the Lucene doc-values
-     * type produced when {@code multi_value=false}.
+     * participate in single-value enforcement; also override {@link #expectedDocValuesTypeForMultiValueFalse()} to declare the Lucene
+     * doc-values type produced when {@code multi_value=false}.
      */
     protected boolean supportsMultiValueParameter() {
         return false;
     }
 
     /**
-     * The Lucene {@link DocValuesType} produced for a single-valued field (i.e. {@code multi_value=false}). Override when
+     * The Lucene {@link DocValuesType} produced for a field mapped with {@code multi_value=false}. Override when
      * {@link #supportsMultiValueParameter()} returns {@code true}.
+     * <p>
+     * {@code multi_value=false} fields always use the multi-valued sortable Lucene types ({@code SORTED_NUMERIC} / {@code SORTED_SET})
+     * so that index sorting works correctly at segment-merge time. Single-valuedness is enforced at parse time instead.
      */
-    protected DocValuesType expectedSingleValuedDocValuesType() {
+    protected DocValuesType expectedDocValuesTypeForMultiValueFalse() {
         throw new UnsupportedOperationException(
-            "Override expectedSingleValuedDocValuesType() when supportsMultiValueParameter() returns true"
+            "Override expectedDocValuesTypeForMultiValueFalse() when supportsMultiValueParameter() returns true"
         );
     }
 
@@ -2244,7 +2247,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         );
     }
 
-    public void testMultiValueFalseUsesSingleValuedDocValues() throws Exception {
+    public void testMultiValueFalseDocValuesType() throws Exception {
         assumeTrue("feature under test must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         assumeTrue("supports doc_values multi_value parameter", supportsMultiValueParameter());
         DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
@@ -2259,16 +2262,20 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             DocValuesType dvType = f.fieldType().docValuesType();
             if (dvType != DocValuesType.NONE) {
                 hasDocValuesField = true;
-                assertEquals("multi_value=false must use single-valued doc values type", expectedSingleValuedDocValuesType(), dvType);
+                assertEquals(
+                    "multi_value=false must use the sortable multi-valued doc values type",
+                    expectedDocValuesTypeForMultiValueFalse(),
+                    dvType
+                );
             }
         }
         assertTrue("expected a doc values field for [field]", hasDocValuesField);
     }
 
     /**
-     * Verifies the block loader read path for a field mapped with {@code doc_values.multi_value: false}. Enabling single-value
-     * enforcement changes the on-disk doc-values format, but it must not change what the block loader returns for single-valued
-     * documents.
+     * Verifies the block loader read path for a field mapped with {@code doc_values.multi_value: false}. The on-disk doc-values
+     * format is the same as for multi-valued fields (single-valuedness is enforced at parse time only), but the block loader must
+     * still return correct results for single-valued documents.
      *
      * <p>For field types whose default mapping also supports column-at-a-time doc-values loading we assert that the two mappings produce
      * identical blocks, including {@code null} for the sparse middle document. For field types whose default mapping uses source-based

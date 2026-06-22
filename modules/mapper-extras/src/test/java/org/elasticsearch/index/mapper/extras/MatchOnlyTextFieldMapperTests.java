@@ -703,8 +703,8 @@ public class MatchOnlyTextFieldMapperTests extends MapperTestCase {
     }
 
     @Override
-    protected DocValuesType expectedSingleValuedDocValuesType() {
-        // match_only_text defaults to HIGH cardinality, which uses binary doc values
+    protected DocValuesType expectedDocValuesTypeForMultiValueFalse() {
+        // match_only_text defaults to HIGH cardinality, which uses binary doc values — that path is unchanged by the write-side fix
         return DocValuesType.BINARY;
     }
 

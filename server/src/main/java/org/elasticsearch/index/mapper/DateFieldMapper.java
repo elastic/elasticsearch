@@ -1327,12 +1327,7 @@ public final class DateFieldMapper extends FieldMapper {
         if (fieldType().hasDocValuesSkipper()) {
             dvFactory.addNumericField(context.doc(), fieldType().name(), timestamp);
         } else if (indexed && docValuesParameters.enabled()) {
-            context.doc()
-                .add(
-                    docValuesParameters.multiValue()
-                        ? new LongField(fieldType().name(), timestamp, Field.Store.NO)
-                        : new SingleValuedLongField(fieldType().name(), timestamp)
-                );
+            context.doc().add(new LongField(fieldType().name(), timestamp, Field.Store.NO));
         } else if (docValuesParameters.enabled()) {
             dvFactory.addNumericField(context.doc(), fieldType().name(), timestamp);
         } else if (indexed) {

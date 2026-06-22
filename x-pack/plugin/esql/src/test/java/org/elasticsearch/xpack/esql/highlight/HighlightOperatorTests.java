@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.highlight;
 
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.search.BooleanClause;
-import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.highlight.DefaultEncoder;
 import org.apache.lucene.search.highlight.Encoder;
@@ -17,6 +16,7 @@ import org.apache.lucene.search.highlight.SimpleHTMLEncoder;
 import org.apache.lucene.search.uhighlight.PassageFormatter;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.QueryBuilder;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
@@ -110,7 +110,7 @@ public class HighlightOperatorTests extends OperatorTestCase {
     public void testEmptyQueryHasNoTermsAndDoesNotMatch() {
         // An empty query analyzes to no terms; the planner turns that into a MatchNoDocsQuery, so nothing is highlighted.
         BytesRefBlock result = highlightSingle(
-            new MatchNoDocsQuery(),
+            Queries.NO_DOCS_INSTANCE,
             formatter("<em>", "</em>", new DefaultEncoder()),
             5,
             0,
@@ -266,7 +266,7 @@ public class HighlightOperatorTests extends OperatorTestCase {
             text,
             BooleanClause.Occur.SHOULD
         );
-        return query == null ? new MatchNoDocsQuery() : query;
+        return query == null ? Queries.NO_DOCS_INSTANCE : query;
     }
 
     private static PassageFormatter formatter(String preTag, String postTag, Encoder encoder) {

@@ -89,23 +89,8 @@ public class OtelSdkExportMeterSupplier implements MeterSupplier {
 
     static final String EXPORTER_OPERATION_DURATION_INSTRUMENT = "otel.sdk.exporter.operation.duration";
 
-    // OTel semconv default HTTP duration boundaries in seconds.
-    static final List<Double> DURATION_HISTOGRAM_BUCKETS = List.of(
-        0.005,
-        0.01,
-        0.025,
-        0.05,
-        0.075,
-        0.1,
-        0.25,
-        0.5,
-        0.75,
-        1.0,
-        2.5,
-        5.0,
-        7.5,
-        10.0
-    );
+    // Sparse buckets aligned with the 7.5s alert threshold and 10s send timeout.
+    static final List<Double> DURATION_HISTOGRAM_BUCKETS = List.of(0.1, 1.0, 5.0, 7.5, 10.0);
 
     private SdkMeterProvider buildSystemMeterProvider(Supplier<MeterProvider> meterProviderSupplier) {
         var exporter = wrapWithBuffering(createOTLPExporter(meterProviderSupplier), diskBufferPath, meterProviderSupplier);

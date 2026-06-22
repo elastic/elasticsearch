@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.inference.services.amazonbedrock.completion;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.inference.ModelConfigurations;
@@ -68,9 +67,9 @@ public class AmazonBedrockChatCompletionServiceSettings extends AmazonBedrockSer
     public static class Builder extends AmazonBedrockServiceSettings.Builder<AmazonBedrockChatCompletionServiceSettings> {
 
         @Override
-        public AmazonBedrockChatCompletionServiceSettings build(
-            String model,
+        protected AmazonBedrockChatCompletionServiceSettings build(
             String region,
+            String model,
             String provider,
             RateLimitSettings rateLimitSettings
         ) {

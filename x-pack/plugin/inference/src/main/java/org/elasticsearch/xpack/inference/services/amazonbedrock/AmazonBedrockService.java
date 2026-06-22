@@ -232,6 +232,11 @@ public class AmazonBedrockService extends SenderService<AmazonBedrockModel> {
     }
 
     @Override
+    public boolean usesParserForServiceSettings() {
+        return true;
+    }
+
+    @Override
     public Model updateModelWithEmbeddingDetails(Model model, int embeddingSize) {
         if (model instanceof AmazonBedrockEmbeddingsModel embeddingsModel) {
             var serviceSettings = embeddingsModel.getServiceSettings();

@@ -10,9 +10,7 @@
 package org.elasticsearch.entitlement.qa;
 
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.core.PathUtils;
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.PluginInstallSpec;
 import org.elasticsearch.test.cluster.util.resource.Resource;
@@ -20,6 +18,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.yaml.YamlXContent;
 import org.junit.rules.ExternalResource;
 import org.junit.rules.RuleChain;
+import org.junit.rules.TemporaryFolder;
 import org.junit.rules.TestRule;
 import org.junit.runner.Description;
 import org.junit.runners.model.Statement;
@@ -28,13 +27,11 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 
+@SuppressForbidden(reason = "TemporaryFolder.getRoot() returns java.io.File; System.out used for test setup debug logging")
 class EntitlementsTestRule implements TestRule {
-
-    private static final Logger logger = LogManager.getLogger(EntitlementsTestRule.class);
 
     // entitlements that test methods may use, see EntitledActions
     private static final PolicyBuilder ENTITLED_POLICY = (builder, tempDir) -> {
@@ -64,7 +61,7 @@ class EntitlementsTestRule implements TestRule {
         Map<String, String> get(Path tempDir);
     }
 
-    Path testDir;
+    final TemporaryFolder testDir;
     final ElasticsearchCluster cluster;
     final TestRule ruleChain;
     private final String overrideDescriptorName;
@@ -89,45 +86,29 @@ class EntitlementsTestRule implements TestRule {
         String overrideDescriptorName
     ) {
         this.overrideDescriptorName = overrideDescriptorName;
+        testDir = new TemporaryFolder();
         var tempDirSetup = new ExternalResource() {
             @Override
+            @SuppressForbidden(reason = "TemporaryFolder.getRoot() returns java.io.File")
             protected void before() throws Throwable {
-                testDir = Files.createTempDirectory(PathUtils.get(System.getProperty("java.io.tmpdir")), "entitlements-test-rule");
-                Files.createDirectory(testDir.resolve("read_dir"));
-                Files.createDirectory(testDir.resolve("read_write_dir"));
-                Files.writeString(testDir.resolve("read_file"), "");
-                Files.writeString(testDir.resolve("read_write_file"), "");
-            }
-
-            @Override
-            protected void after() {
-                if (testDir == null) {
-                    return;
-                }
-                try (var paths = Files.walk(testDir)) {
-                    paths.sorted(Comparator.reverseOrder()).forEach(path -> {
-                        try {
-                            Files.deleteIfExists(path);
-                        } catch (IOException e) {
-                            throw new UncheckedIOException(e);
-                        }
-                    });
-                } catch (IOException e) {
-                    throw new UncheckedIOException(e);
-                }
+                Path testPath = testDir.getRoot().toPath();
+                Files.createDirectory(testPath.resolve("read_dir"));
+                Files.createDirectory(testPath.resolve("read_write_dir"));
+                Files.writeString(testPath.resolve("read_file"), "");
+                Files.writeString(testPath.resolve("read_write_file"), "");
             }
         };
         cluster = ElasticsearchCluster.local()
             .module("entitled", spec -> buildEntitlements(spec, "org.elasticsearch.entitlement.qa.entitled", ENTITLED_POLICY))
             .module(ENTITLEMENT_TEST_PLUGIN_NAME, spec -> setupEntitlements(spec, modular, policyBuilder))
             .systemProperty("es.entitlements.verify_bytecode", "true")
-            .systemProperty("es.entitlements.testdir", () -> testDir.toAbsolutePath().toString())
-            .systemProperties(spec -> tempDirSystemPropertyProvider.get(testDir))
+            .systemProperty("es.entitlements.testdir", () -> testDir.getRoot().getAbsolutePath())
+            .systemProperties(spec -> tempDirSystemPropertyProvider.get(testDir.getRoot().toPath()))
             .setting("xpack.security.enabled", "false")
             // Logs in libs/entitlement/qa/build/test-results/javaRestTest/TEST-org.elasticsearch.entitlement.qa.EntitlementsXXX.xml
             // .setting("logger.org.elasticsearch.entitlement", "DEBUG")
             .build();
-        ruleChain = RuleChain.outerRule(tempDirSetup).around(cluster);
+        ruleChain = RuleChain.outerRule(testDir).around(tempDirSetup).around(cluster);
     }
 
     @Override
@@ -142,12 +123,12 @@ class EntitlementsTestRule implements TestRule {
                 builder.field(moduleName);
                 builder.startArray();
 
-                policyBuilder.build(builder, testDir);
+                policyBuilder.build(builder, testDir.getRoot().toPath());
                 builder.endArray();
                 builder.endObject();
 
                 String policy = Strings.toString(builder);
-                logger.info("Using entitlement policy for module [{}]:\n{}", moduleName, policy);
+                System.out.println("Using entitlement policy for module " + moduleName + ":\n" + policy);
                 return Resource.fromString(policy);
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
@@ -172,7 +153,7 @@ class EntitlementsTestRule implements TestRule {
                 if (rewriteName) {
                     props = props.replaceAll("(?m)^name=.*$", "name=" + overrideDescriptorName);
                 }
-                logger.info("Using plugin properties:\n{}", props);
+                System.out.println("Using plugin properties:\n" + props);
                 return Resource.fromString(props);
             });
         }

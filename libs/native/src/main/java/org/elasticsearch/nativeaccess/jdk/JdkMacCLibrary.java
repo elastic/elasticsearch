@@ -9,6 +9,7 @@
 
 package org.elasticsearch.nativeaccess.jdk;
 
+import org.elasticsearch.foreign.MemorySegmentUtil;
 import org.elasticsearch.nativeaccess.lib.MacCLibrary;
 
 import java.lang.foreign.Arena;
@@ -20,7 +21,7 @@ import java.lang.invoke.MethodHandle;
 import static java.lang.foreign.ValueLayout.ADDRESS;
 import static java.lang.foreign.ValueLayout.JAVA_INT;
 import static java.lang.foreign.ValueLayout.JAVA_LONG;
-import static org.elasticsearch.nativeaccess.jdk.LinkerHelper.downcallHandle;
+import static org.elasticsearch.foreign.LinkerHelper.downcallHandle;
 
 class JdkMacCLibrary implements MacCLibrary {
 
@@ -30,7 +31,7 @@ class JdkMacCLibrary implements MacCLibrary {
     );
     private static final MethodHandle sandbox_free_error$mh = downcallHandle("sandbox_free_error", FunctionDescriptor.ofVoid(ADDRESS));
 
-    private static class JdkErrorReference implements ErrorReference {
+    static class JdkErrorReference implements ErrorReference {
         final Arena arena = Arena.ofConfined();
         final MemorySegment segment = arena.allocate(ValueLayout.ADDRESS);
 
@@ -40,7 +41,7 @@ class JdkMacCLibrary implements MacCLibrary {
 
         @Override
         public String toString() {
-            return deref().reinterpret(Long.MAX_VALUE).getUtf8String(0);
+            return MemorySegmentUtil.getString(deref().reinterpret(Long.MAX_VALUE), 0);
         }
     }
 

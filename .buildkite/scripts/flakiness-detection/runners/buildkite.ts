@@ -18,7 +18,22 @@ interface PipelineStep {
   env?: Record<string, string>;
   depends_on?: { step: string; allow_failure: boolean }[];
   artifact_paths?: string;
+  retry?: { automatic: boolean };
 }
+
+// Flakiness-detection steps must never be smart-retried. Buildkite's smart retry
+// skips tests that already passed on a prior attempt, which is the opposite of
+// what these steps need: the batch steps deliberately re-run tests many times to
+// surface flakiness, and the analyze step just aggregates their results.
+//
+// The static bootstrap step in flakiness-detection.yml opts out via
+// `config.auto-retry: false`, but these steps are uploaded directly via
+// `buildkite-agent pipeline upload` and never pass through injectAutoRetry
+// (.buildkite/scripts/pull-request/pipeline.ts), so we disable automatic retries
+// explicitly here. Today they also can't fail because wrapNeverFail forces
+// `exit 0`; setting this keeps them excluded from smart retry even if that
+// always-pass wrapper is ever removed.
+const NO_AUTO_RETRY: PipelineStep["retry"] = { automatic: false };
 
 // Minutes of headroom kept between the inner `timeout` (which we own) and the
 // outer Buildkite `timeout_in_minutes` (which the agent enforces by SIGKILLing
@@ -110,6 +125,7 @@ export function toBuildkitePipeline(
       timeout_in_minutes: cfg.timeoutInMinutes,
       agents: { ...cfg.agents },
       artifact_paths: TEST_RESULTS_ARTIFACTS,
+      retry: NO_AUTO_RETRY,
     };
 
     if (batches.length > 1) {
@@ -152,6 +168,7 @@ export function toBuildkitePipeline(
       // (that image lacks npm). Letting BK pick the parent pipeline default
       // gives us an agent with the standard Node toolchain available.
       depends_on: deps,
+      retry: NO_AUTO_RETRY,
     });
   }
 

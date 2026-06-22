@@ -12,18 +12,8 @@ import org.elasticsearch.blobcache.shared.CacheRegion;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheServiceTestUtils;
 import org.elasticsearch.blobcache.shared.SharedBytes;
-import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.ProjectId;
-import org.elasticsearch.cluster.metadata.ProjectMetadata;
-import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
-import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.routing.IndexRoutingTable;
-import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
-import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -34,12 +24,10 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.TestEnvironment;
-import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.ThreadLocalDirectoryMetricHolder;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.stateless.allocation.StatelessShardRoutingRoleStrategy;
 import org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectoryMetrics;
 import org.elasticsearch.xpack.stateless.lucene.FileCacheKey;
 
@@ -47,15 +35,15 @@ import java.io.IOException;
 import java.util.Set;
 
 import static org.elasticsearch.blobcache.shared.SharedBlobCacheService.UNKNOWN_TIMESTAMP;
-import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_INDEX_UUID;
-import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_VERSION_CREATED;
 import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
+import static org.elasticsearch.xpack.stateless.TestUtils.clusterStateWithShardOnLocalNode;
+import static org.elasticsearch.xpack.stateless.TestUtils.clusterStateWithStartedShardsOnLocalNode;
+import static org.elasticsearch.xpack.stateless.TestUtils.indexMetadata;
 import static org.elasticsearch.xpack.stateless.cache.PinnedWindowEvictionPolicy.PINNED_WINDOW_DURATION_SETTING;
 import static org.hamcrest.Matchers.equalTo;
 
 public class PinnedWindowEvictionPolicyTests extends ESTestCase {
 
-    private static final String LOCAL_NODE_ID = "node";
     private static final String UNKNOWN_TIMESTAMP_FILE_PREFIX = "unknown-file-";
     private static final String OUTSIDE_WINDOW_FILE_PREFIX = "outside-window-file-";
 
@@ -299,55 +287,6 @@ public class PinnedWindowEvictionPolicyTests extends ESTestCase {
 
             assertFalse(policy.canEvict(region, incoming));
         }
-    }
-
-    private static IndexMetadata indexMetadata(String indexName, String indexUuid) {
-        return IndexMetadata.builder(indexName)
-            .settings(Settings.builder().put(SETTING_VERSION_CREATED, IndexVersion.current()).put(SETTING_INDEX_UUID, indexUuid))
-            .numberOfShards(1)
-            .numberOfReplicas(0)
-            .build();
-    }
-
-    private static ClusterState clusterStateWithShardOnLocalNode(
-        ShardId shardId,
-        IndexMetadata indexMetadata,
-        ShardRoutingState routingState
-    ) {
-        final var shardRouting = switch (routingState) {
-            case INITIALIZING, RELOCATING -> TestShardRouting.newShardRouting(shardId, LOCAL_NODE_ID, "other-node", true, routingState);
-            case STARTED -> TestShardRouting.newShardRouting(shardId, LOCAL_NODE_ID, true, routingState);
-            case UNASSIGNED -> throw new IllegalArgumentException("unsupported routing state [" + routingState + "]");
-        };
-        final IndexRoutingTable indexRoutingTable = IndexRoutingTable.builder(shardId.getIndex()).addShard(shardRouting).build();
-        final RoutingTable routingTable = RoutingTable.builder(new StatelessShardRoutingRoleStrategy()).add(indexRoutingTable).build();
-        final DiscoveryNode localNode = DiscoveryNodeUtils.create("node", LOCAL_NODE_ID);
-        final DiscoveryNode otherNode = DiscoveryNodeUtils.create("other-node", "other-node");
-        return ClusterState.builder(ClusterName.DEFAULT)
-            .nodes(DiscoveryNodes.builder().add(localNode).add(otherNode).localNodeId(LOCAL_NODE_ID).masterNodeId(LOCAL_NODE_ID))
-            .putProjectMetadata(ProjectMetadata.builder(ProjectId.DEFAULT).put(indexMetadata, false).build())
-            .putRoutingTable(ProjectId.DEFAULT, routingTable)
-            .build();
-    }
-
-    private static ClusterState clusterStateWithStartedShardsOnLocalNode(IndexMetadata... indices) {
-        final RoutingTable.Builder routingTableBuilder = RoutingTable.builder(new StatelessShardRoutingRoleStrategy());
-        final ProjectMetadata.Builder projectMetadataBuilder = ProjectMetadata.builder(ProjectId.DEFAULT);
-        for (IndexMetadata index : indices) {
-            final ShardId shardId = new ShardId(index.getIndex(), 0);
-            routingTableBuilder.add(
-                IndexRoutingTable.builder(shardId.getIndex())
-                    .addShard(TestShardRouting.newShardRouting(shardId, LOCAL_NODE_ID, true, ShardRoutingState.STARTED))
-                    .build()
-            );
-            projectMetadataBuilder.put(index, false);
-        }
-        final DiscoveryNode localNode = DiscoveryNodeUtils.create("node", LOCAL_NODE_ID);
-        return ClusterState.builder(ClusterName.DEFAULT)
-            .nodes(DiscoveryNodes.builder().add(localNode).localNodeId(LOCAL_NODE_ID).masterNodeId(LOCAL_NODE_ID))
-            .putProjectMetadata(projectMetadataBuilder.build())
-            .putRoutingTable(ProjectId.DEFAULT, routingTableBuilder.build())
-            .build();
     }
 
     private static CacheRegion<FileCacheKey> region(ShardId shardId, long timestampMillis) {

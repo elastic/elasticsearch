@@ -1517,6 +1517,7 @@ public class StatelessPlugin extends Plugin
                 @Override
                 public void onStoreClosed(ShardId shardId) {
                     getClosedShardService().onStoreClose(shardId);
+                    sharedBlobCacheService.get().onSearchShardStoreClosed(shardId);
                 }
             });
 

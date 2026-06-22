@@ -19,7 +19,10 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.PluggableDirectoryMetricsHolder;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.StatelessPlugin;
 import org.elasticsearch.xpack.stateless.cache.reader.CacheBlobReader;
@@ -27,6 +30,7 @@ import org.elasticsearch.xpack.stateless.cache.reader.LazyRangeMissingHandler;
 import org.elasticsearch.xpack.stateless.cache.reader.SequentialRangeMissingHandler;
 import org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectoryMetrics;
 import org.elasticsearch.xpack.stateless.lucene.FileCacheKey;
+import org.elasticsearch.xpack.stateless.utils.ClusterUtils;
 
 import java.nio.ByteBuffer;
 import java.util.concurrent.Executor;
@@ -62,9 +66,13 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
     // asynchronously using a CacheBlobReader.
     private static final Executor IO_EXECUTOR = EsExecutors.DIRECT_EXECUTOR_SERVICE;
 
+    private static final Logger logger = LogManager.getLogger(StatelessSharedBlobCacheService.class);
+
+    private final ClusterService clusterService;
     private final Executor shardReadThreadPoolExecutor;
     private final PluggableDirectoryMetricsHolder<BlobStoreCacheDirectoryMetrics> metricsHolder;
     private final boolean hasSearchRole;
+    private final boolean cacheBoostPreferenceEnabled;
 
     // TODO Merge the two constructors
     public StatelessSharedBlobCacheService(
@@ -83,9 +91,11 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
             blobCacheMetrics,
             StatelessCacheEvictionPolicyType.createEvictionPolicy(settings, clusterService)
         );
+        this.clusterService = clusterService;
         this.shardReadThreadPoolExecutor = threadPool.executor(StatelessPlugin.SHARD_READ_THREAD_POOL);
         this.metricsHolder = metricsHolder;
         this.hasSearchRole = DiscoveryNode.hasRole(settings, DiscoveryNodeRole.SEARCH_ROLE);
+        this.cacheBoostPreferenceEnabled = STATELESS_CACHE_BOOST_PREFERENCE_ENABLED_SETTING.get(settings);
     }
 
     // for tests
@@ -107,9 +117,11 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
             relativeTimeInNanosSupplier,
             StatelessCacheEvictionPolicyType.createEvictionPolicy(settings, clusterService)
         );
+        this.clusterService = clusterService;
         this.shardReadThreadPoolExecutor = IO_EXECUTOR;
         this.metricsHolder = metricsHolder;
         this.hasSearchRole = DiscoveryNode.hasRole(settings, DiscoveryNodeRole.SEARCH_ROLE);
+        this.cacheBoostPreferenceEnabled = STATELESS_CACHE_BOOST_PREFERENCE_ENABLED_SETTING.get(settings);
     }
 
     /**
@@ -228,5 +240,23 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
 
     public PluggableDirectoryMetricsHolder<BlobStoreCacheDirectoryMetrics> metricsHolder() {
         return metricsHolder;
+    }
+
+    /**
+     * Resets access counts for cache regions belonging to a search shard whose store has closed.
+     * The reset is scheduled asynchronously and skipped if the shard is locally allocated again when the task runs.
+     * No-op when {@link #STATELESS_CACHE_BOOST_PREFERENCE_ENABLED_SETTING} is disabled.
+     */
+    public void onSearchShardStoreClosed(ShardId shardId) {
+        if (cacheBoostPreferenceEnabled == false) {
+            return;
+        }
+        submitAsyncEviction(() -> {
+            if (ClusterUtils.isShardLocallyAllocated(clusterService, shardId)) {
+                logger.debug("skipping access count reset for shard [{}] because it is locally allocated again", shardId);
+                return;
+            }
+            resetAccessCounts(shardId);
+        });
     }
 }

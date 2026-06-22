@@ -8,12 +8,26 @@
 package org.elasticsearch.xpack.stateless;
 
 import org.elasticsearch.blobcache.BlobCacheMetrics;
+import org.elasticsearch.blobcache.shared.SharedBytes;
+import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.project.ProjectResolver;
+import org.elasticsearch.cluster.routing.IndexRoutingTable;
+import org.elasticsearch.cluster.routing.RoutingTable;
+import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.ThreadLocalDirectoryMetricHolder;
 import org.elasticsearch.license.License;
@@ -21,6 +35,7 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.license.internal.XPackLicenseStatus;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.stateless.allocation.StatelessShardRoutingRoleStrategy;
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
 import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
 import org.elasticsearch.xpack.stateless.commits.BlobFile;
@@ -44,13 +59,83 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Executor;
 
+import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_INDEX_UUID;
+import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_VERSION_CREATED;
 import static org.elasticsearch.test.ESTestCase.randomIntBetween;
 import static org.elasticsearch.xpack.stateless.commits.InternalFilesReplicatedRanges.REPLICATED_CONTENT_MAX_SINGLE_FILE_SIZE;
 import static org.mockito.Mockito.mock;
 
 public class TestUtils {
 
+    public static final String LOCAL_NODE_ID = "node";
+
     private TestUtils() {}
+
+    public static IndexMetadata indexMetadata(String indexName, String indexUuid) {
+        return IndexMetadata.builder(indexName)
+            .settings(Settings.builder().put(SETTING_VERSION_CREATED, IndexVersion.current()).put(SETTING_INDEX_UUID, indexUuid))
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .build();
+    }
+
+    public static ClusterState clusterStateWithShardOnLocalNode(ShardId shardId, IndexMetadata indexMetadata) {
+        return clusterStateWithShardOnLocalNode(shardId, indexMetadata, ShardRoutingState.STARTED);
+    }
+
+    public static ClusterState clusterStateWithShardOnLocalNode(
+        ShardId shardId,
+        IndexMetadata indexMetadata,
+        ShardRoutingState routingState
+    ) {
+        final var shardRouting = switch (routingState) {
+            case INITIALIZING, RELOCATING -> TestShardRouting.newShardRouting(shardId, LOCAL_NODE_ID, "other-node", true, routingState);
+            case STARTED -> TestShardRouting.newShardRouting(shardId, LOCAL_NODE_ID, true, routingState);
+            case UNASSIGNED -> throw new IllegalArgumentException("unsupported routing state [" + routingState + "]");
+        };
+        final IndexRoutingTable indexRoutingTable = IndexRoutingTable.builder(shardId.getIndex()).addShard(shardRouting).build();
+        final RoutingTable routingTable = RoutingTable.builder(new StatelessShardRoutingRoleStrategy()).add(indexRoutingTable).build();
+        final DiscoveryNode localNode = DiscoveryNodeUtils.create("node", LOCAL_NODE_ID);
+        final DiscoveryNode otherNode = DiscoveryNodeUtils.create("other-node", "other-node");
+        return ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(DiscoveryNodes.builder().add(localNode).add(otherNode).localNodeId(LOCAL_NODE_ID).masterNodeId(LOCAL_NODE_ID))
+            .putProjectMetadata(ProjectMetadata.builder(ProjectId.DEFAULT).put(indexMetadata, false).build())
+            .putRoutingTable(ProjectId.DEFAULT, routingTable)
+            .build();
+    }
+
+    public static ClusterState clusterStateWithoutShardOnLocalNode(ShardId shardId, IndexMetadata indexMetadata) {
+        final DiscoveryNode localNode = DiscoveryNodeUtils.create("node", LOCAL_NODE_ID);
+        return ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(DiscoveryNodes.builder().add(localNode).localNodeId(LOCAL_NODE_ID).masterNodeId(LOCAL_NODE_ID))
+            .putProjectMetadata(ProjectMetadata.builder(ProjectId.DEFAULT).put(indexMetadata, false).build())
+            .putRoutingTable(ProjectId.DEFAULT, RoutingTable.builder(new StatelessShardRoutingRoleStrategy()).build())
+            .build();
+    }
+
+    public static long cacheRegionSizeInBytes(long numPages) {
+        return numPages * SharedBytes.PAGE_SIZE;
+    }
+
+    public static ClusterState clusterStateWithStartedShardsOnLocalNode(IndexMetadata... indices) {
+        final RoutingTable.Builder routingTableBuilder = RoutingTable.builder(new StatelessShardRoutingRoleStrategy());
+        final ProjectMetadata.Builder projectMetadataBuilder = ProjectMetadata.builder(ProjectId.DEFAULT);
+        for (IndexMetadata index : indices) {
+            final ShardId shardId = new ShardId(index.getIndex(), 0);
+            routingTableBuilder.add(
+                IndexRoutingTable.builder(shardId.getIndex())
+                    .addShard(TestShardRouting.newShardRouting(shardId, LOCAL_NODE_ID, true, ShardRoutingState.STARTED))
+                    .build()
+            );
+            projectMetadataBuilder.put(index, false);
+        }
+        final DiscoveryNode localNode = DiscoveryNodeUtils.create("node", LOCAL_NODE_ID);
+        return ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(DiscoveryNodes.builder().add(localNode).localNodeId(LOCAL_NODE_ID).masterNodeId(LOCAL_NODE_ID))
+            .putProjectMetadata(projectMetadataBuilder.build())
+            .putRoutingTable(ProjectId.DEFAULT, routingTableBuilder.build())
+            .build();
+    }
 
     public static class StatelessPluginWithTrialLicense extends StatelessPlugin {
         public StatelessPluginWithTrialLicense(Settings settings) {

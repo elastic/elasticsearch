@@ -12,7 +12,7 @@
 // Authored as FROM <dataset>: each test declares its source via a `dataset:` directive. On dataset-capable
 // backends (S3) the harness registers the dataset and runs the FROM query verbatim; on the others it rebuilds
 // the equivalent EXTERNAL query. Dataset names encode the WITH options so the same name always carries the same
-// settings; the warnings use relative regexes (file name only) so they match on both the FROM and EXTERNAL paths.
+// settings.
 
 ffwTypedDivergentAllRows
 required_capability: external_command

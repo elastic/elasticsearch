@@ -118,14 +118,15 @@ import java.util.regex.Pattern;
  *   <caption>CSV options</caption>
  *   <tr><th>ES/ESQL key</th><th>Default</th><th>Description</th></tr>
  *   <tr><td>{@code delimiter}</td><td>{@code ,}</td><td>Field separator character</td></tr>
- *   <tr><td>{@code dialect}</td><td>{@code quoted} ({@code .csv}) / {@code plain} ({@code .tsv})</td>
- *       <td>How a separator-that-is-data is written: {@code quoted} (fields wrap in the quote
- *           character, RFC 4180), {@code escaped} (backslash sequences, {@code \N} null —
- *           ClickHouse/MySQL/Postgres exports), or {@code plain} (every byte literal). The dialect
- *           picks the mechanism; {@code quote}/{@code escape} only carry the character and are
- *           rejected under a dialect that does not use them.</td></tr>
- *   <tr><td>{@code quote}</td><td>{@code "}</td><td>Quoting character ({@code quoted} dialect only)</td></tr>
- *   <tr><td>{@code escape}</td><td>{@code \}</td><td>Escape character ({@code quoted}/{@code escaped} dialects)</td></tr>
+ *   <tr><td>{@code mode}</td><td>{@code quoted} ({@code .csv}) / {@code plain} ({@code .tsv})</td>
+ *       <td>Named preset for how a separator-that-is-data is written: {@code quoted} (fields wrap in
+ *           the quote character, RFC 4180), {@code escaped} (backslash sequences, {@code \N} null —
+ *           ClickHouse/MySQL/Postgres exports), or {@code plain} (every byte literal). A preset over
+ *           the {@code quote}/{@code escape} knobs; see the override matrix below.</td></tr>
+ *   <tr><td>{@code quote}</td><td>{@code "}</td><td>Quoting character; setting it turns quoting on
+ *           regardless of {@code mode}, the literal {@code none} turns it off (overrides the preset)</td></tr>
+ *   <tr><td>{@code escape}</td><td>{@code \}</td><td>Escape character; setting it turns escaping on
+ *           regardless of {@code mode}, the literal {@code none} turns it off (overrides the preset)</td></tr>
  *   <tr><td>{@code comment}</td><td>{@code //}</td><td>Line comment prefix</td></tr>
  *   <tr><td>{@code null_value}</td><td>(empty)</td><td>String representation of null</td></tr>
  *   <tr><td>{@code encoding}</td><td>{@code UTF-8}</td><td>Character encoding</td></tr>
@@ -144,6 +145,31 @@ import java.util.regex.Pattern;
  *           {@code header_row} is {@code true}. An empty prefix yields purely numeric names
  *           ({@code 0, 1, 2, ...}) which must be backtick-quoted in ES|QL queries.</td></tr>
  * </table>
+ *
+ * <h2>Mode, quote and escape — the override matrix</h2>
+ * {@code mode} is a named preset over two independent knobs: <em>quoting</em> (may a field be wrapped
+ * in the quote character?) and <em>escaping</em> (is the escape character consulted?). Explicit
+ * {@code quote}/{@code escape} keys always override the preset, so any combination is reachable. There
+ * is no coherence check — an override that produces a wrong read is the user's to own.
+ * <table>
+ *   <caption>Resolved (quoting, escaping) and what each combination does</caption>
+ *   <tr><th>{@code (quoting, escaping)}</th><th>Reached by</th><th>Behavior</th></tr>
+ *   <tr><td>{@code (true, true)}</td><td>{@code mode: quoted} (default for {@code .csv})</td>
+ *       <td>RFC 4180 quoting; backslash escapes inside quoted fields (Excel / MySQL-enclosed)</td></tr>
+ *   <tr><td>{@code (false, true)}</td><td>{@code mode: escaped}</td>
+ *       <td>No quoting; C-style value decode — {@code \t \n \\}, {@code \N} → null (ClickHouse
+ *           {@code TabSeparated}, MySQL {@code LOAD DATA}, PostgreSQL {@code COPY})</td></tr>
+ *   <tr><td>{@code (false, false)}</td><td>{@code mode: plain} (default for {@code .tsv})</td>
+ *       <td>No quoting, no escaping; every byte literal — a field cannot contain the delimiter or a
+ *           newline. Never silently corrupts input.</td></tr>
+ *   <tr><td>{@code (true, false)}</td><td>{@code mode: quoted, escape: none} (no preset name)</td>
+ *       <td>Pure RFC 4180: quoting with embedded-quote doubling only, backslash left as data
+ *           (a Windows path inside quotes survives intact)</td></tr>
+ * </table>
+ * Examples of overrides: {@code mode: plain, quote: "\""} turns quoting on for an otherwise-plain
+ * file; {@code mode: escaped, quote: "\""} adds quoting to ClickHouse data (which then parses as
+ * {@code (true, true)} — the C-style decode no longer runs). When a {@code plain}-mode sample looks
+ * backslash-escaped, the reader logs a one-time hint at DEBUG suggesting {@code mode: escaped}.
  *
  * <h2>Bracket multi-value syntax</h2>
  * When {@code multi_value_syntax} is {@code brackets}, array-like values support:
@@ -295,7 +321,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
     }
 
     static final String CONFIG_DELIMITER = "delimiter";
-    static final String CONFIG_DIALECT = "dialect";
+    static final String CONFIG_MODE = "mode";
     static final String CONFIG_QUOTE = "quote";
     static final String CONFIG_ESCAPE = "escape";
     static final String CONFIG_COMMENT = "comment";
@@ -311,7 +337,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
     /** Keys recognised by {@link #withConfigTrackingConsumedKeys(Map)}. */
     static final Set<String> RECOGNIZED_KEYS = Set.of(
         CONFIG_DELIMITER,
-        CONFIG_DIALECT,
+        CONFIG_MODE,
         CONFIG_QUOTE,
         CONFIG_ESCAPE,
         CONFIG_COMMENT,
@@ -424,49 +450,72 @@ public class CsvFormatReader implements SegmentableFormatReader {
      * is overridden.
      */
     private static CsvFormatOptions parseOptionsFromConfig(Map<String, Object> config, CsvFormatOptions baseline) {
-        // The dialect is authoritative for the MECHANISM (is quoting/escaping on at all); quote/escape
-        // only carry the CHARACTER. Expand the dialect first, then overlay explicit character keys —
-        // and reject a character the resolved dialect never consults, instead of silently ignoring it.
+        // `mode` is a named preset over the (quoting, escaping) pair; explicit quote/escape keys then
+        // override whatever the preset (or the extension baseline) chose. Overrides always win — we no
+        // longer reject an "incoherent" combination, so a resulting silent misread is the user's to own.
+        // The one structural rule that survives is bracket multi-values, which need a quote-aware scan.
         CsvFormatOptions.MultiValueSyntax multiValueSyntax = parseMultiValueSyntax(
             config.get(CONFIG_MULTI_VALUE_SYNTAX),
             baseline.multiValueSyntax()
         );
-        CsvFormatOptions.Dialect parsedDialect = CsvFormatOptions.Dialect.parse(
-            config.get(CONFIG_DIALECT) == null ? null : config.get(CONFIG_DIALECT).toString()
+        CsvFormatOptions.Mode parsedMode = CsvFormatOptions.Mode.parse(
+            config.get(CONFIG_MODE) == null ? null : config.get(CONFIG_MODE).toString()
         );
-        CsvFormatOptions.Dialect dialect = parsedDialect != null ? parsedDialect : baseline.dialect();
-        if (parsedDialect == null && multiValueSyntax == CsvFormatOptions.MultiValueSyntax.BRACKETS) {
+        if (parsedMode == null && multiValueSyntax == CsvFormatOptions.MultiValueSyntax.BRACKETS) {
             // Bracket cells carry quoted elements, so bare brackets selects QUOTED even on the
-            // no-quote .tsv baseline. An explicit non-quoted dialect + brackets is rejected below.
-            dialect = CsvFormatOptions.Dialect.QUOTED;
+            // no-quote .tsv baseline. An explicit no-quote mode + brackets is rejected below.
+            parsedMode = CsvFormatOptions.Mode.QUOTED;
         }
-        boolean quoteSet = isExplicitlySet(config.get(CONFIG_QUOTE));
-        boolean escapeSet = isExplicitlySet(config.get(CONFIG_ESCAPE));
-        if (quoteSet && dialect.usesQuote() == false) {
+
+        boolean quoting;
+        boolean escaping;
+        char quoteChar;
+        char escapeChar;
+        if (parsedMode != null) {
+            quoting = parsedMode.usesQuote();
+            escaping = parsedMode.usesEscape();
+            quoteChar = CsvFormatOptions.DEFAULT_QUOTE;
+            escapeChar = CsvFormatOptions.DEFAULT_ESCAPE;
+        } else {
+            quoting = baseline.quoting();
+            escaping = baseline.escaping();
+            quoteChar = baseline.quoteChar();
+            escapeChar = baseline.escapeChar();
+        }
+        // Explicit quote/escape override the preset. A bare character turns the knob on with that
+        // character; the literal "none" turns it off (so e.g. `mode: quoted, escape: none` is pure
+        // RFC 4180 with no backslash escape, and `mode: escaped, quote: "\""` quotes ClickHouse data).
+        Object quoteValue = config.get(CONFIG_QUOTE);
+        if (isExplicitlySet(quoteValue)) {
+            if (isNone(quoteValue)) {
+                quoting = false;
+            } else {
+                quoting = true;
+                quoteChar = parseChar(quoteValue, quoteChar);
+            }
+        }
+        Object escapeValue = config.get(CONFIG_ESCAPE);
+        if (isExplicitlySet(escapeValue)) {
+            if (isNone(escapeValue)) {
+                escaping = false;
+            } else {
+                escaping = true;
+                escapeChar = parseChar(escapeValue, escapeChar);
+            }
+        }
+        if (multiValueSyntax == CsvFormatOptions.MultiValueSyntax.BRACKETS && quoting == false) {
             throw new IllegalArgumentException(
-                "the [" + dialect.name().toLowerCase(Locale.ROOT) + "] dialect does not use a quote character; use dialect [quoted]"
+                "multi_value_syntax [brackets] requires quoting (mode [quoted] or an explicit quote character); "
+                    + "the bracket scanner honors quoted fields"
             );
         }
-        if (escapeSet && dialect.usesEscape() == false) {
-            throw new IllegalArgumentException(
-                "the ["
-                    + dialect.name().toLowerCase(Locale.ROOT)
-                    + "] dialect does not use an escape character; use dialect [quoted] or [escaped]"
-            );
-        }
+
         char delimiter = parseChar(config.get(CONFIG_DELIMITER), baseline.delimiter());
-        char quoteChar = parseChar(config.get(CONFIG_QUOTE), baseline.quoteChar());
-        char escapeChar = parseChar(config.get(CONFIG_ESCAPE), baseline.escapeChar());
         String commentPrefix = parseString(config.get(CONFIG_COMMENT), baseline.commentPrefix());
         String nullValue = parseString(config.get(CONFIG_NULL_VALUE), baseline.nullValue());
         Charset encoding = parseEncoding(config.get(CONFIG_ENCODING), baseline.encoding());
         DateTimeFormatter datetimeFormatter = parseDatetimeFormat(config.get(CONFIG_DATETIME_FORMAT), baseline.datetimeFormatter());
         int maxFieldSize = parseInt(config.get(CONFIG_MAX_FIELD_SIZE), baseline.maxFieldSize());
-        if (multiValueSyntax == CsvFormatOptions.MultiValueSyntax.BRACKETS && dialect != CsvFormatOptions.Dialect.QUOTED) {
-            throw new IllegalArgumentException(
-                "multi_value_syntax [brackets] requires dialect [quoted]; the bracket scanner honors quoted fields"
-            );
-        }
         boolean headerRow = parseBooleanOption(CONFIG_HEADER_ROW, config.get(CONFIG_HEADER_ROW), baseline.headerRow());
         String columnPrefix = parseString(config.get(CONFIG_COLUMN_PREFIX), baseline.columnPrefix());
 
@@ -482,7 +531,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
             multiValueSyntax,
             headerRow,
             columnPrefix,
-            dialect
+            quoting,
+            escaping
         );
         return merged.equals(baseline) ? null : merged;
     }
@@ -490,6 +540,11 @@ public class CsvFormatReader implements SegmentableFormatReader {
     /** An option counts as user-supplied only when present AND non-empty (empty string = "use the default"). */
     private static boolean isExplicitlySet(Object value) {
         return value != null && value.toString().isEmpty() == false;
+    }
+
+    /** The literal {@code "none"} (case-insensitive) turns a quoting/escaping knob off via an override. */
+    private static boolean isNone(Object value) {
+        return value != null && "none".equalsIgnoreCase(value.toString().trim());
     }
 
     private static CsvFormatOptions.MultiValueSyntax parseMultiValueSyntax(Object value, CsvFormatOptions.MultiValueSyntax baseline) {
@@ -710,7 +765,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 options.delimiter(),
                 SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
                 options.encoding(),
-                options.dialect().usesQuote()
+                options.quoting()
             );
             if (options.headerRow() == false) {
                 return inferSchemaWithSyntheticNames(recordReader);
@@ -745,6 +800,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
         CircuitBreaker breaker = blockFactory.breaker();
         SchemaSample sample = collectSampleRows(csvIterator, options.commentPrefix(), schemaSampleSize, breaker, effectivePolicy);
         try {
+            maybeHintEscapedUnderPlain(sample.rows());
             return CsvSchemaInferrer.inferSchema(columnNames, sample.rows());
         } finally {
             breaker.addWithoutBreaking(-sample.reservedBytes());
@@ -759,10 +815,51 @@ public class CsvFormatReader implements SegmentableFormatReader {
             if (sample.rows().isEmpty()) {
                 throw new IOException("CSV file has no data rows");
             }
+            maybeHintEscapedUnderPlain(sample.rows());
             return inferSyntheticSchema(sample.rows(), options.columnPrefix());
         } finally {
             breaker.addWithoutBreaking(-sample.reservedBytes());
         }
+    }
+
+    /**
+     * Visibility for the safe {@code plain} default: when sampling a {@code plain}-mode file (no
+     * quoting, no escaping) whose values carry backslash-escape sequences, the data is almost
+     * certainly a ClickHouse/MySQL/Postgres export read under the wrong mode — {@code \N} stays the
+     * literal two bytes instead of null, {@code \t} is not a tab. Emit one hint per schema inference,
+     * DEBUG-gated and scanned only over the already-materialized sample (bounded by
+     * {@code schema_sample_size}), so there is no per-row hot-path cost. Returns on the first match.
+     */
+    private void maybeHintEscapedUnderPlain(List<String[]> sampleRows) {
+        if (logger.isDebugEnabled() == false || options.quoting() || options.escaping()) {
+            return;
+        }
+        for (String[] row : sampleRows) {
+            if (row == null) {
+                continue;
+            }
+            for (String cell : row) {
+                if (cell != null && looksBackslashEscaped(cell)) {
+                    logger.debug(
+                        "[{}] sampled values under mode [plain] contain backslash-escape sequences "
+                            + "(e.g. \\N, \\t); if this is a ClickHouse/MySQL/Postgres export, set "
+                            + "\"mode\": \"escaped\" for full decoding",
+                        format
+                    );
+                    return;
+                }
+            }
+        }
+    }
+
+    /** Whether a sampled cell contains a backslash followed by a ClickHouse {@code TabSeparated} escape letter. */
+    private static boolean looksBackslashEscaped(String cell) {
+        for (int i = cell.indexOf('\\'); i >= 0 && i + 1 < cell.length(); i = cell.indexOf('\\', i + 2)) {
+            if ("tnrNbf0\\".indexOf(cell.charAt(i + 1)) >= 0) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
@@ -848,20 +945,23 @@ public class CsvFormatReader implements SegmentableFormatReader {
     }
 
     /**
-     * The Jackson schema shared by both read paths. The dialect is authoritative for quoting: the
-     * no-quote dialects (PLAIN/ESCAPED) call {@code withoutQuoteChar()} so a {@code "} byte is data,
-     * not a field wrapper — without this a field-leading quote opens a region Jackson scans across
-     * newlines, gluing records (the original ClickBench failure). On the no-quote path the escape
-     * character is withheld too: Jackson's escape is "next char is literal" (so {@code \t} would
-     * become {@code t}), not the C-style sequences the escaped dialect needs; the backslash must
-     * reach {@link #decodeFieldValue} untouched.
+     * The Jackson schema shared by both read paths. Quoting is the authoritative knob: when it is off
+     * (PLAIN / ESCAPED) the schema calls {@code withoutQuoteChar()} so a {@code "} byte is data, not a
+     * field wrapper — without this a field-leading quote opens a region Jackson scans across newlines,
+     * gluing records (the original ClickBench failure). On the no-quote path the escape character is
+     * withheld too: Jackson's escape is "next char is literal" (so {@code \t} would become {@code t}),
+     * not the C-style sequences the escaped mode needs; the backslash must reach
+     * {@link #decodeFieldValue} untouched. When quoting is on, the escape character is installed only
+     * if escaping is also on (MySQL-enclosed style); pure RFC 4180 (escaping off) leaves the backslash
+     * as data so e.g. a Windows path inside quotes survives intact.
      */
     private CsvSchema newCsvSchema() {
         CsvSchema schema = CsvSchema.emptySchema().withColumnSeparator(options.delimiter()).withNullValue(options.nullValue());
-        if (options.dialect().usesQuote()) {
-            return schema.withQuoteChar(options.quoteChar()).withEscapeChar(options.escapeChar());
+        if (options.quoting() == false) {
+            return schema.withoutQuoteChar();
         }
-        return schema.withoutQuoteChar();
+        schema = schema.withQuoteChar(options.quoteChar());
+        return options.escaping() ? schema.withEscapeChar(options.escapeChar()) : schema;
     }
 
     /**
@@ -1072,7 +1172,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             options.delimiter(),
             context.maxRecordBytes(),
             options.encoding(),
-            options.dialect().usesQuote()
+            options.quoting()
         );
         // Falls back to effectivePolicy (resolved from WITH options in withConfig) so a user
         // request like WITH {"error_mode": "skip_row"} also applies to the data path when no
@@ -1188,9 +1288,9 @@ public class CsvFormatReader implements SegmentableFormatReader {
 
     @Override
     public RecordSplitter recordSplitter(int maxRecordBytes) {
-        // Splitter chosen once, by dialect — never a per-byte dialect branch. The no-quote dialects
-        // (PLAIN/ESCAPED) take the plain terminator scan; only QUOTED needs the quote-state machine.
-        if (options.dialect().usesQuote() == false) {
+        // Splitter chosen once, by the quoting knob — never a per-byte branch. With quoting off
+        // (plain / escaped) the plain terminator scan suffices; quoting needs the quote-state machine.
+        if (options.quoting() == false) {
             return new NewlineRecordSplitter(maxRecordBytes);
         }
         return new CsvRecordSplitter(options, maxRecordBytes);
@@ -1618,17 +1718,18 @@ public class CsvFormatReader implements SegmentableFormatReader {
     }
 
     /**
-     * Value decode for the {@code escaped} dialect (ClickHouse {@code TabSeparated} / MySQL
+     * Value decode for the {@code escaped} mode (ClickHouse {@code TabSeparated} / MySQL
      * {@code LOAD DATA} / PostgreSQL {@code COPY} text semantics): a whole-field {@code \N} is null
      * and {@code \}-sequences un-escape C-style — the named cases {@code \t \n \r \0 \b \f} are
      * exactly ClickHouse's output escape set, and any other {@code \c} is {@code c} (its parse
-     * rule). Identity for the other dialects, and lazy — a field
-     * without the escape character (the overwhelmingly common case) is returned as-is, so the decode
-     * stays off the hot path. Boundary scanning is untouched by design: an in-field tab/newline is
-     * the two bytes {@code \}+{@code t}/{@code n} on disk, so raw terminators remain unambiguous.
+     * rule). Runs only when {@link CsvFormatOptions#decodesEscapes()} (escaping on, quoting off);
+     * identity otherwise, and lazy — a field without the escape character (the overwhelmingly common
+     * case) is returned as-is, so the decode stays off the hot path. Boundary scanning is untouched by
+     * design: an in-field tab/newline is the two bytes {@code \}+{@code t}/{@code n} on disk, so raw
+     * terminators remain unambiguous.
      */
     private String decodeFieldValue(String value) {
-        if (options.dialect() != CsvFormatOptions.Dialect.ESCAPED || value == null) {
+        if (options.decodesEscapes() == false || value == null) {
             return value;
         }
         char esc = options.escapeChar();
@@ -1977,7 +2078,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                                 for (int i = 0; i < rowList.size(); i++) {
                                     Object val = rowList.get(i);
                                     // decodeFieldValue is identity for quoted/plain (returns immediately),
-                                    // and un-escapes \t \n \\ / maps \N to null for the escaped dialect — the
+                                    // and un-escapes \t \n \\ / maps \N to null for the escaped mode — the
                                     // bulk path's only per-value seam, so escaped decodes here as it does on
                                     // the per-record path.
                                     row[i] = val != null ? decodeFieldValue(val.toString()) : null;
@@ -2073,6 +2174,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             }
             prefetchedRows = sample.rows();
             prefetchedRowsBytes = sample.reservedBytes();
+            maybeHintEscapedUnderPlain(sample.rows());
             return CsvSchemaInferrer.inferSchema(columnNames, sample.rows());
         }
 
@@ -2092,6 +2194,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             }
             prefetchedRows = sample.rows();
             prefetchedRowsBytes = sample.reservedBytes();
+            maybeHintEscapedUnderPlain(sample.rows());
             return inferSyntheticSchema(sample.rows(), options.columnPrefix());
         }
 

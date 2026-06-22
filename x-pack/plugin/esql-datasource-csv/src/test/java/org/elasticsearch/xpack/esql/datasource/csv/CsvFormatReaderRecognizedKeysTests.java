@@ -41,7 +41,7 @@ public class CsvFormatReaderRecognizedKeysTests extends ESTestCase {
         expected.add("comment");
         expected.add("datetime_format");
         expected.add("delimiter");
-        expected.add("dialect");
+        expected.add("mode");
         expected.add("encoding");
         expected.add("escape");
         expected.add("header_row");
@@ -168,7 +168,7 @@ public class CsvFormatReaderRecognizedKeysTests extends ESTestCase {
     private static Object sampleValueFor(String key) {
         return switch (key) {
             case "delimiter" -> "|";
-            case "dialect" -> "escaped";
+            case "mode" -> "escaped";
             case "quote" -> "\"";
             case "escape" -> "\\";
             case "comment" -> "#";

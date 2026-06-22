@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasource.csv;
 
+import org.apache.logging.log4j.Level;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
@@ -16,6 +17,8 @@ import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockLog;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.RecordSplitter;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
@@ -34,13 +37,14 @@ import java.util.Map;
 import static org.hamcrest.Matchers.instanceOf;
 
 /**
- * End-to-end behavior of the three dialects through {@link CsvFormatReader#read}: {@code plain}
+ * End-to-end behavior of the {@code mode} presets through {@link CsvFormatReader#read}: {@code plain}
  * (every byte literal), {@code escaped} (ClickHouse/MySQL/Postgres backslash semantics), and
- * {@code quoted} (RFC 4180, unchanged). The plain/escaped cases are the cure for the original
- * field-leading-quote failure: under the quoted dialect a value starting with {@code "} opens a
+ * {@code quoted} (RFC 4180, unchanged) — plus the permissive {@code quote}/{@code escape} overrides
+ * that reach the rest of the (quoting, escaping) grid. The plain/escaped cases are the cure for the
+ * original field-leading-quote failure: with quoting on, a value starting with {@code "} opens a
  * quoted region tab-delimited data never closes, gluing rows until the record cap.
  */
-public class CsvDialectReadTests extends ESTestCase {
+public class CsvModeReadTests extends ESTestCase {
 
     private BlockFactory blockFactory;
 
@@ -62,7 +66,7 @@ public class CsvDialectReadTests extends ESTestCase {
             String note = i % 7 == 0 ? "\"unbalanced quote " + i : "plain note " + i;
             tsv.append("id").append(i).append('\t').append(note).append('\n');
         }
-        List<List<String>> values = readAll(tsvReader(Map.of("dialect", "plain")), tsv.toString());
+        List<List<String>> values = readAll(tsvReader(Map.of("mode", "plain")), tsv.toString());
         assertEquals(rows, values.size());
         assertEquals("\"unbalanced quote 0", values.get(0).get(1));
         assertEquals("\"unbalanced quote 49", values.get(49).get(1));
@@ -74,7 +78,7 @@ public class CsvDialectReadTests extends ESTestCase {
             path:keyword\tnote:keyword
             C:\\temp\t\\N
             """;
-        List<List<String>> values = readAll(tsvReader(Map.of("dialect", "plain")), tsv);
+        List<List<String>> values = readAll(tsvReader(Map.of("mode", "plain")), tsv);
         assertEquals(1, values.size());
         assertEquals("C:\\temp", values.get(0).get(0));
         assertEquals("\\N", values.get(0).get(1));
@@ -86,7 +90,7 @@ public class CsvDialectReadTests extends ESTestCase {
             a:keyword\tb:keyword\tc:keyword
             has\\ttab\tline1\\nline2\tC:\\\\temp
             """;
-        List<List<String>> values = readAll(tsvReader(Map.of("dialect", "escaped")), tsv);
+        List<List<String>> values = readAll(tsvReader(Map.of("mode", "escaped")), tsv);
         assertEquals(1, values.size());
         assertEquals("has\ttab", values.get(0).get(0));
         assertEquals("line1\nline2", values.get(0).get(1));
@@ -99,7 +103,7 @@ public class CsvDialectReadTests extends ESTestCase {
             a:keyword\tb:keyword
             \\N\tvalue
             """;
-        List<List<String>> values = readAll(tsvReader(Map.of("dialect", "escaped")), tsv);
+        List<List<String>> values = readAll(tsvReader(Map.of("mode", "escaped")), tsv);
         assertEquals(1, values.size());
         assertNull(values.get(0).get(0));
         assertEquals("value", values.get(0).get(1));
@@ -115,27 +119,27 @@ public class CsvDialectReadTests extends ESTestCase {
             a:keyword\tb:keyword\tc:keyword
             NULL\t\\N\tvalue
             """;
-        List<List<String>> values = readAll(tsvReader(Map.of("dialect", "escaped", "null_value", "NULL")), tsv);
+        List<List<String>> values = readAll(tsvReader(Map.of("mode", "escaped", "null_value", "NULL")), tsv);
         assertEquals(1, values.size());
         assertNull(values.get(0).get(0)); // null_value match — tokenizer route
         assertNull(values.get(0).get(1)); // \N — decode route
         assertEquals("value", values.get(0).get(2));
     }
 
-    /** {@code escaped} is still a no-quote dialect: a field-leading {@code "} is data, rows never glue. */
+    /** {@code escaped} is still a no-quote mode: a field-leading {@code "} is data, rows never glue. */
     public void testEscapedFieldLeadingQuoteIsData() throws IOException {
         String tsv = """
             a:keyword\tb:keyword
             "starts with quote\tnormal
             second row\talso normal
             """;
-        List<List<String>> values = readAll(tsvReader(Map.of("dialect", "escaped")), tsv);
+        List<List<String>> values = readAll(tsvReader(Map.of("mode", "escaped")), tsv);
         assertEquals(2, values.size());
         assertEquals("\"starts with quote", values.get(0).get(0));
     }
 
     /** The default CSV path is untouched: RFC-4180 wrapping and doubling still work. */
-    public void testQuotedDialectUnchanged() throws IOException {
+    public void testQuotedModeUnchanged() throws IOException {
         String csv = "a:keyword,b:keyword\n\"has,comma\",\"he said \"\"hi\"\"\"\n";
         List<List<String>> values = readAll(csvReader(Map.of()), csv);
         assertEquals(1, values.size());
@@ -143,25 +147,64 @@ public class CsvDialectReadTests extends ESTestCase {
         assertEquals("he said \"hi\"", values.get(0).get(1));
     }
 
-    /** Splitter dispatch is decided once, by dialect: no-quote dialects take the terminator scan. */
-    public void testSplitterDispatchByDialect() throws IOException {
-        assertThat(tsvReader(Map.of("dialect", "plain")).recordSplitter(1024), instanceOf(NewlineRecordSplitter.class));
-        assertThat(tsvReader(Map.of("dialect", "escaped")).recordSplitter(1024), instanceOf(NewlineRecordSplitter.class));
+    /** Splitter dispatch is decided once, by the quoting knob: no-quote modes take the terminator scan. */
+    public void testSplitterDispatchByQuoting() throws IOException {
+        assertThat(tsvReader(Map.of("mode", "plain")).recordSplitter(1024), instanceOf(NewlineRecordSplitter.class));
+        assertThat(tsvReader(Map.of("mode", "escaped")).recordSplitter(1024), instanceOf(NewlineRecordSplitter.class));
         // The .tsv baseline is plain, so an unconfigured TSV reader takes the terminator scan; quoting is opt-in.
         assertThat(tsvReader(Map.of()).recordSplitter(1024), instanceOf(NewlineRecordSplitter.class));
-        assertThat(tsvReader(Map.of("dialect", "quoted")).recordSplitter(1024), instanceOf(CsvRecordSplitter.class));
+        assertThat(tsvReader(Map.of("mode", "quoted")).recordSplitter(1024), instanceOf(CsvRecordSplitter.class));
         assertThat(csvReader(Map.of()).recordSplitter(1024), instanceOf(CsvRecordSplitter.class));
     }
 
     /** Bare brackets selects QUOTED (bracket cells carry quoted elements), even on the plain .tsv baseline. */
-    public void testBareBracketsSelectsQuotedDialect() throws IOException {
+    public void testBareBracketsEnablesQuoting() throws IOException {
         assertThat(tsvReader(Map.of("multi_value_syntax", "brackets")).recordSplitter(1024), instanceOf(CsvRecordSplitter.class));
     }
 
     /**
+     * Permissive override: {@code mode: plain, quote: "\""} turns quoting back on, so a quoted field
+     * may carry the tab delimiter as data and the reader switches to the quote-state splitter.
+     */
+    public void testPlainQuoteOverrideEnablesQuoting() throws IOException {
+        assertThat(tsvReader(Map.of("mode", "plain", "quote", "\"")).recordSplitter(1024), instanceOf(CsvRecordSplitter.class));
+        String tsv = "a:keyword\tb:keyword\n\"x\ty\"\tz\n";
+        List<List<String>> values = readAll(tsvReader(Map.of("mode", "plain", "quote", "\"")), tsv);
+        assertEquals(1, values.size());
+        assertEquals("x\ty", values.get(0).get(0)); // tab inside quotes is data, one field
+        assertEquals("z", values.get(0).get(1));
+    }
+
+    /**
+     * Permissive override: {@code escape: none} under quoted is pure RFC 4180 — quoting stays on but
+     * the backslash is left as data, so a Windows path inside quotes survives intact instead of
+     * losing the character after the backslash to Jackson's in-quote escape.
+     */
+    public void testQuotedEscapeNoneKeepsBackslashLiteral() throws IOException {
+        String csv = "p:keyword\n\"C:\\Users\"\n";
+        List<List<String>> values = readAll(csvReader(Map.of("escape", "none")), csv);
+        assertEquals(1, values.size());
+        assertEquals("C:\\Users", values.get(0).get(0));
+    }
+
+    /**
+     * Permissive override: {@code mode: escaped, quote: "\""} turns quoting on, so the reader switches
+     * to the quote-state splitter and a quoted field may carry the tab delimiter as data. (The C-style
+     * value decode is off once quoting is on — {@link CsvFormatOptions#decodesEscapes()} is false — so
+     * this is plain RFC-4180-with-escape parsing, not ClickHouse decoding.)
+     */
+    public void testEscapedQuoteOverrideEnablesQuoting() throws IOException {
+        assertThat(tsvReader(Map.of("mode", "escaped", "quote", "\"")).recordSplitter(1024), instanceOf(CsvRecordSplitter.class));
+        String tsv = "a:keyword\tb:keyword\n\"x\ty\"\tz\n";
+        List<List<String>> values = readAll(tsvReader(Map.of("mode", "escaped", "quote", "\"")), tsv);
+        assertEquals(1, values.size());
+        assertEquals("x\ty", values.get(0).get(0)); // tab inside quotes is data — quoting is on
+        assertEquals("z", values.get(0).get(1));
+    }
+
+    /**
      * The original ClickBench failure shape under the DEFAULT {@code .tsv} configuration — no
-     * dialect option supplied. A field-leading {@code "} is data; rows never glue and the count is
-     * exact.
+     * mode option supplied. A field-leading {@code "} is data; rows never glue and the count is exact.
      */
     public void testDefaultTsvFieldLeadingQuoteReadsExactRows() throws IOException {
         StringBuilder tsv = new StringBuilder("id:keyword\tnote:keyword\n");
@@ -177,7 +220,7 @@ public class CsvDialectReadTests extends ESTestCase {
     /**
      * Volume guard for the merge: after schema resolution the data rows flow through the Jackson
      * BULK iterator (not the per-record sampler), which builds its schema from {@code newCsvSchema()}.
-     * If that schema is not dialect-aware ({@code withoutQuoteChar()} for plain), a field-leading
+     * If that schema is not quoting-aware ({@code withoutQuoteChar()} for plain), a field-leading
      * {@code "} opens a region Jackson scans across newlines and rows glue. 500 rows span multiple
      * read batches, so this exercises the bulk path repeatedly, not a single small sample.
      */
@@ -188,15 +231,15 @@ public class CsvDialectReadTests extends ESTestCase {
             String note = i % 50 == 0 ? "\"unbalanced quote " + i : "note " + i;
             tsv.append("id").append(i).append('\t').append(note).append('\n');
         }
-        List<List<String>> values = readAll(tsvReader(Map.of("dialect", "plain")), tsv.toString());
+        List<List<String>> values = readAll(tsvReader(Map.of("mode", "plain")), tsv.toString());
         assertEquals(rows, values.size());
         assertEquals("\"unbalanced quote 0", values.get(0).get(1)); // first quoted row, literal
         assertEquals("\"unbalanced quote 450", values.get(450).get(1)); // a later batch, still literal
     }
 
     /**
-     * Volume guard: the escaped dialect decodes on the BULK data path (the merge's only per-value
-     * seam there), so {@code \t} un-escapes and a whole-field {@code \N} is null across many batches,
+     * Volume guard: the escaped mode decodes on the BULK data path (the merge's only per-value seam
+     * there), so {@code \t} un-escapes and a whole-field {@code \N} is null across many batches,
      * exactly as on the per-record path.
      */
     public void testBulkPathEscapedDecodesAtVolume() throws IOException {
@@ -205,7 +248,7 @@ public class CsvDialectReadTests extends ESTestCase {
         for (int i = 0; i < rows; i++) {
             tsv.append("id").append(i).append("\thas\\ttab").append('\t').append(i % 2 == 0 ? "\\N" : "present").append('\n');
         }
-        List<List<String>> values = readAll(tsvReader(Map.of("dialect", "escaped")), tsv.toString());
+        List<List<String>> values = readAll(tsvReader(Map.of("mode", "escaped")), tsv.toString());
         assertEquals(rows, values.size());
         assertEquals("has\ttab", values.get(0).get(1)); // \t decoded on the bulk path
         assertEquals("has\ttab", values.get(499).get(1)); // still decoded in a later batch
@@ -214,9 +257,9 @@ public class CsvDialectReadTests extends ESTestCase {
     }
 
     /**
-     * Tripwire for the SCHEMA-INFERENCE path. Inference (here headerless → inferSchemaHeaderless)
-     * samples rows through the per-record iterator and its dialect schema. If that path were not
-     * dialect-aware, a field-leading {@code "} in the sample would open a quoted region and the
+     * Tripwire for the SCHEMA-INFERENCE path. Inference (here headerless → inferSchemaWithSyntheticNames)
+     * samples rows through the per-record iterator and its mode schema. If that path were not
+     * quoting-aware, a field-leading {@code "} in the sample would open a quoted region and the
      * sampling would glue rows — wrong count / mis-aligned columns. Under plain it stays data.
      */
     public void testPlainInferenceFieldLeadingQuoteDoesNotGlue() throws IOException {
@@ -225,7 +268,7 @@ public class CsvDialectReadTests extends ESTestCase {
             String note = i % 5 == 0 ? "\"quote-start " + i : "note " + i;
             tsv.append("id").append(i).append('\t').append(note).append('\n');
         }
-        List<List<String>> values = readAll(tsvReader(Map.of("dialect", "plain", "header_row", false)), tsv.toString());
+        List<List<String>> values = readAll(tsvReader(Map.of("mode", "plain", "header_row", false)), tsv.toString());
         assertEquals(30, values.size());
         assertEquals("\"quote-start 0", values.get(0).get(1));
     }
@@ -242,7 +285,7 @@ public class CsvDialectReadTests extends ESTestCase {
         for (int i = 0; i < 30; i++) {
             tsv.append(i % 3 == 0 ? "\\N" : Integer.toString(i)).append('\n');
         }
-        List<ElementType> types = readColumnTypes(tsvReader(Map.of("dialect", "escaped", "header_row", false)), tsv.toString());
+        List<ElementType> types = readColumnTypes(tsvReader(Map.of("mode", "escaped", "header_row", false)), tsv.toString());
         assertEquals(1, types.size());
         assertNotEquals(
             "escaped \\N must decode to null in the sample so the column infers numeric, not keyword",
@@ -252,7 +295,7 @@ public class CsvDialectReadTests extends ESTestCase {
     }
 
     /**
-     * Same tripwire through the HEADERED inference path (inferSchemaFromBatchReader): a header with
+     * Same tripwire through the HEADERED inference path (inferSchemaFromSample): a header with
      * no {@code :type} annotations forces type inference from the sample.
      */
     public void testEscapedHeaderedInferenceDecodesNull() throws IOException {
@@ -260,9 +303,47 @@ public class CsvDialectReadTests extends ESTestCase {
         for (int i = 0; i < 30; i++) {
             tsv.append("id").append(i).append('\t').append(i % 3 == 0 ? "\\N" : Integer.toString(i)).append('\n');
         }
-        List<ElementType> types = readColumnTypes(tsvReader(Map.of("dialect", "escaped")), tsv.toString());
+        List<ElementType> types = readColumnTypes(tsvReader(Map.of("mode", "escaped")), tsv.toString());
         assertEquals(2, types.size());
         assertNotEquals("the n column must infer numeric, proving \\N decoded in the sample", ElementType.BYTES_REF, types.get(1));
+    }
+
+    /**
+     * Tripwire for the costin hint: a {@code plain}-mode sample whose values carry backslash-escape
+     * sequences logs a one-time DEBUG nudge toward {@code mode: escaped}. If the hint scan is dropped
+     * the expectation goes unmatched and the test fails.
+     */
+    @TestLogging(
+        value = "org.elasticsearch.xpack.esql.datasource.csv.CsvFormatReader:DEBUG",
+        reason = "the plain-looks-escaped hint logs at DEBUG"
+    )
+    public void testPlainEscapedDataLogsHint() throws Exception {
+        String tsv = "id0\t\\N\nid1\tplain note\n";
+        try (var mockLog = MockLog.capture(CsvFormatReader.class)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "escaped-hint",
+                    CsvFormatReader.class.getCanonicalName(),
+                    Level.DEBUG,
+                    "*backslash-escape sequences*mode*escaped*"
+                )
+            );
+            readAll(tsvReader(Map.of("mode", "plain", "header_row", false)), tsv);
+            mockLog.assertAllExpectationsMatched();
+        }
+    }
+
+    /** The hint stays quiet for clean plain data (no false nudge) and for the escaped mode (already decoding). */
+    @TestLogging(value = "org.elasticsearch.xpack.esql.datasource.csv.CsvFormatReader:DEBUG", reason = "assert the hint does NOT fire")
+    public void testNoHintForCleanPlainOrEscapedMode() throws Exception {
+        try (var mockLog = MockLog.capture(CsvFormatReader.class)) {
+            mockLog.addExpectation(
+                new MockLog.UnseenEventExpectation("no-hint", CsvFormatReader.class.getCanonicalName(), Level.DEBUG, "*backslash-escape*")
+            );
+            readAll(tsvReader(Map.of("mode", "plain", "header_row", false)), "id0\tclean\nid1\talso clean\n");
+            readAll(tsvReader(Map.of("mode", "escaped", "header_row", false)), "id0\t\\N\nid1\tvalue\n");
+            mockLog.assertAllExpectationsMatched();
+        }
     }
 
     /** The no-quote splitter never reports a too-large record for well-formed newline-terminated data. */
@@ -380,7 +461,7 @@ public class CsvDialectReadTests extends ESTestCase {
 
         @Override
         public StoragePath path() {
-            return StoragePath.of("mem://csv-dialect-read-tests");
+            return StoragePath.of("mem://csv-mode-read-tests");
         }
     }
 }

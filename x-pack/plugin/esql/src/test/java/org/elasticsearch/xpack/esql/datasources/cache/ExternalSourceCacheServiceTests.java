@@ -360,33 +360,33 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
     }
 
     /**
-     * The dialect changes record boundaries, null-ness ({@code \N}) and values on the same bytes,
-     * so queries differing only in dialect must never share a schema-cache entry or a stats
+     * The mode changes record boundaries, null-ness ({@code \N}) and values on the same bytes,
+     * so queries differing only in mode must never share a schema-cache entry or a stats
      * fingerprint.
      */
-    public void testSchemaCacheKeySeparatesDialects() {
+    public void testSchemaCacheKeySeparatesModes() {
         SchemaCacheKey base = SchemaCacheKey.build("s3://b/f.tsv", 1000L, ".tsv", Map.of("format", "tsv", "header_row", true));
         SchemaCacheKey quoted = SchemaCacheKey.build(
             "s3://b/f.tsv",
             1000L,
             ".tsv",
-            Map.of("format", "tsv", "header_row", true, "dialect", "quoted")
+            Map.of("format", "tsv", "header_row", true, "mode", "quoted")
         );
         SchemaCacheKey escaped = SchemaCacheKey.build(
             "s3://b/f.tsv",
             1000L,
             ".tsv",
-            Map.of("format", "tsv", "header_row", true, "dialect", "escaped")
+            Map.of("format", "tsv", "header_row", true, "mode", "escaped")
         );
         assertNotEquals(base.formatConfig(), quoted.formatConfig());
         assertNotEquals(base.formatConfig(), escaped.formatConfig());
         assertNotEquals(quoted.formatConfig(), escaped.formatConfig());
-        assertTrue(quoted.formatConfig().contains("dialect=quoted"));
-        assertTrue(escaped.formatConfig().contains("dialect=escaped"));
+        assertTrue(quoted.formatConfig().contains("mode=quoted"));
+        assertTrue(escaped.formatConfig().contains("mode=escaped"));
     }
 
     /**
-     * Bare {@code multi_value_syntax: brackets} resolves the dialect to quoted on a no-quote
+     * Bare {@code multi_value_syntax: brackets} resolves the mode to quoted on a no-quote
      * baseline (and selects the bracket-aware record scanner everywhere), so two configs differing
      * only in this key can interpret the same bytes with different record boundaries — they must
      * not share a schema-cache entry or a stats fingerprint.

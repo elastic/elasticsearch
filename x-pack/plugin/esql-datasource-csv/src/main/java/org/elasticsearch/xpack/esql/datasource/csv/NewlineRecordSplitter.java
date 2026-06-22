@@ -15,11 +15,11 @@ import java.io.InputStream;
 import java.util.Objects;
 
 /**
- * Record-boundary splitter for the no-quote dialects ({@link CsvFormatOptions.Dialect#PLAIN} and
- * {@link CsvFormatOptions.Dialect#ESCAPED}). Without quoting, a raw line terminator is always a
+ * Record-boundary splitter for the no-quote modes ({@link CsvFormatOptions.Mode#PLAIN} and
+ * {@link CsvFormatOptions.Mode#ESCAPED}). Without quoting, a raw line terminator is always a
  * record boundary — in {@code ESCAPED} data an in-field newline is the two bytes {@code \}+{@code n},
  * never raw — so boundary detection is a plain terminator scan with no quote-state machine. That is
- * what makes this path cheap; it must never grow per-byte dialect state. (Structurally the same scan
+ * what makes this path cheap; it must never grow per-byte mode state. (Structurally the same scan
  * as the NDJSON splitter, which relies on the same no-raw-newlines-in-a-record property.)
  */
 final class NewlineRecordSplitter implements RecordSplitter {

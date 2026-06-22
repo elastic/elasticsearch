@@ -83,7 +83,7 @@ public class CsvRecordSplitterContractTests extends ESTestCase {
     }
 
     private static Case newlineNoQuote(int maxRecordBytes) {
-        // The no-quote dialects' splitter honors the same boundary contract as its quote-aware siblings.
+        // The no-quote modes' splitter honors the same boundary contract as its quote-aware siblings.
         return new Case("newline-no-quote", () -> new NewlineRecordSplitter(maxRecordBytes));
     }
 

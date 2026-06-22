@@ -14,13 +14,21 @@ import java.util.Locale;
 
 /**
  * Configurable options for CSV/TSV parsing.
+ * <p>
+ * Quoting and escaping are two independent knobs. {@link #quoting} decides whether a field may be
+ * wrapped in {@link #quoteChar} (RFC&nbsp;4180 doubling); {@link #escaping} decides whether
+ * {@link #escapeChar} is consulted — inside quoted fields when {@link #quoting} is also on, or as a
+ * C-style value decode ({@code \t}, {@code \n}, {@code \N}) when it is off. The four combinations are
+ * all reachable and all meaningful; the user-facing {@code mode} keyword ({@link Mode}) is just a
+ * named preset over the pair, and explicit {@code quote}/{@code escape} keys override whatever the
+ * preset chose.
  *
  * @param delimiter          field separator character (default: comma)
- * @param quoteChar          character used to quote fields (default: double-quote); only consulted
- *                           when {@link #dialect} is {@link Dialect#QUOTED}
- * @param escapeChar         character used to escape special characters (default: backslash); only
- *                           consulted when {@link #dialect} uses escaping ({@link Dialect#QUOTED}
- *                           inside quoted fields, {@link Dialect#ESCAPED} at value decode)
+ * @param quoteChar          character used to quote fields (default: double-quote); consulted only
+ *                           when {@link #quoting} is {@code true}
+ * @param escapeChar         character used to escape special characters (default: backslash);
+ *                           consulted only when {@link #escaping} is {@code true} — inside quoted
+ *                           fields when {@link #quoting} is also on, otherwise at value decode
  * @param commentPrefix      prefix for comment lines to skip (default: "//")
  * @param nullValue          string representation of null in the data (default: empty string)
  * @param encoding           character encoding of the input (default: UTF-8)
@@ -37,10 +45,10 @@ import java.util.Locale;
  *                           {@code col0, col1, col2, ...}). Default: {@code "col"}. Ignored when
  *                           {@code headerRow} is {@code true}. An empty prefix yields purely numeric
  *                           names ({@code 0, 1, 2, ...}) which must be backtick-quoted in ES|QL.
- * @param dialect            how a separator-that-is-data is represented (see {@link Dialect}). The
- *                           dialect is authoritative for the <em>mechanism</em>; {@link #quoteChar}
- *                           and {@link #escapeChar} only carry the <em>character</em> and are inert
- *                           under a dialect that does not use them.
+ * @param quoting            whether fields may be quoted with {@link #quoteChar}. When {@code false}
+ *                           a raw newline is always a record boundary and a raw delimiter always a
+ *                           field boundary, which is what allows the no-quote fast scan.
+ * @param escaping           whether {@link #escapeChar} is consulted (see {@link #escapeChar}).
  */
 public record CsvFormatOptions(
     char delimiter,
@@ -54,7 +62,8 @@ public record CsvFormatOptions(
     MultiValueSyntax multiValueSyntax,
     boolean headerRow,
     String columnPrefix,
-    Dialect dialect
+    boolean quoting,
+    boolean escaping
 ) {
 
     public enum MultiValueSyntax {
@@ -63,29 +72,30 @@ public record CsvFormatOptions(
     }
 
     /**
-     * How a field value that contains the delimiter (or a newline) is represented on disk. There is
-     * no single TSV/CSV convention — real producers split three ways, so the dialect is explicit:
+     * Named presets over the {@code (quoting, escaping)} pair. There is no single TSV/CSV convention —
+     * real producers split three ways — so the {@code mode} keyword names the common ones:
      * <ul>
-     *   <li>{@link #QUOTED} — fields may be wrapped in {@link #quoteChar}; an embedded quote is
-     *       doubled (RFC 4180). Excel, Python, R, spreadsheet CSV. The only dialect where a quote
-     *       character is meaningful.</li>
-     *   <li>{@link #ESCAPED} — no quoting; specials are escaped with {@link #escapeChar}
-     *       ({@code \t}, {@code \n}, {@code \\}) and null is {@code \N}. ClickHouse
-     *       {@code TabSeparated}, MySQL {@code LOAD DATA}, PostgreSQL {@code COPY} text.</li>
-     *   <li>{@link #PLAIN} — no quoting, no escaping; every byte is literal, so a field cannot
-     *       contain the delimiter or a newline. Unix tools, bioinformatics formats, IANA
-     *       tab-separated-values.</li>
+     *   <li>{@link #QUOTED} — {@code (quoting, escaping) = (true, true)}. Fields may be wrapped in
+     *       {@link CsvFormatOptions#quoteChar}; an embedded quote is doubled (RFC 4180) and a
+     *       backslash escapes inside a quoted field. Excel, Python, R, spreadsheet CSV.</li>
+     *   <li>{@link #ESCAPED} — {@code (false, true)}. No quoting; specials are escaped with
+     *       {@link CsvFormatOptions#escapeChar} ({@code \t}, {@code \n}, {@code \\}) and null is
+     *       {@code \N}. ClickHouse {@code TabSeparated}, MySQL {@code LOAD DATA}, PostgreSQL
+     *       {@code COPY} text.</li>
+     *   <li>{@link #PLAIN} — {@code (false, false)}. No quoting, no escaping; every byte is literal,
+     *       so a field cannot contain the delimiter or a newline. Unix tools, bioinformatics formats,
+     *       IANA tab-separated-values.</li>
      * </ul>
-     * In {@link #ESCAPED} and {@link #PLAIN} a raw newline is always a record boundary and a raw
-     * delimiter always a field boundary, which is what allows the no-quote fast scan.
+     * The fourth combination {@code (true, false)} — pure RFC 4180 quoting with no backslash escape —
+     * has no preset name but is reachable via {@code mode: quoted, escape: none}.
      */
-    public enum Dialect {
+    public enum Mode {
         QUOTED,
         ESCAPED,
         PLAIN;
 
         /** Case-insensitive parse; returns {@code null} for null/empty input (option absent). */
-        public static Dialect parse(String value) {
+        public static Mode parse(String value) {
             if (value == null || value.isEmpty()) {
                 return null;
             }
@@ -94,17 +104,17 @@ public record CsvFormatOptions(
                 case "escaped" -> ESCAPED;
                 case "plain" -> PLAIN;
                 default -> throw new IllegalArgumentException(
-                    "Invalid dialect [" + value + "]. Accepted values: \"quoted\", \"escaped\", \"plain\""
+                    "Invalid mode [" + value + "]. Accepted values: \"quoted\", \"escaped\", \"plain\""
                 );
             };
         }
 
-        /** Whether {@link CsvFormatOptions#quoteChar} is consulted under this dialect. */
+        /** Whether this preset turns quoting on. */
         public boolean usesQuote() {
             return this == QUOTED;
         }
 
-        /** Whether {@link CsvFormatOptions#escapeChar} is consulted under this dialect. */
+        /** Whether this preset consults the escape character. */
         public boolean usesEscape() {
             return this != PLAIN;
         }
@@ -116,10 +126,14 @@ public record CsvFormatOptions(
     /** Default prefix for synthesized column names when {@link #headerRow} is {@code false}. */
     static final String DEFAULT_COLUMN_PREFIX = "col";
 
+    /** Canonical quote / escape characters a preset installs before any explicit override. */
+    static final char DEFAULT_QUOTE = '"';
+    static final char DEFAULT_ESCAPE = '\\';
+
     public static final CsvFormatOptions DEFAULT = new CsvFormatOptions(
         ',',
-        '"',
-        '\\',
+        DEFAULT_QUOTE,
+        DEFAULT_ESCAPE,
         "//",
         "",
         StandardCharsets.UTF_8,
@@ -128,19 +142,21 @@ public record CsvFormatOptions(
         MultiValueSyntax.NONE,
         true,
         DEFAULT_COLUMN_PREFIX,
-        Dialect.QUOTED
+        true,
+        true
     );
 
     /**
-     * The {@code .tsv} baseline is {@link Dialect#PLAIN}: bulk TSV at rest (DB exports, Unix
-     * tooling, bioinformatics) does not quote, and a quoting reader glues records on a stray
-     * {@code "}. PLAIN never silently corrupts any input; ClickHouse-style files opt into full
-     * escape fidelity with {@code "dialect": "escaped"}. CSV keeps QUOTED — that ecosystem quotes.
+     * The {@code .tsv} baseline is {@link Mode#PLAIN} — {@code (quoting, escaping) = (false, false)}:
+     * bulk TSV at rest (DB exports, Unix tooling, bioinformatics) does not quote, and a quoting reader
+     * glues records on a stray {@code "}. PLAIN never silently corrupts any input; ClickHouse-style
+     * files opt into full escape fidelity with {@code "mode": "escaped"}. CSV keeps QUOTED — that
+     * ecosystem quotes.
      */
     public static final CsvFormatOptions TSV = new CsvFormatOptions(
         '\t',
-        '"',
-        '\\',
+        DEFAULT_QUOTE,
+        DEFAULT_ESCAPE,
         "//",
         "",
         StandardCharsets.UTF_8,
@@ -149,12 +165,14 @@ public record CsvFormatOptions(
         MultiValueSyntax.NONE,
         true,
         DEFAULT_COLUMN_PREFIX,
-        Dialect.PLAIN
+        false,
+        false
     );
 
     /**
-     * Pre-dialect constructor: callers that don't say otherwise get {@link Dialect#QUOTED}, which is
-     * the only behavior that existed before the dialect axis.
+     * Pre-mode constructor: callers that don't say otherwise get fully-quoted parsing
+     * ({@code (quoting, escaping) = (true, true)}, i.e. {@link Mode#QUOTED}), which is the only
+     * behavior that existed before the quoting/escaping axes were split out.
      */
     public CsvFormatOptions(
         char delimiter,
@@ -181,7 +199,8 @@ public record CsvFormatOptions(
             multiValueSyntax,
             headerRow,
             columnPrefix,
-            Dialect.QUOTED
+            true,
+            true
         );
     }
 
@@ -204,16 +223,15 @@ public record CsvFormatOptions(
         if (columnPrefix == null) {
             throw new IllegalArgumentException("columnPrefix must not be null");
         }
-        if (dialect == null) {
-            throw new IllegalArgumentException("dialect must not be null");
-        }
-        // The dialect's ACTIVE special characters must be pairwise-distinct and none of them a line
-        // terminator: each byte in the hot scan has exactly one meaning. Inert characters (e.g. the
-        // quote under PLAIN/ESCAPED) are never consulted, so they are not constrained.
+        // The ACTIVE special characters must be pairwise-distinct and none of them a line terminator:
+        // each byte in the hot scan has exactly one meaning. Inactive characters (the quote when
+        // quoting is off, the escape when escaping is off) are never consulted, so they are not
+        // constrained — this is the only validation that survives; the mode/override coherence rules
+        // are gone, because explicit quote/escape always win (silent errors are the user's to own).
         if (delimiter == '\n' || delimiter == '\r') {
             throw new IllegalArgumentException("delimiter must not be a line terminator (\\n / \\r)");
         }
-        if (dialect.usesQuote()) {
+        if (quoting) {
             if (quoteChar == '\n' || quoteChar == '\r') {
                 throw new IllegalArgumentException("quote must not be a line terminator (\\n / \\r)");
             }
@@ -223,7 +241,7 @@ public record CsvFormatOptions(
                 );
             }
         }
-        if (dialect.usesEscape()) {
+        if (escaping) {
             if (escapeChar == '\n' || escapeChar == '\r') {
                 throw new IllegalArgumentException("escape must not be a line terminator (\\n / \\r)");
             }
@@ -232,10 +250,15 @@ public record CsvFormatOptions(
                     "escape [" + printable(escapeChar) + "] must differ from delimiter [" + printable(delimiter) + "]"
                 );
             }
-            if (dialect.usesQuote() && escapeChar == quoteChar) {
+            if (quoting && escapeChar == quoteChar) {
                 throw new IllegalArgumentException("quote and escape must differ, both are [" + printable(quoteChar) + "]");
             }
         }
+    }
+
+    /** Whether field values are run through the C-style escape decoder ({@code escaped} mode). */
+    public boolean decodesEscapes() {
+        return escaping && quoting == false;
     }
 
     /** Renders control characters readably in error messages ({@code \t}, {@code \n}, {@code \r}). */

@@ -25,7 +25,7 @@ final class CsvLogicalRecordReader {
     private final boolean utf8;
     /**
      * Whether {@link #quoteChar} opens a quoted field at field start. {@code false} for the no-quote
-     * dialects ({@code plain}/{@code escaped}), where a quote byte is ordinary data and a raw line
+     * modes ({@code plain}/{@code escaped}), where a quote byte is ordinary data and a raw line
      * terminator always ends the record — the property that keeps no-quote records from ever gluing
      * across lines on a stray quote.
      */

@@ -142,7 +142,7 @@ public class ParallelTopNOperator implements Operator, Accountable {
     private void scheduleWorker(TopNOperator worker, List<Page> workerOutput) {
         executor.execute(new AbstractRunnable() {
             @Override
-            protected void doRun() {
+            protected void doRun() throws Exception {
                 runWorker(worker, workerOutput);
             }
 
@@ -159,7 +159,11 @@ public class ParallelTopNOperator implements Operator, Accountable {
                     // The thread pool queue is full, run on the driver thread. While there are pages available
                     // on the input buffer, the driver thread will keep worker. If pages are exhausted,
                     // scheduleWorker will be called again, given the chance to go back to the worker thread.
-                    runWorker(worker, workerOutput);
+                    try {
+                        runWorker(worker, workerOutput);
+                    } catch (Exception ex) {
+                        onFailure(ex);
+                    }
                 } else {
                     onFailure(e);
                 }
@@ -168,41 +172,29 @@ public class ParallelTopNOperator implements Operator, Accountable {
     }
 
     private void runWorker(TopNOperator worker, List<Page> workerOutput) {
-        try {
-            Page page;
-            while (closed == false && (page = in.pollPage()) != null) {
-                worker.addInput(page);
-            }
-        } catch (Exception e) {
-            failureCollector.unwrapAndCollect(e);
-            in.finish(true);
-            workerPermanentlyExited(worker, true);
-            return;
+        Page page;
+        while (closed == false && (page = in.pollPage()) != null) {
+            worker.addInput(page);
         }
 
         if (in.noMoreInputs() || closed) {
             // Finished draining (or aborting). Produce output pages and transfer them to the driver.
             boolean abort = closed || failureCollector.hasFailure();
             if (abort == false) {
-                try {
-                    worker.finish();
-                    Page outputPage;
-                    while ((outputPage = worker.getOutput()) != null) {
-                        try {
-                            outputPage.allowPassingToDifferentDriver();
-                        } catch (Exception e) {
-                            outputPage.releaseBlocks();
-                            throw e;
-                        }
-                        if (closed) {
-                            outputPage.releaseBlocks();
-                        } else {
-                            workerOutput.add(outputPage);
-                        }
+                worker.finish();
+                Page outputPage;
+                while ((outputPage = worker.getOutput()) != null) {
+                    try {
+                        outputPage.allowPassingToDifferentDriver();
+                    } catch (Exception e) {
+                        outputPage.releaseBlocks();
+                        throw e;
                     }
-                } catch (Exception e) {
-                    failureCollector.unwrapAndCollect(e);
-                    abort = true;
+                    if (closed) {
+                        outputPage.releaseBlocks();
+                    } else {
+                        workerOutput.add(outputPage);
+                    }
                 }
             }
             workerPermanentlyExited(worker, abort);

@@ -61,6 +61,8 @@ import org.elasticsearch.xpack.stateless.commits.VirtualBatchedCompoundCommit;
 import org.elasticsearch.xpack.stateless.lucene.BlobCacheIndexInput;
 import org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectory;
 import org.elasticsearch.xpack.stateless.lucene.FileCacheKey;
+import org.elasticsearch.xpack.stateless.lucene.IndexBlobStoreCacheDirectory;
+import org.elasticsearch.xpack.stateless.lucene.SearchDirectory;
 import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
 import org.elasticsearch.xpack.stateless.recovery.metering.StatelessRecoveryMetricsCollector;
 import org.elasticsearch.xpack.stateless.utils.IndexingShardWarmingComparator;
@@ -666,7 +668,13 @@ public class SharedBlobCacheWarmingService {
         if (store.isClosing() || store.tryIncRef() == false) {
             listener.onFailure(new AlreadyClosedException("Failed to warm cache [" + type + "] for " + shardId + ", store is closing"));
         } else {
-            try (var listeners = new RefCountingListener(ActionListener.runAfter(listener, store::decRef))) {
+            // The store ref is only needed to guard task enqueuing, not task execution: tasks check isCancelled() (= store.isClosing())
+            // before touching the directory (optimistically) but the concrete directory can still serve reads from the object store after
+            // being closed.
+            // Releasing the ref immediately after enqueueing lets the shard close without waiting for queued tasks to drain.
+            assert directory instanceof SearchDirectory || directory instanceof IndexBlobStoreCacheDirectory
+                : "wrong directory " + directory + ", need directory that cannot fail when store is closed";
+            try (var listeners = new RefCountingListener(listener)) {
                 // special search shard prewarming based on timestamp range of CCs (more recent data is warmed more)
                 if (type == Type.SEARCH && (prefetchCommitsForSearchShardRecovery || searchOfflineWarmingEnabled)) {
                     SubscribableListener.<Map<BlobFile, Long>>newForked(l1 -> {
@@ -700,7 +708,7 @@ public class SharedBlobCacheWarmingService {
                         }
                     }).<Void>andThen((l2, offsetsToWarmFinal) -> {
                         if (searchOfflineWarmingEnabled) {
-                            warmBlobOffsets(indexShard, offsetsToWarmFinal, l2);
+                            warmBlobOffsets(indexShard, directory, offsetsToWarmFinal, l2);
                         } else {
                             l2.onResponse(null);
                         }
@@ -737,6 +745,8 @@ public class SharedBlobCacheWarmingService {
                 ) {
                     warmer.run();
                 }
+            } finally {
+                store.decRef();
             }
         }
     }
@@ -912,7 +922,12 @@ public class SharedBlobCacheWarmingService {
     }
 
     // protected for tests
-    protected void warmBlobOffsets(IndexShard indexShard, Map<BlobFile, Long> offsetsToWarmPerBlobFile, ActionListener<Void> listener) {
+    protected void warmBlobOffsets(
+        IndexShard indexShard,
+        BlobStoreCacheDirectory directory,
+        Map<BlobFile, Long> offsetsToWarmPerBlobFile,
+        ActionListener<Void> listener
+    ) {
         try (RefCountingListener listeners = new RefCountingListener(listener)) {
             for (var offsetsToWarm : offsetsToWarmPerBlobFile.entrySet()) {
                 // Warm from the start of the blob through the computed end. We used to skip the first cache region, assuming
@@ -924,6 +939,7 @@ public class SharedBlobCacheWarmingService {
                         indexShard,
                         offsetsToWarm.getKey(),
                         ByteRange.of(0, offsetsToWarm.getValue()),
+                        directory,
                         listeners.acquire()
                     );
                 }
@@ -936,24 +952,16 @@ public class SharedBlobCacheWarmingService {
         IndexShard indexShard,
         BlobFile blobFile,
         ByteRange byteRangeToWarm,
+        BlobStoreCacheDirectory directory,
         ActionListener<Void> listener
     ) {
         final Store store = indexShard.store();
         final ShardId shardId = indexShard.shardId();
         final var warmingRun = new WarmingRun(type, shardId, "prewarm", Map.of("prewarming_type", type.name()));
-        if (store.isClosing() || store.tryIncRef() == false) {
+        if (store.isClosing()) {
             listener.onFailure(new AlreadyClosedException("Failed to warm cache [" + type + "] for " + shardId + ", store is closing"));
         } else {
-            try (
-                var warmer = new BlobByteRangeWarmer(
-                    warmingRun,
-                    blobFile,
-                    byteRangeToWarm,
-                    store::isClosing,
-                    BlobStoreCacheDirectory.unwrapDirectory(store.directory()),
-                    ActionListener.runAfter(listener, store::decRef)
-                )
-            ) {
+            try (var warmer = new BlobByteRangeWarmer(warmingRun, blobFile, byteRangeToWarm, store::isClosing, directory, listener)) {
                 warmer.run();
             }
         }
@@ -1133,6 +1141,8 @@ public class SharedBlobCacheWarmingService {
                     if (isCancelled()) {
                         return null;
                     }
+                    assert directory instanceof SearchDirectory || directory instanceof IndexBlobStoreCacheDirectory
+                        : "wrong directory " + directory + ", need directory that cannot fail in open input";
                     try (var in = directory.openInput(fileName, IOContext.READONCE)) {
                         var entries = Lucene90CompoundEntriesReader.readEntries(in);
 
@@ -1585,6 +1595,11 @@ public class SharedBlobCacheWarmingService {
 
             @Override
             public void onResponse(Releasable releasable) {
+                if (isCancelled()) {
+                    listener.onResponse(null);
+                    Releasables.close(releasable);
+                    return;
+                }
                 var cacheKey = new FileCacheKey(warmingRun.shardId(), blobFile.primaryTerm(), blobFile.blobName());
                 var releasedListener = ActionListener.releaseAfter(listener, releasable);
                 var cacheBlobReader = directory.getCacheBlobReaderForWarming(blobFile);

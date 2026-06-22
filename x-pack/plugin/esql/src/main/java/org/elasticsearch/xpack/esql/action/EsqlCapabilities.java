@@ -309,6 +309,12 @@ public class EsqlCapabilities {
         OPTIONAL_FIELDS_UNMAPPED_LOAD_AUTO_CAST_TWO_LEGGED_PUNKS,
 
         /**
+         * Fix for a {@code ClassCastException} when an explicitly cast or implicitly widened partially unmapped small numeric field.
+         * See https://github.com/elastic/elasticsearch/issues/151525.
+         */
+        OPTIONAL_FIELDS_FIX_PARTIALLY_UNMAPPED_SMALL_NUMERIC,
+
+        /**
          * Support specifically for *just* the _index METADATA field. Used by CsvTests, since that is the only metadata field currently
          * supported.
          */
@@ -2381,6 +2387,12 @@ public class EsqlCapabilities {
          * Enables late materialization on node reduce. See also QueryPragmas.NODE_LEVEL_REDUCTION
          */
         ENABLE_REDUCE_NODE_LATE_MATERIALIZATION,
+
+        /**
+         * Fix stale row-stride reader state when a conditional block loader uses column-at-a-time loading after row-stride loading
+         * across segments.
+         */
+        FIX_VALUES_READER_STALE_ROW_STRIDE_READER,
 
         /**
          * {@link ReplaceStatsFilteredOrNullAggWithEval} now replaces an

@@ -11,6 +11,8 @@ package org.elasticsearch.foreign.processor;
 
 import junit.framework.TestCase;
 
+import org.elasticsearch.core.SuppressForbidden;
+
 import java.net.URI;
 import java.net.URL;
 import java.net.URLClassLoader;
@@ -68,6 +70,9 @@ abstract class ProcessorTestCase extends TestCase {
         }
     }
 
+    @SuppressForbidden(
+        reason = "StandardJavaFileManager.setLocation() requires java.io.File; no NIO alternative exists in the javax.tools API"
+    )
     protected CompilationResult compile(String className, String source) {
         JavaCompiler compiler = ToolProvider.getSystemJavaCompiler();
         assertNotNull("System Java compiler not available", compiler);
@@ -86,9 +91,9 @@ abstract class ProcessorTestCase extends TestCase {
         };
 
         try {
-            Path outputDir = Files.createTempDirectory("native-lib-gen-test");
+            Path outputDir = Files.createTempDirectory(Path.of(System.getProperty("java.io.tmpdir")), "native-lib-gen-test");
             try (var fileManager = compiler.getStandardFileManager(diagnostics, null, null)) {
-                fileManager.setLocation(StandardLocation.CLASS_OUTPUT, List.of(outputDir.toFile()));
+                fileManager.setLocation(StandardLocation.CLASS_OUTPUT, List.of(outputDir.toFile())); // required by javax.tools API
 
                 List<String> options = new ArrayList<>();
                 options.add("-classpath");

@@ -47,14 +47,21 @@ public final class ExternalSourceCacheSettings {
     );
 
     /**
-     * Canonical stripe size for row-format external-source statistics, in decompressed-stream bytes.
-     * A file's stripe grid is {@code [k*B, (k+1)*B)} realigned forward to record boundaries; stats are
-     * captured, deduplicated, and cached per stripe (see {@code ExternalSourceCacheService}). The value
-     * participates in stripe identity, so it is restart-only and cluster-uniform: changing it simply
-     * makes previously cached stripe entries unmatchable (a clean invalidation, never a mixed grid).
-     * It deliberately does NOT influence how reads are partitioned or scheduled — chunk dispatch,
-     * macro-splits, and parallelism are unaffected; segmentators only add cut points at stripe
-     * boundaries so per-chunk stats nest within exactly one stripe.
+     * Canonical stripe size for row-format external-source statistics, in file/decompressed-stream
+     * bytes. A stripe is a pure ADDRESSING grid over file content: the reader attributes each record to
+     * stripe {@code floor(recordStartOffset / B)} as it parses, and stats are captured, deduplicated,
+     * and cached per stripe (see {@code ExternalSourceCacheService}). It is orthogonal to partitioning
+     * — chunk dispatch, macro-splits, and parallelism are unaffected; the grid only determines which
+     * stripe a record's stats land in. The value participates in stripe identity, so it is restart-only
+     * and cluster-uniform: changing it simply makes previously cached stripe entries unmatchable (a
+     * clean invalidation, never a mixed grid).
+     * <p>
+     * Default 8 MB, derived (not arbitrary) from the ClickBench text-format file-size distribution
+     * against the schema-cache budget: a representative ~1.8 GB shard yields ~231 stripes (ample
+     * pruning resolution), and a 500-hot-file working set consumes ~11 MB — 42% of the ~26 MB schema
+     * budget on a 32 GB heap. Smaller grids (≤1 MB) overflow the budget on realistic working sets;
+     * larger grids (≥32 MB) coarsen a representative shard to &lt;60 stripes, blunting per-stripe min/max
+     * pruning. 8 MB is the knee.
      */
     public static final Setting<ByteSizeValue> STRIPE_SIZE = Setting.byteSizeSetting(
         "esql.source.cache.stripe.size",

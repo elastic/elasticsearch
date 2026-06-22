@@ -1,0 +1,5 @@
+pr: 150920
+summary: Make the external text-format aggregate short-circuit deterministic with canonical-stripe statistics
+area: ES|QL
+type: enhancement
+issues: []

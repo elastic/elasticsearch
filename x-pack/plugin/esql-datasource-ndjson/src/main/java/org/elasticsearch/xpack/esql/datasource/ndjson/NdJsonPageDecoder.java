@@ -84,6 +84,37 @@ public class NdJsonPageDecoder implements Closeable {
      * {@link #recoverFromParseException} restarts the parser at a later offset.
      */
     private int parserSliceStart;
+
+    /**
+     * Canonical-stripe addressing for per-stripe stats capture (orthogonal model). {@code stripeSize}
+     * &gt; 0 enables it: {@link #decodePage()} then caps each page at the record where the byte offset
+     * crosses a stripe line, so a page never straddles a stripe and the iterator can fold each whole
+     * page into exactly one stripe's accumulator. {@code baseOffset} is this read's first byte in
+     * file/decompressed coordinates; the absolute offset of the parser's current position is
+     * {@code baseOffset + parserSliceStart + parser.getCurrentLocation().getByteOffset()}. Disabled by
+     * default ({@code stripeSize <= 0}) — a pure stats overlay, never affecting page contents otherwise.
+     */
+    private long statsBaseOffset = 0L;
+    private long statsStripeSize = -1L;
+    /** Absolute file offset of the first record of the page {@link #decodePage()} last returned. */
+    private long lastPageStartOffset;
+    /** Absolute file offset one past the last record of that page (= next record's start, or EOF). */
+    private long lastPageEndOffset;
+    /** Whether that page ended because the next record crossed a stripe line (vs batchSize / EOF). */
+    private boolean lastPageEndedAtStripeCap;
+    /** Stripe ordinal of the page currently being built; set from its first record's own start offset. */
+    private long pageStripeOrdinal = -1;
+    /**
+     * Carry-over for record-canonical stripe attribution: when a record's OWN start (its opening-brace
+     * offset) crosses into the next stripe, the page caps <em>before</em> that record — but its {@code START_OBJECT}
+     * token has already been read from the parser. We park it here and decode it as the first record of the
+     * next page instead of re-reading. Attribution by each record's own start (not the end of the previous
+     * record) is what makes a record map to the same stripe under any chunking — the property the
+     * coordinator's fold-once across sibling scans depends on.
+     */
+    private boolean pendingStartObject;
+    private long pendingRecordStart;
+
     private final BlockDecoder decoder;
     private final int batchSize;
     private final BlockFactory blockFactory;
@@ -107,6 +138,43 @@ public class NdJsonPageDecoder implements Closeable {
     /** Number of malformed records observed during decoding (lenient policies swallow these). */
     long errorCount() {
         return errorCount;
+    }
+
+    /** Enables canonical-stripe page-capping so {@link #decodePage()} yields one-stripe pages. */
+    void enableStripeAddressing(long baseOffset, long stripeSize) {
+        this.statsBaseOffset = baseOffset;
+        this.statsStripeSize = stripeSize;
+    }
+
+    boolean stripeAddressingEnabled() {
+        return statsStripeSize > 0;
+    }
+
+    /** Absolute file offset of the parser's current position (end of the last token consumed). */
+    private long currentFileOffset() {
+        return statsBaseOffset + parserSliceStart + parser.getCurrentLocation().getByteOffset();
+    }
+
+    /**
+     * Absolute file offset of the START of the most recently read token — for a record's {@code START_OBJECT}
+     * this is the byte of its opening brace. Unlike {@link #currentFileOffset()} (which sits at the end of the
+     * previous record before its terminator), a record's own start is independent of how the file is chunked,
+     * so {@code floor(thisOffset / B)} attributes the record to the same stripe under every scan.
+     */
+    private long tokenStartOffset() {
+        return statsBaseOffset + parserSliceStart + parser.getTokenLocation().getByteOffset();
+    }
+
+    long lastPageStartOffset() {
+        return lastPageStartOffset;
+    }
+
+    long lastPageEndOffset() {
+        return lastPageEndOffset;
+    }
+
+    boolean lastPageEndedAtStripeCap() {
+        return lastPageEndedAtStripeCap;
     }
 
     /**
@@ -404,10 +472,24 @@ public class NdJsonPageDecoder implements Closeable {
         long startTotalRowCount = totalRowCount;
         long startErrorCount = errorCount;
         var blockBuilders = new Block.Builder[projectedAttributes.size()];
+        // Canonical-stripe page-capping: a page collects only records whose OWN start offset falls in one
+        // stripe, so the iterator can fold the whole page into that stripe. The page's ordinal is set from
+        // its first record (inside the loop), and the loop caps before the first record that crosses a
+        // stripe line (parking that record's already-read START_OBJECT for the next page).
+        pageStripeOrdinal = -1;
+        if (stripeAddressingEnabled()) {
+            lastPageEndedAtStripeCap = false;
+        }
         // Setting up builders may trip the circuit breaker. Make sure they're all always closed
         try {
             decoder.setupBuilders(blockBuilders);
-            return errorPolicy.isStrict() ? decodePageFailFast(blockBuilders) : decodePageLenient(blockBuilders);
+            Page page = errorPolicy.isStrict() ? decodePageFailFast(blockBuilders) : decodePageLenient(blockBuilders);
+            if (stripeAddressingEnabled()) {
+                // End of this page's coverage: the parked next-record start when we capped (a clean stripe
+                // line), otherwise the parser's position after the last decoded record (batchSize / EOF).
+                lastPageEndOffset = lastPageEndedAtStripeCap ? pendingRecordStart : currentFileOffset();
+            }
+            return page;
         } finally {
             Releasables.close(blockBuilders);
             long deltaTotal = totalRowCount - startTotalRowCount;
@@ -425,13 +507,32 @@ public class NdJsonPageDecoder implements Closeable {
     private Page decodePageFailFast(Block.Builder[] blockBuilders) throws IOException {
         int lineCount = 0;
         while (lineCount < batchSize) {
-            try {
-                if (parser.nextToken() == null) {
-                    break; // End of stream
+            if (pendingStartObject == false) {
+                try {
+                    if (parser.nextToken() == null) {
+                        break; // End of stream
+                    }
+                } catch (JsonParseException e) {
+                    totalRowCount++;
+                    onNdjsonLineParseError(e, totalRowCount, "nextToken"); // FAIL_FAST: throws
                 }
-            } catch (JsonParseException e) {
-                totalRowCount++;
-                onNdjsonLineParseError(e, totalRowCount, "nextToken");
+            }
+            // Record-canonical stripe attribution: this record belongs to floor(itsOwnStart / B). The first
+            // record fixes the page's stripe; a later record that crosses into a higher stripe caps the page
+            // — its START_OBJECT is already read, so park it for the next page rather than re-reading.
+            if (stripeAddressingEnabled()) {
+                long recordStart = pendingStartObject ? pendingRecordStart : tokenStartOffset();
+                pendingStartObject = false;
+                long recordOrdinal = recordStart / statsStripeSize;
+                if (lineCount == 0) {
+                    pageStripeOrdinal = recordOrdinal;
+                    lastPageStartOffset = recordStart;
+                } else if (recordOrdinal > pageStripeOrdinal) {
+                    pendingStartObject = true;
+                    pendingRecordStart = recordStart;
+                    lastPageEndedAtStripeCap = true;
+                    break;
+                }
             }
 
             totalRowCount++;
@@ -466,15 +567,33 @@ public class NdJsonPageDecoder implements Closeable {
 
         int lineCount = 0;
         while (lineCount < batchSize) {
-            try {
-                if (parser.nextToken() == null) {
-                    break; // End of stream
+            if (pendingStartObject == false) {
+                try {
+                    if (parser.nextToken() == null) {
+                        break; // End of stream
+                    }
+                } catch (JsonParseException e) {
+                    totalRowCount++;
+                    onNdjsonLineParseError(e, totalRowCount, "nextToken");
+                    recoverFromParseException(parser);
+                    continue;
                 }
-            } catch (JsonParseException e) {
-                totalRowCount++;
-                onNdjsonLineParseError(e, totalRowCount, "nextToken");
-                recoverFromParseException(parser);
-                continue;
+            }
+            // Record-canonical stripe attribution (see decodePageFailFast): cap before the first record that
+            // crosses into a higher stripe, parking its already-read START_OBJECT for the next page.
+            if (stripeAddressingEnabled()) {
+                long recordStart = pendingStartObject ? pendingRecordStart : tokenStartOffset();
+                pendingStartObject = false;
+                long recordOrdinal = recordStart / statsStripeSize;
+                if (lineCount == 0) {
+                    pageStripeOrdinal = recordOrdinal;
+                    lastPageStartOffset = recordStart;
+                } else if (recordOrdinal > pageStripeOrdinal) {
+                    pendingStartObject = true;
+                    pendingRecordStart = recordStart;
+                    lastPageEndedAtStripeCap = true;
+                    break;
+                }
             }
 
             totalRowCount++;

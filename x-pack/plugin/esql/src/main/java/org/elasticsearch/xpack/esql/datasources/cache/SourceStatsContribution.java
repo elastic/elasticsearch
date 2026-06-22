@@ -19,7 +19,7 @@ import java.util.Map;
  * Contributions arrive at the coordinator as untyped {@code Map<String, Object>} blobs — the flat
  * {@code _stats.*} wire vocabulary that crosses the transport as a generic map and that the optimizer
  * also reads. {@link #classify} is the boundary that turns one such blob into a typed value: the
- * statistics become a {@link SourceStatistics}, and the keying/coverage fields become typed scalars,
+ * statistics become a {@link SourceStatistics} and the keying/addressing fields become typed scalars,
  * so the reconciler reasons over types instead of magic string keys. Each kind composes differently
  * and the reconciler routes them through an exhaustive {@code switch}, so a new kind is a compile
  * error until its merge semantics are written. This type lives only on the coordinator — there is no
@@ -31,41 +31,39 @@ sealed interface SourceStatsContribution {
     record WholeFile(SourceStatistics stats, long mtimeMillis, String configFingerprint) implements SourceStatsContribution {}
 
     /**
-     * One range of a parallel-parsed file (a streaming chunk, a record-aligned macro-split segment, a
-     * block split). {@code start}/{@code end} are the half-open byte range it covered, in the path's
-     * read coordinate system; {@code last} marks the contribution that observed end-of-input.
+     * The records of one canonical stripe that a single chunk observed — the unit of the orthogonal
+     * stripe model. Stripes are a pure addressing grid over file content ({@link
+     * ExternalStats#STRIPE_SIZE_KEY} bytes each): the producing reader attributes each record to the
+     * stripe its start offset falls in ({@code ordinal = floor(recordStartOffset / stripeSize)}),
+     * independently of how the read was chunked, split, or distributed. A chunk that spans several
+     * stripes emits one fragment per stripe it touched; a chunk boundary that lands mid-stripe splits
+     * that stripe across two adjacent chunks' fragments.
      * <p>
-     * {@code stripeSize} > 0 marks the fragment as canonical-stripe addressed (see
-     * {@link ExternalStats#STRIPE_SIZE_KEY}): the producing segmentator cut chunks at stripe
-     * boundaries, so this fragment nests within stripe {@code floor(start / stripeSize)} and
-     * {@code stripeHead} marks the fragment that starts exactly at a stripe cut (or offset 0). The
-     * reconciler folds fragments per stripe — identical ranges from sibling scans (FORK branches,
-     * retries) dedup by identity, fragments of one stripe tile its span — and commits complete
-     * stripes idempotently into the schema cache. Fragments without stripe addressing
-     * ({@code stripeSize <= 0}: older nodes, non-striped read paths such as record-aligned
-     * macro-splits and seekable parallel segments) are not cacheable — a deterministic safe miss,
-     * never a wrong answer.
+     * {@code start}/{@code end} are the half-open, record-canonical byte sub-range of stripe
+     * {@code ordinal} this fragment covered (in the file's read coordinate system). Because attribution
+     * is by record-start offset, these endpoints are record boundaries and therefore identical across
+     * any two scans of the same file — which is what makes the reconciler's per-stripe interval-cover
+     * dedup exact: scan A covering a stripe in one fragment and scan B splitting it at a different chunk
+     * boundary fold to the same stripe stats. {@code atStripeStart} marks the fragment holding the
+     * stripe's first record; {@code atStripeEnd} marks the fragment whose end reached the next stripe's
+     * first record (or end-of-file). {@code eof} marks the fragment that observed end-of-input — the
+     * file's last stripe. Fragments without stripe addressing ({@code stripeSize <= 0}: older nodes,
+     * readers not yet emitting stripes) are not cacheable — a deterministic safe miss, never wrong.
      */
-    record PartialChunk(
+    record StripeFragment(
         SourceStatistics stats,
         long mtimeMillis,
         String configFingerprint,
+        long stripeSize,
+        long ordinal,
         long start,
         long end,
-        boolean last,
-        long stripeSize,
-        boolean stripeHead
+        boolean atStripeStart,
+        boolean atStripeEnd,
+        boolean eof
     ) implements SourceStatsContribution {
-        boolean hasCoverage() {
-            return start >= 0 && end >= start;
-        }
-
         boolean stripeAddressed() {
-            return hasCoverage() && stripeSize > 0;
-        }
-
-        long stripeOrdinal() {
-            return start / stripeSize;
+            return stripeSize > 0 && ordinal >= 0 && start >= 0 && end >= start;
         }
     }
 
@@ -74,10 +72,15 @@ sealed interface SourceStatsContribution {
 
     /**
      * Classifies a raw wire contribution by its marker keys. A poison marker is its own entry; a
-     * partial-marked entry carries its coverage range; anything else is a whole-file read. The
-     * statistics are parsed into a {@link SourceStatistics} via {@link SourceStatisticsSerializer},
-     * which reads only the {@code _stats.row_count} / {@code _stats.columns.*} keys and so naturally
-     * ignores the marker, mtime, fingerprint, and coverage keys carried alongside them.
+     * chunk marker ({@link ExternalStats#PARTIAL_CHUNK_KEY}) makes it a stripe fragment — carrying its
+     * ordinal + record-canonical sub-range + tiling anchors when the producing reader is
+     * stripe-addressed, or no stripe fields (and therefore {@link StripeFragment#stripeAddressed()}
+     * false → a deterministic safe miss) when it is an older node or a reader not yet emitting stripes;
+     * anything else is a whole-file read. A chunk fragment must NEVER fall through to {@link WholeFile}
+     * — that would treat a partial cover as authoritative and over-count. The statistics are parsed
+     * into a {@link SourceStatistics} via {@link SourceStatisticsSerializer}, which reads only the
+     * {@code _stats.row_count} / {@code _stats.columns.*} keys and so naturally ignores the marker,
+     * mtime, fingerprint, and stripe-addressing keys carried alongside them.
      */
     static SourceStatsContribution classify(Map<String, Object> raw) {
         if (Boolean.TRUE.equals(raw.get(ExternalStats.CHUNK_HAD_ERRORS_KEY))) {
@@ -86,14 +89,16 @@ sealed interface SourceStatsContribution {
         SourceStatistics stats = SourceStatisticsSerializer.extractStatistics(raw).orElse(null);
         long mtime = raw.get(ExternalStats.MTIME_MILLIS_KEY) instanceof Number n ? n.longValue() : -1L;
         String fingerprint = raw.get(ExternalStats.CONFIG_FINGERPRINT_KEY) instanceof String s ? s : null;
-        if (raw.containsKey(ExternalStats.PARTIAL_CHUNK_KEY) == false) {
+        if (Boolean.TRUE.equals(raw.get(ExternalStats.PARTIAL_CHUNK_KEY)) == false) {
             return new WholeFile(stats, mtime, fingerprint);
         }
+        long stripeSize = raw.get(ExternalStats.STRIPE_SIZE_KEY) instanceof Number n ? n.longValue() : -1L;
+        long ordinal = raw.get(ExternalStats.STRIPE_ORDINAL_KEY) instanceof Number n ? n.longValue() : -1L;
         long start = raw.get(ExternalStats.COVERAGE_START_KEY) instanceof Number n ? n.longValue() : -1L;
         long end = raw.get(ExternalStats.COVERAGE_END_KEY) instanceof Number n ? n.longValue() : -1L;
-        boolean last = Boolean.TRUE.equals(raw.get(ExternalStats.COVERAGE_IS_LAST_KEY));
-        long stripeSize = raw.get(ExternalStats.STRIPE_SIZE_KEY) instanceof Number n ? n.longValue() : -1L;
-        boolean stripeHead = Boolean.TRUE.equals(raw.get(ExternalStats.STRIPE_HEAD_KEY));
-        return new PartialChunk(stats, mtime, fingerprint, start, end, last, stripeSize, stripeHead);
+        boolean atStart = Boolean.TRUE.equals(raw.get(ExternalStats.STRIPE_AT_START_KEY));
+        boolean atEnd = Boolean.TRUE.equals(raw.get(ExternalStats.STRIPE_AT_END_KEY));
+        boolean eof = Boolean.TRUE.equals(raw.get(ExternalStats.COVERAGE_IS_LAST_KEY));
+        return new StripeFragment(stats, mtime, fingerprint, stripeSize, ordinal, start, end, atStart, atEnd, eof);
     }
 }

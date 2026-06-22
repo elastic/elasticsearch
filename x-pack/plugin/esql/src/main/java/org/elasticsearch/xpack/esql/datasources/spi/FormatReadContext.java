@@ -45,6 +45,20 @@ import java.util.List;
  *                         collapses empty to {@code null} so readers do one check.
  * @param maxRecordBytes   maximum bytes a single text record may occupy while split/trim code
  *                         scans for a record boundary.
+ * @param statsBaseOffset  the byte offset (file / decompressed-stream coordinate) of this read's first
+ *                         byte, used by the reader to address records to canonical stripes
+ *                         ({@code ordinal = floor((statsBaseOffset + recordOffsetInRead) / statsStripeSize)}).
+ *                         Ignored when {@code statsStripeSize <= 0}.
+ * @param statsStripeSize  canonical-stripe grid in bytes for per-stripe stats attribution, or
+ *                         {@code <= 0} to disable stripe addressing (the reader then emits no
+ *                         stripe-addressed contributions and the warm short-circuit safe-misses). A
+ *                         pure stats overlay — it never affects how the read is chunked or split.
+ * @param statsFileFinal   whether this read reaches the file's true end (the segmentator's EOF chunk,
+ *                         or the segmented coordinator's trailing segment). Only the file-final read
+ *                         may mark its last stripe complete-on-the-right ({@code atStripeEnd}) and
+ *                         terminal ({@code eof}); a non-final chunk ends mid-stripe at a chunk boundary,
+ *                         so its trailing stripe is a partial right fragment the next chunk continues.
+ *                         Marking a non-final chunk's trailing stripe complete would silently undercount.
  */
 public record FormatReadContext(
     List<String> projectedColumns,
@@ -55,7 +69,10 @@ public record FormatReadContext(
     boolean lastSplit,
     boolean recordAligned,
     @Nullable List<Attribute> readSchema,
-    int maxRecordBytes
+    int maxRecordBytes,
+    long statsBaseOffset,
+    long statsStripeSize,
+    boolean statsFileFinal
 ) {
 
     public FormatReadContext {
@@ -65,6 +82,11 @@ public record FormatReadContext(
         if (maxRecordBytes <= 0) {
             throw new IllegalArgumentException("maxRecordBytes must be positive, got: " + maxRecordBytes);
         }
+    }
+
+    /** Whether this read should attribute records to canonical stripes for stats capture. */
+    public boolean statsStripesEnabled() {
+        return statsStripeSize > 0;
     }
 
     /**
@@ -91,7 +113,28 @@ public record FormatReadContext(
             lastSplit,
             recordAligned,
             readSchema,
-            maxRecordBytes
+            maxRecordBytes,
+            statsBaseOffset,
+            statsStripeSize,
+            statsFileFinal
+        );
+    }
+
+    /** Returns a copy carrying the canonical-stripe addressing parameters for this read. */
+    public FormatReadContext withStats(long baseOffset, long stripeSize, boolean fileFinal) {
+        return new FormatReadContext(
+            projectedColumns,
+            batchSize,
+            rowLimit,
+            errorPolicy,
+            firstSplit,
+            lastSplit,
+            recordAligned,
+            readSchema,
+            maxRecordBytes,
+            baseOffset,
+            stripeSize,
+            fileFinal
         );
     }
 
@@ -108,7 +151,10 @@ public record FormatReadContext(
             lastSplit,
             recordAligned,
             readSchema,
-            maxRecordBytes
+            maxRecordBytes,
+            statsBaseOffset,
+            statsStripeSize,
+            statsFileFinal
         );
     }
 
@@ -125,7 +171,10 @@ public record FormatReadContext(
             last,
             recordAligned,
             readSchema,
-            maxRecordBytes
+            maxRecordBytes,
+            statsBaseOffset,
+            statsStripeSize,
+            statsFileFinal
         );
     }
 
@@ -147,6 +196,9 @@ public record FormatReadContext(
         @Nullable
         private List<Attribute> readSchema = null;
         private int maxRecordBytes = SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES;
+        private long statsBaseOffset = 0L;
+        private long statsStripeSize = -1L;
+        private boolean statsFileFinal = false;
 
         private Builder() {}
 
@@ -200,6 +252,20 @@ public record FormatReadContext(
             return this;
         }
 
+        /**
+         * Canonical-stripe addressing for per-stripe stats capture: {@code baseOffset} is this read's
+         * first byte in file/decompressed coordinates, {@code stripeSize} the grid ({@code <= 0}
+         * disables), {@code fileFinal} whether this read reaches the file's true end (only the final
+         * read may mark its last stripe complete + terminal). A pure stats overlay; never affects
+         * chunking or splitting.
+         */
+        public Builder stats(long baseOffset, long stripeSize, boolean fileFinal) {
+            this.statsBaseOffset = baseOffset;
+            this.statsStripeSize = stripeSize;
+            this.statsFileFinal = fileFinal;
+            return this;
+        }
+
         public FormatReadContext build() {
             if (batchSize <= 0) {
                 throw new IllegalArgumentException("batchSize must be positive, got: " + batchSize);
@@ -213,7 +279,10 @@ public record FormatReadContext(
                 lastSplit,
                 recordAligned,
                 readSchema,
-                maxRecordBytes
+                maxRecordBytes,
+                statsBaseOffset,
+                statsStripeSize,
+                statsFileFinal
             );
         }
     }

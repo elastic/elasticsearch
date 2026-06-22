@@ -26,7 +26,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.TreeMap;
 
 /**
  * Coordinator-only, in-memory cache service for external source metadata.
@@ -121,23 +120,23 @@ public class ExternalSourceCacheService implements Closeable {
             }
             // Classify each wire blob into a SourceStatsContribution, then route through an
             // exhaustive switch — a new contribution kind is a compile error here until its handling
-            // is written, rather than a silent fall-through. WholeFile and PartialChunk carry stats;
+            // is written, rather than a silent fall-through. WholeFile and StripeFragment carry stats;
             // Poison is gate-only.
             boolean poisoned = false;
             List<SourceStatsContribution.WholeFile> wholeFile = new ArrayList<>(contributions.size());
-            // Canonical-stripe fragments. Each carries the byte range it observed plus its stripe
-            // addressing (grid + head flag); the reconciler folds fragments per stripe — identical
-            // ranges from sibling scans of the same file (FORK branches, schema probes, retries)
-            // dedup by identity, fragments of one stripe tile its span — and commits complete
-            // stripes idempotently. Whole-file completeness is a cache-side predicate (stripes
-            // {@code 0..K} present + EOF marker), assembled across queries if need be, never a
-            // per-query whole-file tiling.
-            List<SourceStatsContribution.PartialChunk> partials = new ArrayList<>(contributions.size());
+            // Orthogonal-model stripe fragments. Each is the records of one canonical stripe a chunk
+            // observed, carrying the reader-assigned ordinal + record-canonical sub-range + tiling
+            // anchors; the reconciler interval-covers fragments per stripe — misaligned tilings from
+            // sibling scans (FORK branches, retries, different chunkings) fold to the same stripe
+            // stats — and commits complete stripes idempotently. Whole-file completeness is a
+            // cache-side predicate (stripes {@code 0..K} present + EOF marker), assembled across
+            // queries if need be, never a per-query whole-file tiling.
+            List<SourceStatsContribution.StripeFragment> fragments = new ArrayList<>(contributions.size());
             for (Map<String, Object> raw : contributions) {
                 switch (SourceStatsContribution.classify(raw)) {
                     case SourceStatsContribution.Poison ignored -> poisoned = true;
                     case SourceStatsContribution.WholeFile wf -> wholeFile.add(wf);
-                    case SourceStatsContribution.PartialChunk pc -> partials.add(pc);
+                    case SourceStatsContribution.StripeFragment f -> fragments.add(f);
                 }
             }
             // A poisoned file (a chunk dropped rows mid-scan) is discarded entirely.
@@ -153,7 +152,7 @@ public class ExternalSourceCacheService implements Closeable {
                 }
                 continue;
             }
-            StripeDelta delta = foldStripeFragments(partials);
+            StripeDelta delta = foldStripeFragments(fragments);
             if (delta == null) {
                 logger.debug("dropping captured stats for [{}]: no complete stripe among fragments", e.getKey());
                 continue;
@@ -191,90 +190,59 @@ public class ExternalSourceCacheService implements Closeable {
     private record StripeDelta(Map<Long, Map<String, Object>> stripes, long lastStripeOrdinal, long mtimeMillis, String fingerprint) {}
 
     /**
-     * Folds canonical-stripe fragments into per-stripe stats. Within a stripe, fragments dedup by
-     * identity — two scans of the same file produce byte-identical fragments for the same stripe
-     * (the segmentator cuts at content-determined boundaries), so a re-observed range is counted
-     * once while a same-start-different-end pair is an ambiguous overlap and aborts the fold. A
-     * stripe is complete when its fragments start at the stripe's head cut (or offset 0), tile
-     * contiguously, and close at the next stripe cut or end-of-input. Incomplete stripes are simply
-     * skipped — never a wrong answer, just a miss for that stripe. Returns {@code null} when any
-     * fragment is not stripe-addressed (older node, non-striped read path) or no stripe completes.
+     * Folds orthogonal-model stripe fragments into per-stripe stats by interval-cover. Fragments are
+     * grouped by their reader-assigned ordinal (NOT inferred from byte offset); within each stripe a
+     * greedy interval-cover walks from the stripe's first record ({@code atStripeStart}) along
+     * contiguous record-canonical sub-ranges to the stripe's last record ({@code atStripeEnd} / EOF).
+     * <p>
+     * Because every fragment's endpoints are record boundaries — identical across any two scans of the
+     * file regardless of chunking — the cover is robust to misaligned tilings: a FORK branch that
+     * covered a stripe in one fragment and a sibling that split it at a different chunk boundary both
+     * produce a valid chain that folds to the same stripe stats. The greedy walk consumes one fragment
+     * per position, so an alternative scan's overlapping fragments are simply skipped (no double-count;
+     * a stripe is folded once). A stripe whose fragments leave a gap before reaching {@code atStripeEnd}
+     * is incomplete and skipped — a safe miss, never wrong. Returns {@code null} when any fragment is
+     * not stripe-addressed (older node, reader not yet emitting stripes) or no stripe completes.
      */
-    private static StripeDelta foldStripeFragments(List<SourceStatsContribution.PartialChunk> partials) {
-        if (partials.isEmpty()) {
+    private static StripeDelta foldStripeFragments(List<SourceStatsContribution.StripeFragment> fragments) {
+        if (fragments.isEmpty()) {
             return null;
         }
         long stripeSize = -1L;
         long mtime = -1L;
         String fingerprint = null;
-        Map<Long, TreeMap<Long, SourceStatsContribution.PartialChunk>> byStripe = new HashMap<>();
-        for (SourceStatsContribution.PartialChunk pc : partials) {
-            if (pc.stripeAddressed() == false) {
+        // ordinal -> (start offset -> fragments starting there). Multiple fragments can share a start
+        // (the same stripe prefix observed by two scans), so the value is a list.
+        Map<Long, Map<Long, List<SourceStatsContribution.StripeFragment>>> byStripe = new HashMap<>();
+        for (SourceStatsContribution.StripeFragment f : fragments) {
+            if (f.stripeAddressed() == false) {
                 return null; // un-addressable fragment — this path's contributions are not cacheable
             }
             if (stripeSize < 0) {
-                stripeSize = pc.stripeSize();
-                mtime = pc.mtimeMillis();
-                fingerprint = pc.configFingerprint();
-            } else if (stripeSize != pc.stripeSize()) {
+                stripeSize = f.stripeSize();
+                mtime = f.mtimeMillis();
+                fingerprint = f.configFingerprint();
+            } else if (stripeSize != f.stripeSize()) {
                 return null; // mixed grids (mid-upgrade settings skew) — bail rather than guess
             }
-            TreeMap<Long, SourceStatsContribution.PartialChunk> frags = byStripe.computeIfAbsent(pc.stripeOrdinal(), k -> new TreeMap<>());
-            SourceStatsContribution.PartialChunk existing = frags.putIfAbsent(pc.start(), pc);
-            if (existing != null && existing.end() != pc.end()) {
-                return null;
-            }
+            byStripe.computeIfAbsent(f.ordinal(), k -> new HashMap<>()).computeIfAbsent(f.start(), s -> new ArrayList<>()).add(f);
         }
         Map<Long, Map<String, Object>> complete = new HashMap<>();
         long lastOrdinal = -1L;
-        for (Map.Entry<Long, TreeMap<Long, SourceStatsContribution.PartialChunk>> e : byStripe.entrySet()) {
+        for (Map.Entry<Long, Map<Long, List<SourceStatsContribution.StripeFragment>>> e : byStripe.entrySet()) {
             long ordinal = e.getKey();
-            TreeMap<Long, SourceStatsContribution.PartialChunk> frags = e.getValue();
-            SourceStatsContribution.PartialChunk head = frags.firstEntry().getValue();
-            if (head.stripeHead() == false && head.start() != 0) {
-                continue; // head fragment missing — incomplete stripe
+            Map<Long, List<SourceStatsContribution.StripeFragment>> byStart = e.getValue();
+            List<SourceStatsContribution.StripeFragment> chain = coverStripe(byStart);
+            if (chain == null) {
+                continue; // incomplete — gap before the stripe end; safe miss for this stripe
             }
-            long expected = head.start();
-            SourceStatsContribution.PartialChunk tail = null;
-            boolean contiguous = true;
-            for (SourceStatsContribution.PartialChunk pc : frags.values()) {
-                if (pc.start() != expected) {
-                    contiguous = false;
-                    break;
-                }
-                expected = pc.end();
-                tail = pc;
-            }
-            if (contiguous == false || tail == null) {
-                continue;
-            }
-            // Closed = the tail reached the next stripe cut (its end crossed or landed on the next
-            // nominal line) or observed end-of-input. An open tail means the stripe's remaining
-            // fragments are missing from this query — skip it.
-            boolean closed = tail.last() || tail.end() / stripeSize > ordinal;
-            if (closed == false) {
-                continue;
-            }
-            Map<String, Object> folded = foldFragments(frags.values(), mtime, fingerprint);
-            if (folded == null || folded.isEmpty()) {
+            Map<String, Object> folded = foldFragments(chain, mtime, fingerprint);
+            if (folded == null) {
                 continue;
             }
             complete.put(ordinal, folded);
-            if (tail.last()) {
+            if (chain.get(chain.size() - 1).eof()) {
                 lastOrdinal = ordinal;
-            } else {
-                // A tail that crossed more than one nominal line (a record larger than the stripe)
-                // absorbs the intermediate ordinals: their nominal lines fall inside that record, so
-                // they are legitimately empty stripes, committed as zero-row entries. All of the
-                // fragment's rows are counted in ITS stripe's fold, so the whole-file sum stays
-                // exact. Pruning-phase precondition: a grow-path fragment can carry rows past a
-                // nominal line (per-stripe ATTRIBUTION, not the total, then depends on the producer
-                // path) — per-stripe min/max must not be used for stripe skipping until the grow
-                // path emits boundary-trimmed fragments.
-                long endOrdinal = tail.end() / stripeSize;
-                for (long empty = ordinal + 1; empty < endOrdinal; empty++) {
-                    complete.putIfAbsent(empty, emptyStripe(mtime, fingerprint));
-                }
             }
         }
         if (complete.isEmpty()) {
@@ -284,19 +252,76 @@ public class ExternalSourceCacheService implements Closeable {
     }
 
     /**
+     * Greedy interval-cover of one stripe from its {@code atStripeStart} fragment to an
+     * {@code atStripeEnd} fragment, picking one fragment per position. Returns the covering chain, or
+     * {@code null} when no {@code atStripeStart} anchor exists or a gap is hit before the stripe end.
+     * Empty stripes (a record larger than the grid skips an ordinal entirely) arrive as a single
+     * zero-length fragment flagged both start and end, which the walk accepts immediately.
+     */
+    private static List<SourceStatsContribution.StripeFragment> coverStripe(
+        Map<Long, List<SourceStatsContribution.StripeFragment>> byStart
+    ) {
+        SourceStatsContribution.StripeFragment anchor = null;
+        for (List<SourceStatsContribution.StripeFragment> bucket : byStart.values()) {
+            for (SourceStatsContribution.StripeFragment f : bucket) {
+                if (f.atStripeStart()) {
+                    anchor = f;
+                    break;
+                }
+            }
+            if (anchor != null) {
+                break;
+            }
+        }
+        if (anchor == null) {
+            return null; // never saw the stripe's first record — incomplete
+        }
+        List<SourceStatsContribution.StripeFragment> chain = new ArrayList<>();
+        long pos = anchor.start();
+        // Bounded by the total fragment count; each step advances pos or terminates.
+        int guard = 0;
+        int limit = 0;
+        for (List<SourceStatsContribution.StripeFragment> bucket : byStart.values()) {
+            limit += bucket.size();
+        }
+        while (guard++ <= limit) {
+            List<SourceStatsContribution.StripeFragment> candidates = byStart.get(pos);
+            if (candidates == null || candidates.isEmpty()) {
+                return null; // gap — the stripe is not fully covered by this query's fragments
+            }
+            SourceStatsContribution.StripeFragment pick = candidates.get(0);
+            for (SourceStatsContribution.StripeFragment c : candidates) {
+                if (c.atStripeEnd()) {
+                    pick = c; // prefer terminating the cover when we can
+                    break;
+                }
+            }
+            chain.add(pick);
+            if (pick.atStripeEnd()) {
+                return chain; // reached the stripe's last record
+            }
+            if (pick.end() <= pos) {
+                return null; // malformed non-advancing fragment — bail rather than loop
+            }
+            pos = pick.end();
+        }
+        return null; // exceeded the fragment budget without closing — malformed
+    }
+
+    /**
      * Folds one stripe's contiguous fragments into a single flat stats map. The sum/extreme
      * arithmetic is delegated to the shared {@link SourceStatisticsSerializer#mergeStatistics} (the
      * same algorithm Parquet's multi-row-group merge uses), so each fragment's typed statistics are
      * re-serialized to the flat wire map here.
      */
     private static Map<String, Object> foldFragments(
-        Iterable<SourceStatsContribution.PartialChunk> fragments,
+        List<SourceStatsContribution.StripeFragment> chain,
         long mtimeMillis,
         String fingerprint
     ) {
-        List<Map<String, Object>> maps = new ArrayList<>();
-        for (SourceStatsContribution.PartialChunk pc : fragments) {
-            maps.add(toFlatMap(pc.stats(), pc.mtimeMillis(), pc.configFingerprint()));
+        List<Map<String, Object>> maps = new ArrayList<>(chain.size());
+        for (SourceStatsContribution.StripeFragment f : chain) {
+            maps.add(toFlatMap(f.stats(), f.mtimeMillis(), f.configFingerprint()));
         }
         Map<String, Object> folded = maps.size() == 1 ? maps.get(0) : SourceStatisticsSerializer.mergeStatistics(maps);
         if (folded != null && maps.size() > 1) {
@@ -309,19 +334,6 @@ public class ExternalSourceCacheService implements Closeable {
             }
         }
         return folded;
-    }
-
-    /** A zero-row stripe whose nominal span fell entirely inside one oversized record. */
-    private static Map<String, Object> emptyStripe(long mtimeMillis, String fingerprint) {
-        Map<String, Object> empty = new HashMap<>();
-        empty.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 0L);
-        if (mtimeMillis >= 0) {
-            empty.put(ExternalStats.MTIME_MILLIS_KEY, mtimeMillis);
-        }
-        if (fingerprint != null) {
-            empty.put(ExternalStats.CONFIG_FINGERPRINT_KEY, fingerprint);
-        }
-        return empty;
     }
 
     /**

@@ -26,7 +26,6 @@ import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
-import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.time.Instant;
@@ -345,43 +344,6 @@ public final class StreamingParallelParsingCoordinator {
             return currentSplitter;
         }
 
-        /**
-         * First record boundary at-or-after {@code from} within {@code buf[0, limit)}, exclusive cut
-         * position (one past the boundary byte). "At-or-after" is load-bearing: when {@code from}
-         * itself sits on a record boundary (the byte before it terminates a record) the cut IS
-         * {@code from} — {@code findNextRecordBoundary} alone would scan to the end of the record
-         * STARTING at {@code from} and overshoot the canonical cut by one whole record, making the
-         * stripe grid depend on chunk geometry (caught by the geometry-independence test). Falls
-         * back to {@code limit} when the slice holds no boundary — the caller's existing end is then
-         * already the first boundary at-or-after {@code from}, because {@code limit} was itself
-         * placed on a record boundary.
-         */
-        private int firstRecordBoundaryAtOrAfter(byte[] buf, int from, int limit) throws IOException {
-            if (from <= 0) {
-                return 0;
-            }
-            int lastBefore = recordSplitter().findLastRecordBoundary(buf, 0, from);
-            if (lastBefore == from - 1) {
-                return from;
-            }
-            long consumed = recordSplitter().findNextRecordBoundary(new ByteArrayInputStream(buf, from, limit - from));
-            if (consumed < 0) {
-                return limit;
-            }
-            return Math.min(from + Math.toIntExact(consumed), limit);
-        }
-
-        /**
-         * True when the chunk {@code [start, start + len)} crossed (or landed exactly on) a nominal
-         * stripe line — i.e. the NEXT chunk starts at a realigned stripe cut. Sound at every dispatch
-         * site: the stripe-cut branch places the chunk end explicitly at the first boundary at-or-after
-         * the line, and the grow/EOF branches end at the first boundary terminating a boundary-free
-         * region, which is that same realigned cut when a line was crossed.
-         */
-        private boolean crossedStripeLine(long start, long len) {
-            return statsStripeSize > 0 && (start + len) / statsStripeSize > start / statsStripeSize;
-        }
-
         private IOException recordTooLargeException(int scannedBytes) {
             String hint = switch (reader.formatName()) {
                 case "csv", "tsv" -> "; possible unclosed quote or bracket cell";
@@ -408,14 +370,6 @@ public final class StreamingParallelParsingCoordinator {
             // makes these tile [0, decompressedLength) deterministically for a given (file, config),
             // so the reconciler can union them by range and dedup a sibling scan's identical chunks.
             long coverageStart = 0;
-            // True when the next dispatched chunk starts at a canonical stripe cut (offset 0, or the
-            // realigned boundary the previous chunk was cut at). Stamped on the chunk so the
-            // reconciler can prove a stripe's completeness from its own fragments alone. Updated by
-            // the uniform floor rule at every dispatch site: a chunk whose end crossed (or landed
-            // exactly on) a nominal k*B line ends at that line's realigned cut — explicitly so in
-            // the stripe-cut branch, and inherently so in the grow/oversized branches, where the
-            // region before the chunk's terminal boundary is boundary-free by construction.
-            boolean stripeHead = statsStripeSize > 0;
 
             try {
                 while (closed == false && firstError.get() == null) {
@@ -454,7 +408,7 @@ public final class StreamingParallelParsingCoordinator {
                             if (chunkIndex == 0) {
                                 bindSchemaFromFirstChunk(buf, totalBytes);
                             }
-                            if (dispatchChunk(chunkIndex, coverageStart, buf, totalBytes, true, stripeHead)) {
+                            if (dispatchChunk(chunkIndex, coverageStart, buf, totalBytes, true)) {
                                 chunkIndex++;
                                 coverageStart += totalBytes;
                             } else {
@@ -474,7 +428,7 @@ public final class StreamingParallelParsingCoordinator {
                                 if (chunkIndex == 0) {
                                     bindSchemaFromFirstChunk(grown, grown.length);
                                 }
-                                if (dispatchChunk(chunkIndex, coverageStart, grown, grown.length, true, stripeHead)) {
+                                if (dispatchChunk(chunkIndex, coverageStart, grown, grown.length, true)) {
                                     chunkIndex++;
                                     coverageStart += grown.length;
                                 } else {
@@ -489,12 +443,8 @@ public final class StreamingParallelParsingCoordinator {
                                 if (chunkIndex == 0) {
                                     bindSchemaFromFirstChunk(grown, validLen);
                                 }
-                                // An oversized record may span stripe lines; its terminal boundary is then
-                                // by construction the realigned cut of the highest crossed line (the region
-                                // before it is boundary-free), so the next chunk starts a stripe.
-                                if (dispatchChunk(chunkIndex, coverageStart, grown, validLen, false, stripeHead)) {
+                                if (dispatchChunk(chunkIndex, coverageStart, grown, validLen, false)) {
                                     chunkIndex++;
-                                    stripeHead = crossedStripeLine(coverageStart, validLen);
                                     coverageStart += validLen;
                                 } else {
                                     recycleBuffer(grown);
@@ -508,26 +458,7 @@ public final class StreamingParallelParsingCoordinator {
 
                     int validLen = isEof ? totalBytes : lastNewline + 1;
 
-                    // Canonical stripe cut: a chunk that would span a nominal k*B stripe line is
-                    // shortened to the first record boundary at-or-after the line — the stripe's
-                    // realigned cut — so every chunk nests within exactly one stripe. The remainder
-                    // rides the carry exactly like a trailing partial record. Stats-accounting only;
-                    // dispatch order and scheduling are unchanged (see {@link #statsStripeSize}).
-                    if (statsStripeSize > 0) {
-                        long nextLine = (coverageStart / statsStripeSize + 1) * statsStripeSize;
-                        if (coverageStart + validLen > nextLine) {
-                            int cut = firstRecordBoundaryAtOrAfter(buf, Math.toIntExact(nextLine - coverageStart), validLen);
-                            if (cut < validLen) {
-                                validLen = cut;
-                            }
-                        }
-                    }
-
-                    // The stripe cut can shorten an EOF buffer; only the dispatch that truly carries
-                    // the input's final bytes is flagged last — a shortened one defers EOF to the
-                    // carried remainder, which the next loop iteration dispatches.
-                    boolean dispatchIsLast = isEof && validLen == totalBytes;
-                    if (validLen < totalBytes) {
+                    if (isEof == false && validLen < totalBytes) {
                         carryLen = totalBytes - validLen;
                         carry = new byte[carryLen];
                         System.arraycopy(buf, validLen, carry, 0, carryLen);
@@ -536,11 +467,10 @@ public final class StreamingParallelParsingCoordinator {
                     if (chunkIndex == 0) {
                         bindSchemaFromFirstChunk(buf, validLen);
                     }
-                    if (dispatchChunk(chunkIndex, coverageStart, buf, validLen, dispatchIsLast, stripeHead)) {
+                    if (dispatchChunk(chunkIndex, coverageStart, buf, validLen, isEof)) {
                         chunkIndex++;
-                        stripeHead = crossedStripeLine(coverageStart, validLen);
                         coverageStart += validLen;
-                        if (dispatchIsLast) break;
+                        if (isEof) break;
                     } else {
                         recycleBuffer(buf);
                         break;
@@ -596,7 +526,7 @@ public final class StreamingParallelParsingCoordinator {
          *         {@link #chunksDispatched} is unchanged and the caller must {@link #recycleBuffer(byte[])}
          *         when {@code buffer} is pool-sized (oversized temporary buffers are simply dropped).
          */
-        private boolean dispatchChunk(int index, long coverageStart, byte[] buffer, int length, boolean last, boolean stripeHead) {
+        private boolean dispatchChunk(int index, long coverageStart, byte[] buffer, int length, boolean last) {
             try {
                 dispatchPermits.acquire();
             } catch (InterruptedException e) {
@@ -609,7 +539,7 @@ public final class StreamingParallelParsingCoordinator {
                 return false;
             }
             try {
-                chunkQueue.put(new Chunk(index, coverageStart, buffer, length, last, stripeHead));
+                chunkQueue.put(new Chunk(index, coverageStart, buffer, length, last));
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
                 firstError.compareAndSet(null, e);
@@ -666,6 +596,10 @@ public final class StreamingParallelParsingCoordinator {
                 // line-oriented readers (NDJSON) can skip TrimLastPartialLineInputStream.
                 // - recordAligned: chunks always start on a record boundary, so readers skip the
                 // "drop leading partial line" workaround used for byte-range macro-splits.
+                // statsBaseOffset is this chunk's decompressed-stream offset; the reader attributes each
+                // record to its canonical stripe (floor((base + recordOffsetInChunk) / stripeSize)) and
+                // emits one per-stripe contribution. Stripe addressing is a pure stats overlay here — the
+                // chunk's bytes and boundaries are exactly what the segmentator produced, untouched.
                 FormatReadContext ctx = FormatReadContext.builder()
                     .projectedColumns(projectedColumns)
                     .batchSize(batchSize)
@@ -675,26 +609,16 @@ public final class StreamingParallelParsingCoordinator {
                     .recordAligned(true)
                     .readSchema(readSchema)
                     .maxRecordBytes(maxRecordBytes)
+                    .stats(chunk.coverageStart(), statsStripeSize, chunk.last())
                     .build();
-                // Bind the consumer-owned sink on this worker so the reader's close hook reaches
-                // the same map the consumer-thread StatsCapturingIterator binds. The pages iterator
-                // is opened inside the bound's try-with-resources so a failing reader.read still
-                // restores the previous ThreadLocal binding — workers in this executor are reused
-                // across queries, a leaked binding would route subsequent tasks' record() calls
-                // into the prior query's sink. Inner closes first, so record() runs with the sink
-                // still bound, then the handle restores the previous binding.
-                ExternalStatsCapture.Handle bound = captureSink != null
-                    ? ExternalStatsCapture.bind(
-                        captureSink,
-                        new ExternalStatsCapture.Coverage(
-                            chunk.coverageStart(),
-                            chunk.coverageStart() + chunk.length(),
-                            chunk.last(),
-                            statsStripeSize,
-                            chunk.stripeHead()
-                        )
-                    )
-                    : () -> {};
+                // Bind the consumer-owned sink on this worker so the reader's close hook reaches the
+                // same map the consumer-thread StatsCapturingIterator binds. The pages iterator is
+                // opened inside the bound's try-with-resources so a failing reader.read still restores
+                // the previous ThreadLocal binding — workers in this executor are reused across queries,
+                // and a leaked binding would route subsequent tasks' record() calls into the prior
+                // query's sink. The reader now stamps stripe addressing itself, so the sink no longer
+                // carries a coverage.
+                ExternalStatsCapture.Handle bound = captureSink != null ? ExternalStatsCapture.bind(captureSink) : () -> {};
                 try (bound) {
                     try (CloseableIterator<Page> pages = reader.read(chunkObj, ctx)) {
                         while (pages.hasNext()) {
@@ -1140,7 +1064,7 @@ public final class StreamingParallelParsingCoordinator {
         }
     }
 
-    private record Chunk(int index, long coverageStart, byte[] buffer, int length, boolean last, boolean stripeHead) {}
+    private record Chunk(int index, long coverageStart, byte[] buffer, int length, boolean last) {}
 
     /**
      * Minimal StorageObject wrapping an InputStream for the parallelism=1 fallback path.

@@ -446,7 +446,10 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
             cacheable ? ignoredSchema -> computeConfigFingerprint() : null,
             chunkMode,
             counters,
-            context.maxRecordBytes()
+            context.maxRecordBytes(),
+            context.statsBaseOffset(),
+            context.statsStripeSize(),
+            context.statsFileFinal()
         );
     }
 

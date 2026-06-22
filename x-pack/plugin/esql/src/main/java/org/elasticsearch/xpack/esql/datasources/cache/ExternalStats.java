@@ -76,26 +76,38 @@ public final class ExternalStats {
     public static final String CHUNK_HAD_ERRORS_KEY = "_stats.chunk_had_errors";
 
     /**
-     * Canonical-stripe addressing. A file's stripe grid divides its decompressed byte stream into
-     * stripes of {@link ExternalSourceCacheSettings#STRIPE_SIZE} bytes, each realigned forward to the
-     * first record boundary at-or-after its nominal {@code k*B} start — a pure function of file
-     * content plus the pinned grid, never of how the read happened to be chunked, split, or
-     * distributed. Stripe identity is what makes cross-scan deduplication exact: two scans of the
-     * same file (FORK branches, retries, schema probes) produce byte-identical fragments for the
-     * same stripe, so the reconciler's identity-union counts each stripe once by construction.
+     * Canonical-stripe addressing — orthogonal model. A file's stripe grid divides its byte stream
+     * (decompressed-stream offset for stream codecs, raw file offset for seekable inputs) into stripes
+     * of {@link ExternalSourceCacheSettings#STRIPE_SIZE} bytes. Stripes are a pure ADDRESSING grid,
+     * not a partitioning unit: the producing READER attributes each record to the stripe its start
+     * offset falls in ({@code ordinal = floor(recordStartOffset / stripe_size)}) as it parses,
+     * independently of how the read was chunked, split, or distributed. Chunks are never cut to align
+     * with stripes; a chunk spanning stripes contributes one fragment per stripe, and a chunk boundary
+     * landing mid-stripe splits that stripe across two chunks' fragments.
      * <p>
-     * {@link #STRIPE_SIZE_KEY} carries the grid (bytes) the producing segmentator used; the
-     * reconciler derives a fragment's stripe ordinal as {@code floor(coverage_start / stripe_size)}
-     * — sound because segmentators cut chunks at stripe boundaries, and no record boundary can lie
-     * strictly inside a realign window (the realigned cut is by definition the FIRST boundary
-     * at-or-after the nominal line). {@link #STRIPE_HEAD_KEY} marks the fragment that starts exactly
-     * at a stripe cut (or at offset 0), letting the reconciler prove a stripe's completeness from
-     * its own fragments alone: head-flagged start, contiguous tiling, tail ending at the next cut or
-     * carrying {@link #COVERAGE_IS_LAST_KEY}. Contributions without {@link #STRIPE_SIZE_KEY} (older
-     * nodes, non-striped read paths) are not stripe-addressable and are never cached — a safe miss.
+     * Because attribution is by record-start offset, a stripe's content is a pure function of the file
+     * — identical across any two scans regardless of their chunking — which is what makes the
+     * reconciler's per-stripe interval-cover dedup exact (a FORK branch covering a stripe whole and a
+     * sibling splitting it differently fold to the same stripe stats).
+     * <ul>
+     *   <li>{@link #STRIPE_SIZE_KEY} — the grid B (bytes); a grid-consistency check, also identifies a
+     *   fragment as stripe-addressed (absent ⇒ not cacheable, a safe miss).</li>
+     *   <li>{@link #STRIPE_ORDINAL_KEY} — the reader-assigned stripe ordinal k this fragment belongs
+     *   to (NOT inferred from the byte offset; the reader knows it record-canonically).</li>
+     *   <li>{@link #COVERAGE_START_KEY}/{@link #COVERAGE_END_KEY} — the record-canonical byte sub-range
+     *   of stripe k this fragment covered, for the interval-cover tiling.</li>
+     *   <li>{@link #STRIPE_AT_START_KEY} — this fragment holds the stripe's first record (its start is
+     *   the stripe's true start).</li>
+     *   <li>{@link #STRIPE_AT_END_KEY} — this fragment's end reached the next stripe's first record (or
+     *   EOF): the stripe's true end.</li>
+     *   <li>{@link #COVERAGE_IS_LAST_KEY} — this fragment observed end-of-input: the file's last
+     *   stripe (drives the whole-file completeness marker).</li>
+     * </ul>
      */
     public static final String STRIPE_SIZE_KEY = "_stats.stripe_size";
-    public static final String STRIPE_HEAD_KEY = "_stats.stripe_head";
+    public static final String STRIPE_ORDINAL_KEY = "_stats.stripe_ordinal";
+    public static final String STRIPE_AT_START_KEY = "_stats.stripe_at_start";
+    public static final String STRIPE_AT_END_KEY = "_stats.stripe_at_end";
 
     /**
      * Coordinator-cache keys for per-stripe committed stats, stored inside a {@code SchemaCacheEntry}'s

@@ -1924,7 +1924,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                     perFileReadSchema,
                     maxConcurrentOpenSegments,
                     captureSink,
-                    maxRecordBytes
+                    maxRecordBytes,
+                    statsStripeSize
                 );
             }
             case STREAM_ONLY_COMPRESSED -> {

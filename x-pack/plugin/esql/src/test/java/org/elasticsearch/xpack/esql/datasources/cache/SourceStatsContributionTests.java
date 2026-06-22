@@ -25,34 +25,47 @@ public class SourceStatsContributionTests extends ESTestCase {
         assertThat(SourceStatsContribution.classify(raw), instanceOf(SourceStatsContribution.Poison.class));
     }
 
-    public void testClassifyPartialChunkParsesCoverageAndTypedStats() {
+    public void testClassifyStripeFragmentParsesOrdinalAnchorsAndTypedStats() {
         Map<String, Object> raw = new LinkedHashMap<>();
         raw.put(ExternalStats.PARTIAL_CHUNK_KEY, Boolean.TRUE);
+        raw.put(ExternalStats.STRIPE_SIZE_KEY, 1024L);
+        raw.put(ExternalStats.STRIPE_ORDINAL_KEY, 3L);
         raw.put(ExternalStats.COVERAGE_START_KEY, 40L);
         raw.put(ExternalStats.COVERAGE_END_KEY, 100L);
+        raw.put(ExternalStats.STRIPE_AT_START_KEY, Boolean.TRUE);
+        raw.put(ExternalStats.STRIPE_AT_END_KEY, Boolean.TRUE);
         raw.put(ExternalStats.COVERAGE_IS_LAST_KEY, Boolean.TRUE);
         raw.put(ExternalStats.MTIME_MILLIS_KEY, 1000L);
         raw.put(ExternalStats.CONFIG_FINGERPRINT_KEY, "fp");
         raw.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 12L);
         SourceStatsContribution classified = SourceStatsContribution.classify(raw);
-        assertThat(classified, instanceOf(SourceStatsContribution.PartialChunk.class));
-        SourceStatsContribution.PartialChunk pc = (SourceStatsContribution.PartialChunk) classified;
-        assertEquals("coverage start is parsed onto the record", 40L, pc.start());
-        assertEquals("coverage end is parsed onto the record", 100L, pc.end());
-        assertTrue("coverage last flag is parsed onto the record", pc.last());
-        assertTrue("a partial with a valid range has coverage", pc.hasCoverage());
-        assertEquals("mtime is parsed as a typed field", 1000L, pc.mtimeMillis());
-        assertEquals("fingerprint is parsed as a typed field", "fp", pc.configFingerprint());
-        assertEquals("statistics are parsed into a typed SourceStatistics", 12L, pc.stats().rowCount().getAsLong());
+        assertThat(classified, instanceOf(SourceStatsContribution.StripeFragment.class));
+        SourceStatsContribution.StripeFragment f = (SourceStatsContribution.StripeFragment) classified;
+        assertEquals("ordinal is parsed", 3L, f.ordinal());
+        assertEquals("sub-range start is parsed", 40L, f.start());
+        assertEquals("sub-range end is parsed", 100L, f.end());
+        assertTrue("atStripeStart anchor is parsed", f.atStripeStart());
+        assertTrue("atStripeEnd anchor is parsed", f.atStripeEnd());
+        assertTrue("eof flag is parsed", f.eof());
+        assertTrue("a fragment with a grid + ordinal + range is stripe-addressed", f.stripeAddressed());
+        assertEquals("mtime is parsed as a typed field", 1000L, f.mtimeMillis());
+        assertEquals("fingerprint is parsed as a typed field", "fp", f.configFingerprint());
+        assertEquals("statistics are parsed into a typed SourceStatistics", 12L, f.stats().rowCount().getAsLong());
     }
 
-    public void testClassifyPartialChunkWithoutCoverageIsUnaddressable() {
+    public void testClassifyChunkWithoutStripeAddressingIsUnaddressable() {
+        // A chunk marker with no stripe keys (older node, reader not yet emitting stripes): classified
+        // as a StripeFragment but NOT stripe-addressed, so the reconciler safe-misses rather than
+        // mis-reading it as a whole-file read.
         Map<String, Object> raw = new LinkedHashMap<>();
         raw.put(ExternalStats.PARTIAL_CHUNK_KEY, Boolean.TRUE);
         raw.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 12L);
         SourceStatsContribution classified = SourceStatsContribution.classify(raw);
-        assertThat(classified, instanceOf(SourceStatsContribution.PartialChunk.class));
-        assertFalse("a partial with no coverage cannot be addressed", ((SourceStatsContribution.PartialChunk) classified).hasCoverage());
+        assertThat(classified, instanceOf(SourceStatsContribution.StripeFragment.class));
+        assertFalse(
+            "a chunk with no stripe addressing is not cacheable",
+            ((SourceStatsContribution.StripeFragment) classified).stripeAddressed()
+        );
     }
 
     public void testClassifyWholeFileIsTheDefault() {

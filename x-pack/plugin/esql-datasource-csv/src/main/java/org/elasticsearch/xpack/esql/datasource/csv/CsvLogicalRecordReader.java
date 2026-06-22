@@ -23,6 +23,13 @@ final class CsvLogicalRecordReader {
     private final int maxRecordBytes;
     private final Charset charset;
     private final boolean utf8;
+    /**
+     * Running count of bytes consumed from the start of this reader's input (including each record's
+     * terminator). Before a {@link #readRecord} call this is the next record's start offset; combined with
+     * the chunk's base file offset it gives the record's absolute, chunking-independent position — the
+     * canonical coordinate the orthogonal stripe model attributes each record by.
+     */
+    private long consumedBytes;
 
     CsvLogicalRecordReader(Reader reader, char quoteChar, char delimiter, int maxRecordBytes, Charset charset) {
         if (reader.markSupported() == false) {
@@ -39,6 +46,11 @@ final class CsvLogicalRecordReader {
         this.utf8 = StandardCharsets.UTF_8.equals(charset);
     }
 
+    /** Bytes consumed so far (across all records + terminators read); the next record's start offset. */
+    long consumedBytes() {
+        return consumedBytes;
+    }
+
     String readRecord(boolean bracketAware) throws IOException {
         StringBuilder sb = new StringBuilder(256);
         boolean inQuotes = false;
@@ -49,6 +61,7 @@ final class CsvLogicalRecordReader {
         while (true) {
             int ch = reader.read();
             if (ch == -1) {
+                consumedBytes += recordBytes;
                 return sb.length() == 0 ? null : sb.toString();
             }
             recordBytes = addBytes(recordBytes, ch);
@@ -90,6 +103,7 @@ final class CsvLogicalRecordReader {
             }
 
             if (ch == '\n') {
+                consumedBytes += recordBytes;
                 return sb.toString();
             }
             if (ch == '\r') {
@@ -100,6 +114,7 @@ final class CsvLogicalRecordReader {
                 } else if (next != -1) {
                     reader.reset();
                 }
+                consumedBytes += recordBytes;
                 return sb.toString();
             }
             if (ch == delimiter) {

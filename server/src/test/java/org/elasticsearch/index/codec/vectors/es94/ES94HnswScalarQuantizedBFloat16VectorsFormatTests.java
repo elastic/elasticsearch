@@ -49,7 +49,13 @@ public class ES94HnswScalarQuantizedBFloat16VectorsFormatTests extends BaseQuant
 
     @Override
     protected KnnVectorsFormat createFormat(int maxConn, int beamWidth) {
-        return new ES94HnswScalarQuantizedVectorsFormat(maxConn, beamWidth, DenseVectorFieldMapper.ElementType.BFLOAT16, randomBits(), false);
+        return new ES94HnswScalarQuantizedVectorsFormat(
+            maxConn,
+            beamWidth,
+            DenseVectorFieldMapper.ElementType.BFLOAT16,
+            randomBits(),
+            false
+        );
     }
 
     @Override

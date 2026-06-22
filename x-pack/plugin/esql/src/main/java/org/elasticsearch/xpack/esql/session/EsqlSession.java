@@ -74,7 +74,6 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolution;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolver;
-import org.elasticsearch.xpack.esql.datasources.PartitionFilterHintExtractor;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheService;
 import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolver;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
@@ -1314,7 +1313,13 @@ public class EsqlSession {
                 executionInfo.queryProfile().indicesResolutionMarker().stop();
                 return r;
             })
-            .<PreAnalysisResult>andThen((l, r) -> preAnalyzeExternalSources(parsed, preAnalysis, r, l))
+            .<PreAnalysisResult>andThen((l, r) -> {
+                if (preAnalysis.icebergPaths().isEmpty()) {
+                    l.onResponse(r);
+                } else {
+                    schemaService.resolveExternalSources(parsed, preAnalysis.icebergPaths(), l.map(r::withExternalSourceResolution));
+                }
+            })
             .<PreAnalysisResult>andThen((l, r) -> {
                 // Do not update PreAnalysisResult.minimumTransportVersion, that's already been determined during main index resolution.
                 executionInfo.queryProfile().enrichResolutionMarker().start();
@@ -1391,62 +1396,6 @@ public class EsqlSession {
             result.minimumTransportVersion(),
             listener.map(indexResolution -> receiveLookupIndexResolution(result, localPattern, executionInfo, indexResolution))
         );
-    }
-
-    /**
-     * Resolve external sources (Iceberg tables/Parquet files) if present in the query.
-     * This runs in parallel with other resolution steps to avoid blocking.
-     * Extracts partition filter hints from the WHERE clause for partition-aware glob rewriting.
-     */
-    private void preAnalyzeExternalSources(
-        LogicalPlan plan,
-        PreAnalyzer.PreAnalysis preAnalysis,
-        PreAnalysisResult result,
-        ActionListener<PreAnalysisResult> listener
-    ) {
-        if (preAnalysis.icebergPaths().isEmpty()) {
-            listener.onResponse(result);
-            return;
-        }
-
-        Map<String, Map<String, Object>> pathConfigs = extractExternalConfigs(plan);
-
-        var filterHints = PartitionFilterHintExtractor.extract(plan);
-
-        schemaService.resolveExternalSources(
-            preAnalysis.icebergPaths(),
-            pathConfigs,
-            filterHints.isEmpty() ? null : filterHints,
-            listener.map(result::withExternalSourceResolution)
-        );
-    }
-
-    /**
-     * Map from table path to config across all {@code UnresolvedExternalRelation} nodes. Every
-     * {@code tablePath} is a non-null {@code Literal} post-parsing; non-Literal here is a
-     * precondition violation and throws.
-     */
-    // package-private for testing
-    static Map<String, Map<String, Object>> extractExternalConfigs(LogicalPlan plan) {
-        Map<String, Map<String, Object>> pathConfigs = new HashMap<>();
-        plan.forEachUp(org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation.class, p -> {
-            org.elasticsearch.xpack.esql.core.expression.Expression tablePath = p.tablePath();
-            if (tablePath instanceof org.elasticsearch.xpack.esql.core.expression.Literal literal && literal.value() != null) {
-                String path = org.elasticsearch.common.lucene.BytesRefs.toString(literal.value());
-                // If two UnresolvedExternalRelation nodes share the same literal path the later config
-                // overwrites the earlier one. Today the dataset-rewrite pipeline produces at most one
-                // UER per concrete path, so this is benign; if plan shapes evolve to allow per-call
-                // config divergence at the same path this needs to become a merge or a verifier check.
-                pathConfigs.put(path, p.config());
-            } else {
-                throw new IllegalStateException(
-                    "UnresolvedExternalRelation tablePath is not a non-null Literal: ["
-                        + (tablePath == null ? "null" : tablePath.sourceText())
-                        + "]"
-                );
-            }
-        });
-        return pathConfigs;
     }
 
     private void skipClusterOrError(String clusterAlias, EsqlExecutionInfo executionInfo, String message) {

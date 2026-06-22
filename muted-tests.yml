@@ -674,3 +674,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.StatelessHollowIndexShardsIT
   method: testCloseWhileShardsAreHollowed
   issue: https://github.com/elastic/elasticsearch/issues/151861
+- class: org.elasticsearch.action.search.SearchQueryThenFetchAsyncActionTests
+  method: testScrollDisableBottomFieldSort
+  issue: https://github.com/elastic/elasticsearch/issues/151862

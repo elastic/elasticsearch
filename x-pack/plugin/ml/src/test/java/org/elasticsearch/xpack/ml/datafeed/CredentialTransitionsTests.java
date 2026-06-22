@@ -388,6 +388,55 @@ public class CredentialTransitionsTests extends ESTestCase {
     }
 
     @SuppressWarnings("unchecked")
+    public void testValidateSearchBeforeMintWhenProbeReturnsNoMatchingProjectForQualifiedIndexShouldFail() {
+        CloudCredentialManager credentialManager = mock(CloudCredentialManager.class);
+        InternalCloudApiKeyService apiKeyService = mock(InternalCloudApiKeyService.class);
+        Client client = mock(Client.class);
+        ThreadPool threadPool = mock(ThreadPool.class);
+        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        when(threadPool.getThreadContext()).thenReturn(threadContext);
+        when(client.threadPool()).thenReturn(threadPool);
+
+        CloudCredential callerCredential = new CloudCredential(new SecureString("caller".toCharArray()));
+        when(credentialManager.hasCloudManagedCredential(same(threadContext))).thenReturn(true);
+        when(credentialManager.extractCloudManagedCredential(same(threadContext))).thenReturn(callerCredential);
+        when(credentialManager.wrapClient(same(client), eq(callerCredential))).thenReturn(client);
+
+        NoMatchingProjectException noMatchingProject = new NoMatchingProjectException("nonexistent_project", "_alias:*");
+        mockSearchProbeFails(client, noMatchingProject);
+
+        CredentialTransitions transitions = new CredentialTransitions(
+            mock(AnomalyDetectionAuditor.class),
+            () -> apiKeyService,
+            () -> credentialManager,
+            client,
+            xContentRegistry(),
+            mock(DatafeedConfigProvider.class),
+            new CrossProjectModeDecider(Settings.EMPTY)
+        );
+
+        DatafeedConfig.Builder builder = new DatafeedConfig.Builder("df", "job");
+        builder.setIndices(List.of("nonexistent_project:logs-*", "logs-*"));
+        builder.setProjectRouting("_alias:*");
+        PutDatafeedAction.Request request = new PutDatafeedAction.Request(builder.build());
+        ClusterState clusterState = mock(ClusterState.class);
+
+        AtomicReference<Exception> failure = new AtomicReference<>();
+        transitions.executePut(
+            Intent.REPLACE,
+            request,
+            clusterState,
+            threadPool,
+            null,
+            (req, headers, state, listener) -> listener.onFailure(new IllegalStateException("persist should not run")),
+            ActionListener.wrap(ignored -> fail("expected probe failure"), failure::set)
+        );
+
+        assertThat(failure.get(), equalTo(noMatchingProject));
+        verify(apiKeyService, never()).grantCloudAuthentication(any(), anyString(), any());
+    }
+
+    @SuppressWarnings("unchecked")
     public void testValidateSearchBeforeMintWhenProbeFailsWithSecurityErrorShouldFail() {
         CloudCredentialManager credentialManager = mock(CloudCredentialManager.class);
         InternalCloudApiKeyService apiKeyService = mock(InternalCloudApiKeyService.class);

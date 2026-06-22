@@ -25,6 +25,7 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.search.crossproject.NoMatchingProjectException;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.ml.action.PutDatafeedAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateDatafeedAction;
@@ -392,10 +393,12 @@ public final class CredentialTransitions {
         final ThreadContext threadContext = client.threadPool().getThreadContext();
         final CloudCredential callerCredential = resolveCallerCredential(carriedCredential, threadContext);
         final Client searchClient = credentialManager.wrapClient(client, callerCredential);
+        boolean flatWorldOnly = effectiveConfig.getIndices().stream().noneMatch(RemoteClusterAware::isRemoteIndexName);
         ActionListener<Void> probeListener = listener.delegateResponse((l, e) -> {
-            if (ExceptionsHelper.unwrapCause(e) instanceof NoMatchingProjectException) {
-                // Routing matches no project right now; a project may be linked later. Defer to runtime,
-                // matching DatafeedNodeSelector's IndexNotFoundException tolerance and transforms' validateQuery.
+            if (flatWorldOnly && ExceptionsHelper.unwrapCause(e) instanceof NoMatchingProjectException) {
+                // Flat-world (unqualified) routing matched no project right now; a project may be linked later.
+                // Defer to runtime (DatafeedNodeSelector IndexNotFoundException tolerance / transforms validateQuery).
+                // A qualified project:index reference to a missing or unauthorized project is an explicit error and still fails here.
                 logger.debug(
                     () -> "["
                         + effectiveConfig.getId()

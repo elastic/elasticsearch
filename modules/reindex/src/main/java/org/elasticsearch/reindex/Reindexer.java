@@ -1049,7 +1049,7 @@ public class Reindexer {
         }
 
         @Override
-        protected PaginatedHitSource buildScrollableResultSource(BackoffPolicy backoffPolicy, SearchRequest searchRequest) {
+        protected PaginatedHitSource buildPaginatedSearchResultSource(BackoffPolicy backoffPolicy, SearchRequest searchRequest) {
             if (mainRequest.getRemoteInfo() != null) {
                 RemoteInfo remoteInfo = mainRequest.getRemoteInfo();
                 createdThreads = synchronizedList(new ArrayList<>());
@@ -1062,7 +1062,7 @@ public class Reindexer {
                         backoffPolicy,
                         threadPool,
                         worker::countSearchRetry,
-                        this::onScrollResponse,
+                        this::onPaginatedSearchResponse,
                         this::finishHim,
                         restClient,
                         remoteInfo,
@@ -1078,7 +1078,7 @@ public class Reindexer {
                     backoffPolicy,
                     threadPool,
                     worker::countSearchRetry,
-                    this::onScrollResponse,
+                    this::onPaginatedSearchResponse,
                     this::finishHim,
                     restClient,
                     remoteInfo,
@@ -1089,7 +1089,7 @@ public class Reindexer {
                     reindexSettings.getMemoryAccountingThresholdInBytes()
                 );
             }
-            return super.buildScrollableResultSource(backoffPolicy, searchRequest);
+            return super.buildPaginatedSearchResultSource(backoffPolicy, searchRequest);
         }
 
         @Override

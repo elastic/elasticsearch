@@ -846,8 +846,8 @@ public class ObjectMapperTests extends MapperServiceTestCase {
             assertNotNull(mapperService.fieldType("resource.service"));
             // Prefix→dynamic map is populated
             RootObjectMapper root = mapperService.mappingLookup().getMapping().getRoot();
-            assertEquals(ObjectMapper.Dynamic.FALSE, root.getDynamicByPrefix().get("attributes"));
-            assertEquals(ObjectMapper.Dynamic.STRICT, root.getDynamicByPrefix().get("resource"));
+            assertEquals(ObjectMapper.Dynamic.FALSE, root.getPrefixProperties().get("attributes").dynamic());
+            assertEquals(ObjectMapper.Dynamic.STRICT, root.getPrefixProperties().get("resource").dynamic());
         }
     }
 
@@ -874,8 +874,8 @@ public class ObjectMapperTests extends MapperServiceTestCase {
                 b.endObject();
             }));
             RootObjectMapper root = mapperService.mappingLookup().getMapping().getRoot();
-            assertEquals(ObjectMapper.Dynamic.FALSE, root.getDynamicByPrefix().get("foo"));
-            assertEquals(ObjectMapper.Dynamic.TRUE, root.getDynamicByPrefix().get("foo.bar"));
+            assertEquals(ObjectMapper.Dynamic.FALSE, root.getPrefixProperties().get("foo").dynamic());
+            assertEquals(ObjectMapper.Dynamic.TRUE, root.getPrefixProperties().get("foo.bar").dynamic());
         }
     }
 
@@ -908,17 +908,16 @@ public class ObjectMapperTests extends MapperServiceTestCase {
             }));
             // The disabled object is flattened away — no ObjectMapper in the tree
             assertNull(mapperService.mappingLookup().objectMappers().get("attributes"));
-            // Explicitly declared children ARE flattened into indexed leaf mappers,
-            // consistent with dynamic:false (only unmapped fields are dropped at index time).
-            assertNotNull(
-                "explicitly declared children of an enabled:false object must still be indexed",
+            // No children are flattened — the entire subtree is disabled.
+            assertNull(
+                "children of an enabled:false object must not appear as indexed fields",
                 mapperService.fieldType("attributes.host")
             );
-            // The enabled:false prefix is captured
+            // The enabled:false prefix is captured in prefixProperties
             RootObjectMapper root = mapperService.mappingLookup().getMapping().getRoot();
-            assertEquals(Boolean.FALSE, root.getEnabledByPrefix().get("attributes"));
-            // No dynamic entry for the disabled prefix (it is not needed; resolveDynamic handles it via enabledByPrefix)
-            assertNull(root.getDynamicByPrefix().get("attributes"));
+            assertEquals(Boolean.FALSE, root.getPrefixProperties().get("attributes").enabled());
+            // No dynamic facet for the disabled prefix
+            assertNull(root.getPrefixProperties().get("attributes").dynamic());
         }
     }
 

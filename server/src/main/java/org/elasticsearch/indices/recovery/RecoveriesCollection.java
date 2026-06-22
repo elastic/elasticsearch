@@ -22,7 +22,6 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.ConcurrentMap;
-import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
@@ -36,34 +35,10 @@ public class RecoveriesCollection {
     /** This is the single source of truth for ongoing recoveries. If it's not here, it was canceled or done */
     private final ConcurrentMap<Long, RecoveryTarget> onGoingRecoveries = ConcurrentCollections.newConcurrentMap();
 
-    private final List<RecoverySchedulingListener> recoverySchedulingListeners = new CopyOnWriteArrayList<>();
-
     private final Logger logger;
 
     public RecoveriesCollection(Logger logger) {
         this.logger = logger;
-    }
-
-    /** Registers a recovery scheduling listener */
-    public void addRecoverySchedulingListener(RecoverySchedulingListener listener) {
-        recoverySchedulingListeners.add(listener);
-    }
-
-    /** Unregisters a recovery scheduling listener */
-    public void removeRecoverySchedulingListener(RecoverySchedulingListener listener) {
-        recoverySchedulingListeners.remove(listener);
-    }
-
-    private void notifyRecoverySchedulingListeners() {
-        assert Thread.holdsLock(onGoingRecoveries) == false;
-        for (RecoverySchedulingListener listener : recoverySchedulingListeners) {
-            try {
-                listener.onRecoverySchedulingChange();
-            } catch (Exception e) {
-                assert false : e;
-                logger.warn("exception from recovery schedule listener", e);
-            }
-        }
     }
 
     /**
@@ -88,7 +63,6 @@ public class RecoveriesCollection {
             listener
         );
         startRecoveryInternal(recoveryTarget);
-        notifyRecoverySchedulingListeners();
         return recoveryTarget.recoveryId();
     }
 
@@ -144,7 +118,6 @@ public class RecoveriesCollection {
                 newRecoveryTarget.recoveryId(),
                 oldRecoveryTarget.recoveryId()
             );
-            notifyRecoverySchedulingListeners();
             return newRecoveryTarget;
         } else {
             logger.trace(
@@ -154,7 +127,6 @@ public class RecoveriesCollection {
                 newRecoveryTarget.recoveryId(),
                 oldRecoveryTarget.recoveryId()
             );
-            // notifyRecoverySchedulingListeners() is called in cancelRecovery
             cancelRecovery(newRecoveryTarget.recoveryId(), "recovery cancelled during reset");
             return null;
         }
@@ -203,7 +175,6 @@ public class RecoveriesCollection {
             );
             removed.cancel(reason);
             cancelled = true;
-            notifyRecoverySchedulingListeners();
         }
         return cancelled;
     }
@@ -226,7 +197,6 @@ public class RecoveriesCollection {
                 sendShardFailure
             );
             removed.fail(e, sendShardFailure);
-            notifyRecoverySchedulingListeners();
         }
     }
 
@@ -236,7 +206,6 @@ public class RecoveriesCollection {
         if (removed != null) {
             logger.trace("{} marking recovery from {} as done, id [{}]", removed.shardId(), removed.sourceNode(), removed.recoveryId());
             removed.markAsDone();
-            notifyRecoverySchedulingListeners();
         }
     }
 
@@ -274,9 +243,6 @@ public class RecoveriesCollection {
             );
             removed.cancel(reason);
             cancelled = true;
-        }
-        if (cancelled) {
-            notifyRecoverySchedulingListeners();
         }
         return cancelled;
     }

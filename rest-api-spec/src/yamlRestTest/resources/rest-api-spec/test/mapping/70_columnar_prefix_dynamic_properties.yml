@@ -63,7 +63,7 @@ setup:
       indices.get_mapping:
         index: test_columnar_single_prefix
   - match: { test_columnar_single_prefix.mappings.dynamic: "true" }
-  - match: { test_columnar_single_prefix.mappings.prefix_properties.dynamic.attributes: "false" }
+  - match: { test_columnar_single_prefix.mappings.prefix_properties.attributes.dynamic: "false" }
   - is_true: test_columnar_single_prefix.mappings.properties.attributes\.host
 
   # Unknown field under dynamic:false prefix is silently dropped; known field is indexed
@@ -121,9 +121,9 @@ setup:
       indices.get_mapping:
         index: test_columnar_multi_prefix
   - match: { test_columnar_multi_prefix.mappings.dynamic: "true" }
-  - match: { test_columnar_multi_prefix.mappings.prefix_properties.dynamic.attributes: "false" }
-  - match: { test_columnar_multi_prefix.mappings.prefix_properties.dynamic.resource: "strict" }
-  - match: { test_columnar_multi_prefix.mappings.prefix_properties.dynamic.metrics: "true" }
+  - match: { test_columnar_multi_prefix.mappings.prefix_properties.attributes.dynamic: "false" }
+  - match: { test_columnar_multi_prefix.mappings.prefix_properties.resource.dynamic: "strict" }
+  - match: { test_columnar_multi_prefix.mappings.prefix_properties.metrics.dynamic: "true" }
 
   # dynamic:false drops unknown; dynamic:true auto-maps unknown; known fields always indexed
   - do:
@@ -178,13 +178,13 @@ setup:
             index.mode: columnar
           mappings:
             prefix_properties:
-              dynamic:
-                attributes: "runtime"
+              attributes:
+                dynamic: "runtime"
             properties:
               attributes.host:
                 type: keyword
   - match: { error.type: "mapper_parsing_exception" }
-  - match: { error.reason: "/\\[prefix_properties\\.dynamic\\].does.not.support.\\[runtime\\]/" }
+  - match: { error.reason: "/\\[prefix_properties\\.attributes\\.dynamic\\].does.not.support.\\[runtime\\]/" }
 
 ---
 "columnar: runtime is rejected":
@@ -227,11 +227,12 @@ setup:
   - do:
       indices.get_mapping:
         index: test_columnar_nested_prefix
-  # The full dotted path "a.b" is stored as a literal key in prefix_properties.dynamic;
+  # The full dotted path "a.b" is stored as a literal key in prefix_properties;
   # matching the whole object confirms it is "a.b" and not a nested "a" -> "b" structure.
   - match:
-      test_columnar_nested_prefix.mappings.prefix_properties.dynamic:
-        a.b: "strict"
+      test_columnar_nested_prefix.mappings.prefix_properties:
+        a.b:
+          dynamic: "strict"
 
   # Known field under a.b.c is indexed successfully
   - do:
@@ -296,8 +297,8 @@ setup:
   - do:
       indices.get_mapping:
         index: test_columnar_merge_prefix
-  - match: { test_columnar_merge_prefix.mappings.prefix_properties.dynamic.attributes: "false" }
-  - match: { test_columnar_merge_prefix.mappings.prefix_properties.dynamic.resource: "strict" }
+  - match: { test_columnar_merge_prefix.mappings.prefix_properties.attributes.dynamic: "false" }
+  - match: { test_columnar_merge_prefix.mappings.prefix_properties.resource.dynamic: "strict" }
 
   # dynamic:false drops unknown under attributes after merge
   - do:
@@ -394,7 +395,7 @@ setup:
       indices.get_mapping:
         index: test_logsdb_columnar_single_prefix
   - match: { test_logsdb_columnar_single_prefix.mappings.dynamic: "true" }
-  - match: { test_logsdb_columnar_single_prefix.mappings.prefix_properties.dynamic.attributes: "false" }
+  - match: { test_logsdb_columnar_single_prefix.mappings.prefix_properties.attributes.dynamic: "false" }
 
   # Unknown field under dynamic:false prefix is silently dropped; known field is indexed
   - do:
@@ -453,9 +454,9 @@ setup:
       indices.get_mapping:
         index: test_logsdb_columnar_multi_prefix
   - match: { test_logsdb_columnar_multi_prefix.mappings.dynamic: "true" }
-  - match: { test_logsdb_columnar_multi_prefix.mappings.prefix_properties.dynamic.attributes: "false" }
-  - match: { test_logsdb_columnar_multi_prefix.mappings.prefix_properties.dynamic.resource: "strict" }
-  - match: { test_logsdb_columnar_multi_prefix.mappings.prefix_properties.dynamic.metrics: "true" }
+  - match: { test_logsdb_columnar_multi_prefix.mappings.prefix_properties.attributes.dynamic: "false" }
+  - match: { test_logsdb_columnar_multi_prefix.mappings.prefix_properties.resource.dynamic: "strict" }
+  - match: { test_logsdb_columnar_multi_prefix.mappings.prefix_properties.metrics.dynamic: "true" }
 
   # dynamic:false drops unknown; dynamic:true auto-maps unknown; known fields always indexed
   - do:
@@ -513,9 +514,10 @@ setup:
           mappings:
             dynamic: "true"
             prefix_properties:
-              dynamic:
-                attributes: "false"
-                resource: "strict"
+              attributes:
+                dynamic: "false"
+              resource:
+                dynamic: "strict"
             properties:
               attributes.host:
                 type: keyword
@@ -526,8 +528,8 @@ setup:
       indices.get_mapping:
         index: test_columnar_prefix_props_input
   - match: { test_columnar_prefix_props_input.mappings.dynamic: "true" }
-  - match: { test_columnar_prefix_props_input.mappings.prefix_properties.dynamic.attributes: "false" }
-  - match: { test_columnar_prefix_props_input.mappings.prefix_properties.dynamic.resource: "strict" }
+  - match: { test_columnar_prefix_props_input.mappings.prefix_properties.attributes.dynamic: "false" }
+  - match: { test_columnar_prefix_props_input.mappings.prefix_properties.resource.dynamic: "strict" }
 
   # dynamic:false drops unknown under attributes
   - do:
@@ -583,7 +585,7 @@ setup:
   - do:
       indices.get_mapping:
         index: test_columnar_enabled_false
-  - match: { test_columnar_enabled_false.mappings.prefix_properties.enabled.attributes: false }
+  - match: { test_columnar_enabled_false.mappings.prefix_properties.attributes.enabled: false }
   # Children of a disabled object are not flattened into indexed leaf mappers
   - is_false: test_columnar_enabled_false.mappings.properties.attributes
 
@@ -615,7 +617,7 @@ setup:
   - is_false: test_columnar_enabled_false.mappings.properties.attributes\.region
 
 ---
-"columnar: explicitly declared field under enabled:false is still indexed":
+"columnar: explicitly declared field under enabled:false is also dropped":
   - do:
       indices.create:
         index: test_columnar_enabled_mapped
@@ -633,11 +635,11 @@ setup:
   - do:
       indices.get_mapping:
         index: test_columnar_enabled_mapped
-  - match: { test_columnar_enabled_mapped.mappings.prefix_properties.enabled.attributes: false }
-  # Declared child is flattened into an indexed leaf mapper
-  - is_true: test_columnar_enabled_mapped.mappings.properties.attributes\.host
+  - match: { test_columnar_enabled_mapped.mappings.prefix_properties.attributes.enabled: false }
+  # No children are flattened — the entire subtree is disabled
+  - is_false: test_columnar_enabled_mapped.mappings.properties.attributes\.host
 
-  # Declared field can be indexed and searched
+  # Declared field is dropped even when sent in the document
   - do:
       index:
         index: test_columnar_enabled_mapped
@@ -654,7 +656,7 @@ setup:
           query:
             term:
               attributes.host: "es-node-1"
-  - match: { hits.total.value: 1 }
+  - match: { hits.total.value: 0 }
 
 ---
 "columnar: index created with prefix_properties.enabled in mapping body is preserved on get_mapping":
@@ -666,13 +668,13 @@ setup:
             index.mode: columnar
           mappings:
             prefix_properties:
-              enabled:
-                attributes: false
+              attributes:
+                enabled: false
 
   - do:
       indices.get_mapping:
         index: test_columnar_enabled_input
-  - match: { test_columnar_enabled_input.mappings.prefix_properties.enabled.attributes: false }
+  - match: { test_columnar_enabled_input.mappings.prefix_properties.attributes.enabled: false }
 
 ---
 "columnar: put_mapping merge adds new enabled prefix":
@@ -690,8 +692,8 @@ setup:
   - do:
       indices.get_mapping:
         index: test_columnar_enabled_merge
-  - match: { test_columnar_enabled_merge.mappings.prefix_properties.enabled.attributes: false }
-  - is_false: test_columnar_enabled_merge.mappings.prefix_properties.enabled.resource
+  - match: { test_columnar_enabled_merge.mappings.prefix_properties.attributes.enabled: false }
+  - is_false: test_columnar_enabled_merge.mappings.prefix_properties.resource.enabled
 
   # Merge update: add resource enabled=false
   - do:
@@ -705,8 +707,8 @@ setup:
   - do:
       indices.get_mapping:
         index: test_columnar_enabled_merge
-  - match: { test_columnar_enabled_merge.mappings.prefix_properties.enabled.attributes: false }
-  - match: { test_columnar_enabled_merge.mappings.prefix_properties.enabled.resource: false }
+  - match: { test_columnar_enabled_merge.mappings.prefix_properties.attributes.enabled: false }
+  - match: { test_columnar_enabled_merge.mappings.prefix_properties.resource.enabled: false }
 
 ---
 "logsdb_columnar: sub-object with enabled false is serialized under prefix_properties":
@@ -724,7 +726,7 @@ setup:
   - do:
       indices.get_mapping:
         index: test_logsdb_columnar_enabled_false
-  - match: { test_logsdb_columnar_enabled_false.mappings.prefix_properties.enabled.attributes: false }
+  - match: { test_logsdb_columnar_enabled_false.mappings.prefix_properties.attributes.enabled: false }
   - is_false: test_logsdb_columnar_enabled_false.mappings.properties.attributes
 
   # Fields under the disabled prefix are dropped entirely (not indexed, not stored)
@@ -754,7 +756,7 @@ setup:
   - is_false: test_logsdb_columnar_enabled_false.mappings.properties.attributes\.host
 
 ---
-"logsdb_columnar: explicitly declared field under enabled:false is still indexed":
+"logsdb_columnar: explicitly declared field under enabled:false is also dropped":
   - do:
       indices.create:
         index: test_logsdb_columnar_enabled_mapped
@@ -772,11 +774,11 @@ setup:
   - do:
       indices.get_mapping:
         index: test_logsdb_columnar_enabled_mapped
-  - match: { test_logsdb_columnar_enabled_mapped.mappings.prefix_properties.enabled.attributes: false }
-  # Declared child is flattened into an indexed leaf mapper
-  - is_true: test_logsdb_columnar_enabled_mapped.mappings.properties.attributes\.host
+  - match: { test_logsdb_columnar_enabled_mapped.mappings.prefix_properties.attributes.enabled: false }
+  # No children are flattened — the entire subtree is disabled
+  - is_false: test_logsdb_columnar_enabled_mapped.mappings.properties.attributes\.host
 
-  # Declared field can be indexed and searched
+  # Declared field is dropped even when sent in the document
   - do:
       index:
         index: test_logsdb_columnar_enabled_mapped
@@ -793,7 +795,7 @@ setup:
           query:
             term:
               attributes.host: "es-node-1"
-  - match: { hits.total.value: 1 }
+  - match: { hits.total.value: 0 }
 
 ---
 "logsdb_columnar: index created with prefix_properties.enabled in mapping body is preserved on get_mapping":
@@ -805,13 +807,13 @@ setup:
             index.mode: logsdb_columnar
           mappings:
             prefix_properties:
-              enabled:
-                attributes: false
+              attributes:
+                enabled: false
 
   - do:
       indices.get_mapping:
         index: test_logsdb_columnar_enabled_input
-  - match: { test_logsdb_columnar_enabled_input.mappings.prefix_properties.enabled.attributes: false }
+  - match: { test_logsdb_columnar_enabled_input.mappings.prefix_properties.attributes.enabled: false }
 
 ---
 "logsdb_columnar: put_mapping merge adds new enabled prefix":
@@ -829,8 +831,8 @@ setup:
   - do:
       indices.get_mapping:
         index: test_logsdb_columnar_enabled_merge
-  - match: { test_logsdb_columnar_enabled_merge.mappings.prefix_properties.enabled.attributes: false }
-  - is_false: test_logsdb_columnar_enabled_merge.mappings.prefix_properties.enabled.resource
+  - match: { test_logsdb_columnar_enabled_merge.mappings.prefix_properties.attributes.enabled: false }
+  - is_false: test_logsdb_columnar_enabled_merge.mappings.prefix_properties.resource.enabled
 
   # Merge update: add resource enabled=false
   - do:
@@ -844,5 +846,5 @@ setup:
   - do:
       indices.get_mapping:
         index: test_logsdb_columnar_enabled_merge
-  - match: { test_logsdb_columnar_enabled_merge.mappings.prefix_properties.enabled.attributes: false }
-  - match: { test_logsdb_columnar_enabled_merge.mappings.prefix_properties.enabled.resource: false }
+  - match: { test_logsdb_columnar_enabled_merge.mappings.prefix_properties.attributes.enabled: false }
+  - match: { test_logsdb_columnar_enabled_merge.mappings.prefix_properties.resource.enabled: false }

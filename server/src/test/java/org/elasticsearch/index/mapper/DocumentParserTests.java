@@ -1205,10 +1205,11 @@ public class DocumentParserTests extends MapperServiceTestCase {
         }
     }
 
-    public void testColumnarEnabledFalseDoesNotDropMappedField() throws Exception {
+    public void testColumnarEnabledFalseDropsAllSubfields() throws Exception {
         assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         for (IndexMode indexMode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
             Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), indexMode.getName()).build();
+            // Even with a declared host:keyword child, no leaf mapper is created and no field is indexed.
             DocumentMapper mapper = createMapperService(settings, mapping(b -> {
                 b.startObject("@timestamp").field("type", "date").endObject();
                 b.startObject("attributes");
@@ -1221,11 +1222,10 @@ public class DocumentParserTests extends MapperServiceTestCase {
                 b.endObject();
             })).documentMapper();
 
-            // Explicitly declared field under an enabled:false prefix must still be indexed,
-            // consistent with dynamic:false where declared fields ARE indexed.
+            // Declared field under enabled:false must also be dropped — the entire subtree is disabled.
             ParsedDocument doc = mapper.parse(columnarSource(b -> b.field("attributes.host", "myhost")));
-            assertFalse(
-                "explicitly mapped field under enabled:false must still be indexed",
+            assertTrue(
+                "all fields under enabled:false must be dropped, even explicitly mapped ones",
                 doc.rootDoc().getFields("attributes.host").isEmpty()
             );
         }

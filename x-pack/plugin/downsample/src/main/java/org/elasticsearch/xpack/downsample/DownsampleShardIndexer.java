@@ -403,8 +403,8 @@ class DownsampleShardIndexer {
             int formattedValueFieldIndex = 0;
             this.formattedDocValuesDownsamplers = new LastValueFieldDownsampler[fieldCounts.formattedValueFields()];
             int exponentialHistogramFieldIndex = 0;
-            this.exponentialHistogramDownsamplers =
-                new ExponentialHistogramFieldDownsampler[fieldCounts.nonAggregateExponentialHistogramFields()];
+            this.exponentialHistogramDownsamplers = new ExponentialHistogramFieldDownsampler[fieldCounts
+                .nonAggregateExponentialHistogramFields()];
             int tDigestHistogramFieldIndex = 0;
             this.tDigestHistogramDownsamplers = new TDigestHistogramFieldDownsampler[fieldCounts.tDigestHistogramFields()];
             int aggregateCounterFieldIndex = 0;

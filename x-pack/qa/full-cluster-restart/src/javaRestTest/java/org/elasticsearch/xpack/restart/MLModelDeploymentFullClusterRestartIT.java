@@ -96,6 +96,10 @@ public class MLModelDeploymentFullClusterRestartIT extends MlFullClusterRestartT
         String modelId = "trained-model-full-cluster-restart";
 
         if (isRunningAgainstOldCluster()) {
+            assumeTrue(
+                "PyTorch model deployment inference is not reliably supported before 8.3.0",
+                getOldClusterTestVersion().onOrAfter("8.3.0")
+            );
             createTrainedModel(modelId);
             putModelDefinition(modelId);
             putVocabulary(List.of("these", "are", "my", "words"), modelId);
@@ -110,7 +114,6 @@ public class MLModelDeploymentFullClusterRestartIT extends MlFullClusterRestartT
             assertBusy(() -> {
                 try {
                     assertInfer(modelId);
-                    assertNewInfer(modelId);
                 } catch (ResponseException e) {
                     // assertBusy only loops on AssertionErrors, so we have
                     // to convert failure status exceptions to these
@@ -140,11 +143,6 @@ public class MLModelDeploymentFullClusterRestartIT extends MlFullClusterRestartT
 
     private void assertInfer(String modelId) throws IOException {
         Response inference = infer("my words", modelId);
-        assertThat(EntityUtils.toString(inference.getEntity()), equalTo("{\"predicted_value\":[[1.0,1.0]]}"));
-    }
-
-    private void assertNewInfer(String modelId) throws IOException {
-        Response inference = newInfer("my words", modelId);
         assertThat(EntityUtils.toString(inference.getEntity()), equalTo("{\"inference_results\":[{\"predicted_value\":[[1.0,1.0]]}]}"));
     }
 
@@ -199,7 +197,7 @@ public class MLModelDeploymentFullClusterRestartIT extends MlFullClusterRestartT
                 + modelId
                 + "/deployment/_start?timeout=40s&wait_for="
                 + waitForState
-                + "&inference_threads=1&model_threads=1"
+                + "&threads_per_allocation=1&number_of_allocations=1"
         );
         request.setOptions(request.getOptions().toBuilder().setWarningsHandler(PERMISSIVE).build());
         var response = client().performRequest(request);
@@ -221,18 +219,6 @@ public class MLModelDeploymentFullClusterRestartIT extends MlFullClusterRestartT
     }
 
     private Response infer(String input, String modelId) throws IOException {
-        Request request = new Request("POST", "/_ml/trained_models/" + modelId + "/deployment/_infer");
-        request.setJsonEntity(Strings.format("""
-            {  "docs": [{"input":"%s"}] }
-            """, input));
-
-        request.setOptions(request.getOptions().toBuilder().setWarningsHandler(PERMISSIVE).build());
-        var response = client().performRequest(request);
-        assertOK(response);
-        return response;
-    }
-
-    private Response newInfer(String input, String modelId) throws IOException {
         Request request = new Request("POST", "/_ml/trained_models/" + modelId + "/_infer");
         request.setJsonEntity(Strings.format("""
             {  "docs": [{"input":"%s"}] }

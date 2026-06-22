@@ -48,6 +48,9 @@ Authentication::
 [float]
 === Upgrades
 
+Packaging::
+* Update bundled JDK to Java 26 {es-pull}146167[#146167]
+
 Security::
 * Upgrade bouncycastle to 1.84 {es-pull}147197[#147197]
 

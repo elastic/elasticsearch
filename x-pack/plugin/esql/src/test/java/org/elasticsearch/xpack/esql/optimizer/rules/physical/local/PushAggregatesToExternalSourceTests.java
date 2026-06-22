@@ -354,7 +354,7 @@ public class PushAggregatesToExternalSourceTests extends ESTestCase {
 
     public void testPushedWithTenSplitsWholeFileStats() {
         @SuppressWarnings("unchecked")
-        Map<String, Object>[] perSplitStats = new Map[10];
+        Map<String, Object>[] perSplitStats = (Map<String, Object>[]) new Map<?, ?>[10];
         for (int i = 0; i < 10; i++) {
             perSplitStats[i] = statsMetadata(1000L, null, null);
         }

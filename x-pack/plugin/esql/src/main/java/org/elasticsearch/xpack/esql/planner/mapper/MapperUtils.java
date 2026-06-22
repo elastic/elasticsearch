@@ -18,6 +18,8 @@ import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
+import org.elasticsearch.xpack.esql.plan.logical.Highlight;
+import org.elasticsearch.xpack.esql.plan.logical.IpLocation;
 import org.elasticsearch.xpack.esql.plan.logical.LeafPlan;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.MMR;
@@ -46,6 +48,8 @@ import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
 import org.elasticsearch.xpack.esql.plan.physical.FuseScoreEvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.GrokExec;
+import org.elasticsearch.xpack.esql.plan.physical.HighlightExec;
+import org.elasticsearch.xpack.esql.plan.physical.IpLocationExec;
 import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.MMRExec;
 import org.elasticsearch.xpack.esql.plan.physical.MvExpandExec;
@@ -152,6 +156,17 @@ public class MapperUtils {
             return new MvExpandExec(mvExpand.source(), child, mvExpand.target(), mvExpand.expanded());
         }
 
+        if (p instanceof Highlight highlight) {
+            return new HighlightExec(
+                highlight.source(),
+                child,
+                highlight.prefix(),
+                highlight.query(),
+                highlight.fields(),
+                highlight.options()
+            );
+        }
+
         if (p instanceof TimeSeriesCollapse collapse) {
             return new TimeSeriesCollapseExec(
                 collapse.source(),
@@ -216,6 +231,18 @@ public class MapperUtils {
 
         if (p instanceof RegisteredDomain rd) {
             return new RegisteredDomainExec(rd.source(), child, rd.getInput(), rd.outputFieldNames(), rd.generatedAttributes());
+        }
+
+        if (p instanceof IpLocation ip) {
+            return new IpLocationExec(
+                ip.source(),
+                child,
+                ip.getInput(),
+                ip.outputFieldNames(),
+                ip.generatedAttributes(),
+                ip.databaseFile(),
+                ip.firstOnly()
+            );
         }
 
         if (p instanceof UserAgent ua) {

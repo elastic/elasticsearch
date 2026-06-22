@@ -40,6 +40,12 @@ public class SliceKnnDiskBBQIT extends ESIntegTestCase {
         return List.of(LocalStateDiskBBQ.class);
     }
 
+    @Override
+    protected boolean enableIndexSlice() {
+        // DiskBBQ validates and enables the setting directly, overriding so that the test plugin doesn't conflict
+        return false;
+    }
+
     public void testSliceSearchUsesSlicedIVFQuery() {
         assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
 

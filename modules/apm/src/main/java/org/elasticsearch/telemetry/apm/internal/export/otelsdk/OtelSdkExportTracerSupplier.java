@@ -61,7 +61,7 @@ public class OtelSdkExportTracerSupplier implements TraceSupplier {
             .setInternalTelemetryVersion(InternalTelemetryVersion.LATEST)
             .setTimeout(OtelSdkSettings.TELEMETRY_EXPORT_SEND_TIMEOUT.get(settings).toDuration())
             .setConnectTimeout(OtelSdkSettings.TELEMETRY_EXPORT_CONNECT_TIMEOUT.get(settings).toDuration())
-            .setRetryPolicy(OtelSdkExportMeterSupplier.OTLP_RETRY_POLICY);
+            .setRetryPolicy(OtelSdkSettings.OTLP_RETRY_POLICY);
         String authHeader = OtelSdkExportMeterSupplier.buildOtlpAuthorizationHeader(settings);
         if (authHeader != null) {
             builder.addHeader("Authorization", authHeader);

@@ -9,6 +9,8 @@
 
 package org.elasticsearch.telemetry.apm.internal.export.otelsdk;
 
+import io.opentelemetry.sdk.common.export.RetryPolicy;
+
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
@@ -49,16 +51,23 @@ public final class OtelSdkSettings {
     public static final Setting<String> TELEMETRY_EXPORT_ENDPOINT = Setting.simpleString("telemetry.export.endpoint", "", NodeScope);
 
     /**
-     * Initial backoff of the shared OTLP retry policy ({@link OtelSdkExportMeterSupplier#OTLP_RETRY_POLICY}).
+     * Initial backoff of the shared OTLP retry policy ({@link #OTLP_RETRY_POLICY}).
      * The default allows for fast retry and manageable total timeout.
      * */
     public static final TimeValue OTLP_RETRY_INITIAL_BACKOFF = TimeValue.timeValueMillis(100);
 
     /**
-     * Backoff multiplier of the shared OTLP retry policy ({@link OtelSdkExportMeterSupplier#OTLP_RETRY_POLICY}).
+     * Backoff multiplier of the shared OTLP retry policy ({@link #OTLP_RETRY_POLICY}).
      * The default allows the second retry to come with a reasonable distance from the first.
      * */
     public static final double OTLP_RETRY_BACKOFF_MULTIPLIER = 5;
+
+    /** Retry policy shared by the metrics and traces OTLP exporters. */
+    public static final RetryPolicy OTLP_RETRY_POLICY = RetryPolicy.builder()
+        .setMaxAttempts(3)
+        .setInitialBackoff(OTLP_RETRY_INITIAL_BACKOFF.toDuration())
+        .setBackoffMultiplier(OTLP_RETRY_BACKOFF_MULTIPLIER)
+        .build();
 
     /**
      * Total deadline for one OTLP send() including retries. Floored at {@link #OTLP_RETRY_INITIAL_BACKOFF} so a failing

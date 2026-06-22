@@ -31,7 +31,7 @@ public class OTelMetricsBufferSurvivesRestartIT extends AbstractTelemetryIT {
         .setting("telemetry.metrics.buffer.ttl", "5m")
         // interval > send_timeout > initial_backoff so a failing export fully fails within an interval and the
         // PeriodicMetricReader does not skip a cycle.
-        .setting("telemetry.export.interval", "500ms")
+        .setting("telemetry.export.interval", "1000ms")
         .setting("telemetry.export.send_timeout", "200ms")
         .build();
 

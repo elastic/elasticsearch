@@ -61,6 +61,7 @@ import java.util.stream.Collectors;
 
 import static java.util.Map.entry;
 import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.index.shard.IndexingStatsSettings.RECENT_WRITE_LOAD_HALF_LIFE_SETTING;
 
 /**
  * Manages all the Java thread pools we create. {@link Names} contains a list of the thread pools, but plugins can dynamically add more
@@ -277,7 +278,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler, 
     // of the write thread pool. A zero value will disable it.
     public static final Setting<TimeValue> WRITE_THREAD_POOL_UTILIZATION_EWMR_HALF_LIFE = Setting.timeSetting(
         "thread_pool.write.utilization_ewmr.half_life",
-        TimeValue.timeValueSeconds(30),
+        RECENT_WRITE_LOAD_HALF_LIFE_SETTING,
         TimeValue.ZERO,
         Setting.Property.NodeScope
     );

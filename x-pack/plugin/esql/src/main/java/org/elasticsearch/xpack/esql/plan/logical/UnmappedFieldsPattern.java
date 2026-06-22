@@ -16,9 +16,11 @@ import java.util.List;
  *
  * <p>An additional source field name {@code f} is "kept" if:
  * <ol>
- *   <li>it matches at least one <em>include</em> pattern, AND</li>
+ *   <li>it matches <em>all</em> include patterns (AND semantics), AND</li>
  *   <li>it matches <em>no</em> exclude pattern.</li>
  * </ol>
+ * AND semantics mirror what the query actually does: {@code KEEP foo* | KEEP foobar*} discards any
+ * field that does not satisfy both patterns, so the loader must apply the same intersection.
  * Patterns use Elasticsearch wildcard syntax where {@code *} matches any sequence of
  * characters.
  *

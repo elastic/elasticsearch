@@ -23,7 +23,6 @@ import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsPattern;
 
 import java.io.IOException;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -34,18 +33,18 @@ import java.util.TreeMap;
  * {@code SET unmapped_fields="LOAD_ALL"}.
  *
  * <p>For each document it reads {@code _source}, retains only top-level keys
- * that match the {@link UnmappedFieldsPattern} (included by at least one include
- * pattern and not present in the excludes set), and re-serialises the surviving
- * key/value pairs as a JSON object.
+ * that match the {@link UnmappedFieldsPattern} (matching all include patterns and
+ * not matching any exclude pattern), and re-serialises the surviving key/value
+ * pairs as a JSON object.
  */
 final class UnmappedFieldsBlockLoader implements BlockLoader {
 
     private final List<String> includes;
-    private final Set<String> excludes;
+    private final List<String> excludes;
 
     UnmappedFieldsBlockLoader(UnmappedFieldsPattern pattern) {
         this.includes = pattern.includes();
-        this.excludes = new HashSet<>(pattern.excludes());
+        this.excludes = pattern.excludes();
     }
 
     @Override
@@ -85,9 +84,9 @@ final class UnmappedFieldsBlockLoader implements BlockLoader {
 
     private static class UnmappedFields extends BlockStoredFieldsReader {
         private final List<String> includes;
-        private final Set<String> excludes;
+        private final List<String> excludes;
 
-        UnmappedFields(CircuitBreaker breaker, List<String> includes, Set<String> excludes) {
+        UnmappedFields(CircuitBreaker breaker, List<String> includes, List<String> excludes) {
             super(breaker);
             this.includes = includes;
             this.excludes = excludes;
@@ -110,15 +109,20 @@ final class UnmappedFieldsBlockLoader implements BlockLoader {
         }
 
         private boolean included(String fieldName) {
-            if (excludes.contains(fieldName)) {
+            for (String exclude : excludes) {
+                if (Regex.simpleMatch(exclude, fieldName)) {
+                    return false;
+                }
+            }
+            if (includes.isEmpty()) {
                 return false;
             }
             for (String include : includes) {
-                if (Regex.simpleMatch(include, fieldName)) {
-                    return true;
+                if (Regex.simpleMatch(include, fieldName) == false) {
+                    return false;
                 }
             }
-            return false;
+            return true;
         }
 
         @Override

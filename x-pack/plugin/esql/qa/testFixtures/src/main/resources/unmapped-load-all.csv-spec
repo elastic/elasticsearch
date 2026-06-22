@@ -277,11 +277,10 @@ FROM partial_mapping_sample_data
 2024-10-23T13:33:34.937Z | 42                     | 1232             | "{""language_code"":""2"",""unmapped.nested"":""e"",""unmapped_event_duration"":""1232383"",""unmapped_message"":""43""}"
 ;
 
-// Complex pipeline with EVAL that conflicts with an unmapped source field and a wildcard DROP
-// (gap): EVAL adds "language_code" to the excludes via Eval.unmappedFieldsToKeep(), so the source
-// field language_code does not appear in _unmapped_fields. DROP *duration* should also propagate
-// the glob pattern into the _unmapped_fields exclude list, removing unmapped_event_duration. This
-// test documents the intended correct behaviour; it will fail until the glob propagation is fixed.
+// Complex pipeline with EVAL that conflicts with an unmapped source field and a wildcard DROP:
+// EVAL adds "language_code" to the excludes via Eval.unmappedFieldsToKeep(), so the source
+// field language_code does not appear in _unmapped_fields. DROP *duration* propagates
+// the glob pattern into the _unmapped_fields exclude list, removing unmapped_event_duration.
 complexEvalDropWildcard
 required_capability: optional_fields_load_all
 
@@ -299,12 +298,8 @@ FROM partial_mapping_sample_data
 2024-10-23T13:33:34.937Z | 42                     | 1232               | "{""unmapped.nested"":""e"",""unmapped_message"":""43""}"
 ;
 
-// DROP an unmapped field by name (gap): the user explicitly drops the demand-loaded unmapped_message
-// column; the intended correct behaviour also removes it from _unmapped_fields, because the DROP
-// signals the user does not want the field anywhere in the output. Currently unmapped_message
-// still appears in _unmapped_fields because DetermineUnmappedFieldsToKeep reads the ResolvingProject
-// output and unmapped_message is not there (it was dropped), so no exclusion entry is added.
-// This test documents the intended correct output; it will fail until the production gap is fixed.
+// DROP an unmapped field by name: the user explicitly drops unmapped_message; patternForDrop
+// adds the exact name to the exclude list, so the block loader omits it from _unmapped_fields.
 dropUnmappedField
 required_capability: optional_fields_load_all
 
@@ -324,10 +319,10 @@ FROM partial_mapping_sample_data
 2024-10-23T13:55:01.543Z | 173.21.3.15  | 1756466             | Connected to 10.1.0.1! | "{""language_code"":""1"",""unmapped.nested"":""a"",""unmapped_event_duration"":""1756468""}"
 ;
 
-// DROP unmapped fields by wildcard (gap): DROP *messag* matches both the mapped column message
-// and the demand-loaded unmapped column unmapped_message. The intended correct behaviour removes
-// both from the output and also removes unmapped_message from _unmapped_fields. Same gap as
-// dropUnmappedField; this test documents the intended correct output.
+// DROP unmapped fields by wildcard: DROP *messag* matches both the mapped column message
+// and the unmapped source field unmapped_message. Both are removed from the output and
+// unmapped_message is removed from _unmapped_fields because the glob exclude pattern
+// "*messag*" is matched against source field names using Regex.simpleMatch.
 dropUnmappedFieldWildcard
 required_capability: optional_fields_load_all
 

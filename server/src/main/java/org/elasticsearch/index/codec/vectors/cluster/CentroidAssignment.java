@@ -216,12 +216,26 @@ public final class CentroidAssignment {
     ) throws IOException {
         for (int i = startOrd; i < endOrd; i++) {
             V vector = vectors.vectorValue(i);
-            final int bestCentroid = assigner.apply(i);
-            squaredDistances[i][0] = ops.squareDistance(vector, centroids[bestCentroid]);
+            int bestCentroid = assigner.apply(i);
+
+            float[] ordDists = squaredDistances[i];
+            ordDists[0] = ops.squareDistance(vector, centroids[bestCentroid]);
+
             int[] neighbors = neighborhoods[bestCentroid].neighbors();
-            for (int j = 0; j < neighbors.length; j++) {
-                int neigh = neighbors[j];
-                squaredDistances[i][j + 1] = ops.squareDistance(vector, centroids[neigh]);
+            int j = 0;
+            for (; j < neighbors.length - 3; j += 4) {
+                ops.squareDistanceBulk(
+                    vector,
+                    centroids[neighbors[j]],
+                    centroids[neighbors[j + 1]],
+                    centroids[neighbors[j + 2]],
+                    centroids[neighbors[j + 3]],
+                    j + 1,
+                    ordDists
+                );
+            }
+            for (; j < neighbors.length; j++) {
+                ordDists[j + 1] = ops.squareDistance(vector, centroids[neighbors[j]]);
             }
         }
     }

@@ -255,6 +255,7 @@ setup:
 ---
 "PromQL last_over_time over 5m last-value downsample":
   - requires:
+      reason: "last_value sampling mode requires the downsample.sampling_mode.last_value capability"
       test_runner_features: [ "capabilities" ]
       capabilities:
         - method: POST

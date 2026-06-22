@@ -147,6 +147,8 @@ import org.elasticsearch.test.junit.listeners.ReproduceInfoPrinter;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.BytesTransportMessage;
+import org.elasticsearch.transport.BytesTransportMessageTestUtils;
 import org.elasticsearch.transport.LeakTracker;
 import org.elasticsearch.transport.netty4.Netty4Plugin;
 import org.elasticsearch.xcontent.MediaType;
@@ -617,10 +619,23 @@ public abstract class ESTestCase extends LuceneTestCase {
         }
     }
 
+    private static LeakTracker.TrackingWindow suiteLeakWindow;
+
+    @BeforeClass
+    public static void openSuiteLeakWindow() {
+        suiteLeakWindow = LeakTracker.newWindow();
+    }
+
+    @AfterClass
+    public static void assertNoSuiteLeaks() {
+        suiteLeakWindow.assertNoLeaks();
+    }
+
+    private LeakTracker.TrackingWindow testLeakWindow;
+
     @Before
     public final void before() {
-        LeakTracker.setContextHint(getTestName());
-        LeakTracker.installTestLeakCollector();
+        testLeakWindow = LeakTracker.newWindow();
         logger.info("{}before test", getTestParamsForLogging());
         assertNull("Thread context initialized twice", threadContext);
         if (enableWarningsCheck()) {
@@ -653,26 +668,21 @@ public abstract class ESTestCase extends LuceneTestCase {
         }
     }
 
-    /**
-     * Asserts that no {@link LeakTracker}-tracked resources remain open at end of test.
-     * Declared before {@link #after()} so that under JUnit 4's reverse-declaration ordering it executes after
-     * {@link #after()}, giving {@link #after()} a chance to complete first.
-     * <p>
-     * Resources released in a subclass {@code @After} are already deregistered from the collector before this fires,
-     * because JUnit 4 runs subclass {@code @After} methods before superclass ones.
-     * <p>
-     * Resources closed on background threads (e.g. async release) are handled by retrying the check for up to
-     * 10 seconds via {@code assertBusy}; only resources that remain open after the full wait are reported as leaks.
-     * If a test intentionally leaves tracked resources open (e.g. to exercise GC-based detection), call
-     * {@link LeakTracker#clearTestLeakCollector()} before the test method returns.
-     */
+    // Declared before after() so that under JUnit 4's reverse-declaration @After ordering it runs after after(),
+    // giving after() a chance to release resources before the leak check fires.
     @After
     public final void verifyNoOutstandingLeakTrackerLeaks() throws Exception {
-        try {
-            assertBusy(LeakTracker::assertNoLeaks, 10, TimeUnit.SECONDS);
-        } finally {
-            LeakTracker.clearTestLeakCollector();
+        if (testLeakWindow == null) {
+            // before() never ran (e.g. setUp() threw AssumptionViolatedException before @Before executed)
+            return;
         }
+        // Poll briefly to let any in-flight ref-count decrements (e.g. respondAndRelease finally blocks
+        // running on a search thread) finish before asserting, since those can race with the test thread.
+        long deadline = System.nanoTime() + 500_000_000L;
+        while (testLeakWindow.hasLeaks() && System.nanoTime() < deadline) {
+            Thread.sleep(5);
+        }
+        testLeakWindow.assertNoLeaks();
     }
 
     /**
@@ -712,7 +722,6 @@ public abstract class ESTestCase extends LuceneTestCase {
         ensureAllSearchContextsReleased();
         ensureCheckIndexPassed();
         logger.info("{}after test", getTestParamsForLogging());
-        LeakTracker.setContextHint("");
     }
 
     private String getTestParamsForLogging() {
@@ -2142,7 +2151,10 @@ public abstract class ESTestCase extends LuceneTestCase {
         Writeable.Reader<T> reader,
         TransportVersion version
     ) throws IOException {
-        return copyInstance(original, namedWriteableRegistry, StreamOutput::writeWriteable, reader, version);
+        final Writeable.Writer<T> writer = original instanceof BytesTransportMessage
+            ? (out, value) -> BytesTransportMessageTestUtils.writeThinWithBytes(out, (BytesTransportMessage) value)
+            : StreamOutput::writeWriteable;
+        return copyInstance(original, namedWriteableRegistry, writer, reader, version);
     }
 
     /**
@@ -2387,6 +2399,14 @@ public abstract class ESTestCase extends LuceneTestCase {
                     )
                 );
             }
+        }
+    }
+
+    public static void assertEqualsPercent(float expectedValue, float actualValue, float deltaPercent) {
+        var error = Math.max(expectedValue * deltaPercent, DEFAULT_DELTA);
+        var actualDelta = Math.abs(expectedValue - actualValue) - error;
+        if (actualDelta > 0) {
+            fail(Strings.format("expected:<%f> but was:<%f>", expectedValue, actualValue));
         }
     }
 

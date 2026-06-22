@@ -50,7 +50,7 @@ import static org.elasticsearch.xpack.inference.registry.InferenceEndpointRegist
  * <p>Tokens are kept only in heap memory and are never persisted. Each node fetches its own
  * tokens independently.
  */
-public class OAuth2TokenCache extends DiagnosticsCache<CachedToken> {
+public class OAuth2TokenCache extends DiagnosticsCache<CachedToken> implements TokenCache {
 
     /**
      * 60-second buffer subtracted from a token's {@code expiresAt} when deciding whether a

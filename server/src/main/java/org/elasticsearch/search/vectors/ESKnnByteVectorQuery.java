@@ -110,9 +110,7 @@ public class ESKnnByteVectorQuery extends KnnByteVectorQuery implements QueryPro
             Math.ceil(kParam * POST_FILTER_OVERSAMPLE_FLOOR),
             NUM_CANDS_LIMIT
         );
-        int scaledNumCands = (int) Math.min(NUM_CANDS_LIMIT, Math.ceil((double) scaledK * numCandsParam / kParam));
-        // todo: do we actually need scaling numCands?
-        return new ESKnnByteVectorQuery(field, getTargetCopy(), scaledK, scaledNumCands, null, searchStrategy, earlyTermination, null);
+        return new ESKnnByteVectorQuery(field, getTargetCopy(), scaledK, numCandsParam, null, searchStrategy, earlyTermination, null);
     }
 
     @Override

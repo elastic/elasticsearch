@@ -64,6 +64,9 @@ public final class ManifoldModel {
         6,
         5 };
 
+    /**
+     * min to max corpus slice (with fixed 512 steps) for a stable k-NN statistic (empirically determined).
+     */
     private static final int[] SAMPLE_SIZES = {
         4096,
         4608,
@@ -165,7 +168,7 @@ public final class ManifoldModel {
             double sum = 0;
             for (int qi = 0; qi < nQueries; qi++) {
                 queries.copyQuery(qi, false, queryScratch);
-                topKs[qi].add(dim, queryScratch, fvv, corpusOrdinals, sampleStart, sampleEnd);
+                topKs[qi].add(queryScratch, fvv, corpusOrdinals, sampleStart, sampleEnd);
                 sum += topKs[qi].ithDistance(rank);
             }
             avgDist = sum / nQueries;
@@ -223,7 +226,7 @@ public final class ManifoldModel {
             this.scratch = new float[capacity];
         }
 
-        void add(int dim, float[] query, FloatVectorValues fvv, int[] corpusOrdinals, int startDoc, int endDoc) throws IOException {
+        void add(float[] query, FloatVectorValues fvv, int[] corpusOrdinals, int startDoc, int endDoc) throws IOException {
             boolean dotLike = isDotLike(similarityFunction);
             for (int d = startDoc; d < endDoc; d++) {
                 float[] doc = fvv.vectorValue(corpusOrdinals[d]);

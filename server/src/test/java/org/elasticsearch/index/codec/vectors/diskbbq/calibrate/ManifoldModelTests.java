@@ -40,7 +40,7 @@ public class ManifoldModelTests extends ESTestCase {
         int[] ordinals = { 0, 1, 2, 3, 4, 5, 6, 7 };
 
         ManifoldModel.ManifoldTopK topK = new ManifoldModel.ManifoldTopK(VectorSimilarityFunction.EUCLIDEAN, 6);
-        topK.add(3, query, fvv, ordinals, 0, corpus.length);
+        topK.add(query, fvv, ordinals, 0, corpus.length);
 
         float d1 = topK.ithDistance(1);
         float d3 = topK.ithDistance(3);
@@ -63,7 +63,7 @@ public class ManifoldModelTests extends ESTestCase {
         Arrays.sort(expected);
 
         ManifoldModel.ManifoldTopK topK = new ManifoldModel.ManifoldTopK(VectorSimilarityFunction.EUCLIDEAN, 6);
-        topK.add(2, query, fvv, ordinals, 0, corpus.length);
+        topK.add(query, fvv, ordinals, 0, corpus.length);
 
         for (int rank = 1; rank <= expected.length; rank++) {
             assertEquals(expected[rank - 1], topK.ithDistance(rank), 1e-5f);

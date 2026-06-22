@@ -1,0 +1,3 @@
+SET unmapped_fields="load"; FROM k8s, k8s_unmapped
+| SORT network.bytes_in
+| KEEP network.bytes_in

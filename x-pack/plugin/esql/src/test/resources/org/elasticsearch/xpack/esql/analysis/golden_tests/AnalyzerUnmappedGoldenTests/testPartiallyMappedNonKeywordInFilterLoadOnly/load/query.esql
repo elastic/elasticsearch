@@ -1,0 +1,3 @@
+SET unmapped_fields="load"; FROM sample_data, no_mapping_sample_data
+| WHERE event_duration > 0
+| KEEP event_duration

@@ -1,0 +1,3 @@
+SET unmapped_fields="load"; FROM sample_data, no_mapping_sample_data
+| SORT event_duration
+| KEEP event_duration

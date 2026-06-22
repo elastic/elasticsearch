@@ -752,6 +752,47 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
             """, CompactMultiTypeEsField.CompactMultiTypeEsField);
     }
 
+    public void testPartiallyMappedNonKeywordInFilterLoadOnly() throws Exception {
+        runTestsLoadOnly("""
+            FROM sample_data, no_mapping_sample_data
+            | WHERE event_duration > 0
+            | KEEP event_duration
+            """, STAGES);
+    }
+
+    public void testPartiallyMappedNonKeywordInSortLoadOnly() throws Exception {
+        runTestsLoadOnly("""
+            FROM sample_data, no_mapping_sample_data
+            | SORT event_duration
+            | KEEP event_duration
+            """, STAGES);
+    }
+
+    public void testPartiallyMappedNonKeywordInMvExpandLoadOnly() throws Exception {
+        runTestsLoadOnly("""
+            FROM sample_data, no_mapping_sample_data
+            | MV_EXPAND event_duration
+            | KEEP event_duration
+            """, STAGES);
+    }
+
+    public void testPartiallyMappedNonKeywordInChangePointLoadOnly() throws Exception {
+        assumeTrue("Requires CHANGE_POINT", EsqlCapabilities.Cap.CHANGE_POINT.isEnabled());
+        runTestsLoadOnly("""
+            FROM sample_data, no_mapping_sample_data
+            | CHANGE_POINT event_duration ON @timestamp AS type, pvalue
+            | KEEP @timestamp, event_duration, type, pvalue
+            """, STAGES);
+    }
+
+    public void testPartiallyMappedNonKeywordDottedPathInSortLoadOnly() throws Exception {
+        runTestsLoadOnly("""
+            FROM k8s, k8s_unmapped
+            | SORT network.bytes_in
+            | KEEP network.bytes_in
+            """, STAGES);
+    }
+
     // first_name and last_name are keyword, partially unmapped (missing in employees_no_names).
     // They should appear as PotentiallyUnmappedKeywordEsField in the EsRelation without being explicitly referenced.
     public void testPartiallyMappedKeywordFieldLoadedWithoutExplicitReference() throws Exception {

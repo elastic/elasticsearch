@@ -1,0 +1,4 @@
+Limit[1000[INTEGER],false,false]
+\_Project[[@timestamp{f(MultiTypeEsField)}#0, event_duration{f(MultiTypeEsField)}#1, type{r}#2, pvalue{r}#3]]
+  \_ChangePoint[event_duration{f(MultiTypeEsField)}#1,@timestamp{f(MultiTypeEsField)}#0,type{r}#2,pvalue{r}#3,[]]
+    \_EsRelation[sample_data,no_mapping_sample_data][@timestamp{f(MultiTypeEsField)}#0, client_ip{f(MultiTypeEsField)}#4, event_duration{f(MultiTypeEsField)}#1, message{f(PotentiallyUnmappedKeywordEsField)}#5]

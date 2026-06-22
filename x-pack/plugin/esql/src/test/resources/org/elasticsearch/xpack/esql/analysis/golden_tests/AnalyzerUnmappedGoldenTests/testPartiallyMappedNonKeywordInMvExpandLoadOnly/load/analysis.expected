@@ -1,0 +1,4 @@
+Limit[1000[INTEGER],false,false]
+\_Project[[event_duration{r}#0]]
+  \_MvExpand[event_duration{f(CompactMultiTypeEsField)}#1,event_duration{r}#0]
+    \_EsRelation[sample_data,no_mapping_sample_data][@timestamp{f(CompactMultiTypeEsField)}#2, client_ip{f(CompactMultiTypeEsField)}#3, event_duration{f(CompactMultiTypeEsField)}#1, message{f(PotentiallyUnmappedKeywordEsField)}#4]

@@ -96,6 +96,7 @@ final class IpinfoIpDataLookups {
             return null;
         }
 
+        // Note that 'plus' must be checked first because plus database types can include other type names, like `bundle_location_plus`.
         if (cleanedType.contains("plus")) {
             return Database.IpinfoPlus;
         } else if (cleanedType.contains("asn")) {

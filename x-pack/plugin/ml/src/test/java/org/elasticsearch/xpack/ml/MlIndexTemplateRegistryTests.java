@@ -35,6 +35,7 @@ import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 import org.mockito.stubbing.Answer;
 
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.same;
@@ -103,6 +104,7 @@ public class MlIndexTemplateRegistryTests extends ESTestCase {
             .findFirst()
             .orElseThrow(() -> new AssertionError("expected the ml state index template to be put"));
         ComposableIndexTemplate indexTemplate = req.indexTemplate();
+        assertThat(indexTemplate.indexPatterns(), containsInAnyOrder(".ml-state*", ".reindexed-v7-ml-state*", ".reindexed-v8-ml-state*"));
     }
 
     public void testStatsTemplate() {

@@ -157,7 +157,9 @@ public class ExpiredModelSnapshotsRemoverTests extends ESTestCase {
             deleteSnapshotRequest.indices(),
             arrayContainingInAnyOrder(
                 AnomalyDetectorsIndex.jobResultsAliasedName("job-1"),
-                AnomalyDetectorsIndex.jobStateIndexPattern(),
+                AnomalyDetectorsIndex.jobStateIndexPatterns()[0],
+                AnomalyDetectorsIndex.jobStateIndexPatterns()[1],
+                AnomalyDetectorsIndex.jobStateIndexPatterns()[2],
                 AnnotationIndex.READ_ALIAS_NAME
             )
         );
@@ -253,7 +255,9 @@ public class ExpiredModelSnapshotsRemoverTests extends ESTestCase {
             deleteSnapshotRequest.indices(),
             arrayContainingInAnyOrder(
                 AnomalyDetectorsIndex.jobResultsAliasedName("snapshots-1"),
-                AnomalyDetectorsIndex.jobStateIndexPattern(),
+                AnomalyDetectorsIndex.jobStateIndexPatterns()[0],
+                AnomalyDetectorsIndex.jobStateIndexPatterns()[1],
+                AnomalyDetectorsIndex.jobStateIndexPatterns()[2],
                 AnnotationIndex.READ_ALIAS_NAME
             )
         );

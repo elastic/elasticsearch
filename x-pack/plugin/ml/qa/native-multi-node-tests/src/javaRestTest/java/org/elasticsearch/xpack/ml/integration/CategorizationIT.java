@@ -305,7 +305,7 @@ public class CategorizationIT extends MlNativeAutodetectIntegTestCase {
         // end of lookback rather than when the job was closed.
         assertBusy(() -> {
             assertResponse(
-                prepareSearch(AnomalyDetectorsIndex.jobStateIndexPattern()).setQuery(
+                prepareSearch(AnomalyDetectorsIndex.jobStateIndexPatterns()).setQuery(
                     QueryBuilders.idsQuery().addIds(CategorizerState.documentId(job.getId(), 1))
                 ),
                 stateDocsResponse -> {

@@ -33,6 +33,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.DirectoryMetrics;
+import org.elasticsearch.index.store.StoreMetrics;
 import org.elasticsearch.rest.action.search.SearchResponseMetrics;
 import org.elasticsearch.search.SearchContextMissingException;
 import org.elasticsearch.search.SearchPhaseResult;
@@ -630,24 +631,30 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
       */
     public void sendSearchResponse(SearchResponseSections internalSearchResponse, AtomicArray<SearchPhaseResult> queryResults) {
         var threadContext = searchTransportService.transportService().getThreadPool().getThreadContext();
-        createResponseHeaderFromDirectoryMetrics(threadContext, mergedDirectoryMetrics.get());
+        DirectoryMetrics directoryMetrics = mergedDirectoryMetrics.get();
+        createResponseHeaderFromDirectoryMetrics(threadContext, directoryMetrics);
+        recordStoreMetrics(directoryMetrics);
         ShardSearchFailure[] failures = buildShardFailures();
         Boolean allowPartialResults = request.allowPartialSearchResults();
         assert allowPartialResults != null : "SearchRequest missing setting for allowPartialSearchResults";
         if (allowPartialResults == false && failures.length > 0) {
             raisePhaseFailure(new SearchPhaseExecutionException("", "Shard failures", null, failures));
         } else {
-            ActionListener.respondAndRelease(
-                listener,
-                buildSearchResponse(
-                    internalSearchResponse,
-                    failures,
-                    request.scroll() != null
-                        ? TransportSearchHelper.buildScrollId(queryResults, bigArrays.bytesRefRecycler(), getNumShards() > 1)
-                        : null,
-                    buildSearchContextId(failures)
-                )
+            SearchResponse searchResponse = buildSearchResponse(
+                internalSearchResponse,
+                failures,
+                request.scroll() != null
+                    ? TransportSearchHelper.buildScrollId(queryResults, bigArrays.bytesRefRecycler(), getNumShards() > 1)
+                    : null,
+                buildSearchContextId(failures)
             );
+            if (request.bufferSubSearchResponseForMultiSearch() && results instanceof QueryPhaseResultConsumer queryPhaseResultConsumer) {
+                long handoffBytes = queryPhaseResultConsumer.transferAggregationBreakerBytesForMultiSearch();
+                if (handoffBytes > 0) {
+                    searchResponse.setQueryPhaseAggregationBreakerBytes(handoffBytes);
+                }
+            }
+            ActionListener.respondAndRelease(listener, searchResponse);
         }
     }
 
@@ -657,6 +664,16 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                 String value = entry.getKey() + "=" + entry.getValue();
                 threadContext.addResponseHeader(AbstractSearchAsyncAction.RESPONSE_HEADER_SEARCH_METRICS, value);
             }
+        }
+    }
+
+    void recordStoreMetrics(DirectoryMetrics directoryMetrics) {
+        if (directoryMetrics.isEmpty()) {
+            return;
+        }
+        var storeMetrics = directoryMetrics.metrics(StoreMetrics.NAME);
+        if (storeMetrics != null) {
+            searchResponseMetrics.recordStoreBytesRead(storeMetrics.cast(StoreMetrics.class).getBytesRead(), searchRequestAttributes);
         }
     }
 

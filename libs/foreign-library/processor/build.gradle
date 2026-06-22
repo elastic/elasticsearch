@@ -6,6 +6,7 @@
  * your election, the "Elastic License 2.0", the "GNU Affero General Public
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
+import org.elasticsearch.gradle.internal.precommit.CheckForbiddenApisTask
 
 apply plugin: 'elasticsearch.java'
 
@@ -25,4 +26,17 @@ tasks.named('javadoc').configure {
 dependencies {
   implementation project(':libs:foreign-library')
   testImplementation buildLibs.junit
+}
+
+// TestingConventionsCheckTask uses classLoaderIsolation (in-daemon) so it cannot load class
+// files compiled at Java 25 when the Gradle daemon runs on an older JDK. Additionally, the
+// processor tests extend junit.framework.TestCase directly rather than LuceneTestCase, which
+// is incompatible with the ES testing-conventions baseline. Both issues stem from the same
+// root cause tracked in build-tools-internal: CheckForbiddenApisTask / TestingConventionsCheckTask
+// need toolchain support (they currently always execute in the Gradle daemon JVM).
+tasks.named('testTestingConventions').configure { enabled = false }
+
+tasks.withType(CheckForbiddenApisTask).configureEach {
+  replaceSignatureFiles 'jdk-signatures'
+  ignoreMissingClasses = true  // java.lang.classfile.* only exists in JDK 22+; Gradle daemon runs JDK 21
 }

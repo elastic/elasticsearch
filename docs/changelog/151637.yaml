@@ -1,0 +1,16 @@
+area: Infra/Logging
+deprecation:
+  area: Logging
+  details: |-
+    Implicit configuration of child loggers on logger setting updates is deprecated.
+    Starting with 10.0 updating the log level of `foo` will not impact a child logger `foo.bar`.
+  impact: |-
+    We are changing the behavior how logger settings are handled. If you want to clear all dynamically configured loggers
+    in one operation, use the existing wildcard support for settings (e.g. `"logger.*": null`) rather than attempting to
+    configure a high level logger (e.g. `"logger.org.elasticsearch": "INFO"`)
+  title: Implicit configuration of child loggers on logger setting updates is deprecated.
+issues: []
+pr: 151637
+summary: "Implicit configuration of child loggers on logger setting updates is deprecated,\
+  \ this behavior will be removed in 10.0."
+type: deprecation

@@ -378,6 +378,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         this(settings, clusterService, logger, threadContext, AuditLogCustomizer.NOOP);
     }
 
+    @SuppressWarnings("this-escape")
     LoggingAuditTrail(
         Settings settings,
         ClusterService clusterService,

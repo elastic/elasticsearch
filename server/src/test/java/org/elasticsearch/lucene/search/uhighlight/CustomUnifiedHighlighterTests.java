@@ -589,20 +589,17 @@ public class CustomUnifiedHighlighterTests extends ESTestCase {
 
     public void testReturnNonMatchingWhenMultivalued() throws Exception {
         final String[] inputs = { "This is the first sentence.", "This is the second sentence.", "This is the third sentence." };
-        
+
         // We only match "second" which is in the middle value
         Query query = new TermQuery(new Term("text", "second"));
-        
-        // We set noMatchSize=20, so the non-matching values ("first" and "third") should be returned truncated
-        // and the matching value should be highlighted.
-        // 20 chars of "This is the first sentence." = "This is the first "
-        // The sentence break iterator should truncate to "This is the first"
+
+        // The non-matching values are bounded at the next word boundary after noMatchSize.
         String[] expectedPassages = {
             "This is the first sentence",
             "This is the <b>second</b> sentence.",
             "This is the third sentence"
         };
-        
+
         assertHighlightOneDoc(
             "text",
             inputs,

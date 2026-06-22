@@ -1,8 +1,10 @@
 ####################
 # No loading tests #
 ####################
+// Reproducer for #151525: a partially unmapped small numeric field is implicitly widened (short -> integer) without a cast.
 partiallyUnmappedSmallNumericFieldIsWidened
 required_capability: optional_fields_v5
+required_capability: optional_fields_fix_partially_unmapped_small_numeric
 
 SET unmapped_fields="load"\;
 FROM apps_short, partial_mapping_sample_data
@@ -15,6 +17,26 @@ id:integer | name:keyword
 14         | mmmmm
 13         | lllll
 11         | kkkkk
+;
+
+// Reproducer for #151525: explicit cast on a partially unmapped small numeric field should not throw a ClassCastException.
+partiallyUnmappedSmallNumericFieldExplicitCast
+required_capability: optional_fields_v5
+required_capability: optional_fields_fix_partially_unmapped_small_numeric
+
+SET unmapped_fields="load"\;
+FROM all_types, all_types_no_short
+| EVAL short_int = short::integer
+| STATS count = COUNT(*) BY integer, short_int
+| SORT integer ASC
+;
+
+count:long | integer:integer | short_int:integer
+2          | 1               | 10
+2          | 2               | 20
+2          | 3               | 30
+2          | 4               | 40
+2          | 5               | 50
 ;
 
 
@@ -83,6 +105,7 @@ FROM partial_mapping_sample_data
 ;
 
 doesNotLoadUnmappedFieldsEnrich
+skip_flattened_rewrite: enrich_output_type_mismatch
 required_capability: optional_fields_v5
 required_capability: enrich_load
 

@@ -61,7 +61,7 @@ The following settings control the behavior of the frozen tier transition, which
 
 $$$dlm-frozen-transition-poll-interval$$$
 
-`dlm.frozen_transition.poll_interval`
+`dlm.frozen.transition.poll_interval`
 :   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting), [time unit value](/reference/elasticsearch/rest-apis/api-conventions.md#time-units)) How often the master node checks for data stream backing indices that are ready to be converted to the frozen tier. Must be at least `1m`. Defaults to `5m`.
 
 $$$dlm-frozen-transition-max-concurrency$$$
@@ -76,7 +76,7 @@ $$$dlm-frozen-transition-max-queue-size$$$
 
 $$$dlm-frozen-cleanup-poll-interval$$$
 
-`dlm.frozen_cleanup.poll_interval`
+`dlm.frozen.cleanup.poll_interval`
 :   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting), [time unit value](/reference/elasticsearch/rest-apis/api-conventions.md#time-units)) How often the master node scans for and deletes orphaned artifacts (clone indices and snapshots) left behind by interrupted frozen conversions. Must be at least `1h`. Defaults to `1d`.
 
 ## Index level settings [_index_level_settings]

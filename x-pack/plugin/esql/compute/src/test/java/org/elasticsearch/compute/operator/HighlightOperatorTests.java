@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.esql.highlight;
+package org.elasticsearch.compute.operator;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
@@ -14,12 +14,8 @@ import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
-import org.elasticsearch.compute.operator.Operator;
-import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.test.OperatorTestCase;
 import org.elasticsearch.compute.test.operator.blocksource.BytesRefBlockSourceOperator;
-import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
-import org.elasticsearch.xpack.esql.plan.logical.HighlightOptions;
 import org.hamcrest.Matcher;
 
 import java.util.List;
@@ -30,6 +26,10 @@ import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.startsWith;
 
 public class HighlightOperatorTests extends OperatorTestCase {
+
+    private static final String DEFAULT_PRE_TAG = "<em>";
+    private static final String DEFAULT_POST_TAG = "</em>";
+    private static final String DEFAULT_ENCODER = "default";
 
     @Override
     protected SourceOperator simpleInput(BlockFactory blockFactory, int size) {
@@ -136,15 +136,8 @@ public class HighlightOperatorTests extends OperatorTestCase {
 
     public void testHtmlEncoderEscapesMarkup() {
         String text = "Use <b>bold</b> tags & special chars with the Ring.";
-        HighlightOptions options = new HighlightOptions(
-            HighlightOptions.DEFAULT_PRE_TAG,
-            HighlightOptions.DEFAULT_POST_TAG,
-            HighlightOptions.HTML_ENCODER,
-            5,
-            0,
-            0
-        );
-        BytesRefBlock result = highlightSingle(new HighlightConfig("ring", options), text);
+        HighlightConfig config = new HighlightConfig("ring", DEFAULT_PRE_TAG, DEFAULT_POST_TAG, HighlightConfig.HTML_ENCODER, 5, 0, 0);
+        BytesRefBlock result = highlightSingle(config, text);
         try {
             assertThat(value(result, 0), equalTo("Use &lt;b&gt;bold&lt;&#x2F;b&gt; tags &amp; special chars with the <em>Ring</em>."));
         } finally {
@@ -162,10 +155,7 @@ public class HighlightOperatorTests extends OperatorTestCase {
         ) {
             IntBlock intBlock = blockFactory().newConstantIntBlockWith(1, 1);
             try {
-                EsqlIllegalArgumentException e = expectThrows(
-                    EsqlIllegalArgumentException.class,
-                    () -> operator.process(new Page(intBlock))
-                );
+                IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> operator.process(new Page(intBlock)));
                 assertThat(e.getMessage(), startsWith("HIGHLIGHT ON fields must evaluate to keyword/text values"));
             } finally {
                 intBlock.close();
@@ -211,17 +201,7 @@ public class HighlightOperatorTests extends OperatorTestCase {
     }
 
     private static HighlightConfig config(String queryText, int fragments, int fragmentSize, int noMatchSize) {
-        return new HighlightConfig(
-            queryText,
-            new HighlightOptions(
-                HighlightOptions.DEFAULT_PRE_TAG,
-                HighlightOptions.DEFAULT_POST_TAG,
-                HighlightOptions.DEFAULT_ENCODER,
-                fragments,
-                fragmentSize,
-                noMatchSize
-            )
-        );
+        return new HighlightConfig(queryText, DEFAULT_PRE_TAG, DEFAULT_POST_TAG, DEFAULT_ENCODER, fragments, fragmentSize, noMatchSize);
     }
 
     // Returns the input block unchanged, so the operator highlights channel 0 directly.

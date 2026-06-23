@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.esql.highlight;
+package org.elasticsearch.compute.operator;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
@@ -30,9 +30,6 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
-import org.elasticsearch.compute.operator.AbstractPageMappingOperator;
-import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.lucene.search.uhighlight.BoundedBreakIteratorScanner;
@@ -40,8 +37,6 @@ import org.elasticsearch.lucene.search.uhighlight.CustomPassageFormatter;
 import org.elasticsearch.lucene.search.uhighlight.CustomUnifiedHighlighter;
 import org.elasticsearch.lucene.search.uhighlight.QueryMaxAnalyzedOffset;
 import org.elasticsearch.lucene.search.uhighlight.Snippet;
-import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
-import org.elasticsearch.xpack.esql.plan.logical.HighlightOptions;
 
 import java.io.IOException;
 import java.text.BreakIterator;
@@ -85,17 +80,16 @@ public class HighlightOperator extends AbstractPageMappingOperator {
 
         @Override
         public String describe() {
-            HighlightOptions options = config.options();
             return "HighlightOperator[query="
                 + config.queryText()
                 + ", fields="
                 + fieldEvaluatorFactories.size()
                 + ", number_of_fragments="
-                + options.numberOfFragments()
+                + config.numberOfFragments()
                 + ", fragment_size="
-                + options.fragmentSize()
+                + config.fragmentSize()
                 + ", no_match_size="
-                + options.noMatchSize()
+                + config.noMatchSize()
                 + "]";
         }
     }
@@ -114,27 +108,26 @@ public class HighlightOperator extends AbstractPageMappingOperator {
         this.blockFactory = blockFactory;
         this.config = config;
         this.fieldEvaluators = fieldEvaluators;
-        HighlightOptions options = config.options();
         // TODO: resolve a named analyzer from the AnalysisRegistry once the "analyzer" option is supported.
         this.analyzer = new StandardAnalyzer();
         // TODO: support more query shapes here (phrase, fuzzy, wildcard, QSTR, KQL, MATCH, MATCH_PHRASE) instead of
         // treating the query text as a bag of words.
         Query parsedQuery = new QueryBuilder(analyzer).createBooleanQuery(CONTENT_FIELD, config.queryText(), BooleanClause.Occur.SHOULD);
         this.query = parsedQuery != null ? parsedQuery : new MatchNoDocsQuery("HIGHLIGHT query produced no terms");
-        Encoder encoder = HighlightOptions.HTML_ENCODER.equals(options.encoder()) ? new SimpleHTMLEncoder() : new DefaultEncoder();
-        this.formatter = new CustomPassageFormatter(options.preTag(), options.postTag(), encoder, options.numberOfFragments());
+        Encoder encoder = HighlightConfig.HTML_ENCODER.equals(config.encoder()) ? new SimpleHTMLEncoder() : new DefaultEncoder();
+        this.formatter = new CustomPassageFormatter(config.preTag(), config.postTag(), encoder, config.numberOfFragments());
         this.maxAnalyzedOffset = IndexSettings.MAX_ANALYZED_OFFSET_SETTING.get(Settings.EMPTY);
         // Ask Lucene for every passage and trim to number_of_fragments ourselves. Lucene would otherwise keep the
         // top passages by score, which loses document order when several sentences tie. We want document order.
         this.highlighterNumberOfFragments = Integer.MAX_VALUE - 1;
         // TODO: honour boundary_scanner, boundary_scanner_locale, boundary_chars, boundary_max_scan, and order.
-        if (options.numberOfFragments() == 0) {
+        if (config.numberOfFragments() == 0) {
             // One passage per (multi-)value: only break on the multi-value separator.
             this.breakIteratorSupplier = () -> new CustomSeparatorBreakIterator(CustomUnifiedHighlighter.MULTIVAL_SEP_CHAR);
         } else {
             // Fragment by sentence, bounded to fragment_size characters when a positive size is requested.
             this.breakIteratorSupplier = () -> new SplittingBreakIterator(
-                sentenceBreakIterator(options.fragmentSize()),
+                sentenceBreakIterator(config.fragmentSize()),
                 CustomUnifiedHighlighter.MULTIVAL_SEP_CHAR
             );
         }
@@ -160,7 +153,7 @@ public class HighlightOperator extends AbstractPageMappingOperator {
                     if (block instanceof BytesRefBlock fieldValues) {
                         highlightedBlocks[f] = highlightField(fieldValues, rowCount, scratch);
                     } else {
-                        throw new EsqlIllegalArgumentException(
+                        throw new IllegalArgumentException(
                             "HIGHLIGHT ON fields must evaluate to keyword/text values but got [" + block.getClass().getSimpleName() + "]"
                         );
                     }
@@ -228,7 +221,7 @@ public class HighlightOperator extends AbstractPageMappingOperator {
             "",
             CONTENT_FIELD,
             query,
-            config.options().noMatchSize(),
+            config.noMatchSize(),
             highlighterNumberOfFragments,
             maxAnalyzedOffset,
             QueryMaxAnalyzedOffset.create(-1, maxAnalyzedOffset),
@@ -246,7 +239,7 @@ public class HighlightOperator extends AbstractPageMappingOperator {
      */
     private void appendSnippets(BytesRefBlock.Builder builder, Snippet[] snippets) {
         int length = snippets == null ? 0 : snippets.length;
-        int numberOfFragments = config.options().numberOfFragments();
+        int numberOfFragments = config.numberOfFragments();
         if (numberOfFragments > 0) {
             length = Math.min(length, numberOfFragments);
         }
@@ -265,16 +258,15 @@ public class HighlightOperator extends AbstractPageMappingOperator {
 
     @Override
     public String toString() {
-        HighlightOptions options = config.options();
         return getClass().getSimpleName()
             + "[query="
             + query
             + ", number_of_fragments="
-            + options.numberOfFragments()
+            + config.numberOfFragments()
             + ", fragment_size="
-            + options.fragmentSize()
+            + config.fragmentSize()
             + ", no_match_size="
-            + options.noMatchSize()
+            + config.noMatchSize()
             + ", fields="
             + Arrays.toString(fieldEvaluators)
             + "]";

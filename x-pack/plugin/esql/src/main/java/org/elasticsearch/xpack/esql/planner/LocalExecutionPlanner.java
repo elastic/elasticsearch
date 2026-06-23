@@ -40,6 +40,8 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator.EvalOperatorFactory;
 import org.elasticsearch.compute.operator.FilterOperator.FilterOperatorFactory;
 import org.elasticsearch.compute.operator.GroupedLimitOperator;
+import org.elasticsearch.compute.operator.HighlightConfig;
+import org.elasticsearch.compute.operator.HighlightOperator;
 import org.elasticsearch.compute.operator.LimitOperator;
 import org.elasticsearch.compute.operator.LocalSourceOperator;
 import org.elasticsearch.compute.operator.LocalSourceOperator.LocalSourceFactory;
@@ -140,8 +142,6 @@ import org.elasticsearch.xpack.esql.evaluator.command.IpLocationFunctionBridge;
 import org.elasticsearch.xpack.esql.evaluator.command.UserAgentFunctionBridge;
 import org.elasticsearch.xpack.esql.expression.Foldables;
 import org.elasticsearch.xpack.esql.expression.Order;
-import org.elasticsearch.xpack.esql.highlight.HighlightConfig;
-import org.elasticsearch.xpack.esql.highlight.HighlightOperator;
 import org.elasticsearch.xpack.esql.inference.InferenceService;
 import org.elasticsearch.xpack.esql.inference.completion.CompletionOperator;
 import org.elasticsearch.xpack.esql.inference.rerank.RerankOperator;
@@ -1179,7 +1179,16 @@ public class LocalExecutionPlanner {
         }
         String queryText = BytesRefs.toString(queryExpr.fold(context.foldCtx));
         // TODO: honour boundary_scanner*, order, max_analyzed_offset, and phrase_limit once HighlightOptions exposes them.
-        HighlightConfig config = new HighlightConfig(queryText, HighlightOptions.from(highlight.options(), context.foldCtx()));
+        HighlightOptions options = HighlightOptions.from(highlight.options(), context.foldCtx());
+        HighlightConfig config = new HighlightConfig(
+            queryText,
+            options.preTag(),
+            options.postTag(),
+            options.encoder(),
+            options.numberOfFragments(),
+            options.fragmentSize(),
+            options.noMatchSize()
+        );
 
         List<ExpressionEvaluator.Factory> fieldEvaluators = highlight.fields()
             .stream()

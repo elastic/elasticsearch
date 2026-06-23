@@ -265,7 +265,7 @@ public class TopNOperator implements Operator, Accountable {
      */
     private int minCompetitiveUpdates;
 
-    private TopNQueue inputQueue;
+    TopNQueue inputQueue;
     private TopNRow spare;
 
     private ReleasableIterator<Page> output;
@@ -518,7 +518,8 @@ public class TopNOperator implements Operator, Accountable {
             output,
             minCompetitive
         );
-        // Aggressively null these so they can be GCed more quickly.
+        // Aggressively null these so they can be GCed more quickly, and so that close() is idempotent.
+        spare = null;
         inputQueue = null;
         output = null;
     }
@@ -527,8 +528,8 @@ public class TopNOperator implements Operator, Accountable {
      * Releases the {@link org.elasticsearch.compute.data.LocalCircuitBreaker} backing this
      * operator's block factory, returning its reserved bytes to the parent breaker. Must only
      * be called by {@link ParallelTopNOperator} on background worker instances after
-     * {@link #close()} — never on the merge-target instance whose block factory belongs to
-     * the driver's own context.
+     * {@link #close()} has returned all row bytes to the LC — never on the merge-target
+     * instance whose block factory belongs to the driver's own context.
      */
     void releaseBreaker() {
         if (blockFactory.breaker() instanceof LocalCircuitBreaker localBreaker) {

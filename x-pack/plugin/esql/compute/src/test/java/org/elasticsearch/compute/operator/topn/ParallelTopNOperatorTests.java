@@ -167,9 +167,8 @@ public class ParallelTopNOperatorTests extends TopNOperatorTests {
         if (map.containsKey("pages_processed")) {
             matcher = matcher.entry("pages_processed", greaterThanOrEqualTo(0));
         } else {
-            // pages_received on the merge-target counts both pre-promotion input pages and
-            // the worker output pages fed in during the merge phase, so the total can exceed
-            // input.size() and is not useful to assert here.
+            // pages_received on the merge-target counts only pre-promotion input pages; not
+            // useful to assert here since it reflects a subset of total input.
             matcher = matcher.entry("pages_emitted", output.size());
         }
         matcher = matcher.entry("rows_received", lessThanOrEqualTo(totalInputRows)).entry("rows_emitted", totalOutputRows);

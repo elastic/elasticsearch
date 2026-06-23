@@ -38,23 +38,44 @@ import java.util.concurrent.atomic.AtomicInteger;
  *   <li><b>Collecting</b> – pages arrive via {@link #addInput}; they are enqueued in
  *       {@code in} and background workers drain that buffer concurrently.</li>
  *   <li><b>Finishing</b> – {@link #finish()} marks the buffer as complete; workers drain
- *       the remaining pages, build their local top-K results, and transfer the resulting
- *       pages to their per-worker output list.</li>
+ *       the remaining pages and build their local top-K queues.</li>
  *   <li><b>Merging</b> – once all workers have signalled completion via
- *       {@link #allWorkersDone}, the driver thread feeds all per-worker output pages into
- *       {@code mergeTarget} (the initial pre-promotion operator that holds the rows
- *       accumulated before promotion), calls {@link TopNOperator#finish()} on it, and
- *       delegates subsequent {@link #getOutput()} calls to it.</li>
+ *       {@link #allWorkersDone}, the driver thread pops each worker's priority-queue
+ *       directly into {@code mergeTarget}'s queue (no page encode/decode), calls
+ *       {@link TopNOperator#finish()} on it, and delegates subsequent {@link #getOutput()}
+ *       calls to it.</li>
  * </ol>
  *
- * <h2>Memory accounting</h2>
- * Each background worker is created with a separate {@link org.elasticsearch.compute.data.LocalCircuitBreaker}
- * via {@link DriverContext#workerBlockFactory()}. Workers call
- * {@link Page#allowPassingToDifferentDriver()} on their output pages before adding them to
- * their per-worker output list, which transfers block memory from the worker's local breaker
- * to the global breaker so the driver thread can release it safely. Input pages have
- * {@link Page#allowPassingToDifferentDriver()} called on the driver thread in
- * {@link #addInput} before being enqueued, for the same reason.
+ * <h2>Memory accounting and LC ownership transfer</h2>
+ * {@code mergeTarget} charges allocations directly to the driver's circuit breaker. Each
+ * background worker has its own {@link org.elasticsearch.compute.data.LocalCircuitBreaker}
+ * (LC) via {@link DriverContext#workerBlockFactory()}.
+ * The LC backs every allocation the worker makes: the {@link TopNQueue} struct, the spare
+ * {@link TopNRow}, and the bytes inside each row (each {@link TopNRow} holds a direct
+ * reference to its creator's breaker).
+ *
+ * <p><b>Aborting workers</b> clean up on the worker thread: {@link TopNOperator#close()}
+ * closes all rows and the queue struct, returning their bytes to the LC;
+ * {@link TopNOperator#releaseBreaker()} then closes the LC and returns its reserved bytes
+ * to the driver's breaker.
+ *
+ * <p><b>Non-aborting workers</b> transfer ownership of their operator — including their LC —
+ * to the driver thread by signalling done without calling either method. The driver then:
+ * <ol>
+ *   <li>Pops the worker's queue into {@code mergeTarget}'s queue in {@link #getOutput()}.
+ *       {@link org.apache.lucene.util.PriorityQueue#pop()} nulls each heap slot, so the
+ *       worker queue is empty after the drain; transferred rows still reference their worker
+ *       LC. {@code allWorkersDone} guarantees the driver sees each LC's fully-updated state.</li>
+ *   <li>Calls {@link TopNOperator#close()} on the worker. The queue is empty so no rows are
+ *       closed; only the queue's struct bytes are returned to the LC.</li>
+ *   <li>Calls {@link TopNOperator#releaseBreaker()} for all workers in {@link #close()},
+ *       <em>after</em> {@code mergeTarget.close()} — which closes any surviving rows, each
+ *       returning its bytes to its worker LC — so every LC is fully drained before being
+ *       released to the driver's breaker.</li>
+ * </ol>
+ *
+ * <p>Input pages have {@link Page#allowPassingToDifferentDriver()} called on the driver
+ * thread in {@link #addInput} before being enqueued.
  */
 public class ParallelTopNOperator implements Operator, Accountable {
 
@@ -73,13 +94,6 @@ public class ParallelTopNOperator implements Operator, Accountable {
     /** Background worker operators, one per {@code esql_worker} thread. */
     private final List<TopNOperator> workers;
 
-    /**
-     * Per-worker output page lists. Each background worker writes exclusively to its own
-     * list; by the time the driver reads from these lists {@link #allWorkersDone} has fired,
-     * so reads and writes never overlap and no concurrent data structure is needed.
-     */
-    private final List<List<Page>> workerOutputs;
-
     private final DriverContext driverContext;
     private final Executor executor;
     private final FailureCollector failureCollector = new FailureCollector();
@@ -96,8 +110,8 @@ public class ParallelTopNOperator implements Operator, Accountable {
     private volatile boolean closed = false;
 
     /**
-     * True once the merge phase (feeding per-worker output pages into {@link #mergeTarget})
-     * has completed and {@link TopNOperator#finish()} has been called on {@link #mergeTarget}.
+     * True once the merge phase (popping worker queues into {@link #mergeTarget}) has
+     * completed and {@link TopNOperator#finish()} has been called on {@link #mergeTarget}.
      */
     private boolean mergeDone = false;
 
@@ -126,24 +140,22 @@ public class ParallelTopNOperator implements Operator, Accountable {
             );
         }
         this.workers = new ArrayList<>(backgroundWorkerCount);
-        this.workerOutputs = new ArrayList<>(backgroundWorkerCount);
         for (int i = 0; i < backgroundWorkerCount; i++) {
             workers.add(factory.getWorkerOperator(driverContext));
-            workerOutputs.add(new ArrayList<>());
         }
 
         this.runningWorkerTasks = new AtomicInteger(backgroundWorkerCount);
-        for (int i = 0; i < workers.size(); i++) {
+        for (TopNOperator worker : workers) {
             driverContext.addAsyncAction();
-            scheduleWorker(workers.get(i), workerOutputs.get(i));
+            scheduleWorker(worker);
         }
     }
 
-    private void scheduleWorker(TopNOperator worker, List<Page> workerOutput) {
+    private void scheduleWorker(TopNOperator worker) {
         executor.execute(new AbstractRunnable() {
             @Override
             protected void doRun() throws Exception {
-                runWorker(worker, workerOutput);
+                runWorker(worker);
             }
 
             @Override
@@ -156,11 +168,10 @@ public class ParallelTopNOperator implements Operator, Accountable {
             @Override
             public void onRejection(Exception e) {
                 if (e instanceof EsRejectedExecutionException) {
-                    // The thread pool queue is full, run on the driver thread. While there are pages available
-                    // on the input buffer, the driver thread will keep worker. If pages are exhausted,
-                    // scheduleWorker will be called again, given the chance to go back to the worker thread.
+                    // Thread pool full; run inline on the driver thread instead.
+                    // If the buffer empties before finishing, the worker is rescheduled.
                     try {
-                        runWorker(worker, workerOutput);
+                        runWorker(worker);
                     } catch (Exception ex) {
                         onFailure(ex);
                     }
@@ -171,72 +182,46 @@ public class ParallelTopNOperator implements Operator, Accountable {
         });
     }
 
-    private void runWorker(TopNOperator worker, List<Page> workerOutput) {
+    private void runWorker(TopNOperator worker) {
         Page page;
         while (closed == false && (page = in.pollPage()) != null) {
             worker.addInput(page);
         }
 
         if (in.isFinished()) {
-            // Finished draining (or aborting). Produce output pages and transfer them to the driver.
             boolean abort = closed || failureCollector.hasFailure();
-            if (abort == false) {
-                worker.finish();
-                Page outputPage;
-                while ((outputPage = worker.getOutput()) != null) {
-                    try {
-                        outputPage.allowPassingToDifferentDriver();
-                    } catch (Exception e) {
-                        outputPage.releaseBlocks();
-                        throw e;
-                    }
-                    if (closed) {
-                        outputPage.releaseBlocks();
-                    } else {
-                        workerOutput.add(outputPage);
-                    }
-                }
-            }
             workerPermanentlyExited(worker, abort);
         } else {
             // Buffer temporarily empty; reschedule when more pages arrive or buffer finishes.
-            in.waitForReading().listener().addListener(ActionListener.running(() -> scheduleWorker(worker, workerOutput)));
+            in.waitForReading().listener().addListener(ActionListener.running(() -> scheduleWorker(worker)));
         }
     }
 
     /**
-     * Called when a background worker has permanently stopped (either normally or due to an
-     * error). Closes the worker (safe because we are on the worker thread that owns its
-     * {@link org.elasticsearch.compute.data.LocalCircuitBreaker}), then decrements the
-     * running-worker counter, and notifies the driver thread when all workers are done.
+     * Called when a background worker has permanently stopped.
      *
-     * @param abort true when called from an error/rejection handler, meaning {@link TopNOperator#finish}
-     *              may not have been called yet and we must call it before closing.
+     * <p>For the <b>abort path</b> ({@code abort == true}): the worker's queue rows are
+     * closed and the LC is released here on the worker thread.
+     *
+     * <p>For the <b>non-abort transfer path</b> ({@code abort == false}): the worker exits
+     * without touching its queue or LC, transferring ownership to the driver thread.
+     * The driver merges the worker's queue in {@link #getOutput()} and releases its
+     * LC in {@link #close()}.
      */
     private void workerPermanentlyExited(TopNOperator worker, boolean abort) {
         if (abort) {
-            try {
-                worker.finish();
-            } catch (Exception ignored) {
-                // The failure is already recorded in failureCollector at the call site; swallow
-                // any secondary exception here to avoid masking the root cause.
-            }
-        }
-        try {
             worker.close();
-        } catch (Exception e) {
-            failureCollector.unwrapAndCollect(e);
-        }
-        try {
-            worker.releaseBreaker();
-        } catch (Exception e) {
-            failureCollector.unwrapAndCollect(e);
-        } finally {
-            if (runningWorkerTasks.decrementAndGet() == 0) {
-                allWorkersDone.onResponse(null);
+            try {
+                worker.releaseBreaker();
+            } catch (Exception e) {
+                failureCollector.unwrapAndCollect(e);
             }
-            driverContext.removeAsyncAction();
         }
+        // else: non-abort with closed==false → driver owns this worker's queue and LC.
+        if (runningWorkerTasks.decrementAndGet() == 0) {
+            allWorkersDone.onResponse(null);
+        }
+        driverContext.removeAsyncAction();
     }
 
     @Override
@@ -290,30 +275,21 @@ public class ParallelTopNOperator implements Operator, Accountable {
     @Override
     public Page getOutput() {
         if (failureCollector.hasFailure()) {
-            // Release any pages accumulated for merge before throwing.
-            for (List<Page> pages : workerOutputs) {
-                for (Page p : pages) {
-                    p.releaseBlocks();
-                }
-                pages.clear();
-            }
             throw ExceptionsHelper.convertToRuntime(failureCollector.getFailure());
         }
         if (allWorkersDone.isDone() == false) {
             return null;
         }
         if (mergeDone == false) {
-            // Feed all pages produced by background workers into mergeTarget. Pages are removed
-            // from the list before addInput so that: (a) on success, the list is empty when we
-            // finish and close() has nothing to double-release; (b) on exception, the throwing
-            // page is already cleaned up by TopNOperator.addInput's finally block and the
-            // remaining pages stay in the list for close() to release.
-            for (List<Page> pages : workerOutputs) {
-                var it = pages.iterator();
-                while (it.hasNext()) {
-                    Page p = it.next();
-                    it.remove();
-                    mergeTarget.addInput(p);
+            // Pop each worker's queue directly into the merge-target, bypassing page encode/decode.
+            // Abort-path workers already closed themselves (inputQueue==null); skip them.
+            // PriorityQueue.pop() nulls each heap slot, so worker.close() after the drain only
+            // releases the empty queue's struct bytes — the transferred rows are not double-closed.
+            // Worker LCs are released in close() after mergeTarget.close() drains surviving rows.
+            for (TopNOperator worker : workers) {
+                if (worker.inputQueue != null) {
+                    worker.inputQueue.popAllInto(mergeTarget.inputQueue);
+                    worker.close();
                 }
             }
             mergeTarget.finish();
@@ -326,28 +302,38 @@ public class ParallelTopNOperator implements Operator, Accountable {
     public void close() {
         closed = true;
         in.finish(true);
-        // Release any merge pages already queued; workers still running will release their own.
-        for (List<Page> pages : workerOutputs) {
-            for (Page p : pages) {
-                p.releaseBlocks();
-            }
-            pages.clear();
-        }
-        // Close mergeTarget here (driver thread). Background workers close themselves.
+        // Close mergeTarget first so surviving rows return their bytes to worker LCs
+        // before those LCs are released.
         mergeTarget.close();
+        if (allWorkersDone.isDone()) {
+            releaseAllWorkers();
+        } else {
+            // Workers still running will see closed==true and abort; release all workers
+            // (including any that already transferred ownership) once they have all exited.
+            allWorkersDone.addListener(ActionListener.running(this::releaseAllWorkers));
+        }
+    }
+
+    private void releaseAllWorkers() {
+        for (TopNOperator worker : workers) {
+            // Abort-path workers already closed themselves (inputQueue==null); skip them.
+            if (worker.inputQueue != null) {
+                worker.close();
+            }
+            try {
+                // releaseBreaker() calls LocalCircuitBreaker.close() which is idempotent
+                worker.releaseBreaker();
+            } catch (Exception e) {
+                failureCollector.unwrapAndCollect(e);
+            }
+        }
     }
 
     @Override
     public long ramBytesUsed() {
         long size = SHALLOW_SIZE;
         size += mergeTarget.ramBytesUsed();
-        // Workers run on their own threads and own non-thread-safe mutable state; only read
-        // their accounting after they have exited and closed themselves.
-        // NOTE: during the collecting phase the worker input queues are not reflected here,
-        // which is a monitoring gap. The memory is still protected by the circuit breaker
-        // (each worker's LocalCircuitBreaker charges allocations to the parent breaker as
-        // they happen). Fixing this would require storing the LocalCircuitBreaker references
-        // and summing their getUsed() — left as a known limitation for now.
+        // Worker accounting is unsafe to read concurrently; only include it once all workers have exited.
         if (allWorkersDone.isDone()) {
             for (TopNOperator worker : workers) {
                 size += worker.ramBytesUsed();

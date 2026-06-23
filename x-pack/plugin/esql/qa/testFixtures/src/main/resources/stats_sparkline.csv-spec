@@ -295,6 +295,36 @@ s:long | t:null
 1      | null
 ;
 
+sparklineWithCountPlusConstant
+required_capability: fn_sparkline_expressions
+FROM employees
+| STATS sparkline = SPARKLINE(COUNT(*)+1, hire_date, 20, "1985-01-01T00:00:00Z", "1985-12-31T00:00:00Z")
+;
+
+sparkline:long
+[0, 3, 0, 0, 2, 0, 2, 0, 2, 3, 5, 0]
+;
+
+sparklineWithMaxPlusConstant
+required_capability: fn_sparkline_expressions
+FROM employees
+| STATS sparkline = SPARKLINE(MAX(salary)+1, hire_date, 20, "1985-01-01T00:00:00Z", "1985-12-31T00:00:00Z")
+;
+
+sparkline:integer
+[0, 66175, 0, 0, 44818, 0, 62406, 0, 49096, 54330, 75000, 0]
+;
+
+sparklineWithSumOfTwoAggregates
+required_capability: fn_sparkline_expressions
+FROM employees
+| STATS sparkline = SPARKLINE(MAX(salary)+MIN(salary), hire_date, 20, "1985-01-01T00:00:00Z", "1985-12-31T00:00:00Z")
+;
+
+sparkline:integer
+[0, 92610, 0, 0, 89634, 0, 124810, 0, 98190, 103064, 108955, 0]
+;
+
 sparklineComplexWithGroupingMapped
 required_capability: fn_sparkline_nested
 FROM employees

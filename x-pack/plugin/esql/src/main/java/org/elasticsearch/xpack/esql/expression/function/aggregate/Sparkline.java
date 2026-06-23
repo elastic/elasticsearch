@@ -14,6 +14,7 @@ import org.elasticsearch.compute.operator.SparklineGenerateEmptyBucketsOperator;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisVerificationAware;
 import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.common.Failures;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -96,7 +97,8 @@ public class Sparkline extends AggregateFunction implements AggregateMetricDoubl
             "null_alongside", // Fix for null aggs (e.g. COUNT_DISTINCT(null)) paired with SPARKLINE
             "reject_mv", // Rejects multi-valued aggregates (TOP, SAMPLE, VALUES) as first argument
             "duplicate_surrogates", // Fix for surrogate aggs appearing both inside and outside SPARKLINE
-            "nested" // Fix for more SPARKLINE nested in another expression
+            "nested", // Fix for more SPARKLINE nested in another expression
+            "expressions" // Accepts expressions over aggregates as first argument (e.g. COUNT()+1, MIN(a)+MIN(b))
         )
         .name("sparkline");
 
@@ -156,7 +158,7 @@ public class Sparkline extends AggregateFunction implements AggregateMetricDoubl
         TypeResolution fieldNullCheck = isNotNull(field(), sourceText(), FIRST);
         if (fieldNullCheck.unresolved()) {
             return fieldNullCheck;
-        } else if (field() instanceof AggregateFunction == false) {
+        } else if (field().anyMatch(AggregateFunction.class::isInstance) == false) {
             return new TypeResolution(
                 LoggerMessageFormat.format(
                     null,
@@ -164,6 +166,16 @@ public class Sparkline extends AggregateFunction implements AggregateMetricDoubl
                     sourceText(),
                     field().sourceText(),
                     field().dataType().typeName()
+                )
+            );
+        } else if (hasAttributeOutsideAggregate(field())) {
+            return new TypeResolution(
+                LoggerMessageFormat.format(
+                    null,
+                    "first argument of [{}] must aggregate to a single value; every field referenced in [{}] must be inside "
+                        + "an aggregate function (grouping keys included)",
+                    sourceText(),
+                    field().sourceText()
                 )
             );
         }
@@ -209,9 +221,31 @@ public class Sparkline extends AggregateFunction implements AggregateMetricDoubl
         }
     }
 
+    /**
+     * Returns {@code true} if the expression contains an {@link Attribute} that is not enclosed in an
+     * {@link AggregateFunction}. Such an attribute is a per-row value, so the expression would not
+     * aggregate to the single value a sparkline data point requires (e.g. {@code salary + 1} as opposed
+     * to {@code MIN(salary) + 1}). Aggregate functions are treated as leaves: anything inside them is
+     * already aggregated and need not be inspected.
+     */
+    private static boolean hasAttributeOutsideAggregate(Expression e) {
+        if (e instanceof AggregateFunction) {
+            return false;
+        }
+        if (e instanceof Attribute) {
+            return true;
+        }
+        for (Expression child : e.children()) {
+            if (hasAttributeOutsideAggregate(child)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     @Override
     public void postAnalysisVerification(Failures failures) {
-        if (field() instanceof Top || field() instanceof Sample || field() instanceof Values) {
+        if (field().anyMatch(e -> e instanceof Top || e instanceof Sample || e instanceof Values)) {
             failures.add(
                 new Failure(
                     this,

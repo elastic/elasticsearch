@@ -35,6 +35,7 @@ import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 import org.elasticsearch.xpack.esql.view.ViewResolutionService;
 
 import java.io.IOException;
@@ -98,8 +99,7 @@ public class EsqlResolveFieldsAction extends HandledTransportAction<FieldCapabil
             }
         }
 
-        var localSchema = Maps.transformValues(resolveIndexAbstractions(request), list -> list.stream().map(this::resolveSchema).toList());
-        var combinedSchema = new LinkedHashMap<String, List<IndexAbstractionSchema>>(localSchema);
+        var combinedSchema = new LinkedHashMap<String, List<IndexAbstractionSchema>>();
 
         fieldCapsAction.executeRequest(task, request, new TransportFieldCapabilitiesAction.LinkedRequestExecutor<>() {
             @Override
@@ -133,12 +133,16 @@ public class EsqlResolveFieldsAction extends HandledTransportAction<FieldCapabil
 
             @Override
             public void onRemoteResponse(EsqlResolveFieldsResponse response) {
-                // TODO merge assuming possible collisions
-                combinedSchema.putAll(response.schema());
+                response.schema().forEach((key, list) -> combinedSchema.merge(key, list, CollectionUtils::combine));
             }
 
             @Override
             public EsqlResolveFieldsResponse wrapPrimary(FieldCapabilitiesResponse primary) {
+                var localSchema = Maps.transformValues(
+                    resolveIndexAbstractions(request),
+                    abstractions -> abstractions.stream().map(abstraction -> resolveSchema(abstraction, primary)).toList()
+                );
+                localSchema.forEach((key, list) -> combinedSchema.merge(key, list, CollectionUtils::combine));
                 return new EsqlResolveFieldsResponse(primary, combinedSchema);
             }
 
@@ -191,9 +195,29 @@ public class EsqlResolveFieldsAction extends HandledTransportAction<FieldCapabil
         return result;
     }
 
-    private IndexAbstractionSchema resolveSchema(IndexAbstraction indexAbstraction) {
-        // TODO implement
-        return new IndexAbstractionSchema(indexAbstraction.getName(), indexAbstraction.getType(), Map.of("f1", "keyword"));
+    private IndexAbstractionSchema resolveSchema(IndexAbstraction abstraction, FieldCapabilitiesResponse primary) {
+        // TODO plug actual implementation
+        return switch (abstraction.getType()) {
+            case CONCRETE_INDEX -> resolveIndexSchema(abstraction, primary);
+            // TODO alias and data stream
+            case VIEW -> new IndexAbstractionSchema(abstraction.getName(), abstraction.getType(), Map.of("f1", "keyword"));
+            case DATASET -> new IndexAbstractionSchema(abstraction.getName(), abstraction.getType(), Map.of("f1", "keyword"));
+            default -> throw new IllegalArgumentException("unsupported index abstraction type [" + abstraction + "]");
+        };
+    }
+
+    private IndexAbstractionSchema resolveIndexSchema(IndexAbstraction abstraction, FieldCapabilitiesResponse primary) {
+        assert abstraction.getType() == IndexAbstraction.Type.CONCRETE_INDEX;
+        var index = primary.getIndexResponses()
+            .stream()
+            .filter(i -> Objects.equals(i.getIndexName(), abstraction.getName()))
+            .findFirst()
+            .orElseThrow();
+        var schema = new LinkedHashMap<String, String>();
+        for (var field : index.get().values()) {
+            schema.put(field.name(), field.type());
+        }
+        return new IndexAbstractionSchema(abstraction.getName(), abstraction.getType(), schema);
     }
 
     public record IndexAbstractionSchema(String name, IndexAbstraction.Type type, Map<String, String> attributes) implements Writeable {

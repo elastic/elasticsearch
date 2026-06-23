@@ -10,6 +10,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.encryption.spi.EncryptedData;
 import org.elasticsearch.xpack.encryption.spi.EncryptionService;
@@ -150,7 +151,11 @@ public class ProjectEncryptionKeyMixedPasswordsIT extends ESIntegTestCase {
                 secure.setString(ProjectEncryptionKeyPasswordSettings.PASSWORD_PREFIX + "id-" + j, BASE_PASSWORD + "-id-" + j);
             }
             Settings reloadSettings = Settings.builder().setSecureSettings(secure).build();
-            internalCluster().getInstance(EncryptionPlugin.class, nodeNames[i]).reload(reloadSettings);
+            internalCluster().getInstance(PluginsService.class, nodeNames[i])
+                .filterPlugins(EncryptionPlugin.class)
+                .findFirst()
+                .orElseThrow()
+                .reload(reloadSettings);
         }
 
         assertBusy(() -> assertThat(getKeyFromMaster(), notNullValue()));
@@ -193,7 +198,11 @@ public class ProjectEncryptionKeyMixedPasswordsIT extends ESIntegTestCase {
                 secure.setString(ProjectEncryptionKeyPasswordSettings.PASSWORD_PREFIX + "id-" + j, BASE_PASSWORD + "-id-" + j);
             }
             Settings reloadSettings = Settings.builder().setSecureSettings(secure).build();
-            internalCluster().getInstance(EncryptionPlugin.class, nodeNames[i]).reload(reloadSettings);
+            internalCluster().getInstance(PluginsService.class, nodeNames[i])
+                .filterPlugins(EncryptionPlugin.class)
+                .findFirst()
+                .orElseThrow()
+                .reload(reloadSettings);
         }
 
         assertBusy(() -> assertThat(getKeyFromMaster(), notNullValue()));

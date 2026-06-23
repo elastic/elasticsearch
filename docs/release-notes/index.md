@@ -21,20 +21,17 @@ To check for security updates, go to [Security announcements for the Elastic sta
 % *
 
 ## 9.3.6 [elasticsearch-9.3.6-release-notes]
-```{applies_to}
-stack: ga 9.3.6
-```
 
 ### Features and enhancements [elasticsearch-9.3.6-features-enhancements]
 
 Authorization:
-* Update the built-in `kibana_system` role to grant `manage`, `create_index`, `read`, `index`, `write`, and `delete` privileges on the `axonius.alert_finding` and `axonius.incident` indices, replacing the previous `axonius.alert_and_incident` index [#149797](https://github.com/elastic/elasticsearch/pull/149797)
+* [Axonius] Replace the axonius.alert_and_incident index with the axonius.alert_finding and axonius.incident indices to `manage`, `create_index`, `read`, `index`, `write`, `delete`, permission for third party agent indices `kibana_system` [#149797](https://github.com/elastic/elasticsearch/pull/149797)
 
 Data streams:
 * [otel-data] Explicitly map `http.response.status_code` as long [#149631](https://github.com/elastic/elasticsearch/pull/149631)
 
 Inference:
-* Upgrade commons-lang3 version for the inference plugin [#150242](https://github.com/elastic/elasticsearch/pull/150242)
+* Upgrading commons-lang3 version for inference plugin [#150242](https://github.com/elastic/elasticsearch/pull/150242)
 
 Machine Learning:
 * Better messaging regarding OOM process termination [#2841](https://github.com/elastic/ml-cpp/pull/2841)
@@ -61,7 +58,7 @@ Authentication:
 ES|QL:
 * Catch `StackOverflowError` in deeply nested RLIKE patterns [#150238](https://github.com/elastic/elasticsearch/pull/150238) (issue: [#149838](https://github.com/elastic/elasticsearch/issues/149838))
 * Enforce limit for max nested functions [#149971](https://github.com/elastic/elasticsearch/pull/149971)
-* Fix wrong warning in expressions with unrolled multivalues [#145968](https://github.com/elastic/elasticsearch/pull/145968)
+* Fixes wrong warning in expressions with unrolled multivalues [#145968](https://github.com/elastic/elasticsearch/pull/145968)
 * [ESQL] Refactor Greatest and Least functions to use evaluator map [#128429](https://github.com/elastic/elasticsearch/pull/128429) (issue: [#114036](https://github.com/elastic/elasticsearch/issues/114036))
 
 ILM:
@@ -81,7 +78,10 @@ Machine Learning:
 * Add extra validation in `trained_model` creation [#150227](https://github.com/elastic/elasticsearch/pull/150227)
 
 Query Languages:
-* EQL/SQL: Enforce max expression depth checks [#150003](https://github.com/elastic/elasticsearch/pull/150003)
+* EQL/SQL: enforce max expression depth checks [#150003](https://github.com/elastic/elasticsearch/pull/150003)
+
+Search:
+* Add IT covering search during rolling restart [#149667](https://github.com/elastic/elasticsearch/pull/149667) (issue: [#86927](https://github.com/elastic/elasticsearch/issues/86927))
 
 Security:
 * Make Automatons wildcard code-point aware [#151143](https://github.com/elastic/elasticsearch/pull/151143)

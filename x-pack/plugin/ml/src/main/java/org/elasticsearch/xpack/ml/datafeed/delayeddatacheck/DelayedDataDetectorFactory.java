@@ -54,9 +54,6 @@ public class DelayedDataDetectorFactory {
             );
             long bucketSpan = job.getAnalysisConfig().getBucketSpan() == null ? 0 : job.getAnalysisConfig().getBucketSpan().millis();
             if (datafeedConfig.getEsqlQuery() != null) {
-                // ES|QL datafeeds have no DSL query/aggregation to drive a date-histogram and their bucket event counts are measured in
-                // ES|QL output rows, so they need a dedicated detector that re-runs the ES|QL query. The required summary_count_field_name
-                // is enforced by DatafeedJobValidator.
                 return new EsqlDelayedDataDetector(
                     bucketSpan,
                     window,

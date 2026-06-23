@@ -7,9 +7,6 @@
 
 package org.elasticsearch.xpack.ml.datafeed.extractor.esql;
 
-import org.elasticsearch.action.support.IndicesOptions;
-
-import java.util.List;
 import java.util.Map;
 
 record EsqlDataExtractorContext(
@@ -19,6 +16,5 @@ record EsqlDataExtractorContext(
     long start,
     long end,
     Map<String, String> headers,
-    List<String> indices,
-    IndicesOptions indicesOptions
+    String requiredSummaryCountField
 ) {}

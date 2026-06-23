@@ -362,6 +362,7 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
         void onRecoveryComplete(IndexShard shard, RecoverySourceHandler handler) {
             synchronized (this) {
                 remove(shard, handler);
+                // Update the recovery stats inside the lock to ensure consistency, and to avoid briefly showing negative counters to users.
                 shard.recoveryStats().sourceRecoveryCompleted();
             }
             schedulingListeners.onRecoveryCompleted(RecoverySource.Type.PEER, RecoveryRole.SOURCE);
@@ -369,15 +370,14 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
         }
 
         void updateMaxConcurrentOutgoingRecoveries(int newMax) {
-            final boolean limitIncreased;
+            final int oldMax;
             synchronized (this) {
-                final int oldMax = maxConcurrentOutgoingRecoveries;
+                oldMax = maxConcurrentOutgoingRecoveries;
                 maxConcurrentOutgoingRecoveries = newMax;
-                limitIncreased = oldMax < newMax;
             }
 
             // Release lock because `startRecoveriesUpToLimit` needs to trigger recoveries outside the synchronized block.
-            if (limitIncreased) {
+            if (oldMax < newMax) {
                 startRecoveriesUpToLimit();
             }
         }

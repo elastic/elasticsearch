@@ -53,7 +53,7 @@ public class PeerRecoverySourceServiceTests extends IndexShardTestCase {
         final IndexShard primary1 = newStartedShard(true);
         final IndexShard primary2 = newStartedShard(true);
         final IndexShard primary3 = newStartedShard(true);
-        final var service = newPeerRecoverySourceService();
+        final var service = newPeerRecoverySourceService(2);
         service.start();
         final var task = newRecoveryTask();
 
@@ -91,7 +91,7 @@ public class PeerRecoverySourceServiceTests extends IndexShardTestCase {
         final IndexShard primary1 = newStartedShard(true);
         final IndexShard primary2 = newStartedShard(true);
         final IndexShard primary3 = newStartedShard(true);
-        final var service = newPeerRecoverySourceService();
+        final var service = newPeerRecoverySourceService(2);
         service.start();
         final var task = newRecoveryTask();
 
@@ -132,7 +132,7 @@ public class PeerRecoverySourceServiceTests extends IndexShardTestCase {
         final IndexShard primary3 = newStartedShard(true);
         final IndexShard primary4 = newStartedShard(true);
         final IndexShard primary5 = newStartedShard(true);
-        final var service = newPeerRecoverySourceService();
+        final var service = newPeerRecoverySourceService(2);
         service.start();
         final var task = newRecoveryTask();
         final var handler1 = service.ongoingRecoveries.addOrEnqueueNewRecovery(
@@ -170,19 +170,19 @@ public class PeerRecoverySourceServiceTests extends IndexShardTestCase {
     }
 
     /// When a recovery slot becomes available, a new request must queue behind any already-pending
-    /// items rather than starting immediately, even though active &lt; limit at that moment.
+    /// items rather than starting immediately, even though active < limit at that moment.
     ///
-    /// In production this is a transient concurrent state: {@code onRecoveryComplete} releases the
-    /// lock after {@code remove()} but before calling {@code startRecoveriesUpToLimit()}, creating a
-    /// window where active &lt; limit while the queue is non-empty. The test reproduces it
-    /// deterministically by calling {@code remove()} directly (freeing a slot without draining the
-    /// queue) and then calling {@code addOrEnqueueNewRecovery()} in the same thread.
+    /// In production this is a transient concurrent state: `onRecoveryComplete` releases the
+    /// lock after `remove()` but before calling `startRecoveriesUpToLimit()`, creating a
+    /// window where active < limit while the queue is non-empty. The test reproduces it
+    /// deterministically by calling `remove()` directly (freeing a slot without draining the
+    /// queue) and then calling `addOrEnqueueNewRecovery()` in the same thread.
     public void testNewRequestEnqueuesIfPendingItemsExistWhenSlotBecomesAvailable() throws IOException {
         final IndexShard primary1 = newStartedShard(true);
         final IndexShard primary2 = newStartedShard(true);
         final IndexShard primary3 = newStartedShard(true);
         final IndexShard primary4 = newStartedShard(true);
-        final var service = newPeerRecoverySourceService(); // limit = 2
+        final var service = newPeerRecoverySourceService(2);
         service.start();
         final var task = newRecoveryTask();
 
@@ -195,7 +195,7 @@ public class PeerRecoverySourceServiceTests extends IndexShardTestCase {
         );
         service.ongoingRecoveries.addOrEnqueueNewRecovery(newStartRecoveryRequest(primary2), task, primary2, ActionListener.noop());
 
-        // primary3 arrives while all slots are occupied — goes to the queue
+        // primary3 arrives while all slots are occupied, so it goes to the queue.
         service.ongoingRecoveries.addOrEnqueueNewRecovery(newStartRecoveryRequest(primary3), task, primary3, ActionListener.noop());
         assertEquals(2, service.ongoingRecoveries.activeRecoveryCount());
         assertEquals(1, service.ongoingRecoveries.queuedRecoveryCount());
@@ -207,7 +207,7 @@ public class PeerRecoverySourceServiceTests extends IndexShardTestCase {
         assertEquals(1, service.ongoingRecoveries.activeRecoveryCount());
         assertEquals(1, service.ongoingRecoveries.queuedRecoveryCount());
 
-        // primary4 must be queued behind primary3 — not start directly — even though a slot is
+        // primary4 must be queued behind primary3 and not start directly, even though a slot is
         // now free. Without pendingRecoveries.isEmpty() in addOrEnqueueNewRecovery it would bypass
         // primary3 and start immediately.
         final var handler4 = service.ongoingRecoveries.addOrEnqueueNewRecovery(
@@ -217,7 +217,7 @@ public class PeerRecoverySourceServiceTests extends IndexShardTestCase {
             ActionListener.noop()
         );
         assertNull("primary4 must queue behind primary3, not bypass it", handler4);
-        // Both primary3 (added first) and primary4 are in the FIFO queue — primary3 at the head.
+        // Both primary3 (added first) and primary4 are in the FIFO queue, with primary3 at the head.
         assertEquals(2, service.ongoingRecoveries.queuedRecoveryCount());
 
         closeShards(primary1, primary2, primary3, primary4);
@@ -226,7 +226,7 @@ public class PeerRecoverySourceServiceTests extends IndexShardTestCase {
     public void testSameShardFillsMultipleSlots() throws IOException {
         final IndexShard primary = newStartedShard(true);
         final IndexShard primary2 = newStartedShard(true);
-        final var service = newPeerRecoverySourceService();
+        final var service = newPeerRecoverySourceService(2);
         service.start();
         final var task = newRecoveryTask();
 
@@ -264,7 +264,7 @@ public class PeerRecoverySourceServiceTests extends IndexShardTestCase {
         final IndexShard primary2 = newStartedShard(true);
         final IndexShard primary3 = newStartedShard(true);
         final IndexShard primary4 = newStartedShard(true);
-        final var service = newPeerRecoverySourceService();
+        final var service = newPeerRecoverySourceService(2);
         service.start();
         final var task = newRecoveryTask();
 
@@ -301,7 +301,7 @@ public class PeerRecoverySourceServiceTests extends IndexShardTestCase {
         final IndexShard primary1 = newStartedShard(true);
         final IndexShard primary2 = newStartedShard(true);
         final IndexShard primary3 = newStartedShard(true);
-        final var service = newPeerRecoverySourceService();
+        final var service = newPeerRecoverySourceService(2);
         service.start();
         final var task = newRecoveryTask();
 
@@ -347,7 +347,7 @@ public class PeerRecoverySourceServiceTests extends IndexShardTestCase {
         final IndexShard primary1 = newStartedShard(true);
         final IndexShard primary2 = newStartedShard(true);
         final IndexShard primary3 = newStartedShard(true);
-        final var service = newPeerRecoverySourceService();
+        final var service = newPeerRecoverySourceService(2);
         service.start();
         final var task = newRecoveryTask();
 
@@ -416,7 +416,7 @@ public class PeerRecoverySourceServiceTests extends IndexShardTestCase {
         final IndexShard primary1 = newStartedShard(true);
         final IndexShard primary2 = newStartedShard(true);
         final IndexShard primary3 = newStartedShard(true);
-        final var service = newPeerRecoverySourceService();
+        final var service = newPeerRecoverySourceService(2);
         service.start();
         final var task = newRecoveryTask();
 
@@ -521,7 +521,7 @@ public class PeerRecoverySourceServiceTests extends IndexShardTestCase {
         final IndexShard primary1 = newStartedShard(true);
         final IndexShard primary2 = newStartedShard(true);
         final IndexShard primary3 = newStartedShard(true);
-        final var service = newPeerRecoverySourceService();
+        final var service = newPeerRecoverySourceService(2);
         service.start();
         final var task = newRecoveryTask();
 
@@ -582,7 +582,7 @@ public class PeerRecoverySourceServiceTests extends IndexShardTestCase {
     public void testReestablishSameShardActiveAndQueuedRecovery() throws IOException {
         final IndexShard primary1 = newStartedShard(true);
         final IndexShard primary2 = newStartedShard(true);
-        final var service = newPeerRecoverySourceService();
+        final var service = newPeerRecoverySourceService(2);
         service.start();
         final var task = newRecoveryTask();
 
@@ -845,6 +845,9 @@ public class PeerRecoverySourceServiceTests extends IndexShardTestCase {
 
         // Wait for all 3 queued recoveries to complete.
         safeAwait(recoveriesCompleted);
+        // primary1 and primary2 handlers were discarded, so recoverToTarget was never explicitly called on them.
+        // onRecoveryComplete never fires for those two, so they remain active.
+        // For the other 3 enqueued requests, recoverToTarget is invoked as part of startRecoveriesUpToLimit.
         assertEquals(2, service.ongoingRecoveries.activeRecoveryCount());
         assertEquals(0, service.ongoingRecoveries.queuedRecoveryCount());
         assertEquals(0, primary3.recoveryStats().currentAsSourceQueued());
@@ -880,7 +883,7 @@ public class PeerRecoverySourceServiceTests extends IndexShardTestCase {
 
         service.ongoingRecoveries.addOrEnqueueNewRecovery(newStartRecoveryRequest(primary1), task, primary1, ActionListener.noop());
         service.ongoingRecoveries.addOrEnqueueNewRecovery(newStartRecoveryRequest(primary2), task, primary2, ActionListener.noop());
-        // Queue 3 items — the limit increase opens only 2 initial slots, so the 3rd drains via cascade
+        // Queue 3 items. The limit increase opens only 2 initial slots, so the 3rd drains via cascade.
         service.ongoingRecoveries.addOrEnqueueNewRecovery(newStartRecoveryRequest(primary3), task, primary3, ActionListener.noop());
         service.ongoingRecoveries.addOrEnqueueNewRecovery(newStartRecoveryRequest(primary4), task, primary4, ActionListener.noop());
         service.ongoingRecoveries.addOrEnqueueNewRecovery(newStartRecoveryRequest(primary5), task, primary5, ActionListener.noop());
@@ -894,6 +897,9 @@ public class PeerRecoverySourceServiceTests extends IndexShardTestCase {
 
         // Wait for all 3 queued recoveries to complete.
         safeAwait(recoveriesCompleted);
+        // primary1 and primary2 handlers were discarded, so recoverToTarget was never called on them.
+        // onRecoveryComplete never fires for those two, so they remain active.
+        // For the other 3 enqueued requests, recoverToTarget is invoked as part of startRecoveriesUpToLimit.
         assertEquals(2, service.ongoingRecoveries.activeRecoveryCount());
         assertEquals(0, service.ongoingRecoveries.queuedRecoveryCount());
         assertEquals(0, primary3.recoveryStats().currentAsSourceQueued());
@@ -904,7 +910,7 @@ public class PeerRecoverySourceServiceTests extends IndexShardTestCase {
     }
 
     private PeerRecoverySourceService newPeerRecoverySourceService() {
-        return newPeerRecoverySourceService(2);
+        return newPeerRecoverySourceService(Integer.MAX_VALUE);
     }
 
     private PeerRecoverySourceService newPeerRecoverySourceService(int limit) {

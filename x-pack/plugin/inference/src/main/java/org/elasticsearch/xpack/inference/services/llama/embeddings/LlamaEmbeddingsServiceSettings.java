@@ -20,9 +20,9 @@ import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xpack.inference.common.parser.EnumParser;
+import org.elasticsearch.xpack.inference.common.parser.StatefulValue;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.llama.LlamaServiceSettings;
-import org.elasticsearch.xpack.inference.services.settings.FieldUpdate;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
 import java.io.IOException;
@@ -244,14 +244,14 @@ public class LlamaEmbeddingsServiceSettings extends LlamaServiceSettings {
 
         static {
             LlamaServiceSettings.declareCommonUpdatableFields(PARSER);
-            FieldUpdate.declareNullable(PARSER, (update, value) -> update.maxInputTokens = value, p -> {
+            StatefulValue.declareNullable(PARSER, (update, value) -> update.maxInputTokens = value, p -> {
                 Integer value = p.intValue();
                 validatePositiveInteger(value, MAX_INPUT_TOKENS);
                 return value;
             }, new ParseField(MAX_INPUT_TOKENS), ObjectParser.ValueType.INT_OR_NULL);
         }
 
-        private FieldUpdate<Integer> maxInputTokens = FieldUpdate.absent();
+        private StatefulValue<Integer> maxInputTokens = StatefulValue.undefined();
 
         public LlamaEmbeddingsServiceSettings mergeInto(LlamaEmbeddingsServiceSettings existing) {
             var updatedMaxInputTokens = this.maxInputTokens.resolve(existing.maxInputTokens());

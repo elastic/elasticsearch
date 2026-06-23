@@ -19,6 +19,7 @@ import java.util.NoSuchElementException;
 
 import static org.elasticsearch.xpack.inference.common.parser.StatefulValue.NO_VALUE_PRESENT;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
 public class StatefulValueTests extends ESTestCase {
@@ -109,6 +110,32 @@ public class StatefulValueTests extends ESTestCase {
     public void testOrElse_ReturnsOtherWhenNull() {
         var other = randomAlphaOfLength(10);
         assertThat(StatefulValue.<String>nullInstance().orElse(other), is(other));
+    }
+
+    public void testResolve_WhenUndefined_KeepsCurrentValue() {
+        var current = randomAlphaOfLength(10);
+        var cleared = randomAlphaOfLength(10);
+        assertThat(StatefulValue.<String>undefined().resolve(current, cleared), is(current));
+        assertThat(StatefulValue.<String>undefined().resolve(current), is(current));
+    }
+
+    public void testResolve_WhenNull_ReturnsClearedValue() {
+        var current = randomAlphaOfLength(10);
+        var cleared = randomAlphaOfLength(10);
+        assertThat(StatefulValue.<String>nullInstance().resolve(current, cleared), is(cleared));
+    }
+
+    public void testResolve_WhenNull_WithoutClearedValue_ReturnsNull() {
+        var current = randomAlphaOfLength(10);
+        assertThat(StatefulValue.<String>nullInstance().resolve(current), is(nullValue()));
+    }
+
+    public void testResolve_WhenPresent_ReplacesWithValue() {
+        var value = randomAlphaOfLength(10);
+        var current = randomAlphaOfLength(10);
+        var cleared = randomAlphaOfLength(10);
+        assertThat(StatefulValue.of(value).resolve(current, cleared), is(value));
+        assertThat(StatefulValue.of(value).resolve(current), is(value));
     }
 
     public void testEquals_hashCode() {

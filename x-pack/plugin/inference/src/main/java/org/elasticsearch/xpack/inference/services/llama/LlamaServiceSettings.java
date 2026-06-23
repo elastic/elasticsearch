@@ -19,9 +19,9 @@ import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xpack.inference.common.parser.StatefulValue;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
-import org.elasticsearch.xpack.inference.services.settings.FieldUpdate;
 import org.elasticsearch.xpack.inference.services.settings.FilteredXContentObject;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
@@ -189,7 +189,7 @@ public abstract class LlamaServiceSettings extends FilteredXContentObject implem
      * rejects attempts to change them.
      */
     public static void declareCommonUpdatableFields(AbstractObjectParser<? extends CommonUpdate, Void> parser) {
-        FieldUpdate.declareNullable(
+        StatefulValue.declareNullable(
             parser,
             (update, value) -> update.rateLimitSettings = value,
             (p) -> RateLimitSettings.createParser(false, null).apply(p, null),
@@ -204,7 +204,7 @@ public abstract class LlamaServiceSettings extends FilteredXContentObject implem
      */
     public static class CommonUpdate {
 
-        protected FieldUpdate<RateLimitSettings> rateLimitSettings = FieldUpdate.absent();
+        protected StatefulValue<RateLimitSettings> rateLimitSettings = StatefulValue.undefined();
 
         /**
          * Resolves the rate limit settings to use after applying the update following the tri-state convention: an omitted field keeps

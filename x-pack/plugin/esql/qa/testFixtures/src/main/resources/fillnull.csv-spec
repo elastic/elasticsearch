@@ -180,6 +180,30 @@ b:integer | a:integer | sum_ab:integer
 2          | -1        | 1
 ;
 
+fillNullWithIntegerValueIntoDouble
+required_capability: fillnull
+
+ROW a = null, b = 1.5
+| EVAL a = a::double
+| FILLNULL WITH 0 a
+;
+
+b:double | a:double
+1.5       | 0.0
+;
+
+fillNullThenWhereIsNullIsEmpty
+required_capability: fillnull
+
+ROW a = null
+| EVAL a = a::keyword
+| FILLNULL WITH "x" a
+| WHERE a IS NULL
+;
+
+a:keyword
+;
+
 fillNullWithValueSkipsIncompatibleAllFields
 required_capability: fillnull
 

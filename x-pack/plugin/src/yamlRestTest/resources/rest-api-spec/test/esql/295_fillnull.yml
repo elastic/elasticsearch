@@ -81,6 +81,23 @@ setup:
   - contains: { error.reason: 'Cannot use field [client_ip]' }
 
 ---
+'fillnull on a union typed field cast to keyword is allowed':
+  # Casting the conflicting client_ip to keyword resolves the union type before FILLNULL, so targeting
+  # the cast column is allowed: it is a reference attribute produced by EVAL and filled via Coalesce.
+  # Both rows have a value, so FILLNULL is a no-op on the data; it must preserve type and content.
+  - do:
+      esql.query:
+        body:
+          query: 'FROM events_ip,events_keyword | EVAL client_ip = client_ip::keyword | FILLNULL WITH "missing" client_ip | KEEP event_id, client_ip | SORT event_id | LIMIT 100'
+  - match: { columns.0.name: event_id }
+  - match: { columns.0.type: integer }
+  - match: { columns.1.name: client_ip }
+  - match: { columns.1.type: keyword }
+  - length: { values: 2 }
+  - match: { values.0: [ 1, "10.0.0.1" ] }
+  - match: { values.1: [ 2, "10.0.0.2" ] }
+
+---
 'fillnull on a non-union aliased field after cross-index query':
   # Cross-index queries are still allowed as long as FILLNULL targets a field that is NOT union-typed.
   # Here we FILLNULL `event_id` (integer in both indices) instead of the conflicting `client_ip`.

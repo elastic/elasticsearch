@@ -3735,6 +3735,11 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertThat(fillNull.targetFields().get(0), equalToIgnoringIds(attribute("a")));
     }
 
+    public void testFillNullNotInReleaseBuild() {
+        assumeFalse("only runs on release build", Build.current().isSnapshot());
+        expectThrows(ParsingException.class, containsString("mismatched input 'FILLNULL'"), () -> query("FROM foo | FILLNULL"));
+    }
+
     public void testValidFork() {
         var plan = query("""
             FROM foo*

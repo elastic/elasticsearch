@@ -3422,6 +3422,18 @@ public class VerifierTests extends ESTestCase {
         defaultAnalyzer().query("ROW a = null, b = 1 | FILLNULL WITH \"x\" a");
     }
 
+    public void testFillNullThenFullTextOnFilledFieldRejected() {
+        assumeTrue("requires snapshot builds", Build.current().isSnapshot());
+
+        // FILLNULL rewrites the target into a Coalesce alias (a reference attribute), so it is no longer a
+        // field from the index mapping. Full-text functions on a filled field must be rejected, exactly as
+        // for EVAL col = COALESCE(...) | WHERE MATCH(col, ...).
+        fullText().error(
+            "from test | FILLNULL WITH \"\" title | where match(title, \"data\")",
+            containsString("[MATCH] function cannot operate on [title], which is not a field from an index mapping")
+        );
+    }
+
     public void testFullTextFunctionsInStats() {
         checkFullTextFunctionsInStats("match(title, \"Meditation\")");
         checkFullTextFunctionsInStats("title : \"Meditation\"");

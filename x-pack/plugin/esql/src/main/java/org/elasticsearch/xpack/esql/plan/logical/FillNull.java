@@ -35,6 +35,12 @@ import static org.elasticsearch.xpack.esql.common.Failure.fail;
  * Replaces null values in specified fields (or all fields) with a given fill value
  * or type-appropriate defaults. Expands into an {@link Eval} with {@link Coalesce} aliases,
  * wrapped in a {@link Project} to preserve the original column order.
+ * <p>
+ * Without an explicit fill value, only numeric, string and boolean columns receive a default;
+ * columns of any other type and all-null ({@code NULL}-typed) columns are left unchanged.
+ * <p>
+ * A filled column becomes a reference attribute (as with {@code EVAL col = COALESCE(col, ...)}),
+ * so full-text functions and Lucene filter pushdown no longer treat it as an indexed field.
  */
 public class FillNull extends UnaryPlan implements SurrogateLogicalPlan, PostAnalysisVerificationAware, TelemetryAware {
 
@@ -218,6 +224,12 @@ public class FillNull extends UnaryPlan implements SurrogateLogicalPlan, PostAna
             return null;
         }
         if (fillValue != null) {
+            // A null fill value (FILLNULL WITH null, or a parameter bound to null) would expand to
+            // Coalesce(col, null) - a no-op that needlessly rewrites the column into a reference attribute.
+            // Leave the column untouched regardless of the literal's declared type.
+            if (fillValue instanceof Literal fillLiteral && fillLiteral.value() == null) {
+                return null;
+            }
             DataType fillType = fillValue.dataType();
             if (fillType == type) {
                 return fillValue;

@@ -49,6 +49,21 @@ clients:double | step:datetime            | cluster:keyword
 205.0          | 2024-05-10T00:03:00.000Z | staging
 ;
 
+// `offset 3m` at time=00:06 evaluates at 00:03, reproducing instant_last_over_time_clients with a step label of 00:06.
+instant_offset_modifier
+required_capability: promql_command_v0
+required_capability: promql_instant_query
+required_capability: promql_offset_modifier
+
+PROMQL index=k8s time="2024-05-10T00:06:00.000Z" clients=(avg by (cluster) (last_over_time(network.eth0.currently_connected_clients[1m] offset 3m)))
+| SORT cluster;
+
+clients:double | step:datetime            | cluster:keyword
+632.5          | 2024-05-10T00:06:00.000Z | prod
+565.0          | 2024-05-10T00:06:00.000Z | qa
+205.0          | 2024-05-10T00:06:00.000Z | staging
+;
+
 instant_first_over_time_bytes
 required_capability: promql_command_v0
 required_capability: promql_instant_query

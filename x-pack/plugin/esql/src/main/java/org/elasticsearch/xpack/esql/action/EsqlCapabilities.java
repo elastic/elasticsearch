@@ -2317,6 +2317,12 @@ public class EsqlCapabilities {
         PROMQL_ABSENT_LABEL_MATCHING,
 
         /**
+         * Support for the PromQL {@code offset} modifier, implemented as a constant time shift of the evaluation
+         * timestamp. Heterogeneous offsets within a single source-backed binary operator remain unsupported.
+         */
+        PROMQL_OFFSET_MODIFIER(PROMQL_COMMAND_V0.isEnabled()),
+
+        /**
          * Support for the {@code TS_COLLAPSE} pipe command, which collapses PromQL results
          * into one multi-valued row per series.
          */

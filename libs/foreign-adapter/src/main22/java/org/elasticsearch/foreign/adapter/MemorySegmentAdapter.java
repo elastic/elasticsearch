@@ -15,6 +15,9 @@ import java.lang.foreign.MemorySegment;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.VarHandle;
 
+/**
+ * Adapts MemorySegment APIs that changed between JDK 21 and 22+.
+ */
 public class MemorySegmentAdapter {
 
     public static String getString(MemorySegment segment, long offset) {
@@ -29,6 +32,8 @@ public class MemorySegmentAdapter {
         return arena.allocateFrom(s);
     }
 
+    // MemoryLayout.varHandle changed between Java 21 and 22 to require a new offset
+    // parameter for the returned VarHandle. This function exists to remove the need for that offset.
     public static VarHandle varHandleWithoutOffset(MemoryLayout layout, MemoryLayout.PathElement element) {
         return MethodHandles.insertCoordinates(layout.varHandle(element), 1, 0L);
     }

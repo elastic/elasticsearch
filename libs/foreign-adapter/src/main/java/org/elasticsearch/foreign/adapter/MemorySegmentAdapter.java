@@ -32,13 +32,12 @@ public class MemorySegmentAdapter {
     }
 
     /**
-     * Returns a {@link VarHandle} to access an element within the given memory layout.
-     * On JDK 21 this is a no-op pass-through; on JDK 22+ the returned VarHandle has an
-     * extra offset coordinate that must be fixed up with {@code insertCoordinates}.
+     * Return a {@link VarHandle} to access an element within the given memory layout.
+     * Note: This is no-op in Java 21, see the Java 22 implementation.
      *
-     * @param layout  the layout of a struct to access
-     * @param element the element within the struct to access
-     * @return a {@link VarHandle} that accesses the element with a fixed offset of 0
+     * @param layout  The layout of a struct to access
+     * @param element The element within the struct to access
+     * @return A {@link VarHandle} that accesses the element with a fixed offset of 0
      */
     public static VarHandle varHandleWithoutOffset(MemoryLayout layout, MemoryLayout.PathElement element) {
         return layout.varHandle(element);

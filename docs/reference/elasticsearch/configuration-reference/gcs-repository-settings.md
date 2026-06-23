@@ -104,6 +104,20 @@ The following settings are supported:
 `chunk_size`
 :   Big files can be broken down into multiple smaller blobs in the blob store during snapshotting. It is not recommended to change this value from its default unless there is an explicit reason for limiting the size of blobs in the repository. Setting a value lower than the default can result in an increased number of API calls to the Google Cloud Storage Service during snapshot create as well as restore operations compared to using the default value and thus make both operations slower as well as more costly. Specify the chunk size as a value and unit, for example: `10MB`, `5KB`, `500B`. Defaults to the maximum size of a blob in the Google Cloud Storage Service which is `5TB`.
 
+`data_storage_class` {applies_to}`stack: ga 9.5`
+:   Sets the [GCP storage class](https://cloud.google.com/storage/docs/storage-classes) for data blobs in the repository. These blobs hold the files that make up each snapshotted shard and make up most of the repository volume, but are only read when restoring a shard or accessing its contents (for example, searchable snapshots read this data).
+
+    Accepted values are `standard`, `nearline`, and `coldline`.
+
+    If not specified, the storage class of uploaded data blobs is determined by the bucket's default storage class.
+
+`metadata_storage_class` {applies_to}`stack: ga 9.5`
+:   Sets the [GCP storage class](https://cloud.google.com/storage/docs/storage-classes) for metadata blobs in the repository. These are generally smaller in size than data blobs but might be read more frequently for operations such as listing repository contents, taking snapshots, or otherwise manipulating the repository.
+
+    Accepted values are `standard`, `nearline`, and `coldline`.
+
+    If not specified, the storage class of uploaded metadata blobs is determined by the bucket's default storage class.
+
 `compress`
 :   When set to `true` metadata files are stored in compressed format. This setting doesn't affect index files that are already compressed by default. Defaults to `true`.
 

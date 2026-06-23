@@ -60,7 +60,7 @@ public class Clusters {
             .configFile("ingest-geoip/GeoLite2-ASN.mmdb", Resource.fromClasspath("GeoLite2-ASN.mmdb"))
             .setting("ingest.geoip.downloader.enabled", "false")
             .apply(() -> configProvider)
-            .feature(FeatureFlag.EXTENDED_DOC_VALUES_PARAMS);
+            .feature(FeatureFlag.COLUMNAR_INDEX_MODE_FEATURE_FLAG);
         if (securityEnabled) {
             builder.user(ADMIN_USER, ADMIN_PASSWORD, "superuser", true);
         }

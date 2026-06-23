@@ -1977,100 +1977,6 @@ required_capability: string_literal_auto_casting
 
 FROM date_extract_fields
 | WHERE date_part == "day_of_month"
-| EVAL format = CASE(date_part == "day_of_month", "yyyy-MM-dd", "yyyy-MM")
-| EVAL df = DATE_FORMAT(format, "1989-06-02T00:00:00.000Z")
-| KEEP df
-;
-
-df:keyword
-1989-06-02
-;
-
-dateFormatFormatFieldDateField
-required_capability: string_literal_auto_casting
-
-FROM date_extract_fields
-| WHERE date_part == "day_of_month"
-| EVAL format = CASE(date_part == "day_of_month", "yyyy-MM-dd", "yyyy-MM"), date_val_str = CASE(date_part == "day_of_month", "1989-06-02T00:00:00.000Z", "1989-06-02T00:00:00.000Z")
-| EVAL df = DATE_FORMAT(format, TO_DATETIME(date_val_str))
-| KEEP df
-;
-
-df:keyword
-1989-06-02
-;
-
-dateParseFormatFieldStringConstant
-FROM date_extract_fields
-| WHERE date_part == "day_of_month"
-| EVAL format = CASE(date_part == "day_of_month", "yyyy-MM-dd", "yyyy-MM")
-| EVAL b = date_parse(format, "2023-02-01")
-| KEEP b
-;
-
-b:datetime
-2023-02-01T00:00:00.000Z
-;
-
-dateParseFormatFieldStringField
-FROM date_extract_fields
-| WHERE date_part == "day_of_month"
-| EVAL format = CASE(date_part == "day_of_month", "yyyy-MM-dd", "yyyy-MM"), a = CASE(date_part == "day_of_month", "2023-02-01", "2023-02-02")
-| EVAL b = date_parse(format, a)
-| KEEP b
-;
-
-b:datetime
-2023-02-01T00:00:00.000Z
-;
-
-dateUnitCountInnerFieldOuterConstant
-required_capability: esql_date_unit_count_fn
-
-FROM date_extract_fields
-| WHERE date_part == "day_of_month"
-| EVAL dt = to_datetime("2024-02-15T00:00:00.000Z"), inner = CASE(date_part == "day_of_month", "day", "month")
-| EVAL days = DATE_UNIT_COUNT(inner, "month", dt)
-| KEEP days
-;
-
-days:long
-29
-;
-
-dateUnitCountInnerConstantOuterField
-required_capability: esql_date_unit_count_fn
-
-FROM date_extract_fields
-| WHERE date_part == "day_of_month"
-| EVAL dt = to_datetime("2024-02-15T00:00:00.000Z"), outer = CASE(date_part == "day_of_month", "month", "year")
-| EVAL days = DATE_UNIT_COUNT("day", outer, dt)
-| KEEP days
-;
-
-days:long
-29
-;
-
-dateUnitCountInnerFieldOuterField
-required_capability: esql_date_unit_count_fn
-
-FROM date_extract_fields
-| WHERE date_part == "day_of_month"
-| EVAL dt = to_datetime("2024-02-15T00:00:00.000Z"), inner = CASE(date_part == "day_of_month", "day", "month"), outer = CASE(date_part == "day_of_month", "month", "year")
-| EVAL days = DATE_UNIT_COUNT(inner, outer, dt)
-| KEEP days
-;
-
-days:long
-29
-;
-
-dateFormatFormatFieldDateConstantDirect
-required_capability: string_literal_auto_casting
-
-FROM date_extract_fields
-| WHERE date_part == "day_of_month"
 | EVAL df = DATE_FORMAT(format_val, "1989-06-02T00:00:00.000Z")
 | KEEP df
 ;
@@ -2079,7 +1985,7 @@ df:keyword
 1989-06-02
 ;
 
-dateFormatFormatFieldDateFieldDirect
+dateFormatFormatFieldDateField
 required_capability: string_literal_auto_casting
 
 FROM date_extract_fields
@@ -2093,7 +1999,7 @@ df:keyword
 1989-06-02
 ;
 
-dateParseFormatFieldStringConstantDirect
+dateParseFormatFieldStringConstant
 FROM date_extract_fields
 | WHERE date_part == "day_of_month"
 | EVAL b = date_parse(format_val, "2023-02-01")
@@ -2104,7 +2010,7 @@ b:datetime
 2023-02-01T00:00:00.000Z
 ;
 
-dateParseFormatFieldStringFieldDirect
+dateParseFormatFieldStringField
 FROM date_extract_fields
 | WHERE date_part == "day_of_month"
 | EVAL b = date_parse(format_val, date_string)
@@ -2115,7 +2021,7 @@ b:datetime
 2023-02-01T00:00:00.000Z
 ;
 
-dateUnitCountInnerFieldOuterConstantDirect
+dateUnitCountInnerFieldOuterConstant
 required_capability: esql_date_unit_count_fn
 
 FROM date_extract_fields
@@ -2129,7 +2035,7 @@ days:long
 29
 ;
 
-dateUnitCountInnerConstantOuterFieldDirect
+dateUnitCountInnerConstantOuterField
 required_capability: esql_date_unit_count_fn
 
 FROM date_extract_fields
@@ -2143,7 +2049,7 @@ days:long
 29
 ;
 
-dateUnitCountInnerFieldOuterFieldDirect
+dateUnitCountInnerFieldOuterField
 required_capability: esql_date_unit_count_fn
 
 FROM date_extract_fields

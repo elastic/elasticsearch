@@ -62,6 +62,7 @@ public final class ThrottlingRecoveryService implements ClusterStateListener, Cl
     private int runningRecoveries = 0;
     private final Deque<PendingRecovery> pendingRecoveries = new ArrayDeque<>();
 
+    /// Records recoveries which were `direct cancelled` by the master.
     private final Map<String, ShardId> cancelledAllocationIds = new HashMap<>();
 
     private boolean closed;
@@ -125,15 +126,12 @@ public final class ThrottlingRecoveryService implements ClusterStateListener, Cl
     /// Cancels recoveries matching the provided allocation ID batch.
     ///
     /// For each allocation ID, pre-emptively records the cancellation so that a future [#enqueue] call will reject it.
-    /// Any matching entries already in the pending queue are removed immediately and their listeners are notified via
-    /// `onRecoveryFailure` (with `sendShardFailure=false`, since the master is informed through the action response).
+    /// Any matching entries already in the pending queue are immediately notified via `onRecoveryFailure`
+    /// (with `sendShardFailure=false`, since the master is informed through the action response).
     ///
-    /// Returns the set of allocation IDs that were found and removed from the pending queue. Allocation IDs whose
-    /// recoveries have already been dispatched or not yet enqueued are recorded in `cancelledAllocationIds` for
-    /// future [#enqueue] interception, and are NOT included in the returned set.
+    /// Returns the set of allocation IDs that were found and removed from the pending queue.
     public Set<String> cancelRecoveries(Map<String, ShardId> cancellations) {
-        final List<PendingRecovery> cancelledInQueue = new ArrayList<>();
-        final Set<String> allocationIdsFound = new HashSet<>();
+        final List<PendingRecovery> recoveriesToCancel = new ArrayList<>();
         synchronized (this) {
             cancelledAllocationIds.putAll(cancellations);
             final Iterator<PendingRecovery> it = pendingRecoveries.iterator();
@@ -142,20 +140,22 @@ public final class ThrottlingRecoveryService implements ClusterStateListener, Cl
                 if (cancellations.containsKey(candidate.allocationId())) {
                     assert cancellations.get(candidate.allocationId()).equals(candidate.recoveryState().getShardId());
                     it.remove();
-                    cancelledAllocationIds.remove(candidate.allocationId());
-                    cancelledInQueue.add(candidate);
-                    allocationIdsFound.add(candidate.allocationId());
+                    recoveriesToCancel.add(candidate);
                     candidate.stats().targetQueuedRecoveryDiscarded(candidate.recoveryState().getRecoverySource().getType());
                 }
             }
         }
-        for (PendingRecovery cancelled : cancelledInQueue) {
-            final RecoveryState state = cancelled.recoveryState();
-            cancelled.listener()
+        final Set<String> cancelledInQueue = new HashSet<>(recoveriesToCancel.size());
+        for (PendingRecovery pendingRecovery : recoveriesToCancel) {
+            final RecoveryState state = pendingRecovery.recoveryState();
+
+            logger.trace("cancelling recovery in queue: {}", state);
+            pendingRecovery.listener()
                 .onRecoveryFailure(new RecoveryCancelledException(state.getShardId(), state.getSourceNode(), state.getTargetNode()), false);
             schedulingListeners.onQueuedRecoveryDiscarded(state.getRecoverySource().getType(), RecoveryRole.TARGET);
+            cancelledInQueue.add(pendingRecovery.allocationId());
         }
-        return allocationIdsFound;
+        return cancelledInQueue;
     }
 
     @Override
@@ -188,8 +188,9 @@ public final class ThrottlingRecoveryService implements ClusterStateListener, Cl
             }
         }
         for (PendingRecovery stale : staleRecoveries) {
-            logger.debug("cancelling stale queued recovery: {}", stale.recoveryState());
             final RecoveryState state = stale.recoveryState();
+
+            logger.debug("cancelling stale queued recovery: {}", state);
             stale.listener()
                 .onRecoveryFailure(new RecoveryCancelledException(state.getShardId(), state.getSourceNode(), state.getTargetNode()), false);
             schedulingListeners.onQueuedRecoveryDiscarded(state.getRecoverySource().getType(), RecoveryRole.TARGET);

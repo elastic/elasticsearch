@@ -12,18 +12,18 @@ package org.elasticsearch.indices.recovery;
 import org.apache.logging.log4j.Level;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.recovery.RecoveryStats;
@@ -36,48 +36,48 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.MockUtils;
-import org.mockito.ArgumentCaptor;
+import org.junit.After;
 
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 
+import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.atLeastOnce;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class TransportCancelRecoveriesActionTests extends ESTestCase {
 
-    private ClusterService clusterService;
     private IndicesService indicesService;
+    private DeterministicTaskQueue taskQueue;
     private ThrottlingRecoveryService throttlingRecoveryService;
     private TransportCancelRecoveriesAction action;
 
     @Override
     public void setUp() throws Exception {
         super.setUp();
-
-        final var transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor();
-        clusterService = mock(ClusterService.class);
+        taskQueue = new DeterministicTaskQueue();
+        final var clusterService = mock(ClusterService.class);
         indicesService = mock(IndicesService.class);
         when(clusterService.state()).thenReturn(ClusterState.EMPTY_STATE);
         when(clusterService.localNode()).thenReturn(DiscoveryNodeUtils.create("test-node"));
-        when(clusterService.getClusterSettings()).thenReturn(
-            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+        final var clusterSettings = new ClusterSettings(
+            Settings.builder().put(ThrottlingRecoveryService.INDICES_RECOVERY_MAX_CONCURRENT_RECOVERIES_SETTING.getKey(), 1).build(),
+            Set.of(ThrottlingRecoveryService.INDICES_RECOVERY_MAX_CONCURRENT_RECOVERIES_SETTING)
         );
+        when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
         throttlingRecoveryService = new ThrottlingRecoveryService(
-            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            taskQueue.getThreadPool().generic(),
             clusterService,
             new CompositeRecoverySchedulingListener()
         );
         when(indicesService.throttlingRecoveryService()).thenReturn(throttlingRecoveryService);
-
         action = new TransportCancelRecoveriesAction(
-            transportService,
+            MockUtils.setupTransportServiceWithThreadpoolExecutor(),
             new ActionFilters(Set.of()),
             clusterService,
             indicesService,
@@ -85,159 +85,215 @@ public class TransportCancelRecoveriesActionTests extends ESTestCase {
         );
     }
 
-    public void testMissingIndexIsIgnored() {
-        final var indexName = randomIndexName();
-        final var shardId = new ShardId(indexName, UUIDs.randomBase64UUID(), 0);
-        final var allocationId = UUIDs.randomBase64UUID();
-
-        when(indicesService.indexServiceSafe(eq(shardId.getIndex()))).thenThrow(new IndexNotFoundException("index not found"));
-
-        final var future = new PlainActionFuture<CancelRecoveriesAction.Response>();
-        action.execute(mock(Task.class), requestForShard(shardId, allocationId, 0L, true), future);
-        assertNotNull(future.actionGet());
+    @After
+    public void tearDown() throws Exception {
+        super.tearDown();
     }
 
-    public void testShardNotRecoveringIsIgnored() {
-        final var indexName = randomIndexName();
-        final var shardId = new ShardId(indexName, UUIDs.randomBase64UUID(), 0);
-        final var allocationId = UUIDs.randomBase64UUID();
-        final var indexService = mock(IndexService.class);
-        final var indexShard = mock(IndexShard.class);
-        final var routing = ShardRouting.newUnassigned(
-            shardId,
-            true,
-            mock(RecoverySource.class),
-            new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "test"),
-            ShardRouting.Role.DEFAULT
-        ).initialize(randomIdentifier(), allocationId, 0L).moveToStarted(0L);
-
-        when(indicesService.indexServiceSafe(shardId.getIndex())).thenReturn(indexService);
-        when(indexService.getShard(shardId.id())).thenReturn(indexShard);
-        when(indexShard.routingEntry()).thenReturn(routing);
-        when(indexShard.state()).thenReturn(IndexShardState.STARTED);
-
-        final var future = new PlainActionFuture<CancelRecoveriesAction.Response>();
-        action.execute(mock(Task.class), requestForShard(shardId, allocationId, 0L, true), future);
-        assertNotNull(future.actionGet());
-
-        verify(indexShard, never()).requestRecoveryCancellation(any());
-    }
-
-    public void testCancelIfStartedFalseSkipsDirectCancellation() {
-        final var indexName = randomIndexName();
-        final var shardId = new ShardId(indexName, UUIDs.randomBase64UUID(), 0);
-        final var allocationId = UUIDs.randomBase64UUID();
-        final var indexService = mock(IndexService.class);
-        final var indexShard = mock(IndexShard.class);
-        final var routing = ShardRouting.newUnassigned(
-            shardId,
-            true,
-            mock(RecoverySource.class),
-            new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "test"),
-            ShardRouting.Role.DEFAULT
-        ).initialize(randomIdentifier(), allocationId, 0L);
-
-        when(indicesService.indexServiceSafe(shardId.getIndex())).thenReturn(indexService);
-        when(indexService.getShard(shardId.id())).thenReturn(indexShard);
-        when(indexShard.routingEntry()).thenReturn(routing);
-        when(indexShard.state()).thenReturn(IndexShardState.RECOVERING);
-
-        final var future = new PlainActionFuture<CancelRecoveriesAction.Response>();
-        action.execute(mock(Task.class), requestForShard(shardId, allocationId, 0L, false), future);
-        assertNotNull(future.actionGet());
-
-        verify(indexShard, never()).requestRecoveryCancellation(any());
-    }
-
-    public void testCancelIfStartedFalseStillCancelsQueuedRecovery() {
-        final var shardId = new ShardId(randomIndexName(), UUIDs.randomBase64UUID(), 0);
-        final var allocationId = UUIDs.randomBase64UUID();
-
-        // Makes sure the cancellation gets recorded to throttlingRecoveryService
-        when(indicesService.indexServiceSafe(shardId.getIndex())).thenThrow(new IndexNotFoundException("not found"));
-
-        final var future = new PlainActionFuture<CancelRecoveriesAction.Response>();
-        action.execute(mock(Task.class), requestForShard(shardId, allocationId, 0L, false), future);
-
-        final var cancelled = new AtomicBoolean(false);
-        final var recoveryState = mock(RecoveryState.class);
-        when(recoveryState.getRecoverySource()).thenReturn(RecoverySource.ExistingStoreRecoverySource.INSTANCE);
-        when(recoveryState.getShardId()).thenReturn(shardId);
-
-        final var recoveryStarted = new AtomicBoolean(false);
-        throttlingRecoveryService.enqueue(new RecoveryListener() {
-            @Override
-            public void onRecoveryDone(
-                RecoveryState state,
-                ShardLongFieldRange timestampMillisFieldRange,
-                ShardLongFieldRange eventIngestedMillisFieldRange
-            ) {}
-
-            @Override
-            public void onRecoveryFailure(RecoveryFailedException e, boolean sendShardFailure) {
-                cancelled.set(true);
-            }
-
-            @Override
-            public void onRecoveryAborted() {}
-        }, recoveryState, allocationId, new RecoveryStats(), listener -> recoveryStarted.set(true));
-
-        assertTrue("recovery should be cancelled at queueing time", cancelled.get());
-        assertFalse("recovery task should not have been invoked", recoveryStarted.get());
-    }
-
-    public void testExceptionInOneCancellationDoesNotBlockOthers() {
-        final var indexName = randomIndexName();
-        final var shardId1 = new ShardId(indexName, UUIDs.randomBase64UUID(), 0);
+    public void testActionResponseIncludesAllCancelledRecoveriesInQueue() {
+        final var shardId0 = new ShardId(randomIndexName(), UUIDs.randomBase64UUID(), 0);
+        final var allocationId0 = UUIDs.randomBase64UUID();
+        final var shardId1 = new ShardId(randomIndexName(), UUIDs.randomBase64UUID(), 1);
         final var allocationId1 = UUIDs.randomBase64UUID();
-        final var shardId2 = new ShardId("other", UUIDs.randomBase64UUID(), 0);
+        final var shardId2 = new ShardId(randomIndexName(), UUIDs.randomBase64UUID(), 2);
         final var allocationId2 = UUIDs.randomBase64UUID();
 
-        when(indicesService.indexServiceSafe(shardId1.getIndex())).thenThrow(new IndexNotFoundException("index not found"));
-        when(indicesService.indexServiceSafe(shardId2.getIndex())).thenThrow(new IndexNotFoundException("index not found"));
+        // running recovery
+        final var recoveryState0 = newRecoveryState(shardId0);
+        throttlingRecoveryService.enqueue(
+            RecoveryListener.NOOP,
+            recoveryState0,
+            allocationId0,
+            new RecoveryStats(),
+            l -> taskQueue.scheduleAt(
+                taskQueue.getCurrentTimeMillis() + 100,
+                () -> l.onRecoveryDone(recoveryState0, ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY)
+            )
+        );
 
+        // queued recovery
+        final var recoveryState1 = newRecoveryState(shardId1);
+        throttlingRecoveryService.enqueue(
+            RecoveryListener.NOOP,
+            recoveryState1,
+            allocationId1,
+            new RecoveryStats(),
+            ignored -> fail("recovery should be cancelled")
+        );
+
+        // queued recovery
+        final var recoveryState2 = newRecoveryState(shardId2);
+        throttlingRecoveryService.enqueue(
+            RecoveryListener.NOOP,
+            recoveryState2,
+            allocationId2,
+            new RecoveryStats(),
+            ignored -> fail("recovery should be cancelled")
+        );
+
+        taskQueue.runAllRunnableTasks();
+        assertThat(throttlingRecoveryService.currentQueueSize(), equalTo(2));
+
+        final var indexShard = mockIndexShard(shardId0, allocationId0);
+        final var indexService = mockIndexServiceForShard(indexShard);
+        when(indicesService.indexServiceSafe(eq(shardId0.getIndex()))).thenReturn(indexService);
+
+        final var responseFuture = new PlainActionFuture<CancelRecoveriesAction.Response>();
         final var request = new CancelRecoveriesAction.Request(
             0L,
             List.of(
+                new CancelRecoveriesAction.ShardRecoveryCancellation(shardId0, allocationId0, true),
                 new CancelRecoveriesAction.ShardRecoveryCancellation(shardId1, allocationId1, true),
                 new CancelRecoveriesAction.ShardRecoveryCancellation(shardId2, allocationId2, true)
             )
         );
-
-        final var future = new PlainActionFuture<CancelRecoveriesAction.Response>();
-        action.execute(mock(Task.class), request, future);
-        future.actionGet();
-
-        verify(indicesService).indexServiceSafe(shardId1.getIndex());
-        verify(indicesService).indexServiceSafe(shardId2.getIndex());
+        action.execute(mock(Task.class), request, responseFuture);
+        final var response = responseFuture.actionGet();
+        assertThat(response.cancelledInQueue(), equalTo(Set.of(allocationId1, allocationId2)));
+        assertThrows((RecoveryCancelledException.class), indexShard::ensureRecoveryNotCancelled);
     }
 
-    public void testActionIsDelayedUntilRequiredClusterStateVersion() {
+    public void testCancelIfStartedFalseCancelsQueuedRecoveryButSkipsDirectCancellation() {
+        final var shardId0 = new ShardId(randomIndexName(), UUIDs.randomBase64UUID(), 0);
+        final var allocationId0 = UUIDs.randomBase64UUID();
+        final var shardId1 = new ShardId(randomIndexName(), UUIDs.randomBase64UUID(), 1);
+        final var allocationId1 = UUIDs.randomBase64UUID();
+
+        // running recovery
+        final var recoveryState0 = newRecoveryState(shardId0);
+        throttlingRecoveryService.enqueue(
+            RecoveryListener.NOOP,
+            recoveryState0,
+            allocationId0,
+            new RecoveryStats(),
+            l -> taskQueue.scheduleAt(
+                taskQueue.getCurrentTimeMillis() + 100,
+                () -> l.onRecoveryDone(recoveryState0, ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY)
+            )
+        );
+
+        // queued recovery
+        final var recoveryState1 = newRecoveryState(shardId1);
+        throttlingRecoveryService.enqueue(
+            RecoveryListener.NOOP,
+            recoveryState1,
+            allocationId1,
+            new RecoveryStats(),
+            ignored -> fail("recovery should be cancelled")
+        );
+        taskQueue.runAllRunnableTasks();
+        assertThat(throttlingRecoveryService.currentQueueSize(), equalTo(1));
+
+        final var indexShard = mockIndexShard(shardId0, allocationId0);
+        final var indexService = mockIndexServiceForShard(indexShard);
+        when(indicesService.indexServiceSafe(eq(shardId0.getIndex()))).thenReturn(indexService);
+
+        final var responseFuture = new PlainActionFuture<CancelRecoveriesAction.Response>();
+        final var request = new CancelRecoveriesAction.Request(
+            0L,
+            List.of(
+                new CancelRecoveriesAction.ShardRecoveryCancellation(shardId0, allocationId0, false),
+                new CancelRecoveriesAction.ShardRecoveryCancellation(shardId1, allocationId1, false)
+            )
+        );
+        action.execute(mock(Task.class), request, responseFuture);
+        final var response = responseFuture.actionGet();
+        assertThat(response.cancelledInQueue(), equalTo(Set.of(allocationId1)));
+        indexShard.ensureRecoveryNotCancelled();
+    }
+
+    public void testActionIgnoresMissingIndex() {
+        final var shardId = new ShardId(randomIndexName(), UUIDs.randomBase64UUID(), 0);
+        final var allocationId = UUIDs.randomBase64UUID();
+
+        when(indicesService.indexServiceSafe(eq(shardId.getIndex()))).thenThrow(new IndexNotFoundException("index not found"));
+
+        final var responseFuture = new PlainActionFuture<CancelRecoveriesAction.Response>();
+        final var request = new CancelRecoveriesAction.Request(
+            0L,
+            List.of(new CancelRecoveriesAction.ShardRecoveryCancellation(shardId, allocationId, true))
+        );
+        action.execute(mock(Task.class), request, responseFuture);
+        final var response = responseFuture.actionGet();
+        assertTrue(response.cancelledInQueue().isEmpty());
+    }
+
+    public void testActionIgnoresShardNotRecovering() {
         final var indexName = randomIndexName();
         final var shardId = new ShardId(indexName, UUIDs.randomBase64UUID(), 0);
         final var allocationId = UUIDs.randomBase64UUID();
-        final var oldClusterState = ClusterState.EMPTY_STATE;
-        when(clusterService.state()).thenReturn(oldClusterState);
+        final var indexShard = mockIndexShard(shardId, allocationId);
+        when(indexShard.state()).thenReturn(IndexShardState.STARTED);
+        final var indexService = mockIndexServiceForShard(indexShard);
 
-        when(indicesService.indexServiceSafe(any())).thenThrow(new IndexNotFoundException("index not found"));
+        when(indicesService.indexServiceSafe(shardId.getIndex())).thenReturn(indexService);
 
-        final var future = new PlainActionFuture<CancelRecoveriesAction.Response>();
-        action.execute(mock(Task.class), requestForShard(shardId, allocationId, oldClusterState.version() + 1L, true), future);
+        final var responseFuture = new PlainActionFuture<CancelRecoveriesAction.Response>();
+        final var request = new CancelRecoveriesAction.Request(
+            0L,
+            List.of(new CancelRecoveriesAction.ShardRecoveryCancellation(shardId, allocationId, true))
+        );
+        action.execute(mock(Task.class), request, responseFuture);
+        final var response = responseFuture.actionGet();
+        assertTrue(response.cancelledInQueue().isEmpty());
 
-        assertFalse("processing should be deferred until cluster state version is met", future.isDone());
+        indexShard.ensureRecoveryNotCancelled();
+    }
 
-        // ThrottlingRecoveryService also registers a ClusterStateListener so we use atLeast(1)
-        final var listenerCaptor = ArgumentCaptor.forClass(ClusterStateListener.class);
-        verify(clusterService, atLeastOnce()).addListener(listenerCaptor.capture());
+    public void testExceptionInOneCancellationDoesNotAffectOthers() {
+        final var shardId0 = new ShardId(randomIndexName(), UUIDs.randomBase64UUID(), 0);
+        final var allocationId0 = UUIDs.randomBase64UUID();
+        final var shardId1 = new ShardId(randomIndexName(), UUIDs.randomBase64UUID(), 1);
+        final var allocationId1 = UUIDs.randomBase64UUID();
+        final var shardId2 = new ShardId(randomIndexName(), UUIDs.randomBase64UUID(), 2);
+        final var allocationId2 = UUIDs.randomBase64UUID();
 
-        final var advancedState = mock(ClusterState.class);
-        when(advancedState.version()).thenReturn(oldClusterState.version() + 1L);
-        final var event = mock(ClusterChangedEvent.class);
-        when(event.state()).thenReturn(advancedState);
-        listenerCaptor.getValue().clusterChanged(event);
+        when(indicesService.indexServiceSafe(shardId1.getIndex())).thenThrow(new IndexNotFoundException("index not found"));
+        final var indexShard0 = mockIndexShard(shardId0, allocationId0);
+        final var indexService0 = mockIndexServiceForShard(indexShard0);
 
-        assertTrue("processing should have completed after cluster state advanced", future.isDone());
-        verify(indicesService).indexServiceSafe(shardId.getIndex());
+        when(indicesService.indexServiceSafe(shardId0.getIndex())).thenReturn(indexService0);
+
+        // running recovery
+        final var recoveryState0 = newRecoveryState(shardId0);
+        throttlingRecoveryService.enqueue(
+            RecoveryListener.NOOP,
+            recoveryState0,
+            allocationId0,
+            new RecoveryStats(),
+            l -> taskQueue.scheduleAt(
+                taskQueue.getCurrentTimeMillis() + 100,
+                () -> l.onRecoveryDone(recoveryState0, ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY)
+            )
+        );
+
+        // queued recovery
+        final var recoveryState2 = newRecoveryState(shardId2);
+        throttlingRecoveryService.enqueue(
+            RecoveryListener.NOOP,
+            recoveryState2,
+            allocationId2,
+            new RecoveryStats(),
+            ignored -> fail("recovery should be cancelled")
+        );
+
+        taskQueue.runAllRunnableTasks();
+        assertThat(throttlingRecoveryService.currentQueueSize(), equalTo(1));
+
+        final var responseFuture = new PlainActionFuture<CancelRecoveriesAction.Response>();
+        final var request = new CancelRecoveriesAction.Request(
+            0L,
+            List.of(
+                new CancelRecoveriesAction.ShardRecoveryCancellation(shardId0, allocationId0, true),
+                new CancelRecoveriesAction.ShardRecoveryCancellation(shardId1, allocationId1, true),
+                new CancelRecoveriesAction.ShardRecoveryCancellation(shardId2, allocationId2, true)
+            )
+        );
+        action.execute(mock(Task.class), request, responseFuture);
+        final var response = responseFuture.actionGet();
+        assertThat(response.cancelledInQueue(), equalTo(Set.of(allocationId2)));
+
+        assertThrows((RecoveryCancelledException.class), indexShard0::ensureRecoveryNotCancelled);
     }
 
     public void testReshardSplitCancellationIsNotSupported() {
@@ -268,14 +324,17 @@ public class TransportCancelRecoveriesActionTests extends ESTestCase {
                     "*encountered error when direct cancelling shard*"
                 )
             );
-
-            final var future = new PlainActionFuture<CancelRecoveriesAction.Response>();
-            action.execute(mock(Task.class), requestForShard(shardId, allocationId, 0L, true), future);
-            assertNotNull(future.actionGet());
-
+            final var responseFuture = new PlainActionFuture<CancelRecoveriesAction.Response>();
+            final var request = new CancelRecoveriesAction.Request(
+                0L,
+                List.of(new CancelRecoveriesAction.ShardRecoveryCancellation(shardId, allocationId, true))
+            );
+            action.execute(mock(Task.class), request, responseFuture);
+            final var response = responseFuture.actionGet();
+            assertTrue(response.cancelledInQueue().isEmpty());
             mockLog.assertAllExpectationsMatched();
         }
-        verify(indexShard, never()).requestRecoveryCancellation(any());
+        indexShard.ensureRecoveryNotCancelled();
     }
 
     public void testCancellationStoredAndAppliedWhenShardNotYetCreated() {
@@ -283,24 +342,25 @@ public class TransportCancelRecoveriesActionTests extends ESTestCase {
         final var allocationId = UUIDs.randomBase64UUID();
 
         when(indicesService.indexServiceSafe(shardId.getIndex())).thenThrow(new IndexNotFoundException("not found"));
-        final var storeFuture = new PlainActionFuture<CancelRecoveriesAction.Response>();
-        action.execute(mock(Task.class), requestForShard(shardId, allocationId, 0L, true), storeFuture);
-        storeFuture.actionGet();
+        final var responseFuture = new PlainActionFuture<CancelRecoveriesAction.Response>();
+        final var request = new CancelRecoveriesAction.Request(
+            0L,
+            List.of(new CancelRecoveriesAction.ShardRecoveryCancellation(shardId, allocationId, true))
+        );
+        action.execute(mock(Task.class), request, responseFuture);
+        final var response = responseFuture.actionGet();
+        assertTrue(response.cancelledInQueue().isEmpty());
 
-        // Simulate the shard being created and its recovery being enqueued
-        final var cancelled = new AtomicBoolean(false);
-        final var recoveryState = mock(RecoveryState.class);
-        when(recoveryState.getRecoverySource()).thenReturn(RecoverySource.ExistingStoreRecoverySource.INSTANCE);
-        when(recoveryState.getShardId()).thenReturn(shardId);
-
-        final var taskInvoked = new AtomicBoolean(false);
+        final var cancelled = new AtomicBoolean();
         throttlingRecoveryService.enqueue(new RecoveryListener() {
             @Override
             public void onRecoveryDone(
                 RecoveryState state,
                 ShardLongFieldRange timestampMillisFieldRange,
                 ShardLongFieldRange eventIngestedMillisFieldRange
-            ) {}
+            ) {
+                fail("recovery should be cancelled");
+            }
 
             @Override
             public void onRecoveryFailure(RecoveryFailedException e, boolean sendShardFailure) {
@@ -309,18 +369,60 @@ public class TransportCancelRecoveriesActionTests extends ESTestCase {
 
             @Override
             public void onRecoveryAborted() {
-
+                fail("recovery should be cancelled");
             }
-        }, recoveryState, allocationId, new RecoveryStats(), ignored -> taskInvoked.set(true));
+        }, newRecoveryState(shardId), allocationId, new RecoveryStats(), ignored -> fail("recovery should be cancelled"));
 
-        assertTrue("recovery should have been cancelled at enqueue time", cancelled.get());
-        assertFalse("recovery task should not have been invoked", taskInvoked.get());
+        taskQueue.runAllTasks();
+        assertTrue("expected recovery to be cancelled", cancelled.get());
     }
 
-    private CancelRecoveriesAction.Request requestForShard(ShardId sid, String aid, long clusterStateVersion, boolean cancelIfStarted) {
-        return new CancelRecoveriesAction.Request(
-            clusterStateVersion,
-            List.of(new CancelRecoveriesAction.ShardRecoveryCancellation(sid, aid, cancelIfStarted))
+    private static RecoveryState newRecoveryState(ShardId shardId) {
+        return newRecoveryState(randomFrom(RecoverySource.Type.PEER, RecoverySource.Type.EMPTY_STORE), shardId);
+    }
+
+    private static RecoveryState newRecoveryState(RecoverySource.Type type, ShardId shardId) {
+        final var routing = TestShardRouting.newShardRouting(
+            shardId,
+            "node",
+            true,
+            ShardRoutingState.INITIALIZING,
+            RecoverySource.EmptyStoreRecoverySource.INSTANCE
         );
+        return new RecoveryState(routing, null, DiscoveryNodeUtils.create("target"));
+    }
+
+    private static IndexService mockIndexServiceForShard(IndexShard indexShard) {
+        final var indexService = mock(IndexService.class);
+        when(indexService.getShard(indexShard.shardId().id())).thenReturn(indexShard);
+        return indexService;
+    }
+
+    private static IndexShard mockIndexShard(ShardId shardId, String allocationId) {
+        final var indexShard = mock(IndexShard.class);
+        final var routing = ShardRouting.newUnassigned(
+            shardId,
+            true,
+            RecoverySource.EmptyStoreRecoverySource.INSTANCE,
+            new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "test"),
+            ShardRouting.Role.DEFAULT
+        ).initialize(randomIdentifier(), allocationId, 0L);
+        when(indexShard.shardId()).thenReturn(shardId);
+        when(indexShard.routingEntry()).thenReturn(routing);
+        when(indexShard.state()).thenReturn(IndexShardState.RECOVERING);
+
+        final var cancelled = new AtomicReference<RecoveryCancelledException>();
+        doAnswer(invocation -> {
+            cancelled.set(invocation.getArgument(0));
+            return null;
+        }).when(indexShard).requestRecoveryCancellation(any());
+        doAnswer(ignored -> {
+            final var exception = cancelled.get();
+            if (exception != null) {
+                throw exception;
+            }
+            return null;
+        }).when(indexShard).ensureRecoveryNotCancelled();
+        return indexShard;
     }
 }

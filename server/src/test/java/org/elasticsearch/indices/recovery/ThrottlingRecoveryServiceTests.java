@@ -526,20 +526,24 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         final var shardId2 = new ShardId("index2", UUIDs.randomBase64UUID(), 0);
         final var allocationId2 = UUIDs.randomBase64UUID();
 
-        final var listener1 = new TestCaptureResultListener(ExpectedRecoveryOutcome.ABORTED);
+        final var listener1 = new TestCaptureResultListener(ExpectedRecoveryOutcome.CANCELLED_STARTED);
         service.enqueue(listener1, newRecoveryState(shardId1), allocationId1, new RecoveryStats(), listener -> {
-            taskQueue.scheduleAt(taskQueue.getCurrentTimeMillis() + 100, listener::onRecoveryAborted);
+            // simulates cancellation of started recovery
+            taskQueue.scheduleAt(
+                taskQueue.getCurrentTimeMillis() + 100,
+                () -> listener.onRecoveryFailure(new RecoveryCancelledException(shardId1, null, null), true)
+            );
         });
 
         final var listener2 = new TestCaptureResultListener(ExpectedRecoveryOutcome.CANCELLED_IN_QUEUE);
         service.enqueue(listener2, newRecoveryState(shardId2), allocationId2, stats, ignored -> fail("task should have been cancelled"));
-        service.cancelRecoveries(Map.of(allocationId2, shardId2));
+        assertThat(service.cancelRecoveries(Map.of(allocationId1, shardId1, allocationId2, shardId2)), equalTo(Set.of(allocationId2)));
         taskQueue.runAllTasks();
         assertThat(service.currentQueueSize(), equalTo(0));
         ensureListenersWereNotified(listener1, listener2);
     }
 
-    public void testStaleEntryRemovedOnClusterStateChange() {
+    public void testStaleRecordedEntryRemovedOnClusterStateChange() {
         final var taskQueue = new DeterministicTaskQueue();
         final var service = new ThrottlingRecoveryService(
             taskQueue.getThreadPool().generic(),
@@ -573,7 +577,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         ensureListenersWereNotified(listener);
     }
 
-    public void testCancelRecoveryReturnsFalseWhenNoLongerInQueue() {
+    public void testCancelRecoveryReturnsEmptyWhenNoLongerInQueue() {
         final var taskQueue = new DeterministicTaskQueue();
         final var service = new ThrottlingRecoveryService(
             taskQueue.getThreadPool().generic(),
@@ -598,7 +602,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         taskQueue.runAllRunnableTasks();
         assertThat(service.currentQueueSize(), equalTo(0));
         assertTrue(
-            "should return empty set when task is no longer in pending queue",
+            "should return empty set, task is no longer in pending queue",
             service.cancelRecoveries(Map.of(allocationId, shardId)).isEmpty()
         );
         taskQueue.runAllTasks();

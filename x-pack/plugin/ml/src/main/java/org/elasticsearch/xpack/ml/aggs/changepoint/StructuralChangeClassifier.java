@@ -228,9 +228,9 @@ public class StructuralChangeClassifier {
         int windowLength = end - start;
         double localNoiseVariance = intervalNoise[leftIdx][rightIdx];
 
-        Bic bicNoChange = bestNoChangeBic(intervalRss[leftIdx][rightIdx], windowLength, localNoiseVariance);
+        Bic noChange = bestNoChangeBic(intervalRss[leftIdx][rightIdx], windowLength, localNoiseVariance);
         Bic change = symmetricSplit(intervalRss, leftIdx, cpIdx, rightIdx, windowLength, localNoiseVariance);
-        double bicGain = bicNoChange.bic() - change.bic();
+        double bicGain = noChange.bic() - change.bic();
         if (bicGain < deltaBicThreshold) {
             return false;
         }
@@ -268,9 +268,9 @@ public class StructuralChangeClassifier {
         int windowLength = grid[rightIdx] - grid[leftIdx];
         double localNoiseVariance = intervalNoise[leftIdx][rightIdx];
 
-        Bic bicNoChange = bestNoChangeBic(intervalRss[leftIdx][rightIdx], windowLength, localNoiseVariance);
+        Bic noChange = bestNoChangeBic(intervalRss[leftIdx][rightIdx], windowLength, localNoiseVariance);
         Bic meanSplit = symmetricSplit(intervalRss, leftIdx, cpIdx, rightIdx, windowLength, localNoiseVariance);
-        double meanGain = bicNoChange.bic() - meanSplit.bic();
+        double meanGain = noChange.bic() - meanSplit.bic();
 
         if (toPValue(meanGain) < pValueThreshold) {
             // A mean change (level or trend). log p-value = -gain/2 exactly (p = exp(-deltaBic/2)).
@@ -290,7 +290,7 @@ public class StructuralChangeClassifier {
                 double stepPercent = 100.0 * (levelAfter - levelBefore) / Math.max(Math.abs(levelBefore), floor);
                 return new ChangeType.StepChange(logPValue, cp, stepPercent);
             }
-            double r2 = Math.max(0.0, Math.min(1.0, 1.0 - (meanSplit.rss() / Math.max(bicNoChange.rss(), 1e-10))));
+            double r2 = Math.max(0.0, Math.min(1.0, 1.0 - (meanSplit.rss() / Math.max(noChange.rss(), 1e-10))));
             double levelAtChange = 0.5 * (levelBefore + levelAfter);
             double gradientPercent = 100.0 * (right[1] - left[1]) / Math.max(Math.abs(levelAtChange), floor);
             return new ChangeType.TrendChange(logPValue, gradientPercent, r2, cp);
@@ -329,12 +329,9 @@ public class StructuralChangeClassifier {
             // calibrates the test so it fires only on a genuinely strong variance change.
             double varianceEffectiveFactor = effectiveSampleFactor * 0.35;
             double noChangeBic = bicFromRss(varWindow * windowLength, windowLength, 1, varianceEffectiveFactor);
-            double splitBic = bicFromRss(varLeft * nLeft, nLeft, 1, varianceEffectiveFactor) + bicFromRss(
-                varRight * nRight,
-                nRight,
-                1,
-                varianceEffectiveFactor
-            );
+            double bicLeft = bicFromRss(varLeft * nLeft, nLeft, 1, varianceEffectiveFactor);
+            double bicRight = bicFromRss(varRight * nRight, nRight, 1, varianceEffectiveFactor);
+            double splitBic = bicLeft + bicRight;
             double varianceGain = noChangeBic - splitBic;
             if (toPValue(varianceGain) < pValueThreshold) {
                 double logPValue = -0.5 * Math.max(varianceGain, 0.0);

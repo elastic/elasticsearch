@@ -133,6 +133,8 @@ public class HighlightOperator extends AbstractPageMappingOperator {
         }
     }
 
+    // Break on sentences, capped to fragment_size chars when it's positive (long sentences get split, short ones may
+    // share a fragment). A non-positive fragment_size drops the cap and just breaks on sentences.
     private static BreakIterator sentenceBreakIterator(int fragmentSize) {
         return fragmentSize > 0
             ? BoundedBreakIteratorScanner.getSentence(Locale.ROOT, fragmentSize)

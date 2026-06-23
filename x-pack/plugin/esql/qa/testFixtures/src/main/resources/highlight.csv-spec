@@ -166,12 +166,13 @@ Senior <em>lead</em>
 ;
 
 
-# number_of_fragments caps how many sentence fragments are returned (document order, default order=none).
+# number_of_fragments caps how many fragments are returned (document order, default order=none). A small fragment_size
+# bounds each passage to a single sentence so the three sentences become three candidate fragments, capped to two.
 highlightNumberOfFragments
 required_capability: highlight_v1
 
 ROW content = "Elasticsearch is fast. Elasticsearch is scalable. Elasticsearch is open."
-| HIGHLIGHT "elasticsearch" ON content WITH { "number_of_fragments": 2 }
+| HIGHLIGHT "elasticsearch" ON content WITH { "number_of_fragments": 2, "fragment_size": 30 }
 | KEEP highlight_content
 ;
 

@@ -12,6 +12,7 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesFailure;
+import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.common.TriConsumer;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.mapper.IndexModeFieldMapper;
@@ -40,6 +41,7 @@ import org.elasticsearch.xpack.esql.session.Versioned;
 import org.elasticsearch.xpack.esql.telemetry.PlanTelemetry;
 
 import java.util.Collection;
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -55,7 +57,7 @@ import static java.util.stream.Collectors.toSet;
  * retry, and the lookup-index resolution and validation. The session hands it a {@link SchemaContext} and a
  * {@link PreAnalysisResult} and gets the accumulated resolution back.
  */
-final class IndexSchemaProvider {
+final class IndexSchemaProvider implements AbstractionSchemaProvider {
 
     private static final Logger LOGGER = LogManager.getLogger(IndexSchemaProvider.class);
 
@@ -82,6 +84,11 @@ final class IndexSchemaProvider {
         this.indicesExpressionGrouper = indicesExpressionGrouper;
         this.planTelemetry = planTelemetry;
         this.verifier = verifier;
+    }
+
+    @Override
+    public EnumSet<IndexAbstraction.Type> handles() {
+        return EnumSet.of(IndexAbstraction.Type.CONCRETE_INDEX, IndexAbstraction.Type.ALIAS, IndexAbstraction.Type.DATA_STREAM);
     }
 
     /**

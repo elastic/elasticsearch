@@ -8,9 +8,11 @@
 package org.elasticsearch.xpack.esql.session.schema;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.view.ViewResolver;
 
+import java.util.EnumSet;
 import java.util.function.BiFunction;
 
 /**
@@ -20,12 +22,17 @@ import java.util.function.BiFunction;
  * and view authorization is enforced upstream in the resolve-views transport action, not here. The provider
  * forwards to {@link ViewResolver} verbatim.
  */
-final class ViewSchemaProvider {
+final class ViewSchemaProvider implements AbstractionSchemaProvider {
 
     private final ViewResolver viewResolver;
 
     ViewSchemaProvider(ViewResolver viewResolver) {
         this.viewResolver = viewResolver;
+    }
+
+    @Override
+    public EnumSet<IndexAbstraction.Type> handles() {
+        return EnumSet.of(IndexAbstraction.Type.VIEW);
     }
 
     void replaceViews(

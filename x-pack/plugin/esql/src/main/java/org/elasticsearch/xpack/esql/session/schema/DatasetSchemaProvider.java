@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.session.schema;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.lucene.BytesRefs;
@@ -23,6 +24,7 @@ import org.elasticsearch.xpack.esql.datasources.PartitionFilterHintExtractor;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
 
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -38,7 +40,7 @@ import static org.elasticsearch.rest.RestUtils.REST_MASTER_TIMEOUT_DEFAULT;
  * that authorizes the dataset names exactly as an index read is authorized — so only datasets the caller can read are
  * rewritten. The two steps run at different points in the pipeline, so the provider keeps them as separate entry points.
  */
-final class DatasetSchemaProvider {
+final class DatasetSchemaProvider implements AbstractionSchemaProvider {
 
     private final ExternalSourceResolver externalSourceResolver;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
@@ -55,6 +57,11 @@ final class DatasetSchemaProvider {
         this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.client = client;
         this.executor = executor;
+    }
+
+    @Override
+    public EnumSet<IndexAbstraction.Type> handles() {
+        return EnumSet.of(IndexAbstraction.Type.DATASET);
     }
 
     /**

@@ -571,7 +571,6 @@ public class PeerRecoverySourceServiceTests extends IndexShardTestCase {
     public void testCompletingRecoveryWhileStopping() throws IOException {
         final IndexShard primary1 = newStartedShard(true);
         final IndexShard primary2 = newStartedShard(true);
-        final IndexShard primary3 = newStartedShard(true);
         final var service = newPeerRecoverySourceService(1);
         service.start();
         final var task = newRecoveryTask();
@@ -586,13 +585,13 @@ public class PeerRecoverySourceServiceTests extends IndexShardTestCase {
         assertNotNull(handler1);
 
         // Queue another recovery
-        service.ongoingRecoveries.addOrEnqueueNewRecovery(newStartRecoveryRequest(primary3), task, primary3, ActionListener.noop());
+        service.ongoingRecoveries.addOrEnqueueNewRecovery(newStartRecoveryRequest(primary2), task, primary2, ActionListener.noop());
         assertEquals(1, service.ongoingRecoveries.queuedRecoveryCount());
 
         // Stop the service and complete handler1. Lifecycle assertions in the production code must hold.
         // The pending recovery should never start after the service moved to `State.STOPPED`.
         runInParallel(service::stop, () -> service.ongoingRecoveries.onRecoveryComplete(primary1, handler1));
-        closeShards(primary1, primary2, primary3);
+        closeShards(primary1, primary2);
     }
 
     private PeerRecoverySourceService newPeerRecoverySourceService(int limit) {

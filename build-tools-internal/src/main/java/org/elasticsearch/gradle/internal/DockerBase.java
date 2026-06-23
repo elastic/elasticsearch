@@ -9,10 +9,12 @@
 
 package org.elasticsearch.gradle.internal;
 
+import org.gradle.api.Named;
+
 /**
  * This class models the different Docker base images that are used to build Docker distributions of Elasticsearch.
  */
-public enum DockerBase {
+public enum DockerBase implements Named {
     // "latest" here is intentional, since the image name specifies "9"
     DEFAULT("redhat/ubi9-minimal:latest", "", "microdnf", "dockerfiles/default/Dockerfile"),
 
@@ -67,5 +69,10 @@ public enum DockerBase {
 
     public String getDockerfile() {
         return dockerfile;
+    }
+
+    @Override
+    public String getName() {
+        return name();
     }
 }

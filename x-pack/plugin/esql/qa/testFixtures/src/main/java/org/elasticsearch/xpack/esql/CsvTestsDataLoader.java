@@ -850,10 +850,14 @@ public class CsvTestsDataLoader {
         // is active on search nodes. In a stateless cluster the backing index follows the same stateless race as
         // lookup indices: health green before the search-node copy is active. Subsequent ENRICH queries fail with
         // NoShardAvailableActionException. Poll until a search succeeds on the backing index.
-        awaitSearchable(
-            client,
-            new Request("GET", "/.enrich-" + policy.policyName() + "-*/_search?size=0&allow_partial_search_results=false")
+        // The .enrich-* index is a system index; accessing it via _search triggers a deprecation warning that the
+        // test RestClient treats as an error. Suppress it explicitly — this warning is expected and harmless here.
+        Request enrichProbe = new Request(
+            "GET",
+            "/.enrich-" + policy.policyName() + "-*/_search?size=0&allow_partial_search_results=false"
         );
+        enrichProbe.setOptions(RequestOptions.DEFAULT.toBuilder().setWarningsHandler(warnings -> false).build());
+        awaitSearchable(client, enrichProbe);
     }
 
     private static void loadView(RestClient client, ViewConfig view) throws IOException {

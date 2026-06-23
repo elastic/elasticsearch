@@ -150,12 +150,15 @@ public class HighlightOperator extends AbstractPageMappingOperator {
     protected Page process(Page page) {
         int rowCount = page.getPositionCount();
         Block[] highlightedBlocks = new Block[fieldEvaluators.length];
+        // One scratch BytesRef is reused across every field and every row of this page; the operator is single-threaded
+        // per driver and the scratch is never retained past process().
+        BytesRef scratch = new BytesRef();
         boolean success = false;
         try {
             for (int f = 0; f < fieldEvaluators.length; f++) {
                 try (Block block = fieldEvaluators[f].eval(page)) {
                     if (block instanceof BytesRefBlock fieldValues) {
-                        highlightedBlocks[f] = highlightField(fieldValues, rowCount);
+                        highlightedBlocks[f] = highlightField(fieldValues, rowCount, scratch);
                     } else {
                         throw new EsqlIllegalArgumentException(
                             "HIGHLIGHT ON fields must evaluate to keyword/text values but got [" + block.getClass().getSimpleName() + "]"
@@ -173,9 +176,8 @@ public class HighlightOperator extends AbstractPageMappingOperator {
         }
     }
 
-    private Block highlightField(BytesRefBlock fieldValues, int rowCount) {
+    private Block highlightField(BytesRefBlock fieldValues, int rowCount, BytesRef scratch) {
         try (BytesRefBlock.Builder builder = blockFactory.newBytesRefBlockBuilder(rowCount)) {
-            BytesRef scratch = new BytesRef();
             for (int row = 0; row < rowCount; row++) {
                 int valueCount = fieldValues.getValueCount(row);
                 if (valueCount == 0) {

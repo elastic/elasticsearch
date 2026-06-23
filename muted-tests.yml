@@ -140,9 +140,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StSimplifyPreserveTopologyTests
   method: testEvaluateBlockWithNulls
   issue: https://github.com/elastic/elasticsearch/issues/147773
-- class: org.elasticsearch.ingest.geoip.ConsumerAwareIpDatabaseDownloadIT
-  method: testConsumerScopedDownloads
-  issue: https://github.com/elastic/elasticsearch/issues/150231
 - class: org.elasticsearch.xpack.esql.spatial.SpatialPushDownGeoShapeIT
   method: testQuantizedXY
   issue: https://github.com/elastic/elasticsearch/issues/150782
@@ -593,18 +590,12 @@ tests:
 - class: org.elasticsearch.index.store.BytesReadHeaderIT
   method: testMultiSearchSetsBytesReadHeader
   issue: https://github.com/elastic/elasticsearch/issues/151595
-- class: org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingServiceIT
-  method: testCacheIsWarmedOnUnhollowing
-  issue: https://github.com/elastic/elasticsearch/issues/151600
 - class: org.elasticsearch.datastreams.lifecycle.ExplainDataStreamLifecycleIT
   method: testExplainFailuresLifecycle
   issue: https://github.com/elastic/elasticsearch/issues/151602
 - class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
   method: test {csv-spec:metric_temporality.tdigestAggsByTBucket}
   issue: https://github.com/elastic/elasticsearch/issues/151613
-- class: org.elasticsearch.xpack.stateless.StatelessMergePreWarmingIT
-  method: testMergePreWarmingFailureDoesNotFailTheEngine
-  issue: https://github.com/elastic/elasticsearch/issues/151618
 - class: org.elasticsearch.gradle.internal.precommit.PomValidationPrecommitPluginFuncTest
   method: detects missing POM elements and reports structured problems
   issue: https://github.com/elastic/elasticsearch/issues/151636
@@ -629,9 +620,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
   method: test {csv-spec:in_subquery.inSubqueryWithEvalInsideInSubquery}
   issue: https://github.com/elastic/elasticsearch/issues/151761
-- class: org.elasticsearch.xpack.stateless.cluster.coordination.BlobStoreSyncDirectoryTests
-  method: testCloseCancelsOnGoingUploads
-  issue: https://github.com/elastic/elasticsearch/issues/151622
 - class: org.elasticsearch.xpack.stateless.CorruptionIT
   method: testConcurrentOperations
   issue: https://github.com/elastic/elasticsearch/issues/151779
@@ -668,3 +656,48 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
   method: test {csv-spec:string.dissect}
   issue: https://github.com/elastic/elasticsearch/issues/151831
+- class: org.elasticsearch.cluster.ClusterInfoServiceIT
+  method: testMaxQueueLatenciesInClusterInfo
+  issue: https://github.com/elastic/elasticsearch/issues/151837
+- class: org.elasticsearch.gradle.internal.InternalDistributionDownloadPluginFuncTest
+  method: resolves current version from local build
+  issue: https://github.com/elastic/elasticsearch/issues/151851
+- class: org.elasticsearch.upgrades.RecoveryIT
+  method: testAutoExpandIndicesDuringRollingUpgrade
+  issue: https://github.com/elastic/elasticsearch/issues/151857
+- class: org.elasticsearch.upgrades.RecoveryIT
+  method: testRetentionLeasesEstablishedWhenRelocatingPrimary
+  issue: https://github.com/elastic/elasticsearch/issues/151858
+- class: org.elasticsearch.upgrades.RecoveryIT
+  method: testRecoveryClosedIndex
+  issue: https://github.com/elastic/elasticsearch/issues/151859
+- class: org.elasticsearch.xpack.stateless.StatelessHollowIndexShardsIT
+  method: testCloseWhileShardsAreHollowed
+  issue: https://github.com/elastic/elasticsearch/issues/151861
+- class: org.elasticsearch.action.search.SearchQueryThenFetchAsyncActionTests
+  method: testScrollDisableBottomFieldSort
+  issue: https://github.com/elastic/elasticsearch/issues/151862
+- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
+  method: test {csv-spec:string.convertFromUnsignedLong}
+  issue: https://github.com/elastic/elasticsearch/issues/151871
+- class: org.elasticsearch.index.store.BytesReadHeaderIT
+  method: testMultipleIndicesAccumulateBytesRead
+  issue: https://github.com/elastic/elasticsearch/issues/151874
+- class: org.elasticsearch.xpack.stateless.commits.StatelessFileDeletionIT
+  method: testDeleteIndexAfterRecovery
+  issue: https://github.com/elastic/elasticsearch/issues/151884
+- class: org.elasticsearch.repositories.gcs.GoogleCloudStorageThirdPartyTests
+  method: testStorageClassPerOperationPurpose
+  issue: https://github.com/elastic/elasticsearch/issues/151924
+- class: org.elasticsearch.xpack.inference.integration.SemanticFieldFieldsApiIT
+  method: testFetchingMixedTextAndImageChunks
+  issue: https://github.com/elastic/elasticsearch/issues/151928
+- class: org.elasticsearch.xpack.inference.integration.SemanticFieldFieldsApiIT
+  method: testFetchingMixedTextAndImageValues
+  issue: https://github.com/elastic/elasticsearch/issues/151929
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
+  method: test {csv-spec:ip_location.*}
+  issue: https://github.com/elastic/elasticsearch/issues/151950
+- class: org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcherIT
+  method: testSearchNodePrefetchesOnlyLatestGenerationOnFirstCommitNotification
+  issue: https://github.com/elastic/elasticsearch/issues/151992

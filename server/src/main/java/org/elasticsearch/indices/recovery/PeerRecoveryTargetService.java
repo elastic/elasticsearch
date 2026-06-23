@@ -249,14 +249,8 @@ public class PeerRecoveryTargetService implements IndexEventListener {
             listener,
             snapshotFileDownloadsPermit
         );
-        try {
-            indexShard.ensureRecoveryNotCancelled();
-        } catch (RecoveryCancelledException e) {
-            onGoingRecoveries.directCancelRecovery(
-                indexShard.shardId(),
-                indexShard.routingEntry().allocationId().getId(),
-                clusterService.localNode()
-            );
+        if (indexShard.recoveryIsCancelled()) {
+            directCancelRecovery(indexShard.shardId(), indexShard.routingEntry().allocationId().getId());
             return;
         }
         // we fork off quickly here and go async but this is called from the cluster state applier thread too and that can cause

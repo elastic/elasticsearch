@@ -2052,16 +2052,23 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     /// Throws [RecoveryCancelledException] if a cancellation has been requested via [#requestRecoveryCancellation].
     ///
-    /// Must only be called from within the active recovery sequence [StoreRecovery] phase boundaries.
-    /// Callers must not either catch and swallow the exception, or handle it explicitly, otherwise we
-    /// risk causing the metric to overcount.
+    /// Must only be called from within the active recovery sequence [StoreRecovery] phase boundaries (non-PEER
+    /// recoveries). Emits the cancellation metric on throw; callers must let the exception propagate rather than
+    /// catching and re-throwing, to avoid double-counting.
     public void ensureRecoveryNotCancelled() throws RecoveryCancelledException {
-        assert recoveryState() != null : "ensureRecoveryNotCancelled should only be called while recovery is active";
+        final var recoveryState = recoveryState();
+        assert recoveryState != null : "ensureRecoveryNotCancelled should only be called while recovery is active";
+        assert recoveryState.getRecoverySource() != null : "recovery source should not be null";
         final RecoveryCancelledException cancellation = recoveryCancellationRequest;
         if (cancellation != null) {
-            recoverySchedulingListeners.onStartedRecoveryCancelled(recoveryState().getRecoverySource().getType(), RecoveryRole.TARGET);
+            recoverySchedulingListeners.onStartedRecoveryCancelled(recoveryState.getRecoverySource().getType(), RecoveryRole.TARGET);
             throw cancellation;
         }
+    }
+
+    /// Returns true if a direct cancellation has been requested via [#requestRecoveryCancellation].
+    public boolean recoveryIsCancelled() {
+        return recoveryCancellationRequest != null;
     }
 
     public void postRecovery(String reason, ActionListener<Void> listener) throws IndexShardStartedException, IndexShardRelocatedException,

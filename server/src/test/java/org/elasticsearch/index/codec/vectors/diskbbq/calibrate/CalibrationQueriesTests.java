@@ -20,66 +20,76 @@ import java.util.List;
 
 import static org.hamcrest.Matchers.closeTo;
 
-public class CalibrationUtilsTests extends ESTestCase {
+public class CalibrationQueriesTests extends ESTestCase {
 
-    public void testCalibrationQueryDimension() {
-        assertEquals(8, CalibrationUtils.calibrationQueryDimension(8, false));
-        assertEquals(9, CalibrationUtils.calibrationQueryDimension(8, true));
+    public void testSizeAndDimension() {
+        float[][] corpus = { { 1f, 0f }, { 0f, 1f }, { 1f, 1f } };
+        FloatVectorValues fvv = KMeansFloatVectorValues.build(List.of(corpus), null, 2);
+        int[] queryOrdinals = { 0, 2 };
+        CalibrationQueries queries = new CalibrationQueries(fvv, queryOrdinals, 2, false, false, null, 2);
+
+        assertEquals(2, queries.size());
+        assertEquals(2, queries.dimension());
     }
 
-    public void testMaterializeCalibrationQueryReadsVectorsByOrdinal() throws IOException {
+    public void testCopyQueryReadsVectorsByOrdinal() throws IOException {
         float[][] corpus = { { 1f, 0f, 0f }, { 0f, 1f, 0f }, { 0f, 0f, 1f } };
         FloatVectorValues fvv = KMeansFloatVectorValues.build(List.of(corpus), null, 3);
         int[] queryOrdinals = { 2, 0 };
+        CalibrationQueries queries = new CalibrationQueries(fvv, queryOrdinals, 3, false, false, null, 3);
 
         float[] dst = new float[3];
-        CalibrationUtils.materializeCalibrationQuery(fvv, queryOrdinals[0], 3, 3, false, false, null, false, dst, null);
+        queries.copyQuery(0, false, dst);
         assertArrayEquals(new float[] { 0f, 0f, 1f }, dst, 1e-5f);
 
-        CalibrationUtils.materializeCalibrationQuery(fvv, queryOrdinals[1], 3, 3, false, false, null, false, dst, null);
+        queries.copyQuery(1, false, dst);
         assertArrayEquals(new float[] { 1f, 0f, 0f }, dst, 1e-5f);
     }
 
-    public void testMaterializeCalibrationQueryNormalizesWhenCosine() throws IOException {
+    public void testCopyQueryNormalizesWhenCosine() throws IOException {
         float[][] corpus = { { 3f, 4f } };
         FloatVectorValues fvv = KMeansFloatVectorValues.build(List.of(corpus), null, 2);
+        CalibrationQueries queries = new CalibrationQueries(fvv, new int[] { 0 }, 2, true, false, null, 2);
 
         float[] dst = new float[2];
-        CalibrationUtils.materializeCalibrationQuery(fvv, 0, 2, 2, true, false, null, false, dst, null);
+        queries.copyQuery(0, false, dst);
 
         assertThat((double) ESVectorUtil.dotProduct(dst, dst), closeTo(1.0, 1e-5));
         assertThat((double) dst[0], closeTo(0.6, 1e-5));
         assertThat((double) dst[1], closeTo(0.8, 1e-5));
     }
 
-    public void testMaterializeCalibrationQueryAppendsNeyshaburLiftDimension() throws IOException {
+    public void testCopyQueryAppendsNeyshaburLiftDimension() throws IOException {
         int baseDim = 4;
         float[][] corpus = { { 1f, 2f, 3f, 4f } };
         FloatVectorValues fvv = KMeansFloatVectorValues.build(List.of(corpus), null, baseDim);
+        CalibrationQueries queries = new CalibrationQueries(fvv, new int[] { 0 }, baseDim, false, true, null, baseDim + 1);
+
+        assertEquals(baseDim + 1, queries.dimension());
 
         float[] dst = new float[baseDim + 1];
-        CalibrationUtils.materializeCalibrationQuery(fvv, 0, baseDim, baseDim + 1, false, true, null, false, dst, null);
+        queries.copyQuery(0, false, dst);
 
         assertArrayEquals(new float[] { 1f, 2f, 3f, 4f, 0f }, dst, 1e-5f);
     }
 
-    public void testMaterializeCalibrationQueryAppliesPreconditionerWhenRequested() throws IOException {
+    public void testCopyQueryAppliesPreconditionerWhenRequested() throws IOException {
         int dim = 8;
         int blockDim = 4;
         float[][] corpus = { { 1f, 2f, 3f, 4f, 5f, 6f, 7f, 8f } };
         FloatVectorValues fvv = KMeansFloatVectorValues.build(List.of(corpus), null, dim);
         Preconditioner preconditioner = Preconditioner.createPreconditioner(dim, blockDim);
+        CalibrationQueries queries = new CalibrationQueries(fvv, new int[] { 0 }, dim, false, false, preconditioner, dim);
 
         float[] raw = corpus[0].clone();
         float[] preconditioned = new float[dim];
         preconditioner.applyTransform(raw, preconditioned);
 
         float[] dst = new float[dim];
-        float[] preconditionScratch = new float[dim];
-        CalibrationUtils.materializeCalibrationQuery(fvv, 0, dim, dim, false, false, preconditioner, true, dst, preconditionScratch);
+        queries.copyQuery(0, true, dst);
         assertArrayEquals(preconditioned, dst, 1e-5f);
 
-        CalibrationUtils.materializeCalibrationQuery(fvv, 0, dim, dim, false, false, preconditioner, false, dst, preconditionScratch);
+        queries.copyQuery(0, false, dst);
         assertArrayEquals(raw, dst, 1e-5f);
     }
 }

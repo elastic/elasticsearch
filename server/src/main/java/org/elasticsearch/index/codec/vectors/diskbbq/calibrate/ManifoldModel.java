@@ -37,37 +37,12 @@ public final class ManifoldModel {
      * multipliers for the manifold rank sweep:
      * rank = floor(multiplier * k / 5), multipliers descending 29..5.
      */
-    private static final int[] RANK_MULTIPLIERS = {
-        29,
-        28,
-        27,
-        26,
-        25,
-        24,
-        23,
-        22,
-        21,
-        20,
-        19,
-        18,
-        17,
-        16,
-        15,
-        14,
-        13,
-        12,
-        11,
-        10,
-        9,
-        8,
-        7,
-        6,
-        5 };
+    static final int[] RANK_MULTIPLIERS = { 29, 28, 27, 26, 25, 24, 23, 22, 21, 20, 19, 18, 17, 16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5 };
 
     /**
      * min to max corpus slice (with fixed 512 steps) for a stable k-NN statistic (empirically determined).
      */
-    private static final int[] SAMPLE_SIZES = {
+    static final int[] SAMPLE_SIZES = {
         4096,
         4608,
         5120,
@@ -128,7 +103,7 @@ public final class ManifoldModel {
         );
     }
 
-    private static int[] ranksFromMultipliers(int k) {
+    static int[] ranksFromMultipliers(int k) {
         int[] ranks = new int[ManifoldModel.RANK_MULTIPLIERS.length];
         for (int i = 0; i < ManifoldModel.RANK_MULTIPLIERS.length; i++) {
             ranks[i] = Math.max(1, (ManifoldModel.RANK_MULTIPLIERS[i] * k) / 5);

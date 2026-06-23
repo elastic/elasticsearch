@@ -160,7 +160,7 @@ public class ManifoldModelTests extends ESTestCase {
             fixture.fvv(),
             fixture.corpusOrdinals(),
             calibrationK,
-            ranksForCalibrationK(calibrationK)
+            ManifoldModel.ranksFromMultipliers(calibrationK)
         );
         assertThat(sweep.count(), greaterThan(20));
 
@@ -172,7 +172,7 @@ public class ManifoldModelTests extends ESTestCase {
         assertThat(Regression.rSquared(x, y, independentFit), greaterThan(0.95));
 
         double meanAbsLogResidual = 0;
-        int[] ranks = ranksForCalibrationK(calibrationK);
+        int[] ranks = ManifoldModel.ranksFromMultipliers(calibrationK);
         for (int i = 0; i < sweep.count(); i++) {
             double predictedLog = logAlpha + invDim * x[i];
             meanAbsLogResidual += Math.abs(predictedLog - y[i]);
@@ -180,7 +180,7 @@ public class ManifoldModelTests extends ESTestCase {
                 VectorSimilarityFunction.EUCLIDEAN,
                 logAlpha,
                 invDim,
-                MANIFOLD_SAMPLE_SIZES[i],
+                ManifoldModel.SAMPLE_SIZES[i],
                 ranks[i]
             );
             assertThat(predictedDist, closeTo(Math.exp(predictedLog), 1e-12));
@@ -281,86 +281,13 @@ public class ManifoldModelTests extends ESTestCase {
         return rows;
     }
 
-    /**
-     * Must stay aligned with {@link ManifoldModel}'s internal rank multipliers.
-     */
-    private static int[] ranksForCalibrationK(int k) {
-        int[] multipliers = {
-            29,
-            28,
-            27,
-            26,
-            25,
-            24,
-            23,
-            22,
-            21,
-            20,
-            19,
-            18,
-            17,
-            16,
-            15,
-            14,
-            13,
-            12,
-            11,
-            10,
-            9,
-            8,
-            7,
-            6,
-            5 };
-        int[] ranks = new int[multipliers.length];
-        for (int i = 0; i < multipliers.length; i++) {
-            ranks[i] = Math.max(1, (multipliers[i] * k) / 5);
-        }
-        return ranks;
-    }
-
-    /**
-     * Must stay aligned with {@link ManifoldModel}'s internal sweep sizes.
-     */
-    private static final int[] MANIFOLD_SAMPLE_SIZES = {
-        4096,
-        4608,
-        5120,
-        5632,
-        6144,
-        6656,
-        7168,
-        7680,
-        8192,
-        8704,
-        9216,
-        9728,
-        10240,
-        10752,
-        11264,
-        11776,
-        12288,
-        12800,
-        13312,
-        13824,
-        14336,
-        14848,
-        15360,
-        15872,
-        16384 };
-
     private record ColinearFixture(FloatVectorValues fvv, int[] corpusOrdinals, int[] queryOrdinals) {}
 
     private static ColinearFixture newColinearFixture(int dim, int corpusSize, int numQueries, Random random) {
         return newColinearFixture(dim, corpusSize, numQueries, random, true);
     }
 
-    private static ColinearFixture newColinearFixture(
-        int dim,
-        int corpusSize,
-        int numQueries,
-        Random random,
-        boolean queriesAtOrigin
-    ) {
+    private static ColinearFixture newColinearFixture(int dim, int corpusSize, int numQueries, Random random, boolean queriesAtOrigin) {
         float[] direction = new float[dim];
         for (int d = 0; d < dim; d++) {
             direction[d] = random.nextFloat();
@@ -442,7 +369,7 @@ public class ManifoldModelTests extends ESTestCase {
         int calibrationK,
         int[] ranksForK
     ) throws IOException {
-        int m = Math.min(ranksForK.length, MANIFOLD_SAMPLE_SIZES.length);
+        int m = Math.min(ranksForK.length, ManifoldModel.SAMPLE_SIZES.length);
         double[] x = new double[m];
         double[] logY = new double[m];
         int count = 0;
@@ -454,7 +381,7 @@ public class ManifoldModelTests extends ESTestCase {
             topKs[qi] = new ManifoldModel.ManifoldTopK(similarityFunction, 6 * calibrationK);
         }
         for (int i = 0; i < m; i++) {
-            int sampleEnd = MANIFOLD_SAMPLE_SIZES[i];
+            int sampleEnd = ManifoldModel.SAMPLE_SIZES[i];
             if (sampleEnd > corpusOrdinals.length) {
                 break;
             }

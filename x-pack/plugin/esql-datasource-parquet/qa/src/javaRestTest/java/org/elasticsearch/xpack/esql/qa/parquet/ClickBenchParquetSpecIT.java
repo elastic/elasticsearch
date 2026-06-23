@@ -13,6 +13,7 @@ import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 import org.elasticsearch.Version;
 import org.elasticsearch.test.TestClustersThreadFilter;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.xpack.esql.CsvSpecReader;
 import org.elasticsearch.xpack.esql.CsvSpecReader.CsvTestCase;
 import org.elasticsearch.xpack.esql.SpecReader;
 import org.elasticsearch.xpack.esql.qa.rest.EsqlSpecTestCase;
@@ -82,7 +83,7 @@ public class ClickBenchParquetSpecIT extends EsqlSpecTestCase {
     public static List<Object[]> readScriptSpec() throws Exception {
         List<URL> urls = classpathResources("/external-clickbench.csv-spec");
         assertFalse("No clickbench csv-spec files found", urls.isEmpty());
-        List<Object[]> baseTests = SpecReader.readScriptSpec(urls, ClickBenchParquetSpecIT::specParser);
+        List<Object[]> baseTests = SpecReader.readScriptSpec(urls, CsvSpecReader::specParser);
         List<Object[]> parameterizedTests = new ArrayList<>();
         for (Object[] base : baseTests) {
             for (Layout layout : Layout.values()) {

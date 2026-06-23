@@ -329,8 +329,12 @@ public class StructuralChangeClassifier {
             // calibrates the test so it fires only on a genuinely strong variance change.
             double varianceEffectiveFactor = effectiveSampleFactor * 0.35;
             double noChangeBic = bicFromRss(varWindow * windowLength, windowLength, 1, varianceEffectiveFactor);
-            double splitBic = bicFromRss(varLeft * nLeft, nLeft, 1, varianceEffectiveFactor)
-                + bicFromRss(varRight * nRight, nRight, 1, varianceEffectiveFactor);
+            double splitBic = bicFromRss(varLeft * nLeft, nLeft, 1, varianceEffectiveFactor) + bicFromRss(
+                varRight * nRight,
+                nRight,
+                1,
+                varianceEffectiveFactor
+            );
             double varianceGain = noChangeBic - splitBic;
             if (toPValue(varianceGain) < pValueThreshold) {
                 double logPValue = -0.5 * Math.max(varianceGain, 0.0);

@@ -380,9 +380,9 @@ public class Stats {
 
     /**
      * Numerically stable natural log of {@code erfc(x)}.
-     * 
+     *
      * For moderate {@code x} this is {@code log(erfc(x))}.
-     * 
+     *
      * For large {@code x}, where {@code erfc} underflows to zero, it uses the asymptotic expansion
      * {@code erfc(x) ~ exp(-x^2)/(x*sqrt(pi)) * (1 - 1/(2x^2) + 3/(4x^4))}.
      */

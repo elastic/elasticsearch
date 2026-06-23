@@ -99,7 +99,10 @@ public class PulseDetector {
         for (Excursion e : excursions) {
             double stabilizedValue = Stats.asinh(values[e.peak()] / stabilizingScale);
             // Bonferroni-corrected over the n points scanned to pick the extremes.
-            double logPValue = Math.min(0.0, Stats.kdeLogTailProbability(stabilizedValue, stabilizedBackground, bandwidth, e.sign()) + logN);
+            double logPValue = Math.min(
+                0.0,
+                Stats.kdeLogTailProbability(stabilizedValue, stabilizedBackground, bandwidth, e.sign()) + logN
+            );
             double pValue = Math.exp(logPValue);
             if (pValue < pValueThreshold) {
                 // Percent deviation of the peak from the local rolling-median baseline (signed: + for a spike,

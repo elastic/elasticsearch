@@ -51,13 +51,15 @@ public class EventDetector {
         // Value channel runs at full sample independence (1.0) and reports a variance-driven boundary as a
         // distribution change (the full-resolution backstop for a short, strong variance change the coarser
         // dispersion channel misses).
-        this.detectorForValues = new StructuralChangeDetector(
-            minSegmentLength, VALUE_MAX_DEGREE, pValueThreshold, 1.0, true
-        );
+        this.detectorForValues = new StructuralChangeDetector(minSegmentLength, VALUE_MAX_DEGREE, pValueThreshold, 1.0, true);
         // The sliding dispersion window overlaps, so the verifier must discount the BIC evidence or it over-
         // detects on the correlated channel (see DISPERSION_SAMPLE_INDEPENDENCE).
         this.detectorForDispersions = new StructuralChangeDetector(
-            dispersionMinSegment, DISPERSION_MAX_DEGREE, pValueThreshold, DISPERSION_SAMPLE_INDEPENDENCE, false
+            dispersionMinSegment,
+            DISPERSION_MAX_DEGREE,
+            pValueThreshold,
+            DISPERSION_SAMPLE_INDEPENDENCE,
+            false
         );
     }
 
@@ -132,7 +134,6 @@ public class EventDetector {
             .map(e -> e.isChange() ? e.remapChangePoint(sampledBucketValues.getBucketIndex(e.changePoint())) : e)
             .toList();
     }
-
 
     /** Mean of {@code a} over {@code [lo, hi)}, clamped to the array bounds; 0 if the clamped range is empty. */
     private static double meanRange(double[] a, int lo, int hi) {

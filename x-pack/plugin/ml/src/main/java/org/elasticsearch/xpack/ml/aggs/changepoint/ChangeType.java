@@ -108,9 +108,9 @@ public interface ChangeType extends NamedWriteable, NamedXContentObject {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             AbstractChangePoint that = (AbstractChangePoint) o;
-            return Double.compare(that.logPValue, logPValue) == 0 &&
-                   Double.compare(that.magnitudePercent, magnitudePercent) == 0 &&
-                   changePoint == that.changePoint;
+            return Double.compare(that.logPValue, logPValue) == 0
+                && Double.compare(that.magnitudePercent, magnitudePercent) == 0
+                && changePoint == that.changePoint;
         }
 
         @Override
@@ -422,10 +422,10 @@ public interface ChangeType extends NamedWriteable, NamedXContentObject {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             TrendChange that = (TrendChange) o;
-            return Double.compare(that.logPValue, logPValue) == 0 && 
-                   Double.compare(that.magnitudePercent, magnitudePercent) == 0 &&
-                   Double.compare(that.rValue, rValue) == 0 &&
-                   changePoint == that.changePoint;
+            return Double.compare(that.logPValue, logPValue) == 0
+                && Double.compare(that.magnitudePercent, magnitudePercent) == 0
+                && Double.compare(that.rValue, rValue) == 0
+                && changePoint == that.changePoint;
         }
 
         @Override

@@ -355,6 +355,9 @@ tests:
 - class: org.elasticsearch.search.basic.SearchDuringRollingRestartIT
   method: testSearchesSurviveRollingRestart
   issue: https://github.com/elastic/elasticsearch/issues/151828
+- class: org.elasticsearch.cluster.remote.test.RemoteClustersIT
+  method: testHAProxyModeConnectionWithSNIToCluster2Works
+  issue: https://github.com/elastic/elasticsearch/issues/139172
 
 # Examples:
 #

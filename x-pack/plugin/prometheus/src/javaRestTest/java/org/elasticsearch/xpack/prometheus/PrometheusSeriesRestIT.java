@@ -120,6 +120,27 @@ public class PrometheusSeriesRestIT extends AbstractPrometheusRestIT {
         assertThat(names, containsInAnyOrder("multi_series_selector_a", "multi_series_selector_b"));
     }
 
+    public void testSeriesWithDefaultIndexScopeAndMixedMetricsStreams() throws Exception {
+        writeMetric("explorer_prometheus_metric", Map.of("job", "prometheus"));
+        writeGenericMetricsDataStream();
+
+        String apiKey = createApiKey("prometheus-read-view-index-metadata-key", "metrics-*", "read", "view_index_metadata");
+
+        List<Map<String, Object>> defaultScopeData = seriesData(
+            client().performRequest(seriesRequest("/_prometheus/api/v1/series", apiKey, "explorer_prometheus_metric"))
+        );
+        List<Map<String, Object>> prometheusScopeData = seriesData(
+            client().performRequest(
+                seriesRequest("/_prometheus/metrics-*.prometheus-*/api/v1/series", apiKey, "explorer_prometheus_metric")
+            )
+        );
+
+        assertThat(defaultScopeData, hasSize(1));
+        assertThat(defaultScopeData.getFirst().get("__name__"), equalTo("explorer_prometheus_metric"));
+        assertThat(prometheusScopeData, hasSize(1));
+        assertThat(prometheusScopeData.getFirst().get("__name__"), equalTo("explorer_prometheus_metric"));
+    }
+
     // Helpers
 
     private Request seriesRequest(String matcher) {
@@ -129,6 +150,13 @@ public class PrometheusSeriesRestIT extends AbstractPrometheusRestIT {
     private Request seriesRequest(String index, String matcher) {
         String path = index == null ? "/_prometheus/api/v1/series" : "/_prometheus/" + index + "/api/v1/series";
         return prometheusReadRequest(path, new BasicNameValuePair("match[]", matcher));
+    }
+
+    private static Request seriesRequest(String path, String apiKey, String matcher) {
+        Request request = new Request("GET", path);
+        request.addParameter("match[]", matcher);
+        request.setOptions(request.getOptions().toBuilder().addHeader("Authorization", "ApiKey " + apiKey).build());
+        return request;
     }
 
     private Response querySeries(String matcher) throws Exception {

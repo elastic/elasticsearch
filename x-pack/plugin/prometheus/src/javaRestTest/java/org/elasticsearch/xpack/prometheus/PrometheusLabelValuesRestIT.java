@@ -163,6 +163,23 @@ public class PrometheusLabelValuesRestIT extends AbstractPrometheusRestIT {
         assertThat(ours, equalTo(List.of("alpha", "middle", "zebra")));
     }
 
+    public void testNameLabelValuesWithDefaultIndexScopeAndMixedMetricsStreams() throws Exception {
+        writeMetric("explorer_prometheus_metric", Map.of("job", "prometheus"));
+        writeGenericMetricsDataStream();
+
+        String apiKey = createApiKey("prometheus-read-view-index-metadata-key", "metrics-*", "read", "view_index_metadata");
+
+        List<String> defaultScopeValues = labelValuesData(
+            client().performRequest(labelValuesRequest("/_prometheus/api/v1/label/__name__/values", apiKey))
+        );
+        List<String> prometheusScopeValues = labelValuesData(
+            client().performRequest(labelValuesRequest("/_prometheus/metrics-*.prometheus-*/api/v1/label/__name__/values", apiKey))
+        );
+
+        assertThat(defaultScopeValues, hasItem("explorer_prometheus_metric"));
+        assertThat(prometheusScopeValues, hasItem("explorer_prometheus_metric"));
+    }
+
     public void testUnmappedLabelOnSpecificPrometheusDataStreamReturnsEmptyNotError() throws Exception {
         // Write a metric with only "job" label, then query the default data stream by name
         // for "foo" — a label never written by any test and therefore absent from the mapping.
@@ -194,6 +211,12 @@ public class PrometheusLabelValuesRestIT extends AbstractPrometheusRestIT {
         for (String matcher : matchers) {
             request.addParameter("match[]", matcher);
         }
+        return request;
+    }
+
+    private static Request labelValuesRequest(String path, String apiKey) {
+        Request request = new Request("GET", path);
+        request.setOptions(request.getOptions().toBuilder().addHeader("Authorization", "ApiKey " + apiKey).build());
         return request;
     }
 

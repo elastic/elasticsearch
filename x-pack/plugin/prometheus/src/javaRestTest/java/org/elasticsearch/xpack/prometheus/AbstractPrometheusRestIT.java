@@ -288,6 +288,57 @@ public abstract class AbstractPrometheusRestIT extends ESRestTestCase {
         client().performRequest(new Request("POST", "/" + dataStream + "/_refresh"));
     }
 
+    protected void writeGenericMetricsDataStream() throws IOException {
+        Request putTemplate = new Request("PUT", "/_index_template/metrics-system-cpu-test-template");
+        putTemplate.setJsonEntity("""
+            {
+              "index_patterns": ["metrics-system.cpu-*"],
+              "priority": 1000,
+              "data_stream": {},
+              "template": {
+                "settings": {
+                  "index": {
+                    "mode": "time_series",
+                    "routing_path": ["host"],
+                    "time_series": {
+                      "start_time": "2026-01-01T00:00:00Z",
+                      "end_time": "2026-01-02T00:00:00Z"
+                    }
+                  }
+                },
+                "mappings": {
+                  "properties": {
+                    "@timestamp": {
+                      "type": "date"
+                    },
+                    "host": {
+                      "type": "keyword",
+                      "time_series_dimension": true
+                    },
+                    "system_cpu_usage": {
+                      "type": "double",
+                      "time_series_metric": "gauge"
+                    }
+                  }
+                }
+              }
+            }
+            """);
+        client().performRequest(putTemplate);
+
+        Request indexDocument = new Request("POST", "/metrics-system.cpu-default/_doc");
+        indexDocument.addParameter("op_type", "create");
+        indexDocument.setJsonEntity("""
+            {
+              "@timestamp": "2026-01-01T00:01:00Z",
+              "host": "host-1",
+              "system_cpu_usage": 0.42
+            }
+            """);
+        client().performRequest(indexDocument);
+        client().performRequest(new Request("POST", "/metrics-system.cpu-default/_refresh"));
+    }
+
     protected static RemoteWrite.Label label(String name, String value) {
         return RemoteWrite.Label.newBuilder().setName(name).setValue(value).build();
     }

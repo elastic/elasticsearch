@@ -61,7 +61,6 @@ public class MergedSegmentCacheEvictionIT extends AbstractStatelessPluginIntegTe
             // regions in the background. Tests also expect specific BCCs so we disable background flushes too.
             .put(disableIndexingDiskAndMemoryControllersNodeSettings())
             .put(StatelessOnlinePrewarmingService.STATELESS_ONLINE_PREWARMING_ENABLED.getKey(), false)
-            .put(StatelessOnlinePrewarmingService.STATELESS_ONLINE_PREWARMING_ENABLED.getKey(), false)
             .put(SearchCommitPrefetcherDynamicSettings.PREFETCH_COMMITS_UPON_NOTIFICATIONS_ENABLED_SETTING.getKey(), false)
             .put(SharedBlobCacheWarmingService.SEARCH_OFFLINE_WARMING_ENABLED_SETTING.getKey(), false)
             .put(StatelessCommitService.STATELESS_COMMIT_USE_INTERNAL_FILES_REPLICATED_CONTENT.getKey(), false)

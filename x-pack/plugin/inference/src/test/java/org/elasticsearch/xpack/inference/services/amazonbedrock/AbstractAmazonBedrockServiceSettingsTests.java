@@ -23,7 +23,6 @@ import java.util.Map;
 import static org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockConstants.MODEL_FIELD;
 import static org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockConstants.PROVIDER_FIELD;
 import static org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockConstants.REGION_FIELD;
-import static org.elasticsearch.xpack.inference.services.contextualai.ContextualAiRerankTestFixtures.DEFAULT_RATE_LIMIT;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.is;
 
@@ -43,6 +42,7 @@ public abstract class AbstractAmazonBedrockServiceSettingsTests<T extends Amazon
     private static final AmazonBedrockProvider INITIAL_TEST_PROVIDER = AmazonBedrockProvider.AI21LABS;
     public static final int TEST_RATE_LIMIT = 20;
     private static final int INITIAL_TEST_RATE_LIMIT = 30;
+    private static final int DEFAULT_RATE_LIMIT = 240;
 
     /**
      * Parses a settings instance from a settings map, mirroring the concrete subclass's {@code fromMap} entry point.
@@ -65,8 +65,8 @@ public abstract class AbstractAmazonBedrockServiceSettingsTests<T extends Amazon
     protected abstract T createServiceSettings(String region, String model, String provider, RateLimitSettings rateLimitSettings);
 
     /**
-     * The task-specific immutable fields an update request must reject, in addition to the common {@code model_id} and {@code url}
-     * fields. Subclasses override this when they declare additional immutable fields.
+     * The task-specific immutable fields an update request must reject, in addition to the common {@code region}, {@code model} and
+     * {@code provider} fields. Subclasses override this when they declare additional immutable fields.
      */
     protected List<String> additionalImmutableFields() {
         return List.of();
@@ -74,7 +74,7 @@ public abstract class AbstractAmazonBedrockServiceSettingsTests<T extends Amazon
 
     public void testFromMap_OnlyMandatoryFields_UsesDefaultValues_Success() {
         var serviceSettings = fromMap(
-            buildCommonServiceSettingsMap(TEST_REGION, TEST_MODEL_ID, TEST_PROVIDER.toString(), TEST_RATE_LIMIT),
+            buildCommonServiceSettingsMap(TEST_REGION, TEST_MODEL_ID, TEST_PROVIDER.toString(), DEFAULT_RATE_LIMIT),
             randomFrom(ConfigurationParseContext.values())
         );
 

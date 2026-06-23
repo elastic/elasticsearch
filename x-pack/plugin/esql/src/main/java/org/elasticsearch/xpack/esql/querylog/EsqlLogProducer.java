@@ -44,8 +44,7 @@ public class EsqlLogProducer implements ActivityLogProducer<EsqlLogContext> {
                 msg.field(QueryLogging.QUERY_FIELD_PARAMS, params);
             }
         } else {
-            msg.field(QueryLogging.QUERY_FIELD_PARAMS, namedParams.values());
-            msg.field(QueryLogging.QUERY_FIELD_PARAM_NAMES, namedParams.keySet());
+            msg.field(QueryLogging.QUERY_FIELD_NAMED_PARAMS, namedParams);
         }
 
         // Query-level rollup counters from the response root, surfaced unconditionally so the slow

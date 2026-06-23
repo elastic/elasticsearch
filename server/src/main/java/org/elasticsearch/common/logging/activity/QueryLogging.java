@@ -47,7 +47,7 @@ public interface QueryLogging {
     /** Params for parametrized queries */
     String QUERY_FIELD_PARAMS = ES_QUERY_FIELDS_PREFIX + "params";
     /** Param names for parametrized queries */
-    String QUERY_FIELD_PARAM_NAMES = ES_QUERY_FIELDS_PREFIX + "param_names";
+    String QUERY_FIELD_NAMED_PARAMS = ES_QUERY_FIELDS_PREFIX + "named_params";
 
     /**
      * Did this query come from another cluster?

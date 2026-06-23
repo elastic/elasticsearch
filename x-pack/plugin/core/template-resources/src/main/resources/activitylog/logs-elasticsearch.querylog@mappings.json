@@ -154,10 +154,10 @@
                   "index": false,
                   "ignore_above": 32765
                 },
-                "param_names": {
-                  "type": "keyword",
+                "named_params": {
+                  "type": "flattened",
                   "index": false,
-                  "ignore_above": 2048
+                  "ignore_above": 32765
                 },
                 "result_count": {
                   "type": "long",
@@ -206,5 +206,7 @@
     "description": "Default mappings for the Elasticsearch query logs index template installed by x-pack",
     "managed": true
   },
-  "version": ${xpack.stack.querylog.template.version}
+  "version": ${
+  xpack.stack.querylog.template.version
+}
 }

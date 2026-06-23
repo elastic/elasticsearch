@@ -8,7 +8,9 @@
 package org.elasticsearch.xpack.esql.session.schema;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.indices.IndicesExpressionGrouper;
@@ -23,7 +25,10 @@ import org.elasticsearch.xpack.esql.session.IndexResolver;
 import org.elasticsearch.xpack.esql.telemetry.PlanTelemetry;
 import org.elasticsearch.xpack.esql.view.ViewResolver;
 
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.Executor;
 import java.util.function.BiFunction;
 
@@ -40,6 +45,7 @@ public final class SchemaService {
     private final IndexSchemaProvider indexProvider;
     private final ViewSchemaProvider viewProvider;
     private final DatasetSchemaProvider datasetProvider;
+    private final List<AbstractionSchemaProvider> providers;
 
     public SchemaService(
         IndexResolver indexResolver,
@@ -64,6 +70,45 @@ public final class SchemaService {
         );
         this.viewProvider = new ViewSchemaProvider(viewResolver);
         this.datasetProvider = new DatasetSchemaProvider(externalSourceResolver, indexNameExpressionResolver, client, executor);
+        this.providers = List.of(indexProvider, viewProvider, datasetProvider);
+    }
+
+    /**
+     * The singular schema-resolution entry: resolve {@code names} of any index-abstraction kind. Each name is routed
+     * to the provider that {@link AbstractionSchemaProvider#handles its kind} and resolved into a {@link ResolvedSchema};
+     * the caller never branches on what kind a name is.
+     */
+    public void resolveSchema(
+        SchemaContext ctx,
+        ProjectMetadata projectMetadata,
+        List<String> names,
+        ActionListener<List<ResolvedSchema>> listener
+    ) {
+        var lookup = projectMetadata.getIndicesLookup();
+        Map<AbstractionSchemaProvider, List<String>> byProvider = new LinkedHashMap<>();
+        for (String name : names) {
+            IndexAbstraction abstraction = lookup.get(name);
+            IndexAbstraction.Type type = abstraction == null ? IndexAbstraction.Type.CONCRETE_INDEX : abstraction.getType();
+            byProvider.computeIfAbsent(providerFor(type), p -> new ArrayList<>()).add(name);
+        }
+        if (byProvider.isEmpty()) {
+            listener.onResponse(List.of());
+            return;
+        }
+        var grouped = new GroupedActionListener<List<ResolvedSchema>>(
+            byProvider.size(),
+            listener.map(perProvider -> perProvider.stream().flatMap(List::stream).toList())
+        );
+        byProvider.forEach((provider, providerNames) -> provider.resolveSchema(ctx, projectMetadata, providerNames, grouped));
+    }
+
+    private AbstractionSchemaProvider providerFor(IndexAbstraction.Type type) {
+        for (AbstractionSchemaProvider provider : providers) {
+            if (provider.handles().contains(type)) {
+                return provider;
+            }
+        }
+        throw new IllegalStateException("no schema provider handles index abstraction type [" + type + "]");
     }
 
     /** Expand any view in {@code plan} into its underlying query. A plan rewrite, not a flat schema fetch. */

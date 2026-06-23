@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.esql.datasources.PartitionFilterHintExtractor;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
 
+import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
@@ -62,6 +63,20 @@ final class DatasetSchemaProvider implements AbstractionSchemaProvider {
     @Override
     public EnumSet<IndexAbstraction.Type> handles() {
         return EnumSet.of(IndexAbstraction.Type.DATASET);
+    }
+
+    @Override
+    public void resolveSchema(
+        SchemaContext ctx,
+        ProjectMetadata projectMetadata,
+        List<String> names,
+        ActionListener<List<ResolvedSchema>> listener
+    ) {
+        List<ResolvedSchema> resolved = new ArrayList<>(names.size());
+        for (String name : names) {
+            resolved.add(new ResolvedSchema.Dataset(name, DatasetRewriter.datasetConfig(projectMetadata, name)));
+        }
+        listener.onResponse(resolved);
     }
 
     /**

@@ -283,6 +283,22 @@ public final class DatasetRewriter {
     }
 
     /**
+     * The merged external-source config for a single dataset name — the dataset's own settings plus its parent
+     * data source's settings (secrets included). This is what the schema resolver hands back so the coordinator can
+     * build the external relation, decoupled from the full {@link #rewrite} plan walk.
+     */
+    public static Map<String, Object> datasetConfig(ProjectMetadata projectMetadata, String name) {
+        Dataset dataset = DatasetMetadata.get(projectMetadata).get(name);
+        DataSource parent = DataSourceMetadata.get(projectMetadata).get(dataset.dataSource().getName());
+        if (parent == null) {
+            throw new IllegalStateException(
+                "dataset [" + name + "] references unknown data source [" + dataset.dataSource().getName() + "]"
+            );
+        }
+        return mergeSettings(parent, dataset);
+    }
+
+    /**
      * Dataset format settings at the top level; data-source auth/connection settings stored under
      * {@link ExternalSourceResolver#DATASOURCE_CONFIG_KEY} so they are kept separate from format
      * options. {@link ExternalSourceResolver#storageConfig} flattens the sub-map before passing

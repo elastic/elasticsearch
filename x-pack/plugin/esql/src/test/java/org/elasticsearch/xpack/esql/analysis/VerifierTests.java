@@ -1870,6 +1870,36 @@ public class VerifierTests extends ESTestCase {
         );
     }
 
+    public void testSparklineAcceptsExpressionsOverAggregates() {
+        String sparklineArgs = "hire_date, 10, \"2024-01-01\", \"2024-02-01\"";
+        // should not throw
+        defaultAnalyzer().query("from test | stats s = SPARKLINE(COUNT()+1, " + sparklineArgs + ")");
+        defaultAnalyzer().query("from test | stats s = SPARKLINE(MIN(salary)+MIN(emp_no), " + sparklineArgs + ")");
+        defaultAnalyzer().query("from test | stats s = SPARKLINE(AVG(salary)*2, " + sparklineArgs + ")");
+    }
+
+    public void testSparklineRejectsExpressionsWithBareFields() {
+        String sparklineArgs = "hire_date, 10, \"2024-01-01\", \"2024-02-01\"";
+        // no aggregate at all in the expression
+        defaultAnalyzer().error(
+            "from test | stats s = SPARKLINE(salary+1, " + sparklineArgs + ")",
+            containsString("must be an aggregate function")
+        );
+        // contains an aggregate but also a bare field outside it
+        defaultAnalyzer().error(
+            "from test | stats s = SPARKLINE(MIN(salary)+emp_no, " + sparklineArgs + ")",
+            containsString("must aggregate to a single value; every field referenced in")
+        );
+    }
+
+    public void testSparklineRejectsMultiValuedAggsInsideExpressions() {
+        String sparklineArgs = "hire_date, 10, \"2024-01-01\", \"2024-02-01\"";
+        defaultAnalyzer().error(
+            "from test | stats s = SPARKLINE(TOP(avg_worked_seconds, 3, \"asc\")+1, " + sparklineArgs + ")",
+            containsString("must be a single-valued aggregate function")
+        );
+    }
+
     public void testWeightedAvg() {
         defaultAnalyzer().error(
             "row v = [1, 2, 3] | stats w_avg = weighted_avg(v, null)",

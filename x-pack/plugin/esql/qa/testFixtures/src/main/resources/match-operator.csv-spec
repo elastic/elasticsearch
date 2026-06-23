@@ -686,7 +686,6 @@ live long and prosper    | host1
 ;
 
 testMatchWithSemanticTextMultiValueField
-skip_flattened_rewrite: match_family_rejects_field_extract
 required_capability: match_operator_colon
 required_capability: semantic_text_field_caps
 
@@ -700,7 +699,6 @@ _id: keyword | st_multi_value:text
 ;
 
 testMatchWithSemanticTextWithEvalsAndOtherFunctionsAndStats
-skip_flattened_rewrite: match_family_rejects_field_extract
 required_capability: match_operator_colon
 required_capability: semantic_text_field_caps
 

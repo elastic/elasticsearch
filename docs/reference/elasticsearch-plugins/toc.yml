@@ -11,7 +11,8 @@ toc:
       - file: _plugins_directory.md
       - file: manage-plugins-using-configuration-file.md
       - file: cloud/ec-custom-bundles.md
-      - file: cloud/ec-plugins-guide.md
+      - title: Manage plugins and extensions through the API
+        crosslink: docs-content://deploy-manage/deploy/elastic-cloud/manage-plugins-extensions-through-api.md
   - file: api-extension-plugins.md
   - file: analysis-plugins.md
     children:

@@ -121,7 +121,7 @@ After creating your extension, you can [enable them for existing {{es}} deployme
 ::::{note}
 Creating extensions larger than 200MB should be done through the extensions API.
 
-Refer to [Managing plugins and extensions through the API](/reference/elasticsearch-plugins/cloud/ec-plugins-guide.md) for more details.
+Refer to [Managing plugins and extensions through the API](docs-content://deploy-manage/deploy/elastic-cloud/manage-plugins-extensions-through-api.md) for more details.
 
 ::::
 
@@ -178,7 +178,7 @@ To update an extension with a new file version,
 ## How to use the extensions API [ec-extension-api-usage-guide]
 
 ::::{note}
-For a full set of examples, check [Managing plugins and extensions through the API](/reference/elasticsearch-plugins/cloud/ec-plugins-guide.md).
+For a full set of examples, check [Managing plugins and extensions through the API](docs-content://deploy-manage/deploy/elastic-cloud/manage-plugins-extensions-through-api.md).
 ::::
 
 

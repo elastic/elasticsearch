@@ -36,7 +36,7 @@ An approximate query returns the same columns as the exact query, plus two addit
 
 Consider a query that counts page hits and computes the average page load time per country over the last week. The exact results might be:
 
-| total_hits | avg_load_time | country_code | 
+| total_hits | avg_load_time | country_code |
 |------------|---------------|--------------|
 | 12483710   | 237.4         | US           |
 | 4271856    | 189.2         | DE           |
@@ -124,10 +124,8 @@ Some of these (such as `MIN` and `MAX`) are intrinsically difficult to estimate 
 
 The following query patterns are not currently supported for approximation and fall back to exact execution:
 
-- Queries using the `TS` source command
-- Queries using the `FORK` or `JOIN` processing commands
+- Queries using the `TS` and `PROMQL` source command
 - Pipelines containing two or more `STATS` commands
-
 
 ## When approximation is less effective
 

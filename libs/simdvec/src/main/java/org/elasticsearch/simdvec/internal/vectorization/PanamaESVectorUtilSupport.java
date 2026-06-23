@@ -1308,7 +1308,7 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
         }
 
         for (; i < target.length; i++) {
-            quantize[i] = Math.round((Math.min(Math.max(target[i], a), b) - a) * invStep);
+            quantize[i] = Math.round((Math.clamp(target[i], a, b) - a) * invStep);
             // this is quantizing and then dequantizing the vector
             float xiq = fma(step, quantize[i], a);
             // how much does the de-quantized value differ from the original value
@@ -1382,7 +1382,7 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
             ByteVector qv = ByteVector.fromArray(BYTE_SPECIES, v1, i);
             ByteVector cv = ByteVector.fromArray(BYTE_SPECIES, centroid, i);
             for (int part = 0; part < BYTE_TO_FLOAT_PARTS; part++) {
-                IntVector diff = ((IntVector) qv.castShape(INTEGER_SPECIES, part)).sub((IntVector) cv.castShape(INTEGER_SPECIES, part));
+                Vector<Integer> diff = qv.castShape(INTEGER_SPECIES, part).sub(cv.castShape(INTEGER_SPECIES, part));
                 sqAcc = sqAcc.add(diff.mul(diff));
                 FloatVector resVec = FloatVector.fromArray(FLOAT_SPECIES, originalResidual, i + part * FLOAT_SPECIES.length());
                 projAcc = fma((FloatVector) diff.castShape(FLOAT_SPECIES, 0), resVec, projAcc);
@@ -1399,31 +1399,16 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
         return sqDist + soarLambda * proj * proj / rnorm;
     }
 
-    private static final VectorSpecies<Float> PREFERRED_FLOAT_SPECIES = PanamaVectorConstants.PREFERRED_FLOAT_SPECIES;
-    private static final VectorSpecies<Byte> BYTE_SPECIES_FOR_PREFFERED_FLOATS;
-
-    static {
-        VectorSpecies<Byte> byteForFloat;
-        try {
-            // calculate vector size to convert from single bytes to 4-byte floats
-            byteForFloat = VectorSpecies.of(byte.class, VectorShape.forBitSize(PREFERRED_FLOAT_SPECIES.vectorBitSize() / Float.BYTES));
-        } catch (IllegalArgumentException e) {
-            // can't get a byte vector size small enough, just use default impl
-            byteForFloat = null;
-        }
-        BYTE_SPECIES_FOR_PREFFERED_FLOATS = byteForFloat;
-    }
-
     public static float ipFloatByteImpl(float[] q, byte[] d) {
-        assert BYTE_SPECIES_FOR_PREFFERED_FLOATS != null;
-        FloatVector acc = FloatVector.zero(PREFERRED_FLOAT_SPECIES);
+        assert BYTE_SPECIES_FOR_FLOATS != null;
+        FloatVector acc = FloatVector.zero(FLOAT_SPECIES);
         int i = 0;
 
-        int limit = PREFERRED_FLOAT_SPECIES.loopBound(q.length);
-        for (; i < limit; i += PREFERRED_FLOAT_SPECIES.length()) {
-            FloatVector qv = FloatVector.fromArray(PREFERRED_FLOAT_SPECIES, q, i);
-            ByteVector bv = ByteVector.fromArray(BYTE_SPECIES_FOR_PREFFERED_FLOATS, d, i);
-            acc = qv.fma(bv.castShape(PREFERRED_FLOAT_SPECIES, 0), acc);
+        int limit = FLOAT_SPECIES.loopBound(q.length);
+        for (; i < limit; i += FLOAT_SPECIES.length()) {
+            FloatVector qv = FloatVector.fromArray(FLOAT_SPECIES, q, i);
+            ByteVector bv = ByteVector.fromArray(BYTE_SPECIES_FOR_FLOATS, d, i);
+            acc = qv.fma(bv.castShape(FLOAT_SPECIES, 0), acc);
         }
 
         float sum = acc.reduceLanes(VectorOperators.ADD);
@@ -1457,7 +1442,7 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
             }
         }
         for (; i < vector.length; i++) {
-            float xi = Math.min(Math.max(vector[i], lowInterval), upperInterval);
+            float xi = Math.clamp(vector[i], lowInterval, upperInterval);
             int assignment = Math.round((xi - lowInterval) * invStep);
             sumQuery += assignment;
             destination[i] = assignment;
@@ -2198,11 +2183,11 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
             ByteVector bv2 = ByteVector.fromArray(BYTE_SPECIES, c2, i);
             ByteVector bv3 = ByteVector.fromArray(BYTE_SPECIES, c3, i);
             for (int part = 0; part < BYTE_TO_FLOAT_PARTS; part++) {
-                IntVector iq = (IntVector) qv.castShape(INTEGER_SPECIES, part);
-                IntVector diff0 = iq.sub(bv0.castShape(INTEGER_SPECIES, part));
-                IntVector diff1 = iq.sub(bv1.castShape(INTEGER_SPECIES, part));
-                IntVector diff2 = iq.sub(bv2.castShape(INTEGER_SPECIES, part));
-                IntVector diff3 = iq.sub(bv3.castShape(INTEGER_SPECIES, part));
+                Vector<Integer> iq = qv.castShape(INTEGER_SPECIES, part);
+                Vector<Integer> diff0 = iq.sub(bv0.castShape(INTEGER_SPECIES, part));
+                Vector<Integer> diff1 = iq.sub(bv1.castShape(INTEGER_SPECIES, part));
+                Vector<Integer> diff2 = iq.sub(bv2.castShape(INTEGER_SPECIES, part));
+                Vector<Integer> diff3 = iq.sub(bv3.castShape(INTEGER_SPECIES, part));
                 // sqDist accumulation in int
                 sqAcc0 = sqAcc0.add(diff0.mul(diff0));
                 sqAcc1 = sqAcc1.add(diff1.mul(diff1));
@@ -2681,7 +2666,6 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
         assert v1.length == result.length;
 
         final int limit = FLOAT_SPECIES.loopBound(v1.length);
-        FloatVector base = FloatVector.broadcast(FLOAT_SPECIES, (float) 2);
 
         int i = 0;
         for (; i < limit; i += FLOAT_SPECIES.length()) {
@@ -2707,7 +2691,7 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
             .convert(VectorOperators.F2I, 0)
             .mul(signs);
         p = p.max(-30).min(30);
-        FloatVector pFloat = (FloatVector) p.convert(VectorOperators.I2F, 0);
+        Vector<Float> pFloat = p.convert(VectorOperators.I2F, 0);
         // Replace div(2) with mul(0.5f)
         FloatVector m = exponent.sub(pFloat).mul(0.5f).add(1.0f);
         // Build 2^p using direct IEEE-754 bit manipulation

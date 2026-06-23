@@ -201,14 +201,7 @@ public final class AstKeywordFieldRewriter {
         }
 
         if (expression instanceof Function function) {
-            String name = function.functionName().toUpperCase(Locale.ROOT);
-            if (name.equals("TOINTEGER")) return "TO_INTEGER";
-            if (name.equals("TOGEOPOINT")) return "TO_GEOPOINT";
-            if (name.equals("TOSTRING")) return "TO_STRING";
-            if (name.equals("TOIPLEADINGZEROSREJECTED")) return "TO_IP";
-            if (name.equals("WILDCARDLIKELIST")) return "LIKE";
-            if (name.equals("RLIKELIST")) return "RLIKE";
-            return name;
+            return function.functionName().toUpperCase(Locale.ROOT);
         }
 
         return null;
@@ -866,8 +859,12 @@ public final class AstKeywordFieldRewriter {
                 // TODO use a `kind` marker for varargs somehow.
                 int argIndex = i;
                 if (expressionName != null) {
-                    if (expressionName.equals("CONCAT") && argIndex > 1) argIndex = 1;
-                    if (expressionName.equals("IN") && argIndex > 1) argIndex = 1;
+                    if (expressionName.equals("CONCAT") && argIndex > 1) {
+                        argIndex = 1;
+                    }
+                    if (expressionName.equals("IN") && argIndex > 1) {
+                        argIndex = 1;
+                    }
                 }
                 String nextTrackingContext = expressionName != null ? expressionName + ":" + argIndex : trackingContext;
                 wrapExpression(child, scope, nextTrackingContext);

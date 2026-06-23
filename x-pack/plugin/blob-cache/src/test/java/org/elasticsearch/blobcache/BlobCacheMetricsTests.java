@@ -115,27 +115,26 @@ public class BlobCacheMetricsTests extends ESTestCase {
     }
 
     public void testRecordEvictionScan() {
-        // keep the elapsed time above one microsecond so the nanos -> micros conversion never truncates to zero
-        long elapsedNanos = randomLongBetween(TimeUnit.MICROSECONDS.toNanos(1), TimeUnit.SECONDS.toNanos(1));
+        long elapsedNanos = randomNonNegativeLong();
         long scannedEntries = randomNonNegativeLong();
         BlobCacheMetrics.EvictionScanMode mode = randomFrom(BlobCacheMetrics.EvictionScanMode.values());
         BlobCacheMetrics.EvictionScanOutcome outcome = randomFrom(BlobCacheMetrics.EvictionScanOutcome.values());
 
         metrics.recordEvictionScan(elapsedNanos, scannedEntries, mode, outcome);
 
-        // the scan-time histogram records the elapsed time converted from nanoseconds to microseconds
+        // the scan-time histogram records the elapsed time as fractional microseconds
         var scanTimeMeasurements = recordingMeterRegistry.getRecorder()
-            .getMeasurements(InstrumentType.LONG_HISTOGRAM, BLOB_CACHE_EVICTION_SCAN_TIME);
+            .getMeasurements(InstrumentType.DOUBLE_HISTOGRAM, BLOB_CACHE_EVICTION_SCAN_TIME);
         assertThat(scanTimeMeasurements, hasSize(1));
-        assertThat(scanTimeMeasurements.get(0).getLong(), is(TimeUnit.NANOSECONDS.toMicros(elapsedNanos)));
-        assertEvictionScanAttributes(scanTimeMeasurements.get(0), mode, outcome);
+        assertThat(scanTimeMeasurements.getFirst().getDouble(), is(elapsedNanos / 1000.0));
+        assertEvictionScanAttributes(scanTimeMeasurements.getFirst(), mode, outcome);
 
         // the scanned-entries histogram records the raw count
         var scannedEntriesMeasurements = recordingMeterRegistry.getRecorder()
             .getMeasurements(InstrumentType.LONG_HISTOGRAM, BLOB_CACHE_EVICTION_SCANNED_ENTRIES);
         assertThat(scannedEntriesMeasurements, hasSize(1));
-        assertThat(scannedEntriesMeasurements.get(0).getLong(), is(scannedEntries));
-        assertEvictionScanAttributes(scannedEntriesMeasurements.get(0), mode, outcome);
+        assertThat(scannedEntriesMeasurements.getFirst().getLong(), is(scannedEntries));
+        assertEvictionScanAttributes(scannedEntriesMeasurements.getFirst(), mode, outcome);
     }
 
     private static void assertEvictionScanAttributes(

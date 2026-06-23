@@ -1441,7 +1441,11 @@ public class RestEsqlIT extends RestEsqlTestCase {
                 for (Map<String, Object> o : operators) {
                     String name = signature(o);
                     if (name.equals("LuceneSourceOperator")) {
-                        MapMatcher status = matchesMap().entry("total_slices", greaterThan(1))
+                        // AUTO routes to DOC (docs_threshold_auto_partitioning=20 is below this
+                        // index's 1000 docs), but the DOC partitioner floors slice size at
+                        // MIN_DOCS_PER_SLICE (50_000), so this 1000-doc index must stay on a
+                        // single slice — the previous behavior over-split tiny indices.
+                        MapMatcher status = matchesMap().entry("total_slices", equalTo(1))
                             .entry("partitioning_strategies", matchesMap().entry("rest-esql-test:0", "DOC"))
                             .extraOk();
                         assertMap(o, matchesMap().entry("operator", startsWith(name)).entry("status", status));

@@ -2564,10 +2564,10 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         }
 
         public long getMaxPendingOrUploadedGeneration() {
-            return Math.max(
-                getMaxPendingUploadBcc().map(VirtualBatchedCompoundCommit::getMaxGeneration).orElse(-1L),
-                getMaxUploadedGeneration()
-            );
+            // Read order is important
+            final long maxPendingUploadBcc = getMaxPendingUploadBcc().map(VirtualBatchedCompoundCommit::getMaxGeneration).orElse(-1L);
+            final long maxUploadedCcGen = getMaxUploadedGeneration();
+            return Math.max(maxPendingUploadBcc, maxUploadedCcGen);
         }
 
         public void markIndexDeleting() {

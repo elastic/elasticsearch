@@ -40,7 +40,6 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.fieldcomparator.LongValuesComparatorSource;
-import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.shard.IndexShard;
@@ -96,7 +95,7 @@ public class LogsdbSortConfigIT extends ESSingleNodeTestCase {
     }
 
     public void testHostnameMessageTimestampSortConfig() throws IOException {
-        assumeTrue("test uses cardinality option", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
+        assumeTrue("test uses cardinality option", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
 
         final String dataStreamName = "test-logsdb-sort-hostname-message-timestamp";
 
@@ -183,7 +182,7 @@ public class LogsdbSortConfigIT extends ESSingleNodeTestCase {
     }
 
     public void testHostnameTimestampSortConfig() throws Exception {
-        assumeTrue("test uses cardinality option", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
+        assumeTrue("test uses cardinality option", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
 
         final String dataStreamName = "test-logsdb-sort-hostname-timestamp";
 
@@ -245,7 +244,7 @@ public class LogsdbSortConfigIT extends ESSingleNodeTestCase {
     }
 
     public void testTimestampOnlySortConfig() throws IOException {
-        assumeTrue("test uses cardinality option", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
+        assumeTrue("test uses cardinality option", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
 
         final String dataStreamName = "test-logsdb-sort-timestamp-only";
 

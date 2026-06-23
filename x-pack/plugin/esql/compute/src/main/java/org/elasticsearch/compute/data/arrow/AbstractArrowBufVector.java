@@ -15,6 +15,8 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.Vector;
 
+import java.lang.foreign.MemorySegment;
+
 public abstract class AbstractArrowBufVector<V extends Vector, B extends Block> extends AbstractNonThreadSafeRefCounted implements Vector {
 
     protected final ArrowBuf valueBuffer;
@@ -72,6 +74,18 @@ public abstract class AbstractArrowBufVector<V extends Vector, B extends Block> 
     @Override
     public int getPositionCount() {
         return this.positionCount;
+    }
+
+    /**
+     * A {@link MemorySegment} view over this vector's off-heap Arrow buffer, sized to
+     * {@code positionCount * byteSize()} bytes, for bulk / auto-vectorized aggregation kernels: a
+     * {@code MemorySegment} reduction loop auto-vectorizes, whereas the per-element {@code ArrowBuf.getX}
+     * accessors do not (~3.5x slower in microbenchmarks). Valid only while this vector (hence the
+     * underlying {@link ArrowBuf}) is alive; treat as read-only. Uses the restricted
+     * {@link MemorySegment#reinterpret(long)}, so the calling module must be granted native access.
+     */
+    public MemorySegment valuesSegment() {
+        return MemorySegment.ofAddress(valueBuffer.memoryAddress()).reinterpret((long) positionCount * byteSize());
     }
 
     @Override

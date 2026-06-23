@@ -31,6 +31,7 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.StoppableExecutorServiceWrapper;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.CheckedRunnable;
+import org.elasticsearch.core.Predicates;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.TestEnvironment;
@@ -66,6 +67,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.IntConsumer;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -1706,8 +1708,8 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
         final RecordingMeterRegistry recordingNone = new RecordingMeterRegistry();
         final EvictionPolicy<TestCacheKey> neverEvict = new EvictionPolicy<>() {
             @Override
-            public boolean canEvict(CacheRegion<TestCacheKey> region, CacheRegion<TestCacheKey> incoming) {
-                return false;
+            public Predicate<CacheRegion<TestCacheKey>> createEvictionPredicate(CacheRegion<TestCacheKey> incoming) {
+                return Predicates.never();
             }
 
             @Override
@@ -1758,9 +1760,9 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
     /// Drives the all-frequency scanner to the rarely-hit `Free` outcome and asserts the recorded `mode`, `outcome` and `entriesScanned`.
     ///
     /// The `Free` outcome fires when a region appears in `freeRegions` *during* the scan's poll, rather than being produced by the
-    /// scan's own eviction. To trigger it deterministically, we install a policy that never evicts, but on its first `canEvict`
-    /// consultation force-evicts a victim that has been parked in a higher frequency bucket. `forceEvict` bypasses `canEvict` (so the
-    /// side effect fires exactly once) and re-enters the same reentrant monitor already held by the in-flight scan, freeing one region
+    /// scan's own eviction. To trigger it deterministically, we install a policy that never evicts, but when its eviction predicate is
+    /// created force-evicts a victim that has been parked in a higher frequency bucket. `forceEvict` bypasses the eviction predicate (so
+    /// the side effect fires exactly once) and re-enters the same reentrant monitor already held by the in-flight scan, freeing one region
     /// into `freeRegions` which the scan's next poll then picks up.
     ///
     /// The victim must live in a *different* frequency bucket than the one being scanned: `maybeEvictAndTakeForFrequency` walks its
@@ -1787,16 +1789,16 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
         final AtomicReference<SharedBlobCacheService<TestCacheKey>> serviceRef = new AtomicReference<>();
         final TestCacheKey victimKey = generateCacheKey();
 
-        // never evicts, but on its first consultation force-evicts the victim
+        // never evicts, but when its eviction predicate is created force-evicts the victim
         final EvictionPolicy<TestCacheKey> freeingPolicy = new EvictionPolicy<>() {
             final AtomicBoolean forcedOnce = new AtomicBoolean(false);
 
             @Override
-            public boolean canEvict(CacheRegion<TestCacheKey> region, CacheRegion<TestCacheKey> incoming) {
+            public Predicate<CacheRegion<TestCacheKey>> createEvictionPredicate(CacheRegion<TestCacheKey> incoming) {
                 if (forcedOnce.compareAndSet(false, true)) {
                     serviceRef.get().forceEvict(victimKey::equals);
                 }
-                return false;
+                return Predicates.never();
             }
 
             @Override
@@ -1838,7 +1840,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             // the cache is still full, so the only way a region can land in freeRegions mid-scan is the in-scan force-evict below
             assertThat(cacheService.freeRegionCount(), equalTo(0));
 
-            // get() of a new key has no free region: the freq-0 scan walks all numRegions - 1 entries (canEvict false), the first of
+            // get() of a new key has no free region: the freq-0 scan walks all numRegions - 1 entries (predicate false), the first of
             // which force-evicts the freq-2 victim; the freq-1 poll then picks up that freed region, giving the Free outcome
             cacheService.get(generateCacheKey(), regionSize, 0);
 
@@ -1893,8 +1895,8 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
         final Set<TestCacheKey> protectedKeys = new HashSet<>();
         final EvictionPolicy<TestCacheKey> protectFirstSkip = new EvictionPolicy<>() {
             @Override
-            public boolean canEvict(CacheRegion<TestCacheKey> region, CacheRegion<TestCacheKey> incoming) {
-                return protectedKeys.contains(region.key()) == false;
+            public Predicate<CacheRegion<TestCacheKey>> createEvictionPredicate(CacheRegion<TestCacheKey> incoming) {
+                return region -> protectedKeys.contains(region.key()) == false;
             }
 
             @Override
@@ -2007,8 +2009,8 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
         final Set<TestCacheKey> protectedKeys = new HashSet<>();
         final EvictionPolicy<TestCacheKey> protectByKey = new EvictionPolicy<>() {
             @Override
-            public boolean canEvict(CacheRegion<TestCacheKey> region, CacheRegion<TestCacheKey> incoming) {
-                return protectedKeys.contains(region.key()) == false;
+            public Predicate<CacheRegion<TestCacheKey>> createEvictionPredicate(CacheRegion<TestCacheKey> incoming) {
+                return region -> protectedKeys.contains(region.key()) == false;
             }
 
             @Override

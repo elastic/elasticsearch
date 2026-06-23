@@ -83,6 +83,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Avg;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AvgOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.CountOverTime;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.First;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Max;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.MaxOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
@@ -119,6 +120,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvCoun
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
 import org.elasticsearch.xpack.esql.expression.function.vector.VectorFunction;
 import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
+import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.DateTimeArithmeticOperation;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Div;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.EsqlArithmeticOperation;
@@ -1641,12 +1643,15 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 if (attr.name().equals(score.name())) {
                     continue;
                 }
-                var valuesAgg = new Values(source, attr, aggFilter, AggregateFunction.NO_WINDOW);
-                // Use VALUES only on supported fields.
-                // FuseScoreEval will check that the input contains only columns with supported data types
-                // and will fail with an appropriate error message if it doesn't.
-                if (valuesAgg.resolved()) {
-                    aggregates.add(new Alias(source, attr.name(), valuesAgg));
+                // _fork differs per branch for the same document, use VALUES to collect all
+                // branch names into a multi-value field
+                // All other columns come from the same document in every branch, use
+                // FIRST(col, NULL), as "any value"
+                Expression agg = attr.name().equals(discriminator.name())
+                    ? new Values(source, attr, aggFilter, AggregateFunction.NO_WINDOW)
+                    : new First(source, attr, Literal.NULL).withFilter(new IsNotNull(source, attr));
+                if (agg.resolved()) {
+                    aggregates.add(new Alias(source, attr.name(), agg));
                 }
             }
 

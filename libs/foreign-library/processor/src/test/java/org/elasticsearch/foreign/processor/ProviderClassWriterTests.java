@@ -11,6 +11,8 @@ package org.elasticsearch.foreign.processor;
 
 import org.elasticsearch.foreign.Platform;
 
+import java.util.Locale;
+
 /**
  * Tests that {@link ProviderClassWriter} generates correct {@code $Provider} class files.
  */
@@ -62,7 +64,7 @@ public class ProviderClassWriterTests extends ProcessorTestCase {
         Platform current = Platform.current();
         Platform other = java.util.Arrays.stream(Platform.values()).filter(p -> p != current).findFirst().get();
 
-        String source = """
+        String source = String.format(Locale.ROOT, """
             package test;
             import org.elasticsearch.foreign.LibrarySpecification;
             import org.elasticsearch.foreign.Function;
@@ -75,7 +77,7 @@ public class ProviderClassWriterTests extends ProcessorTestCase {
                 @Function("native_fn")
                 int fn(int x);
             }
-            """.formatted(current.name(), other.name());
+            """, current.name(), other.name());
 
         CompilationResult result = compile("test.MyLib", source);
         assertTrue("Expected compilation to succeed but got errors: " + result.errors(), result.success());
@@ -95,7 +97,7 @@ public class ProviderClassWriterTests extends ProcessorTestCase {
      */
     public void testUnavailableOnCurrentPlatformLoadReturnsNull() throws Exception {
         String currentPlatform = Platform.current().name();
-        String source = """
+        String source = String.format(Locale.ROOT, """
             package test;
             import org.elasticsearch.foreign.LibrarySpecification;
             import org.elasticsearch.foreign.Function;
@@ -108,7 +110,7 @@ public class ProviderClassWriterTests extends ProcessorTestCase {
                 @Function("native_fn")
                 int fn(int x);
             }
-            """.formatted(currentPlatform);
+            """, currentPlatform);
 
         CompilationResult result = compile("test.MyLib", source);
         assertTrue("Expected compilation to succeed but got errors: " + result.errors(), result.success());

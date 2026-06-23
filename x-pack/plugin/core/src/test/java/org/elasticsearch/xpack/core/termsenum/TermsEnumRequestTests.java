@@ -31,6 +31,8 @@ import java.util.Collections;
 import java.util.List;
 import java.util.function.Consumer;
 
+import static org.hamcrest.Matchers.containsString;
+
 public class TermsEnumRequestTests extends AbstractXContentSerializingTestCase<TermsEnumRequest> {
     private NamedXContentRegistry xContentRegistry;
     private NamedWriteableRegistry namedWriteableRegistry;
@@ -149,5 +151,22 @@ public class TermsEnumRequestTests extends AbstractXContentSerializingTestCase<T
             "prefix string larger than 32766 characters, which is the maximum allowed term length for keyword fields.",
             validationException.validationErrors().get(0)
         );
+    }
+
+    public void testProjectRoutingAllowedInCpsMode() {
+        TermsEnumRequest request = new TermsEnumRequest("idx").field("f");
+        // indices options that resolve a cross-project index expression mirror what RestTermsEnumAction sets in CPS mode
+        request.indicesOptions(IndicesOptions.CPS_LENIENT_EXPAND_OPEN);
+        request.projectRouting("_alias:_origin");
+        assertNull(request.validate());
+    }
+
+    public void testProjectRoutingRejectedWithoutCpsMode() {
+        TermsEnumRequest request = new TermsEnumRequest("idx").field("f");
+        // default indices options do not resolve a cross-project index expression, so project_routing is not allowed
+        request.projectRouting("_alias:_origin");
+        ActionRequestValidationException validationException = request.validate();
+        assertNotNull(validationException);
+        assertThat(validationException.getMessage(), containsString("Unknown key for a VALUE_STRING in [project_routing]"));
     }
 }

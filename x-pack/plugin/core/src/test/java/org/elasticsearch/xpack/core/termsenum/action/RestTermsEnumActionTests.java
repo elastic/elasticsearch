@@ -41,10 +41,12 @@ import org.junit.BeforeClass;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static java.util.Collections.emptyMap;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
 
 public class RestTermsEnumActionTests extends ESTestCase {
@@ -63,6 +65,12 @@ public class RestTermsEnumActionTests extends ESTestCase {
     private static RestTermsEnumAction action = new RestTermsEnumAction(CrossProjectModeDecider.NOOP);
 
     /**
+     * Captures the {@link TermsEnumRequest} that the stubbed transport action receives so tests can assert how
+     * {@link RestTermsEnumAction} prepared it (e.g. whether cross-project index expression resolution was enabled).
+     */
+    private static final AtomicReference<TermsEnumRequest> capturedRequest = new AtomicReference<>();
+
+    /**
      * Configures {@link NodeClient} to stub {@link TermsEnumAction} transport action.
      * <p>
      * This lower level of execution is out of the scope of this test.
@@ -78,7 +86,9 @@ public class RestTermsEnumActionTests extends ESTestCase {
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         ) {
             @Override
-            protected void doExecute(Task task, ActionRequest request, ActionListener<ActionResponse> listener) {}
+            protected void doExecute(Task task, ActionRequest request, ActionListener<ActionResponse> listener) {
+                capturedRequest.set((TermsEnumRequest) request);
+            }
         };
 
         final Map<ActionType<?>, TransportAction<?, ?>> actions = new HashMap<>();
@@ -162,6 +172,48 @@ public class RestTermsEnumActionTests extends ESTestCase {
         assertThat(channel.responses().get(), equalTo(0));
         assertThat(channel.errors().get(), equalTo(1));
         assertThat(channel.capturedResponse().content().utf8ToString(), containsString("field cannot be null"));
+    }
+
+    public void testRestTermEnumActionCrossProjectEnabled() throws Exception {
+        // GIVEN a REST handler whose decider has cross-project mode enabled
+        final RestTermsEnumAction crossProjectAction = new RestTermsEnumAction(
+            new CrossProjectModeDecider(Settings.builder().put("serverless.cross_project.enabled", true).build())
+        );
+
+        capturedRequest.set(null);
+        final RestRequest request = createRestRequest("""
+            {
+              "field": "a"
+            }""");
+        final FakeRestChannel channel = new FakeRestChannel(request, true);
+
+        // WHEN the handler prepares and executes the request (no route registration, direct dispatch)
+        crossProjectAction.handleRequest(request, channel, client);
+
+        // THEN the executed request resolves a cross-project index expression
+        assertThat(channel.errors().get(), equalTo(0));
+        assertNotNull(capturedRequest.get());
+        assertThat(capturedRequest.get().indicesOptions().resolveCrossProjectIndexExpression(), is(true));
+    }
+
+    public void testRestTermEnumActionCrossProjectDisabled() throws Exception {
+        // GIVEN a REST handler whose decider leaves cross-project mode disabled (the NOOP control)
+        final RestTermsEnumAction nonCrossProjectAction = new RestTermsEnumAction(CrossProjectModeDecider.NOOP);
+
+        capturedRequest.set(null);
+        final RestRequest request = createRestRequest("""
+            {
+              "field": "a"
+            }""");
+        final FakeRestChannel channel = new FakeRestChannel(request, true);
+
+        // WHEN the handler prepares and executes the request (no route registration, direct dispatch)
+        nonCrossProjectAction.handleRequest(request, channel, client);
+
+        // THEN the executed request does not resolve a cross-project index expression
+        assertThat(channel.errors().get(), equalTo(0));
+        assertNotNull(capturedRequest.get());
+        assertThat(capturedRequest.get().indicesOptions().resolveCrossProjectIndexExpression(), is(false));
     }
 
     private RestRequest createRestRequest(String content) {

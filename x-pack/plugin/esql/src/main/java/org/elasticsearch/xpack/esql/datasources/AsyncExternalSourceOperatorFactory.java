@@ -109,9 +109,11 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
     private final FormatReader formatReader;
     private final StoragePath path;
     private final List<Attribute> attributes;
-    // Data-attribute view of {@link #attributes} (metadata attributes stripped). Built once at
-    // construction; used to shape pages handed to SchemaAdaptingIterator and to scope filter
-    // adaptation in mapFilters.
+    // Data-attribute view of {@link #attributes} (virtual columns and Hive-style partition columns
+    // stripped). Built once at construction; used to shape pages handed to SchemaAdaptingIterator
+    // and to scope filter adaptation in mapFilters. Partition columns are excluded so this width
+    // matches the file-backed ColumnMapping even when a partition key shadows a same-named physical
+    // column (see ExternalSchema#dataAttributesOf(List, Set)).
     private final ExternalSchema queryDataSchema;
     /**
      * {@link #attributes} minus the synthetic {@link ColumnExtractor#ROW_POSITION_COLUMN}, used when
@@ -265,7 +267,11 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         this.formatReader = formatReader;
         this.path = path;
         this.attributes = attributes;
-        this.queryDataSchema = ExternalSchema.dataAttributesOf(attributes);
+        // Resolve partitionColumnNames before queryDataSchema: the data-only schema must exclude
+        // partition columns so its width matches the file-backed ColumnMapping (a partition key may
+        // shadow a same-named physical column). See ExternalSchema#dataAttributesOf(List, Set).
+        this.partitionColumnNames = partitionColumnNames != null ? partitionColumnNames : Set.of();
+        this.queryDataSchema = ExternalSchema.dataAttributesOf(attributes, this.partitionColumnNames);
         this.readerResolvedAttributes = stripRowPosition(attributes);
         this.executor = executor;
         this.batchSize = batchSize;
@@ -273,7 +279,6 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         this.rowLimit = rowLimit;
         this.fileList = fileList;
         this.schemaMap = schemaMap != null ? schemaMap : Map.of();
-        this.partitionColumnNames = partitionColumnNames != null ? partitionColumnNames : Set.of();
         this.partitionValues = partitionValues != null ? partitionValues : Map.of();
         this.producerBlockFactory = producerBlockFactory;
         this.sliceQueue = sliceQueue;

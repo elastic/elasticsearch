@@ -1215,3 +1215,44 @@ setup:
         model_id: model-without-definition
   - match: { count: 1 }
   - match: { trained_model_configs.0.platform_architecture: windows-x86_64 }
+
+---
+"Test delete already-deleted model returns 404 not 409":
+  - do:
+      ingest.put_pipeline:
+        id: "pipeline-using-a-classification-model"
+        body:  >
+          {
+            "processors": [
+              {
+                "inference": {
+                  "model_id": "a-classification-model",
+                  "target_field": "infer_result",
+                  "inference_config": { "classification": {} }
+                }
+              }
+            ]
+          }
+
+  - do:
+      ml.delete_trained_model:
+        model_id: "a-classification-model"
+        force: true
+  - match: { acknowledged: true }
+
+ # Second delete returns 404
+  - do:
+      catch: missing
+      ml.delete_trained_model:
+        model_id: "a-classification-model"
+
+  # Same behavior with force=true.
+  - do:
+      catch: missing
+      ml.delete_trained_model:
+        model_id: "a-classification-model"
+        force: true
+
+  - do:
+      ingest.delete_pipeline:
+        id: "pipeline-using-a-classification-model"

@@ -35,10 +35,8 @@ import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
 
 import java.io.IOException;
-import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
-import java.util.Map;
-import java.util.Objects;
 
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.ROUND_TO_BLOCK_LOADER;
@@ -127,7 +125,7 @@ public class RoundTo extends EsqlScalarFunction implements BlockLoaderExpression
         }
 
         DataType dataType = dataType();
-        if (dataType == null || SIGNATURES.containsKey(dataType) == false) {
+        if ((dataType == LONG || dataType == DATETIME || dataType == DATE_NANOS || dataType == INTEGER || dataType == DOUBLE) == false) {
             return new TypeResolution(format(null, "all arguments must be numeric, date, or data_nanos"));
         }
 
@@ -185,51 +183,42 @@ public class RoundTo extends EsqlScalarFunction implements BlockLoaderExpression
     @Override
     public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         DataType dataType = dataType();
-        Build build = SIGNATURES.get(dataType);
-        if (build == null) {
-            throw new IllegalStateException("unsupported type");
+        ExpressionEvaluator.Factory fieldEval = Cast.cast(source(), field().dataType(), dataType, toEvaluator.apply(field()));
+        if (dataType == LONG || dataType == DATETIME || dataType == DATE_NANOS) {
+            long[] cc = new long[points.size()];
+            for (int i = 0; i < points.size(); i++) {
+                var p = (Number) Foldables.valueOf(toEvaluator.foldCtx(), points.get(i));
+                if (p == null) {
+                    throw new IllegalStateException("unexpected null for rounding point");
+                }
+                cc[i] = DataTypeConverter.safeToLong(p);
+            }
+            Arrays.sort(cc);
+            return RoundToLong.BUILD.build(source(), fieldEval, cc);
+        } else if (dataType == INTEGER) {
+            int[] cc = new int[points.size()];
+            for (int i = 0; i < points.size(); i++) {
+                var p = (Number) Foldables.valueOf(toEvaluator.foldCtx(), points.get(i));
+                if (p == null) {
+                    throw new IllegalStateException("unexpected null for rounding point");
+                }
+                cc[i] = p.intValue();
+            }
+            Arrays.sort(cc);
+            return RoundToInt.BUILD.build(source(), fieldEval, cc);
+        } else if (dataType == DOUBLE) {
+            double[] cc = new double[points.size()];
+            for (int i = 0; i < points.size(); i++) {
+                var p = (Number) Foldables.valueOf(toEvaluator.foldCtx(), points.get(i));
+                if (p == null) {
+                    throw new IllegalStateException("unexpected null for rounding point");
+                }
+                cc[i] = p.doubleValue();
+            }
+            Arrays.sort(cc);
+            return RoundToDouble.BUILD.build(source(), fieldEval, cc);
         }
-
-        ExpressionEvaluator.Factory field = toEvaluator.apply(field());
-        field = Cast.cast(source(), field().dataType(), dataType, field);
-        List<Object> points = Iterators.toList(Iterators.map(points().iterator(), p -> Foldables.valueOf(toEvaluator.foldCtx(), p)));
-        List<Number> sortedPoints = sortedRoundingPoints(points, dataType); // provide sorted points to the evaluator
-        return build.build(source(), field, sortedPoints);
-    }
-
-    interface Build {
-        ExpressionEvaluator.Factory build(Source source, ExpressionEvaluator.Factory field, List<Number> points);
-    }
-
-    private static final Map<DataType, Build> SIGNATURES = Map.ofEntries(
-        Map.entry(DATETIME, RoundToLong.BUILD),
-        Map.entry(DATE_NANOS, RoundToLong.BUILD),
-        Map.entry(INTEGER, RoundToInt.BUILD),
-        Map.entry(LONG, RoundToLong.BUILD),
-        Map.entry(DOUBLE, RoundToDouble.BUILD)
-    );
-
-    public static List<Number> sortedRoundingPoints(List<Object> points, DataType dataType) {
-        List<Number> pointsTobeSorted = points.stream().filter(Objects::nonNull).map(p -> (Number) p).toList();
-
-        return switch (dataType) {
-            case INTEGER -> pointsTobeSorted.stream()
-                .mapToInt(Number::intValue)
-                .sorted()
-                .boxed()
-                .collect(java.util.stream.Collectors.toList());
-            case DOUBLE -> pointsTobeSorted.stream()
-                .mapToDouble(Number::doubleValue)
-                .sorted()
-                .boxed()
-                .collect(java.util.stream.Collectors.toList());
-            case LONG, DATETIME, DATE_NANOS -> pointsTobeSorted.stream()
-                .mapToLong(DataTypeConverter::safeToLong)
-                .sorted()
-                .boxed()
-                .collect(java.util.stream.Collectors.toList());
-            default -> throw new IllegalArgumentException("Unsupported data type: " + dataType);
-        };
+        throw new IllegalStateException("unsupported type: " + dataType);
     }
 
     @Override
@@ -242,29 +231,17 @@ public class RoundTo extends EsqlScalarFunction implements BlockLoaderExpression
             if (dt != LONG && dt != DATETIME && dt != DATE_NANOS) {
                 return null;
             }
-            long[] sortedPoints = sortedLongPoints();
-            if (sortedPoints == null) {
-                return null;
+            long[] pts = new long[points.size()];
+            for (int i = 0; i < points.size(); i++) {
+                if (points.get(i) instanceof Literal lit) {
+                    pts[i] = DataTypeConverter.safeToLong((Number) lit.value());
+                } else {
+                    return null;
+                }
             }
-            return new PushedBlockLoaderExpression(f, new BlockLoaderFunctionConfig.RoundToLongs(sortedPoints));
+            Arrays.sort(pts);
+            return new PushedBlockLoaderExpression(f, new BlockLoaderFunctionConfig.RoundToLongs(pts));
         }
         return null;
-    }
-
-    private long[] sortedLongPoints() {
-        List<Object> values = new ArrayList<>(points.size());
-        for (Expression p : points) {
-            if (p instanceof Literal lit) {
-                values.add(lit.value());
-            } else {
-                return null;
-            }
-        }
-        List<Number> sorted = sortedRoundingPoints(values, dataType());
-        long[] result = new long[sorted.size()];
-        for (int i = 0; i < sorted.size(); i++) {
-            result[i] = sorted.get(i).longValue();
-        }
-        return result;
     }
 }

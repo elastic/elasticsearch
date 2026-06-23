@@ -731,7 +731,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
     ///
     /// Unlike [#testStressConcurrentEnqueueMaintainsBoundsAndCompleteness], this test uses real threads to
     /// catch missing happens-before relationships that a deterministic scheduler cannot expose.
-    public void testStressConcurrentEnqueueWithRealThreads() {
+    public void testStressConcurrentEnqueueWithRealThreads() throws Exception {
         final int initialMaxConcurrentRecoveries = between(1, 20);
         final var clusterService = newClusterService(initialMaxConcurrentRecoveries);
         final var peakLimit = new AtomicInteger(initialMaxConcurrentRecoveries);
@@ -823,9 +823,10 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         // refCounted starts with 1 ref, decremented here
         refCounted.decRef();
         safeAwait(allFinished, TimeValue.timeValueSeconds(30));
+        // stats are updated after onRecoveryDone is called
+        assertBusy(() -> assertThat(stats, equalTo(new RecoveryStats())));
         assertThat(tasksCompleted.get(), equalTo(tasksEnqueued.get()));
         assertThat(peakRunning.get(), lessThanOrEqualTo(peakLimit.get()));
-        assertThat(running.get(), equalTo(0));
     }
 
     private static void runStressInboundRecoveryTask(

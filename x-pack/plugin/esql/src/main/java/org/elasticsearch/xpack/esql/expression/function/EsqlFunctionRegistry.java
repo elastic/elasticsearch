@@ -767,6 +767,10 @@ public class EsqlFunctionRegistry {
             return targetDataType;
         }
 
+        public Hint hint() {
+            return hint;
+        }
+
         public Map<String, MapEntryArgSignature> mapParams() {
             return Map.of();
         }

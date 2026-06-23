@@ -3,7 +3,7 @@
   "type" : "operator",
   "operator" : "^",
   "name" : "pow",
-  "description" : "Raises the left operand to the power of the right operand element-wise. For vector–vector operations, the metric name is dropped.",
+  "description" : "Raises the left operand to the power of the right operand element-wise. For vector???vector operations, the metric name is dropped.",
   "signatures" : [
     {
       "params" : [

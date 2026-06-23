@@ -2,15 +2,15 @@
   "comment" : "PromQL function definition for Kibana. See https://prometheus.io/docs/prometheus/latest/querying/functions/",
   "type" : "across_series",
   "name" : "quantile",
-  "description" : "Returns the φ-quantile (0 ≤ φ ≤ 1) of the values across the input vector.",
+  "description" : "Returns the ??-quantile (0 ??? ?? ??? 1) of the values across the input vector.",
   "signatures" : [
     {
       "params" : [
         {
-          "name" : "φ",
+          "name" : "??",
           "type" : "scalar",
           "optional" : false,
-          "description" : "Quantile value (0 ≤ φ ≤ 1)."
+          "description" : "Quantile value (0 ??? ?? ??? 1)."
         },
         {
           "name" : "v",

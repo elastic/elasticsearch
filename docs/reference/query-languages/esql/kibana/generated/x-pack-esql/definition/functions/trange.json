@@ -10,7 +10,10 @@
           "name" : "start_time_or_offset",
           "type" : "date",
           "optional" : false,
-          "description" : " Offset from NOW for the single parameter mode. Start time for two parameter mode.  In two parameter mode, the start time value can be a date string, date, date_nanos or epoch milliseconds. "
+          "description" : " Offset from NOW for the single parameter mode. Start time for two parameter mode.  In two parameter mode, the start time value can be a date string, date, date_nanos or epoch milliseconds. ",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "end_time",
@@ -28,7 +31,10 @@
           "name" : "start_time_or_offset",
           "type" : "date_nanos",
           "optional" : false,
-          "description" : " Offset from NOW for the single parameter mode. Start time for two parameter mode.  In two parameter mode, the start time value can be a date string, date, date_nanos or epoch milliseconds. "
+          "description" : " Offset from NOW for the single parameter mode. Start time for two parameter mode.  In two parameter mode, the start time value can be a date string, date, date_nanos or epoch milliseconds. ",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "end_time",
@@ -46,7 +52,10 @@
           "name" : "start_time_or_offset",
           "type" : "date_period",
           "optional" : false,
-          "description" : " Offset from NOW for the single parameter mode. Start time for two parameter mode.  In two parameter mode, the start time value can be a date string, date, date_nanos or epoch milliseconds. "
+          "description" : " Offset from NOW for the single parameter mode. Start time for two parameter mode.  In two parameter mode, the start time value can be a date string, date, date_nanos or epoch milliseconds. ",
+          "hint" : {
+            "kind" : "constant"
+          }
         }
       ],
       "variadic" : false,
@@ -58,7 +67,10 @@
           "name" : "start_time_or_offset",
           "type" : "keyword",
           "optional" : false,
-          "description" : " Offset from NOW for the single parameter mode. Start time for two parameter mode.  In two parameter mode, the start time value can be a date string, date, date_nanos or epoch milliseconds. "
+          "description" : " Offset from NOW for the single parameter mode. Start time for two parameter mode.  In two parameter mode, the start time value can be a date string, date, date_nanos or epoch milliseconds. ",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "end_time",
@@ -76,7 +88,10 @@
           "name" : "start_time_or_offset",
           "type" : "long",
           "optional" : false,
-          "description" : " Offset from NOW for the single parameter mode. Start time for two parameter mode.  In two parameter mode, the start time value can be a date string, date, date_nanos or epoch milliseconds. "
+          "description" : " Offset from NOW for the single parameter mode. Start time for two parameter mode.  In two parameter mode, the start time value can be a date string, date, date_nanos or epoch milliseconds. ",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "end_time",
@@ -94,7 +109,10 @@
           "name" : "start_time_or_offset",
           "type" : "time_duration",
           "optional" : false,
-          "description" : " Offset from NOW for the single parameter mode. Start time for two parameter mode.  In two parameter mode, the start time value can be a date string, date, date_nanos or epoch milliseconds. "
+          "description" : " Offset from NOW for the single parameter mode. Start time for two parameter mode.  In two parameter mode, the start time value can be a date string, date, date_nanos or epoch milliseconds. ",
+          "hint" : {
+            "kind" : "constant"
+          }
         }
       ],
       "variadic" : false,

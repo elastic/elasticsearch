@@ -16,7 +16,7 @@
           "name" : "trueValue",
           "type" : "aggregate_metric_double",
           "optional" : false,
-          "description" : "The expression or value that’s returned when the corresponding condition is the first to evaluate to `true`. Can be a column reference or any other expression. The default value is returned when no condition matches."
+          "description" : "The expression or value that???s returned when the corresponding condition is the first to evaluate to `true`. Can be a column reference or any other expression. The default value is returned when no condition matches."
         }
       ],
       "variadic" : true,
@@ -34,13 +34,13 @@
           "name" : "trueValue",
           "type" : "aggregate_metric_double",
           "optional" : false,
-          "description" : "The expression or value that’s returned when the corresponding condition is the first to evaluate to `true`. Can be a column reference or any other expression. The default value is returned when no condition matches."
+          "description" : "The expression or value that???s returned when the corresponding condition is the first to evaluate to `true`. Can be a column reference or any other expression. The default value is returned when no condition matches."
         },
         {
           "name" : "elseValue",
           "type" : "aggregate_metric_double",
           "optional" : true,
-          "description" : "The value that’s returned when no condition evaluates to `true`."
+          "description" : "The value that???s returned when no condition evaluates to `true`."
         }
       ],
       "variadic" : true,
@@ -58,7 +58,7 @@
           "name" : "trueValue",
           "type" : "boolean",
           "optional" : false,
-          "description" : "The expression or value that’s returned when the corresponding condition is the first to evaluate to `true`. Can be a column reference or any other expression. The default value is returned when no condition matches."
+          "description" : "The expression or value that???s returned when the corresponding condition is the first to evaluate to `true`. Can be a column reference or any other expression. The default value is returned when no condition matches."
         }
       ],
       "variadic" : true,
@@ -76,13 +76,13 @@
           "name" : "trueValue",
           "type" : "boolean",
           "optional" : false,
-          "description" : "The expression or value that’s returned when the corresponding condition is the first to evaluate to `true`. Can be a column reference or any other expression. The default value is returned when no condition matches."
+          "description" : "The expression or value that???s returned when the corresponding condition is the first to evaluate to `true`. Can be a column reference or any other expression. The default value is returned when no condition matches."
         },
         {
           "name" : "elseValue",
           "type" : "boolean",
           "optional" : true,
-          "description" : "The value that’s returned when no condition evaluates to `true`."
+          "description" : "The value that???s returned when no condition evaluates to `true`."
         }
       ],
       "variadic" : true,
@@ -100,7 +100,7 @@
           "name" : "trueValue",
           "type" : "cartesian_point",
           "optional" : false,
-          "description" : "The expression or value that’s returned when the corresponding condition is the first to evaluate to `true`. Can be a column reference or any other expression. The default value is returned when no condition matches."
+          "description" : "The expression or value that???s returned when the corresponding condition is the first to evaluate to `true`. Can be a column reference or any other expression. The default value is returned when no condition matches."
         }
       ],
       "variadic" : true,
@@ -118,13 +118,13 @@
           "name" : "trueValue",
           "type" : "cartesian_point",
           "optional" : false,
-          "description" : "The expression or value that’s returned when the corresponding condition is the first to evaluate to `true`. Can be a column reference or any other expression. The default value is returned when no condition matches."
+          "description" : "The expression or value that???s returned when the corresponding condition is the first to evaluate to `true`. Can be a column reference or any other expression. The default value is returned when no condition matches."
         },
         {
           "name" : "elseValue",
           "type" : "cartesian_point",
           "optional" : true,
-          "description" : "The value that’s returned when no condition evaluates to `true`."
+          "description" : "The value that???s returned when no condition evaluates to `true`."
         }
       ],
       "variadic" : true,
@@ -142,7 +142,7 @@
           "name" : "trueValue",
           "type" : "cartesian_shape",
           "optional" : false,
-          "description" : "The expression or value that’s returned when the corresponding condition is the first to evaluate to `true`. Can be a column reference or any other expression. The default value is returned when no condition matches."
+          "description" : "The expression or value that???s returned when the corresponding condition is the first to evaluate to `true`. Can be a column reference or any other expression. The default value is returned when no condition matches."
         }
       ],
       "variadic" : true,
@@ -160,13 +160,13 @@
           "name" : "trueValue",
           "type" : "cartesian_shape",
           "optional" : false,
-          "description" : "The expression or value that’s returned when the corresponding condition is the first to evaluate to `true`. Can be a column reference or any other expression. The default value is returned when no condition matches."
+          "description" : "The expression or value that???s returned when the corresponding condition is the first to evaluate to `true`. Can be a column reference or any other expression. The default value is returned when no condition matches."
         },
         {
           "name" : "elseValue",
           "type" : "cartesian_shape",
           "optional" : true,
-          "description" : "The value that’s returned when no condition evaluates to `true`."
+          "description" : "The value that???s returned when no condition evaluates to `true`."
         }
       ],
       "variadic" : true,
@@ -184,7 +184,7 @@
           "name" : "trueValue",
           "type" : "date",
           "optional" : false,
-          "description" : "The expression or value that’s returned when the corresponding condition is the first to evaluate to `true`. Can be a column reference or any other expression. The default value is returned when no condition matches."
+          "description" : "The expression or value that???s returned when the corresponding condition is the first to evaluate to `true`. Can be a column reference or any other expression. The default value is returned when no condition matches."
         }
       ],
       "variadic" : true,
@@ -202,13 +202,13 @@
           "name" : "trueValue",
           "type" : "date",
           "optional" : false,
-          "description" : "The expression or value that’s returned when the corresponding condition is the first to evaluate to `true`. Can be a column reference or any other expression. The default value is returned when no condition matches."
+          "description" : "The expression or value that???s returned when the corresponding condition is the first to evaluate to `true`. Can be a column reference or any other expression. The default value is returned when no condition matches."
         },
         {
           "name" : "elseValue",
           "type" : "date",
           "optional" : true,
-          "description" : "The value that’s returned when no condition evaluates to `true`."
+          "description" : "The value that???s returned when no condition evaluates to `true`."
         }
       ],
       "variadic" : true,
@@ -226,7 +226,7 @@
           "name" : "trueValue",
           "type" : "date_nanos",
           "optional" : false,
-          "description" : "The expression or value that’s returned when the corresponding condition is the first to evaluate to `true`. Can be a column reference or any other expression. The default value is returned when no condition matches."
+          "description" : "The expression or value that???s returned when the corresponding condition is the first to evaluate to `true`. Can be a column reference or any other expression. The default value is returned when no condition matches."
         }
       ],
       "variadic" : true,
@@ -244,13 +244,13 @@
           "name" : "trueValue",
           "type" : "date_nanos",
           "optional" : false,
-          "description" : "The expression or value that’s returned when the corresponding condition is the first to evaluate to `true`. Can be a column reference or any other expression. The default value is returned when no condition matches."
+          "description" : "The expression or value that???s returned when the corresponding condition is the first to evaluate to `true`. Can be a column reference or any other expression. The default value is returned when no condition matches."
         },
         {
           "name" : "elseValue",
           "type" : "date_nanos",
           "optional" : true,
-          "description" : "The value that’s returned when no condition evaluates to `true`."
+          "description" : "The value that???s returned when no condition evaluates to `true`."
         }
       ],
       "variadic" : true,
@@ -268,7 +268,7 @@
           "name" : "trueValue",
           "type" : "dense_vector",
           "optional" : false,
-          "description" : "The expression or value that’s returned when the corresponding condition is the first to evaluate to `true`. Can be a column reference or any other expression. The default value is returned when no condition matches."
+          "description" : "The expression or value that???s returned when the corresponding condition is the first to evaluate to `true`. Can be a column reference or any other expression. The default value is returned when no condition matches."
         }
       ],
       "variadic" : true,
@@ -286,13 +286,13 @@
           "name" : "trueValue",
           "type" : "dense_vector",
           "optional" : false,
-          "description" : "The expression or value that’s returned when the corresponding condition is the first to evaluate to `true`. Can be a column reference or any other expression. The default value is returned when no condition matches."
+          "description" : "The expression or value that???s returned when the corresponding condition is the first to evaluate to `true`. Can be a column reference or any other expression. The default value is returned when no condition matches."
         },
         {
           "name" : "elseValue",
           "type" : "dense_vector",
           "optional" : true,
-          "description" : "The value that’s returned when no condition evaluates to `true`."
+          "description" : "The value that???s returned when no condition evaluates to `true`."
         }
       ],
       "variadic" : true,
@@ -310,7 +310,7 @@
           "name" : "trueValue",
           "type" : "double",
           "optional" : false,
-          "description" : "The expression or value that’s returned when the corresponding condition is the first to evaluate to `true`. Can be a column reference or any other expression. The default value is returned when no condition matches."
+          "description" : "The expression or value that???s returned when the corresponding condition is the first to evaluate to `true`. Can be a column reference or any other expression. The default value is returned when no condition matches."
         }
       ],
       "variadic" : true,
@@ -328,13 +328,13 @@
           "name" : "trueValue",
           "type" : "double",
           "optional" : false,
-          "description" : "The expression or value that’s returned when the corresponding condition is the first to evaluate to `true`. Can be a column reference or any other expression. The default value is returned when no condition matches."
+          "description" : "The expression or value that???s returned when the corresponding condition is the first to evaluate to `true`. Can be a column reference or any other expression. The default value is returned when no condition matches."
         },
         {
           "name" : "elseValue",
           "type" : "double",
           "optional" : true,
-          "description" : "The value that’s returned when no condition evaluates to `true`."
+          "description" : "The value that???s returned when no condition evaluates to `true`."
         }
       ],
       "variadic" : true,
@@ -352,7 +352,7 @@
           "name" : "trueValue",
           "type" : "exponential_histogram",
           "optional" : false,
-          "description" : "The expression or value that’s returned when the corresponding condition is the first to evaluate to `true`. Can be a column reference or any other expression. The default value is returned when no condition matches."
+          "description" : "The expression or value that???s returned when the corresponding condition is the first to evaluate to `true`. Can be a column reference or any other expression. The default value is returned when no condition matches."
         }
       ],
       "variadic" : true,
@@ -370,13 +370,13 @@
           "name" : "trueValue",
           "type" : "exponential_histogram",
           "optional" : false,
-          "description" : "The expression or value that’s returned when the corresponding condition is the first to evaluate to `true`. Can be a column reference or any other expression. The default value is returned when no condition matches."
+          "description" : "The expression or value that???s returned when the corresponding condition is the first to evaluate to `true`. Can be a column reference or any other expression. The default value is returned when no condition matches."
         },
         {
           "name" : "elseValue",
           "type" : "exponential_histogram",
           "optional" : true,
-          "description" : "The value that’s returned when no condition evaluates to `true`."
+          "description" : "The value that???s returned when no condition evaluates to `true`."
         }
       ],
       "variadic" : true,
@@ -394,7 +394,7 @@
           "name" : "trueValue",
           "type" : "geo_point",
           "optional" : false,
-          "description" : "The expression or value that’s returned when the corresponding condition is the first to evaluate to `true`. Can be a column reference or any other expression. The default value is returned when no condition matches."
+          "description" : "The expression or value that???s returned when the corresponding condition is the first to evaluate to `true`. Can be a column reference or any other expression. The default value is returned when no condition matches."
         }
       ],
       "variadic" : true,
@@ -412,13 +412,13 @@
           "name" : "trueValue",
           "type" : "geo_point",
           "optional" : false,
-          "description" : "The expression or value that’s returned when the corresponding condition is the first to evaluate to `true`. Can be a column reference or any other expression. The default value is returned when no condition matches."
+          "description" : "The expression or value that???s returned when the corresponding condition is the first to evaluate to `true`. Can be a column reference or any other expression. The default value is returned when no condition matches."
         },
         {
           "name" : "elseValue",
           "type" : "geo_point",
           "optional" : true,
-          "description" : "The value that’s returned when no condition evaluates to `true`."
+          "description" : "The value that???s returned when no condition evaluates to `true`."
         }
       ],
       "variadic" : true,
@@ -436,7 +436,7 @@
           "name" : "trueValue",
           "type" : "geo_shape",
           "optional" : false,
-          "description" : "The expression or value that’s returned when the corresponding condition is the first to evaluate to `true`. Can be a column reference or any other expression. The default value is returned when no condition matches."
+          "description" : "The expression or value that???s returned when the corresponding condition is the first to evaluate to `true`. Can be a column reference or any other expression. The default value is returned when no condition matches."
         }
       ],
       "variadic" : true,
@@ -454,13 +454,13 @@
           "name" : "trueValue",
           "type" : "geo_shape",
           "optional" : false,
-          "description" : "The expression or value that’s returned when the corresponding condition is the first to evaluate to `true`. Can be a column reference or any other expression. The default value is returned when no condition matches."
+          "description" : "The expression or value that???s returned when the corresponding condition is the first to evaluate to `true`. Can be a column reference or any other expression. The default value is returned when no condition matches."
         },
         {
           "name" : "elseValue",
           "type" : "geo_shape",
           "optional" : true,
-          "description" : "The value that’s returned when no condition evaluates to `true`."
+          "description" : "The value that???s returned when no condition evaluates to `true`."
         }
       ],
       "variadic" : true,
@@ -478,7 +478,7 @@
           "name" : "trueValue",
           "type" : "geohash",
           "optional" : false,
-          "description" : "The expression or value that’s returned when the corresponding condition is the first to evaluate to `true`. Can be a column reference or any other expression. The default value is returned when no condition matches."
+          "description" : "The expression or value that???s returned when the corresponding condition is the first to evaluate to `true`. Can be a column reference or any other expression. The default value is returned when no condition matches."
         }
       ],
       "variadic" : true,
@@ -496,13 +496,13 @@
           "name" : "trueValue",
           "type" : "geohash",
           "optional" : false,
-          "description" : "The expression or value that’s returned when the corresponding condition is the first to evaluate to `true`. Can be a column reference or any other expression. The default value is returned when no condition matches."
+          "description" : "The expression or value that???s returned when the corresponding condition is the first to evaluate to `true`. Can be a column reference or any other expression. The default value is returned when no condition matches."
         },
         {
           "name" : "elseValue",
           "type" : "geohash",
           "optional" : true,
-          "description" : "The value that’s returned when no condition evaluates to `true`."
+          "description" : "The value that???s returned when no condition evaluates to `true`."
         }
       ],
       "variadic" : true,
@@ -520,7 +520,7 @@
           "name" : "trueValue",
           "type" : "geohex",
           "optional" : false,
-          "description" : "The expression or value that’s returned when the corresponding condition is the first to evaluate to `true`. Can be a column reference or any other expression. The default value is returned when no condition matches."
+          "description" : "The expression or value that???s returned when the corresponding condition is the first to evaluate to `true`. Can be a column reference or any other expression. The default value is returned when no condition matches."
         }
       ],
       "variadic" : true,
@@ -538,13 +538,13 @@
           "name" : "trueValue",
           "type" : "geohex",
           "optional" : false,
-          "description" : "The expression or value that’s returned when the corresponding condition is the first to evaluate to `true`. Can be a column reference or any other expression. The default value is returned when no condition matches."
+          "description" : "The expression or value that???s returned when the corresponding condition is the first to evaluate to `true`. Can be a column reference or any other expression. The default value is returned when no condition matches."
         },
         {
           "name" : "elseValue",
           "type" : "geohex",
           "optional" : true,
-          "description" : "The value that’s returned when no condition evaluates to `true`."
+          "description" : "The value that???s returned when no condition evaluates to `true`."
         }
       ],
       "variadic" : true,
@@ -562,7 +562,7 @@
           "name" : "trueValue",
           "type" : "geotile",
           "optional" : false,
-          "description" : "The expression or value that’s returned when the corresponding condition is the first to evaluate to `true`. Can be a column reference or any other expression. The default value is returned when no condition matches."
+          "description" : "The expression or value that???s returned when the corresponding condition is the first to evaluate to `true`. Can be a column reference or any other expression. The default value is returned when no condition matches."
         }
       ],
       "variadic" : true,
@@ -580,13 +580,13 @@
           "name" : "trueValue",
           "type" : "geotile",
           "optional" : false,
-          "description" : "The expression or value that’s returned when the corresponding condition is the first to evaluate to `true`. Can be a column reference or any other expression. The default value is returned when no condition matches."
+          "description" : "The expression or value that???s returned when the corresponding condition is the first to evaluate to `true`. Can be a column reference or any other expression. The default value is returned when no condition matches."
         },
         {
           "name" : "elseValue",
           "type" : "geotile",
           "optional" : true,
-          "description" : "The value that’s returned when no condition evaluates to `true`."
+          "description" : "The value that???s returned when no condition evaluates to `true`."
         }
       ],
       "variadic" : true,
@@ -604,7 +604,7 @@
           "name" : "trueValue",
           "type" : "histogram",
           "optional" : false,
-          "description" : "The expression or value that’s returned when the corresponding condition is the first to evaluate to `true`. Can be a column reference or any other expression. The default value is returned when no condition matches."
+          "description" : "The expression or value that???s returned when the corresponding condition is the first to evaluate to `true`. Can be a column reference or any other expression. The default value is returned when no condition matches."
         }
       ],
       "variadic" : true,
@@ -622,13 +622,13 @@
           "name" : "trueValue",
           "type" : "histogram",
           "optional" : false,
-          "description" : "The expression or value that’s returned when the corresponding condition is the first to evaluate to `true`. Can be a column reference or any other expression. The default value is returned when no condition matches."
+          "description" : "The expression or value that???s returned when the corresponding condition is the first to evaluate to `true`. Can be a column reference or any other expression. The default value is returned when no condition matches."
         },
         {
           "name" : "elseValue",
           "type" : "histogram",
           "optional" : true,
-          "description" : "The value that’s returned when no condition evaluates to `true`."
+          "description" : "The value that???s returned when no condition evaluates to `true`."
         }
       ],
       "variadic" : true,
@@ -646,7 +646,7 @@
           "name" : "trueValue",
           "type" : "integer",
           "optional" : false,
-          "description" : "The expression or value that’s returned when the corresponding condition is the first to evaluate to `true`. Can be a column reference or any other expression. The default value is returned when no condition matches."
+          "description" : "The expression or value that???s returned when the corresponding condition is the first to evaluate to `true`. Can be a column reference or any other expression. The default value is returned when no condition matches."
         }
       ],
       "variadic" : true,
@@ -664,13 +664,13 @@
           "name" : "trueValue",
           "type" : "integer",
           "optional" : false,
-          "description" : "The expression or value that’s returned when the corresponding condition is the first to evaluate to `true`. Can be a column reference or any other expression. The default value is returned when no condition matches."
+          "description" : "The expression or value that???s returned when the corresponding condition is the first to evaluate to `true`. Can be a column reference or any other expression. The default value is returned when no condition matches."
         },
         {
           "name" : "elseValue",
           "type" : "integer",
           "optional" : true,
-          "description" : "The value that’s returned when no condition evaluates to `true`."
+          "description" : "The value that???s returned when no condition evaluates to `true`."
         }
       ],
       "variadic" : true,
@@ -688,7 +688,7 @@
           "name" : "trueValue",
           "type" : "ip",
           "optional" : false,
-          "description" : "The expression or value that’s returned when the corresponding condition is the first to evaluate to `true`. Can be a column reference or any other expression. The default value is returned when no condition matches."
+          "description" : "The expression or value that???s returned when the corresponding condition is the first to evaluate to `true`. Can be a column reference or any other expression. The default value is returned when no condition matches."
         }
       ],
       "variadic" : true,
@@ -706,13 +706,13 @@
           "name" : "trueValue",
           "type" : "ip",
           "optional" : false,
-          "description" : "The expression or value that’s returned when the corresponding condition is the first to evaluate to `true`. Can be a column reference or any other expression. The default value is returned when no condition matches."
+          "description" : "The expression or value that???s returned when the corresponding condition is the first to evaluate to `true`. Can be a column reference or any other expression. The default value is returned when no condition matches."
         },
         {
           "name" : "elseValue",
           "type" : "ip",
           "optional" : true,
-          "description" : "The value that’s returned when no condition evaluates to `true`."
+          "description" : "The value that???s returned when no condition evaluates to `true`."
         }
       ],
       "variadic" : true,
@@ -730,7 +730,7 @@
           "name" : "trueValue",
           "type" : "keyword",
           "optional" : false,
-          "description" : "The expression or value that’s returned when the corresponding condition is the first to evaluate to `true`. Can be a column reference or any other expression. The default value is returned when no condition matches."
+          "description" : "The expression or value that???s returned when the corresponding condition is the first to evaluate to `true`. Can be a column reference or any other expression. The default value is returned when no condition matches."
         }
       ],
       "variadic" : true,
@@ -748,13 +748,13 @@
           "name" : "trueValue",
           "type" : "keyword",
           "optional" : false,
-          "description" : "The expression or value that’s returned when the corresponding condition is the first to evaluate to `true`. Can be a column reference or any other expression. The default value is returned when no condition matches."
+          "description" : "The expression or value that???s returned when the corresponding condition is the first to evaluate to `true`. Can be a column reference or any other expression. The default value is returned when no condition matches."
         },
         {
           "name" : "elseValue",
           "type" : "keyword",
           "optional" : true,
-          "description" : "The value that’s returned when no condition evaluates to `true`."
+          "description" : "The value that???s returned when no condition evaluates to `true`."
         }
       ],
       "variadic" : true,
@@ -772,13 +772,13 @@
           "name" : "trueValue",
           "type" : "keyword",
           "optional" : false,
-          "description" : "The expression or value that’s returned when the corresponding condition is the first to evaluate to `true`. Can be a column reference or any other expression. The default value is returned when no condition matches."
+          "description" : "The expression or value that???s returned when the corresponding condition is the first to evaluate to `true`. Can be a column reference or any other expression. The default value is returned when no condition matches."
         },
         {
           "name" : "elseValue",
           "type" : "text",
           "optional" : true,
-          "description" : "The value that’s returned when no condition evaluates to `true`."
+          "description" : "The value that???s returned when no condition evaluates to `true`."
         }
       ],
       "variadic" : true,
@@ -796,7 +796,7 @@
           "name" : "trueValue",
           "type" : "long",
           "optional" : false,
-          "description" : "The expression or value that’s returned when the corresponding condition is the first to evaluate to `true`. Can be a column reference or any other expression. The default value is returned when no condition matches."
+          "description" : "The expression or value that???s returned when the corresponding condition is the first to evaluate to `true`. Can be a column reference or any other expression. The default value is returned when no condition matches."
         }
       ],
       "variadic" : true,
@@ -814,13 +814,13 @@
           "name" : "trueValue",
           "type" : "long",
           "optional" : false,
-          "description" : "The expression or value that’s returned when the corresponding condition is the first to evaluate to `true`. Can be a column reference or any other expression. The default value is returned when no condition matches."
+          "description" : "The expression or value that???s returned when the corresponding condition is the first to evaluate to `true`. Can be a column reference or any other expression. The default value is returned when no condition matches."
         },
         {
           "name" : "elseValue",
           "type" : "long",
           "optional" : true,
-          "description" : "The value that’s returned when no condition evaluates to `true`."
+          "description" : "The value that???s returned when no condition evaluates to `true`."
         }
       ],
       "variadic" : true,
@@ -838,7 +838,7 @@
           "name" : "trueValue",
           "type" : "tdigest",
           "optional" : false,
-          "description" : "The expression or value that’s returned when the corresponding condition is the first to evaluate to `true`. Can be a column reference or any other expression. The default value is returned when no condition matches."
+          "description" : "The expression or value that???s returned when the corresponding condition is the first to evaluate to `true`. Can be a column reference or any other expression. The default value is returned when no condition matches."
         }
       ],
       "variadic" : true,
@@ -856,13 +856,13 @@
           "name" : "trueValue",
           "type" : "tdigest",
           "optional" : false,
-          "description" : "The expression or value that’s returned when the corresponding condition is the first to evaluate to `true`. Can be a column reference or any other expression. The default value is returned when no condition matches."
+          "description" : "The expression or value that???s returned when the corresponding condition is the first to evaluate to `true`. Can be a column reference or any other expression. The default value is returned when no condition matches."
         },
         {
           "name" : "elseValue",
           "type" : "tdigest",
           "optional" : true,
-          "description" : "The value that’s returned when no condition evaluates to `true`."
+          "description" : "The value that???s returned when no condition evaluates to `true`."
         }
       ],
       "variadic" : true,
@@ -880,7 +880,7 @@
           "name" : "trueValue",
           "type" : "text",
           "optional" : false,
-          "description" : "The expression or value that’s returned when the corresponding condition is the first to evaluate to `true`. Can be a column reference or any other expression. The default value is returned when no condition matches."
+          "description" : "The expression or value that???s returned when the corresponding condition is the first to evaluate to `true`. Can be a column reference or any other expression. The default value is returned when no condition matches."
         }
       ],
       "variadic" : true,
@@ -898,13 +898,13 @@
           "name" : "trueValue",
           "type" : "text",
           "optional" : false,
-          "description" : "The expression or value that’s returned when the corresponding condition is the first to evaluate to `true`. Can be a column reference or any other expression. The default value is returned when no condition matches."
+          "description" : "The expression or value that???s returned when the corresponding condition is the first to evaluate to `true`. Can be a column reference or any other expression. The default value is returned when no condition matches."
         },
         {
           "name" : "elseValue",
           "type" : "keyword",
           "optional" : true,
-          "description" : "The value that’s returned when no condition evaluates to `true`."
+          "description" : "The value that???s returned when no condition evaluates to `true`."
         }
       ],
       "variadic" : true,
@@ -922,13 +922,13 @@
           "name" : "trueValue",
           "type" : "text",
           "optional" : false,
-          "description" : "The expression or value that’s returned when the corresponding condition is the first to evaluate to `true`. Can be a column reference or any other expression. The default value is returned when no condition matches."
+          "description" : "The expression or value that???s returned when the corresponding condition is the first to evaluate to `true`. Can be a column reference or any other expression. The default value is returned when no condition matches."
         },
         {
           "name" : "elseValue",
           "type" : "text",
           "optional" : true,
-          "description" : "The value that’s returned when no condition evaluates to `true`."
+          "description" : "The value that???s returned when no condition evaluates to `true`."
         }
       ],
       "variadic" : true,
@@ -946,7 +946,7 @@
           "name" : "trueValue",
           "type" : "unsigned_long",
           "optional" : false,
-          "description" : "The expression or value that’s returned when the corresponding condition is the first to evaluate to `true`. Can be a column reference or any other expression. The default value is returned when no condition matches."
+          "description" : "The expression or value that???s returned when the corresponding condition is the first to evaluate to `true`. Can be a column reference or any other expression. The default value is returned when no condition matches."
         }
       ],
       "variadic" : true,
@@ -964,13 +964,13 @@
           "name" : "trueValue",
           "type" : "unsigned_long",
           "optional" : false,
-          "description" : "The expression or value that’s returned when the corresponding condition is the first to evaluate to `true`. Can be a column reference or any other expression. The default value is returned when no condition matches."
+          "description" : "The expression or value that???s returned when the corresponding condition is the first to evaluate to `true`. Can be a column reference or any other expression. The default value is returned when no condition matches."
         },
         {
           "name" : "elseValue",
           "type" : "unsigned_long",
           "optional" : true,
-          "description" : "The value that’s returned when no condition evaluates to `true`."
+          "description" : "The value that???s returned when no condition evaluates to `true`."
         }
       ],
       "variadic" : true,
@@ -988,7 +988,7 @@
           "name" : "trueValue",
           "type" : "version",
           "optional" : false,
-          "description" : "The expression or value that’s returned when the corresponding condition is the first to evaluate to `true`. Can be a column reference or any other expression. The default value is returned when no condition matches."
+          "description" : "The expression or value that???s returned when the corresponding condition is the first to evaluate to `true`. Can be a column reference or any other expression. The default value is returned when no condition matches."
         }
       ],
       "variadic" : true,
@@ -1006,13 +1006,13 @@
           "name" : "trueValue",
           "type" : "version",
           "optional" : false,
-          "description" : "The expression or value that’s returned when the corresponding condition is the first to evaluate to `true`. Can be a column reference or any other expression. The default value is returned when no condition matches."
+          "description" : "The expression or value that???s returned when the corresponding condition is the first to evaluate to `true`. Can be a column reference or any other expression. The default value is returned when no condition matches."
         },
         {
           "name" : "elseValue",
           "type" : "version",
           "optional" : true,
-          "description" : "The value that’s returned when no condition evaluates to `true`."
+          "description" : "The value that???s returned when no condition evaluates to `true`."
         }
       ],
       "variadic" : true,

@@ -695,6 +695,44 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             }
         }
 
+        Boolean[] alwaysLiteral = new Boolean[args.size()];
+        Set<Method> paramsFactories = new ClassModel(testClass).getAnnotatedLeafMethods(ParametersFactory.class).keySet();
+        if (paramsFactories.size() == 1) {
+            Method paramsFactory = paramsFactories.iterator().next();
+            try {
+                List<?> params = (List<?>) paramsFactory.invoke(null);
+                for (Object p : params) {
+                    TestCaseSupplier tcs = (TestCaseSupplier) ((Object[]) p)[0];
+                    try {
+                        TestCaseSupplier.TestCase tc = tcs.get();
+                        if (tc.getData().stream().anyMatch(t -> t.type() == DataType.NULL)) {
+                            continue;
+                        }
+                        List<DocsV3Support.Param> sig = tc.getData()
+                            .stream()
+                            .map(d -> new DocsV3Support.Param(d.type(), d.appliesTo(), d.preview()))
+                            .toList();
+                        DocsV3Support.TypeSignature entry = new DocsV3Support.TypeSignature(
+                            signatureTypes(testClass, sig),
+                            tc.expectedType()
+                        );
+                        int initialProvidedParamIndex = getFirstParametersIndexForSignature(args, entry);
+                        for (int i = 0; i < tc.getData().size() && initialProvidedParamIndex + i < args.size(); i++) {
+                            int argIndex = initialProvidedParamIndex + i;
+                            boolean isForceLiteral = tc.getData().get(i).isForceLiteral();
+                            if (alwaysLiteral[argIndex] == null) {
+                                alwaysLiteral[argIndex] = isForceLiteral;
+                            } else {
+                                alwaysLiteral[argIndex] = alwaysLiteral[argIndex] && isForceLiteral;
+                            }
+                        }
+                    } catch (AssumptionViolatedException ignored) {}
+                }
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+        }
+
         for (int i = 0; i < args.size(); i++) {
             EsqlFunctionRegistry.ArgSignature arg = args.get(i);
             Set<String> annotationTypes = Arrays.stream(arg.type())
@@ -720,6 +758,19 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
                 signatureTypes,
                 annotationTypes
             );
+            if (alwaysLiteral[i] != null) {
+                if (alwaysLiteral[i]) {
+                    assertTrue(
+                        "Parameter [" + arg.name() + "] is always forced to be a literal in tests, so it must have the CONSTANT hint.",
+                        arg.hint() != null && "constant".equalsIgnoreCase(arg.hint().kind())
+                    );
+                } else {
+                    assertFalse(
+                        "Parameter [" + arg.name() + "] is not always a literal in tests, so it must not have the CONSTANT hint.",
+                        arg.hint() != null && "constant".equalsIgnoreCase(arg.hint().kind())
+                    );
+                }
+            }
         }
 
         Set<String> returnTypes = Arrays.stream(description.returnType())

@@ -22,6 +22,10 @@ import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.querydsl.QueryDslTimestampBoundsExtractor.TimestampBounds;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.DateEsField;
+import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.core.type.KeywordEsField;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolution;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolver;
@@ -293,6 +297,48 @@ public class TestAnalyzer {
      */
     public TestAnalyzer addK8sDownsampled() {
         return addIndex("k8s", "k8s-downsampled-mappings.json", IndexMode.TIME_SERIES);
+    }
+
+    /**
+     * Adds the otel-metrics index, built programmatically to mirror what IndexResolver produces for a real
+     * OTel TSDB index. In a real OTel index both the root-level alias (e.g. {@code cpu}) and the concrete
+     * passthrough field (e.g. {@code attributes.cpu}) have {@code isAlias=false}; the mapping here reflects
+     * that to keep tests consistent with production behaviour.
+     */
+    public TestAnalyzer addOtelMetrics() {
+        LinkedHashMap<String, EsField> attributesChildren = new LinkedHashMap<>();
+        attributesChildren.put("cpu", new KeywordEsField("cpu", Map.of(), true, 0, false, false, EsField.TimeSeriesFieldType.DIMENSION));
+        attributesChildren.put(
+            "state",
+            new KeywordEsField("state", Map.of(), true, 0, false, false, EsField.TimeSeriesFieldType.DIMENSION)
+        );
+
+        LinkedHashMap<String, EsField> resourceAttributesChildren = new LinkedHashMap<>();
+        resourceAttributesChildren.put(
+            "host.name",
+            new KeywordEsField("host.name", Map.of(), true, 0, false, false, EsField.TimeSeriesFieldType.DIMENSION)
+        );
+
+        LinkedHashMap<String, EsField> metricsChildren = new LinkedHashMap<>();
+        metricsChildren.put(
+            "system.cpu.time",
+            new EsField("system.cpu.time", DataType.DOUBLE, Map.of(), true, EsField.TimeSeriesFieldType.METRIC)
+        );
+
+        LinkedHashMap<String, EsField> mapping = new LinkedHashMap<>();
+        mapping.put("@timestamp", DateEsField.dateEsField("@timestamp", Map.of(), true, EsField.TimeSeriesFieldType.NONE));
+        mapping.put("attributes", new EsField("attributes", DataType.OBJECT, attributesChildren, false, EsField.TimeSeriesFieldType.NONE));
+        mapping.put("cpu", new KeywordEsField("cpu", Map.of(), true, 0, false, false, EsField.TimeSeriesFieldType.DIMENSION));
+        mapping.put("state", new KeywordEsField("state", Map.of(), true, 0, false, false, EsField.TimeSeriesFieldType.DIMENSION));
+        mapping.put(
+            "resource.attributes",
+            new EsField("resource.attributes", DataType.OBJECT, resourceAttributesChildren, false, EsField.TimeSeriesFieldType.NONE)
+        );
+        mapping.put("host.name", new KeywordEsField("host.name", Map.of(), true, 0, false, false, EsField.TimeSeriesFieldType.DIMENSION));
+        mapping.put("metrics", new EsField("metrics", DataType.OBJECT, metricsChildren, false, EsField.TimeSeriesFieldType.NONE));
+
+        EsIndex otelMetrics = new EsIndex("otel-metrics", mapping, Map.of("otel-metrics", IndexMode.TIME_SERIES), Map.of(), Map.of());
+        return addIndex(otelMetrics);
     }
 
     /**

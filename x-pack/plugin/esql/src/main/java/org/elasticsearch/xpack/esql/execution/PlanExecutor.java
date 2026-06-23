@@ -42,6 +42,7 @@ import org.elasticsearch.xpack.esql.view.ViewResolver;
 
 import java.util.List;
 import java.util.function.BiConsumer;
+import java.util.function.BooleanSupplier;
 
 import static org.elasticsearch.action.ActionListener.wrap;
 
@@ -98,6 +99,7 @@ public class PlanExecutor {
         IndicesExpressionGrouper indicesExpressionGrouper,
         EsqlSession.PlanRunner planRunner,
         TransportActionServices services,
+        BooleanSupplier cancellation,
         ActionListener<Versioned<Result>> listener
     ) {
         final PlanTelemetry planTelemetry = new PlanTelemetry(functionRegistry);
@@ -107,7 +109,8 @@ public class PlanExecutor {
             services.transportService().getThreadPool().executor(org.elasticsearch.threadpool.ThreadPool.Names.SEARCH),
             dataSourceModule,
             services.clusterService().getSettings(),
-            cacheService
+            cacheService,
+            cancellation
         );
         final var session = new EsqlSession(
             sessionId,

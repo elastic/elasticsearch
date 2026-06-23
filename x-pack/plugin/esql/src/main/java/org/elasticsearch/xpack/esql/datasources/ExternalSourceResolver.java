@@ -13,6 +13,7 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.ExternalMetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
@@ -45,6 +46,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Executor;
+import java.util.function.BooleanSupplier;
 
 /**
  * Resolver for external data sources (Iceberg tables, Parquet files, etc.).
@@ -134,6 +136,14 @@ public class ExternalSourceResolver {
     private final Settings settings;
     private final ExternalSourceCacheService cacheService;
 
+    /**
+     * Supplier consulted before each per-file footer read so that an in-flight resolution of a large
+     * glob aborts promptly when the originating query is cancelled. {@code null} means "never cancelled"
+     * (used by tests and call sites that do not carry a {@code CancellableTask}).
+     */
+    @Nullable
+    private final BooleanSupplier isCancelled;
+
     /** Coordinator-side accessor used by EsqlSession to reconcile data-node-captured source stats post-query. */
     public ExternalSourceCacheService cacheService() {
         return cacheService;
@@ -153,10 +163,54 @@ public class ExternalSourceResolver {
         Settings settings,
         @Nullable ExternalSourceCacheService cacheService
     ) {
+        this(executor, dataSourceModule, settings, cacheService, null);
+    }
+
+    public ExternalSourceResolver(
+        Executor executor,
+        DataSourceModule dataSourceModule,
+        Settings settings,
+        @Nullable ExternalSourceCacheService cacheService,
+        @Nullable BooleanSupplier isCancelled
+    ) {
         this.executor = executor;
         this.dataSourceModule = dataSourceModule;
         this.settings = settings;
         this.cacheService = cacheService;
+        this.isCancelled = isCancelled;
+    }
+
+    /** Returns {@code true} when the originating query has been cancelled. Safe to call when no supplier is wired. */
+    private boolean isCancelled() {
+        return isCancelled != null && isCancelled.getAsBoolean();
+    }
+
+    /**
+     * Throws {@link TaskCancelledException} if the originating query has been cancelled, so that an in-flight
+     * resolution of a large glob aborts promptly. Called both before doing storage I/O and (defensively) when a
+     * per-file read fails while the query is cancelled, so cancellation is never masked as a partial-stats result.
+     */
+    private void throwIfCancelled() {
+        if (isCancelled()) {
+            throw new TaskCancelledException("ES|QL external source resolution cancelled");
+        }
+    }
+
+    /**
+     * If the originating query has been cancelled, reports a clean {@link TaskCancelledException} to {@code listener}
+     * and returns {@code true}; otherwise returns {@code false}. Used in the resolution failure path so that a footer
+     * read which failed <em>because</em> the query was cancelled mid-flight surfaces as cancellation rather than as a
+     * generic resolution error. Such a failure can arrive wrapped — {@code resolveSingleSource} wraps reader failures
+     * in {@link IllegalArgumentException} and the schema cache wraps loader failures in {@code ExecutionException} —
+     * so the cancellation state is consulted directly rather than matched on the exception type.
+     */
+    private boolean reportIfCancelled(String path, ActionListener<?> listener) {
+        if (isCancelled()) {
+            LOGGER.debug("External source resolution cancelled for [{}]", path);
+            listener.onFailure(new TaskCancelledException("ES|QL external source resolution cancelled"));
+            return true;
+        }
+        return false;
     }
 
     public void resolve(
@@ -191,11 +245,27 @@ public class ExternalSourceResolver {
                         ExternalSourceResolution.ResolvedSource resolvedSource = resolveSource(path, config, hints, hivePartitioning);
                         resolved.put(path, resolvedSource);
                         LOGGER.debug("Successfully resolved external source: {}", path);
+                    } catch (TaskCancelledException e) {
+                        // Surface cancellation unwrapped so the client sees a clean cancellation (4xx) rather
+                        // than a generic "Failed to resolve external source" wrapper (500).
+                        LOGGER.debug("External source resolution cancelled for [{}]", path);
+                        listener.onFailure(e);
+                        return;
                     } catch (IllegalArgumentException | UnsupportedOperationException e) {
+                        // A footer read (e.g. the FFW anchor or a single-file source) can fail because the query was
+                        // cancelled mid-read; surface that as cancellation rather than a bad-request/unsupported error.
+                        if (reportIfCancelled(path, listener)) {
+                            return;
+                        }
                         LOGGER.error("Failed to resolve external source [{}]: {}", path, e.getMessage(), e);
                         listener.onFailure(e);
                         return;
                     } catch (Exception e) {
+                        // Same guard for wrapped failures (e.g. the schema cache wraps a cancelled anchor read in
+                        // ExecutionException): a cancelled query must not surface as a generic 500.
+                        if (reportIfCancelled(path, listener)) {
+                            return;
+                        }
                         LOGGER.error("Failed to resolve external source [{}]: {}", path, e.getMessage(), e);
                         String exceptionMessage = e.getMessage();
                         String errorDetail = exceptionMessage != null ? exceptionMessage : e.getClass().getSimpleName();
@@ -219,6 +289,10 @@ public class ExternalSourceResolver {
         boolean hivePartitioning
     ) throws Exception {
         LOGGER.debug("Resolving external source: path=[{}]", path);
+
+        // A query cancelled before resolution starts must do no storage I/O at all: bail before glob
+        // expansion, cache listing, or any footer read.
+        throwIfCancelled();
 
         if (GlobExpander.isMultiFile(path)) {
             return resolveMultiFileSource(path, config, hints, hivePartitioning);
@@ -328,6 +402,9 @@ public class ExternalSourceResolver {
 
         StoragePath anchorPath = listing.path(anchor);
         long anchorMtime = listing.lastModifiedMillis(anchor);
+
+        // Glob expansion / cache listing above can be slow on wide globs; re-check before the anchor footer read.
+        throwIfCancelled();
 
         ExternalSourceMetadata extMetadata;
         if (cacheable) {
@@ -587,6 +664,7 @@ public class ExternalSourceResolver {
         }
 
         List<Map.Entry<StoragePath, SourceMetadata>> entries = BoundedParallelGather.gather(indices, i -> {
+            throwIfCancelled();
             StoragePath filePath = fileList.path(i);
             SourceMetadata meta = cacheable
                 ? cachedResolveSingleSource(filePath, fileList.lastModifiedMillis(i), config)
@@ -652,13 +730,18 @@ public class ExternalSourceResolver {
         }
         List<SourceMetadata> allMeta;
         try {
-            allMeta = BoundedParallelGather.gather(
-                paths,
-                filePath -> resolveSingleSource(filePath.toString(), config),
-                MAX_PARALLEL_METADATA_READS,
-                executor
-            );
+            allMeta = BoundedParallelGather.gather(paths, filePath -> {
+                throwIfCancelled();
+                return resolveSingleSource(filePath.toString(), config);
+            }, MAX_PARALLEL_METADATA_READS, executor);
+        } catch (TaskCancelledException e) {
+            // Cancellation is not a "could not aggregate stats" condition — propagate it so the query
+            // aborts promptly instead of silently degrading to partial stats and continuing.
+            throw e;
         } catch (Exception e) {
+            // If the query was cancelled, a read may have failed for that reason; surface cancellation
+            // rather than masking it as partial stats.
+            throwIfCancelled();
             LOGGER.debug(() -> "Failed to read per-file stats in parallel, will use partial stats: " + e.getMessage());
             return null;
         }
@@ -676,6 +759,8 @@ public class ExternalSourceResolver {
         int fileCount = listing.fileCount();
         List<Map<String, Object>> perFileStats = new ArrayList<>(fileCount);
         for (int i = 0; i < fileCount; i++) {
+            // Cancellation is checked before the per-file try so it is never swallowed as "partial stats".
+            throwIfCancelled();
             StoragePath filePath = listing.path(i);
             long mtime = listing.lastModifiedMillis(i);
             String formatType = detectFormatType(filePath);
@@ -690,7 +775,14 @@ public class ExternalSourceResolver {
                     return null;
                 }
                 perFileStats.add(fileMeta);
+            } catch (TaskCancelledException e) {
+                // A bare cancellation (e.g. from a cache wait point) must abort, not degrade to partial stats.
+                throw e;
             } catch (Exception e) {
+                // The schema cache wraps loader failures in ExecutionException, so a cancellation observed
+                // while reading a footer can arrive wrapped here; re-check the supplier so it surfaces as
+                // cancellation rather than being masked as partial stats.
+                throwIfCancelled();
                 LOGGER.debug(() -> "Failed to get cached stats for [" + filePath + "], will use partial stats: " + e.getMessage());
                 return null;
             }

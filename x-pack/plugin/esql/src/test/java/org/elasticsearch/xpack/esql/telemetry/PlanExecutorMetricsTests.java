@@ -241,6 +241,7 @@ public class PlanExecutorMetricsTests extends ESTestCase {
                     groupIndicesByCluster,
                     runPhase,
                     MOCK_TRANSPORT_ACTION_SERVICES,
+                    () -> false,
                     new ActionListener<>() {
                         @Override
                         public void onResponse(Versioned<Result> result) {
@@ -278,6 +279,7 @@ public class PlanExecutorMetricsTests extends ESTestCase {
                     groupIndicesByCluster,
                     runPhase,
                     MOCK_TRANSPORT_ACTION_SERVICES,
+                    () -> false,
                     new ActionListener<>() {
                         @Override
                         public void onResponse(Versioned<Result> result) {}
@@ -624,6 +626,7 @@ public class PlanExecutorMetricsTests extends ESTestCase {
                 groupIndicesByCluster,
                 runPhase,
                 MOCK_TRANSPORT_ACTION_SERVICES,
+                () -> false,
                 listener
             );
         }

@@ -701,3 +701,6 @@ tests:
 - class: org.elasticsearch.index.codec.vectors.cluster.FloatHierarchicalKMeansTests
   method: testHKmeans
   issue: https://github.com/elastic/elasticsearch/issues/152027
+- class: org.elasticsearch.test.apmintegration.OtelMetricsIT
+  method: testExplicitMetrics
+  issue: https://github.com/elastic/elasticsearch/issues/152030

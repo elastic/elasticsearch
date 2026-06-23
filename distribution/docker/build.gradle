@@ -190,7 +190,7 @@ private static String toCamel(String input) {
   return input.split("[^a-zA-Z0-9]").collect({ it.substring(0, 1) + it.substring(1).toLowerCase(Locale.ROOT) }).join("")
 }
 
-private static String taskName(String prefix, Architecture architecture, DockerBase base, String suffix) {
+private static String dockerTaskName(String prefix, Architecture architecture, DockerBase base, String suffix) {
   return prefix +
     (architecture == Architecture.AARCH64 ? 'Aarch64' : '') +
     (base == DockerBase.DEFAULT ? "" : toCamel(base.name())) +
@@ -268,7 +268,7 @@ void addBuildDockerContextTask(Architecture architecture, DockerBase base, Strin
   String arch = architecture == Architecture.AARCH64 ? '-aarch64' : ''
 
   final TaskProvider<Tar> buildDockerContextTask =
-    tasks.register(taskName('build', architecture, base, taskSuffix), Tar) {
+    tasks.register(dockerTaskName('build', architecture, base, taskSuffix), Tar) {
       archiveExtension = 'tar.gz'
       compression = Compression.GZIP
       archiveClassifier = "${classifier}${arch}"
@@ -328,8 +328,8 @@ void addBuildDockerContextTask(Architecture architecture, DockerBase base, Strin
 }
 
 void addTransformDockerContextTask(Architecture architecture, DockerBase base) {
-  def transformTask = tasks.register(taskName("transform", architecture, base, "DockerContext"), Sync) {
-    TaskProvider<Tar> buildContextTask = tasks.named(taskName("build", architecture, base, "DockerContext"))
+  def transformTask = tasks.register(dockerTaskName("transform", architecture, base, "DockerContext"), Sync) {
+    TaskProvider<Tar> buildContextTask = tasks.named(dockerTaskName("build", architecture, base, "DockerContext"))
     dependsOn(buildContextTask)
 
     String arch = architecture == Architecture.AARCH64 ? '-aarch64' : ''
@@ -383,7 +383,7 @@ void addTransformDockerContextTask(Architecture architecture, DockerBase base) {
   }
 
   // Register transformed context as a project artifact
-  def contextConfig = configurations.create(taskName("docker", architecture, base, "Context")) {
+  def contextConfig = configurations.create(dockerTaskName("docker", architecture, base, "Context")) {
     canBeResolved = false
     attributes {
       attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.DIRECTORY_TYPE)
@@ -418,9 +418,9 @@ private static List<String> generateTags(DockerBase base, Architecture architect
 void addBuildDockerImageTask(Architecture architecture, DockerBase base) {
 
   final TaskProvider<DockerBuildTask> buildDockerImageTask =
-    tasks.register(taskName("build", architecture, base, "DockerImage"), DockerBuildTask) {
+    tasks.register(dockerTaskName("build", architecture, base, "DockerImage"), DockerBuildTask) {
 
-      TaskProvider<Sync> transformTask = tasks.named(taskName("transform", architecture, base, "DockerContext"))
+      TaskProvider<Sync> transformTask = tasks.named(dockerTaskName("transform", architecture, base, "DockerContext"))
       dependsOn(transformTask)
 
       dockerContext.fileProvider(transformTask.map { Sync task -> task.getDestinationDir() })
@@ -468,7 +468,7 @@ void addBuildCloudDockerImageTasks(Architecture architecture) {
   String contextDir = "${project.buildDir}/docker-context/elasticsearch${dockerBase.suffix}-${VersionProperties.elasticsearch}-docker-build-context${arch}"
 
   final TaskProvider<Sync> buildContextTask =
-    tasks.register(taskName('build', architecture, dockerBase, 'DockerContext'), Sync) {
+    tasks.register(dockerTaskName('build', architecture, dockerBase, 'DockerContext'), Sync) {
       into contextDir
 
       final Path projectDir = project.projectDir.toPath()
@@ -506,11 +506,11 @@ void addBuildCloudDockerImageTasks(Architecture architecture) {
     }
 
   final TaskProvider<DockerBuildTask> buildDockerImageTask =
-    tasks.register(taskName("build", architecture, dockerBase, "DockerImage"), DockerBuildTask) {
+    tasks.register(dockerTaskName("build", architecture, dockerBase, "DockerImage"), DockerBuildTask) {
 
       DockerBase base = DockerBase.WOLFI
 
-      TaskProvider<DockerBuildTask> buildBaseTask = tasks.named(taskName("build", architecture, base, "DockerImage"))
+      TaskProvider<DockerBuildTask> buildBaseTask = tasks.named(dockerTaskName("build", architecture, base, "DockerImage"))
       inputs.files(buildBaseTask).withPathSensitivity(PathSensitivity.RELATIVE)
 
       dockerContext.fileProvider(buildContextTask.map { it.getDestinationDir() })
@@ -559,6 +559,15 @@ subprojects { Project subProject ->
   if (subProject.name.endsWith('-export')) {
     apply plugin: 'distribution'
 
+    def exportDockerTaskName = { String prefix, Architecture taskArchitecture, DockerBase taskBase, String suffix ->
+      prefix +
+        (taskArchitecture == Architecture.AARCH64 ? 'Aarch64' : '') +
+        (taskBase == DockerBase.DEFAULT
+          ? ""
+          : taskBase.name().split("[^a-zA-Z0-9]").collect({ it.substring(0, 1) + it.substring(1).toLowerCase(Locale.ROOT) }).join("")) +
+        suffix
+    }
+
     final Architecture architecture = subProject.name.contains('aarch64-') ? Architecture.AARCH64 : Architecture.X64
     DockerBase base = DockerBase.DEFAULT
     if (subProject.name.contains('ironbank-')) {
@@ -580,8 +589,8 @@ subprojects { Project subProject ->
               'docker.tar'))))
     final String artifactName = "elasticsearch${arch}${base.suffix}_test"
 
-    final String exportTaskName = taskName("export", architecture, base, 'DockerImage')
-    final String buildTaskName = taskName('build', architecture, base, 'DockerImage')
+    final String exportTaskName = exportDockerTaskName("export", architecture, base, 'DockerImage')
+    final String buildTaskName = exportDockerTaskName('build', architecture, base, 'DockerImage')
     final String tarFile = "${parent.projectDir}/build/${artifactName}_${VersionProperties.elasticsearch}.${extension}"
 
     def exportTask = tasks.register(exportTaskName, LoggedExec) {
@@ -605,7 +614,7 @@ subprojects { Project subProject ->
       dependsOn exportTask
     }
 
-    def compressExportTask = tasks.register(taskName("compress", architecture, base, 'DockerImageExport'), Tar) {
+    def compressExportTask = tasks.register(exportDockerTaskName("compress", architecture, base, 'DockerImageExport'), Tar) {
       it.from(project.tarTree(tarFile))
       archiveExtension = 'tar.gz'
       it.setCompression(Compression.GZIP)

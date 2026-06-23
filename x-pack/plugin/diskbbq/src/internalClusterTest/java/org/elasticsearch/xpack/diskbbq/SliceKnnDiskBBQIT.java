@@ -120,19 +120,19 @@ public class SliceKnnDiskBBQIT extends ESIntegTestCase {
         );
         ensureGreen("slice-knn-bbq-all");
 
-        client().index(new IndexRequest("slice-knn-bbq-all").id("1").source("vector", axisVector(0)).routing("s1").setRoutingFromSlice(true))
-            .actionGet();
-        client().index(new IndexRequest("slice-knn-bbq-all").id("2").source("vector", axisVector(1)).routing("s2").setRoutingFromSlice(true))
-            .actionGet();
+        client().index(
+            new IndexRequest("slice-knn-bbq-all").id("1").source("vector", axisVector(0)).routing("s1").setRoutingFromSlice(true)
+        ).actionGet();
+        client().index(
+            new IndexRequest("slice-knn-bbq-all").id("2").source("vector", axisVector(1)).routing("s2").setRoutingFromSlice(true)
+        ).actionGet();
         refresh("slice-knn-bbq-all");
 
         // No _slice provided should default to _all and find documents from all slices
         final KnnSearchBuilder knn = new KnnSearchBuilder("vector", axisVector(1), 10, 10, 100f, null, null);
         final SearchRequestBuilder search = prepareSearch("slice-knn-bbq-all").setKnnSearch(List.of(knn));
 
-        assertResponse(search, response -> {
-            assertThat(response.getHits().getTotalHits().value(), equalTo(2L));
-        });
+        assertResponse(search, response -> { assertThat(response.getHits().getTotalHits().value(), equalTo(2L)); });
     }
 
     private static float[] axisVector(int axis) {

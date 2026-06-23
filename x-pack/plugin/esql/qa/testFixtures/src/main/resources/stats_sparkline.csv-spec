@@ -127,6 +127,23 @@ sparkline:long | emp_no:integer
 [0, 2, 0, 0, 1, 0, 1, 0, 1, 2, 4, 0] | 10003
 ;
 
+
+sparklineInInlineStatsByMvField
+required_capability: fn_sparkline
+FROM employees
+| INLINE STATS sparkline = SPARKLINE(COUNT(*), hire_date, 20, "1985-01-01T00:00:00Z", "1985-12-31T00:00:00Z") BY job_positions
+| KEEP emp_no, job_positions, sparkline
+| SORT emp_no ASC
+| LIMIT 3
+;
+
+emp_no:integer | job_positions:keyword                 | sparkline:long
+10001          | [Accountant, Senior Python Developer] | [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 2, 0]
+10002          | Senior Team Lead                      | [0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 0]
+10003          | null                                  | [0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0]
+;
+
+
 sparklineWithMultipleSparklines
 required_capability: fn_sparkline
 FROM employees
@@ -134,7 +151,7 @@ FROM employees
         s2 = SPARKLINE(MIN(salary), hire_date, 20, "1985-01-01T00:00:00Z", "1985-12-31T00:00:00Z")
 ;
 
-s1:integer                                                      | s2:integer
+s1:integer                                                    | s2:integer
 [0, 66174, 0, 0, 44817, 0, 62405, 0, 49095, 54329, 74999, 0]  | [0, 26436, 0, 0, 44817, 0, 62405, 0, 49095, 48735, 33956, 0]
 ;
 

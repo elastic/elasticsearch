@@ -91,14 +91,15 @@ public record LibraryModel(
         List<String> unavailableOn = extractUnavailableOn(specMirror);
 
         List<MethodModel> methods = new ArrayList<>();
-        boolean hasError = unavailableOn.containsAll(ALL_PLATFORM_NAMES);
-        if (hasError) {
+        boolean hasError = false;
+        if (unavailableOn.containsAll(ALL_PLATFORM_NAMES)) {
             messager.printMessage(
                 Kind.ERROR,
                 "@LibrarySpecification.unavailableOn lists all known platforms; the library will never be natively loaded",
                 element,
                 specMirror
             );
+            hasError = true;
         }
         for (var enclosed : element.getEnclosedElements()) {
             if (enclosed.getKind() != ElementKind.METHOD) {

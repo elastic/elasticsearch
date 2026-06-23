@@ -163,8 +163,6 @@ public class CsvFlattenedKeywordIT extends CsvIT {
      */
     public static final String LOG_REWRITTEN_QUERIES_PROPERTY = "tests.run_keyword_flattened_variant.log_queries";
 
-    public static final java.util.Set<String> COVERED_ARGUMENTS = java.util.concurrent.ConcurrentHashMap.newKeySet();
-
     public CsvFlattenedKeywordIT(
         String fileName,
         String groupName,
@@ -260,6 +258,48 @@ public class CsvFlattenedKeywordIT extends CsvIT {
             throw new IllegalStateException("Could not find docs/reference/query-languages/esql/kibana/generated at " + kibanaDir);
         }
 
+        KeywordToFlattenedStrategy strategy;
+        if (indexLoadStrategy instanceof KeywordToFlattenedStrategy) {
+            strategy = (KeywordToFlattenedStrategy) indexLoadStrategy;
+        } else {
+            strategy = new KeywordToFlattenedStrategy();
+        }
+
+        Set<String> coveredArguments = new HashSet<>();
+        for (CsvSpecReader.CsvTestCase testCase : KeywordToFlattenedStrategy.loadAllCsvSpecTestCases()) {
+            boolean skip = false;
+            for (String cap : testCase.requiredCapabilities) {
+                if (cap.equals("ts_info_command") || cap.equals("metrics_info_command")) {
+                    skip = true;
+                    break;
+                }
+            }
+            if (skip) continue;
+
+            String skipReason = testCase.skipFlattenedRewrite;
+            if (skipReason != null && skipReason.isBlank() == false) {
+                continue;
+            }
+
+            String originalQuery = testCase.query;
+            if (originalQuery == null || originalQuery.isBlank()) {
+                continue;
+            }
+
+            List<String> expectedColumnOrder = KeywordToFlattenedStrategy.parseExpectedColumnOrder(testCase.expectedResults);
+            try {
+                AstKeywordFieldRewriter.RewriteResult result = AstKeywordFieldRewriter.rewrite(
+                    originalQuery,
+                    strategy::resolveKeywordPathsForQuery,
+                    KeywordToFlattenedTransformer.WRAPPER_SUBKEY,
+                    expectedColumnOrder
+                );
+                coveredArguments.addAll(result.coveredArguments());
+            } catch (Exception e) {
+                // Ignore parse errors from tests with invalid queries
+            }
+        }
+
         Set<String> candidates = new HashSet<>();
         Map<String, Set<String>> paramNamesByIndex = new HashMap<>();
 
@@ -329,7 +369,7 @@ public class CsvFlattenedKeywordIT extends CsvIT {
         }
 
         Set<String> mappedCovered = new HashSet<>();
-        for (String c : COVERED_ARGUMENTS) {
+        for (String c : coveredArguments) {
             mappedCovered.add(indexToName.getOrDefault(c, c));
         }
 
@@ -698,7 +738,7 @@ public class CsvFlattenedKeywordIT extends CsvIT {
          * propagating the unchecked exceptions out of here is acceptable because the strategy
          * cannot operate without knowing which fields participate in any {@code LOOKUP JOIN}.
          */
-        private static List<CsvSpecReader.CsvTestCase> loadAllCsvSpecTestCases() {
+        static List<CsvSpecReader.CsvTestCase> loadAllCsvSpecTestCases() {
             try {
                 List<URL> urls = classpathResources("/*.csv-spec");
                 List<Object[]> rows = SpecReader.readScriptSpec(urls, specParser());
@@ -828,7 +868,6 @@ public class CsvFlattenedKeywordIT extends CsvIT {
                 KeywordToFlattenedTransformer.WRAPPER_SUBKEY,
                 expectedColumnOrder
             );
-            COVERED_ARGUMENTS.addAll(result.coveredArguments());
             if (result.modified() == false) {
                 NO_KEYWORD_REFS_COUNT.incrementAndGet();
                 // Logged at INFO so the launched/skipped split is visible in the test JVM stdout, alongside the
@@ -1227,7 +1266,7 @@ public class CsvFlattenedKeywordIT extends CsvIT {
          * whose expected column order matters will then surface a column-order failure rather
          * than silently changing behavior.
          */
-        private static List<String> parseExpectedColumnOrder(String expectedResults) {
+        static List<String> parseExpectedColumnOrder(String expectedResults) {
             if (expectedResults == null || expectedResults.isBlank()) {
                 return List.of();
             }
@@ -1296,7 +1335,7 @@ public class CsvFlattenedKeywordIT extends CsvIT {
          * The opposite direction (under-scoping) only loses an opportunity to exercise
          * {@code field_extract} on a particular field for that one query, which is preferable.
          */
-        private Set<String> resolveKeywordPathsForQuery(String query) {
+        Set<String> resolveKeywordPathsForQuery(String query) {
             Set<CsvTestsDataLoader.TestDataset> datasets = EsqlQueryDatasetResolver.resolveDatasetsForQuery(
                 query,
                 CsvTestsDataLoader.CSV_DATASET

@@ -28,7 +28,7 @@ import java.util.Collections;
 import java.util.Objects;
 
 import static org.elasticsearch.index.reindex.BulkByPaginatedSearchWireSerializingTestUtils.fillRandomBulkFields;
-import static org.elasticsearch.index.reindex.BulkByPaginatedSearchWireSerializingTestUtils.mutateAbstractBulkByScrollRequest;
+import static org.elasticsearch.index.reindex.BulkByPaginatedSearchWireSerializingTestUtils.mutateAbstractBulkByPaginatedSearchRequest;
 import static org.elasticsearch.index.reindex.BulkByPaginatedSearchWireSerializingTestUtils.randomRemoteInfo;
 import static org.elasticsearch.index.reindex.BulkByPaginatedSearchWireSerializingTestUtils.randomResumeInfo;
 import static org.elasticsearch.index.reindex.BulkByPaginatedSearchWireSerializingTestUtils.reindexRequestsEqual;
@@ -38,7 +38,7 @@ public class ReindexRequestWireSerializingTests extends AbstractWireSerializingT
 
     @Override
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
-        return BulkByPaginatedSearchWireSerializingTestUtils.bulkScrollRequestNamedWriteableRegistry();
+        return BulkByPaginatedSearchWireSerializingTestUtils.bulkPaginatedSearchRequestNamedWriteableRegistry();
     }
 
     @Override
@@ -112,7 +112,7 @@ public class ReindexRequestWireSerializingTests extends AbstractWireSerializingT
      */
     public static void mutateReindexRequest(ReindexRequest originalRequest, ReindexRequest mutatedRequest) {
         switch (between(0, 4)) {
-            case 0 -> mutateAbstractBulkByScrollRequest(originalRequest, mutatedRequest);
+            case 0 -> mutateAbstractBulkByPaginatedSearchRequest(originalRequest, mutatedRequest);
             case 1 -> mutatedRequest.getDestination()
                 .index(ESTestCase.randomValueOtherThan(originalRequest.getDestination().index(), () -> ESTestCase.randomAlphaOfLength(14)));
             case 2 -> mutatedRequest.getDestination()

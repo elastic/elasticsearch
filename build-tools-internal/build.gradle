@@ -31,6 +31,10 @@ gradlePlugin {
   // with the java-gradle-plugin
   automatedPublishing = false
   plugins {
+    base {
+      id = 'elasticsearch.base'
+      implementationClass = 'org.elasticsearch.gradle.internal.ElasticsearchBasePlugin'
+    }
     build {
       id = 'elasticsearch.build'
       implementationClass = 'org.elasticsearch.gradle.internal.BuildPlugin'
@@ -186,10 +190,6 @@ gradlePlugin {
     stringTemplate {
        id = 'elasticsearch.string-templates'
        implementationClass = 'org.elasticsearch.gradle.internal.StringTemplatePlugin'
-    }
-    testFixtures {
-      id = 'elasticsearch.test.fixtures'
-      implementationClass = 'org.elasticsearch.gradle.internal.testfixtures.TestFixturesPlugin'
     }
     deployTestFixtures {
       id = 'elasticsearch.deploy-test-fixtures'
@@ -371,6 +371,9 @@ dependencies {
   testImplementation buildLibs.spock.junit4
   testImplementation buildLibs.json.assert
   integTestImplementation buildLibs.xmlunit.core
+  integTestImplementation(buildLibs.archunit) {
+    because 'architecture rules enforcing test coverage of plugins and tasks'
+  }
 
 }
 

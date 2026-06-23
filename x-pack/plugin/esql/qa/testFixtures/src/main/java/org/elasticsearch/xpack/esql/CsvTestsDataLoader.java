@@ -103,6 +103,11 @@ public class CsvTestsDataLoader {
             .withDynamic("false")
             .noSubfields(),
         new TestDataset("all_types", "mapping-all-types.json", "all-types.csv"),
+        new TestDataset("all_types", "mapping-all-types.json", "all-types.csv").withIndex("all_types_no_short")
+            .withTypeMapping(removeFields("short"))
+            .withDynamic("false"),
+        new TestDataset("all_types", "mapping-all-types.json", "all-types.csv").withIndex("all_types_short_as_long")
+            .withTypeMapping(Map.of("short", "long")),
         new TestDataset("hosts"),
         new TestDataset("hosts").withIndex("hosts_ip_is_kwd").withTypeMapping(Map.of("ip0", "keyword", "ip1", "keyword")),
         new TestDataset("apps"),
@@ -218,6 +223,10 @@ public class CsvTestsDataLoader {
             "promql_histogram_no_le.csv",
             "promql_histogram_no_le-settings.json"
         ).withRequiredCapabilities(EsqlCapabilities.Cap.PROMQL_HISTOGRAM_QUANTILE),
+        new TestDataset("otel-metrics", "otel-metrics-mappings.json", "k8s-otel.csv", "otel-metrics-settings.json")
+            .withRequiredCapabilities(EsqlCapabilities.Cap.FIX_TS_BLOCK_LOADER_PASSTHROUGH_ALIASING),
+        new TestDataset("prom-metrics", "prom-metrics-mappings.json", "k8s-prometheus-remote-write.csv", "prom-metrics-settings.json")
+            .withRequiredCapabilities(EsqlCapabilities.Cap.FIX_TS_BLOCK_LOADER_PASSTHROUGH_ALIASING),
         new TestDataset("distances"),
         new TestDataset("addresses"),
         new TestDataset("addresses").withIndex("addresses_no_continent")

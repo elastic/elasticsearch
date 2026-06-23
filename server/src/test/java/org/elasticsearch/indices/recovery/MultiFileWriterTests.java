@@ -21,6 +21,8 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardTestCase;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreFileMetadata;
+import org.junit.After;
+import org.junit.Before;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -39,18 +41,16 @@ public class MultiFileWriterTests extends IndexShardTestCase {
     private Directory directorySpy;
     private Store store;
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void initializeShardAndStore() throws Exception {
         indexShard = newShard(true);
         directory = newMockFSDirectory(indexShard.shardPath().resolveIndex());
         directorySpy = spy(directory);
         store = createStore(indexShard.shardId(), indexShard.indexSettings(), directorySpy);
     }
 
-    @Override
-    public void tearDown() throws Exception {
-        super.tearDown();
+    @After
+    public void closeShardAndStore() throws Exception {
         directory.close();
         closeShards(indexShard);
     }

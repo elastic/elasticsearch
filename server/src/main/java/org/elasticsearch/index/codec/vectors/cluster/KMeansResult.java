@@ -31,10 +31,20 @@ public class KMeansResult<V> {
             return null;
         }
     };
+    private static final KMeansResult<byte[]> BYTE_EMPTY = new KMeansResult<>(new byte[0][], new int[0], new int[0]) {
+        @Override
+        public byte[] getCentroid(int vectorOrdinal) {
+            return null;
+        }
+    };
 
     @SuppressWarnings("unchecked")
     public static <V> KMeansResult<V> empty(CentroidOps<V> ops) {
-        return (KMeansResult<V>) FLOAT_EMPTY;
+        if (ops instanceof CentroidOps.FloatOps) {
+            return (KMeansResult<V>) FLOAT_EMPTY;
+        } else {
+            return (KMeansResult<V>) BYTE_EMPTY;
+        }
     }
 
     /**

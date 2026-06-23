@@ -674,9 +674,24 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
     }
 
     public void testCountCachedRegionsByShardId() throws IOException {
+        final int numShards = randomIntBetween(1, 10);
+        final Map<ShardId, Integer> regionCountPerShard = new HashMap<>();
+        final Map<ShardId, TestCacheKey> cacheKeyPerShard = new HashMap<>();
+        int totalRegions = 0;
+        for (int s = 0; s < numShards; s++) {
+            final ShardId shardId = randomShardId();
+            final int numRegions = randomIntBetween(1, 10);
+            cacheKeyPerShard.put(shardId, randomTestCacheKey(shardId));
+            regionCountPerShard.put(shardId, numRegions);
+            totalRegions += numRegions;
+        }
+
         Settings settings = Settings.builder()
             .put(NODE_NAME_SETTING.getKey(), "node")
-            .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(500)).getStringRep())
+            .put(
+                SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(),
+                ByteSizeValue.ofBytes(size(100L * randomIntBetween(totalRegions, totalRegions * 2)))
+            )
             .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(100)).getStringRep())
             .put(SharedBlobCacheService.SHARED_CACHE_INITIAL_DECAYS_SETTING.getKey(), 0)
             .put("path.home", createTempDir())
@@ -692,27 +707,24 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 BlobCacheMetrics.NOOP
             )
         ) {
-            final ShardId shard1 = randomShardId();
-            final ShardId shard2 = randomShardId();
-            final var cacheKey1 = randomTestCacheKey(shard1);
-            final var cacheKey2 = randomTestCacheKey(shard2);
+            for (var entry : regionCountPerShard.entrySet()) {
+                final TestCacheKey cacheKey = cacheKeyPerShard.get(entry.getKey());
+                final long blobLength = size(100L * entry.getValue());
+                for (int r = 0; r < entry.getValue(); r++) {
+                    cacheService.get(cacheKey, blobLength, r);
+                }
+            }
 
-            // populate 2 regions for shard1 and 1 region for shard2
-            cacheService.get(cacheKey1, size(250), 0);
-            cacheService.get(cacheKey1, size(250), 1);
-            cacheService.get(cacheKey2, size(250), 0);
-
-            // count all regions for shard1
-            assertThat(cacheService.countCachedRegions(shard1, (key, region) -> true), equalTo(2L));
-            // count all regions for shard2
-            assertThat(cacheService.countCachedRegions(shard2, (key, region) -> true), equalTo(1L));
-            // count only region 0 for shard1
-            assertThat(cacheService.countCachedRegions(shard1, (key, region) -> region == 0), equalTo(1L));
-            // count only region 1 for shard1
-            assertThat(cacheService.countCachedRegions(shard1, (key, region) -> region == 1), equalTo(1L));
-            // count with a predicate matching only specific file
-            assertThat(cacheService.countCachedRegions(shard1, (key, region) -> key.equals(cacheKey1)), equalTo(2L));
-            // count for a shard with no cached regions
+            for (var entry : regionCountPerShard.entrySet()) {
+                final ShardId shardId = entry.getKey();
+                final int expectedRegions = entry.getValue();
+                assertThat(cacheService.countCachedRegions(shardId, (key, region) -> true), equalTo((long) expectedRegions));
+                assertThat(cacheService.countCachedRegions(shardId, (key, region) -> region == 0), equalTo(1L));
+                assertThat(
+                    cacheService.countCachedRegions(shardId, (key, region) -> key.equals(cacheKeyPerShard.get(shardId))),
+                    equalTo((long) expectedRegions)
+                );
+            }
             assertThat(cacheService.countCachedRegions(randomShardId(), (key, region) -> true), equalTo(0L));
         }
     }

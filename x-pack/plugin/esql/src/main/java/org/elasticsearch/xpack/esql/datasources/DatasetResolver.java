@@ -12,7 +12,6 @@ import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.DatasetMetadata;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.xpack.esql.action.EsqlResolveDatasetAction;
 import org.elasticsearch.xpack.esql.datasources.DatasetRewriter.DatasetResolution;
@@ -58,12 +57,7 @@ public class DatasetResolver {
      * Authorization failures (DLS/FLS, and the {@code Unknown index} a rewrite raises for an explicit unauthorized
      * dataset) propagate as-is.
      */
-    public void replaceDatasets(
-        LogicalPlan parsed,
-        ProjectMetadata projectMetadata,
-        IndexNameExpressionResolver indexNameExpressionResolver,
-        ActionListener<LogicalPlan> listener
-    ) {
+    public void replaceDatasets(LogicalPlan parsed, ProjectMetadata projectMetadata, ActionListener<LogicalPlan> listener) {
         // Cheap short-circuit: no datasets registered → the CRUD layer (gated by the external-datasources feature flag)
         // never put any into cluster state, so no FROM can target one. No dispatch, no walk cost on the common path.
         Set<String> datasetNames = projectMetadata == null ? Set.of() : DatasetMetadata.get(projectMetadata).datasets().keySet();
@@ -88,8 +82,9 @@ public class DatasetResolver {
             return;
         }
 
-        // One request per relation, async fan-out chained so each result lands in the identity-keyed map. (forEachUp may
-        // visit the same relation instance more than once in a degenerate tree; the map dedups by identity.)
+        // One request per relation, chained sequentially via andThen so each result lands in the identity-keyed map
+        // before the next dispatches. (forEachUp may visit the same relation instance more than once in a degenerate
+        // tree; the map dedups by identity.)
         Map<UnresolvedRelation, DatasetResolution> resolutions = new IdentityHashMap<>();
         SubscribableListener<Void> chain = SubscribableListener.newForked(l -> l.onResponse(null));
         for (UnresolvedRelation relation : relations) {

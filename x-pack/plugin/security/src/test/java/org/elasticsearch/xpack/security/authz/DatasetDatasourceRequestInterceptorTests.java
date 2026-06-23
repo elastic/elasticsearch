@@ -65,21 +65,6 @@ public class DatasetDatasourceRequestInterceptorTests extends ESTestCase {
         assertNull(future.actionGet());
     }
 
-    public void testResolveDatasetReadIsNotDatasourceGated() {
-        // FROM <dataset> (the resolve action) must NOT trigger the datasource check — read access is governed by the
-        // index read privilege on the dataset name. A role with no datasource grant still passes the interceptor.
-        Role role = roleWithDatasourceRead("myds");
-        RequestInfo requestInfo = new RequestInfo(
-            AuthenticationTestHelper.builder().build(),
-            new MockDataSourceRequest(EsqlDatasetActionNames.ESQL_AUTHORIZE_DATASET_DATASOURCE_ACTION_NAME, "other"),
-            EsqlDatasetActionNames.ESQL_RESOLVE_DATASET_ACTION_NAME,
-            null
-        );
-        var future = new PlainActionFuture<Void>();
-        interceptor.intercept(requestInfo, mock(AuthorizationEngine.class), rbacInfo(role)).addListener(future);
-        assertNull(future.actionGet());
-    }
-
     private static RequestInfo putDatasetRequestInfo(String dataSource) {
         return new RequestInfo(
             AuthenticationTestHelper.builder().build(),

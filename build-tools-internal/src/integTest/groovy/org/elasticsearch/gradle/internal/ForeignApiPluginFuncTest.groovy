@@ -9,20 +9,22 @@
 
 package org.elasticsearch.gradle.internal
 
-import org.elasticsearch.gradle.fixtures.AbstractJavaGradleFuncTest
+import org.elasticsearch.gradle.fixtures.AbstractGradleInternalPluginFuncTest
+import org.gradle.api.Plugin
 import org.gradle.testkit.runner.TaskOutcome
 
 import static org.junit.Assume.assumeFalse
 import static org.junit.Assume.assumeTrue
 
-class ForeignApiPluginFuncTest extends AbstractJavaGradleFuncTest {
+class ForeignApiPluginFuncTest extends AbstractGradleInternalPluginFuncTest {
+
+    Class<? extends Plugin> pluginClassUnderTest = ForeignApiPlugin
 
     def setup() {
-        internalBuild()
+        configureBwcVersions()
 
         buildFile << """
             apply plugin: 'java'
-            apply plugin: 'elasticsearch.foreign-api'
         """.stripIndent()
     }
 
@@ -164,10 +166,11 @@ class ForeignApiPluginFuncTest extends AbstractJavaGradleFuncTest {
         buildFile << """
             import org.elasticsearch.gradle.internal.precommit.ForbiddenApisPrecommitPlugin
             import org.elasticsearch.gradle.internal.precommit.CheckForbiddenApisTask
+            import ${ForeignApiPlugin.name}
 
             apply plugin: 'java'
             apply plugin: ForbiddenApisPrecommitPlugin
-            apply plugin: 'elasticsearch.foreign-api'
+            plugins.apply(ForeignApiPlugin)
 
             tasks.withType(CheckForbiddenApisTask).configureEach {
                 replaceSignatureFiles '${sigFile}'

@@ -31,7 +31,6 @@ import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.coordination.NoMasterBlockService;
-import org.elasticsearch.cluster.desirednodes.VersionConflictException;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamFailureStoreSettings;
@@ -51,11 +50,13 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.mapper.MapperException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
@@ -66,6 +67,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpNodeClient;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.NodeNotConnectedException;
 import org.elasticsearch.xcontent.XContentParseException;
 import org.junit.After;
 import org.junit.Before;
@@ -504,11 +506,19 @@ public class BulkOperationTests extends ESTestCase {
         bulkRequest.add(new IndexRequest(fsDataStreamName).id("3").source(Map.of("key", "val")).opType(DocWriteRequest.OpType.CREATE));
 
         final Exception expectedException = randomFrom(
-            new VersionConflictException("test"),
+            new VersionConflictEngineException(new ShardId("test-idx", "abcdefg", 0), "test", "conflicted"),
             new EsRejectedExecutionException("test"),
             new CircuitBreakingException("test", randomFrom(CircuitBreaker.Durability.values())),
             new ClusterBlockException(Set.of(MetadataIndexStateService.createIndexClosingBlock())),
-            new BulkOperation429Exception("test")
+            new BulkOperation429Exception("test"),
+            new NodeNotConnectedException(
+                DiscoveryNode.createLocal(
+                    Settings.EMPTY,
+                    new TransportAddress(TransportAddress.META_ADDRESS, randomIntBetween(1000, 2000)),
+                    "test-node"
+                ),
+                "test"
+            )
         );
 
         NodeClient client = getNodeClient(
@@ -525,7 +535,7 @@ public class BulkOperationTests extends ESTestCase {
                 l,
                 new FailureStoreDocumentConverter(),
                 DataStreamFailureStoreSettings.create(ClusterSettings.createBuiltInClusterSettings()),
-                false
+                true
             ).run()
         );
         assertThat(bulkItemResponses.hasFailures(), is(true));

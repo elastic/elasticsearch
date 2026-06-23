@@ -1,0 +1,5 @@
+area: Data streams
+issues: []
+pr: 149104
+summary: Do not redirect 5xx errors to failure store during shard level bulk operations
+type: bug

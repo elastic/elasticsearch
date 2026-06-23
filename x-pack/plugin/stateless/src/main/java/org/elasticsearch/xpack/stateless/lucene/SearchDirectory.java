@@ -13,8 +13,6 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.elasticsearch.blobcache.BlobCacheMetrics;
 import org.elasticsearch.common.blobstore.BlobContainer;
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.AbstractRefCounted;
@@ -25,6 +23,8 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.LuceneFilesExtensions;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
 import org.elasticsearch.xpack.stateless.cache.reader.CacheBlobReader;
@@ -230,6 +230,8 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
                 final Map<String, Integer> maxKnownRegionByBlob = new HashMap<>();
                 long maxBccGeneration = 0L;
 
+                // TODO consider using a NavigableMap ordered by (BCC gen, offset) so we can skip ahead by region size
+                // instead of iterating over every small file within the same 16MiB region
                 for (var file : metadata.values()) {
                     int startRegion = cacheService.getRegion(file.fileOffset());
                     int endRegion = cacheService.getEndingRegion(file.fileOffset() + file.fileLength());

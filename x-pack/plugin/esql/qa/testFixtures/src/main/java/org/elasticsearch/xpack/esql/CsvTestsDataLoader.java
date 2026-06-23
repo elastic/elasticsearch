@@ -699,10 +699,12 @@ public class CsvTestsDataLoader {
         }
         String pattern = String.join(",", loadedDatasets);
         if (dataNodeCount(client) > 1) {
+            // green already implies no initializing shards for the scoped indices; wait_for_no_relocating_shards is the
+            // meaningful addition, since a relocating shard is still counted as active (the cluster stays green during
+            // relocation). This mirrors ESRestTestCase#ensureGreen.
             ESRestTestCase.ensureHealth(client, pattern, request -> {
                 request.addParameter("wait_for_status", "green");
                 request.addParameter("wait_for_no_relocating_shards", "true");
-                request.addParameter("wait_for_no_initializing_shards", "true");
                 request.addParameter("timeout", AWAIT_SEARCHABLE_TIMEOUT_SECONDS + "s");
                 request.addParameter("level", "shards");
             });

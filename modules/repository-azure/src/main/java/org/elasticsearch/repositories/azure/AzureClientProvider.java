@@ -15,7 +15,6 @@ import io.netty.channel.EventLoopGroup;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.resolver.DefaultAddressResolverGroup;
 import reactor.core.publisher.Mono;
-import reactor.core.publisher.SignalType;
 import reactor.core.scheduler.Scheduler;
 import reactor.core.scheduler.Schedulers;
 import reactor.netty.resources.ConnectionProvider;
@@ -261,23 +260,19 @@ class AzureClientProvider extends AbstractLifecycleComponent {
         closed = true;
         // Dispose of the connection provider first and wait for it to complete before we close the event loop.
         try {
-            connectionProvider.disposeLater()
-                .timeout(Duration.ofSeconds(5))    // Limit how long we wait for the connection provider to close
-                .doFinally(signalType -> {
-                    if (signalType != SignalType.ON_COMPLETE) {
-                        logger.info("Got unexpected signal type disposing connection provider: {}", signalType);
-                    }
-                    // Now it's safe to shut down the event loop
-                    try {
-                        FutureUtils.get(eventLoopGroup.shutdownGracefully(), 5, TimeUnit.SECONDS);
-                    } finally {
-                        // Now everything is shut down, reset the factory to clear any cached schedulers
-                        Schedulers.resetFactory();
-                    }
-                })
-                .block(Duration.ofSeconds(15));
+            connectionProvider.disposeLater().block(Duration.ofSeconds(5));
         } catch (RuntimeException e) {
-            logger.warn("Error shutting down connection provider", e);
+            logger.warn("Error disposing connection provider", e);
+        } finally {
+            // Now it's safe to shut down the event loop
+            try {
+                FutureUtils.get(eventLoopGroup.shutdownGracefully(), 5, TimeUnit.SECONDS);
+            } catch (RuntimeException e) {
+                logger.warn("Error shutting down event loop group", e);
+            } finally {
+                // Now everything is shut down, reset the factory to clear any cached schedulers
+                Schedulers.resetFactory();
+            }
         }
     }
 

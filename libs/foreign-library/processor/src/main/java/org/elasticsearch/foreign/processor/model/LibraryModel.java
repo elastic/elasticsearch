@@ -90,16 +90,17 @@ public record LibraryModel(
         AnnotationMirror specMirror = findAnnotationMirror(element, "org.elasticsearch.foreign.LibrarySpecification");
         List<String> unavailableOn = extractUnavailableOn(specMirror);
 
-        List<MethodModel> methods = new ArrayList<>();
-        boolean hasError = unavailableOn.containsAll(ALL_PLATFORM_NAMES);
-        if (hasError) {
+        if (unavailableOn.containsAll(ALL_PLATFORM_NAMES)) {
             messager.printMessage(
                 Kind.ERROR,
                 "@LibrarySpecification.unavailableOn lists all known platforms; the library will never be natively loaded",
                 element,
                 specMirror
             );
+            return null;
         }
+
+        List<MethodModel> methods = new ArrayList<>();
         for (var enclosed : element.getEnclosedElements()) {
             if (enclosed.getKind() != ElementKind.METHOD) {
                 continue;
@@ -111,13 +112,12 @@ public record LibraryModel(
 
             MethodModel methodModel = MethodModel.from(method, env);
             if (methodModel == null) {
-                hasError = true;
-            } else {
-                methods.add(methodModel);
+                return null;
             }
+            methods.add(methodModel);
         }
 
-        return hasError ? null : new LibraryModel(qualifiedName, simpleName, packageName, libraryName, methods, unavailableOn);
+        return new LibraryModel(qualifiedName, simpleName, packageName, libraryName, methods, unavailableOn);
     }
 
     /**

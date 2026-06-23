@@ -24,6 +24,7 @@ import org.elasticsearch.compute.operator.exchange.ExchangeBuffer;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Executor;
+import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
@@ -152,6 +153,13 @@ public class ParallelTopNOperator implements Operator, Accountable {
     }
 
     private void scheduleWorker(TopNOperator worker) {
+        // If the queue depth is at least as large as the thread count, even an immediately-free
+        // thread wouldn't reach our task soon. Run inline instead.
+        if (executor instanceof ThreadPoolExecutor tpe && tpe.getQueue().size() >= tpe.getMaximumPoolSize()) {
+            runWorkerInline(worker);
+            return;
+        }
+
         executor.execute(new AbstractRunnable() {
             @Override
             protected void doRun() throws Exception {
@@ -160,9 +168,7 @@ public class ParallelTopNOperator implements Operator, Accountable {
 
             @Override
             public void onFailure(Exception e) {
-                failureCollector.unwrapAndCollect(e);
-                in.finish(true);
-                workerPermanentlyExited(worker, true);
+                ParallelTopNOperator.this.onFailure(worker, e);
             }
 
             @Override
@@ -170,16 +176,26 @@ public class ParallelTopNOperator implements Operator, Accountable {
                 if (e instanceof EsRejectedExecutionException) {
                     // Thread pool full; run inline on the driver thread instead.
                     // If the buffer empties before finishing, the worker is rescheduled.
-                    try {
-                        runWorker(worker);
-                    } catch (Exception ex) {
-                        onFailure(ex);
-                    }
+                    runWorkerInline(worker);
                 } else {
                     onFailure(e);
                 }
             }
         });
+    }
+
+    private void runWorkerInline(TopNOperator worker) {
+        try {
+            runWorker(worker);
+        } catch (Exception e) {
+            onFailure(worker, e);
+        }
+    }
+
+    private void onFailure(TopNOperator worker, Exception e) {
+        failureCollector.unwrapAndCollect(e);
+        in.finish(true);
+        workerPermanentlyExited(worker, true);
     }
 
     private void runWorker(TopNOperator worker) {

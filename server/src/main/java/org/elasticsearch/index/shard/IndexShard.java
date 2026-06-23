@@ -152,6 +152,7 @@ import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService;
 import org.elasticsearch.indices.recovery.CompositeRecoverySchedulingListener;
 import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
+import org.elasticsearch.indices.recovery.RecoveriesCollection;
 import org.elasticsearch.indices.recovery.RecoveryCancelledException;
 import org.elasticsearch.indices.recovery.RecoveryFailedException;
 import org.elasticsearch.indices.recovery.RecoveryListener;
@@ -2012,14 +2013,14 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     /// Requests cancellation of a recovery that is not yet completed.
     ///
-    /// Throws [IndexShardNotRecoveringException] when the shard is neither in `CREATED` state or `RECOVERING` state.
     /// In `CREATED` state the flag is stored and checked when the recovery begins.
     /// In `RECOVERING` state, `StoreRecovery` checks via [#ensureRecoveryNotCancelled] at phase boundaries for
     /// non-PEER recoveries. For PEER recoveries the flag is checked immediately after [#markAsRecovering].
+    /// To cancel an active PEER recovery transfer, use [RecoveriesCollection#directCancelRecovery] instead.
     ///
-    /// Throws [IndexShardNotRecoveringException] if the shard is not in `CREATED` or `RECOVERING` state,
-    /// [IllegalStateException] if the ongoing recovery is not of a supported type (use `RecoveriesCollection` for peer), and
-    /// [UnsupportedOperationException] if called for a PEER recovery after the primary handover has already occurred.
+    /// @throws IndexShardNotRecoveringException if the shard is not in `CREATED` or `RECOVERING` state
+    /// @throws IllegalStateException if the ongoing recovery is not of a supported type
+    /// @throws UnsupportedOperationException if called for a PEER recovery after the primary handover has already occurred
     public void requestRecoveryCancellation(RecoveryCancelledException cause) {
         synchronized (mutex) {
             if (state == IndexShardState.CREATED) {

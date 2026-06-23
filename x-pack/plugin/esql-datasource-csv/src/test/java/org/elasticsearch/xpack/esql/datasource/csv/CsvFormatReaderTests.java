@@ -1632,7 +1632,8 @@ public class CsvFormatReaderTests extends ESTestCase {
                     options.quoteChar(),
                     delim,
                     SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
-                    options.encoding()
+                    options.encoding(),
+                    options.quoting()
                 );
                 while (recordReader.readRecord(bracketAware) != null) {
                     parserRecords++;
@@ -5382,7 +5383,7 @@ public class CsvFormatReaderTests extends ESTestCase {
     /**
      * Sampling under SKIP_ROW with a tight budget exhausts and surfaces a capped budget error.
      * Sampling errors count against the SAME max_errors budget the data path uses, matching
-     * ClickHouse's input_format_allow_errors_num semantics.
+     * common database readers' error-tolerance semantics.
      */
     public void testSamplingSkipRowExceedsBudget() {
         StringBuilder csv = new StringBuilder();

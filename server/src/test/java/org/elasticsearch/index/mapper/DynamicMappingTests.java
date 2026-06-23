@@ -17,6 +17,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -31,6 +32,7 @@ import java.util.stream.Stream;
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.BBQ_DIMS_DEFAULT_THRESHOLD;
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.MAX_DIMS_COUNT;
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.MIN_DIMS_FOR_DYNAMIC_FLOAT_MAPPING;
+import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.MIN_DIMS_FOR_DYNAMIC_FLOAT_MAPPING_VECTORDB;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -1076,7 +1078,7 @@ public class DynamicMappingTests extends MapperServiceTestCase {
      * {@code text} only (no {@code .keyword} multi-field) and does not index a separate keyword subfield.
      */
     public void testDynamicFieldWithoutAutoTextSubfield() throws Exception {
-        assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
+        assumeTrue("feature under test must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         DocumentMapper mapper = createMapperService(withoutDynamicStringsAutoText(), mapping(b -> {})).documentMapper();
         ParsedDocument doc = mapper.parse(source(b -> b.field("foo", "bar")));
         assertNotNull(doc.dynamicMappingsUpdate());
@@ -1093,7 +1095,7 @@ public class DynamicMappingTests extends MapperServiceTestCase {
      * other properties are already mapped; the dynamically added field must still omit the automatic keyword subfield.
      */
     public void testDynamicFieldWithoutAutoTextSubfieldWithExistingMapping() throws IOException {
-        assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
+        assumeTrue("feature under test must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         DocumentMapper defaultMapper = createMapperService(
             withoutDynamicStringsAutoText(),
             dynamicMapping("true", b -> b.startObject("field1").field("type", "text").endObject())
@@ -1120,7 +1122,7 @@ public class DynamicMappingTests extends MapperServiceTestCase {
      * strings under a sibling {@code dynamic: runtime} object continue to become runtime keyword fields as usual.
      */
     public void testDynamicFieldWithoutAutoTextSubfieldWithRuntimeField() throws Exception {
-        assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
+        assumeTrue("feature under test must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         DocumentMapper mapper = createMapperService(
             withoutDynamicStringsAutoText(),
             dynamicMapping("true", b -> b.startObject("runtime_object").field("type", "object").field("dynamic", "runtime").endObject())
@@ -1149,5 +1151,23 @@ public class DynamicMappingTests extends MapperServiceTestCase {
         assertFalse(((KeywordFieldMapper) baz).multiFields().iterator().hasNext());
         assertTrue(((KeywordFieldMapper) baz).fieldType().usesBinaryDocValues());
         assertNull(doc.rootDoc().getField("object.foo.bar.baz.keyword"));
+    }
+
+    public void testVectordbDocumentDenseVectorMappingsUseLowerThreshold() throws IOException {
+        DocumentMapper mapper = createVectordbDocumentModeDocumentMapper(topMapping(b -> {}));
+        BytesReference source = BytesReference.bytes(
+            XContentFactory.jsonBuilder()
+                .startObject()
+                .field("tooSmall", Randomness.get().doubles(MIN_DIMS_FOR_DYNAMIC_FLOAT_MAPPING_VECTORDB - 1, 0.0, 5.0).toArray())
+                .field("mapsToVector", Randomness.get().doubles(MIN_DIMS_FOR_DYNAMIC_FLOAT_MAPPING_VECTORDB, 0.0, 5.0).toArray())
+                .field("alsoMapsToVector", Randomness.get().doubles(MIN_DIMS_FOR_DYNAMIC_FLOAT_MAPPING, 0.0, 5.0).toArray())
+                .endObject()
+        );
+        ParsedDocument parsedDocument = mapper.parse(new SourceToParse("id", source, XContentType.JSON));
+        Mapping update = parseDynamicUpdate(parsedDocument.dynamicMappingsUpdate());
+        assertNotNull(update);
+        assertThat(((FieldMapper) update.getRoot().getMapper("tooSmall")).fieldType().typeName(), equalTo("float"));
+        assertThat(((FieldMapper) update.getRoot().getMapper("mapsToVector")).fieldType().typeName(), equalTo("dense_vector"));
+        assertThat(((FieldMapper) update.getRoot().getMapper("alsoMapsToVector")).fieldType().typeName(), equalTo("dense_vector"));
     }
 }

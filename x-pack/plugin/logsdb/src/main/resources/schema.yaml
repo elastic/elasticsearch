@@ -1,0 +1,344 @@
+# SCHEMA DEFINITION FILE
+# This file contains definitions for parsing text using predefined constructs
+# It is structured hierarchically, with each component building upon previous components
+#
+
+# --------------------------------------------------  Definitions section  --------------------------------------------------
+# This section is informative and documents the available constructs that can be used in the schema section.
+# Changes here will not affect the parser directly, but serve as reference for what's available in the schema section below.
+predefined_constructs:
+  # Allowed pattern syntax for the definition of subToken base types and token types.
+  pattern_syntax:
+    # NOTE: Special characters in patterns need proper escaping:
+    # '-' needs to be escaped with '\', and '\' needs to be escaped with '\\', so use '\\-' and '\\' in the pattern respectively.
+    character_groups: "[abcd]"                     # Matches any single character in the group, e.g. "[abcd]" matches 'a', 'b', 'c', or 'd'
+    character_ranges: "[0-9a-f]"                   # Matches any single character in the range, e.g. "[0-9a-f]" matches digits and a-f
+  # Operators are used in constraints to define the rules for subToken types. See the examples below for more details.
+  operators:
+    equality: "=="                                 # Exact equality, e.g. "==7" means the value must be exactly 7
+    inequalities: ["<", ">", "<=", ">=", "!="]     # Standard inequality operators, e.g. "<5" means less than 5
+    inclusive_range: "-"                           # Range including both endpoints, e.g. "0-255" means 0 to 255, inclusive
+    or: "|"                                        # Logical OR for alternatives, e.g. "a|b|c" means either a, b, or c
+    map: "=|"                                      # Maps string values to numeric values, e.g. "Jan=1|Feb=2|..." maps month names to numbers
+    length: "{n}"                                  # Constrains length, e.g. "{3}" means exactly 3 characters long
+  # Token encoding types are used to define the encoding of tokens. They correspond to the eventual message template argument types.
+  # IMPORTANT: When used in the schema section, they MUST be prefixed with a '%' character.
+  token_encoding_types:
+    A: "text"                                      # Text value, retained as a string
+    I: "integer"                                   # Integer numeric value
+    H: "hexadecimal"                               # Hexadecimal value, retained as a string
+    F: "floating point"                            # Floating point numeric value
+    4: "IPv4"                                      # IPv4 address
+    V: "IPv4 Address"                              # IPv4 and port combined
+    U: "UUID"                                      # UUID value
+    T: "timestamp"                                 # Timestamp value
+  # The timestamp component types are used to define the components of a timestamp in the schema section.
+  # These are used in subtokens that represent components of a timestamp and must be specified in the timestamp_component_type field
+  # for any subtoken that will be used in a timestamp format.
+  timestamp_component_types:
+    - Y: "year"                                    # Year value (e.g., 2023)
+    - M: "month of the year"                       # Month value (1-12)
+    - D: "day of the month"                        # Day value (1-31)
+    - h: "hour"                                    # Hour value (0-23 or 1-12 depending on format)
+    - AP: "AM/PM indicator"                        # AM should be assigned to the value "1" and PM to the value "2"
+    - m: "minute"                                  # Minute value (0-59)
+    - s: "second"                                  # Second value (0-59)
+    - ms: "millisecond"                            # Millisecond value (0-999)
+    - us: "microsecond"                            # Microsecond value (0-999999)
+    - ns: "nanosecond"                             # Nanosecond value
+    - TZh: "timezone offset in hours"              # Timezone hour offset, e.g.: "-05", "+02"
+    - TZm: "timezone offset in minutes"            # Timezone minute offset, e.g.: "-30", "+15"
+    - TZhm: "timezone offset in hours and minutes" # Combined timezone offset, e.g.: "-0500", "+0230"
+    - NA: "to ignore"                              # Used for sub-tokens that appear in a timestamp format but aren't used for computation
+
+# ---------------------------------------------------  Schema section  ---------------------------------------------------
+# This section contains the actual schema rules for text parsing.
+# Changes in this section will directly affect how the parser interprets text.
+# The schema is built hierarchically, with each section depending on previous sections.
+
+# Special characters define how the parser should split and handle input text.
+# Modifying these will directly affect how tokens and subtokens are extracted from text.
+special_characters:
+  # characters that delimit tokens in the text (typically spaces and tabs)
+  token_delimiters: " \t"
+  # characters that delimit subTokens within a token (e.g., periods in IPv4 addresses)
+  sub_token_delimiters: |-
+    -+_:=/.
+  # characters that may be found in the boundaries of tokens, but are not considered part of them (e.g., brackets and quotes)
+  # these characters are not considered part of the token if it is identified as a template argument
+  token_boundary_characters: |-
+    {}[]();,'%"
+
+# The schema rules are built hierarchically, with each level building upon previous definitions.
+# Rules defined earlier can be referenced by rules defined later.
+# When referencing token encoding types, use the '%' prefix (e.g., %I for integer).
+# When referencing defined subtokens or tokens, use the '$' prefix (e.g., $octet).
+schema:
+  # SubToken base types define the character sets allowed in a subToken and its basic encoding.
+  # These serve as building blocks for more specific subToken types.
+  # Structure for each entry:
+  #   name: descriptive name for this base type
+  #   symbol: single character identifier used with '%' prefix in schema references
+  #   encoding_type: the token encoding type (from token_encoding_types) this will use
+  #   java_type: the Java data type that will represent values of this type
+  #   characters: pattern defining which characters are valid (using pattern_syntax defined above)
+  #   description: human-readable description of this type
+  sub_token_base_types:
+    - name: "unsigned_integer"
+      symbol: "I"
+      encoding_type: "%I"
+      java_type: "int"
+      characters: "[0-9]"
+      description: "An unsigned integer"
+    - name: "signed_integer"
+      symbol: "J"
+      encoding_type: "%I"
+      java_type: "int"
+      characters: "[\\-+0-9]"
+      description: "A signed integer"
+    - name: "double"
+      symbol: "F"
+      encoding_type: "%F"
+      java_type: "double"
+      characters: "[0-9.\\-+eE]"
+      description: "A floating point number"
+    - name: "alphabetic"
+      symbol: "A"
+      encoding_type: "%A"
+      java_type: "String"
+      characters: "[a-zA-Z]"
+      description: "An alphabetic string"
+    - name: "alphanumeric"
+      symbol: "N"
+      encoding_type: "%A"
+      java_type: "String"
+      characters: "[a-zA-Z0-9]"
+      description: "An alphanumeric string"
+    - name: "hexadecimal"
+      symbol: "X"
+      encoding_type: "%H"
+      java_type: "String"
+      characters: "[0-9a-fA-F]"
+      description: "A hexadecimal string"
+
+  # SubToken types build upon base types by adding specific constraints.
+  # Structure for each entry:
+  #   name: identifier for this subToken type (used with '$' prefix when referenced)
+  #   base_type: reference to a subToken base type (using '%' prefix)
+  #   constraint: rules that determine if a string qualifies as this subToken type
+  #              Constraints can use operators from the operators section and can be combined:
+  #              - Using "&&" for logical AND
+  #              - Using "||" for logical OR
+  #              - Using "!" for logical NOT
+  #              - NOTE: When using negative numbers, wrap them in parentheses, e.g. (-1)
+  #              - NOTE: Chained constraints don't support grouping with parentheses
+  #   description: human-readable description
+  #   timestamp_component_type: [OPTIONAL] specify if this subtoken represents a timestamp component
+  #                             Required only if this subtoken will be used in timestamp formats
+  sub_token_types:
+    - name: "octet"
+      base_type: "%I"
+      constraint: "0-255"
+      description: "An integer between 0 and 255, inclusive"
+    - name: "YYYY"
+      base_type: "%I"
+      constraint: "{4}"
+      description: "A year in 4-digit format"
+      timestamp_component_type: "Y"
+    - name: "MM"
+      base_type: "%I"
+      constraint: "1-12"
+      description: "A numeric representation of a month between 1 and 12, inclusive"
+      timestamp_component_type: "M"
+    - name: "DD"
+      base_type: "%I"
+      constraint: "1-31"
+      description: "Day of the month between 1 and 31, inclusive"
+      timestamp_component_type: "D"
+    - name: "hh"
+      base_type: "%I"
+      constraint: "0-23"
+      description: "Hour of the day, either in 24-hour or 12-hour format"
+      timestamp_component_type: "h"
+    - name: "AP"
+      base_type: "%A"
+      constraint: "AM=1|PM=2"
+      description: "AM/PM indicator, where AM is assigned to the value '1' and PM to the value '2'"
+      timestamp_component_type: "AP"
+    - name: "mm"
+      base_type: "%I"
+      constraint: "0-59"
+      description: "Minute of the hour between 0 and 59, inclusive"
+      timestamp_component_type: "m"
+    - name: "ss"
+      base_type: "%I"
+      constraint: "0-59"
+      description: "Second of the minute between 0 and 59, inclusive"
+      timestamp_component_type: "s"
+    - name: "ms"
+      base_type: "%I"
+      constraint: "{3}"
+      description: "Millisecond of the second between 0 and 999, inclusive"
+      timestamp_component_type: "ms"
+    - name: "us"
+      base_type: "%I"
+      constraint: "{6}"
+      description: "Microsecond of the second between 0 and 999999, inclusive"
+      timestamp_component_type: "us"
+    - name: "Mon"
+      base_type: "%A"
+      constraint: "Jan=1|Feb=2|Mar=3|Apr=4|May=5|Jun=6|Jul=7|Aug=8|Sep=9|Oct=10|Nov=11|Dec=12"
+      description: "3-letter abbreviation for the month of the year"
+      timestamp_component_type: "M"
+    - name: "Day"
+      base_type: "%A"
+      constraint: "Sun|Mon|Tue|Wed|Thu|Fri|Sat"
+      description: "3-letter abbreviation for the day of the week"
+      timestamp_component_type: "NA"
+    - name: "TZA"
+      base_type: "%A"
+      constraint: >-
+        UTC=0000|GMT=0000|EST=-0500|CST=-0600|MST=-0700|PST=-0800|EDT=-0400|CDT=-0500|MDT=-0600|PDT=-0700|
+        IST=0530|NPT=0545|JST=0900|AEST=1000|AEDT=1100|BST=0100|CET=0100|EET=0200|WET=0000|EEST=0300|
+        CEST=0200|AST=-0400|ADT=-0300|AKST=-0900|AKDT=-0800|HST=-1000|NST=-0330|NDT=-0230|NZST=1200|
+        NZDT=1300|SGT=0800|HKT=0800|KST=0900|WAT=0100|CAT=0200|EAT=0300|MSK=0300|PKT=0500|AFT=0430|
+        IRST=0330|IRDT=0430|ACST=0930|ACDT=1030|AWST=0800|AWDT=0900|ICT=0700|AZT=0400|AZST=0400|SAST=0200|Z=0000
+      description: "Time zone abbreviation"
+      timestamp_component_type: "TZhm"
+    - name: "TZOhhmm"
+      base_type: "%J"
+      constraint: ">=(-1800) && <=1800"
+      description: "Time zone offset from UTC in hours and minutes conjugated as a signed integer (e.g. -0500, +0200)"
+      timestamp_component_type: "TZhm"
+    - name: "TZOhh"
+      base_type: "%J"
+      constraint: ">=(-14) && <=14"
+      description: "Time zone offset from UTC in two-digit hours (e.g. -05, +02)"
+      timestamp_component_type: "TZh"
+    - name: "TZOmm"
+      base_type: "%I"
+      constraint: ">=0 && <=59"
+      description: "Time zone offset from UTC in two-digit minutes (e.g. 30, 00)"
+      timestamp_component_type: "TZm"
+    - name: "port"
+      base_type: "%I"
+      constraint: "<=65535"
+      description: "A port number, which is an unsigned integer between 0 and 65535, inclusive"
+
+
+  # Token types define how to recognize and encode complete tokens (space/tab delimited elements).
+  # Structure for each entry:
+  #   name: identifier for this token type (used with '$' prefix when referenced)
+  #   encoding_type: reference to a token encoding type (using '%' prefix)
+  #   special_sub_token_delimiters: [OPTIONAL] additional delimiters for this specific token type
+  #   format: template for this token type, which can contain:
+  #          - References to defined subToken types (using '$' prefix)
+  #          - Ad-hoc subTokens defined inline using "(%BaseType constraint)" syntax
+  #          - Delimiter characters that must match exactly
+  #          Formats should be as specific as possible for efficient parsing
+  #   description: human-readable description of this token type
+  token_types:
+    - name: "IPv4"
+      encoding_type: "%4"
+      format: "$octet.$octet.$octet.$octet"
+      description: "IPv4 address in dotted-decimal notation"
+    - name: "IPv4_with_port"
+      encoding_type: "%V"
+      format: "$octet.$octet.$octet.$octet:$port"
+      description: "IPv4 address in dotted-decimal notation with port"
+    - name: "UUID_standard"
+      encoding_type: "%U"
+      format: "(%X{8})-(%X{4})-(%X{4})-(%X{4})-(%X{12})"
+      description: "UUID in standard format, e.g. 123e4567-e89b-12d3-a456-426614174000"
+    - name: "UUID_compact"
+      encoding_type: "%U"
+      format: "(%X{32})"
+      description: "UUID in compact format, e.g. 123e4567e89b12d3a456426614174000"
+    - name: "DD"
+      encoding_type: "%I"
+      format: "$DD"
+      description: "Day of the month as an integer"
+    - name: "Day"
+      encoding_type: "%A"
+      format: "$Day"
+      description: "3-letter abbreviation for the day of the week"
+    - name: "Mon"
+      encoding_type: "%A"
+      format: "$Mon"
+      description: "3-letter abbreviation for the month of the year"
+    - name: "YYYY"
+      encoding_type: "%I"
+      format: "$YYYY"
+      description: "Year in 4-digit format"
+    - name: "AP"
+      encoding_type: "%A"
+      format: "$AP"
+      description: "AM/PM indicator, where AM is assigned to the value '1' and PM to the value '2'"
+    - name: "TZA"
+      encoding_type: "%A"
+      format: "$TZA"
+      description: "Time zone abbreviation, e.g. EST, GMT, UTC, etc."
+    - name: "TZOhhmm"
+      encoding_type: "%I"
+      format: "$TZOhhmm"
+      description: "Time zone offset from UTC in hours and minutes conjugated as a signed integer (e.g. -0500, +0200)"
+    - name: "date1"
+      encoding_type: "%A"
+      format: "$DD/$MM/$YYYY"
+      description: "Date without time, day first"
+    - name: "date2"
+      encoding_type: "%A"
+      format: "$YYYY-$MM-$DD"
+      description: "Date without time, year first"
+    - name: "timeS"
+      encoding_type: "%A"
+      format: "$hh:$mm:$ss"
+      description: "Time with second resolution"
+    - name: "timeMS"
+      encoding_type: "%A"
+      format: "$hh:$mm:$ss.$ms"
+      description: "Time with millisecond resolution"
+    - name: "timeUS"
+      encoding_type: "%A"
+      format: "$hh:$mm:$ss.$us"
+      description: "Time with microsecond resolution"
+    - name: "logging-libraries-datetime"
+      encoding_type: "%T"
+      # todo - special_sub_token_delimiters not supported yet
+      special_sub_token_delimiters: "T"
+      format: "$DD/$Mon/$YYYYT$hh:$mm:$ss"
+      description: "Date and time commonly used in logging library format"
+    - name: "apache-log-datetime"
+      encoding_type: "%T"
+      format: "$DD/$Mon/$YYYY:$hh:$mm:$ss"
+      description: "Date and time in Apache log format"
+
+  # Multi-token types define patterns that span across multiple tokens (space/tab separated).
+  # These are used for complex patterns like timestamps that might include multiple tokens.
+  # Structure for each entry:
+  #   name: identifier for this multi-token type
+  #   encoding_type: reference to a token encoding type (using '%' prefix)
+  #   format: template using token types and/or subToken types (all with '$' prefix)
+  #          Each referenced element must be separated by spaces to indicate token boundaries
+  #   description: human-readable description
+  multi_token_types:
+    - name: "RFC-1123-timestamp"
+      encoding_type: "%T"
+      # e.g Oct 05, 2023 02:48:00 PM
+      format: "$Mon, $DD $YYYY $timeS $AP"
+      description: "RFC 1123 formatted timestamp"
+    - name: "logging-libraries-datetime-timestamp"
+      encoding_type: "%T"
+      # e.g 05/Oct/2023T14:48:00 +0200
+      format: "$logging-libraries-datetime $TZOhhmm"
+      description: "Logging libraries formatted timestamp"
+    - name: "apache-log-timestamp"
+      encoding_type: "%T"
+      # e.g 05/Oct/2023:14:48:00 +0200
+      format: "$apache-log-datetime $TZOhhmm"
+      description: "Apache log formatted timestamp"
+    - name: "apache-error-log-timestamp"
+      encoding_type: "%T"
+      # e.g Thu Oct 05 14:48:00 2023
+      format: "$Day $Mon $DD $timeMS $YYYY"
+      description: "Apache error log formatted timestamp"

@@ -3246,6 +3246,44 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
 
     }
 
+    public void testFailureStoreDisabledDataStream() throws Exception {
+        // Create a template WITHOUT failure store for a distinct name pattern
+        var templateRequest = new Request("PUT", "/_index_template/no-failure-store-template");
+        templateRequest.setJsonEntity("""
+            {
+                "index_patterns": ["nofs-*"],
+                "data_stream": {},
+                "priority": 600,
+                "template": {
+                    "mappings": {
+                        "properties": {
+                            "@timestamp": { "type": "date" },
+                            "age": { "type": "integer" }
+                        }
+                    }
+                }
+            }
+            """);
+        assertOK(adminClient().performRequest(templateRequest));
+
+        // Create the data stream and index a doc so it exists with data
+        var indexRequest = new Request("POST", "/nofs-ds/_doc?refresh=true");
+        indexRequest.setJsonEntity("""
+            { "@timestamp": "2026-01-01T00:00:00.000Z", "age": 1 }
+            """);
+        assertOK(adminClient().performRequest(indexRequest));
+
+        // Search: DS exists, ::failures resolves to 0 backing indices → 200, 0 hits
+        expectSearch(adminClient().performRequest(new Request("POST", "/nofs-ds::failures/_search")));
+        // ES|QL: DS exists, failure store disabled → returns 400 "Unknown index"
+        // TODO: should return 200 with 0 rows to match search behavior
+        expectEsqlThrows(ADMIN_USER, new Search("nofs-ds::failures"), 400);
+
+        // Non-existent DS: both search and ES|QL correctly return errors
+        expectThrows(() -> adminClient().performRequest(new Request("POST", "/nonexistent-ds::failures/_search")), 404);
+        expectEsqlThrows(ADMIN_USER, new Search("nonexistent-ds::failures"), 400);
+    }
+
     private static void expectThrows(ThrowingRunnable runnable, int statusCode) {
         var ex = expectThrows(ResponseException.class, runnable);
         assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(statusCode));

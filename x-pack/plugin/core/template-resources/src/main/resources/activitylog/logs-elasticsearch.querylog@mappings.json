@@ -206,7 +206,5 @@
     "description": "Default mappings for the Elasticsearch query logs index template installed by x-pack",
     "managed": true
   },
-  "version": ${
-  xpack.stack.querylog.template.version
-}
+  "version": ${xpack.stack.querylog.template.version}
 }

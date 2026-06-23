@@ -3,10 +3,47 @@
   "type" : "scalar",
   "name" : "range_contains",
   "description" : "Returns true if the first argument\ncontains the second argument.\nThis is the inverse of RANGE_WITHIN; equivalent to `RANGE_WITHIN(b, a)`.\nSupports (date_range, date) and (date_range, date_range). The first argument must be a date_range.",
-  "signatures" : [ ],
+  "signatures" : [
+    {
+      "params" : [
+        {
+          "name" : "left",
+          "type" : "date_range",
+          "optional" : false,
+          "description" : "Container range."
+        },
+        {
+          "name" : "right",
+          "type" : "date",
+          "optional" : false,
+          "description" : "Value to test (point or range)."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "boolean"
+    },
+    {
+      "params" : [
+        {
+          "name" : "left",
+          "type" : "date_range",
+          "optional" : false,
+          "description" : "Container range."
+        },
+        {
+          "name" : "right",
+          "type" : "date_range",
+          "optional" : false,
+          "description" : "Value to test (point or range)."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "boolean"
+    }
+  ],
   "examples" : [
     "FROM employees\n| WHERE RANGE_CONTAINS(TO_DATE_RANGE(\"1985-02-01..1985-03-01\"), hire_date)\n| KEEP emp_no, hire_date\n| SORT emp_no"
   ],
   "preview" : true,
-  "snapshot_only" : true
+  "snapshot_only" : false
 }

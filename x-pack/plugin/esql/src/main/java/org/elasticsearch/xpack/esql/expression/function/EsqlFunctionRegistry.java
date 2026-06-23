@@ -507,6 +507,11 @@ public class EsqlFunctionRegistry {
                 DayName.DEFINITION,
                 MonthName.DEFINITION,
                 Now.DEFINITION,
+                RangeContains.DEFINITION,
+                RangeIntersects.DEFINITION,
+                RangeMax.DEFINITION,
+                RangeMin.DEFINITION,
+                RangeWithin.DEFINITION,
                 TRange.DEFINITION },
             // spatial
             new FunctionDefinition[] {
@@ -552,6 +557,7 @@ public class EsqlFunctionRegistry {
                 ToDatePeriod.DEFINITION,
                 ToDatetime.DEFINITION,
                 ToDateNanos.DEFINITION,
+                ToDateRange.DEFINITION,
                 ToDegrees.DEFINITION,
                 ToDenseVector.DEFINITION,
                 ToDouble.DEFINITION,
@@ -647,13 +653,6 @@ public class EsqlFunctionRegistry {
                 TStep.DEFINITION,
                 // dense vector functions
                 Magnitude.DEFINITION,
-                // date_range functions
-                RangeContains.DEFINITION,
-                RangeIntersects.DEFINITION,
-                RangeMax.DEFINITION,
-                RangeMin.DEFINITION,
-                RangeWithin.DEFINITION,
-                ToDateRange.DEFINITION,
                 ToText.DEFINITION,
                 FieldExtract.DEFINITION } };
     }

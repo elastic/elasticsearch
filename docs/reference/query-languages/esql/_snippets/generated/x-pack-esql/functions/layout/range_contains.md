@@ -23,5 +23,8 @@ serverless: preview
 :::{include} ../description/range_contains.md
 :::
 
+:::{include} ../types/range_contains.md
+:::
+
 :::{include} ../examples/range_contains.md
 :::

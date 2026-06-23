@@ -23,5 +23,8 @@ serverless: preview
 :::{include} ../description/range_min.md
 :::
 
+:::{include} ../types/range_min.md
+:::
+
 :::{include} ../examples/range_min.md
 :::

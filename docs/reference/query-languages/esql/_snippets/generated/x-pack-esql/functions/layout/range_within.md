@@ -23,5 +23,8 @@ serverless: preview
 :::{include} ../description/range_within.md
 :::
 
+:::{include} ../types/range_within.md
+:::
+
 :::{include} ../examples/range_within.md
 :::

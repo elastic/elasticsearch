@@ -9,6 +9,7 @@
 
 package org.elasticsearch.common.ssl;
 
+import java.lang.reflect.Type;
 import java.nio.file.Path;
 import java.security.GeneralSecurityException;
 import java.security.KeyStore;

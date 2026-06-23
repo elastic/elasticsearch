@@ -16,15 +16,11 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.blobcache.BlobCacheMetrics;
 import org.elasticsearch.blobcache.BlobCacheUtils;
 import org.elasticsearch.blobcache.common.ByteRange;
-import org.elasticsearch.blobcache.shared.CacheRegion;
-import org.elasticsearch.blobcache.shared.DefaultEvictionPolicy;
-import org.elasticsearch.blobcache.shared.EvictionPolicy;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.blobcache.shared.SharedBytes;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.OperationPurpose;
-import org.elasticsearch.common.blobstore.support.FilterBlobContainer;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.IOUtils;
@@ -38,6 +34,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.TestUtils;
 import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
+import org.elasticsearch.xpack.stateless.cache.TimestampCapturingEvictionPolicy;
 import org.elasticsearch.xpack.stateless.cache.reader.CacheBlobReader;
 import org.elasticsearch.xpack.stateless.cache.reader.CacheBlobReaderService;
 import org.elasticsearch.xpack.stateless.cache.reader.MutableObjectStoreUploadTracker;
@@ -66,7 +63,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
@@ -74,9 +70,13 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.blobcache.BlobCacheUtils.toIntBytes;
 import static org.elasticsearch.xpack.stateless.commits.BlobLocationTestUtils.createBlobLocation;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.everyItem;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.not;
 
 public class SearchDirectoryTests extends ESTestCase {
 
@@ -461,29 +461,7 @@ public class SearchDirectoryTests extends ESTestCase {
                         originalCacheBlobReader.getRangeInputStream(position, length, listener);
                     }
                 },
-                originalBlobContainer -> new FilterBlobContainer(originalBlobContainer) {
-                    @Override
-                    protected BlobContainer wrapChild(BlobContainer child) {
-                        return child;
-                    }
-
-                    @Override
-                    public InputStream readBlob(OperationPurpose purpose, String blobName, long position, long length) {
-                        return new InputStream() {
-                            private long remaining = length;
-
-                            @Override
-                            public int read() {
-                                if (remaining == 0) {
-                                    return -1;
-                                } else {
-                                    remaining -= 1;
-                                    return 1;
-                                }
-                            }
-                        };
-                    }
-                }
+                originalBlobContainer -> FakeStatelessNode.syntheticBytesContainer(originalBlobContainer)
             )
         ) {
             final var searchDirectory = SearchDirectory.unwrapDirectory(node.searchStore.directory());
@@ -600,14 +578,7 @@ public class SearchDirectoryTests extends ESTestCase {
     private void assertOnDemandReadStampsRegions(boolean boostEnabled) throws IOException {
         var regionSize = ByteSizeValue.ofBytes(4096);
         var cacheSize = ByteSizeValue.ofBytes(regionSize.getBytes() * 100L);
-        final Map<FileCacheKey, Long> capturedRegionTimestamps = new ConcurrentHashMap<>();
-        final EvictionPolicy<FileCacheKey> capturingPolicy = new DefaultEvictionPolicy<>() {
-            @Override
-            public void onCached(CacheRegion<FileCacheKey> region) {
-                super.onCached(region);
-                capturedRegionTimestamps.put(region.key(), region.timestampMillis());
-            }
-        };
+        final var capturingPolicy = new TimestampCapturingEvictionPolicy();
         try (var node = new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry()) {
             @Override
             protected Settings nodeSettings() {
@@ -640,28 +611,7 @@ public class SearchDirectoryTests extends ESTestCase {
             @Override
             public BlobContainer wrapBlobContainer(BlobPath path, BlobContainer innerContainer) {
                 // Return synthetic bytes for any range request so the on-demand read actually populates a cache region.
-                return new FilterBlobContainer(innerContainer) {
-                    @Override
-                    protected BlobContainer wrapChild(BlobContainer child) {
-                        return child;
-                    }
-
-                    @Override
-                    public InputStream readBlob(OperationPurpose purpose, String blobName, long position, long length) {
-                        return new InputStream() {
-                            private long remaining = length;
-
-                            @Override
-                            public int read() {
-                                if (remaining == 0) {
-                                    return -1;
-                                }
-                                remaining -= 1;
-                                return 1;
-                            }
-                        };
-                    }
-                };
+                return FakeStatelessNode.syntheticBytesContainer(innerContainer);
             }
         }) {
             final var searchDirectory = SearchDirectory.unwrapDirectory(node.searchStore.directory());
@@ -675,7 +625,6 @@ public class SearchDirectoryTests extends ESTestCase {
                 2 * regionSize.getBytes()
             );
             // Mark the latest BCC as uploaded so the cache reader routes both files through the object store path
-            // (our FilterBlobContainer override), not the indexing-shard transport path which would require a live indexing shard.
             searchDirectory.updateLatestUploadedBcc(new PrimaryTermAndGeneration(1L, 2L));
 
             try (var input = searchDirectory.openInput("file-with-ts", IOContext.DEFAULT)) {
@@ -691,17 +640,21 @@ public class SearchDirectoryTests extends ESTestCase {
             final long expectedForKnownRange = boostEnabled
                 ? BlobFileRanges.midpointMillisOrUnknown(range)
                 : SharedBlobCacheService.UNKNOWN_TIMESTAMP;
+            final var capturedWithTs = capturingPolicy.capturedTimestamps(keyWithTs);
+            assertThat("file-with-ts should have cached one region", capturedWithTs, hasSize(1));
             assertThat(
                 "live CacheRegion for file-with-ts (non-null range, boostEnabled="
                     + boostEnabled
                     + ") should carry "
                     + (boostEnabled ? "the per-CC midpoint" : "UNKNOWN_TIMESTAMP"),
-                capturedRegionTimestamps.get(keyWithTs),
+                capturedWithTs.getFirst(),
                 equalTo(expectedForKnownRange)
             );
+            final var capturedWithoutTs = capturingPolicy.capturedTimestamps(keyWithoutTs);
+            assertThat("file-without-ts should have cached one region", capturedWithoutTs, hasSize(1));
             assertThat(
                 "live CacheRegion for file-without-ts (null range, boostEnabled=" + boostEnabled + ") should carry UNKNOWN_TIMESTAMP",
-                capturedRegionTimestamps.get(keyWithoutTs),
+                capturedWithoutTs.getFirst(),
                 equalTo(SharedBlobCacheService.UNKNOWN_TIMESTAMP)
             );
         }

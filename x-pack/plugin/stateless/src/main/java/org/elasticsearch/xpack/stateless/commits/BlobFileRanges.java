@@ -188,6 +188,16 @@ public class BlobFileRanges {
         return range.midpointMillis();
     }
 
+    public static long mostRecentKnownTimestamp(long a, long b) {
+        if (a == SharedBlobCacheService.UNKNOWN_TIMESTAMP) {
+            return b;
+        }
+        if (b == SharedBlobCacheService.UNKNOWN_TIMESTAMP) {
+            return a;
+        }
+        return Math.max(a, b);
+    }
+
     public boolean hasReplicatedRanges() {
         return replicatedRanges.isEmpty() == false;
     }

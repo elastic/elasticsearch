@@ -893,6 +893,7 @@ public class SearchCommitPrefetcherIT extends AbstractStatelessPluginIntegTestCa
                     StatelessCompoundCommit commit,
                     BlobStoreCacheDirectory directory,
                     @Nullable Map<BlobFile, Long> endOffsetsToWarm,
+                    @Nullable Map<BlobFile, Long> timestampsPerBlob,
                     boolean preWarmForIdLookup,
                     ActionListener<Void> listener
                 ) {

@@ -14,6 +14,8 @@ import org.gradle.testkit.runner.TaskOutcome
 
 class InternalBwcGitPluginFuncTest extends AbstractGitAwareGradleFuncTest {
 
+    Class<? extends org.gradle.api.Plugin> pluginClassUnderTest = org.elasticsearch.gradle.internal.InternalBwcGitPlugin
+
     def setup() {
         configurationCacheCompatible = false
         internalBuild()

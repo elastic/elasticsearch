@@ -752,47 +752,6 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
             """, CompactMultiTypeEsField.CompactMultiTypeEsField);
     }
 
-    public void testPartiallyMappedNonKeywordInFilterLoadOnly() throws Exception {
-        runTestsLoadOnly("""
-            FROM sample_data, no_mapping_sample_data
-            | WHERE event_duration > 0
-            | KEEP event_duration
-            """, STAGES, CompactMultiTypeEsField.CompactMultiTypeEsField);
-    }
-
-    public void testPartiallyMappedNonKeywordInSortLoadOnly() throws Exception {
-        runTestsLoadOnly("""
-            FROM sample_data, no_mapping_sample_data
-            | SORT event_duration
-            | KEEP event_duration
-            """, STAGES, CompactMultiTypeEsField.CompactMultiTypeEsField);
-    }
-
-    public void testPartiallyMappedNonKeywordInMvExpandLoadOnly() throws Exception {
-        runTestsLoadOnly("""
-            FROM sample_data, no_mapping_sample_data
-            | MV_EXPAND event_duration
-            | KEEP event_duration
-            """, STAGES, CompactMultiTypeEsField.CompactMultiTypeEsField);
-    }
-
-    public void testPartiallyMappedNonKeywordInChangePointLoadOnly() throws Exception {
-        assumeTrue("Requires CHANGE_POINT", EsqlCapabilities.Cap.CHANGE_POINT.isEnabled());
-        runTestsLoadOnly("""
-            FROM sample_data, no_mapping_sample_data
-            | CHANGE_POINT event_duration ON @timestamp AS type, pvalue
-            | KEEP @timestamp, event_duration, type, pvalue
-            """, STAGES, CompactMultiTypeEsField.CompactMultiTypeEsField);
-    }
-
-    public void testPartiallyMappedNonKeywordDottedPathInSortLoadOnly() throws Exception {
-        runTestsLoadOnly("""
-            FROM k8s, k8s_unmapped
-            | SORT network.bytes_in
-            | KEEP network.bytes_in
-            """, STAGES, CompactMultiTypeEsField.CompactMultiTypeEsField);
-    }
-
     public void testSingleTypeTextUnmappedNoCastLoadOnly() throws Exception {
         runTestsLoadOnly("""
             FROM text_state_mapped, text_state_unmapped

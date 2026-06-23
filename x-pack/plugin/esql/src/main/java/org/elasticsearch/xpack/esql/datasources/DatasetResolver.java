@@ -42,8 +42,7 @@ public class DatasetResolver {
     /**
      * Replaces every authorized {@code FROM <dataset>} target in {@code parsed} via
      * {@link DatasetRewriter#rewrite}, completing {@code listener} with the (possibly untouched) plan.
-     * Authorization failures from the resolve action — datasource denial, DLS/FLS rejection — propagate
-     * to the listener as-is.
+     * Authorization failures from the resolve action (e.g. DLS/FLS rejection) propagate to the listener as-is.
      */
     public void replaceDatasets(
         LogicalPlan parsed,

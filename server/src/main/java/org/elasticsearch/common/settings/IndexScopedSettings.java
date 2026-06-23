@@ -20,6 +20,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDe
 import org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Setting.Property;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexSortConfig;
@@ -278,7 +279,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
         if (IndexSettings.ES95_CODEC_FEATURE_FLAG.isEnabled()) {
             settings.add(IndexSettings.TIME_SERIES_ES95_CODEC_ENABLED_SETTING);
         }
-        if (IndexSettings.INDEX_DISABLED_BY_DEFAULT_FEATURE_FLAG.isEnabled()) {
+        if (IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled()) {
             settings.add(IndexSettings.INDEX_DISABLED_BY_DEFAULT);
         }
         if (EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled()) {

@@ -66,6 +66,15 @@ public abstract class DocumentParserContext {
             this.doc = in.doc();
         }
 
+        private Wrapper(ObjectMapper parent, DocumentParserContext in, XContentParser parser) {
+            super(parent, parent.dynamic == null ? in.dynamic : parent.dynamic, in);
+            this.in = in;
+            this.isWithinCopyTo = in.isWithinCopyTo();
+            this.path = in.path();
+            this.parser = parser;
+            this.doc = in.doc();
+        }
+
         // Used to create a copy_to context.
         // It is important to reset `dynamic` here since it is possible that we copy into a completely different object.
         private Wrapper(RootObjectMapper root, DocumentParserContext in) {
@@ -1062,12 +1071,7 @@ public abstract class DocumentParserContext {
      * @return  a new context with a replaced parser
      */
     public final DocumentParserContext switchParser(XContentParser parser) {
-        return new Wrapper(this.parent, this) {
-            @Override
-            public XContentParser parser() {
-                return parser;
-            }
-        };
+        return new Wrapper(this.parent, this, parser);
     }
 
     /**

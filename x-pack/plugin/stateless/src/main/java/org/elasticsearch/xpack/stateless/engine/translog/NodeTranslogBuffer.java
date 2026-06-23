@@ -116,10 +116,12 @@ public class NodeTranslogBuffer implements Releasable {
             boolean dataToSync = false;
             var metadata = new HashMap<ShardId, TranslogMetadata>();
             var syncedLocations = new HashMap<ShardId, ShardSyncState.SyncMarker>();
-            var compoundTranslogStream = new ReleasableBytesStreamOutput(bigArrays);
-            var headerStream = new ReleasableBytesStreamOutput(bigArrays);
+            ReleasableBytesStreamOutput compoundTranslogStream = null;
+            ReleasableBytesStreamOutput headerStream = null;
             boolean success = false;
             try {
+                compoundTranslogStream = new ReleasableBytesStreamOutput(bigArrays);
+                headerStream = new ReleasableBytesStreamOutput(bigArrays);
                 for (var state : activeShards) {
                     ShardId shardId = state.getShardId();
 
@@ -150,9 +152,11 @@ public class NodeTranslogBuffer implements Releasable {
                 // Write the header to the stream
                 new CompoundTranslogHeader(metadata).writeToStore(headerStream);
 
+                final ReleasableBytesStreamOutput headerToClose = headerStream;
+                final ReleasableBytesStreamOutput compoundTranslogToClose = compoundTranslogStream;
                 TranslogReplicator.CompoundTranslogBytes compoundTranslogBytes = new TranslogReplicator.CompoundTranslogBytes(
                     CompositeBytesReference.of(headerStream.bytes(), compoundTranslogStream.bytes()),
-                    () -> Releasables.close(headerStream, compoundTranslogStream)
+                    () -> Releasables.close(headerToClose, compoundTranslogToClose)
                 );
 
                 // We do not need to store totalOps when they are equal to zero as it can simply be assumed when there is no entry

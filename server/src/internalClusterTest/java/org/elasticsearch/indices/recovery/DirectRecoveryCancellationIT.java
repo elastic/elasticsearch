@@ -718,7 +718,7 @@ public class DirectRecoveryCancellationIT extends AbstractIndexRecoveryIntegTest
         final var node = internalCluster().startNode();
         final var indexName = randomIndexName();
 
-        // Block after before replica shard is created
+        // Block before the primary shard is created
         assertTrue(TestRecoveryBlockerPlugin.beforeShardCreatedGate.tryAcquire(10, TimeUnit.SECONDS));
 
         prepareCreate(indexName).setSettings(indexSettings(1, 0).build()).execute();

@@ -144,6 +144,8 @@ public final class ThrottlingRecoveryService implements ClusterStateListener, Cl
     public Set<String> cancelRecoveries(Map<String, ShardId> cancellations) {
         final List<PendingRecovery> recoveriesToCancel = new ArrayList<>();
         synchronized (this) {
+            // Record every cancellation, even for recoveries that have already started (i.e. are not in the pending queue).
+            // Pruned by clusterChanged once the shard stops initializing or its allocation ID changes.
             cancelledAllocationIds.putAll(cancellations);
             final Iterator<PendingRecovery> it = pendingRecoveries.iterator();
             while (it.hasNext()) {

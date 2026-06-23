@@ -34,6 +34,8 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.inference.TaskType.EMBEDDING;
+import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.INFERENCE_ID_FIELD;
+import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.SEARCH_INFERENCE_ID_FIELD;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.Mockito.mock;
@@ -57,10 +59,7 @@ public class SemanticFieldMapperTests extends AbstractSemanticMapperTestCase {
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() throws Exception {
-        return List.of(
-            new Object[] { License.OperationMode.BASIC },
-            new Object[] { License.OperationMode.ENTERPRISE }
-        );
+        return List.of(new Object[] { License.OperationMode.BASIC }, new Object[] { License.OperationMode.ENTERPRISE });
     }
 
     private void registerMultiModalEisEndpoint() {
@@ -176,8 +175,7 @@ public class SemanticFieldMapperTests extends AbstractSemanticMapperTestCase {
 
     @Override
     protected Object getSampleObjectForDocument() {
-        return
-            Map.of("type", "image", "value", "data:image/jpeg;base64,Y2F0IG9uIGEgd2luZG93c2lsbA==");
+        return Map.of("type", "image", "value", "data:image/jpeg;base64,Y2F0IG9uIGEgd2luZG93c2lsbA==");
     }
 
     @Override
@@ -197,5 +195,39 @@ public class SemanticFieldMapperTests extends AbstractSemanticMapperTestCase {
     @Override
     protected IndexVersion boostNotAllowedIndexVersion() {
         return IndexVersions.SEMANTIC_FIELD_TYPE;
+    }
+
+    public void testCustomInferenceIdIsMandatory() {
+        Exception e = expectThrows(MapperParsingException.class, () -> createMapperService(fieldMapping(b -> b.field("type", "semantic"))));
+
+        assertThat(e.getMessage(), containsString("[inference_id] on mapper [field] of type [semantic] must not be empty"));
+    }
+
+    public void testInvalidInferenceEndpoints() {
+        {
+            Exception e = expectThrows(
+                MapperParsingException.class,
+                () -> createMapperService(fieldMapping(b -> b.field("type", "semantic").field(INFERENCE_ID_FIELD, (String) null)))
+            );
+            assertThat(e.getMessage(), containsString("[inference_id] on mapper [field] of type [semantic] must not have a [null] value"));
+        }
+        {
+            Exception e = expectThrows(
+                MapperParsingException.class,
+                () -> createMapperService(fieldMapping(b -> b.field("type", "semantic").field(INFERENCE_ID_FIELD, "")))
+            );
+            assertThat(e.getMessage(), containsString("[inference_id] on mapper [field] of type [semantic] must not be empty"));
+        }
+        {
+            Exception e = expectThrows(
+                MapperParsingException.class,
+                () -> createMapperService(
+                    fieldMapping(
+                        b -> b.field("type", "semantic").field(INFERENCE_ID_FIELD, "inference-id").field(SEARCH_INFERENCE_ID_FIELD, "")
+                    )
+                )
+            );
+            assertThat(e.getMessage(), containsString("[search_inference_id] on mapper [field] of type [semantic] must not be empty"));
+        }
     }
 }

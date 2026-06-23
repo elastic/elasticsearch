@@ -23,7 +23,7 @@ public class HighlightGoldenTests extends GoldenTestCase {
      * and local physical optimization without rewriting or pushdown.
      */
     public void testBasicHighlight() {
-        assumeTrue("requires HIGHLIGHT_V0 capability", EsqlCapabilities.Cap.HIGHLIGHT_V0.isEnabled());
+        assumeTrue("requires HIGHLIGHT_V1 capability", EsqlCapabilities.Cap.HIGHLIGHT_V1.isEnabled());
         String query = """
             FROM employees
             | HIGHLIGHT "elasticsearch" ON first_name

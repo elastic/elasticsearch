@@ -1,0 +1,60 @@
+# HIGHLIGHT PR #151653 — Review Comments & Plan
+
+Untracked scratch file. Delete when done. Two reviewers: **ioanatia** (human, binding)
+and **Copilot** (AI). Several Copilot items were already fixed in earlier commits of the
+PR; those are marked **ALREADY ADDRESSED (verify only)**.
+
+Recommended execution order is the numbered list below.
+
+---
+
+## 1. Remove the `HIGHLIGHT after STATS/INLINE STATS/LOOKUP JOIN` validation
+- **Source:** ioanatia — `Highlight.java:245`
+- **Comment:** "we don't need this check at all. we can highlight on any column, no
+  matter if it's coming from STATS, from an Elasticsearch index, external data source etc."
+- **Verdict:** AGREE. The operator highlights against a per-row in-memory `MemoryIndex`
+  built from the field value itself, not a backing shard doc, so the restriction is
+  artificial.
+- **Action:** Delete `postAnalysisVerification(...)`, drop `PostAnalysisVerificationAware`
+  + now-unused imports in `Highlight.java`; remove the 3 rejection tests in `VerifierTests`.
+- **Independent / low risk.**
+
+## 2. `fields` should be `List<NamedExpression>`, not `List<Expression>`
+- **Source:** ioanatia — `LogicalPlanBuilder.java:1441`
+- **Comment:** "`fields` here should be a `NamedExpression` - `Expression` is too wide...
+  it will also help with `Highlight.generatedAttributesFor` if we pass a
+  `List<NamedExpression>` for `fields`."
+- **Verdict:** AGREE. Tightens typing and feeds directly into the generated-name fix
+  (Copilot #7 below). Do this before the big refactor so the operator/plan signatures
+  settle once.
+- **Action:** Change `fields` type in `LogicalPlanBuilder`, `Highlight`, `HighlightExec`,
+  and `generatedAttributesFor`. Touches serialization read/write of `fields`.
+
+## 3. Refactor: lean planner + config object + move operator to compute + scratch
+Bundle of four tightly-coupled comments — do together (the package move dictates where
+the config/query-building code must live).
+- **3a — ioanatia `LocalExecutionPlanner.java:1203`:** "way too much highlight specific
+  logic in `LocalExecutionPlanner` - push this to `HighlightExec` and `HighlightOperator`."
+- **3b — ioanatia `LocalExecutionPlanner.java:1223`:** "pass in the `HighlightOptions`
+  directly to the `HighlightOperator` ... see `FuseScoreEval`/`RrfConfig`/`LinearConfig`."
+- **3c — ioanatia `HighlightOperator.java:8`:** "wrong place — should be in
+  `compute/.../operator` with the rest of the operators ... move `HighlightOperatorTests` too."
+- **3d — ioanatia `HighlightOperator.java:192`:** "pass `scratch` as an argument to
+  `highlightField` instead of initializing a new one."
+- **Verdict:** AGREE on all four.
+- **Action:** New compute-side `HighlightConfig` record (RrfConfig-style); move
+  `HighlightOperator`(+tests) to `org.elasticsearch.compute.operator`; build the Lucene
+  `Query`/`Analyzer`/`PassageFormatter` inside the operator; `planHighlight` reduces to
+  evaluators + layout + factory; thread one `scratch` through `process`.
+- **Notes:** compute is a JPMS module — needs `requires org.apache.lucene.highlighter;`
+  and `requires org.apache.lucene.memory;`. Operator must use `IllegalArgumentException`
+  (not the esql-only `EsqlIllegalArgumentException`).
+
+## 4. Add a test where HIGHLIGHT is pushed to data nodes
+- **Source:** ioanatia — `highlight.csv-spec:207`
+- **Comment:** Existing query gets an implicit `SORT ... LIMIT` so HIGHLIGHT runs on the
+  coordinator. Add a query that forces pushdown (sort on `highlight_*` after HIGHLIGHT) so
+  serialization/deserialization is exercised end-to-end.
+- **Verdict:** AGREE. Especially valuable now that the plan nodes carry generated fields.
+- **Action:** Add a csv-spec test using the suggested shape (`... | HIGHLIGHT ... | SORT
+  highlight_title | LIMIT 1000 | KEEP ...`).

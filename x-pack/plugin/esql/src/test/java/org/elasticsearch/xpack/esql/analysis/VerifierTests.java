@@ -4496,7 +4496,7 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testHighlightAfterStatsIsRejected() {
-        assumeTrue("requires HIGHLIGHT_V0 capability", EsqlCapabilities.Cap.HIGHLIGHT_V0.isEnabled());
+        assumeTrue("requires HIGHLIGHT_V1 capability", EsqlCapabilities.Cap.HIGHLIGHT_V1.isEnabled());
         defaultAnalyzer().error(
             "FROM test | STATS count = COUNT(*) BY first_name | HIGHLIGHT \"search\" ON first_name",
             containsString("HIGHLIGHT cannot be used after")
@@ -4504,7 +4504,7 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testHighlightAfterInlineStatsIsRejected() {
-        assumeTrue("requires HIGHLIGHT_V0 capability", EsqlCapabilities.Cap.HIGHLIGHT_V0.isEnabled());
+        assumeTrue("requires HIGHLIGHT_V1 capability", EsqlCapabilities.Cap.HIGHLIGHT_V1.isEnabled());
         assumeTrue("INLINE STATS must be enabled", EsqlCapabilities.Cap.INLINE_STATS.isEnabled());
         defaultAnalyzer().error(
             "FROM test | INLINE STATS count = COUNT(*) BY first_name | HIGHLIGHT \"search\" ON first_name",
@@ -4513,7 +4513,7 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testHighlightAfterLookupJoinIsRejected() {
-        assumeTrue("requires HIGHLIGHT_V0 capability", EsqlCapabilities.Cap.HIGHLIGHT_V0.isEnabled());
+        assumeTrue("requires HIGHLIGHT_V1 capability", EsqlCapabilities.Cap.HIGHLIGHT_V1.isEnabled());
         analyzerWithLanguagesLookup().error(
             "FROM test | EVAL language_code = languages | LOOKUP JOIN languages_lookup ON language_code "
                 + "| HIGHLIGHT \"search\" ON first_name",

@@ -3166,12 +3166,8 @@ public class EsqlCapabilities {
 
         /**
          * Parsing and plan-shape support for the {@code HIGHLIGHT} command (grammar, plan nodes, serialization).
+         * Execution of the {@code HIGHLIGHT} command, exposing the generated {@code highlight_*} columns.
          * Execution is gated separately by {@link #HIGHLIGHT_V1}. Snapshot-only.
-         */
-        HIGHLIGHT_V0(Build.current().isSnapshot()),
-
-        /**
-         * Execution of the {@code HIGHLIGHT} command, exposing the generated {@code highlight_*} columns. Snapshot-only.
          */
         HIGHLIGHT_V1(Build.current().isSnapshot()),
 

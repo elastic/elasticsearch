@@ -10,7 +10,7 @@ import org.elasticsearch.core.TimeValue;
 
 record ChunkedDataExtractorContext(
     String jobId,
-    int scrollSize,
+    Integer scrollSize,
     long start,
     long end,
     TimeValue chunkSpan,

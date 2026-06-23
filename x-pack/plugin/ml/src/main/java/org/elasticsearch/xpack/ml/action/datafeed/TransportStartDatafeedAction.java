@@ -325,7 +325,9 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
             );
             params.setDatafeedIndices(datafeedConfig.getIndices());
             params.setJobId(datafeedConfig.getJobId());
-            params.setIndicesOptions(effectiveDatafeed.getIndicesOptions());
+            if (effectiveDatafeed.getIndicesOptions() != null) {
+                params.setIndicesOptions(effectiveDatafeed.getIndicesOptions());
+            }
             datafeedConfigHolder.set(datafeedConfig);
 
             jobConfigProvider.getJob(datafeedConfig.getJobId(), null, jobListener);

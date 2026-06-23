@@ -345,8 +345,8 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
         setHeaders(headers);
         this.delayedDataCheckConfig = delayedDataCheckConfig;
         this.maxEmptySearches = maxEmptySearches;
-        this.indicesOptions = ExceptionsHelper.requireNonNull(indicesOptions, INDICES_OPTIONS);
-        this.runtimeMappings = Collections.unmodifiableMap(runtimeMappings);
+        this.indicesOptions = esqlQuery == null ? ExceptionsHelper.requireNonNull(indicesOptions, INDICES_OPTIONS) : indicesOptions;
+        this.runtimeMappings = runtimeMappings == null ? null : Collections.unmodifiableMap(runtimeMappings);
         this.projectRouting = projectRouting;
         this.cloudInternalCredential = cloudInternalCredential;
     }
@@ -382,7 +382,7 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
         this.headers = in.readImmutableMap(StreamInput::readString);
         delayedDataCheckConfig = in.readOptionalWriteable(DelayedDataCheckConfig::new);
         maxEmptySearches = in.readOptionalVInt();
-        indicesOptions = IndicesOptions.readIndicesOptions(in);
+        indicesOptions = esqlQuery == null ? IndicesOptions.readIndicesOptions(in) : null;
         runtimeMappings = in.readGenericMap();
         if (in.getTransportVersion().supports(DATAFEED_PROJECT_ROUTING)) {
             this.projectRouting = in.readOptionalString();
@@ -778,7 +778,9 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
         out.writeMap(headers, StreamOutput::writeString);
         out.writeOptionalWriteable(delayedDataCheckConfig);
         out.writeOptionalVInt(maxEmptySearches);
-        indicesOptions.writeIndicesOptions(out);
+        if (indicesOptions != null) {
+            indicesOptions.writeIndicesOptions(out);
+        }
         out.writeGenericMap(runtimeMappings);
         if (out.getTransportVersion().supports(DATAFEED_PROJECT_ROUTING)) {
             out.writeOptionalString(projectRouting);
@@ -1032,7 +1034,7 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
         private DelayedDataCheckConfig delayedDataCheckConfig = DelayedDataCheckConfig.defaultDelayedDataCheckConfig();
         private Integer maxEmptySearches;
         private IndicesOptions indicesOptions;
-        private Map<String, Object> runtimeMappings = Collections.emptyMap();
+        private Map<String, Object> runtimeMappings;
         private String projectRouting;
         private PersistedCloudCredential cloudInternalCredential;
 
@@ -1060,7 +1062,7 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
             this.delayedDataCheckConfig = config.getDelayedDataCheckConfig();
             this.maxEmptySearches = config.getMaxEmptySearches();
             this.indicesOptions = config.indicesOptions;
-            this.runtimeMappings = new HashMap<>(config.runtimeMappings);
+            this.runtimeMappings = config.runtimeMappings == null ? null : new HashMap<>(config.runtimeMappings);
             this.projectRouting = config.projectRouting;
             this.cloudInternalCredential = config.cloudInternalCredential;
         }
@@ -1390,8 +1392,11 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
             setDefaultChunkingConfig();
 
             setDefaultQueryDelay();
-            if (indicesOptions == null) {
+            if (indicesOptions == null && esqlQuery == null) {
                 indicesOptions = IndicesOptions.STRICT_EXPAND_OPEN_HIDDEN_FORBID_CLOSED;
+            }
+            if (indicesOptions != null && indicesOptions.resolveCrossProjectIndexExpression()) {
+                throw new ElasticsearchStatusException("Cross-project search is not enabled for Datafeeds", RestStatus.FORBIDDEN);
             }
 
             return new DatafeedConfig(

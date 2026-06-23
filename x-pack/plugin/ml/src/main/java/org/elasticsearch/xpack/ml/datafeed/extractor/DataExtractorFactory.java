@@ -109,7 +109,9 @@ public interface DataExtractorFactory {
             e -> handleRollupIndexCapsFailure(e, datafeed, listener)
         );
 
-        if (RemoteClusterLicenseChecker.containsRemoteIndex(datafeed.getIndices())) {
+        if (hasEsqlQuery) {
+            EsqlDataExtractorFactory.create(searchClient, datafeed, job, timingStatsReporter, factoryHandler);
+        } else if (RemoteClusterLicenseChecker.containsRemoteIndex(datafeed.getIndices())) {
             // If we have remote indices in the data feed, don't bother checking for rollup support
             // Rollups + CCS is not supported
             getRollupIndexCapsActionHandler.onResponse(new GetRollupIndexCapsAction.Response());

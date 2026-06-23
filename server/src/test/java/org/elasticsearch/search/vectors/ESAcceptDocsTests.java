@@ -16,6 +16,7 @@ import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.BitSetIterator;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.FixedBitSet;
+import org.elasticsearch.common.lucene.search.BitsIterator;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -121,7 +122,7 @@ public class ESAcceptDocsTests extends ESTestCase {
         for (int docId : docIds) {
             bitSet.set(docId);
         }
-        DocIdSetIterator iterator = new BitSetIterator(bitSet, bitSet.cardinality());
+        DocIdSetIterator iterator = random().nextBoolean() ? new BitSetIterator(bitSet, bitSet.cardinality()) : new BitsIterator(bitSet);
         TestScorerSupplier scorerSupplier = new TestScorerSupplier(iterator);
         ESAcceptDocs acceptDocs = new ESAcceptDocs.ScorerSupplierAcceptDocs(
             () -> scorerSupplier.get(Long.MAX_VALUE).iterator(),
@@ -139,9 +140,8 @@ public class ESAcceptDocsTests extends ESTestCase {
         assertEquals(7, acceptDocsIterator.nextDoc());
         assertEquals(DocIdSetIterator.NO_MORE_DOCS, acceptDocsIterator.nextDoc());
         Bits acceptDocsBits = acceptDocs.bits();
-        for (int i = 0; i < 10; i++) {
-            boolean expected = i >= 3 && i <= 7 && bitSet.get(i);
-            assertEquals(expected, acceptDocsBits.get(i));
+        for (int i = 3; i < 8; i++) {
+            assertEquals(bitSet.get(i), acceptDocsBits.get(i));
         }
     }
 

@@ -198,6 +198,27 @@ abstract class AbstractGradleFuncTest extends Specification {
           id 'elasticsearch.global-build-info'
           ${extraPlugins.collect { p -> "id '$p'" }.join('\n')}
         }
+        """
+        configureBwcVersions(maintenance, major4, major3, major2, major1, current)
+        return buildFile
+    }
+
+    /**
+     * Appends the {@code BwcVersions} wiring that {@link #internalBuild} relies on as plain
+     * statements, without emitting a {@code plugins {}} block. Use this instead of
+     * {@code internalBuild()} when the build script already has {@code elasticsearch.global-build-info}
+     * applied (for example tests extending {@code AbstractGradleInternalPluginFuncTest}), where an
+     * additional {@code plugins {}} block would be illegal after the plugin has been applied.
+     */
+    void configureBwcVersions(
+        String maintenance = "7.16.10",
+        String major4 = "8.1.3",
+        String major3 = "8.2.1",
+        String major2 = "8.3.0",
+        String major1 = "8.4.0",
+        String current = "9.0.0"
+    ) {
+        buildFile << """
         import org.elasticsearch.gradle.Architecture
 
         import org.elasticsearch.gradle.internal.BwcVersions

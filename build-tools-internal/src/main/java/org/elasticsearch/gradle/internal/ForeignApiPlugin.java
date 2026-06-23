@@ -19,6 +19,7 @@ import org.gradle.api.provider.Property;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.tasks.InputFile;
 import org.gradle.api.tasks.Internal;
+import org.gradle.api.tasks.Optional;
 import org.gradle.api.tasks.PathSensitive;
 import org.gradle.api.tasks.PathSensitivity;
 import org.gradle.api.tasks.TaskProvider;
@@ -32,17 +33,16 @@ import java.util.Collections;
 import java.util.List;
 
 /**
- * Configures a project to use the {@code java.lang.foreign} API without
- * {@code --enable-preview} on JDK 21. On JDK 22+ the Foreign Function and
- * Memory API is standard, so this is effectively a no-op.
+ * Configures a project to use the {@code java.lang.foreign} API without {@code --enable-preview}
+ * on JDK 21. On JDK 22+ the Foreign Function and Memory API is standard, so this is effectively
+ * a no-op.
  *
- * <p>Works by patching {@code java.base} at compile time with a stub JAR whose
- * {@code java.lang.foreign} classes have the {@code @PreviewFeature} annotation
- * stripped. Also enables forbidden-API checking for renamed preview APIs, so that
- * direct usage of methods like {@code getUtf8String} or {@code allocateUtf8String}
- * is caught at build time.
+ * <p> Works by patching {@code java.base} at compile time with a stub JAR whose
+ * {@code java.lang.foreign} classes have the {@code @PreviewFeature} annotation stripped. Also
+ * enables forbidden-API checking for renamed preview APIs, so that direct usage of methods like
+ * {@code getUtf8String} or {@code allocateUtf8String} is caught at build time.
  *
- * <p>Apply in a project's {@code build.gradle}:
+ * <p> Apply in a project's {@code build.gradle}:
  * <pre>{@code
  *   apply plugin: 'elasticsearch.foreign-api'
  * }</pre>
@@ -118,7 +118,7 @@ public class ForeignApiPlugin implements Plugin<Project> {
 
         @InputFile
         @PathSensitive(PathSensitivity.NONE)
-        @org.gradle.api.tasks.Optional
+        @Optional
         public Provider<RegularFile> getJarFile() {
             return jarFile;
         }

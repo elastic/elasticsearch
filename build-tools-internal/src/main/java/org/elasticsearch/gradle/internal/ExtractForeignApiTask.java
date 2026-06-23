@@ -37,26 +37,24 @@ import java.util.stream.Stream;
 import static org.objectweb.asm.Opcodes.V21;
 
 /**
- * Extracts public API class files from the {@code java.lang.foreign} package
- * in the running JDK and writes them to a JAR with {@code @PreviewFeature}
- * annotations and the class-file preview flag stripped.
+ * Extracts public API class files from the {@code java.lang.foreign} package in the running JDK
+ * and writes them to a JAR with {@code @PreviewFeature} annotations and the class-file preview
+ * flag stripped.
  *
- * <p>The output JAR is intended for use with {@code --patch-module java.base=<jar>}
- * so that modules compiled with {@code --release 21} can reference
- * {@code MemorySegment} and related types without {@code --enable-preview}.
+ * <p> The output JAR is intended for use with {@code --patch-module java.base=<jar>} so that
+ * modules compiled with {@code --release 21} can reference {@code MemorySegment} and related
+ * types without {@code --enable-preview}.
  *
- * <p>This task is registered automatically per-project by
- * {@link ForeignApiPlugin} and must run with
- * JDK 21 as the Gradle JDK (the Foreign Function &amp; Memory API is preview
- * only in JDK 21). The Elasticsearch build uses JDK 21 as its Gradle JDK by
- * default, so no extra configuration is needed.
+ * <p> This task is registered automatically per-project by {@link ForeignApiPlugin} and must run
+ * with JDK 21 as the Gradle JDK (the Foreign Function &amp; Memory API is preview only in
+ * JDK 21). The Elasticsearch build uses JDK 21 as its Gradle JDK by default, so no extra
+ * configuration is needed.
  *
- * <h3>Inspecting the generated JAR</h3>
- * {@code javap} cannot inspect classes in {@code java.lang.foreign} from a
- * JAR on the classpath because the JDK's module system always resolves them
- * from {@code jrt://java.base} first. To work around this, extract the class
- * file and copy it to a path outside the {@code java/lang/foreign/} directory
- * structure so that {@code javap} reads the file directly:
+ * <h3> Inspecting the generated JAR</h3>
+ * {@code javap} cannot inspect classes in {@code java.lang.foreign} from a JAR on the classpath
+ * because the JDK's module system always resolves them from {@code jrt://java.base} first. To
+ * work around this, extract the class file and copy it to a path outside the
+ * {@code java/lang/foreign/} directory structure so that {@code javap} reads the file directly:
  * <pre>{@code
  * mkdir -p /tmp/jar-inspect
  * unzip -o -d /tmp/jar-inspect \
@@ -69,9 +67,9 @@ import static org.objectweb.asm.Opcodes.V21;
  * <ul>
  *   <li>{@code major version: 65} (Java 21)</li>
  *   <li>{@code minor version: 0} (no preview flag; preview would be 65535)</li>
- *   <li>No {@code @PreviewFeature} in any {@code RuntimeVisibleAnnotations}
- *       or {@code RuntimeInvisibleAnnotations} section (stale constant-pool
- *       string references to {@code PreviewFeature} are harmless)</li>
+ *   <li>No {@code @PreviewFeature} in any {@code RuntimeVisibleAnnotations} or
+ *       {@code RuntimeInvisibleAnnotations} section (stale constant-pool string references to
+ *       {@code PreviewFeature} are harmless)</li>
  * </ul>
  */
 @CacheableTask

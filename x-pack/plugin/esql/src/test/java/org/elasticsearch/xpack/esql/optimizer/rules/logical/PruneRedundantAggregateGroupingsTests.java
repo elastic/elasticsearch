@@ -187,7 +187,7 @@ public class PruneRedundantAggregateGroupingsTests extends AbstractLogicalPlanOp
     }
 
     /**
-     * Issue #962: an external grouping column is renamed, a value is derived from the renamed column, then both the
+     * An external grouping column is renamed, a value is derived from the renamed column, then both the
      * renamed column and the derived value are used as STATS BY keys. The derived key is functionally dependent on the
      * renamed column, so it is pruned and rebuilt above the aggregate. The rebuilt expression must reference the column
      * as the aggregate re-exposes it (i.e. the rename alias {@code cip}), not the pre-aggregate external id which the

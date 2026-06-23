@@ -49,7 +49,7 @@ public class OtelSdkExportMeterSupplierTests extends ESTestCase {
     }
 
     public void testBuildOtlpAuthorizationHeaderWithNeitherCredential() {
-        assertThat(OtlpExporterUtils.buildOtlpAuthorizationHeader(Settings.EMPTY), nullValue());
+        assertThat(OtlpExporterConfig.from(Settings.EMPTY).authorizationHeader(), nullValue());
     }
 
     public void testBuildOtlpAuthorizationHeaderPrefersApiKeyOverSecretToken() {
@@ -57,21 +57,21 @@ public class OtelSdkExportMeterSupplierTests extends ESTestCase {
         secureSettings.setString("telemetry.api_key", "a2V5");
         secureSettings.setString("telemetry.secret_token", "tok");
         Settings settings = Settings.builder().setSecureSettings(secureSettings).build();
-        assertThat(OtlpExporterUtils.buildOtlpAuthorizationHeader(settings), equalTo("ApiKey a2V5"));
+        assertThat(OtlpExporterConfig.from(settings).authorizationHeader(), equalTo("ApiKey a2V5"));
     }
 
     public void testBuildOtlpAuthorizationHeaderWithSecretTokenOnly() {
         MockSecureSettings secureSettings = new MockSecureSettings();
         secureSettings.setString("telemetry.secret_token", "sec");
         Settings settings = Settings.builder().setSecureSettings(secureSettings).build();
-        assertThat(OtlpExporterUtils.buildOtlpAuthorizationHeader(settings), equalTo("Bearer sec"));
+        assertThat(OtlpExporterConfig.from(settings).authorizationHeader(), equalTo("Bearer sec"));
     }
 
     public void testBuildOtlpAuthorizationHeaderWithApiKeyOnly() {
         MockSecureSettings secureSettings = new MockSecureSettings();
         secureSettings.setString("telemetry.api_key", "xyz");
         Settings settings = Settings.builder().setSecureSettings(secureSettings).build();
-        assertThat(OtlpExporterUtils.buildOtlpAuthorizationHeader(settings), equalTo("ApiKey xyz"));
+        assertThat(OtlpExporterConfig.from(settings).authorizationHeader(), equalTo("ApiKey xyz"));
     }
 
     public void testGetMeterProviderWithoutEndpointThrows() {

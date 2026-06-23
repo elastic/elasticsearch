@@ -115,14 +115,8 @@ public class OtelSdkExportMeterSupplier implements MeterSupplier {
             .setEndpoint(endpoint)
             .setMeterProvider(meterProviderSupplier)
             .setAggregationTemporalitySelector(AggregationTemporalitySelector.deltaPreferred())
-            .setInternalTelemetryVersion(InternalTelemetryVersion.LATEST)
-            .setTimeout(OtelSdkSettings.TELEMETRY_OTEL_OTLP_SEND_TIMEOUT.get(settings).toDuration())
-            .setConnectTimeout(OtelSdkSettings.TELEMETRY_OTEL_OTLP_CONNECT_TIMEOUT.get(settings).toDuration())
-            .setRetryPolicy(OtlpExporterUtils.buildRetryPolicy(settings));
-        String authHeader = OtlpExporterUtils.buildOtlpAuthorizationHeader(settings);
-        if (authHeader != null) {
-            builder.addHeader("Authorization", authHeader);
-        }
+            .setInternalTelemetryVersion(InternalTelemetryVersion.LATEST);
+        OtlpExporterConfig.from(settings).applyTo(builder);
         return builder.build();
     }
 

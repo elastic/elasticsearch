@@ -91,7 +91,7 @@ public class OtelSdkExportLogsSupplierTests extends ESTestCase {
 
     public void testRetryDisabledWhenMaxAttemptsIsOne() {
         Settings settings = Settings.builder().put(OtelSdkSettings.TELEMETRY_OTEL_OTLP_RETRY_MAX_ATTEMPTS.getKey(), 1).build();
-        assertThat(OtlpExporterUtils.buildRetryPolicy(settings), nullValue());
+        assertThat(OtlpExporterConfig.from(settings).retryPolicy(), nullValue());
     }
 
     public void testRetryPolicyReflectsSettings() {
@@ -100,7 +100,7 @@ public class OtelSdkExportLogsSupplierTests extends ESTestCase {
             .put(OtelSdkSettings.TELEMETRY_OTEL_OTLP_RETRY_INITIAL_BACKOFF.getKey(), "2s")
             .put(OtelSdkSettings.TELEMETRY_OTEL_OTLP_RETRY_BACKOFF_MULTIPLIER.getKey(), 2.0)
             .build();
-        var policy = OtlpExporterUtils.buildRetryPolicy(settings);
+        var policy = OtlpExporterConfig.from(settings).retryPolicy();
         assertNotNull(policy);
         assertThat(policy.getMaxAttempts(), equalTo(3));
         assertThat(policy.getInitialBackoff().toSeconds(), equalTo(2L));

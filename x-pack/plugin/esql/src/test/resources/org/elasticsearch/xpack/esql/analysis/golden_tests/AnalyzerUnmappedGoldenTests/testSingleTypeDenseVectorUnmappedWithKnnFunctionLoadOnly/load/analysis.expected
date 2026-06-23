@@ -1,0 +1,5 @@
+Limit[10000[INTEGER],false,false]
+\_Limit[10[INTEGER],false,false]
+  \_Project[[rgb_vector{f(MultiTypeEsField)}#0]]
+    \_Filter[KNN(rgb_vector{f(MultiTypeEsField)}#0,TODENSEVECTOR([0, 120, 0][INTEGER]))]
+      \_EsRelation[colors,colors_unmapped][color{f}#1, hex_code{f}#2, id{f}#3, primary{f}#4, rgb_byte_vector{f}#5, rgb_vector{f(MultiTypeEsField)}#0]

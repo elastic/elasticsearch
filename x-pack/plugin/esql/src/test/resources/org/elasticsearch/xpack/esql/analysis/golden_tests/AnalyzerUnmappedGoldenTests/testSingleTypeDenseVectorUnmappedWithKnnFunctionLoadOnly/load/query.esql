@@ -1,0 +1,4 @@
+SET unmapped_fields="load"; FROM colors, colors_unmapped
+| WHERE knn(rgb_vector, [0, 120, 0])
+| KEEP rgb_vector
+| LIMIT 10

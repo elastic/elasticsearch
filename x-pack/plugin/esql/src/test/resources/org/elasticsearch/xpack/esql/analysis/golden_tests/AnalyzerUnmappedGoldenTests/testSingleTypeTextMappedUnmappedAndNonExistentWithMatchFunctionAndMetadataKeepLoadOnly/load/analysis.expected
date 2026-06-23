@@ -1,0 +1,5 @@
+Limit[1000[INTEGER],false,false]
+\_OrderBy[[Order[_index{m}#0,ASC,LAST]]]
+  \_Project[[_index{m}#0, doc_id{f}#1, txt{f}#2]]
+    \_Filter[MATCH(txt{f}#2,Faulkner[KEYWORD]) OR ISNULL(txt{f}#2)]
+      \_EsRelation[text_state_mapped,text_state_unmapped,text_state_nonexistent][doc_id{f}#1, txt{f}#2, _index{m}#0]

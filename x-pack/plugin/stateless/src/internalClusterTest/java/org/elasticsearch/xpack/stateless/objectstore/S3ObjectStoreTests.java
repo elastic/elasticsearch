@@ -725,10 +725,13 @@ public class S3ObjectStoreTests extends AbstractMockObjectStoreIntegTestCase {
             }
         });
 
-        final var settings = Settings.builder()
+        var settings = Settings.builder()
             .put("s3.client.test.max_retries", 0) // disable sdk client retries
-            .put("s3.client.test.tenacious_retries.enabled", true)
             .build();
+
+        if (randomBoolean()) {
+            settings = Settings.builder().put(settings).put("s3.client.test.tenacious_retries.enabled", true).build();
+        }
 
         final String masterNode = startMasterAndIndexNode(settings);
         final String indexNode1 = startIndexNode(settings);

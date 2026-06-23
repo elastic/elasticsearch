@@ -31,6 +31,7 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
@@ -180,10 +181,12 @@ public class EsqlResolveFieldsAction extends HandledTransportAction<FieldCapabil
         );
         Map<String, List<IndexAbstraction>> result = new LinkedHashMap<>();
         for (var expression : resolvedExpressions.expressions()) {
-            result.put(
-                expression.original(),
-                expression.localExpressions().indices().stream().map(indicesLookup::get).filter(Objects::nonNull).toList()
-            );
+            if (expression.localExpressions().indices().isEmpty() == false) {
+                result.put(
+                    RemoteClusterAware.buildRemoteIndexName(request.clusterAlias(), expression.original()),
+                    expression.localExpressions().indices().stream().map(indicesLookup::get).filter(Objects::nonNull).toList()
+                );
+            }
         }
         return result;
     }

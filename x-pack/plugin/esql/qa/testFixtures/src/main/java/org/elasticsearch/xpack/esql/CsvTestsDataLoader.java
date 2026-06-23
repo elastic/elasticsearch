@@ -675,25 +675,48 @@ public class CsvTestsDataLoader {
     }
 
     /**
-     * Waits until every loaded dataset is searchable before tests query it.
-     * <p>
-     * ES|QL LOOKUP / FROM resolution (field-caps) routes only to searchable shard copies. In a stateless cluster index
-     * nodes hold the promotable primary (not searchable) while search nodes hold the unpromotable copy (searchable), and
-     * the cluster can reach health green before any searchable copy is active
-     * ({@code ServerlessFieldCapabilitiesIT.testFieldCapsAreExecutedOnSearchNodes}), so waiting for green is not
-     * sufficient. Poll a {@code _search} probe ({@code allow_partial_search_results=false}): it returns HTTP 503 while
-     * no searchable copy is available and HTTP 200 once at least one searchable copy per shard is active — on stateful
-     * the primary, on stateless the search-node copy. This is the same shard-availability gate field-caps resolution
-     * hits; it is deliberately not equivalent to cluster-health green, which is both too strong on stateful (it would
-     * also wait for replicas the query never routes to) and too weak on stateless (green can precede the searchable
-     * copy). Topology-agnostic: on a single-node cluster the primary is searchable and the probe returns immediately.
+     * Waits until every loaded dataset is ready to be queried, combining two complementary checks because neither alone
+     * is sufficient across topologies:
+     * <ul>
+     *   <li><b>Stateful multi-node</b>: a distributed LOOKUP JOIN (and any per-node shard request) can route to a
+     *       replica copy that is still initializing. {@code createIndex} returns with only {@code wait_for_active_shards=1}
+     *       (primary active), so the {@code _search} probe below — satisfied by the primary alone — does not guarantee the
+     *       replica the join routes to is active; that race surfaces as a {@code NoShardAvailableActionException} from
+     *       field-caps resolution. Wait for green (scoped to the loaded indices) so every copy is started. Guarded by
+     *       data-node count: a single-node cluster keeps the default replica unassigned (yellow forever) and only ever
+     *       routes to the primary, so the wait would be both unnecessary and unsatisfiable there.</li>
+     *   <li><b>Stateless</b>: index nodes hold the promotable primary (not searchable) while search nodes hold the
+     *       unpromotable, searchable copy; the cluster can reach green before that searchable copy is active
+     *       ({@code ServerlessFieldCapabilitiesIT.testFieldCapsAreExecutedOnSearchNodes}), so green is not sufficient.
+     *       Poll a {@code _search} probe ({@code allow_partial_search_results=false}) until a searchable copy answers
+     *       (HTTP 503 while none is available, 200 once one per shard is active) — the same gate field-caps relies on.</li>
+     * </ul>
+     * On a single-node cluster only the probe runs and returns immediately, since the primary is searchable.
      */
     private static void awaitDatasetsSearchable(RestClient client, Set<String> loadedDatasets) throws IOException {
         if (loadedDatasets.isEmpty()) {
             return;
         }
         String pattern = String.join(",", loadedDatasets);
+        if (dataNodeCount(client) > 1) {
+            ESRestTestCase.ensureHealth(client, pattern, request -> {
+                request.addParameter("wait_for_status", "green");
+                request.addParameter("wait_for_no_relocating_shards", "true");
+                request.addParameter("wait_for_no_initializing_shards", "true");
+                request.addParameter("timeout", AWAIT_SEARCHABLE_TIMEOUT_SECONDS + "s");
+                request.addParameter("level", "shards");
+            });
+        }
         awaitSearchable(client, new Request("GET", "/" + pattern + "/_search?size=0&allow_partial_search_results=false"), true);
+    }
+
+    /**
+     * Number of data nodes in the cluster, used to decide whether replicas can be allocated (and therefore whether
+     * waiting for green is meaningful). Defaults to {@code 1} if the field is absent.
+     */
+    private static int dataNodeCount(RestClient client) throws IOException {
+        Response response = client.performRequest(new Request("GET", "/_cluster/health"));
+        return new ObjectMapper().readTree(response.getEntity().getContent()).path("number_of_data_nodes").asInt(1);
     }
 
     private static void loadDataSets(

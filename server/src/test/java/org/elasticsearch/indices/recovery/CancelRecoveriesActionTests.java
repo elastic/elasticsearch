@@ -16,12 +16,13 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
 
 import java.util.List;
+import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
 
 public class CancelRecoveriesActionTests extends ESTestCase {
 
-    public void testSerialization() throws Exception {
+    public void testRequestSerialization() throws Exception {
         TransportVersion serializationVersion = TransportVersionUtils.randomVersion();
         long clusterStateVersion = randomNonNegativeLong();
 
@@ -58,5 +59,13 @@ public class CancelRecoveriesActionTests extends ESTestCase {
             assertThat(inCancellation.allocationId(), equalTo(outCancellation.allocationId()));
             assertThat(inCancellation.cancelIfStarted(), equalTo(outCancellation.cancelIfStarted()));
         }
+    }
+
+    public void testResponseSerialization() throws Exception {
+        final var serializationVersion = TransportVersionUtils.randomVersion();
+        final var cancelledInQueue = Set.copyOf(randomList(0, 5, UUIDs::randomBase64UUID));
+        final var outResponse = new CancelRecoveriesAction.Response(cancelledInQueue);
+        final var inResponse = copyWriteable(outResponse, writableRegistry(), CancelRecoveriesAction.Response::new, serializationVersion);
+        assertThat(inResponse.cancelledInQueue(), equalTo(outResponse.cancelledInQueue()));
     }
 }

@@ -111,7 +111,7 @@ public class TransportShardMultiTermsVectorAction extends TransportSingleShardAc
     ) throws IOException {
         if (stateless) {
             // Keep ids and routings parallel by deriving both from the same filtered list of realtime requests.
-            final List<TermVectorsRequest> realTimeRequests = request.requests.stream().filter(r -> r.realtime()).toList();
+            final List<TermVectorsRequest> realTimeRequests = request.requests.stream().filter(TermVectorsRequest::realtime).toList();
             final String[] realTimeIds = realTimeRequests.stream().map(TermVectorsRequest::id).toArray(String[]::new);
             final String[] realTimeRoutings = realTimeRequests.stream().map(TermVectorsRequest::routing).toArray(String[]::new);
 

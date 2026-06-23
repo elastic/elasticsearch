@@ -189,7 +189,9 @@ public class SingleValueMatchQueryTests extends MapperServiceTestCase {
 
         @Override
         public void assertRewrite(IndexSearcher indexSearcher, Query query) throws IOException {
-            if (empty == false && multivaluedField == false) {
+            // The columnar high-cardinality binary reader does not expose value mode / sparsity (its .counts field counts slots including
+            // nulls and empty arrays, so the skipper can't prove every doc has exactly one value), so the query never rewrites away.
+            if (docValuesMode != DocValuesMode.DOC_VALUES_ONLY_HIGH_CARDINALITY && empty == false && multivaluedField == false) {
                 assertThat(query.rewrite(indexSearcher), instanceOf(MatchAllDocsQuery.class));
             } else {
                 assertThat(query.rewrite(indexSearcher), sameInstance(query));
@@ -268,7 +270,9 @@ public class SingleValueMatchQueryTests extends MapperServiceTestCase {
 
     private static List<IndexableField> docFor(Iterable<Object> values, DocValuesMode docValuesMode) {
         long count = 0;
-        var mvField = new MultiValuedBinaryDocValuesField.SeparateCount("foo", MultiValuedBinaryDocValuesField.ValueOrdering.SORTED_UNIQUE);
+        // High-cardinality keyword fields in strict-columnar mode write the ArrayOrderInlineNull format ([len+1][val] slots in document
+        // order), which is what the SortingArrayOrderBinaryDocValues reader selected for this field expects.
+        var mvField = new MultiValuedBinaryDocValuesField.ArrayOrderInlineNull("foo");
         List<IndexableField> fields = new ArrayList<>();
 
         for (Object v : values) {

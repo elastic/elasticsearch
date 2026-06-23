@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.stateless.reshard;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.AlreadyClosedException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.FailedNodeException;
@@ -32,10 +33,13 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.shard.IllegalIndexShardStateException;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardClosedException;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.shard.ShardNotFoundException;
 
 import java.util.HashMap;
 import java.util.HashSet;
@@ -94,58 +98,8 @@ public class SplitTargetService {
     }
 
     public void startSplitTargetShardRecovery(IndexShard indexShard, IndexMetadata indexMetadata, ActionListener<Void> recoveryListener) {
-        ShardId shardId = indexShard.shardId();
-
-        assert indexMetadata.getReshardingMetadata() != null;
-        IndexReshardingState.Split splitMetadata = indexMetadata.getReshardingMetadata().getSplit();
-
-        long targetPrimaryTerm = indexShard.getOperationPrimaryTerm();
-        final DiscoveryNode sourceNode = indexShard.recoveryState().getSourceNode();
-        long sourcePrimaryTerm = indexMetadata.primaryTerm(splitMetadata.sourceShard(shardId.id()));
-
-        var split = new Split(shardId, sourceNode, clusterService.localNode(), sourcePrimaryTerm, targetPrimaryTerm);
-
-        switch (splitMetadata.getTargetShardState(shardId.id())) {
-            case CLONE -> {
-                var stateMachine = new StateMachine(
-                    split,
-                    indexShard,
-                    () -> onGoingSplits.remove(indexShard),
-                    reshardIndexService.getReshardMetrics(),
-                    clusterService.threadPool().relativeTimeInMillisSupplier(),
-                    new StateMachine.State.Clone(recoveryListener)
-                );
-                onGoingSplits.put(indexShard, stateMachine);
-                stateMachine.run();
-            }
-            case HANDOFF -> {
-                var stateMachine = new StateMachine(
-                    split,
-                    indexShard,
-                    () -> onGoingSplits.remove(indexShard),
-                    reshardIndexService.getReshardMetrics(),
-                    clusterService.threadPool().relativeTimeInMillisSupplier(),
-                    new StateMachine.State.RecoveringInHandoff()
-                );
-                onGoingSplits.put(indexShard, stateMachine);
-                recoveryListener.onResponse(null);
-                stateMachine.run();
-            }
-            case SPLIT -> {
-                var stateMachine = new StateMachine(
-                    split,
-                    indexShard,
-                    () -> onGoingSplits.remove(indexShard),
-                    reshardIndexService.getReshardMetrics(),
-                    clusterService.threadPool().relativeTimeInMillisSupplier(),
-                    new StateMachine.State.RecoveringInSplit()
-                );
-                onGoingSplits.put(indexShard, stateMachine);
-                recoveryListener.onResponse(null);
-                stateMachine.run();
-            }
-            case DONE -> recoveryListener.onResponse(null);
-        }
+        var startSplitAction = new StartSplitOnSourceShard(indexShard, indexMetadata, recoveryListener);
+        startSplitAction.run();
     }
 
     public void acceptHandoff(IndexShard indexShard, TransportReshardSplitAction.Request handoffRequest, ActionListener<Void> listener) {
@@ -805,6 +759,98 @@ public class SplitTargetService {
             // when we know that split needs to be restarted
             boolean isCancelled = cancelled.get();
             return isCancelled == false;
+        }
+    }
+
+    /**
+     * Call the source shard to start the split operation
+     * If it fails because of an ephemeral error on the source shard, retry it directly instead of falling
+     * back to the allocator, which would only reassign the target shard and has a limited retry budget.
+     */
+    private class StartSplitOnSourceShard extends RetryableAction<Void> {
+        private final IndexShard indexShard;
+        private final IndexReshardingState.Split splitMetadata;
+        private final Split split;
+
+        StartSplitOnSourceShard(IndexShard indexShard, IndexMetadata indexMetadata, ActionListener<Void> recoveryListener) {
+            super(
+                logger,
+                clusterService.threadPool(),
+                TimeValue.timeValueMillis(500),
+                TimeValue.timeValueSeconds(5),
+                // if we haven't made progress in this much time, fail back to allocator
+                TimeValue.timeValueSeconds(30),
+                recoveryListener,
+                clusterService.threadPool().generic()
+            );
+
+            assert indexMetadata.getReshardingMetadata() != null;
+            IndexReshardingState.Split splitMetadata = indexMetadata.getReshardingMetadata().getSplit();
+
+            this.indexShard = indexShard;
+            this.splitMetadata = splitMetadata;
+
+            ShardId shardId = indexShard.shardId();
+
+            long targetPrimaryTerm = indexShard.getOperationPrimaryTerm();
+            final DiscoveryNode sourceNode = indexShard.recoveryState().getSourceNode();
+            long sourcePrimaryTerm = indexMetadata.primaryTerm(splitMetadata.sourceShard(shardId.id()));
+
+            split = new Split(shardId, sourceNode, clusterService.localNode(), sourcePrimaryTerm, targetPrimaryTerm);
+        }
+
+        @Override
+        public void tryAction(ActionListener<Void> listener) {
+            switch (splitMetadata.getTargetShardState(indexShard.shardId().id())) {
+                case CLONE -> {
+                    var stateMachine = new StateMachine(
+                        split,
+                        indexShard,
+                        () -> onGoingSplits.remove(indexShard),
+                        reshardIndexService.getReshardMetrics(),
+                        clusterService.threadPool().relativeTimeInMillisSupplier(),
+                        new StateMachine.State.Clone(listener)
+                    );
+                    onGoingSplits.put(indexShard, stateMachine);
+                    stateMachine.run();
+                }
+                case HANDOFF -> {
+                    var stateMachine = new StateMachine(
+                        split,
+                        indexShard,
+                        () -> onGoingSplits.remove(indexShard),
+                        reshardIndexService.getReshardMetrics(),
+                        clusterService.threadPool().relativeTimeInMillisSupplier(),
+                        new StateMachine.State.RecoveringInHandoff()
+                    );
+                    onGoingSplits.put(indexShard, stateMachine);
+                    listener.onResponse(null);
+                    stateMachine.run();
+                }
+                case SPLIT -> {
+                    var stateMachine = new StateMachine(
+                        split,
+                        indexShard,
+                        () -> onGoingSplits.remove(indexShard),
+                        reshardIndexService.getReshardMetrics(),
+                        clusterService.threadPool().relativeTimeInMillisSupplier(),
+                        new StateMachine.State.RecoveringInSplit()
+                    );
+                    onGoingSplits.put(indexShard, stateMachine);
+                    listener.onResponse(null);
+                    stateMachine.run();
+                }
+                case DONE -> listener.onResponse(null);
+            }
+        }
+
+        @Override public boolean shouldRetry(Exception e) {
+            Throwable cause = ExceptionsHelper.unwrapCause(e);
+
+             // retry if the source shard isn't ready yet
+            return (cause instanceof IllegalIndexShardStateException
+                || cause instanceof IndexNotFoundException
+                || cause instanceof ShardNotFoundException);
         }
     }
 

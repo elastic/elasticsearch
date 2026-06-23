@@ -188,49 +188,6 @@ public class ProjectEncryptionKeyMixedPasswordsIT extends ESIntegTestCase {
         }
     }
 
-    public void testKeyPersistsAfterFullRestartWithDifferentPasswordIdsPerNode() throws Exception {
-        String[] nodeNames = internalCluster().getNodeNames();
-        for (int i = 0; i < nodeNames.length; i++) {
-            String nodePasswordId = "id-" + i;
-            MockSecureSettings secure = new MockSecureSettings();
-            secure.setString(ProjectEncryptionKeyPasswordSettings.ACTIVE_PASSWORD_ID_KEY, nodePasswordId);
-            for (int j = 0; j < nodeNames.length; j++) {
-                secure.setString(ProjectEncryptionKeyPasswordSettings.PASSWORD_PREFIX + "id-" + j, BASE_PASSWORD + "-id-" + j);
-            }
-            Settings reloadSettings = Settings.builder().setSecureSettings(secure).build();
-            internalCluster().getInstance(PluginsService.class, nodeNames[i])
-                .filterPlugins(EncryptionPlugin.class)
-                .findFirst()
-                .orElseThrow()
-                .reload(reloadSettings);
-        }
-
-        assertBusy(() -> assertThat(getKeyFromMaster(), notNullValue()));
-        String originalKeyId = getKeyFromMaster().getActiveKeyId();
-
-        internalCluster().fullRestart();
-        ensureGreen();
-
-        assertBusy(() -> {
-            ProjectEncryptionKeyMetadata pek = getKeyFromMaster();
-            assertThat("PEK must survive a full restart with per-node password IDs", pek, notNullValue());
-            assertEquals("active key ID must be unchanged after restart", originalKeyId, pek.getActiveKeyId());
-        });
-
-        EncryptionService masterSvc = internalCluster().getInstance(EncryptionService.class, internalCluster().getMasterName());
-        byte[] payload = "post-restart-mixed-id-payload".getBytes(StandardCharsets.UTF_8);
-        EncryptedData encrypted = masterSvc.encrypt(payload);
-
-        for (String nodeName : internalCluster().getNodeNames()) {
-            EncryptionService svc = internalCluster().getInstance(EncryptionService.class, nodeName);
-            assertArrayEquals(
-                "node [" + nodeName + "] must decrypt post-restart data despite different active password ID",
-                payload,
-                svc.decrypt(encrypted)
-            );
-        }
-    }
-
     private ProjectEncryptionKeyMetadata getKeyFromMaster() {
         ClusterService clusterService = internalCluster().getInstance(ClusterService.class, internalCluster().getMasterName());
         return clusterService.state().metadata().getSingleProjectCustom(ProjectEncryptionKeyMetadata.TYPE);

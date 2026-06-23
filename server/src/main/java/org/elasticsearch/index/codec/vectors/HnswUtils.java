@@ -166,18 +166,24 @@ public final class HnswUtils {
         final int[][] nodesByLevel = new int[numLevels][];
         final int[][][] neighborsByLevel = new int[numLevels][][];
         neighborsByLevel[0] = level0; // nodesByLevel[0] stays null (implicitly all nodes)
+        // Count nodes per upper level in a single pass, then fill in one more pass.
+        final int[] levelCounts = new int[numLevels];
+        for (int c = 0; c < n; c++) {
+            for (int l = 1; l <= levelOf[c]; l++) {
+                levelCounts[l]++;
+            }
+        }
         for (int level = 1; level < numLevels; level++) {
-            int count = 0;
-            for (int c = 0; c < n; c++) {
-                if (levelOf[c] >= level) count++;
+            nodesByLevel[level] = new int[levelCounts[level]];
+        }
+        final int[] writeIdx = new int[numLevels];
+        for (int c = 0; c < n; c++) {
+            for (int l = 1; l <= levelOf[c]; l++) {
+                nodesByLevel[l][writeIdx[l]++] = c; // ascending c => already sorted
             }
-            final int[] nodes = new int[count];
-            int w = 0;
-            for (int c = 0; c < n; c++) {
-                if (levelOf[c] >= level) nodes[w++] = c; // ascending c => already sorted
-            }
-            nodesByLevel[level] = nodes;
-            neighborsByLevel[level] = buildLevelAdjacency(nodes, scorer, maxConn);
+        }
+        for (int level = 1; level < numLevels; level++) {
+            neighborsByLevel[level] = buildLevelAdjacency(nodesByLevel[level], scorer, maxConn);
         }
         final int entryNode = numLevels > 1 ? nodesByLevel[numLevels - 1][0] : 0;
         return new MultiLevelAdjacency(maxConn, numLevels, entryNode, n, nodesByLevel, neighborsByLevel);
@@ -190,7 +196,7 @@ public final class HnswUtils {
      */
     private static int[][] buildLevelAdjacency(int[] levelNodes, UpdateableRandomVectorScorer scorer, int maxConn) throws IOException {
         final int m = levelNodes.length;
-        if (m == 1) return new int[][] { new int[0] };
+        if (m == 1) return new int[1][0];
 
         final int k = Math.min(m - 1, LEVEL_NEIGHBOR_CANDIDATES);
 
@@ -199,20 +205,15 @@ public final class HnswUtils {
         final int[] keptGlobal = new int[maxConn];
         final float[] diversityScratch = new float[maxConn];
 
-        final int[][] adj = new int[m][];
+        final int[][] adj = new int[m][maxConn];
         final int[] sizes = new int[m];
-        for (int i = 0; i < m; i++) {
-            adj[i] = new int[maxConn];
-        }
 
         // Step 1: directed diversity-pruned edges among levelNodes.
         for (int i = 0; i < m; i++) {
             scorer.setScoringOrdinal(levelNodes[i]);
-            int cnt = 0;
-            for (int j = 0; j < m; j++) {
-                if (j == i) continue;
-                candidateGlobals[cnt++] = levelNodes[j];
-            }
+            System.arraycopy(levelNodes, 0, candidateGlobals, 0, i);
+            System.arraycopy(levelNodes, i + 1, candidateGlobals, i, m - i - 1);
+            int cnt = m - 1;
             scorer.bulkScore(candidateGlobals, candidateScores, cnt);
             new NodesByScoreSorter(candidateGlobals, candidateScores).sort(0, cnt);
             cnt = Math.min(cnt, k);

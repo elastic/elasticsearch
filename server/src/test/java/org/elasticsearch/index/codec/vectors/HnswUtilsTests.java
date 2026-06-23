@@ -17,6 +17,7 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.util.hnsw.HnswGraph;
 import org.apache.lucene.util.hnsw.HnswGraphSearcher;
 import org.apache.lucene.util.hnsw.UpdateableRandomVectorScorer;
+import org.elasticsearch.index.codec.vectors.cluster.CentroidOps;
 import org.elasticsearch.index.codec.vectors.cluster.NeighborHood;
 import org.elasticsearch.test.ESTestCase;
 
@@ -38,7 +39,7 @@ public class HnswUtilsTests extends ESTestCase {
         }
         int m = random().nextInt(4, 24);
         int candidates = Math.min(numVectors - 1, 64);
-        NeighborHood[] neighborhoods = NeighborHood.computeNeighborhoods(vectors, candidates);
+        NeighborHood[] neighborhoods = NeighborHood.computeNeighborhoods(CentroidOps.FLOAT, vectors, candidates);
         HnswUtils.MultiLevelAdjacency built = HnswUtils.buildMultiLevelFromNeighborhoods(
             neighborhoods,
             floatScorer(vectors, VectorSimilarityFunction.EUCLIDEAN),
@@ -107,7 +108,7 @@ public class HnswUtilsTests extends ESTestCase {
         }
         int m = random().nextInt(8, 32);
         int candidates = Math.min(numVectors - 1, 64);
-        NeighborHood[] neighborhoods = NeighborHood.computeNeighborhoods(vectors, candidates);
+        NeighborHood[] neighborhoods = NeighborHood.computeNeighborhoods(CentroidOps.FLOAT, vectors, candidates);
         HnswUtils.MultiLevelAdjacency built = HnswUtils.buildMultiLevelFromNeighborhoods(
             neighborhoods,
             floatScorer(vectors, VectorSimilarityFunction.EUCLIDEAN),
@@ -155,7 +156,7 @@ public class HnswUtilsTests extends ESTestCase {
         var sim = VectorSimilarityFunction.EUCLIDEAN;
         int m = random().nextInt(8, 32);
         int candidates = Math.min(numVectors - 1, 64);
-        var neighborhoods = NeighborHood.computeNeighborhoods(vectors, candidates);
+        var neighborhoods = NeighborHood.computeNeighborhoods(CentroidOps.FLOAT, vectors, candidates);
         HnswUtils.MultiLevelAdjacency built = HnswUtils.buildMultiLevelFromNeighborhoods(neighborhoods, floatScorer(vectors, sim), m, 42L);
         try (Directory dir = newDirectory()) {
             try (var graphOut = dir.createOutput("g", IOContext.DEFAULT); var metaOut = dir.createOutput("g.meta", IOContext.DEFAULT)) {

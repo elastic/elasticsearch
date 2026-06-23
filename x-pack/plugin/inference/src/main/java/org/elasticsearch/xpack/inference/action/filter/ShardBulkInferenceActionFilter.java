@@ -121,7 +121,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
         Setting.Property.OperatorDynamic
     );
 
-    private static final ByteSizeValue DEFAULT_MAX_BASE64_INPUT_SIZE = ByteSizeValue.ofMb(5);
+    private static final ByteSizeValue DEFAULT_MAX_BASE64_INPUT_SIZE = ByteSizeValue.ofMb(1);
 
     /**
      * Defines the maximum allowed size, in decoded bytes, of a single base64-encoded input value sent to a semantic field.
@@ -131,7 +131,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
         "indices.inference.max_base64_input_size",
         DEFAULT_MAX_BASE64_INPUT_SIZE,
         ByteSizeValue.ONE,
-        ByteSizeValue.ofMb(5),
+        ByteSizeValue.ofMb(20),
         Setting.Property.NodeScope,
         Setting.Property.OperatorDynamic
     );

@@ -68,6 +68,21 @@ public class AllocationArrayPreCheckTests extends ESTestCase {
         assertEquals(AllocSizes.arraySize(byte.class, 10), allocatedBytes("byte[] b = new byte[10]; return \"x\";"));
     }
 
+    public void testOneDimBooleanArray() {
+        // new boolean[10] => pad8(16 + 1*10) = 32 bytes; fieldSize(boolean) = 1.
+        assertEquals(AllocSizes.arraySize(boolean.class, 10), allocatedBytes("boolean[] b = new boolean[10]; return \"x\";"));
+    }
+
+    public void testOneDimShortArray() {
+        // new short[10] => pad8(16 + 2*10) = 40 bytes; fieldSize(short) = 2.
+        assertEquals(AllocSizes.arraySize(short.class, 10), allocatedBytes("short[] s = new short[10]; return \"x\";"));
+    }
+
+    public void testOneDimCharArray() {
+        // new char[10] => pad8(16 + 2*10) = 40 bytes; fieldSize(char) = 2.
+        assertEquals(AllocSizes.arraySize(char.class, 10), allocatedBytes("char[] c = new char[10]; return \"x\";"));
+    }
+
     public void testOneDimZeroLength() {
         // new int[0] => pad8(16 + 4*0) = 16 bytes (just the array header).
         assertEquals(AllocSizes.arraySize(int.class, 0), allocatedBytes("int[] a = new int[0]; return \"x\";"));

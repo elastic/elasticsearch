@@ -101,6 +101,7 @@ public record LibraryModel(
         }
 
         List<MethodModel> methods = new ArrayList<>();
+        boolean hasError = false;
         for (var enclosed : element.getEnclosedElements()) {
             if (enclosed.getKind() != ElementKind.METHOD) {
                 continue;
@@ -112,12 +113,13 @@ public record LibraryModel(
 
             MethodModel methodModel = MethodModel.from(method, env);
             if (methodModel == null) {
-                return null;
+                hasError = true;
+            } else {
+                methods.add(methodModel);
             }
-            methods.add(methodModel);
         }
 
-        return new LibraryModel(qualifiedName, simpleName, packageName, libraryName, methods, unavailableOn);
+        return hasError ? null : new LibraryModel(qualifiedName, simpleName, packageName, libraryName, methods, unavailableOn);
     }
 
     /**

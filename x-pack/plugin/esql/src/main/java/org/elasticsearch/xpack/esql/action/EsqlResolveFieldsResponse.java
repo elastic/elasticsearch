@@ -12,9 +12,12 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.xpack.esql.action.EsqlResolveFieldsAction.IndexAbstractionSchema;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 
 import java.io.IOException;
+import java.util.List;
+import java.util.Map;
 
 public class EsqlResolveFieldsResponse extends ActionResponse {
     public static final TransportVersion RESOLVE_FIELDS_RESPONSE_CREATED_TV = TransportVersion.fromName(
@@ -36,21 +39,36 @@ public class EsqlResolveFieldsResponse extends ActionResponse {
      * but a 9.2.0 coordinator with 9.2.1+ nodes will still require the workaround.
      */
     public static final TransportVersion RESOLVE_FIELDS_RESPONSE_USED_TV = TransportVersion.fromName("esql_resolve_fields_response_used");
+    public static final TransportVersion RESOLVE_FIELDS_RESPONSE_SCHEMA_TV = TransportVersion.fromName(
+        "esql_resolve_fields_response_schema"
+    );
 
     private final FieldCapabilitiesResponse caps;
+    private final Map<String, List<IndexAbstractionSchema>> schema;
 
     public EsqlResolveFieldsResponse(FieldCapabilitiesResponse caps) {
+        this(caps, Map.of());
+    }
+
+    public EsqlResolveFieldsResponse(FieldCapabilitiesResponse caps, Map<String, List<IndexAbstractionSchema>> schema) {
         this.caps = caps;
+        this.schema = schema;
     }
 
     public EsqlResolveFieldsResponse(StreamInput in) throws IOException {
         this.caps = readMinTransportVersion(new FieldCapabilitiesResponse(in), in);
+        this.schema = in.getTransportVersion().supports(RESOLVE_FIELDS_RESPONSE_SCHEMA_TV)
+            ? in.readMap(StreamInput::readString, i -> i.readCollectionAsList(IndexAbstractionSchema::readFrom))
+            : Map.of();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         caps.writeTo(out);
         writeMinTransportVersion(out);
+        if (out.getTransportVersion().supports(RESOLVE_FIELDS_RESPONSE_SCHEMA_TV)) {
+            out.writeMap(schema, (o, list) -> o.writeCollection(list, StreamOutput::writeWriteable));
+        }
     }
 
     private static FieldCapabilitiesResponse readMinTransportVersion(FieldCapabilitiesResponse caps, StreamInput in) throws IOException {
@@ -100,5 +118,9 @@ public class EsqlResolveFieldsResponse extends ActionResponse {
 
     public FieldCapabilitiesResponse caps() {
         return caps;
+    }
+
+    public Map<String, List<IndexAbstractionSchema>> schema() {
+        return schema;
     }
 }

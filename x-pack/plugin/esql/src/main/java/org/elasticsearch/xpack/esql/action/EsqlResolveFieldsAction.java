@@ -131,7 +131,7 @@ public class EsqlResolveFieldsAction extends HandledTransportAction<FieldCapabil
 
             @Override
             public EsqlResolveFieldsResponse wrapPrimary(FieldCapabilitiesResponse primary) {
-                return new EsqlResolveFieldsResponse(primary);
+                return new EsqlResolveFieldsResponse(primary, schema);
             }
 
             @Override
@@ -183,11 +183,7 @@ public class EsqlResolveFieldsAction extends HandledTransportAction<FieldCapabil
 
     private IndexAbstractionSchema resolveSchema(IndexAbstraction indexAbstraction) {
         // TODO implement
-        return new IndexAbstractionSchema(
-            indexAbstraction.getName(),
-            indexAbstraction.getType(),
-            Map.of("f1", "keyword")
-        );
+        return new IndexAbstractionSchema(indexAbstraction.getName(), indexAbstraction.getType(), Map.of("f1", "keyword"));
     }
 
     public record IndexAbstractionSchema(String name, IndexAbstraction.Type type, Map<String, String> attributes) implements Writeable {

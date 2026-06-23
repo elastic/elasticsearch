@@ -106,14 +106,25 @@ public final class ThrottlingRecoveryService implements ClusterStateListener, Cl
                 recoveryListener.onRecoveryAborted();
             } else {
                 logger.debug("recovery cancelled at enqueue time: {}", recoveryState);
-                recoveryListener.onRecoveryFailure(
-                    new RecoveryCancelledException(
-                        recoveryState.getShardId(),
-                        recoveryState.getSourceNode(),
-                        recoveryState.getTargetNode()
-                    ),
-                    true
-                );
+                // Get off the cluster applier thread.
+                executor.execute(new AbstractRunnable() {
+                    @Override
+                    public void onFailure(Exception e) {
+                        logger.error("error notifying pre-enqueue cancellation of {}", recoveryState, e);
+                    }
+
+                    @Override
+                    protected void doRun() {
+                        recoveryListener.onRecoveryFailure(
+                            new RecoveryCancelledException(
+                                recoveryState.getShardId(),
+                                recoveryState.getSourceNode(),
+                                recoveryState.getTargetNode()
+                            ),
+                            true
+                        );
+                    }
+                });
             }
             return;
         }

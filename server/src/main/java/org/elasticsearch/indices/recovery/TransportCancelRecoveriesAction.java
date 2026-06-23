@@ -57,7 +57,8 @@ public class TransportCancelRecoveriesAction extends HandledTransportAction<
         ActionFilters actionFilters,
         ClusterService clusterService,
         IndicesService indicesService,
-        PeerRecoveryTargetService peerRecoveryTargetService
+        PeerRecoveryTargetService peerRecoveryTargetService,
+        ThrottlingRecoveryService throttlingRecoveryService
     ) {
         super(
             CancelRecoveriesAction.TYPE.name(),
@@ -69,7 +70,7 @@ public class TransportCancelRecoveriesAction extends HandledTransportAction<
         this.clusterService = clusterService;
         this.indicesService = indicesService;
         this.peerRecoveryTargetService = peerRecoveryTargetService;
-        this.throttlingRecoveryService = indicesService.throttlingRecoveryService();
+        this.throttlingRecoveryService = throttlingRecoveryService;
         this.executor = transportService.getThreadPool().executor(ThreadPool.Names.GENERIC);
     }
 
@@ -114,9 +115,6 @@ public class TransportCancelRecoveriesAction extends HandledTransportAction<
         }
     }
 
-    /// TODO: IndexShard's allocationId is final but its primary term is not. The master could update the IndexShard primary
-    /// term mid-way through the cancellation request. Should we protect against this? Or just accept the potential
-    /// extra cancellation and let the master sort it out?
     private void tryDirectCancelStartedRecovery(ShardId shardId, String allocationId) {
         final IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
         final IndexShard indexShard = indexService.getShard(shardId.id());

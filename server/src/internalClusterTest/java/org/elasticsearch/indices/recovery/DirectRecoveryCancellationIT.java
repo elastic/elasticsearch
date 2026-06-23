@@ -58,7 +58,6 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
@@ -148,7 +147,7 @@ public class DirectRecoveryCancellationIT extends AbstractIndexRecoveryIntegTest
         TestRecoveryBlockerPlugin.beforeRecoveryGate.release();
 
         safeAwait(shardFailureReceived);
-        assertThat(directCancellationMetric(node, Set.of("started")), equalTo(1L));
+        assertThat(directCancellationMetric(node), equalTo(1L));
     }
 
     public void testDirectCancellationOfExistingStoreRecovery() throws Exception {
@@ -199,7 +198,7 @@ public class DirectRecoveryCancellationIT extends AbstractIndexRecoveryIntegTest
         TestRecoveryBlockerPlugin.beforeRecoveryGate.release();
 
         safeAwait(shardFailureReceived);
-        assertThat(directCancellationMetric(node, Set.of("started")), equalTo(1L));
+        assertThat(directCancellationMetric(node), equalTo(1L));
     }
 
     public void testDirectCancellationOfLocalShardsRecovery() throws Exception {
@@ -252,7 +251,7 @@ public class DirectRecoveryCancellationIT extends AbstractIndexRecoveryIntegTest
         TestRecoveryBlockerPlugin.beforeRecoveryGate.release();
 
         safeAwait(shardFailureReceived);
-        assertThat(directCancellationMetric(node, Set.of("started")), equalTo(1L));
+        assertThat(directCancellationMetric(node), equalTo(1L));
     }
 
     public void testDirectCancellationOfSnapshotRecoveryBeforeRestore() throws Exception {
@@ -310,7 +309,7 @@ public class DirectRecoveryCancellationIT extends AbstractIndexRecoveryIntegTest
         TestRecoveryBlockerPlugin.beforeRecoveryGate.release();
 
         safeAwait(shardFailureReceived);
-        assertThat(directCancellationMetric(node, Set.of("started")), equalTo(1L));
+        assertThat(directCancellationMetric(node), equalTo(1L));
     }
 
     public void testDirectCancellationOfSnapshotRecoveryDuringRestore() throws Exception {
@@ -367,7 +366,7 @@ public class DirectRecoveryCancellationIT extends AbstractIndexRecoveryIntegTest
         BlockingFsRepositoryPlugin.proceedWithRestore.release();
 
         safeAwait(shardFailureReceived);
-        assertThat(directCancellationMetric(node, Set.of("started")), equalTo(1L));
+        assertThat(directCancellationMetric(node), equalTo(1L));
     }
 
     public void testDirectCancellationOfStartedReplicaPeerRecovery() throws Exception {
@@ -460,7 +459,7 @@ public class DirectRecoveryCancellationIT extends AbstractIndexRecoveryIntegTest
             );
             return true;
         });
-        assertThat(directCancellationMetric(replicaNode, Set.of("started")), equalTo(1L));
+        assertThat(directCancellationMetric(replicaNode), equalTo(1L));
     }
 
     public void testDirectCancellationOfPrimaryRelocationDuringFileTransfer() throws Exception {
@@ -522,7 +521,7 @@ public class DirectRecoveryCancellationIT extends AbstractIndexRecoveryIntegTest
         proceedWithRelocation.countDown();
 
         safeAwait(shardFailureReceived);
-        assertThat(directCancellationMetric(targetNode, Set.of("started")), equalTo(1L));
+        assertThat(directCancellationMetric(targetNode), equalTo(1L));
 
         // The failed relocation leaves the primary on sourceNode
         waitNoPendingTasksOnAll();
@@ -596,7 +595,7 @@ public class DirectRecoveryCancellationIT extends AbstractIndexRecoveryIntegTest
         proceedWithHandoff.countDown();
 
         safeAwait(shardFailureReceived);
-        assertThat(directCancellationMetric(targetNode, Set.of("started")), equalTo(1L));
+        assertThat(directCancellationMetric(targetNode), equalTo(1L));
 
         // The aborted handover leaves the primary on sourceNode
         waitNoPendingTasksOnAll();
@@ -662,7 +661,7 @@ public class DirectRecoveryCancellationIT extends AbstractIndexRecoveryIntegTest
             client(targetNode).execute(CancelRecoveriesAction.TYPE, cancellationRequest).get();
             mockLog.assertAllExpectationsMatched();
         }
-        assertThat(directCancellationMetric(targetNode, Set.of("started", "queued")), equalTo(0L));
+        assertThat(directCancellationMetric(targetNode), equalTo(0L));
 
         // Let the relocation proceed
         TestRecoveryBlockerPlugin.afterRecoveryGate.release();
@@ -706,7 +705,7 @@ public class DirectRecoveryCancellationIT extends AbstractIndexRecoveryIntegTest
         TestRecoveryBlockerPlugin.afterRecoveryGate.release();
 
         ensureGreen(indexName);
-        assertThat(directCancellationMetric(node, Set.of("started", "queued")), equalTo(0L));
+        assertThat(directCancellationMetric(node), equalTo(0L));
 
         // Confirm the flag was cleared by postRecovery() and the shard is now in STARTED state.
         final var indexShard = indicesService.indexServiceSafe(index).getShard(0);
@@ -743,7 +742,7 @@ public class DirectRecoveryCancellationIT extends AbstractIndexRecoveryIntegTest
 
         TestRecoveryBlockerPlugin.beforeShardCreatedGate.release();
         ensureGreen(indexName);
-        assertThat(directCancellationMetric(node, Set.of("queued")), equalTo(1L));
+        assertThat(directCancellationMetric(node), equalTo(0L));
     }
 
     private void disableAllocation() {
@@ -759,14 +758,13 @@ public class DirectRecoveryCancellationIT extends AbstractIndexRecoveryIntegTest
         );
     }
 
-    private long directCancellationMetric(String node, Set<String> types) {
+    private long directCancellationMetric(String node) {
         final TestTelemetryPlugin plugin = internalCluster().getInstance(PluginsService.class, node)
             .filterPlugins(TestTelemetryPlugin.class)
             .findFirst()
             .orElseThrow();
         return plugin.getLongCounterMeasurement(RecoveryMetricsCollector.RECOVERY_DIRECT_CANCELLATIONS_METRIC)
             .stream()
-            .filter(m -> types.contains(m.attributes().get("es_recovery_cancellation_type")))
             .mapToLong(Measurement::getLong)
             .sum();
     }

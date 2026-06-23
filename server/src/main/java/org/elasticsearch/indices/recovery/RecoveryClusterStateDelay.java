@@ -26,9 +26,7 @@ public class RecoveryClusterStateDelay {
 
     private static final Logger logger = LogManager.getLogger(RecoveryClusterStateDelay.class);
 
-    /**
-     * Waits for the given cluster state version to be applied locally before proceeding with recovery
-     */
+    /// Waits for the given cluster state version to be applied locally before proceeding with recovery.
     public static <T> void ensureClusterStateVersion(
         long clusterStateVersion,
         ClusterService clusterService,

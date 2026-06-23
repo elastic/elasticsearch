@@ -178,6 +178,7 @@ public class RecoveryMetricsCollector implements IndexEventListener, RecoverySch
 
     @Override
     public void onStartedRecoveryCancelled(RecoverySource.Type type, RecoveryRole role) {
+        // TODO: use type and role in metric attributes
         shardRecoveryDirectCancellationsMetric.incrementBy(1);
     }
 

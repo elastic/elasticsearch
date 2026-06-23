@@ -75,13 +75,13 @@ public class TransportCancelRecoveriesActionTests extends ESTestCase {
             clusterService,
             new CompositeRecoverySchedulingListener()
         );
-        when(indicesService.throttlingRecoveryService()).thenReturn(throttlingRecoveryService);
         action = new TransportCancelRecoveriesAction(
             MockUtils.setupTransportServiceWithThreadpoolExecutor(),
             new ActionFilters(Set.of()),
             clusterService,
             indicesService,
-            mock(PeerRecoveryTargetService.class)
+            mock(PeerRecoveryTargetService.class),
+            throttlingRecoveryService
         );
     }
 
@@ -375,6 +375,13 @@ public class TransportCancelRecoveriesActionTests extends ESTestCase {
 
         taskQueue.runAllTasks();
         assertTrue("expected recovery to be cancelled", cancelled.get());
+    }
+
+    public void testEmptyRequestReturnsEmptyResponse() {
+        final var responseFuture = new PlainActionFuture<CancelRecoveriesAction.Response>();
+        action.execute(mock(Task.class), new CancelRecoveriesAction.Request(0L, List.of()), responseFuture);
+        final var response = responseFuture.actionGet();
+        assertTrue(response.cancelledInQueue().isEmpty());
     }
 
     private static RecoveryState newRecoveryState(ShardId shardId) {

@@ -433,10 +433,6 @@ public class IndicesService extends AbstractLifecycleComponent
         return clusterService;
     }
 
-    public ThrottlingRecoveryService throttlingRecoveryService() {
-        return throttlingRecoveryService;
-    }
-
     @Override
     protected void doStop() {
         stopLatch.countDown();

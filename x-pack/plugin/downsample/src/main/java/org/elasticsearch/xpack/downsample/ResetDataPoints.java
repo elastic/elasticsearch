@@ -51,7 +51,7 @@ class ResetDataPoints {
 
     @FunctionalInterface
     interface ResetPointProcessor {
-        void process(long timestamp, List<Tuple<String, ResetValue>> resetValues) throws IOException;
+        void process(long timestamp, List<Tuple<String, ResetValue>> resetValues);
     }
 
     record ResetPoint(long timestamp, ResetValue value) {

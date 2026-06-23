@@ -72,6 +72,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
@@ -902,10 +903,19 @@ class DownsampleShardIndexer {
 
         void flushResetDocumentsIfNeeded(Consumer<XContentBuilder> indexResetDoc) throws IOException {
             if (resetDataPoints != null && resetDataPoints.isEmpty() == false) {
+                AtomicReference<IOException> error = new AtomicReference<>();
                 resetDataPoints.processDataPoints((timestamp, resetValues) -> {
-                    XContentBuilder resetDoc = buildExtraResetDocument(timestamp, resetValues);
-                    indexResetDoc.accept(resetDoc);
+                    try {
+                        XContentBuilder resetDoc = buildExtraResetDocument(timestamp, resetValues);
+                        indexResetDoc.accept(resetDoc);
+                    } catch (IOException e) {
+                        // buffer the error and continue with the remaining timestamps / documents
+                        error.set(e);
+                    }
                 });
+                if (error.get() != null) {
+                    throw error.get();
+                }
             }
         }
 

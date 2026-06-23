@@ -1653,6 +1653,11 @@ public abstract class FieldMapper extends Mapper {
                 if (XContentMapValues.nodeBooleanValue(value, name)) {
                     setValue(new Values(true, getDefaultValue().cardinality(), getDefaultValue().multiValue()));
                 } else {
+                    if (context.getIndexSettings().getMode().isStrictColumnar()) {
+                        throw new IllegalArgumentException(
+                            "Disabling doc_values in [" + context.getIndexSettings().getMode() + "] index mode is not allowed"
+                        );
+                    }
                     setValue(Values.DISABLED);
                 }
             }

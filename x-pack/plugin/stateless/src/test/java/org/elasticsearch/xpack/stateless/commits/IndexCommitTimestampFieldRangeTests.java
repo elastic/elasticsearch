@@ -386,16 +386,20 @@ public class IndexCommitTimestampFieldRangeTests extends MapperServiceTestCase {
                     b.startObject("@timestamp").field("type", "date_nanos").field("format", "epoch_millis");
                     if (strictColumnar) {
                         b.field("index", true);
+                    } else {
+                        b.field("doc_values", randomBoolean());
                     }
-                    b.field("doc_values", randomBoolean()).field("store", allowStore).endObject();
+                    b.field("store", allowStore).endObject();
                 }), indexMode);
             } else {
                 return createDocumentMapper(mapping(b -> {
                     b.startObject("@timestamp").field("type", "date").field("format", "epoch_millis");
                     if (strictColumnar) {
                         b.field("index", true);
+                    } else {
+                        b.field("doc_values", randomBoolean());
                     }
-                    b.field("doc_values", randomBoolean()).field("store", allowStore).endObject();
+                    b.field("store", allowStore).endObject();
                 }), indexMode);
             }
         } else if (indexMode == IndexMode.TIME_SERIES) {

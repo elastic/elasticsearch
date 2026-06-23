@@ -737,7 +737,17 @@ create logsdb_columnar data stream with custom sorting and missing host.name fie
 
 ---
 create logsdb_columnar data stream with custom sorting and host.name field without doc values:
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: PUT
+          path: /{index}
+          capabilities: [ columnar_index_modes ]
+      cluster_features: [ "mapper.columnar.rejects_doc_values_disabled" ]
+      reason: "logsdb_columnar mode does not allow disabling doc_values"
+
   - do:
+      catch: bad_request
       indices.put_index_template:
         name: cl-logs-template
         body:
@@ -761,15 +771,9 @@ create logsdb_columnar data stream with custom sorting and host.name field witho
           data_stream: { }
       allowed_warnings:
         - "index template [cl-logs-template] has index patterns [logs-cl-http-dev] matching patterns from existing older templates [global] with patterns (global => [*]); this template [cl-logs-template] will take precedence during new index creation"
-  - is_true: acknowledged
-
-  - do:
-      catch: bad_request
-      indices.create_data_stream:
-        name: logs-cl-http-dev
 
   - match: { error.type: "illegal_argument_exception" }
-  - match: { error.reason: "docvalues not found for index sort field:[host.name]" }
+  - match: { error.reason: "composable template [cl-logs-template] template after composition is invalid" }
 
 ---
 create logsdb_columnar data stream with incompatible ignore_above on host.name:

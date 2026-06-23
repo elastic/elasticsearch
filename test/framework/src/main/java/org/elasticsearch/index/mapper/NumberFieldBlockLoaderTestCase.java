@@ -11,6 +11,8 @@ package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.datageneration.FieldType;
 import org.elasticsearch.datageneration.Mapping;
+import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.xcontent.XContentFactory;
 
 import java.io.IOException;
@@ -203,6 +205,10 @@ public abstract class NumberFieldBlockLoaderTestCase<T extends Number> extends B
         Object expected = expected(mapping.lookup().get("field"), value, new TestContext(false, false));
 
         var settings = getSettingsForParams();
+        assumeFalse(
+            "Cannot set doc_values to false on columnar modes",
+            IndexMode.fromString(settings.get(IndexSettings.MODE.getKey())).isStrictColumnar()
+        );
         runner.mapperService(createMapperService(settings.build(), XContentFactory.jsonBuilder().map(mapping.raw())));
         runner.run(expected);
     }

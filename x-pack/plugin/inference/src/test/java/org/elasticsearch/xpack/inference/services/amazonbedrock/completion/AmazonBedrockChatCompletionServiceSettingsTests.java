@@ -10,141 +10,29 @@ package org.elasticsearch.xpack.inference.services.amazonbedrock.completion;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
-import org.elasticsearch.xcontent.XContentParseException;
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
-import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockProvider;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettingsTests;
 
 import java.io.IOException;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.inference.services.amazonbedrock.AbstractAmazonBedrockServiceSettingsTests.TEST_MODEL_ID;
+import static org.elasticsearch.xpack.inference.services.amazonbedrock.AbstractAmazonBedrockServiceSettingsTests.TEST_PROVIDER;
+import static org.elasticsearch.xpack.inference.services.amazonbedrock.AbstractAmazonBedrockServiceSettingsTests.TEST_RATE_LIMIT;
+import static org.elasticsearch.xpack.inference.services.amazonbedrock.AbstractAmazonBedrockServiceSettingsTests.TEST_REGION;
 import static org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockConstants.MODEL_FIELD;
 import static org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockConstants.PROVIDER_FIELD;
 import static org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockConstants.REGION_FIELD;
-import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.is;
 
 public class AmazonBedrockChatCompletionServiceSettingsTests extends AbstractBWCWireSerializationTestCase<
     AmazonBedrockChatCompletionServiceSettings> {
-    private static final String TEST_REGION = "test-region";
-    private static final String INITIAL_TEST_REGION = "initial-test-region";
-    private static final String TEST_MODEL_ID = "test-model-id";
-    private static final String INITIAL_TEST_MODEL_ID = "initial-test-model-id";
-    private static final AmazonBedrockProvider TEST_PROVIDER = AmazonBedrockProvider.AMAZONTITAN;
-    private static final AmazonBedrockProvider INITIAL_TEST_PROVIDER = AmazonBedrockProvider.AI21LABS;
-    private static final int TEST_RATE_LIMIT = 20;
-    private static final int INITIAL_TEST_RATE_LIMIT = 30;
-
-    public void testUpdateServiceSettings_RateLimit_IsUpdated() {
-        var originalServiceSettings = new AmazonBedrockChatCompletionServiceSettings(
-            INITIAL_TEST_REGION,
-            INITIAL_TEST_MODEL_ID,
-            INITIAL_TEST_PROVIDER,
-            new RateLimitSettings(INITIAL_TEST_RATE_LIMIT)
-        );
-        var updatedServiceSettings = originalServiceSettings.updateServiceSettings(
-            new HashMap<>(Map.of(RateLimitSettings.FIELD_NAME, Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, TEST_RATE_LIMIT)))
-        );
-
-        assertThat(
-            updatedServiceSettings,
-            is(
-                new AmazonBedrockChatCompletionServiceSettings(
-                    INITIAL_TEST_REGION,
-                    INITIAL_TEST_MODEL_ID,
-                    INITIAL_TEST_PROVIDER,
-                    new RateLimitSettings(TEST_RATE_LIMIT)
-                )
-            )
-        );
-    }
-
-    public void testUpdateServiceSettings_EmptyRateLimitObject_DoesNotChangeSettings() {
-        var originalServiceSettings = new AmazonBedrockChatCompletionServiceSettings(
-            INITIAL_TEST_REGION,
-            INITIAL_TEST_MODEL_ID,
-            INITIAL_TEST_PROVIDER,
-            new RateLimitSettings(INITIAL_TEST_RATE_LIMIT)
-        );
-        var updatedServiceSettings = originalServiceSettings.updateServiceSettings(
-            new HashMap<>(Map.of(RateLimitSettings.FIELD_NAME, new HashMap<>()))
-        );
-
-        assertThat(updatedServiceSettings, is(originalServiceSettings));
-    }
-
-    public void testUpdateServiceSettings_GivenImmutableFields_ThrowsException() {
-        var serviceSettings = new AmazonBedrockChatCompletionServiceSettings(
-            INITIAL_TEST_REGION,
-            INITIAL_TEST_MODEL_ID,
-            INITIAL_TEST_PROVIDER,
-            new RateLimitSettings(INITIAL_TEST_RATE_LIMIT)
-        );
-        for (String immutableField : List.of(REGION_FIELD, MODEL_FIELD, PROVIDER_FIELD)) {
-            var e = expectThrows(
-                XContentParseException.class,
-                () -> serviceSettings.updateServiceSettings(new HashMap<>(Map.of(immutableField, "value")))
-            );
-            assertThat(
-                e.getMessage(),
-                endsWith(Strings.format("[%s] unknown field [%s]", ModelConfigurations.SERVICE_SETTINGS, immutableField))
-            );
-        }
-    }
-
-    private static HashMap<String, Object> createChatCompletionRequestSettingsMap(
-        String region,
-        String modelId,
-        String provider,
-        int rateLimit
-    ) {
-        var newSettingsMap = createChatCompletionRequestSettingsMap(region, modelId, provider);
-        newSettingsMap.put(RateLimitSettings.FIELD_NAME, new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, rateLimit)));
-        return newSettingsMap;
-    }
-
-    public void testFromMap_Request_CreatesSettingsCorrectly() {
-        var serviceSettings = AmazonBedrockChatCompletionServiceSettings.fromMap(
-            createChatCompletionRequestSettingsMap(TEST_REGION, TEST_MODEL_ID, TEST_PROVIDER.toString()),
-            ConfigurationParseContext.REQUEST
-        );
-
-        assertThat(serviceSettings, is(new AmazonBedrockChatCompletionServiceSettings(TEST_REGION, TEST_MODEL_ID, TEST_PROVIDER, null)));
-    }
-
-    public void testFromMap_RequestWithRateLimit_CreatesSettingsCorrectly() {
-        var settingsMap = createChatCompletionRequestSettingsMap(TEST_REGION, TEST_MODEL_ID, TEST_PROVIDER.toString(), TEST_RATE_LIMIT);
-
-        var serviceSettings = AmazonBedrockChatCompletionServiceSettings.fromMap(settingsMap, ConfigurationParseContext.REQUEST);
-
-        assertThat(
-            serviceSettings,
-            is(
-                new AmazonBedrockChatCompletionServiceSettings(
-                    TEST_REGION,
-                    TEST_MODEL_ID,
-                    TEST_PROVIDER,
-                    new RateLimitSettings(TEST_RATE_LIMIT)
-                )
-            )
-        );
-    }
-
-    public void testFromMap_Persistent_CreatesSettingsCorrectly() {
-        var settingsMap = createChatCompletionRequestSettingsMap(TEST_REGION, TEST_MODEL_ID, TEST_PROVIDER.toString());
-        var serviceSettings = AmazonBedrockChatCompletionServiceSettings.fromMap(settingsMap, ConfigurationParseContext.PERSISTENT);
-
-        assertThat(serviceSettings, is(new AmazonBedrockChatCompletionServiceSettings(TEST_REGION, TEST_MODEL_ID, TEST_PROVIDER, null)));
-    }
 
     public void testToXContent_WritesAllValues() throws IOException {
         var entity = new AmazonBedrockChatCompletionServiceSettings(

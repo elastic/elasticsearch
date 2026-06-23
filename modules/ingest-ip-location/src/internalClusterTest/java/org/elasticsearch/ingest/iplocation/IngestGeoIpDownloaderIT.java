@@ -433,14 +433,7 @@ public class IngestGeoIpDownloaderIT extends AbstractGeoIpIT {
     }
 
     private void awaitAllNodesDownloadedDatabases() throws Exception {
-        IpLocationTestHelper.awaitAllRelevantNodesDownloadedDatabases(
-            client(),
-            IpLocationConsumer.INGEST,
-            "GeoLite2-Country.mmdb",
-            "GeoLite2-City.mmdb",
-            "GeoLite2-ASN.mmdb",
-            "MyCustomGeoLite2-City.mmdb"
-        );
+        IpLocationTestHelper.awaitAllDatabasesAvailable(internalCluster(), IpLocationConsumer.INGEST);
     }
 
     private GeoIpTaskState getGeoIpTaskState() {

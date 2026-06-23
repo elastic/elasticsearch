@@ -20,6 +20,80 @@ To check for security updates, go to [Security announcements for the Elastic sta
 % ### Fixes [elasticsearch-next-fixes]
 % *
 
+## 9.3.6 [elasticsearch-9.3.6-release-notes]
+```{applies_to}
+stack: ga 9.3.6
+```
+
+### Features and enhancements [elasticsearch-9.3.6-features-enhancements]
+
+Authorization:
+* Update the built-in `kibana_system` role to grant `manage`, `create_index`, `read`, `index`, `write`, and `delete` privileges on the `axonius.alert_finding` and `axonius.incident` indices, replacing the previous `axonius.alert_and_incident` index [#149797](https://github.com/elastic/elasticsearch/pull/149797)
+
+Data streams:
+* [otel-data] Explicitly map `http.response.status_code` as long [#149631](https://github.com/elastic/elasticsearch/pull/149631)
+
+Inference:
+* Upgrade commons-lang3 version for the inference plugin [#150242](https://github.com/elastic/elasticsearch/pull/150242)
+
+Machine Learning:
+* Better messaging regarding OOM process termination [#2841](https://github.com/elastic/ml-cpp/pull/2841)
+* Improve adherence to memory limits for the bucket gatherer [#2848](https://github.com/elastic/ml-cpp/pull/2848)
+* Report the actual memory usage of the autodetect process [#2846](https://github.com/elastic/ml-cpp/pull/2846)
+* Restrict file system access for pytorch models [#2851](https://github.com/elastic/ml-cpp/pull/2851)
+* Update the PyTorch library to version 2.7.1 [#2863](https://github.com/elastic/ml-cpp/pull/2863)
+
+Network:
+* Upgrade netty to 4.1.135.Final [#151099](https://github.com/elastic/elasticsearch/pull/151099)
+
+Security:
+* Optimize literal action automaton builds [#151093](https://github.com/elastic/elasticsearch/pull/151093) (issues: [#123872](https://github.com/elastic/elasticsearch/issues/123872), [#105723](https://github.com/elastic/elasticsearch/issues/105723))
+
+
+### Fixes [elasticsearch-9.3.6-fixes]
+
+Analysis:
+* Fix Nynorsk stemmer `UnsupportedOperationException`. The `light_nynorsk` and `minimal_nynorsk` stemmers no longer fail with an HTTP 500 error during index creation due to passing an immutable map to Lucene's analysis factory. [#150345](https://github.com/elastic/elasticsearch/pull/150345)
+
+Authentication:
+* Move SAML metadata resolution to background thread [#144381](https://github.com/elastic/elasticsearch/pull/144381) (issue: [#138031](https://github.com/elastic/elasticsearch/issues/138031))
+
+ES|QL:
+* Catch `StackOverflowError` in deeply nested RLIKE patterns [#150238](https://github.com/elastic/elasticsearch/pull/150238) (issue: [#149838](https://github.com/elastic/elasticsearch/issues/149838))
+* Enforce limit for max nested functions [#149971](https://github.com/elastic/elasticsearch/pull/149971)
+* Fix wrong warning in expressions with unrolled multivalues [#145968](https://github.com/elastic/elasticsearch/pull/145968)
+* [ESQL] Refactor Greatest and Least functions to use evaluator map [#128429](https://github.com/elastic/elasticsearch/pull/128429) (issue: [#114036](https://github.com/elastic/elasticsearch/issues/114036))
+
+ILM:
+* Truncate error for ILM's `step_info` instead of string [#150413](https://github.com/elastic/elasticsearch/pull/150413)
+
+Inference:
+* Validate inference embedding model before checking for existing uses [#150150](https://github.com/elastic/elasticsearch/pull/150150) (issues: [#147062](https://github.com/elastic/elasticsearch/issues/147062), [#150084](https://github.com/elastic/elasticsearch/issues/150084))
+* When a streaming inference request is canceled, immediately release apache client networking resources [#149987](https://github.com/elastic/elasticsearch/pull/149987)
+* [Inference API] Fix Streaming publisher shutdown race condition [#150789](https://github.com/elastic/elasticsearch/pull/150789) (issue: [#150742](https://github.com/elastic/elasticsearch/issues/150742))
+
+Infra/Core:
+* Don't apply time zones to epoch-based timestamps [#148663](https://github.com/elastic/elasticsearch/pull/148663)
+* Filter `_source` field names by code point [#151146](https://github.com/elastic/elasticsearch/pull/151146)
+* Fix OS stats for cgroup paths containing colons [#151095](https://github.com/elastic/elasticsearch/pull/151095)
+
+Machine Learning:
+* Add extra validation in `trained_model` creation [#150227](https://github.com/elastic/elasticsearch/pull/150227)
+
+Query Languages:
+* EQL/SQL: Enforce max expression depth checks [#150003](https://github.com/elastic/elasticsearch/pull/150003)
+
+Security:
+* Make Automatons wildcard code-point aware [#151143](https://github.com/elastic/elasticsearch/pull/151143)
+
+TSDB:
+* Fix OTLP histogram handling for single-count histograms without bucket boundaries [#151411](https://github.com/elastic/elasticsearch/pull/151411)
+
+Transform:
+* Honor `ClusterHealth` timeout when waiting for transform internal index shards [#149462](https://github.com/elastic/elasticsearch/pull/149462) (issue: [#149400](https://github.com/elastic/elasticsearch/issues/149400))
+
+
+
 ## 9.4.2 [elasticsearch-9.4.2-release-notes]
 
 ### Features and enhancements [elasticsearch-9.4.2-features-enhancements]
@@ -122,6 +196,9 @@ Machine Learning:
 * Restrict file system access for pytorch models [#2851](https://github.com/elastic/ml-cpp/pull/2851)
 * Update the PyTorch library to version 2.7.1 [#2863](https://github.com/elastic/ml-cpp/pull/2863)
 
+Packaging:
+* Bump bundled JDK to Java 26.0.1 [#147424](https://github.com/elastic/elasticsearch/pull/147424)
+
 Search:
 * Add logging tracking to _xpack/usage [#148087](https://github.com/elastic/elasticsearch/pull/148087)
 
@@ -220,6 +297,10 @@ Machine Learning:
 * Report the actual memory usage of the autodetect process [#2846](https://github.com/elastic/ml-cpp/pull/2846)
 * Restrict file system access for pytorch models [#2851](https://github.com/elastic/ml-cpp/pull/2851)
 * Update the PyTorch library to version 2.7.1 [#2863](https://github.com/elastic/ml-cpp/pull/2863)
+
+Packaging:
+* Bump bundled JDK to Java 26.0.1 [#147424](https://github.com/elastic/elasticsearch/pull/147424)
+* Update bundled JDK to Java 26 [#146167](https://github.com/elastic/elasticsearch/pull/146167)
 
 Security:
 * Update elastic-apm-agent-java8 to 1.55.6 [#148271](https://github.com/elastic/elasticsearch/pull/148271)
@@ -1085,6 +1166,9 @@ Aggregations:
 
 ES|QL:
 * Skip time series field type merge for non-TS agg queries [#143262](https://github.com/elastic/elasticsearch/pull/143262)
+
+Packaging:
+* Update bundled JDK to Java 26 [#146167](https://github.com/elastic/elasticsearch/pull/146167)
 
 
 ### Fixes [elasticsearch-9.3.4-fixes]

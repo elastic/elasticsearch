@@ -214,12 +214,12 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 if ("_root".equals(component)) {
                     final String rootLevel = value.get(key);
                     if (rootLevel == null) {
-                        Loggers.setLevel(LogManager.getRootLogger(), Loggers.LOG_DEFAULT_LEVEL_SETTING.get(settings));
+                        Loggers.setLevel(LogManager.getRootLogger(), Loggers.LOG_DEFAULT_LEVEL_SETTING.get(settings), true);
                     } else {
-                        Loggers.setLevel(LogManager.getRootLogger(), rootLevel);
+                        Loggers.setLevel(LogManager.getRootLogger(), rootLevel, true);
                     }
                 } else {
-                    Loggers.setLevel(LogManager.getLogger(component), value.get(key));
+                    Loggers.setLevel(LogManager.getLogger(component), value.get(key), true);
                 }
             }
         }
@@ -581,6 +581,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
         ThreadPool.LATE_TIME_INTERVAL_WARN_THRESHOLD_SETTING,
         ThreadPool.SLOW_SCHEDULER_TASK_WARN_THRESHOLD_SETTING,
         ThreadPool.WRITE_THREAD_POOLS_EWMA_ALPHA_SETTING,
+        ThreadPool.WRITE_THREAD_POOL_UTILIZATION_EWMR_HALF_LIFE,
         FastVectorHighlighter.SETTING_TV_HIGHLIGHT_MULTI_VALUE,
         Node.BREAKER_TYPE_KEY,
         OperationRouting.USE_ADAPTIVE_REPLICA_SELECTION_SETTING,

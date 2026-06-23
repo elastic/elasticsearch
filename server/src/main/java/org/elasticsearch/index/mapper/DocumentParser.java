@@ -300,9 +300,7 @@ public final class DocumentParser {
 
     /**
      * Parse an object from the current token, prepending {@code flatPrefix} (e.g. {@code "host."}) to every
-     * immediate child field name.  Used in place of {@link DocumentParserContext#createFlattenContext} to avoid
-     * allocating a {@code FlatteningXContentParser} wrapper and an anonymous {@code Wrapper} context per
-     * intermediate object when {@code subobjects:false} is in effect.
+     * immediate child field name.
      */
     private static void parseObjectOrNested(DocumentParserContext context, String flatPrefix) throws IOException {
         XContentParser parser = context.parser();

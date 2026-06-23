@@ -41,6 +41,7 @@ import org.elasticsearch.lucene.search.uhighlight.Snippet;
 import java.io.IOException;
 import java.text.BreakIterator;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.function.Supplier;
@@ -90,6 +91,8 @@ public class HighlightOperator extends AbstractPageMappingOperator {
                 + config.fragmentSize()
                 + ", no_match_size="
                 + config.noMatchSize()
+                + ", order_by_score="
+                + config.orderByScore()
                 + "]";
         }
     }
@@ -116,29 +119,32 @@ public class HighlightOperator extends AbstractPageMappingOperator {
         this.query = parsedQuery != null ? parsedQuery : new MatchNoDocsQuery("HIGHLIGHT query produced no terms");
         Encoder encoder = HighlightConfig.HTML_ENCODER.equals(config.encoder()) ? new SimpleHTMLEncoder() : new DefaultEncoder();
         this.formatter = new CustomPassageFormatter(config.preTag(), config.postTag(), encoder, config.numberOfFragments());
-        this.maxAnalyzedOffset = IndexSettings.MAX_ANALYZED_OFFSET_SETTING.get(Settings.EMPTY);
+        // A negative value means "use the index setting", matching Query DSL.
+        this.maxAnalyzedOffset = config.maxAnalyzedOffset() < 0
+            ? IndexSettings.MAX_ANALYZED_OFFSET_SETTING.get(Settings.EMPTY)
+            : config.maxAnalyzedOffset();
         // Ask Lucene for every passage and trim to number_of_fragments ourselves. Lucene would otherwise keep the
-        // top passages by score, which loses document order when several sentences tie. We want document order.
+        // top passages by score, which loses document order when several sentences tie.
         this.highlighterNumberOfFragments = Integer.MAX_VALUE - 1;
-        // TODO: honour boundary_scanner, boundary_scanner_locale, boundary_chars, boundary_max_scan, and order.
-        if (config.numberOfFragments() == 0) {
+        this.breakIteratorSupplier = breakIterator(config.numberOfFragments(), config.fragmentSize(), config.wordBoundary(), config.locale());
+    }
+
+    // Mirrors DefaultHighlighter#getBreakIterator: word scanner ignores fragment_size; sentence scanner honours it.
+    private static Supplier<BreakIterator> breakIterator(int numberOfFragments, int fragmentSize, boolean wordBoundary, Locale locale) {
+        if (numberOfFragments == 0) {
             // One passage per (multi-)value: only break on the multi-value separator.
-            this.breakIteratorSupplier = () -> new CustomSeparatorBreakIterator(CustomUnifiedHighlighter.MULTIVAL_SEP_CHAR);
-        } else {
-            // Fragment by sentence, bounded to fragment_size characters when a positive size is requested.
-            this.breakIteratorSupplier = () -> new SplittingBreakIterator(
-                sentenceBreakIterator(config.fragmentSize()),
-                CustomUnifiedHighlighter.MULTIVAL_SEP_CHAR
-            );
+            return () -> new CustomSeparatorBreakIterator(CustomUnifiedHighlighter.MULTIVAL_SEP_CHAR);
         }
+        return () -> new SplittingBreakIterator(
+            wordBoundary ? BreakIterator.getWordInstance(locale) : sentenceBreakIterator(fragmentSize, locale),
+            CustomUnifiedHighlighter.MULTIVAL_SEP_CHAR
+        );
     }
 
     // Break on sentences, capped to fragment_size chars when it's positive (long sentences get split, short ones may
     // share a fragment). A non-positive fragment_size drops the cap and just breaks on sentences.
-    private static BreakIterator sentenceBreakIterator(int fragmentSize) {
-        return fragmentSize > 0
-            ? BoundedBreakIteratorScanner.getSentence(Locale.ROOT, fragmentSize)
-            : BreakIterator.getSentenceInstance(Locale.ROOT);
+    private static BreakIterator sentenceBreakIterator(int fragmentSize, Locale locale) {
+        return fragmentSize > 0 ? BoundedBreakIteratorScanner.getSentence(locale, fragmentSize) : BreakIterator.getSentenceInstance(locale);
     }
 
     @Override
@@ -233,11 +239,15 @@ public class HighlightOperator extends AbstractPageMappingOperator {
 
     /**
      * Appends the highlighter output for one row: {@code null} when there is no snippet (no match and no
-     * {@code no_match_size}), a single value, or a multi-value entry when several fragments are returned. When
-     * {@code number_of_fragments > 0} the snippets, which arrive in document order, are capped to that many fragments.
+     * {@code no_match_size}), a single value, or a multi-value entry when several fragments are returned. Snippets
+     * arrive in document order; when {@code order} is {@code score} they are re-sorted by descending score first. When
+     * {@code number_of_fragments > 0} they are then capped to that many fragments.
      */
     private void appendSnippets(BytesRefBlock.Builder builder, Snippet[] snippets) {
         int length = snippets == null ? 0 : snippets.length;
+        if (config.orderByScore() && length > 1) {
+            Arrays.sort(snippets, Comparator.comparingDouble(Snippet::getScore).reversed());
+        }
         int numberOfFragments = config.numberOfFragments();
         if (numberOfFragments > 0) {
             length = Math.min(length, numberOfFragments);
@@ -266,6 +276,8 @@ public class HighlightOperator extends AbstractPageMappingOperator {
             + config.fragmentSize()
             + ", no_match_size="
             + config.noMatchSize()
+            + ", order_by_score="
+            + config.orderByScore()
             + ", fields="
             + Arrays.toString(fieldEvaluators)
             + "]";

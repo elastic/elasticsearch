@@ -4495,6 +4495,30 @@ public class VerifierTests extends ESTestCase {
         defaultAnalyzer().query("FROM test | EVAL x = TOP_SNIPPETS(first_name, CONCAT(\"search\", \" terms\"))");
     }
 
+    public void testHighlightRejectsInvalidEncoder() {
+        assumeTrue("requires HIGHLIGHT_V1 capability", EsqlCapabilities.Cap.HIGHLIGHT_V1.isEnabled());
+        defaultAnalyzer().error(
+            "FROM test | HIGHLIGHT \"search\" ON first_name WITH { \"encoder\": \"xml\" }",
+            containsString("Invalid [encoder] value [xml] in HIGHLIGHT")
+        );
+    }
+
+    public void testHighlightRejectsInvalidBoundaryScanner() {
+        assumeTrue("requires HIGHLIGHT_V1 capability", EsqlCapabilities.Cap.HIGHLIGHT_V1.isEnabled());
+        defaultAnalyzer().error(
+            "FROM test | HIGHLIGHT \"search\" ON first_name WITH { \"boundary_scanner\": \"chars\" }",
+            containsString("Invalid [boundary_scanner] value [chars] in HIGHLIGHT")
+        );
+    }
+
+    public void testHighlightRejectsInvalidOrder() {
+        assumeTrue("requires HIGHLIGHT_V1 capability", EsqlCapabilities.Cap.HIGHLIGHT_V1.isEnabled());
+        defaultAnalyzer().error(
+            "FROM test | HIGHLIGHT \"search\" ON first_name WITH { \"order\": \"doc\" }",
+            containsString("Invalid [order] value [doc] in HIGHLIGHT")
+        );
+    }
+
     /**
      * A second {@code STATS} on a time-series pipeline becomes a regular {@link org.elasticsearch.xpack.esql.plan.logical.Aggregate};
      * {@code WITHOUT} is only valid on {@link org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate} until non-TS support exists.

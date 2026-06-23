@@ -10,11 +10,15 @@ package org.elasticsearch.xpack.esql.plan.logical;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.lucene.BytesRefs;
+import org.elasticsearch.xpack.esql.capabilities.PostAnalysisVerificationAware;
 import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
+import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
@@ -31,11 +35,11 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
+import static org.elasticsearch.xpack.esql.common.Failure.fail;
 import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputAttributes;
 
-// TODO: add option-value verification (e.g. encoder must be default|html, order must be none|score).
 // TODO: carry an analyzer name here once the "analyzer" option is supported.
-public class Highlight extends UnaryPlan implements TelemetryAware, GeneratingPlan<Highlight> {
+public class Highlight extends UnaryPlan implements TelemetryAware, GeneratingPlan<Highlight>, PostAnalysisVerificationAware {
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         LogicalPlan.class,
@@ -45,22 +49,22 @@ public class Highlight extends UnaryPlan implements TelemetryAware, GeneratingPl
 
     public static final String DEFAULT_PREFIX = "highlight_";
 
-    // Options honoured today by HighlightOptions and the operator.
+    // Options honoured by HighlightOptions and the unified highlighter.
     public static final String PRE_TAGS = "pre_tags";
     public static final String POST_TAGS = "post_tags";
     public static final String NUMBER_OF_FRAGMENTS = "number_of_fragments";
     public static final String FRAGMENT_SIZE = "fragment_size";
     public static final String ENCODER = "encoder";
     public static final String NO_MATCH_SIZE = "no_match_size";
-
-    // Options the parser accepts but that are not wired through yet. The feature is snapshot-only, so accepting them now
-    // keeps the grammar stable; each is honoured in a follow-up. TODO: wire these through HighlightOptions and the operator.
     public static final String BOUNDARY_SCANNER = "boundary_scanner";
     public static final String BOUNDARY_SCANNER_LOCALE = "boundary_scanner_locale";
-    public static final String BOUNDARY_CHARS = "boundary_chars";
-    public static final String BOUNDARY_MAX_SCAN = "boundary_max_scan";
     public static final String ORDER = "order";
     public static final String MAX_ANALYZED_OFFSET = "max_analyzed_offset";
+
+    // Accepted for Query DSL parity but only used by the FastVectorHighlighter, so they are no-ops for the unified
+    // highlighter that HIGHLIGHT always uses.
+    public static final String BOUNDARY_CHARS = "boundary_chars";
+    public static final String BOUNDARY_MAX_SCAN = "boundary_max_scan";
     public static final String PHRASE_LIMIT = "phrase_limit";
 
     private static final List<String> VALID_OPTION_NAMES = List.of(
@@ -222,6 +226,31 @@ public class Highlight extends UnaryPlan implements TelemetryAware, GeneratingPl
             }
         }
         return options == null || options.resolved();
+    }
+
+    @Override
+    public void postAnalysisVerification(Failures failures) {
+        verifyEnum(failures, ENCODER, HighlightOptions.DEFAULT_ENCODER, HighlightOptions.HTML_ENCODER);
+        verifyEnum(failures, BOUNDARY_SCANNER, HighlightOptions.BOUNDARY_SCANNER_SENTENCE, HighlightOptions.BOUNDARY_SCANNER_WORD);
+        verifyEnum(failures, ORDER, HighlightOptions.ORDER_NONE, HighlightOptions.ORDER_SCORE);
+    }
+
+    // Checks that a foldable string option is one of the allowed values.
+    private void verifyEnum(Failures failures, String name, String... allowed) {
+        if (options == null) {
+            return;
+        }
+        Expression value = options.get(name);
+        if (value == null || value.foldable() == false) {
+            return;
+        }
+        String actual = BytesRefs.toString(value.fold(FoldContext.small()));
+        for (String candidate : allowed) {
+            if (candidate.equals(actual)) {
+                return;
+            }
+        }
+        failures.add(fail(this, "Invalid [{}] value [{}] in HIGHLIGHT, expected one of {}", name, actual, List.of(allowed)));
     }
 
     @Override

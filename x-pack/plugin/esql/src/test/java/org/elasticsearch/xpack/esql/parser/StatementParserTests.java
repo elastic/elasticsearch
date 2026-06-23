@@ -1292,6 +1292,19 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertThat(highlight.options().keyFoldedMap().keySet(), equalTo(Set.of("fragment_size", "number_of_fragments")));
     }
 
+    public void testHighlightAcceptsAllOptions() {
+        assumeTrue("requires HIGHLIGHT_V1 capability", EsqlCapabilities.Cap.HIGHLIGHT_V1.isEnabled());
+        LogicalPlan plan = query("""
+            FROM foo | HIGHLIGHT "elasticsearch" ON title WITH {
+              "pre_tags": ["<b>"], "post_tags": ["</b>"], "encoder": "html",
+              "number_of_fragments": 2, "fragment_size": 150, "no_match_size": 100,
+              "boundary_scanner": "word", "boundary_scanner_locale": "en-US",
+              "boundary_chars": ".,!?", "boundary_max_scan": 10, "order": "score",
+              "max_analyzed_offset": 500, "phrase_limit": 64 }""");
+        Highlight highlight = as(plan, Highlight.class);
+        assertThat(highlight.options().keyFoldedMap().keySet(), equalTo(Set.copyOf(Highlight.validOptionNames())));
+    }
+
     public void testHighlightRejectsUnknownOption() {
         assumeTrue("requires HIGHLIGHT_V1 capability", EsqlCapabilities.Cap.HIGHLIGHT_V1.isEnabled());
         expectThrows(

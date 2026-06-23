@@ -279,3 +279,74 @@ ROW content = "Elasticsearch is fast. Elasticsearch is scalable."
 highlight_content:keyword
 <em>Elasticsearch</em> is fast. <em>Elasticsearch</em> is scalable.
 ;
+
+
+# The word boundary scanner is accepted and highlights matches within the value.
+highlightWordBoundaryScanner
+required_capability: highlight_v1
+
+ROW content = "The One Ring was forged by Sauron."
+| HIGHLIGHT "ring" ON content WITH { "boundary_scanner": "word" }
+| KEEP highlight_content
+;
+
+highlight_content:keyword
+The One <em>Ring</em> was forged by Sauron.
+;
+
+
+# boundary_scanner_locale is accepted and behaves like the default for ROOT-equivalent input.
+highlightBoundaryScannerLocale
+required_capability: highlight_v1
+
+ROW content = "The One Ring was forged by Sauron."
+| HIGHLIGHT "ring" ON content WITH { "boundary_scanner_locale": "en-US" }
+| KEEP highlight_content
+;
+
+highlight_content:keyword
+The One <em>Ring</em> was forged by Sauron.
+;
+
+
+# order=score returns the highest-scoring value first; the second value has two matches so it ranks first.
+highlightOrderByScore
+required_capability: highlight_v1
+
+ROW content = ["fast search", "fast and fast results"]
+| HIGHLIGHT "fast" ON content WITH { "order": "score" }
+| KEEP highlight_content
+;
+
+highlight_content:keyword
+[<em>fast</em> and <em>fast</em> results, <em>fast</em> search]
+;
+
+
+# max_analyzed_offset is accepted; a large limit does not change the result.
+highlightMaxAnalyzedOffset
+required_capability: highlight_v1
+
+ROW content = "The One Ring was forged by Sauron."
+| HIGHLIGHT "ring" ON content WITH { "max_analyzed_offset": 1000 }
+| KEEP highlight_content
+;
+
+highlight_content:keyword
+The One <em>Ring</em> was forged by Sauron.
+;
+
+
+# boundary_chars, boundary_max_scan and phrase_limit are accepted for Query DSL parity but are
+# no-ops for the unified highlighter, so the output matches the default-options output.
+highlightUnifiedNoOpOptions
+required_capability: highlight_v1
+
+ROW content = "The One Ring was forged by Sauron."
+| HIGHLIGHT "ring" ON content WITH { "boundary_chars": ".,!?", "boundary_max_scan": 10, "phrase_limit": 64 }
+| KEEP highlight_content
+;
+
+highlight_content:keyword
+The One <em>Ring</em> was forged by Sauron.
+;

@@ -1,6 +1,7 @@
 import org.elasticsearch.gradle.internal.util.SourceDirectoryCommandLineArgumentProvider;
 
 apply plugin: 'elasticsearch.build'
+apply plugin: 'elasticsearch.mrjar'
 apply plugin: 'elasticsearch.string-templates'
 apply plugin: 'elasticsearch.publish'
 apply plugin: 'elasticsearch.transport-version-references'
@@ -55,6 +56,9 @@ tasks.named('checkstyleMain').configure {
 tasks.named("test").configure {
   // Needed for Arrow tests
   jvmArgs('--add-opens=java.base/java.nio=ALL-UNNAMED')
+  // Bulk aggregation wraps off-heap Arrow buffers as MemorySegments (MemorySegment.reinterpret is a
+  // restricted native-access method). Production grants this via the load_native_libraries entitlement.
+  jvmArgs('--enable-native-access=ALL-UNNAMED')
   // Run Arrow-using tests under Arrow's debug allocator so any use-after-free, double-free, or
   // unreleased ArrowBuf fails deterministically with a stack trace at the offending allocation.
   // Only affects tests that actually create an Arrow allocator; others are unchanged.

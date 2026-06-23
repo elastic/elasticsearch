@@ -306,16 +306,19 @@ abstract sealed class NumericMetricFieldDownsampler extends AbstractFieldDownsam
          */
         static class DeltaCollector implements TemporalityAwareCollector {
             private final CompensatedSum downsampledValue = new CompensatedSum();
+            private boolean anyValueSeen;
 
             public void collect(double counterValue, long unused) throws IOException {
+                anyValueSeen = true;
                 downsampledValue.add(counterValue);
             }
 
             public double downsampledValue() {
-                return downsampledValue.value();
+                return anyValueSeen ? downsampledValue.value() : Double.NaN;
             }
 
             public void reset() {
+                anyValueSeen = false;
                 downsampledValue.reset(0, 0);
             }
 

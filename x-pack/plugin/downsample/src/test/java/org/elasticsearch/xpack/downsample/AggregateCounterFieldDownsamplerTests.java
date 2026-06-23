@@ -324,7 +324,7 @@ public class AggregateCounterFieldDownsamplerTests extends ESTestCase {
 
         // Reset and collect a second bucket
         producer.reset();
-        assertThat(producer.downsampledValue(), equalTo(0.0));
+        assertThat(producer.downsampledValue(), equalTo(Double.NaN));
         assertThat(producer.delegateCollector(), instanceOf(NumericMetricFieldDownsampler.AggregateCounter.DeltaCollector.class));
         docIdBuffer = IntArrayList.from(9, 8, 7);
         timeValues = new long[] { 100, 90, 80 };

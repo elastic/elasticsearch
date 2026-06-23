@@ -24,6 +24,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.io.stream.BytesStream;
 import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.path.PathTrie;
 import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.util.Maps;
@@ -35,6 +36,7 @@ import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.Streams;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.UpdateForV10;
+import org.elasticsearch.http.HttpChannel;
 import org.elasticsearch.http.HttpHeadersValidationException;
 import org.elasticsearch.http.HttpRouteStats;
 import org.elasticsearch.http.HttpRouteStatsTracker;
@@ -55,6 +57,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.net.InetSocketAddress;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.Iterator;
@@ -700,38 +703,182 @@ public class RestController implements HttpServerTransport.Dispatcher {
             name = restPath;
         }
 
-        final Map<String, Object> attributes = Maps.newMapWithExpectedSize(req.getHeaders().size() + 3);
+        final Map<String, Object> traceAttributes = Maps.newMapWithExpectedSize(req.getHeaders().size() + 6);
         req.getHeaders().forEach((key, values) -> {
             final String lowerKey = key.toLowerCase(Locale.ROOT).replace('-', '_');
-            attributes.put("http.request.headers." + lowerKey, values == null ? "" : String.join("; ", values));
+            traceAttributes.put("http.request.headers." + lowerKey, values == null ? "" : String.join("; ", values));
         });
         String resolvedMethod = Objects.requireNonNullElse(method, "<unknown>");
         String resolvedUri = Objects.requireNonNullElse(req.uri(), "<unknown>");
-        attributes.put("http.method", resolvedMethod);
+        traceAttributes.put("http.method", resolvedMethod);
         // OTel HTTP server SemConv (https://opentelemetry.io/docs/specs/semconv/http/http-spans/):
         // http.request.method MUST be "_OTHER" for methods unknown to the instrumentation.
-        attributes.put("http.request.method", method != null ? method : "_OTHER");
-        attributes.put("http.url", resolvedUri);
-        attributes.put("url.full", resolvedUri);
+        traceAttributes.put("http.request.method", method != null ? method : "_OTHER");
+        traceAttributes.put("http.url", resolvedUri);
+        traceAttributes.put("url.full", resolvedUri);
         int queryIdx = resolvedUri.indexOf('?');
         if (queryIdx >= 0) {
-            attributes.put("url.path", resolvedUri.substring(0, queryIdx));
-            attributes.put("url.query", resolvedUri.substring(queryIdx + 1));
+            traceAttributes.put("url.path", resolvedUri.substring(0, queryIdx));
+            traceAttributes.put("url.query", resolvedUri.substring(queryIdx + 1));
         } else {
-            attributes.put("url.path", resolvedUri);
+            traceAttributes.put("url.path", resolvedUri);
         }
         switch (req.getHttpRequest().protocolVersion()) {
             case HTTP_1_0 -> {
-                attributes.put("http.flavour", "1.0");
-                attributes.put("network.protocol.version", "1.0");
+                traceAttributes.put("http.flavour", "1.0");
+                traceAttributes.put("network.protocol.version", "1.0");
             }
             case HTTP_1_1 -> {
-                attributes.put("http.flavour", "1.1");
-                attributes.put("network.protocol.version", "1.1");
+                traceAttributes.put("http.flavour", "1.1");
+                traceAttributes.put("network.protocol.version", "1.1");
+            }
+        }
+        final String forwarded = firstHeaderValue(req, "Forwarded");
+        traceAttributes.put("url.scheme", extractScheme(req, forwarded));
+        final HttpChannel httpChannel = req.getHttpChannel();
+        final String serverAddress = extractServerAddress(req, httpChannel, forwarded);
+        if (serverAddress != null) {
+            traceAttributes.put("server.address", serverAddress);
+            final Integer serverPort = extractServerPort(req, httpChannel, forwarded);
+            if (serverPort != null) {
+                traceAttributes.put("server.port", serverPort);
             }
         }
 
-        tracer.startTrace(threadContext, channel.request(), name, attributes);
+        tracer.startTrace(threadContext, channel.request(), name, traceAttributes);
+    }
+
+    /** Resolves the OTel HTTP server SemConv {@code url.scheme}: checks {@code Forwarded} proto= (RFC 7239), then {@code X-Forwarded-Proto}, then the transport scheme. */
+    static String extractScheme(RestRequest req, String forwarded) {
+        if (forwarded != null) {
+            final String proto = extractForwardedParam(forwarded, "proto");
+            if (proto != null) {
+                return proto.toLowerCase(Locale.ROOT);
+            }
+        }
+        final String xProto = firstHeaderValue(req, "X-Forwarded-Proto");
+        if (xProto != null && xProto.isBlank() == false) {
+            return xProto.strip().toLowerCase(Locale.ROOT);
+        }
+        return req.getHttpRequest().getScheme();
+    }
+
+    /** Extracts the OTel HTTP server SemConv {@code server.address}: checks {@code Forwarded} host= (RFC 7239), then {@code X-Forwarded-Host}, then {@code Host}, then the local socket. */
+    static String extractServerAddress(RestRequest req, HttpChannel httpChannel, String forwarded) {
+        if (forwarded != null) {
+            final String host = extractForwardedParam(forwarded, "host");
+            if (host != null) {
+                final String address = splitHostPort(host)[0];
+                if (address != null) return address;
+            }
+        }
+        final String xHost = firstHeaderValue(req, "X-Forwarded-Host");
+        if (xHost != null && xHost.isBlank() == false) {
+            final String address = splitHostPort(xHost.strip())[0];
+            if (address != null) return address;
+        }
+        final String hostHeader = firstHeaderValue(req, "Host");
+        if (hostHeader != null && hostHeader.isBlank() == false) {
+            final String address = splitHostPort(hostHeader.strip())[0];
+            if (address != null) return address;
+        }
+        if (httpChannel != null) {
+            final InetSocketAddress local = httpChannel.getLocalAddress();
+            if (local != null) return NetworkAddress.format(local.getAddress());
+        }
+        return null;
+    }
+
+    /**
+     * Extracts the OTel HTTP server SemConv {@code server.port}: checks {@code Forwarded} host= (RFC 7239), then {@code X-Forwarded-Host/Port}, then {@code Host}, then the local socket.
+     * When an address comes from a forwarding header without a port, the socket port is not used as a fallback.
+     * {@code X-Forwarded-Port} is only consulted when {@code X-Forwarded-Host} is also present; a standalone {@code X-Forwarded-Port} is ignored.
+     */
+    static Integer extractServerPort(RestRequest req, HttpChannel httpChannel, String forwarded) {
+        if (forwarded != null) {
+            final String host = extractForwardedParam(forwarded, "host");
+            if (host != null) {
+                final String[] addrPort = splitHostPort(host);
+                if (addrPort[0] != null) return parsePortSafe(addrPort[1]);
+            }
+        }
+        final String xHost = firstHeaderValue(req, "X-Forwarded-Host");
+        if (xHost != null && xHost.isBlank() == false) {
+            final String[] addrPort = splitHostPort(xHost.strip());
+            if (addrPort[0] != null) {
+                final String xPort = firstHeaderValue(req, "X-Forwarded-Port");
+                return parsePortSafe(xPort != null ? xPort.strip() : addrPort[1]);
+            }
+        }
+        final String hostHeader = firstHeaderValue(req, "Host");
+        if (hostHeader != null && hostHeader.isBlank() == false) {
+            final String[] addrPort = splitHostPort(hostHeader.strip());
+            if (addrPort[0] != null) return parsePortSafe(addrPort[1]);
+        }
+        if (httpChannel != null) {
+            final InetSocketAddress local = httpChannel.getLocalAddress();
+            if (local != null) return local.getPort();
+        }
+        return null;
+    }
+
+    /** Returns the first value of the named request header, or {@code null} if absent. */
+    static String firstHeaderValue(RestRequest req, String name) {
+        final List<String> values = req.getHeaders().get(name);
+        return values != null && values.isEmpty() == false ? values.get(0) : null;
+    }
+
+    /**
+     * Extracts the value of the named directive from an RFC 7239 Forwarded header.
+     * Note: quoted values containing {@code ';'} or {@code ','} are not fully supported.
+     */
+    static String extractForwardedParam(String forwarded, String param) {
+        final String prefix = param + "=";
+        for (String entry : forwarded.split(",")) {
+            for (String directive : entry.split(";")) {
+                final String token = directive.strip();
+                if (token.regionMatches(true, 0, prefix, 0, prefix.length())) {
+                    String value = token.substring(prefix.length()).strip();
+                    if (value.length() > 1 && value.startsWith("\"") && value.endsWith("\"")) {
+                        value = value.substring(1, value.length() - 1);
+                    }
+                    if (value.isBlank() == false) {
+                        return value;
+                    }
+                }
+            }
+        }
+        return null;
+    }
+
+    /** Splits a {@code host[:port]} token into a two-element {@code {address, port}} array; port may be null. */
+    static String[] splitHostPort(String hostToken) {
+        if (hostToken.startsWith("[")) {
+            final int close = hostToken.indexOf(']');
+            if (close < 0) {
+                return new String[] { hostToken, null };
+            }
+            final String address = hostToken.substring(1, close);
+            final String rest = hostToken.substring(close + 1);
+            return new String[] { address.isBlank() ? null : address, rest.startsWith(":") ? rest.substring(1) : null };
+        }
+        final int colon = hostToken.lastIndexOf(':');
+        if (colon < 0) {
+            return new String[] { hostToken.isBlank() ? null : hostToken, null };
+        }
+        final String address = hostToken.substring(0, colon);
+        return new String[] { address.isBlank() ? null : address, hostToken.substring(colon + 1) };
+    }
+
+    /** Parses a port string. Returns null if {@code portStr} is null, not a valid integer, or outside [1, 65535]. */
+    static Integer parsePortSafe(String portStr) {
+        if (portStr == null) return null;
+        try {
+            final int port = Integer.parseInt(portStr.strip());
+            return port > 0 && port <= 65535 ? port : null;
+        } catch (NumberFormatException e) {
+            return null;
+        }
     }
 
     private void traceException(RestChannel channel, Throwable e) {

@@ -54,21 +54,35 @@ public class FakeRestRequest extends RestRequest {
         private final Map<String, List<String>> headers;
         private HttpBody body;
         private final Exception inboundException;
+        private final String scheme;
 
         public FakeHttpRequest(Method method, String uri, BytesReference body, Map<String, List<String>> headers) {
-            this(method, uri, body == null ? HttpBody.empty() : HttpBody.fromBytesReference(body), headers, null);
+            this(method, uri, body == null ? HttpBody.empty() : HttpBody.fromBytesReference(body), headers, null, "http");
         }
 
         public FakeHttpRequest(Method method, String uri, Map<String, List<String>> headers, HttpBody body) {
-            this(method, uri, body, headers, null);
+            this(method, uri, body, headers, null, "http");
         }
 
-        private FakeHttpRequest(Method method, String uri, HttpBody body, Map<String, List<String>> headers, Exception inboundException) {
+        private FakeHttpRequest(
+            Method method,
+            String uri,
+            HttpBody body,
+            Map<String, List<String>> headers,
+            Exception inboundException,
+            String scheme
+        ) {
             this.method = method;
             this.uri = uri;
             this.body = body;
             this.headers = headers;
             this.inboundException = inboundException;
+            this.scheme = scheme;
+        }
+
+        @Override
+        public String getScheme() {
+            return scheme;
         }
 
         @Override
@@ -110,7 +124,7 @@ public class FakeRestRequest extends RestRequest {
         public HttpRequest removeHeader(String header) {
             final var filteredHeaders = new HashMap<>(headers);
             filteredHeaders.remove(header);
-            return new FakeHttpRequest(method, uri, body, filteredHeaders, inboundException);
+            return new FakeHttpRequest(method, uri, body, filteredHeaders, inboundException, scheme);
         }
 
         public int contentLength() {
@@ -161,10 +175,16 @@ public class FakeRestRequest extends RestRequest {
     public static class FakeHttpChannel implements HttpChannel {
 
         private final InetSocketAddress remoteAddress;
+        private final InetSocketAddress localAddress;
         private final SubscribableListener<Void> closeFuture = new SubscribableListener<>();
 
         public FakeHttpChannel(InetSocketAddress remoteAddress) {
+            this(remoteAddress, null);
+        }
+
+        public FakeHttpChannel(InetSocketAddress remoteAddress, InetSocketAddress localAddress) {
             this.remoteAddress = remoteAddress;
+            this.localAddress = localAddress;
         }
 
         @Override
@@ -174,7 +194,7 @@ public class FakeRestRequest extends RestRequest {
 
         @Override
         public InetSocketAddress getLocalAddress() {
-            return null;
+            return localAddress;
         }
 
         @Override
@@ -212,6 +232,10 @@ public class FakeRestRequest extends RestRequest {
         private Method method = Method.GET;
 
         private InetSocketAddress address = null;
+
+        private InetSocketAddress localAddress = null;
+
+        private boolean secure = false;
 
         private Exception inboundException;
 
@@ -270,14 +294,31 @@ public class FakeRestRequest extends RestRequest {
             return this;
         }
 
+        public Builder withLocalAddress(InetSocketAddress localAddress) {
+            this.localAddress = localAddress;
+            return this;
+        }
+
+        public Builder withHttps(boolean secure) {
+            this.secure = secure;
+            return this;
+        }
+
         public Builder withInboundException(Exception exception) {
             this.inboundException = exception;
             return this;
         }
 
         public FakeRestRequest build() {
-            FakeHttpRequest fakeHttpRequest = new FakeHttpRequest(method, path, content, headers, inboundException);
-            return new FakeRestRequest(parserConfig, fakeHttpRequest, params, new FakeHttpChannel(address));
+            FakeHttpRequest fakeHttpRequest = new FakeHttpRequest(
+                method,
+                path,
+                content,
+                headers,
+                inboundException,
+                secure ? "https" : "http"
+            );
+            return new FakeRestRequest(parserConfig, fakeHttpRequest, params, new FakeHttpChannel(address, localAddress));
         }
     }
 

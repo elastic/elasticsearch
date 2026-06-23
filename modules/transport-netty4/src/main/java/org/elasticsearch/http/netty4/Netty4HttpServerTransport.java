@@ -477,7 +477,12 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
             ch.pipeline()
                 .addLast(
                     "pipelining",
-                    new Netty4HttpPipeliningHandler(transport.pipeliningMaxEvents, transport, threadWatchdogActivityTracker)
+                    new Netty4HttpPipeliningHandler(
+                        transport.pipeliningMaxEvents,
+                        transport,
+                        threadWatchdogActivityTracker,
+                        tlsConfig.isTLSEnabled() ? "https" : "http"
+                    )
                 );
             transport.serverAcceptedChannel(nettyHttpChannel);
 

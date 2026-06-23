@@ -59,6 +59,7 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.net.InetSocketAddress;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -337,7 +338,116 @@ public class RestControllerTests extends ESTestCase {
                     "url.full",
                     "/",
                     "url.path",
-                    "/"
+                    "/",
+                    "url.scheme",
+                    "http"
+                )
+            )
+        );
+    }
+
+    public void testDispatchStartsTraceWithTls() {
+        final ThreadContext threadContext = client.threadPool().getThreadContext();
+        final RestController restController = new RestController(null, null, circuitBreakerService, usageService, telemetryProvider);
+        final InetSocketAddress localAddress = new InetSocketAddress("127.0.0.1", 9200);
+        RestRequest fakeRequest = new FakeRestRequest.Builder(xContentRegistry()).withLocalAddress(localAddress).withHttps(true).build();
+        AssertingChannel channel = new AssertingChannel(fakeRequest, randomBoolean(), RestStatus.BAD_REQUEST);
+        restController.dispatchRequest(fakeRequest, channel, threadContext);
+        verify(tracer).startTrace(
+            eq(threadContext),
+            eq(channel.request()),
+            eq("GET /"),
+            eq(
+                Map.of(
+                    "http.method",
+                    "GET",
+                    "http.request.method",
+                    "GET",
+                    "http.flavour",
+                    "1.1",
+                    "network.protocol.version",
+                    "1.1",
+                    "http.url",
+                    "/",
+                    "url.full",
+                    "/",
+                    "url.path",
+                    "/",
+                    "url.scheme",
+                    "https",
+                    "server.address",
+                    "127.0.0.1",
+                    "server.port",
+                    9200
+                )
+            )
+        );
+    }
+
+    public void testDispatchStartsTraceWithForwardedHeaders() {
+        final ThreadContext threadContext = client.threadPool().getThreadContext();
+        final RestController restController = new RestController(null, null, circuitBreakerService, usageService, telemetryProvider);
+        RestRequest fakeRequest = new FakeRestRequest.Builder(xContentRegistry()).withHeaders(
+            Map.of("Forwarded", List.of("proto=https;host=proxy.example.com:8443"))
+        ).build();
+        AssertingChannel channel = new AssertingChannel(fakeRequest, randomBoolean(), RestStatus.BAD_REQUEST);
+        restController.dispatchRequest(fakeRequest, channel, threadContext);
+        verify(tracer).startTrace(
+            eq(threadContext),
+            eq(channel.request()),
+            eq("GET /"),
+            eq(
+                Map.ofEntries(
+                    Map.entry("http.method", "GET"),
+                    Map.entry("http.request.method", "GET"),
+                    Map.entry("http.request.headers.forwarded", "proto=https;host=proxy.example.com:8443"),
+                    Map.entry("http.flavour", "1.1"),
+                    Map.entry("network.protocol.version", "1.1"),
+                    Map.entry("http.url", "/"),
+                    Map.entry("url.full", "/"),
+                    Map.entry("url.path", "/"),
+                    Map.entry("url.scheme", "https"),
+                    Map.entry("server.address", "proxy.example.com"),
+                    Map.entry("server.port", 8443)
+                )
+            )
+        );
+    }
+
+    public void testDispatchStartsTraceWithXForwardedHeaders() {
+        final ThreadContext threadContext = client.threadPool().getThreadContext();
+        final RestController restController = new RestController(null, null, circuitBreakerService, usageService, telemetryProvider);
+        RestRequest fakeRequest = new FakeRestRequest.Builder(xContentRegistry()).withHeaders(
+            Map.of(
+                "X-Forwarded-Proto",
+                List.of("https"),
+                "X-Forwarded-Host",
+                List.of("proxy.example.com"),
+                "X-Forwarded-Port",
+                List.of("8443")
+            )
+        ).build();
+        AssertingChannel channel = new AssertingChannel(fakeRequest, randomBoolean(), RestStatus.BAD_REQUEST);
+        restController.dispatchRequest(fakeRequest, channel, threadContext);
+        verify(tracer).startTrace(
+            eq(threadContext),
+            eq(channel.request()),
+            eq("GET /"),
+            eq(
+                Map.ofEntries(
+                    Map.entry("http.method", "GET"),
+                    Map.entry("http.request.method", "GET"),
+                    Map.entry("http.request.headers.x_forwarded_proto", "https"),
+                    Map.entry("http.request.headers.x_forwarded_host", "proxy.example.com"),
+                    Map.entry("http.request.headers.x_forwarded_port", "8443"),
+                    Map.entry("http.flavour", "1.1"),
+                    Map.entry("network.protocol.version", "1.1"),
+                    Map.entry("http.url", "/"),
+                    Map.entry("url.full", "/"),
+                    Map.entry("url.path", "/"),
+                    Map.entry("url.scheme", "https"),
+                    Map.entry("server.address", "proxy.example.com"),
+                    Map.entry("server.port", 8443)
                 )
             )
         );
@@ -888,6 +998,11 @@ public class RestControllerTests extends ESTestCase {
             @Override
             public String uri() {
                 return "/";
+            }
+
+            @Override
+            public String getScheme() {
+                return "http";
             }
 
             @Override

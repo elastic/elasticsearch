@@ -11,6 +11,7 @@ package org.elasticsearch.benchmark.vector.quantization;
 
 import org.apache.lucene.search.TaskExecutor;
 import org.elasticsearch.benchmark.Utils;
+import org.elasticsearch.index.codec.vectors.cluster.CentroidOps;
 import org.elasticsearch.index.codec.vectors.cluster.NeighborHood;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
@@ -79,18 +80,18 @@ public class ComputeNeighboursBenchmark {
 
     @Benchmark
     public void bruteForce(Blackhole bh) {
-        bh.consume(NeighborHood.computeNeighborhoodsBruteForce(vectors, clusterPerNeighbour));
+        bh.consume(NeighborHood.computeNeighborhoodsBruteForce(CentroidOps.FLOAT, vectors, clusterPerNeighbour));
     }
 
     @Benchmark
     @Fork(jvmArgsPrepend = { "--add-modules=jdk.incubator.vector" })
     public void graph(Blackhole bh) throws IOException {
-        bh.consume(NeighborHood.computeNeighborhoodsGraph(vectors, clusterPerNeighbour));
+        bh.consume(NeighborHood.computeNeighborhoodsGraph(CentroidOps.FLOAT, vectors, clusterPerNeighbour));
     }
 
     @Benchmark
     @Fork(jvmArgsPrepend = { "--add-modules=jdk.incubator.vector" })
     public void graphConcurrent(Blackhole bh) throws IOException {
-        bh.consume(NeighborHood.computeNeighborhoodsGraph(taskExecutor, numWorkers, vectors, clusterPerNeighbour));
+        bh.consume(NeighborHood.computeNeighborhoodsGraph(CentroidOps.FLOAT, taskExecutor, numWorkers, vectors, clusterPerNeighbour));
     }
 }

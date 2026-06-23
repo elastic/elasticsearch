@@ -244,6 +244,13 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
                 activeRegionsByBccGen.computeIfAbsent(bccGen, k -> new BitSet()).set(startRegion, endRegion + 1);
                 maxKnownRegionByBccGen.merge(bccGen, endRegion, Math::max);
                 maxBccGeneration = Math.max(maxBccGeneration, bccGen);
+
+                if (file.hasReplicatedRanges()) {
+                    file.forEachReplicatedRange(
+                        (offset, length) -> activeRegionsByBccGen.computeIfAbsent(bccGen, k -> new BitSet())
+                            .set(cacheService.getRegion(offset), cacheService.getEndingRegion(offset + length) + 1)
+                    );
+                }
             }
 
             final long maxBccGen = maxBccGeneration;
@@ -535,6 +542,12 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
             return blobFileRanges.blobLocation();
         }
         return null;
+    }
+
+    // used in tests only
+    @Nullable
+    public BlobFileRanges getBlobFileRangesForFile(String fileName) {
+        return currentMetadata.get(fileName);
     }
 
     /**

@@ -152,6 +152,9 @@ public abstract class LuceneOperator extends SourceOperator {
     public void close() {}
 
     LuceneScorer getCurrentOrLoadNextScorer() {
+        if (doneCollecting) {
+            return null;
+        }
         while (currentScorer == null || currentScorer.isDone()) {
             if (currentSlice == null || sliceIndex >= currentSlice.numLeaves()) {
                 sliceIndex = 0;

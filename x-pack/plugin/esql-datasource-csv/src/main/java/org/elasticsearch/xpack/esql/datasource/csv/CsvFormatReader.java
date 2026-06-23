@@ -2310,18 +2310,30 @@ public class CsvFormatReader implements SegmentableFormatReader {
             }
             BlockUtils.BuilderWrapper[] builders = new BlockUtils.BuilderWrapper[columnCount];
             try {
+                // Only KEYWORD/TEXT get a byte-size hint: their stored bytes are the source string's UTF-8 bytes
+                // verbatim, so the column's byte size is knowable here and lets BytesRefArray size its buffer once.
+                // Fixed-width types are already sized by the position count; IP and VERSION map to BYTES_REF but
+                // store encoded bytes unrelated to the source length, so they stay unhinted. Hints are summed in
+                // one pass over rows to avoid scanning the batch once per string column.
+                long[] byteHints = new long[columnCount];
+                for (String[] row : rows) {
+                    for (int i = 0; i < columnCount; i++) {
+                        DataType type = projectedTypes[i];
+                        if (type != DataType.KEYWORD && type != DataType.TEXT) {
+                            continue;
+                        }
+                        int si = projectedIdx[i];
+                        if (si < row.length && row[si] != null) {
+                            byteHints[i] += UnicodeUtil.calcUTF16toUTF8Length(row[si], 0, row[si].length());
+                        }
+                    }
+                }
                 for (int i = 0; i < columnCount; i++) {
-                    DataType type = projectedTypes[i];
-                    // KEYWORD/TEXT store the source string's UTF-8 bytes verbatim, so the exact byte size is
-                    // knowable up front and lets the BytesRef builder size its storage without regrowing. IP and
-                    // VERSION also map to BYTES_REF but store encoded/canonicalized bytes unrelated to the source
-                    // string length, so they are left unhinted.
-                    long byteHint = (type == DataType.KEYWORD || type == DataType.TEXT) ? utf8ByteHint(rows, projectedIdx[i]) : 0;
                     builders[i] = BlockUtils.wrapperFor(
                         blockFactory,
-                        ElementType.fromJava(javaClassForDataType(type)),
+                        ElementType.fromJava(javaClassForDataType(projectedTypes[i])),
                         rows.size(),
-                        byteHint
+                        byteHints[i]
                     );
                 }
                 int acceptedRows = 0;
@@ -2354,23 +2366,6 @@ public class CsvFormatReader implements SegmentableFormatReader {
             } finally {
                 Releasables.closeExpectNoException(builders);
             }
-        }
-
-        /**
-         * Exact total UTF-8 byte size of the projected source field at {@code sourceIdx} across the batch,
-         * used to pre-size a KEYWORD/TEXT column's byte storage. Cells that later convert to SQL null are
-         * still counted, which only over-sizes the buffer (never a regrow) and keeps the common, null-free
-         * case exact.
-         */
-        private static long utf8ByteHint(List<String[]> rows, int sourceIdx) {
-            long bytes = 0;
-            for (String[] row : rows) {
-                if (sourceIdx < row.length && row[sourceIdx] != null) {
-                    String value = row[sourceIdx];
-                    bytes += UnicodeUtil.calcUTF16toUTF8Length(value, 0, value.length());
-                }
-            }
-            return bytes;
         }
 
         private boolean convertRowInPlace(String[] row) {

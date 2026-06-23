@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.datasource.csv;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.CircuitBreaker;
-import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
@@ -22,6 +21,7 @@ import org.elasticsearch.indices.breaker.AllCircuitBreakerStats;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.CircuitBreakerStats;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.datasources.CountingBreaker;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
@@ -36,20 +36,14 @@ import java.util.List;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
- * TDD driver for issue 697: the external-datasource scan path emits {@code BytesRef} (keyword) columns
- * through {@link BlockFactory#newBytesRefBlockBuilder(int)} with only a position-count estimate and no
- * byte-size hint, so the backing {@code BytesRefArray} sizes its byte buffer at {@code 3 * positions}
- * and regrows it as values are appended.
+ * Verifies that the CSV reader sizes a keyword column's byte storage up-front. The reader collects the
+ * whole batch before building the page, so it knows each keyword column's exact byte size and passes it to
+ * {@link BlockFactory#newBytesRefBlockBuilder(int, long)}; the backing {@code BytesRefArray} then allocates
+ * its byte buffer once instead of regrowing as values are appended.
  * <p>
- * The CSV reader collects the whole batch in memory before building the page, so it knows the exact byte
- * size of each keyword column and could pass it to {@link BlockFactory#newBytesRefBlockBuilder(int, long)}.
- * This test asserts that the reader sizes the byte buffer up-front, exactly like an explicitly
- * byte-hinted build, by comparing the number of byte-buffer reservations observed on the
- * {@link BigArrays} circuit breaker.
- * <p>
- * It currently FAILS (the reader passes no hint, so it performs extra reservations as it regrows) and is
- * expected to PASS once the reader threads a byte-size hint through. Equal-length values are used so the
- * fixed-length offset elision in {@code BytesRefArray} avoids offset allocations and the breaker observes
+ * The test asserts this by comparing the byte-buffer reservations the reader makes on the {@link BigArrays}
+ * circuit breaker against an explicitly byte-hinted build of the same values. Equal-length values are used so
+ * the fixed-length offset elision in {@code BytesRefArray} avoids offset allocations and the breaker observes
  * only byte-buffer reservations.
  */
 public class CsvFormatReaderByteHintTests extends ESTestCase {
@@ -74,8 +68,7 @@ public class CsvFormatReaderByteHintTests extends ESTestCase {
         int readerReservations = countCsvReaderReservations(csv.toString(), values);
 
         assertThat(
-            "CSV keyword emission must size the byte buffer up-front like a byte-hinted build (no regrow); "
-                + "fails until the reader threads a byte-size hint into newBytesRefBlockBuilder",
+            "CSV keyword emission must size the byte buffer up-front like a byte-hinted build (no regrow)",
             readerReservations,
             equalTo(idealReservations)
         );
@@ -175,79 +168,4 @@ public class CsvFormatReaderByteHintTests extends ESTestCase {
         };
     }
 
-    /**
-     * A {@link CircuitBreaker} that never trips but counts reservations, so the test can tell how many
-     * times storage was reserved during a build. Positive deltas are reservations; negative deltas are
-     * releases.
-     */
-    private static final class CountingBreaker implements CircuitBreaker {
-        private long used;
-        private int positiveReservations;
-
-        void reset() {
-            used = 0;
-            positiveReservations = 0;
-        }
-
-        long used() {
-            return used;
-        }
-
-        int positiveReservations() {
-            return positiveReservations;
-        }
-
-        private void record(long bytes) {
-            used += bytes;
-            if (bytes > 0) {
-                positiveReservations++;
-            }
-        }
-
-        @Override
-        public void circuitBreak(String fieldName, long bytesNeeded) {}
-
-        @Override
-        public void addEstimateBytesAndMaybeBreak(long bytes, String label) throws CircuitBreakingException {
-            record(bytes);
-        }
-
-        @Override
-        public void addWithoutBreaking(long bytes) {
-            record(bytes);
-        }
-
-        @Override
-        public long getUsed() {
-            return used;
-        }
-
-        @Override
-        public long getLimit() {
-            return Long.MAX_VALUE;
-        }
-
-        @Override
-        public double getOverhead() {
-            return 1.0;
-        }
-
-        @Override
-        public long getTrippedCount() {
-            return 0;
-        }
-
-        @Override
-        public String getName() {
-            return CircuitBreaker.REQUEST;
-        }
-
-        @Override
-        public Durability getDurability() {
-            return Durability.TRANSIENT;
-        }
-
-        @Override
-        public void setLimitAndOverhead(long limit, double overhead) {}
-    }
 }

@@ -21,7 +21,6 @@ import org.apache.parquet.schema.LogicalTypeAnnotation;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.Types;
 import org.elasticsearch.common.breaker.CircuitBreaker;
-import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
@@ -36,6 +35,7 @@ import org.elasticsearch.indices.breaker.AllCircuitBreakerStats;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.CircuitBreakerStats;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.datasources.CountingBreaker;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
@@ -55,7 +55,7 @@ import static org.hamcrest.Matchers.instanceOf;
 
 /**
  * Byte-storage sizing behaviour of the Parquet reader's {@code BytesRef} (keyword) emission, covering
- * its three distinct paths for issue 697. The reader's column {@code BytesRefArray} is allocated from
+ * its three distinct paths. The reader's column {@code BytesRefArray} is allocated from
  * {@code blockFactory.bigArrays()}, while all Parquet decode/scratch buffers go through
  * {@code blockFactory.breaker()} (see {@code ParquetFormatReader} / {@code OptimizedParquetColumnIterator}).
  * By putting a counting breaker on {@code bigArrays} and a no-op breaker on the factory, the counter
@@ -70,7 +70,7 @@ import static org.hamcrest.Matchers.instanceOf;
  *   <li>{@link #testBaselineReaderSizesByteStorageUpFront()} - the baseline {@code readBytesRefColumn}
  *       path already passes a byte-size hint. </li>
  *   <li>{@link #testOptimizedPlainColumnSizesByteStorageUpFront()} - the optimized {@code PageColumnReader}
- *       plain (non-dictionary) path builds with no byte hint and regrows.</li>
+ *       plain (non-dictionary) path sizes its byte storage up-front from the materialized values.</li>
  * </ul>
  */
 public class ParquetByteHintTests extends ESTestCase {
@@ -124,8 +124,7 @@ public class ParquetByteHintTests extends ESTestCase {
         int readerReservations = readerReservations(breaker, new ParquetFormatReader(factory(breaker)), data, values);
 
         assertThat(
-            "optimized PageColumnReader plain path must size byte storage up-front like a byte-hinted build "
-                + "(no regrow); fails until that path threads a byte-size hint into newBytesRefBlockBuilder",
+            "optimized PageColumnReader plain path must size byte storage up-front like a byte-hinted build (no regrow)",
             readerReservations,
             equalTo(ideal)
         );
@@ -332,79 +331,4 @@ public class ParquetByteHintTests extends ESTestCase {
         };
     }
 
-    /**
-     * A {@link CircuitBreaker} that never trips but counts reservations, so the test can tell how many
-     * times byte storage was reserved during a build. Positive deltas are reservations; negative deltas
-     * are releases.
-     */
-    private static final class CountingBreaker implements CircuitBreaker {
-        private long used;
-        private int positiveReservations;
-
-        void reset() {
-            used = 0;
-            positiveReservations = 0;
-        }
-
-        long used() {
-            return used;
-        }
-
-        int positiveReservations() {
-            return positiveReservations;
-        }
-
-        private void record(long bytes) {
-            used += bytes;
-            if (bytes > 0) {
-                positiveReservations++;
-            }
-        }
-
-        @Override
-        public void circuitBreak(String fieldName, long bytesNeeded) {}
-
-        @Override
-        public void addEstimateBytesAndMaybeBreak(long bytes, String label) throws CircuitBreakingException {
-            record(bytes);
-        }
-
-        @Override
-        public void addWithoutBreaking(long bytes) {
-            record(bytes);
-        }
-
-        @Override
-        public long getUsed() {
-            return used;
-        }
-
-        @Override
-        public long getLimit() {
-            return Long.MAX_VALUE;
-        }
-
-        @Override
-        public double getOverhead() {
-            return 1.0;
-        }
-
-        @Override
-        public long getTrippedCount() {
-            return 0;
-        }
-
-        @Override
-        public String getName() {
-            return CircuitBreaker.REQUEST;
-        }
-
-        @Override
-        public Durability getDurability() {
-            return Durability.TRANSIENT;
-        }
-
-        @Override
-        public void setLimitAndOverhead(long limit, double overhead) {}
-    }
 }

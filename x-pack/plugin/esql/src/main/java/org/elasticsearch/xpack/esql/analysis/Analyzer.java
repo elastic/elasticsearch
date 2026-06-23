@@ -1260,13 +1260,35 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 }
                 config = new JoinConfig(type, leftKeys, rightKeys, joinOnConditions);
 
-                return new LookupJoin(join.source(), join.left(), join.right(), config, join.isRemote() || context.includesRemoteIndices());
+                // A lookup join is remote only when its left side actually streams data from indices that may live on remote clusters.
+                // {@code includesRemoteIndices()} is query-wide, so on its own it would also mark a join whose left side is purely local
+                // (e.g. {@code ROW ... | LOOKUP JOIN} in a subquery branch) as remote. Such a join has no data-node source to attach to,
+                // so flagging it remote would cause {@code CrossClusterSubqueryIT.testSubqueryWithRowAndLookupJoin} error out in
+                // ComputeService.
+                boolean isRemote = join.isRemote() || (context.includesRemoteIndices() && leftSideReadsFromIndices(join.left()));
+                return new LookupJoin(join.source(), join.left(), join.right(), config, isRemote);
             } else {
                 // everything else is unsupported for now
                 UnresolvedAttribute errorAttribute = new UnresolvedAttribute(join.source(), "unsupported", "Unsupported join type");
                 // add error message
                 return join.withConfig(new JoinConfig(type, singletonList(errorAttribute), emptyList(), null));
             }
+        }
+
+        /**
+         * Whether {@code plan} reads from a non-lookup index, as opposed to a purely local source such as {@code ROW} /
+         * {@link LocalRelation}.
+         */
+        private static boolean leftSideReadsFromIndices(LogicalPlan plan) {
+            return plan.anyMatch(p -> {
+                if (p instanceof EsRelation relation) {
+                    return relation.indexMode() != IndexMode.LOOKUP;
+                }
+                if (p instanceof UnresolvedRelation relation) {
+                    return relation.indexMode() != IndexMode.LOOKUP;
+                }
+                return false;
+            });
         }
 
         /**

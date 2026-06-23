@@ -7,18 +7,21 @@
 
 package org.elasticsearch.xpack.inference.services.llama.embeddings;
 
-import org.elasticsearch.TransportVersion;
-import org.elasticsearch.common.ValidationException;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.inference.ModelConfigurations;
-import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.SimilarityMeasure;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xpack.inference.common.parser.EnumParser;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
-import org.elasticsearch.xpack.inference.services.settings.FilteredXContentObject;
+import org.elasticsearch.xpack.inference.services.llama.LlamaServiceSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
 import java.io.IOException;
@@ -26,33 +29,46 @@ import java.net.URI;
 import java.util.Map;
 import java.util.Objects;
 
+import static org.elasticsearch.xpack.inference.common.parser.NumberParser.validatePositiveInteger;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.DIMENSIONS;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MAX_INPUT_TOKENS;
-import static org.elasticsearch.xpack.inference.services.ServiceFields.MODEL_ID;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.SIMILARITY;
-import static org.elasticsearch.xpack.inference.services.ServiceFields.URL;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createUri;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalPositiveInteger;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredString;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractSimilarity;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractUri;
 
 /**
- * Settings for the Llama embeddings service.
- * This class encapsulates the configuration settings required to use Llama for generating embeddings.
+ * Settings for the Llama embeddings service. Extends {@link LlamaServiceSettings} and adds the
+ * embeddings-specific fields: dimensions, similarity measure, and max input tokens.
  */
-public class LlamaEmbeddingsServiceSettings extends FilteredXContentObject implements ServiceSettings {
+public class LlamaEmbeddingsServiceSettings extends LlamaServiceSettings {
     public static final String NAME = "llama_embeddings_service_settings";
-    private static final TransportVersion ML_INFERENCE_LLAMA_ADDED = TransportVersion.fromName("ml_inference_llama_added");
-    // There is no default rate limit for Llama, so we set a reasonable default of 3000 requests per minute
-    protected static final RateLimitSettings DEFAULT_RATE_LIMIT_SETTINGS = new RateLimitSettings(3000);
 
-    private final String modelId;
-    private final URI uri;
+    private static final ObjectParser<Builder, ConfigurationParseContext> REQUEST_PARSER = createParser(false);
+    private static final ObjectParser<Builder, ConfigurationParseContext> PERSISTENT_PARSER = createParser(true);
+
+    /**
+     * Creates an {@link ObjectParser} for the Llama embeddings service settings.
+     *
+     * @param ignoreUnknownFields whether the parser should tolerate unknown fields. This is {@code false} for request parsing (so that
+     *                            unexpected fields are rejected) and {@code true} for persisted configuration (so that fields written by
+     *                            other versions are tolerated).
+     * @return the parser
+     */
+    static ObjectParser<Builder, ConfigurationParseContext> createParser(boolean ignoreUnknownFields) {
+        ObjectParser<Builder, ConfigurationParseContext> parser = new ObjectParser<>(
+            ModelConfigurations.SERVICE_SETTINGS,
+            ignoreUnknownFields,
+            Builder::new
+        );
+        LlamaServiceSettings.declareCommonFields(parser);
+        parser.declareInt(Builder::setDimensions, new ParseField(DIMENSIONS));
+        parser.declareString(Builder::setSimilarity, EnumParser::parseSimilarity, new ParseField(SIMILARITY));
+        parser.declareInt(Builder::setMaxInputTokens, new ParseField(MAX_INPUT_TOKENS));
+        return parser;
+    }
+
     private final Integer dimensions;
     private final SimilarityMeasure similarity;
     private final Integer maxInputTokens;
-    private final RateLimitSettings rateLimitSettings;
 
     /**
      * Creates a new instance of LlamaEmbeddingsServiceSettings from a map of settings.
@@ -60,70 +76,38 @@ public class LlamaEmbeddingsServiceSettings extends FilteredXContentObject imple
      * @param map the map containing the settings
      * @param context the context for parsing configuration settings
      * @return a new instance of LlamaEmbeddingsServiceSettings
-     * @throws ValidationException if any required fields are missing or invalid
      */
     public static LlamaEmbeddingsServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
-        var validationException = new ValidationException();
-
-        var modelId = extractRequiredString(map, MODEL_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        var uri = extractUri(map, URL, validationException);
-        var dimensions = extractOptionalPositiveInteger(map, DIMENSIONS, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        var similarity = extractSimilarity(map, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        var maxInputTokens = extractOptionalPositiveInteger(
-            map,
-            MAX_INPUT_TOKENS,
-            ModelConfigurations.SERVICE_SETTINGS,
-            validationException
-        );
-        var rateLimitSettings = RateLimitSettings.of(map, DEFAULT_RATE_LIMIT_SETTINGS, validationException, context);
-
-        validationException.throwIfValidationErrorsExist();
-
-        return new LlamaEmbeddingsServiceSettings(modelId, uri, dimensions, similarity, maxInputTokens, rateLimitSettings);
+        var parser = context == ConfigurationParseContext.REQUEST ? REQUEST_PARSER : PERSISTENT_PARSER;
+        return LlamaServiceSettings.fromMap(map, context, parser);
     }
 
     @Override
     public LlamaEmbeddingsServiceSettings updateServiceSettings(Map<String, Object> serviceSettings) {
-        var validationException = new ValidationException();
-
-        var extractedMaxInputTokens = extractOptionalPositiveInteger(
-            serviceSettings,
-            MAX_INPUT_TOKENS,
-            ModelConfigurations.SERVICE_SETTINGS,
-            validationException
-        );
-        var extractedRateLimitSettings = RateLimitSettings.of(
-            serviceSettings,
-            this.rateLimitSettings,
-            validationException,
-            ConfigurationParseContext.REQUEST
-        );
-
-        validationException.throwIfValidationErrorsExist();
-
-        return new LlamaEmbeddingsServiceSettings(
-            this.modelId,
-            this.uri,
-            this.dimensions,
-            this.similarity,
-            extractedMaxInputTokens != null ? extractedMaxInputTokens : this.maxInputTokens,
-            extractedRateLimitSettings
-        );
+        try (var xParser = XContentHelper.mapToXContentParser(XContentParserConfiguration.EMPTY, serviceSettings)) {
+            return Update.PARSER.apply(xParser, null).mergeInto(this);
+        } catch (IOException e) {
+            throw new ElasticsearchParseException("Failed to parse Llama embeddings service settings update", e);
+        }
     }
 
     /**
-     * Constructs a new LlamaEmbeddingsServiceSettings from a StreamInput.
+     * Constructs a new LlamaEmbeddingsServiceSettings from a StreamInput. The fields are read in the historical interleaved
+     * order (model_id, url, dimensions, similarity, max_input_tokens, rate_limit); this constructor delegates to the in-memory
+     * constructor relying on Java's left-to-right argument evaluation to preserve that order.
      *
      * @param in the StreamInput to read from
      * @throws IOException if an I/O error occurs during reading
      */
     public LlamaEmbeddingsServiceSettings(StreamInput in) throws IOException {
-        this.modelId = in.readString();
-        this.uri = createUri(in.readString());
-        this.dimensions = in.readOptionalVInt();
-        this.similarity = in.readOptionalEnum(SimilarityMeasure.class);
-        this.maxInputTokens = in.readOptionalVInt();
-        this.rateLimitSettings = new RateLimitSettings(in);
+        this(
+            in.readString(),
+            createUri(in.readString()),
+            in.readOptionalVInt(),
+            in.readOptionalEnum(SimilarityMeasure.class),
+            in.readOptionalVInt(),
+            new RateLimitSettings(in)
+        );
     }
 
     /**
@@ -144,52 +128,15 @@ public class LlamaEmbeddingsServiceSettings extends FilteredXContentObject imple
         @Nullable Integer maxInputTokens,
         @Nullable RateLimitSettings rateLimitSettings
     ) {
-        this.modelId = modelId;
-        this.uri = uri;
+        super(modelId, uri, rateLimitSettings);
         this.dimensions = dimensions;
         this.similarity = similarity;
         this.maxInputTokens = maxInputTokens;
-        this.rateLimitSettings = Objects.requireNonNullElse(rateLimitSettings, DEFAULT_RATE_LIMIT_SETTINGS);
-    }
-
-    /**
-     * Constructs a new LlamaEmbeddingsServiceSettings with the specified parameters.
-     *
-     * @param modelId the identifier for the model
-     * @param url the URL of the Llama service
-     * @param dimensions the number of dimensions for the embeddings, can be null
-     * @param similarity the similarity measure to use, can be null
-     * @param maxInputTokens the maximum number of input tokens, can be null
-     * @param rateLimitSettings the rate limit settings for the service, can be null
-     */
-    public LlamaEmbeddingsServiceSettings(
-        String modelId,
-        String url,
-        @Nullable Integer dimensions,
-        @Nullable SimilarityMeasure similarity,
-        @Nullable Integer maxInputTokens,
-        @Nullable RateLimitSettings rateLimitSettings
-    ) {
-        this(modelId, createUri(url), dimensions, similarity, maxInputTokens, rateLimitSettings);
     }
 
     @Override
     public String getWriteableName() {
         return NAME;
-    }
-
-    @Override
-    public TransportVersion getMinimalSupportedVersion() {
-        return ML_INFERENCE_LLAMA_ADDED;
-    }
-
-    @Override
-    public String modelId() {
-        return this.modelId;
-    }
-
-    public URI uri() {
-        return this.uri;
     }
 
     @Override
@@ -216,38 +163,19 @@ public class LlamaEmbeddingsServiceSettings extends FilteredXContentObject imple
         return this.maxInputTokens;
     }
 
-    /**
-     * Returns the rate limit settings for this service.
-     *
-     * @return the rate limit settings, never null
-     */
-    public RateLimitSettings rateLimitSettings() {
-        return this.rateLimitSettings;
-    }
-
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(modelId);
-        out.writeString(uri.toString());
+        out.writeString(modelId());
+        out.writeString(uri().toString());
         out.writeOptionalVInt(dimensions);
         out.writeOptionalEnum(similarity);
         out.writeOptionalVInt(maxInputTokens);
-        rateLimitSettings.writeTo(out);
-    }
-
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject();
-        toXContentFragmentOfExposedFields(builder, params);
-        builder.endObject();
-        return builder;
+        rateLimitSettings().writeTo(out);
     }
 
     @Override
     protected XContentBuilder toXContentFragmentOfExposedFields(XContentBuilder builder, Params params) throws IOException {
-        builder.field(MODEL_ID, modelId);
-        builder.field(URL, uri.toString());
-
+        super.toXContentFragmentOfExposedFields(builder, params);
         if (dimensions != null) {
             builder.field(DIMENSIONS, dimensions);
         }
@@ -257,27 +185,84 @@ public class LlamaEmbeddingsServiceSettings extends FilteredXContentObject imple
         if (maxInputTokens != null) {
             builder.field(MAX_INPUT_TOKENS, maxInputTokens);
         }
-        rateLimitSettings.toXContent(builder, params);
-
         return builder;
     }
 
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (super.equals(o) == false) return false;
         LlamaEmbeddingsServiceSettings that = (LlamaEmbeddingsServiceSettings) o;
-        return Objects.equals(modelId, that.modelId)
-            && Objects.equals(uri, that.uri)
-            && Objects.equals(dimensions, that.dimensions)
+        return Objects.equals(dimensions, that.dimensions)
             && Objects.equals(maxInputTokens, that.maxInputTokens)
-            && Objects.equals(similarity, that.similarity)
-            && Objects.equals(rateLimitSettings, that.rateLimitSettings);
+            && Objects.equals(similarity, that.similarity);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(modelId, uri, dimensions, maxInputTokens, similarity, rateLimitSettings);
+        return Objects.hash(super.hashCode(), dimensions, maxInputTokens, similarity);
     }
 
+    /**
+     * Accumulates the embeddings-specific fields on top of the common Llama fields and builds a
+     * {@link LlamaEmbeddingsServiceSettings}, enforcing that {@code dimensions} and {@code max_input_tokens} are positive.
+     */
+    public static class Builder extends LlamaServiceSettings.Builder<LlamaEmbeddingsServiceSettings> {
+        private Integer dimensions;
+        private SimilarityMeasure similarity;
+        private Integer maxInputTokens;
+
+        public void setDimensions(Integer dimensions) {
+            validatePositiveInteger(dimensions, DIMENSIONS);
+            this.dimensions = dimensions;
+        }
+
+        public void setSimilarity(SimilarityMeasure similarity) {
+            this.similarity = similarity;
+        }
+
+        public void setMaxInputTokens(Integer maxInputTokens) {
+            validatePositiveInteger(maxInputTokens, MAX_INPUT_TOKENS);
+            this.maxInputTokens = maxInputTokens;
+        }
+
+        @Override
+        protected LlamaEmbeddingsServiceSettings build(String modelId, URI uri, RateLimitSettings rateLimitSettings) {
+            return new LlamaEmbeddingsServiceSettings(modelId, uri, dimensions, similarity, maxInputTokens, rateLimitSettings);
+        }
+    }
+
+    /**
+     * Parses an update request, which may only contain the mutable {@code max_input_tokens} and {@code rate_limit} fields. Including any
+     * immutable field (such as {@code model_id}, {@code url}, {@code dimensions}, or {@code similarity}) causes the strict parser to
+     * reject the request.
+     */
+    private static class Update extends LlamaServiceSettings.CommonUpdate {
+
+        private static final ObjectParser<Update, Void> PARSER = new ObjectParser<>(ModelConfigurations.SERVICE_SETTINGS, Update::new);
+
+        static {
+            LlamaServiceSettings.declareCommonUpdatableFields(PARSER);
+            PARSER.declareInt(Update::setMaxInputTokens, new ParseField(MAX_INPUT_TOKENS));
+        }
+
+        private Integer maxInputTokens;
+
+        private void setMaxInputTokens(Integer maxInputTokens) {
+            validatePositiveInteger(maxInputTokens, MAX_INPUT_TOKENS);
+            this.maxInputTokens = maxInputTokens;
+        }
+
+        public LlamaEmbeddingsServiceSettings mergeInto(LlamaEmbeddingsServiceSettings existing) {
+            var updatedMaxInputTokens = this.maxInputTokens != null ? this.maxInputTokens : existing.maxInputTokens();
+            return new LlamaEmbeddingsServiceSettings(
+                existing.modelId(),
+                existing.uri(),
+                existing.dimensions(),
+                existing.similarity(),
+                updatedMaxInputTokens,
+                mergedRateLimitSettings(existing)
+            );
+        }
+    }
 }

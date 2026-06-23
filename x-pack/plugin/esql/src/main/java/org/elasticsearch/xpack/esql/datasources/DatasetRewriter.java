@@ -370,13 +370,9 @@ public final class DatasetRewriter {
     }
 
     /**
-     * Per-relation result of {@link #resolve}: the authorized concrete dataset names the relation targets, and whether
-     * the relation also targets at least one non-dataset abstraction (index / alias / data stream).
+     * Per-relation result of {@link #resolve}: the authorized concrete dataset names the relation targets, whether it
+     * also targets non-dataset abstractions (drives mixed-FROM rejection), and the explicitly-named datasets absent
+     * from the authorized set (surfaced by {@link #rewriteOne} as {@code Unknown index}).
      */
-       /**
-        * Per-relation result of {@link #resolve}: the authorized concrete dataset names the relation targets, whether it
-        * also targets non-dataset abstractions (drives mixed-FROM rejection), and the explicitly-named datasets that are
-        * absent from the authorized set (surfaced by {@link #rewriteOne} as {@code Unknown index}).
-        */
     public record DatasetResolution(Set<String> authorizedDatasets, boolean hasNonDatasetTargets, Set<String> explicitUnauthorized) {}
 }

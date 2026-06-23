@@ -73,6 +73,11 @@ public class LimitedBreaker extends NoopCircuitBreaker {
     }
 
     @Override
+    public long getLimit() {
+        return max.getBytes();
+    }
+
+    @Override
     public String toString() {
         long u = used.get();
         return "LimitedBreaker[" + u + "/" + max.getBytes() + "][" + ByteSizeValue.ofBytes(u) + "/" + max + "]";

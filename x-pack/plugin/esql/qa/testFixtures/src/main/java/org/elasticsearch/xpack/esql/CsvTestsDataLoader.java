@@ -670,17 +670,30 @@ public class CsvTestsDataLoader {
         }
         if (loadedDatasets.isEmpty() == false) {
             forceMerge(client, loadedDatasets);
-            // ES|QL LOOKUP / FROM resolution (field-caps) routes only to searchable shard copies. In a stateless
-            // cluster index nodes hold the promotable primary (not searchable) while search nodes hold the unpromotable
-            // copy (searchable). The cluster can reach health green before any searchable copy is active
-            // (ServerlessFieldCapabilitiesIT.testFieldCapsAreExecutedOnSearchNodes), so waiting for green is not
-            // sufficient. Poll a _search probe (allow_partial_search_results=false) which returns HTTP 503 while a
-            // searchable copy is unavailable and HTTP 200 once all copies are active — the same liveness signal
-            // ES|QL field-caps relies on. This is topology-agnostic: on a single-node cluster the primary is
-            // searchable and the probe returns immediately.
-            String pattern = String.join(",", loadedDatasets);
-            awaitSearchable(client, new Request("GET", "/" + pattern + "/_search?size=0&allow_partial_search_results=false"));
+            awaitDatasetsSearchable(client, loadedDatasets);
         }
+    }
+
+    /**
+     * Waits until every loaded dataset is searchable before tests query it.
+     * <p>
+     * ES|QL LOOKUP / FROM resolution (field-caps) routes only to searchable shard copies. In a stateless cluster index
+     * nodes hold the promotable primary (not searchable) while search nodes hold the unpromotable copy (searchable), and
+     * the cluster can reach health green before any searchable copy is active
+     * ({@code ServerlessFieldCapabilitiesIT.testFieldCapsAreExecutedOnSearchNodes}), so waiting for green is not
+     * sufficient. Poll a {@code _search} probe ({@code allow_partial_search_results=false}): it returns HTTP 503 while
+     * no searchable copy is available and HTTP 200 once at least one searchable copy per shard is active — on stateful
+     * the primary, on stateless the search-node copy. This is the same shard-availability gate field-caps resolution
+     * hits; it is deliberately not equivalent to cluster-health green, which is both too strong on stateful (it would
+     * also wait for replicas the query never routes to) and too weak on stateless (green can precede the searchable
+     * copy). Topology-agnostic: on a single-node cluster the primary is searchable and the probe returns immediately.
+     */
+    private static void awaitDatasetsSearchable(RestClient client, Set<String> loadedDatasets) throws IOException {
+        if (loadedDatasets.isEmpty()) {
+            return;
+        }
+        String pattern = String.join(",", loadedDatasets);
+        awaitSearchable(client, new Request("GET", "/" + pattern + "/_search?size=0&allow_partial_search_results=false"), true);
     }
 
     private static void loadDataSets(
@@ -705,6 +718,7 @@ public class CsvTestsDataLoader {
             loadedDatasets.add(dataset.indexName);
         }
         forceMerge(client, loadedDatasets);
+        awaitDatasetsSearchable(client, loadedDatasets);
     }
 
     private static void loadEnrichPolicies(RestClient client) throws IOException {
@@ -852,9 +866,12 @@ public class CsvTestsDataLoader {
         // lookup indices: health green before the search-node copy is active. Subsequent ENRICH queries fail with
         // NoShardAvailableActionException. Poll until a search succeeds on the backing index. Accessing the .enrich-*
         // system index emits a deprecation warning; awaitSearchable tolerates it (a warned 2xx still means searchable).
+        // requireMatchedShards=true: the wildcard can match zero indices (200) if the backing index is not yet in the
+        // coordinator's cluster state, so require a matched shard rather than passing on an empty result.
         awaitSearchable(
             client,
-            new Request("GET", "/.enrich-" + policy.policyName() + "-*/_search?size=0&allow_partial_search_results=false")
+            new Request("GET", "/.enrich-" + policy.policyName() + "-*/_search?size=0&allow_partial_search_results=false"),
+            true
         );
     }
 
@@ -1271,6 +1288,12 @@ public class CsvTestsDataLoader {
         );
     }
 
+    private static final int AWAIT_SEARCHABLE_TIMEOUT_SECONDS = 60;
+
+    private static void awaitSearchable(RestClient client, Request probe) throws IOException {
+        awaitSearchable(client, probe, false);
+    }
+
     /**
      * Polls {@code probe} until it succeeds, retrying on HTTP 5xx responses that signal a transient shard-unavailability.
      * <p>
@@ -1280,8 +1303,14 @@ public class CsvTestsDataLoader {
      * method polls the actual resolution operation (or an equivalent probe) until it succeeds, giving us topology-agnostic
      * readiness that works on single-node, stateful multi-node, and stateless multi-node clusters.
      * </p>
+     *
+     * @param requireMatchedShards when {@code true}, a 2xx response is only treated as ready if its {@code _shards.total}
+     *                             is at least one. This guards wildcard {@code _search} probes (e.g. {@code .enrich-*})
+     *                             that return 200 while matching zero indices: a not-yet-visible backing index is then
+     *                             retried rather than passed. Has no effect on non-{@code _search} probes (e.g.
+     *                             {@code GET /_inference/...}), which carry no {@code _shards} and must pass {@code false}.
      */
-    private static void awaitSearchable(RestClient client, Request probe) throws IOException {
+    private static void awaitSearchable(RestClient client, Request probe, boolean requireMatchedShards) throws IOException {
         try {
             ESTestCase.assertBusy(() -> {
                 Response response;
@@ -1299,6 +1328,10 @@ public class CsvTestsDataLoader {
                 }
                 int status = response.getStatusLine().getStatusCode();
                 if (status >= 200 && status < 300) {
+                    if (requireMatchedShards) {
+                        // Throws an AssertionError (retried) when the probe matched no shard yet.
+                        assertProbeMatchedShards(probe, response);
+                    }
                     return; // a (possibly warned) success means a searchable copy answered
                 }
                 if (status >= 500 && status <= 599) {
@@ -1307,11 +1340,26 @@ public class CsvTestsDataLoader {
                     throw new AssertionError("[" + probe.getEndpoint() + "] not yet searchable (HTTP " + status + ")");
                 }
                 throw new IOException("unexpected response probing [" + probe.getEndpoint() + "]: HTTP " + status);
-            }, 60, TimeUnit.SECONDS);
+            }, AWAIT_SEARCHABLE_TIMEOUT_SECONDS, TimeUnit.SECONDS);
         } catch (IOException e) {
+            // Preserve the IOException type for callers; assertBusy only ever rethrows the probe's own IOException here.
             throw e;
         } catch (Exception e) {
+            // Wrap anything else assertBusy may surface (e.g. InterruptedException) so the signature stays IOException-only.
             throw new IOException(e);
+        }
+    }
+
+    /**
+     * Asserts that {@code response} (a successful {@code _search} probe) actually hit at least one shard, throwing a
+     * retryable {@link AssertionError} otherwise. A wildcard probe matching zero indices (e.g. an enrich backing index
+     * not yet in the coordinator's cluster state) returns 200 with {@code _shards.total == 0}; treating that as ready
+     * would pass the probe prematurely.
+     */
+    private static void assertProbeMatchedShards(Request probe, Response response) throws IOException {
+        JsonNode shards = new ObjectMapper().readTree(response.getEntity().getContent()).get("_shards");
+        if (shards == null || shards.path("total").asInt(0) < 1) {
+            throw new AssertionError("[" + probe.getEndpoint() + "] matched no shards yet");
         }
     }
 

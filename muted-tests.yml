@@ -686,3 +686,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.commits.StatelessFileDeletionIT
   method: testDeleteIndexAfterRecovery
   issue: https://github.com/elastic/elasticsearch/issues/151884
+- class: org.elasticsearch.repositories.gcs.GoogleCloudStorageThirdPartyTests
+  method: testStorageClassPerOperationPurpose
+  issue: https://github.com/elastic/elasticsearch/issues/151924

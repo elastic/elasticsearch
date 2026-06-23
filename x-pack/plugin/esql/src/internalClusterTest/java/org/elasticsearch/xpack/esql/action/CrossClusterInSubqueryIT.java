@@ -84,8 +84,11 @@ public class CrossClusterInSubqueryIT extends AbstractCrossClusterTestCase {
             assertThat(values, hasSize(2));
             assertEquals(List.of(3L, REMOTE_CLUSTER_1), values.get(0));
             assertEquals(List.of(3L, REMOTE_CLUSTER_2), values.get(1));
-            // subquery is local-only; main plan hits both remotes each with 1 shard
-            assertCCSExecutionInfoDetailsWithShards(resp.getExecutionInfo(), Map.of(REMOTE_CLUSTER_1, 1, REMOTE_CLUSTER_2, 1));
+            // subquery is local-only (1 shard); main plan hits both remotes each with 1 shard
+            assertCCSExecutionInfoDetailsWithShards(
+                resp.getExecutionInfo(),
+                Map.of(LOCAL_CLUSTER, 1, REMOTE_CLUSTER_1, 1, REMOTE_CLUSTER_2, 1)
+            );
         }
     }
 
@@ -105,8 +108,8 @@ public class CrossClusterInSubqueryIT extends AbstractCrossClusterTestCase {
             assertEquals(List.of(1, "red", "local"), values.get(0));
             assertEquals(List.of(3, "red", "local"), values.get(1));
             assertEquals(List.of(5, "red", "local"), values.get(2));
-            // subquery hits cluster-a (1 shard); main plan is local-only
-            assertCCSExecutionInfoDetailsWithShards(resp.getExecutionInfo(), Map.of(REMOTE_CLUSTER_1, 1));
+            // subquery hits cluster-a (1 shard); main plan is local-only (1 shard)
+            assertCCSExecutionInfoDetailsWithShards(resp.getExecutionInfo(), Map.of(LOCAL_CLUSTER, 1, REMOTE_CLUSTER_1, 1));
         }
     }
 
@@ -146,8 +149,11 @@ public class CrossClusterInSubqueryIT extends AbstractCrossClusterTestCase {
             assertThat(values, hasSize(2));
             assertEquals(List.of(3L, REMOTE_CLUSTER_1), values.get(0));
             assertEquals(List.of(3L, REMOTE_CLUSTER_2), values.get(1));
-            // subquery is local-only; main plan hits both remotes each with 1 shard
-            assertCCSExecutionInfoDetailsWithShards(resp.getExecutionInfo(), Map.of(REMOTE_CLUSTER_1, 1, REMOTE_CLUSTER_2, 1));
+            // subquery is local-only (1 shard); main plan hits both remotes each with 1 shard
+            assertCCSExecutionInfoDetailsWithShards(
+                resp.getExecutionInfo(),
+                Map.of(LOCAL_CLUSTER, 1, REMOTE_CLUSTER_1, 1, REMOTE_CLUSTER_2, 1)
+            );
         }
     }
 
@@ -167,8 +173,8 @@ public class CrossClusterInSubqueryIT extends AbstractCrossClusterTestCase {
             assertEquals(List.of(2, "blue", "local"), values.get(0));
             assertEquals(List.of(4, "blue", "local"), values.get(1));
             assertEquals(List.of(6, "blue", "local"), values.get(2));
-            // subquery hits cluster-a (1 shard); main plan is local-only
-            assertCCSExecutionInfoDetailsWithShards(resp.getExecutionInfo(), Map.of(REMOTE_CLUSTER_1, 1));
+            // subquery hits cluster-a (1 shard); main plan is local-only (1 shard)
+            assertCCSExecutionInfoDetailsWithShards(resp.getExecutionInfo(), Map.of(LOCAL_CLUSTER, 1, REMOTE_CLUSTER_1, 1));
         }
     }
 
@@ -208,8 +214,11 @@ public class CrossClusterInSubqueryIT extends AbstractCrossClusterTestCase {
             assertThat(values, hasSize(2));
             assertEquals(List.of(4L, REMOTE_CLUSTER_1), values.get(0));
             assertEquals(List.of(4L, REMOTE_CLUSTER_2), values.get(1));
-            // subquery is local-only; main plan hits both remotes each with 1 shard
-            assertCCSExecutionInfoDetailsWithShards(resp.getExecutionInfo(), Map.of(REMOTE_CLUSTER_1, 1, REMOTE_CLUSTER_2, 1));
+            // subquery is local-only (1 shard); main plan hits both remotes each with 1 shard
+            assertCCSExecutionInfoDetailsWithShards(
+                resp.getExecutionInfo(),
+                Map.of(LOCAL_CLUSTER, 1, REMOTE_CLUSTER_1, 1, REMOTE_CLUSTER_2, 1)
+            );
         }
     }
 
@@ -230,8 +239,8 @@ public class CrossClusterInSubqueryIT extends AbstractCrossClusterTestCase {
             assertEquals(List.of(3, "local"), values.get(1));
             assertEquals(List.of(5, "local"), values.get(2));
             assertEquals(List.of(6, "local"), values.get(3));
-            // subquery hits cluster-a (1 shard); main plan is local-only
-            assertCCSExecutionInfoDetailsWithShards(resp.getExecutionInfo(), Map.of(REMOTE_CLUSTER_1, 1));
+            // subquery hits cluster-a (1 shard); main plan is local-only (1 shard)
+            assertCCSExecutionInfoDetailsWithShards(resp.getExecutionInfo(), Map.of(LOCAL_CLUSTER, 1, REMOTE_CLUSTER_1, 1));
         }
     }
 
@@ -269,8 +278,11 @@ public class CrossClusterInSubqueryIT extends AbstractCrossClusterTestCase {
             List<List<Object>> values = getValuesList(resp);
             assertThat(values, hasSize(1));
             assertEquals(0L, values.get(0).get(0));
-            // subquery is local-only; main plan hits both remotes each with 1 shard
-            assertCCSExecutionInfoDetailsWithShards(resp.getExecutionInfo(), Map.of(REMOTE_CLUSTER_1, 1, REMOTE_CLUSTER_2, 1));
+            // subquery is local-only (1 shard); main plan hits both remotes each with 1 shard
+            assertCCSExecutionInfoDetailsWithShards(
+                resp.getExecutionInfo(),
+                Map.of(LOCAL_CLUSTER, 1, REMOTE_CLUSTER_1, 1, REMOTE_CLUSTER_2, 1)
+            );
         }
     }
 
@@ -287,8 +299,11 @@ public class CrossClusterInSubqueryIT extends AbstractCrossClusterTestCase {
             List<List<Object>> values = getValuesList(resp);
             assertThat(values, hasSize(1));
             assertEquals(12L, values.get(0).get(0));
-            // subquery is local-only; main plan hits both remotes each with 1 shard
-            assertCCSExecutionInfoDetailsWithShards(resp.getExecutionInfo(), Map.of(REMOTE_CLUSTER_1, 1, REMOTE_CLUSTER_2, 1));
+            // subquery is local-only (1 shard); main plan hits both remotes each with 1 shard
+            assertCCSExecutionInfoDetailsWithShards(
+                resp.getExecutionInfo(),
+                Map.of(LOCAL_CLUSTER, 1, REMOTE_CLUSTER_1, 1, REMOTE_CLUSTER_2, 1)
+            );
         }
     }
 
@@ -316,7 +331,11 @@ public class CrossClusterInSubqueryIT extends AbstractCrossClusterTestCase {
             assertThat(values, hasSize(2));
             assertEquals(List.of(2L, REMOTE_CLUSTER_1), values.get(0));
             assertEquals(List.of(2L, REMOTE_CLUSTER_2), values.get(1));
-            assertCCSExecutionInfoDetailsWithShards(resp.getExecutionInfo(), Map.of(REMOTE_CLUSTER_1, 1, REMOTE_CLUSTER_2, 1));
+            // innermost subquery is local (1 shard); middle subplan hits cluster-a (1 shard); main plan hits both remotes
+            assertCCSExecutionInfoDetailsWithShards(
+                resp.getExecutionInfo(),
+                Map.of(LOCAL_CLUSTER, 1, REMOTE_CLUSTER_1, 1, REMOTE_CLUSTER_2, 1)
+            );
         }
     }
 
@@ -468,8 +487,11 @@ public class CrossClusterInSubqueryIT extends AbstractCrossClusterTestCase {
             assertEquals(List.of(3L, REMOTE_CLUSTER_1), values.get(0));
             assertEquals(List.of(3L, "local"), values.get(1));
             assertEquals(List.of(3L, REMOTE_CLUSTER_2), values.get(2));
-            // subquery is local-only; main plan (view all_events) hits both remotes each with 1 shard
-            assertCCSExecutionInfoDetailsWithShards(resp.getExecutionInfo(), Map.of(REMOTE_CLUSTER_1, 1, REMOTE_CLUSTER_2, 1));
+            // subquery is local-only; main plan (view all_events = events + cluster-a:events + remote-b:events) hits all clusters
+            assertCCSExecutionInfoDetailsWithShards(
+                resp.getExecutionInfo(),
+                Map.of(LOCAL_CLUSTER, 1, REMOTE_CLUSTER_1, 1, REMOTE_CLUSTER_2, 1)
+            );
         }
     }
 
@@ -569,7 +591,129 @@ public class CrossClusterInSubqueryIT extends AbstractCrossClusterTestCase {
         }
     }
 
+    // ---- additional source types: TS, ROW, FROM-union in outer query ----
+
+    /**
+     * TS as the IN subquery source — executes a time series query on a remote cluster and uses the
+     * results to filter events from both remote clusters.
+     *
+     * <p>A {@code ts_metrics} index lives on {@code cluster-a} with dimension {@code cluster="cluster-a"}
+     * and gauge metric {@code max_bytes}. The subplan aggregates max bytes per cluster from that TS index,
+     * returning {@code ["cluster-a"]}. The outer FROM queries both remote {@code events} indices; only
+     * events with {@code tag == "cluster-a"} match, yielding 6 rows.
+     */
+    public void testTsSourceInSubquery() {
+        setupTsMetricsIndex(REMOTE_CLUSTER_1, "cluster-a");
+        try (EsqlQueryResponse resp = runQuery("""
+            FROM *:events
+            | WHERE tag IN (
+                TS cluster-a:ts_metrics
+                | STATS top_bytes = max(max_bytes) BY cluster
+                | WHERE top_bytes > 0
+                | KEEP cluster
+              )
+            | STATS c = COUNT(*) BY tag
+            | SORT tag
+            """, randomBoolean())) {
+            List<List<Object>> values = getValuesList(resp);
+            assertThat(values, hasSize(1));
+            assertEquals(List.of(6L, REMOTE_CLUSTER_1), values.get(0));
+            // subplan queries cluster-a:ts_metrics (1 shard); main plan queries both remote events indices
+            assertCCSExecutionInfoDetailsWithShards(resp.getExecutionInfo(), Map.of(REMOTE_CLUSTER_1, 1, REMOTE_CLUSTER_2, 1));
+        }
+    }
+
+    /**
+     * ROW as the IN subquery source — produces a constant single-row result set with no cluster I/O.
+     * The subplan executes ROW locally; the main plan queries events from all three clusters.
+     * Events where id == 1 (one per cluster) are returned.
+     */
+    public void testRowSourceInSubquery() {
+        try (EsqlQueryResponse resp = runQuery("""
+            FROM *:events, events
+            | WHERE id IN (ROW id = 1 | KEEP id)
+            | STATS c = COUNT(*) BY tag
+            | SORT tag
+            """, randomBoolean())) {
+            List<List<Object>> values = getValuesList(resp);
+            assertThat(values, hasSize(3));
+            assertEquals(List.of(1L, REMOTE_CLUSTER_1), values.get(0));
+            assertEquals(List.of(1L, "local"), values.get(1));
+            assertEquals(List.of(1L, REMOTE_CLUSTER_2), values.get(2));
+            // ROW subplan touches no remote clusters; all shard counts come from the main plan
+            assertCCSExecutionInfoDetailsWithShards(
+                resp.getExecutionInfo(),
+                Map.of(LOCAL_CLUSTER, 1, REMOTE_CLUSTER_1, 1, REMOTE_CLUSTER_2, 1)
+            );
+        }
+    }
+
+    /**
+     * FROM union (UnionAll) in the main plan where one branch contains a WHERE IN subquery.
+     * The subplan (WHERE IN part) queries remote-b only; the main plan queries local and cluster-a.
+     * Remote-b is only in the subplan so {@code finalizeSubPlanOnlyRemoteClusters} marks it SUCCESSFUL.
+     *
+     * <p>Data: source 1 → local events with id &lt; 3 (2 rows); source 2 → cluster-a events where
+     * id IN (remote-b red ids {1,3,5}) → 3 matching rows. STATS: cluster-a 3, local 2.
+     */
+    public void testFromUnionInMainPlanWithWhereInSubquery() {
+        assumeTrue("Requires FROM-subquery support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        try (EsqlQueryResponse resp = runQuery("""
+            FROM (FROM events | WHERE id < 3 | KEEP id, tag),
+                 (FROM cluster-a:events
+                  | WHERE id IN (FROM remote-b:events | WHERE color == "red" | KEEP id)
+                  | KEEP id, tag)
+            | STATS c = COUNT(*) BY tag
+            | SORT c DESC, tag
+            """, randomBoolean())) {
+            List<List<Object>> values = getValuesList(resp);
+            assertThat(values, hasSize(2));
+            assertEquals(List.of(3L, REMOTE_CLUSTER_1), values.get(0));
+            assertEquals(List.of(2L, "local"), values.get(1));
+            // subplan hits remote-b (1 shard); main plan hits local (1 shard) and cluster-a (1 shard)
+            assertCCSExecutionInfoDetailsWithShards(
+                resp.getExecutionInfo(),
+                Map.of(LOCAL_CLUSTER, 1, REMOTE_CLUSTER_1, 1, REMOTE_CLUSTER_2, 1)
+            );
+        }
+    }
+
     // ---- helpers ----
+
+    /**
+     * Creates a {@code ts_metrics} time-series index on {@code clusterAlias} with a single
+     * {@code cluster} dimension (set to {@code clusterValue}) and a {@code max_bytes} gauge metric.
+     * Two documents are inserted so the index is non-empty and the TS aggregation has data to process.
+     */
+    private void setupTsMetricsIndex(String clusterAlias, String clusterValue) {
+        assertAcked(
+            client(clusterAlias).admin()
+                .indices()
+                .prepareCreate("ts_metrics")
+                .setSettings(
+                    Settings.builder()
+                        .put("mode", "time_series")
+                        .putList("routing_path", List.of("cluster"))
+                        .put("index.number_of_shards", 1)
+                        .put("index.number_of_replicas", 0)
+                )
+                .setMapping(
+                    "@timestamp",
+                    "type=date",
+                    "cluster",
+                    "type=keyword,time_series_dimension=true",
+                    "max_bytes",
+                    "type=long,time_series_metric=gauge"
+                )
+        );
+        client(clusterAlias).prepareIndex("ts_metrics")
+            .setSource("@timestamp", "2024-01-01T00:00:00Z", "cluster", clusterValue, "max_bytes", 1000L)
+            .get();
+        client(clusterAlias).prepareIndex("ts_metrics")
+            .setSource("@timestamp", "2024-01-01T01:00:00Z", "cluster", clusterValue, "max_bytes", 2000L)
+            .get();
+        client(clusterAlias).admin().indices().prepareRefresh("ts_metrics").get();
+    }
 
     private static QueryPragmas forceHashJoin() {
         return new QueryPragmas(Settings.builder().put("in_subquery_hash_join_threshold", 0).build());

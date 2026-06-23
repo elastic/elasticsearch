@@ -395,36 +395,30 @@ public abstract class AbstractCrossClusterTestCase extends AbstractMultiClusters
     }
 
     /**
-     * Extends {@link #assertCCSExecutionInfoDetails} with exact shard-level checks for each remote
-     * cluster. {@code expectedTotalShardsPerCluster} must list every remote cluster that appears in
-     * execution info and vice-versa; mismatches (unexpected cluster, missing cluster, wrong count)
-     * all cause assertion failures. Counts accumulate across sub-plan and main-plan executions on
-     * the same cluster.
+     * Extends {@link #assertCCSExecutionInfoDetails} with exact shard-level checks for each cluster.
+     * Every cluster that appears in execution info must appear in {@code expectedTotalShardsPerCluster}
+     * and vice-versa; mismatches (unexpected cluster, missing cluster, wrong count) all cause assertion
+     * failures. Include the local cluster (key {@code ""}) when the query accesses local indices.
      */
     protected static void assertCCSExecutionInfoDetailsWithShards(
         EsqlExecutionInfo executionInfo,
         Map<String, Integer> expectedTotalShardsPerCluster
     ) {
         assertCCSExecutionInfoDetails(executionInfo);
+        assertThat(
+            "mismatch in the number of expected clusters in the status output",
+            executionInfo.clusterAliases().size(),
+            equalTo(expectedTotalShardsPerCluster.size())
+        );
         for (String clusterAlias : executionInfo.clusterAliases()) {
-            if (RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY.equals(clusterAlias)) {
-                continue;
-            }
             Integer expected = expectedTotalShardsPerCluster.get(clusterAlias);
-            assertNotNull("unexpected remote cluster [" + clusterAlias + "] found in execution info", expected);
+            assertNotNull("cluster [" + clusterAlias + "] found in execution info but not in expected map", expected);
             EsqlExecutionInfo.Cluster cluster = executionInfo.getCluster(clusterAlias);
-            assertThat("remote cluster [" + clusterAlias + "] total shards", cluster.getTotalShards(), equalTo(expected));
-            assertThat(
-                "remote cluster [" + clusterAlias + "] all shards should have succeeded",
-                cluster.getSuccessfulShards(),
-                equalTo(expected)
-            );
+            assertThat("cluster [" + clusterAlias + "] total shards", cluster.getTotalShards(), equalTo(expected));
+            assertThat("cluster [" + clusterAlias + "] all shards should have succeeded", cluster.getSuccessfulShards(), equalTo(expected));
         }
         for (String clusterAlias : expectedTotalShardsPerCluster.keySet()) {
-            assertNotNull(
-                "expected remote cluster [" + clusterAlias + "] is missing from execution info",
-                executionInfo.getCluster(clusterAlias)
-            );
+            assertNotNull("expected cluster [" + clusterAlias + "] is missing from execution info", executionInfo.getCluster(clusterAlias));
         }
     }
 

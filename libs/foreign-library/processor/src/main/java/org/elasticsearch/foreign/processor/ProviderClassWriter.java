@@ -93,11 +93,11 @@ class ProviderClassWriter {
                 mb.with(SignatureAttribute.of(MethodSignature.of(ClassTypeSig.of(interfaceDesc))));
                 mb.withCode(code -> {
                     if (model.unavailableOn().isEmpty() == false) {
-                        // Platform.current() — call once, store in local variable 1
+                        // Platform p = Platform.current();
                         code.invokestatic(CD_Platform, "current", MTD_Platform_current);
                         code.astore(1);
-                        // For each unavailable platform: if (local1 == Platform.<X>) return null;
                         for (String platformName : model.unavailableOn()) {
+                            // if (p == Platform.<X>) return null;
                             Label skip = code.newLabel();
                             code.aload(1);
                             code.getstatic(CD_Platform, platformName, CD_Platform);
@@ -107,6 +107,7 @@ class ProviderClassWriter {
                             code.labelBinding(skip);
                         }
                     }
+                    // return new $Impl();
                     code.new_(implDesc);
                     code.dup();
                     code.invokespecial(implDesc, "<init>", MethodTypeDesc.of(CD_void));

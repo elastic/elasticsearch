@@ -53,8 +53,8 @@ class GlobalBuildInfoPluginSpec extends Specification {
             bundled_jdk_vendor = openjdk
             bundled_jdk = 24+36@1f9ff9062db4449d8ca828c504ffae90
             minimumJdkVersion = 21
-            minimumRuntimeJava = 21
-            minimumCompilerJava = 21
+            minimumRuntimeJava = 25
+            minimumCompilerJava = 25
         """
         File versionFileDir = new File(projectRoot, "server/src/main/java/org/elasticsearch")
         versionFileDir.mkdirs()

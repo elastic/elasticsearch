@@ -48,7 +48,7 @@ steps:
         matrix:
           setup:
             ES_RUNTIME_JAVA:
-              - openjdk21
+              - openjdk25
             GRADLE_TASK:
               - checkPart1
               - checkPart2
@@ -84,7 +84,7 @@ steps:
         matrix:
           setup:
             ES_RUNTIME_JAVA:
-              - openjdk21
+              - openjdk25
             BWC_VERSION: $BWC_LIST
         agents:
           provider: gcp
@@ -115,7 +115,7 @@ steps:
         matrix:
           setup:
             ES_RUNTIME_JAVA:
-              - openjdk21
+              - openjdk25
             GRADLE_TASK:
               - checkPart1
               - checkPart2
@@ -151,7 +151,7 @@ steps:
         matrix:
           setup:
             ES_RUNTIME_JAVA:
-              - openjdk21
+              - openjdk25
             BWC_VERSION: $BWC_LIST
         agents:
           provider: gcp
@@ -182,7 +182,7 @@ steps:
         matrix:
           setup:
             ES_RUNTIME_JAVA:
-              - openjdk21
+              - openjdk25
               - openjdk25
               - openjdk26
             GRADLE_TASK:
@@ -208,7 +208,7 @@ steps:
         matrix:
           setup:
             ES_RUNTIME_JAVA:
-              - openjdk21
+              - openjdk25
               - openjdk25
               - openjdk26
             BWC_VERSION: $BWC_LIST

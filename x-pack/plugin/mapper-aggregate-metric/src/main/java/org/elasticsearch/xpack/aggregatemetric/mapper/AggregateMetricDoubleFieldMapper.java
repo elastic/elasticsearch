@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.aggregatemetric.mapper;
 
 import org.apache.lucene.index.DocValues;
+import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
@@ -319,6 +320,18 @@ public class AggregateMetricDoubleFieldMapper extends FieldMapper {
         public Query existsQuery(SearchExecutionContext context) {
             assert metricFields.isEmpty() == false : "aggregate metric double should have at least one metric defined";
             return metricFields.values().iterator().next().existsQuery(context);
+        }
+
+        @Override
+        public boolean fieldHasValue(FieldInfos fieldInfos) {
+            // aggregate_metric_double has no lucene field under its own name; each configured metric is stored in a
+            // dedicated "<name>.<metric>" subfield. Report the field as non-empty if any configured metric subfield is present.
+            for (NumberFieldMapper.NumberFieldType subField : metricFields.values()) {
+                if (fieldInfos.fieldInfo(subField.name()) != null) {
+                    return true;
+                }
+            }
+            return false;
         }
 
         @Override

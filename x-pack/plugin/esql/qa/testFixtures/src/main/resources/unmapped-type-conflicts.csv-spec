@@ -2799,7 +2799,7 @@ addresses_no_continent  | Tokyo             | Milky Way
 ;
 
 // Same as above, but using addresses_text where galaxy is mapped as text (non-keyword).
-// Without a cast, galaxy remains null for the unmapped index.
+// Without a cast, galaxy is a regular text field: values from addresses_text, null from addresses_no_continent.
 deeplyNestedNonKeywordSubfieldUnderPartiallyUnmappedParentNotCast
 required_capability: optional_fields_v5
 required_capability: optional_fields_fix_load_partially_mapped
@@ -2820,7 +2820,7 @@ addresses_text           | Milky Way
 ;
 
 // city.country.continent.name is text (non-keyword) in addresses_text, unmapped in addresses_no_continent.
-// Without a cast, it's null for addresses_no_continent rows.
+// Without a cast, it's a regular field: values from addresses_text, null from addresses_no_continent.
 // Note: city.name has a type conflict (keyword vs text) across these indices, so we avoid referencing it.
 deeplyNestedNonKeywordSubfieldPartiallyUnmappedNotCast
 required_capability: optional_fields_v5
@@ -2984,8 +2984,7 @@ required_capability: optional_fields_unmapped_load_auto_cast_two_legged_punks
 SET unmapped_fields="load"\;
 FROM dense_vector_arithmetic, no_mapping_s*
 | keep id, client_ip, env 
-| eval language_name = id
-| drop id
+| rename id AS language_name
 | stats client_ip = first(greatest(language_name, 4, -72), null)
 ;
 
@@ -3000,8 +2999,7 @@ required_capability: optional_fields_unmapped_load_auto_cast_two_legged_punks
 SET unmapped_fields="load"\;
 FROM dense_vector_arithmetic, no_mapping_sample_data
 | KEEP id
-| EVAL language_name = id
-| DROP id
+| RENAME id AS language_name
 | EVAL x = GREATEST(language_name, 4, -72)
 ;
 ignoreOrder:true

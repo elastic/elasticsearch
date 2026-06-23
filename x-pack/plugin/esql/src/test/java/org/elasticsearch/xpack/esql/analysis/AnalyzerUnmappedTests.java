@@ -1145,93 +1145,6 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
     }
 
     /**
-     * An EVAL referencing both a partially unmapped non-keyword field and a field with a genuine type conflict
-     * should report errors for both fields.
-     */
-    public void testDisallowLoadWithPartialNonKeywordAndTypeConflictInSameEval() {
-        assumeTrue("Requires OPTIONAL_FIELDS_V5", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V5.isEnabled());
-
-        var conflicted = new InvalidMappedField(
-            "conflicted",
-            Map.of(DataType.LONG.typeName(), Set.of("idx_a"), DataType.DOUBLE.typeName(), Set.of("idx_b"))
-        );
-        var partialLong = InvalidMappedField.potentiallyUnmapped(
-            "partial_long",
-            Map.of(DataType.LONG.typeName(), Set.of("idx_a", "idx_b"))
-        );
-        var merged = new EsIndex(
-            "idx*",
-            Map.of("partial_long", partialLong, "conflicted", conflicted),
-            Map.of("idx_a", IndexMode.STANDARD, "idx_b", IndexMode.STANDARD, "idx_unmapped", IndexMode.STANDARD),
-            Map.of(),
-            Map.of()
-        );
-        assertUnmappedLoadError(
-            analyzer().addIndex("idx*", IndexResolution.valid(merged)),
-            "FROM idx* | EVAL x = partial_long + 1, y = conflicted + 1",
-            allOf(containsString("Found 1 problem"), containsString("Cannot use field [conflicted]"))
-        );
-    }
-
-    public void testDisallowLoadWithPartiallyMappedNonKeywordInRename() {
-        assumeTrue("Requires OPTIONAL_FIELDS_V5", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V5.isEnabled());
-
-        var esIndex = partialIndex(
-            Map.of("partial_long", longField("partial_long"), "common", keywordField("common")),
-            Set.of("partial_long")
-        );
-        var analyzer = analyzer().addIndex(esIndex);
-
-        assertUnmappedLoadError(analyzer, "FROM idx* | RENAME partial_long AS pl", partiallyUnmappedNonKeywordError("partial_long"));
-
-        assertUnmappedLoadError(
-            analyzer,
-            "FROM idx* | RENAME common as c, partial_long AS pl",
-            partiallyUnmappedNonKeywordError("partial_long")
-        );
-    }
-
-    /**
-     * {@code @timestamp} resolved as date/date_nanos union across two indices, with a third index where it is outright unmapped. Under
-     * {@code unmapped_fields=load}, this still fails because {@code @timestamp} is partially unmapped and used in {@code WHERE}.
-     */
-    public void testDisallowLoadWithPartialUnionTimestampInWhere() {
-        assumeTrue("Requires OPTIONAL_FIELDS_V5", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V5.isEnabled());
-
-        var pattern = "sample_data,sample_data_ts_nanos,no_mapping_sample_data";
-        var tsField = InvalidMappedField.potentiallyUnmapped(
-            "@timestamp",
-            Map.of(DataType.DATETIME.typeName(), Set.of("sample_data"), DataType.DATE_NANOS.typeName(), Set.of("sample_data_ts_nanos"))
-        );
-        var merged = new EsIndex(
-            pattern,
-            Map.of("@timestamp", tsField),
-            Map.of(
-                "sample_data",
-                IndexMode.STANDARD,
-                "sample_data_ts_nanos",
-                IndexMode.STANDARD,
-                "no_mapping_sample_data",
-                IndexMode.STANDARD
-            ),
-            Map.of(),
-            Map.of()
-        );
-        assertUnmappedLoadError(
-            analyzer().addIndex(pattern, IndexResolution.valid(merged)),
-            "FROM sample_data, sample_data_ts_nanos, no_mapping_sample_data METADATA _index "
-                + "| WHERE @timestamp == \"2021-01-01\"::date_nanos",
-            allOf(
-                containsString("Found 1 problem"),
-                containsString("line 1:116: Cannot use field [@timestamp] due to ambiguities being mapped as [3] incompatible types: "),
-                containsString("[keyword] due to loading from _source"),
-                containsString("[date_nanos] in [sample_data_ts_nanos]"),
-                containsString("[datetime] in [sample_data]")
-            )
-        );
-    }
-
-    /**
      * When unmapped_fields=load and an index has a partially mapped field that is not KEYWORD (e.g. LONG),
      * analysis must autocast to the mapped type if conversion was possible.
      */
@@ -1258,6 +1171,35 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
         // assert PUNKs are resolved
         assertTwoLeggedPunkResolution(plan, "partial_long", DataType.LONG);
         assertTwoLeggedPunkResolution(plan, "partial_double", DataType.DOUBLE);
+    }
+
+    /**
+     * An EVAL referencing both a partially unmapped non-keyword field and a field with a genuine type conflict
+     * should report errors for both fields.
+     */
+    public void testDisallowLoadWithPartialNonKeywordAndTypeConflictInSameEval() {
+        assumeTrue("Requires OPTIONAL_FIELDS_V5", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V5.isEnabled());
+
+        var conflicted = new InvalidMappedField(
+            "conflicted",
+            Map.of(DataType.LONG.typeName(), Set.of("idx_a"), DataType.DOUBLE.typeName(), Set.of("idx_b"))
+        );
+        var partialLong = InvalidMappedField.potentiallyUnmapped(
+            "partial_long",
+            Map.of(DataType.LONG.typeName(), Set.of("idx_a", "idx_b"))
+        );
+        var merged = new EsIndex(
+            "idx*",
+            Map.of("partial_long", partialLong, "conflicted", conflicted),
+            Map.of("idx_a", IndexMode.STANDARD, "idx_b", IndexMode.STANDARD, "idx_unmapped", IndexMode.STANDARD),
+            Map.of(),
+            Map.of()
+        );
+        assertUnmappedLoadError(
+            analyzer().addIndex("idx*", IndexResolution.valid(merged)),
+            "FROM idx* | EVAL x = partial_long + 1, y = conflicted + 1",
+            allOf(containsString("Found 1 problem"), containsString("Cannot use field [conflicted]"))
+        );
     }
 
     public void testAllowLoadWithPartialNonKeywordWhenFieldNotReferenced() {
@@ -1321,6 +1263,44 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
         assertThat(plan, not(nullValue()));
     }
 
+    public void testLoadWithPartiallyMappedNonKeywordInRenameAutoCast() {
+        assumeTrue("Requires OPTIONAL_FIELDS_V5", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V5.isEnabled());
+
+        var esIndex = partialIndex(
+            Map.of("partial_long", longField("partial_long"), "common", keywordField("common")),
+            Set.of("partial_long")
+        );
+        var analyzer = analyzer().addIndex(esIndex);
+
+        var plan = analyzer.statement(setUnmappedLoad("FROM idx* | RENAME partial_long AS pl"));
+        assertThat(plan, not(nullValue()));
+        assertTwoLeggedPunkResolution(plan, "partial_long", DataType.LONG);
+
+        plan = analyzer.statement(setUnmappedLoad("FROM idx* | RENAME common as c, partial_long AS pl"));
+        assertThat(plan, not(nullValue()));
+        assertTwoLeggedPunkResolution(plan, "partial_long", DataType.LONG);
+    }
+
+    /**
+     * A partially unmapped non-keyword field that cannot be auto-cast (TEXT has no KEYWORD converter) falls back to its mapped type,
+     * but renaming it is still rejected under {@code unmapped_fields="load"}.
+     */
+    public void testDisallowLoadWithPartiallyMappedNonKeywordInRename() {
+        assumeTrue("Requires OPTIONAL_FIELDS_V5", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V5.isEnabled());
+
+        var partialText = new EsField("partial_text", DataType.TEXT, emptyMap(), true, EsField.TimeSeriesFieldType.NONE);
+        var esIndex = partialIndex(Map.of("partial_text", partialText, "common", keywordField("common")), Set.of("partial_text"));
+        var analyzer = analyzer().addIndex(esIndex);
+
+        assertUnmappedLoadError(analyzer, "FROM idx* | RENAME partial_text AS pt", partiallyUnmappedNonKeywordError("partial_text"));
+
+        assertUnmappedLoadError(
+            analyzer,
+            "FROM idx* | RENAME common as c, partial_text AS pt",
+            partiallyUnmappedNonKeywordError("partial_text")
+        );
+    }
+
     public void testLoadWithPartiallyMappedNonKeywordInSortAutoCast() {
         assumeTrue("Requires OPTIONAL_FIELDS_V5", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V5.isEnabled());
 
@@ -1376,6 +1356,46 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
         var plan = analyzer().addIndex(esIndex).statement(setUnmappedLoad("FROM idx* | SORT `obj.sub`"));
         assertThat(plan, not(nullValue()));
         assertTwoLeggedPunkResolution(plan, "obj.sub", DataType.LONG);
+    }
+
+    /**
+     * {@code @timestamp} resolved as date/date_nanos union across two indices, with a third index where it is outright unmapped. Under
+     * {@code unmapped_fields=load}, this still fails because {@code @timestamp} is partially unmapped and used in {@code WHERE}.
+     */
+    public void testDisallowLoadWithPartialUnionTimestampInWhere() {
+        assumeTrue("Requires OPTIONAL_FIELDS_V5", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V5.isEnabled());
+
+        var pattern = "sample_data,sample_data_ts_nanos,no_mapping_sample_data";
+        var tsField = InvalidMappedField.potentiallyUnmapped(
+            "@timestamp",
+            Map.of(DataType.DATETIME.typeName(), Set.of("sample_data"), DataType.DATE_NANOS.typeName(), Set.of("sample_data_ts_nanos"))
+        );
+        var merged = new EsIndex(
+            pattern,
+            Map.of("@timestamp", tsField),
+            Map.of(
+                "sample_data",
+                IndexMode.STANDARD,
+                "sample_data_ts_nanos",
+                IndexMode.STANDARD,
+                "no_mapping_sample_data",
+                IndexMode.STANDARD
+            ),
+            Map.of(),
+            Map.of()
+        );
+        assertUnmappedLoadError(
+            analyzer().addIndex(pattern, IndexResolution.valid(merged)),
+            "FROM sample_data, sample_data_ts_nanos, no_mapping_sample_data METADATA _index "
+                + "| WHERE @timestamp == \"2021-01-01\"::date_nanos",
+            allOf(
+                containsString("Found 1 problem"),
+                containsString("line 1:116: Cannot use field [@timestamp] due to ambiguities being mapped as [3] incompatible types: "),
+                containsString("[keyword] due to loading from _source"),
+                containsString("[date_nanos] in [sample_data_ts_nanos]"),
+                containsString("[datetime] in [sample_data]")
+            )
+        );
     }
 
     public void testAllowLoadWithKeepDrop() {
@@ -1452,15 +1472,6 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
         }
     }
 
-    private static TestAnalyzer index1() {
-        Map<String, EsField> mapping = Map.of("field", new UnsupportedEsField("field", List.of("flattened")));
-        return analyzer().addIndex(new EsIndex("test", mapping, Map.of("test", IndexMode.STANDARD), Map.of(), Map.of()));
-    }
-
-    private static void assertUnmappedLoadError(TestAnalyzer analyzer, String query, Matcher<String> matcher) {
-        analyzer.statementError(setUnmappedLoad(query), matcher);
-    }
-
     /**
      * Assert that the plan contains exactly one {@link UnionTypeEsField} of the passed type. This is a proxy to the idea that
      * the two-legged PUNK was correctly resolved by the analyzer rule.
@@ -1483,6 +1494,15 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
         assertEquals(field.getDataType(), type);
         assertThat(field.getConversionExpressions().isEmpty(), is(false));
         assertThat(field.getUnmappedConversionExpression(), notNullValue());
+    }
+
+    private static TestAnalyzer index1() {
+        Map<String, EsField> mapping = Map.of("field", new UnsupportedEsField("field", List.of("flattened")));
+        return analyzer().addIndex(new EsIndex("test", mapping, Map.of("test", IndexMode.STANDARD), Map.of(), Map.of()));
+    }
+
+    private static void assertUnmappedLoadError(TestAnalyzer analyzer, String query, Matcher<String> matcher) {
+        analyzer.statementError(setUnmappedLoad(query), matcher);
     }
 
     private void typeConflictVerificationFailure(String statement, Map<IndexPattern, IndexResolution> indexResolutions) {
@@ -1630,7 +1650,7 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
     }
 
     private static Matcher<String> partiallyUnmappedNonKeywordError(String fieldName) {
-        return containsString("Using partially unmapped non-KEYWORD field [" + fieldName + "]");
+        return containsString("RENAME of partially unmapped non-KEYWORD field [" + fieldName + "]");
     }
 
     private static void assertSingleOutputType(LogicalPlan plan, String fieldName, DataType dataType) {

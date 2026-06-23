@@ -3198,11 +3198,6 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     // We're looking for partially unmapped fields with exactly one mapped type, i.e.: two-legged PUNKs
                     if (fa.field() instanceof TypeConflictedField tcf && tcf.isPotentiallyUnmapped() && tcf.types().size() == 1) {
                         DataType mappedType = tcf.types().iterator().next();
-                        if (mappedType == TEXT) {
-                            // Keep TO_TEXT explicit only: do not auto-insert KEYWORD -> TEXT conversions for two-legged PUNKs.
-                            return maybeFallbackToMappedType(fa, tcf, explicitlyCastedFieldNames);
-                        }
-
                         var convertFactory = EsqlDataTypeConverter.converterFunctionFactory(mappedType);
                         if (convertFactory == null) {
                             // Skip implicit casting: no such converter function exists
@@ -3264,10 +3259,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             TypeConflictedField tcf,
             Set<String> explicitlyCastedFieldNames
         ) {
-            if (explicitlyCastedFieldNames.contains(fieldAttribute.name())) {
-                return fieldAttribute;
-            }
-            return fallbackToMappedType(fieldAttribute, tcf);
+            return explicitlyCastedFieldNames.contains(fieldAttribute.name()) ? fieldAttribute : fallbackToMappedType(fieldAttribute, tcf);
         }
     }
 
@@ -3285,13 +3277,12 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
     private static FieldAttribute fallbackToMappedType(FieldAttribute fieldAttribute, TypeConflictedField tcf) {
         DataType type = tcf.types().iterator().next().widenSmallNumeric();
-        EsField restoredField = new EsField(tcf.getName(), type, tcf.getProperties(), false, tcf.getTimeSeriesFieldType());
         return new FieldAttribute(
             fieldAttribute.source(),
             fieldAttribute.parentName(),
             fieldAttribute.qualifier(),
             fieldAttribute.name(),
-            restoredField,
+            new EsField(tcf.getName(), type, tcf.getProperties(), false, tcf.getTimeSeriesFieldType()),
             fieldAttribute.nullable(),
             fieldAttribute.id(),
             fieldAttribute.synthetic()

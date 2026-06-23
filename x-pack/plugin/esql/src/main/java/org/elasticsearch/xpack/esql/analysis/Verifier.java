@@ -36,6 +36,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
 import org.elasticsearch.xpack.esql.core.type.TypeConflictedField;
+import org.elasticsearch.xpack.esql.core.type.UnionTypeEsField;
 import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.function.TimestampAware;
@@ -130,7 +131,7 @@ public class Verifier {
         ConfigurationAware.verifyNoMarkerConfiguration(plan, failures);
 
         // Temporary guard before we implement https://github.com/elastic/elasticsearch/issues/141995.
-        // Single-type PUNK usage is allowed in expressions under LOAD, but renaming such fields is still rejected.
+        // PUNK usage is allowed in expressions under LOAD, but renaming a PUNK that fell back to its mapped type is still rejected.
         // This check runs before the bail-out so that a query with both an UnsupportedAttribute and an illegal
         // PUNK rename produces both errors in one batch.
         if (unmappedResolution == UnmappedResolution.LOAD) {
@@ -538,12 +539,12 @@ public class Verifier {
     }
 
     /**
-     * Reject renaming partially unmapped non-keyword fields (PUNKs) when {@code unmapped_fields="load"}.
-     * Single-type PUNK expression usage is allowed (values are loaded where mapped, and null where unmapped),
-     * but {@code RENAME} on such fields remains unsupported.
+     * Reject renaming partially unmapped non-keyword fields (PUNKs) when {@code unmapped_fields="load"}. PUNK expression usage is allowed
+     * (values are loaded where mapped, and null where unmapped) and convertible PUNKs that auto-cast to a {@link UnionTypeEsField} may be
+     * renamed; only non-convertible PUNKs that fell back to their mapped type are rejected.
      */
     private static void checkPartiallyUnmappedNonKeywordRenaming(LogicalPlan plan, Failures failures, AnalyzerContext context) {
-        final String errorMessage = "Using partially unmapped non-KEYWORD field [{}] is not supported with unmapped_fields=\"load\"";
+        final String errorMessage = "RENAME of partially unmapped non-KEYWORD field [{}] is not supported with unmapped_fields=\"load\"";
 
         AttributeSet punks = partiallyUnmappedNonKeywords(plan, context.indexResolution());
         Consumer<FieldAttribute> addFailureIfPunkRename = fa -> {
@@ -574,7 +575,12 @@ public class Verifier {
             if (indexResolution != null && indexResolution.isValid() && indexResolution.get().mapping().isEmpty() == false) {
                 Set<String> punkFieldNames = collectPotentiallyUnmappedNonKeywords(indexResolution.get().mapping());
                 for (Attribute attr : relation.output()) {
-                    if (attr instanceof FieldAttribute fa && punkFieldNames.contains(fa.fieldName().string())) {
+                    // A PUNK that resolved to a UnionTypeEsField is properly typed and may be renamed: this covers both explicit casts
+                    // (e.g. punk_field::long) and auto-cast convertible two-legged PUNKs (e.g. a double field). Only non-convertible PUNKs
+                    // that fell back to their mapped type are rejected by the rename guard.
+                    if (attr instanceof FieldAttribute fa
+                        && punkFieldNames.contains(fa.fieldName().string())
+                        && fa.field() instanceof UnionTypeEsField == false) {
                         punks.add(fa);
                     }
                 }

@@ -698,3 +698,12 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
   method: test {csv-spec:ip_location.*}
   issue: https://github.com/elastic/elasticsearch/issues/151950
+- class: org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcherIT
+  method: testSearchNodePrefetchesOnlyLatestGenerationOnFirstCommitNotification
+  issue: https://github.com/elastic/elasticsearch/issues/151992
+- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
+  method: test {csv-spec:spatial-jts.stSimplifyCartesianShape}
+  issue: https://github.com/elastic/elasticsearch/issues/152004
+- class: org.elasticsearch.snapshots.SnapshotStressTestsIT
+  method: testRandomActivities
+  issue: https://github.com/elastic/elasticsearch/issues/152005

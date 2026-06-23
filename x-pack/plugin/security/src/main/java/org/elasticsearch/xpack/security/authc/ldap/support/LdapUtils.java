@@ -37,12 +37,10 @@ import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.security.support.Exceptions;
 
-import java.text.MessageFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import java.util.Locale;
 
 import javax.naming.ldap.Rdn;
 
@@ -451,9 +449,11 @@ public final class LdapUtils {
     }
 
     public static Filter createFilter(String filterTemplate, String... arguments) throws LDAPException {
-        return Filter.create(
-            new MessageFormat(filterTemplate, Locale.ROOT).format(encodeFilterValues(arguments), new StringBuffer(), null).toString()
-        );
+        String filter = filterTemplate;
+        for (int i = 0; i < arguments.length; i++) {
+            filter = filter.replace("{" + i + "}", Filter.encodeValue(arguments[i]));
+        }
+        return Filter.create(filter);
     }
 
     public static String[] attributesToSearchFor(String[] attributes) {
@@ -470,12 +470,7 @@ public final class LdapUtils {
         return attributes.isEmpty() ? attributesToSearchFor((String[]) null) : attributes.toArray(new String[attributes.size()]);
     }
 
-    private static String[] encodeFilterValues(String... arguments) {
-        for (int i = 0; i < arguments.length; i++) {
-            arguments[i] = Filter.encodeValue(arguments[i]);
-        }
-        return arguments;
-    }
+
 
     private static class SingleEntryListener extends LdapSearchResultListener {
 

@@ -18,6 +18,8 @@ import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.test.ListMatcher;
+import org.elasticsearch.test.MapMatcher;
 import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -335,7 +337,12 @@ public class CsvFlattenedKeywordIT extends CsvIT {
         missing.removeAll(mappedCovered);
         missing.sort(Comparator.naturalOrder());
 
-        assertEquals("Missing field_extract coverage for parameters", EXPECTED_MISSING, missing);
+        ListMatcher expectedMatcher = ListMatcher.matchesList();
+        for (String m : EXPECTED_MISSING) {
+            expectedMatcher = expectedMatcher.item(m);
+        }
+
+        MapMatcher.assertMap("Missing field_extract coverage for parameters\n", missing, expectedMatcher);
     }
 
     @AfterClass
@@ -1411,29 +1418,22 @@ public class CsvFlattenedKeywordIT extends CsvIT {
         "ENDS_WITH:suffix",
         "FIRST_OVER_TIME:field",
         "FROM_BASE64:string",
-        "GREATER_THAN:lhs",
         "GREATER_THAN:rhs",
-        "GREATER_THAN_OR_EQUAL:lhs",
         "GREATER_THAN_OR_EQUAL:rhs",
         "GREATEST:first",
         "GREATEST:rest",
         "HASH:algorithm",
         "IN:field",
         "IN:inlist",
-        "IS_NOT_NULL:field",
-        "IS_NULL:field",
         "JSON_EXTRACT:string",
         "KNN:field",
         "KQL:query",
         "LAST_OVER_TIME:field",
         "LEAST:first",
         "LEAST:rest",
-        "LESS_THAN:lhs",
         "LESS_THAN:rhs",
-        "LESS_THAN_OR_EQUAL:lhs",
         "LESS_THAN_OR_EQUAL:rhs",
         "LIKE:pattern",
-        "LIKE:str",
         "LOCATE:substring",
         "LTRIM:string",
         "MATCH:field",

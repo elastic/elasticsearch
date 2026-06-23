@@ -13,6 +13,7 @@ import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.function.Function;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.expression.function.DocsV3Support;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.MatchOperator;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.InSubquery;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
@@ -827,6 +828,13 @@ public final class AstKeywordFieldRewriter {
                 }
             } else {
                 expressionName = expression.getClass().getSimpleName().toUpperCase(Locale.ROOT);
+            }
+
+            for (DocsV3Support.OperatorConfig config : DocsV3Support.OPERATORS.values()) {
+                if (config.clazz().getName().equals(expression.getClass().getName())) {
+                    expressionName = config.name().toUpperCase(Locale.ROOT);
+                    break;
+                }
             }
 
             int i = 0;

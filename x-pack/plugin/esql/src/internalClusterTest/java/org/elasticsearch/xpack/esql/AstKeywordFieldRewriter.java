@@ -188,7 +188,10 @@ public final class AstKeywordFieldRewriter {
     private static String getExpressionName(Expression expression) {
         if (expression instanceof org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction unf) {
             String name = unf.name().toUpperCase(Locale.ROOT);
-            if (name.equals("TO_INT")) return "TO_INTEGER";
+            if (name.equals("TO_INT")) {
+                // TODO remove the weird hack for TO_INT.
+                return "TO_INTEGER";
+            }
             return name;
         }
 
@@ -860,6 +863,7 @@ public final class AstKeywordFieldRewriter {
             for (Expression child : expression.children()) {
                 // Heuristic to map variadic args to the last named param, or just skip if we don't care
                 // but IN and CONCAT can just cap at 1.
+                // TODO use a `kind` marker for varargs somehow.
                 int argIndex = i;
                 if (expressionName != null) {
                     if (expressionName.equals("CONCAT") && argIndex > 1) argIndex = 1;

@@ -18,12 +18,9 @@ import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Map;
-import java.util.Objects;
-import java.util.function.Function;
+import java.util.Set;
 
-import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.inference.ModelConfigurations.SERVICE_SETTINGS;
 import static org.elasticsearch.xpack.inference.common.oauth2.OAuth2Secrets.CLIENT_SECRET_FIELD;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalSecureString;
@@ -37,12 +34,9 @@ public abstract class AzureOpenAiSecretSettings implements SecretSettings {
     public static final String API_KEY = "api_key";
     public static final String ENTRA_ID = "entra_id";
 
-    public static final String EXACTLY_ONE_SECRETS_FIELD_ERROR = format(
-        "[service_settings] must have exactly one of [%s], [%s], or [%s] field set",
-        API_KEY,
-        ENTRA_ID,
-        CLIENT_SECRET_FIELD
-    );
+    private static final Set<String> SECRET_FIELDS = Set.of(API_KEY, ENTRA_ID, CLIENT_SECRET_FIELD);
+
+    public static final String EXACTLY_ONE_SECRETS_FIELD_ERROR = SecretSettings.exactlyOneFieldError(SERVICE_SETTINGS, SECRET_FIELDS);
 
     public static final String EXACTLY_ONE_CONFIG_DESCRIPTION =
         "You must provide exactly one of API key, Entra ID, or OAuth2 client secret.";
@@ -57,13 +51,7 @@ public abstract class AzureOpenAiSecretSettings implements SecretSettings {
 
         var extractedSecretsMap = extractSecretsMap(map);
 
-        var validationException = new ValidationException();
-        if (extractedSecretsMap.isEmpty()) {
-            validationException.addValidationError(EXACTLY_ONE_SECRETS_FIELD_ERROR);
-        } else if (extractedSecretsMap.size() > 1) {
-            validationException.addValidationError(EXACTLY_ONE_SECRETS_FIELD_ERROR + ", received: " + extractedSecretsMap.keySet());
-        }
-        validationException.throwIfValidationErrorsExist();
+        SecretSettings.validateExactlyOneField(extractedSecretsMap, SERVICE_SETTINGS, SECRET_FIELDS);
 
         if (extractedSecretsMap.containsKey(API_KEY)) {
             return new AzureOpenAiEntraIdApiKeySecrets(extractedSecretsMap.get(API_KEY), null);
@@ -136,25 +124,4 @@ public abstract class AzureOpenAiSecretSettings implements SecretSettings {
 
     /** Apply a non-empty update; subclasses enforce which fields they allow. */
     protected abstract AzureOpenAiSecretSettings updated(Map<String, SecureString> provided);
-
-    /**
-     * Single-field update: return {@code this} when {@code allowedField} is unchanged, build a new
-     * instance via {@code factory} when it differs, throw if any other field is present.
-     */
-    protected final AzureOpenAiSecretSettings updateOnlyField(
-        String allowedField,
-        SecureString currentValue,
-        Map<String, SecureString> provided,
-        Function<SecureString, AzureOpenAiSecretSettings> factory
-    ) {
-        if (provided.size() > 1 || provided.containsKey(allowedField) == false) {
-            var disallowed = new HashSet<>(provided.keySet());
-            disallowed.remove(allowedField);
-            throw new ValidationException().addValidationError(
-                format("[service_settings] only [%s] can be updated for this secret, received: %s", allowedField, disallowed)
-            );
-        }
-        var newValue = provided.get(allowedField);
-        return Objects.equals(newValue, currentValue) ? this : factory.apply(newValue);
-    }
 }

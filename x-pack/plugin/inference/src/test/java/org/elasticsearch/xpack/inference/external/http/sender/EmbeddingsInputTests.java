@@ -7,9 +7,10 @@
 
 package org.elasticsearch.xpack.inference.external.http.sender;
 
+import org.elasticsearch.inference.InferenceObjectRamBytesUsedTest;
 import org.elasticsearch.inference.InferenceString;
 import org.elasticsearch.inference.InferenceStringGroup;
-import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.inference.InputType;
 
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -19,7 +20,26 @@ import static org.elasticsearch.inference.DataType.IMAGE;
 import static org.elasticsearch.inference.InferenceStringTests.TEST_DATA_URI;
 import static org.hamcrest.Matchers.is;
 
-public class EmbeddingsInputTests extends ESTestCase {
+public class EmbeddingsInputTests extends InferenceObjectRamBytesUsedTest<EmbeddingsInput> {
+
+    private static final InferenceStringGroup INFERENCE_STRING_GROUP = new InferenceStringGroup("input");
+    private static final InputType INPUT_TYPE = InputType.INGEST;
+
+    @Override
+    public EmbeddingsInput objectToEstimate() {
+        return new EmbeddingsInput(List.of(INFERENCE_STRING_GROUP), INPUT_TYPE, true);
+    }
+
+    @Override
+    public List<EmbeddingsInput> objectsToEstimateWithLargerInput() {
+        return List.of(
+            // More InferenceStringGroups
+            new EmbeddingsInput(List.of(INFERENCE_STRING_GROUP, INFERENCE_STRING_GROUP), INPUT_TYPE, true),
+            // Larger eager calculated size
+            new EmbeddingsInput(() -> List.of(INFERENCE_STRING_GROUP), 10_000L, INPUT_TYPE)
+        );
+    }
+
     public void testCallingGetInputs_invokesSupplier() {
         AtomicBoolean invoked = new AtomicBoolean();
         final List<InferenceStringGroup> list = List.of(

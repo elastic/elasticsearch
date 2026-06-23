@@ -97,7 +97,7 @@ class ProviderClassWriter {
                         code.invokestatic(CD_Platform, "current", MTD_Platform_current);
                         code.astore(1);
                         for (String platformName : model.unavailableOn()) {
-                            // if (p == Platform.<X>) return null;
+                            // if (p == Platform.<platformName>) return null;
                             Label skip = code.newLabel();
                             code.aload(1);
                             code.getstatic(CD_Platform, platformName, CD_Platform);

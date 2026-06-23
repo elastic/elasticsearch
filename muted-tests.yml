@@ -677,3 +677,21 @@ tests:
 - class: org.elasticsearch.action.search.SearchQueryThenFetchAsyncActionTests
   method: testScrollDisableBottomFieldSort
   issue: https://github.com/elastic/elasticsearch/issues/151862
+- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
+  method: test {csv-spec:string.convertFromUnsignedLong}
+  issue: https://github.com/elastic/elasticsearch/issues/151871
+- class: org.elasticsearch.index.store.BytesReadHeaderIT
+  method: testMultipleIndicesAccumulateBytesRead
+  issue: https://github.com/elastic/elasticsearch/issues/151874
+- class: org.elasticsearch.xpack.stateless.commits.StatelessFileDeletionIT
+  method: testDeleteIndexAfterRecovery
+  issue: https://github.com/elastic/elasticsearch/issues/151884
+- class: org.elasticsearch.repositories.gcs.GoogleCloudStorageThirdPartyTests
+  method: testStorageClassPerOperationPurpose
+  issue: https://github.com/elastic/elasticsearch/issues/151924
+- class: org.elasticsearch.xpack.inference.integration.SemanticFieldFieldsApiIT
+  method: testFetchingMixedTextAndImageChunks
+  issue: https://github.com/elastic/elasticsearch/issues/151928
+- class: org.elasticsearch.xpack.inference.integration.SemanticFieldFieldsApiIT
+  method: testFetchingMixedTextAndImageValues
+  issue: https://github.com/elastic/elasticsearch/issues/151929
